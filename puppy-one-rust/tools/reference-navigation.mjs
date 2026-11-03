@@ -9,7 +9,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const receiptPath = path.join(root, 'fixtures/editor/navigation-reference.json');
 const fixturePath = path.join(root, 'fixtures/editor/navigation.json');
 const {build} = await import(pathToFileURL(path.join(productRoot, 'node_modules/esbuild/lib/main.js')));
-const base = './packages/shared-ui/src/editor/markdown/';
+const base = './src/shared-ui/editor/markdown/';
 const bundle = await build({stdin:{contents:`export {createMarkdownLinkGraph} from '${base}core/links/markdownLinkGraph.ts'; export {createMarkdownHeadingIndex} from '${base}core/links/markdownHeadingIndex.ts'; export {getSafeMarkdownHref} from '${base}platform/policy/markdownUrlPolicy.ts';`,resolveDir:productRoot},absWorkingDir:productRoot,bundle:true,write:false,platform:'node',format:'esm',metafile:true});
 const inputs = {};
 for (const input of Object.keys(bundle.metafile.inputs).filter(p => p !== '<stdin>').sort()) {

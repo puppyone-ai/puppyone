@@ -1,6 +1,6 @@
 # Native editor architecture
 
-The native editors mirror the product's `packages/shared-ui/src/editor` and
+The native editors mirror the product's `src/shared-ui/editor` and
 `src/features/editor-workbench`. Text is laid out and painted by GPUI Kit's
 `editor_host` (never modified); everything around the text — documents,
 decorations, boxes, selection, caret, IME, pointer, widgets — is ours.
@@ -51,7 +51,7 @@ Do not mistake that safety barrier for a no-loss model/history rebase.
 
 ## Viewers (`registry/`, `viewers/`)
 
-The product's editor extensibility (`packages/shared-ui/src/editor/registry`)
+The product's editor extensibility (`src/shared-ui/editor/registry`)
 with the same layers and names:
 
 1. **Formats** (`crate::formats`): which format a file is — the product's

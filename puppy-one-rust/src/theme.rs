@@ -1,9 +1,9 @@
 //! The single native source of product colour, geometry and type.
 //!
 //! Values are traced to the Web product, never chosen locally:
-//! - colour primitives: `sub-themes/default-neutral/theme.css` (light `:root`, `.dark .theme-root`);
+//! - colour primitives: `src/features/themes/builtin/default-neutral/theme.css` (light `:root`, `.dark .theme-root`);
 //! - semantic tier (sidebar text, shell/sidebar dividers, tree guide, menu…): `src/styles/tokens.css`;
-//! - control geometry: `packages/shared-ui/src/styles/control-geometry.css` and `tokens.css`;
+//! - control geometry: `src/shared-ui/styles/control-geometry.css` and `tokens.css`;
 //! - type roles per text-size preset: `src/features/typography/fontCatalog.ts`.
 //!
 //! Units are logical pixels. Feature code composes `Theme` fields and the

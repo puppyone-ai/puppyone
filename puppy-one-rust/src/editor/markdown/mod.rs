@@ -1,4 +1,4 @@
-//! Native Markdown editor (product `packages/shared-ui/src/editor/markdown`):
+//! Native Markdown editor (product `src/shared-ui/editor/markdown`):
 //! the Markdown source is the only document truth; syntax → plans and block
 //! rhythm → decorations → the GPUI Kit based view (`editor::view`).
 //!

@@ -1,5 +1,5 @@
 //! `FloatingNotice` / `FloatingNoticeStack` / `FloatingNoticeAction`
-//! (`packages/shared-ui/src/primitives/FloatingNotice.tsx`,
+//! (`src/shared-ui/primitives/FloatingNotice.tsx`,
 //! `styles/floating-notice.css`): transient, non-modal feedback floating over
 //! a product surface. The stack owns the position and never takes input
 //! itself; each notice carries its tone glyph, the message, inline commands

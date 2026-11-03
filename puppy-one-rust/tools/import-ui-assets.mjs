@@ -21,22 +21,22 @@ async function output(name, bytes) {
 const bundle=await importProductModule(product, `
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {PRODUCT_ICONS} from './packages/shared-ui/src/icons/productIcons';
-export * from './packages/shared-ui/src/primitives/orderedDitherField';
-import {TestLocalizationProvider} from './packages/localization/src/testing/TestLocalizationProvider';
-import {LoadingMark, LOADING_MARK_DITHER_LIGHT} from './packages/shared-ui/src/primitives/LoadingMark';
+import {PRODUCT_ICONS} from './src/shared-ui/icons/productIcons';
+export * from './src/shared-ui/primitives/orderedDitherField';
+import {TestLocalizationProvider} from './src/lib/localization/testing/TestLocalizationProvider';
+import {LoadingMark, LOADING_MARK_DITHER_LIGHT} from './src/shared-ui/primitives/LoadingMark';
 export {LOADING_MARK_DITHER_LIGHT};
 const registry=PRODUCT_ICONS;
 export const icons=Object.fromEntries(Object.entries(registry).map(([name,Icon])=>[name,renderToStaticMarkup(<Icon size={name==='disclosure'?12:24} strokeWidth={2}/>)]));
 export function mark(style,size,layout){return renderToStaticMarkup(<TestLocalizationProvider><LoadingMark size={size} layout={layout} loadingStyle={style} ariaHidden/></TestLocalizationProvider>);}
 `);
 for(const file of [
-  'packages/shared-ui/src/icons/productIcons.tsx',
+  'src/shared-ui/icons/productIcons.tsx',
   'node_modules/lucide-react/package.json','node_modules/lucide-react/dist/esm/icons/folder-closed.js','node_modules/lucide-react/dist/esm/icons/laptop.js',
-  'packages/shared-ui/src/styles/product-icons.css', 'packages/shared-ui/src/primitives/LoadingMark.tsx',
-  'packages/shared-ui/src/primitives/LoadingPlaceholder.tsx', 'packages/shared-ui/src/primitives/orderedDitherField.ts',
-  'packages/shared-ui/src/primitives/OrderedDither.tsx', 'packages/shared-ui/src/styles/loading-mark.css',
-  'packages/shared-ui/src/styles/loading-placeholder.css', 'src/components/loading/index.tsx',
+  'src/shared-ui/styles/product-icons.css', 'src/shared-ui/primitives/LoadingMark.tsx',
+  'src/shared-ui/primitives/LoadingPlaceholder.tsx', 'src/shared-ui/primitives/orderedDitherField.ts',
+  'src/shared-ui/primitives/OrderedDither.tsx', 'src/shared-ui/styles/loading-mark.css',
+  'src/shared-ui/styles/loading-placeholder.css', 'src/components/loading/index.tsx',
 ])await source(file);
 const icons={};
 for(const [name,markup] of Object.entries(bundle.icons)) {

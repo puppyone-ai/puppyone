@@ -196,7 +196,7 @@ pub enum Operation {
     Unstage(Change),
     Discard(Change),
     /// An empty message commits with the product default
-    /// (`normalizeCommitMessage` in `local-api/workspace.mjs`).
+    /// (`normalizeCommitMessage` in `electron/local-api/workspace.mjs`).
     Commit(String),
     /// "Stage and Commit": stage every local change, then commit.
     StageAndCommit,

@@ -1,4 +1,4 @@
-//! The viewer registry: a port of `packages/shared-ui/src/editor/registry`.
+//! The viewer registry: a port of `src/shared-ui/editor/registry`.
 //!
 //! ```text
 //! formats            which format a file is (crate::formats)

@@ -1,4 +1,4 @@
-//! `EditorTaskScheduler` (`packages/shared-ui/src/editor/runtime/EditorTaskScheduler.ts`):
+//! `EditorTaskScheduler` (`src/shared-ui/editor/runtime/EditorTaskScheduler.ts`):
 //! versioned admission for bounded editor work (format parsing, page
 //! rendering, conversion). Work runs on worker threads; this owner decides
 //! when it may start, how many run at once and when an exit is confirmed.

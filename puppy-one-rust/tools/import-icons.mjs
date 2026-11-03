@@ -24,12 +24,12 @@ await copyFile(path.join(modules, 'lucide-react/LICENSE'), path.join(root, 'asse
 await writeFile(path.join(root, 'assets/icons', 'agent-entry.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12A4.5 4.5 0 0 1 22.5 8v5.5A4.5 4.5 0 0 1 18 18h-7l-3.9 3.05a1.1 1.1 0 0 1-1.77-.98l.25-2.55A4.5 4.5 0 0 1 1.5 13.5V8A4.5 4.5 0 0 1 6 3.5Z"/></svg>\n`);
 // Product-owned FeedbackHelpIcon (src/features/app-shell/DesktopHelpLauncher.tsx), stroke-width 1.65.
 await writeFile(path.join(root, 'assets/icons', 'feedback-help.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9.2C9.35 7.65 10.45 6.8 12 6.8C13.78 6.8 14.9 7.75 14.9 9.3C14.9 10.55 14.25 11.2 13.2 11.9C12.4 12.43 12 13 12 13.75"/><circle cx="12" cy="17" r="0.82" fill="white" stroke="none"/></svg>\n`);
-// Product-owned TextEditorFrame mode icons (packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx).
+// Product-owned TextEditorFrame mode icons (src/shared-ui/editor/viewers/shared/TextEditorFrame.tsx).
 const frame = body => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>\n`;
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-edit.svg'), frame('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'));
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-source.svg'), frame('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'));
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), frame('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'));
-// Product-owned TreeDisclosureMarker (packages/shared-ui/src/data/ExplorerTree.tsx): a
+// Product-owned TreeDisclosureMarker (src/shared-ui/data/ExplorerTree.tsx): a
 // 12-unit chevron at stroke 1.6; the open state is the same path turned 90°.
 const disclosure = d => `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>\n`;
 await writeFile(path.join(root, 'assets/icons', 'tree-disclosure.svg'), disclosure('M4 2.5 7.5 6 4 9.5'));
@@ -65,12 +65,12 @@ await writeFile(path.join(root, 'assets/icons', 'textarea-resizer-highlight.svg'
   parts['agent-glyph-write'] = parts['agent-glyph-write-base'] + parts['agent-glyph-ink'] + parts['agent-glyph-pen'];
   for (const [name, body] of Object.entries(parts)) await writeFile(path.join(root, 'assets/icons', `${name}.svg`), glyph(body));
 }
-// Product-owned editable-table menu icons (packages/shared-ui/src/editor/table/editableTableMenuIcons.ts,
+// Product-owned editable-table menu icons (src/shared-ui/editor/table/editableTableMenuIcons.ts,
 // drawn by EditableTableMenuIcon.tsx at stroke-width 1.75).
 {
   const { readFile } = await import('node:fs/promises');
   const product = path.resolve(modules, '..');
-  const source = await readFile(path.join(product, 'packages/shared-ui/src/editor/table/editableTableMenuIcons.ts'), 'utf8');
+  const source = await readFile(path.join(product, 'src/shared-ui/editor/table/editableTableMenuIcons.ts'), 'utf8');
   const table = body => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${body}</svg>\n`;
   for (const [, name, paths] of source.matchAll(/^\s*"?([a-z-]+)"?: icon\(((?:path\("[^"]*"\)(?:, )?)+)\),$/gm)) {
     const body = [...paths.matchAll(/path\("([^"]*)"\)/g)].map(([, d]) => `<path d="${d}"/>`).join('');

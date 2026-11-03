@@ -20,9 +20,9 @@ const width=Number(process.env.PUPPYONE_WIDTH??1280),height=Number(process.env.P
 const right=process.env.PUPPYONE_RIGHT==='1';
 const out=path.resolve(root,process.env.PUPPYONE_REFERENCE??`artifacts/reference-${dark?'dark':'light'}.png`);
 const read=p=>readFile(path.join(repo,p),'utf8');
-const cssPaths=['packages/shared-ui/src/styles/control-geometry.css','src/styles/typography/foundations.css','src/styles/tokens.css','src/styles/scrollbars.css','src/styles/titlebar.css','src/styles/shell.css','packages/shared-ui/src/styles/data-workspace.css','src/features/data-workspace/browser.css','src/features/data-workspace/data-shell.css'];
+const cssPaths=['src/shared-ui/styles/control-geometry.css','src/styles/typography/foundations.css','src/styles/tokens.css','src/styles/scrollbars.css','src/styles/titlebar.css','src/styles/shell.css','src/shared-ui/styles/data-workspace.css','src/features/data-workspace/browser.css','src/features/data-workspace/data-shell.css'];
 const css=(await Promise.all(cssPaths.map(read))).join('\n');
-const theme=await read('sub-themes/default-neutral/theme.css');
+const theme=await read('src/features/themes/builtin/default-neutral/theme.css');
 const lightTokens=theme.match(/@puppyone application\s*\{\s*:root\s*\{([\s\S]*?)\n  \}/)[1];
 const darkTokens=theme.match(/\.dark \.theme-root\s*\{([\s\S]*?)\n  \}/)[1];
 const font=(await readFile(path.join(repo,'public/fonts/geist/Geist-Variable.woff2'))).toString('base64');
@@ -80,9 +80,9 @@ try {
  const geometry=await win.webContents.executeJavaScript(`Object.fromEntries(['.desktop-titlebar','.fixture-left','.fixture-footer','.fixture-editor','.fixture-right','.desktop-titlebar-workspace-button','.desktop-titlebar-changes','.desktop-titlebar-terminal','.tree-row'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return [s,[r.x,r.y,r.width,r.height]]}))`);
  await mkdir(path.dirname(out),{recursive:true});
  await writeFile(out,(await win.webContents.capturePage()).toPNG());
- // Home fixture correction: DesktopCloudShell.tsx renders House at 14 / 1.65,
+ // Home fixture correction: ProjectShell.tsx renders House at 14 / 1.65,
  // not the old hand-written 16 / 1.8. This remains synthetic, not real Header TSX.
- const sourcePaths=[...cssPaths,'src/components/DesktopCloudShell.tsx','sub-themes/default-neutral/theme.css','public/fonts/geist/Geist-Variable.woff2'];
+ const sourcePaths=[...cssPaths,'src/components/ProjectShell.tsx','src/features/themes/builtin/default-neutral/theme.css','public/fonts/geist/Geist-Variable.woff2'];
  const sourceHashes=Object.fromEntries(await Promise.all(sourcePaths.map(async p=>[p,createHash('sha256').update(await readFile(path.join(repo,p))).digest('hex')])));
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim();
  await writeFile(out.replace(/\.png$/,'.json'),JSON.stringify({scope:'synthetic source-CSS diagnostic, not full product parity',width,height,geometry,cssSources:cssPaths,sourceCommit,sourceHashes,electron:process.versions.electron,chrome:process.versions.chrome,fixtureRevision:2},null,2));

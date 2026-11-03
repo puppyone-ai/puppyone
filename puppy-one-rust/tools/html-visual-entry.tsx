@@ -15,9 +15,9 @@
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LocalizationProvider } from "@puppyone/localization/react";
-import { CodeMirrorDocumentModel, externalDocumentUpdate } from "./packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
-import { HtmlVisualSurface } from "./packages/shared-ui/src/editor/viewers/html/HtmlVisualSurface";
-import { DocumentAssetImportBoundary, type DocumentAssetImportPort } from "./packages/shared-ui/src/editor/resource/DocumentAssetImport";
+import { CodeMirrorDocumentModel, externalDocumentUpdate } from "./src/shared-ui/editor/document-session/CodeMirrorDocumentModel";
+import { HtmlVisualSurface } from "./src/shared-ui/editor/viewers/html/HtmlVisualSurface";
+import { DocumentAssetImportBoundary, type DocumentAssetImportPort } from "./src/shared-ui/editor/resource/DocumentAssetImport";
 import { DesktopTooltipLayer } from "./src/components/DesktopTooltipLayer";
 
 type Boot = Readonly<{

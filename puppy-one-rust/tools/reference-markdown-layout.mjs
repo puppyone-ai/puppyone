@@ -7,8 +7,8 @@ import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import {productRoot} from './product-source.mjs';
 const root = path.resolve(import.meta.dirname, '..');
-const source = 'packages/shared-ui/src/editor/markdown/features/table/markdownTableColumnLayout.ts';
-const geometry = 'packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedTableColumnGeometry.ts';
+const source = 'src/shared-ui/editor/markdown/features/table/markdownTableColumnLayout.ts';
+const geometry = 'src/shared-ui/editor/markdown/platform/codemirror/embeddedTableColumnGeometry.ts';
 const modules = process.env.PUPPYONE_NODE_MODULES ?? path.join(productRoot, 'node_modules');
 const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
 const bundle = await build({entryPoints: [path.join(productRoot, source)], bundle: true, write: false, platform: 'node', format: 'esm'});
@@ -26,7 +26,7 @@ const cases = [];
 for (const [table, rows] of Object.entries(tables)) for (const width of [150, 320, 724, 1000]) for (const font of [12, 13, 14]) {
   const model = rows.map((cells, index) => ({header: index === 0, cells: cells.map(text => ({text}))}));
   cases.push({id: `${table}/${width}/${font}`, table, width, font,
-    tracks: product.estimateMarkdownTableColumnWidths(Array(rows[0].length).fill(null), model, {availableWidth: width, fontSize: font, cellInset: 21})});
+    tracks: product.estimateMarkdownTableColumnWidths(Array(rows[0].length).fill(null), model, {availableWidth: width, emPx: font, cellInset: 21})});
 }
 const inputs = {};
 for (const file of [source, geometry]) inputs[file] = createHash('sha256').update(await readFile(path.join(productRoot, file))).digest('hex');

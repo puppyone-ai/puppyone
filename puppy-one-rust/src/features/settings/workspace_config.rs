@@ -1,4 +1,4 @@
-//! Port of `local-api/workspace-config.mjs` and the Settings draft rules of
+//! Port of `electron/local-api/workspace-config.mjs` and the Settings draft rules of
 //! `PuppyoneWorkspaceConfigSettings.tsx`: `<project>/.puppyone/config.json`
 //! (version 3) is normalized on read and written atomically, keeping any keys
 //! this version does not know.

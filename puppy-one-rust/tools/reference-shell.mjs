@@ -1,4 +1,4 @@
-import {productRoot} from './product-source.mjs';
+import {productAliases, productRoot} from './product-source.mjs';
 // Actual product components in an isolated Electron profile. Fixture services
 // are unavailable; this is NOT an operational Agent/Cloud or whole-App receipt.
 import {app, BrowserWindow} from 'electron';
@@ -19,14 +19,14 @@ const components={settings:'src/features/settings/SettingsDialog.tsx',project:'s
 async function run(){
  const {build}=await import(pathToFileURL(path.join(modules,'esbuild/lib/main.js')));
  const alias={'react':path.join(modules,'react'),'react-dom':path.join(modules,'react-dom'),
- '@puppyone/shared-ui/control-geometry.css':source('packages/shared-ui/src/styles/control-geometry.css'),
- '@puppyone/shared-ui/shared-ui-patterns.css':source('packages/shared-ui/src/styles/shared-ui-patterns.css'),
- '@puppyone/shared-ui/editor.css':source('packages/shared-ui/src/styles/editor.css'),
- '@puppyone/shared-ui/markdown-presentation-preview':source('packages/shared-ui/src/markdown-presentation-preview.ts'),
- '@puppyone/shared-ui':source('packages/shared-ui/src/index.ts'),
- '@puppyone/localization/core':source('packages/localization/src/core/index.ts'),
- '@puppyone/localization/react':source('packages/localization/src/react/index.ts'),
- '@puppyone/localization':source('packages/localization/src/index.ts')};
+ '@puppyone/shared-ui/control-geometry.css':source('src/shared-ui/styles/control-geometry.css'),
+ '@puppyone/shared-ui/shared-ui-patterns.css':source('src/shared-ui/styles/shared-ui-patterns.css'),
+ '@puppyone/shared-ui/editor.css':source('src/shared-ui/styles/editor.css'),
+ '@puppyone/shared-ui/markdown-presentation-preview':source('src/shared-ui/markdown-presentation-preview.ts'),
+ '@puppyone/shared-ui':source('src/shared-ui/index.ts'),
+ '@puppyone/localization/core':source('src/lib/localization/core/index.ts'),
+ '@puppyone/localization/react':source('src/lib/localization/react/index.ts'),
+ '@puppyone/localization':source('src/lib/localization/index.ts')};
  const catalogs={},catalogPaths=[];
  for(const locale of ['en','zh-Hans']){catalogs[locale]={};for(const ns of ['settings','shell','common','updates','shared-ui','workspace','agent','terminal']){
   const p=`locales/renderer/${locale}/${ns}.json`;catalogPaths.push(p);
@@ -62,9 +62,8 @@ async function run(){
  if(window.fixture.surface==='agent') body=<div style={{position:'absolute',right:0,top:40,bottom:0,width:360,display:'grid',gridTemplateRows:'1fr'}}><AuxiliaryWorkbenchLauncher store={store} contributions={[]} hiddenAgentIds={[]} groupId={null} itemId={null} presented={false}/></div>;
  return <LocalizationProvider {...localization}>{body}</LocalizationProvider>;
  };createRoot(document.getElementById('root')).render(<Fixture/>);`;
- const sharedPackage=JSON.parse(await readFile(source('packages/shared-ui/package.json'),'utf8'));
- // Respect package CSS entrypoints without resolving a different worktree.
- for(const [key,value] of Object.entries(sharedPackage.exports??{}))if(key.endsWith('.css')&&typeof value==='string')alias[`@puppyone/shared-ui/${key.slice(2)}`]=source(`packages/shared-ui/${value}`);
+ // The product's CSS entrypoints, resolved inside this checkout.
+ for(const [key,value] of Object.entries(productAliases(repo)))if(key.startsWith('@puppyone/shared-ui/'))alias[key]=value;
  const plugins=[{name:'offline-public-assets',setup(b){b.onResolve({filter:/^\/(fonts|assets)\//},args=>({path:source(`public${args.path}`)}));}}];
  const bundle=await build({absWorkingDir:repo,stdin:{contents:input,resolveDir:repo,loader:'tsx'},nodePaths:[modules],alias,plugins,bundle:true,write:false,format:'esm',platform:'browser',jsx:'automatic',define:{'process.env.NODE_ENV':'"production"','import.meta.env':JSON.stringify({DEV:false,PROD:true,MODE:'production',BASE_URL:pathToFileURL(source('public')).href+'/'})},loader:{'.woff2':'dataurl','.woff':'dataurl','.ttf':'dataurl','.svg':'dataurl','.png':'dataurl'},metafile:true,outfile:'fixture.js'});
  const css=await build({absWorkingDir:repo,entryPoints:[source('src/styles/cascade.css'),source('src/styles.css')],nodePaths:[modules],alias,plugins,bundle:true,write:false,loader:{'.woff2':'dataurl','.woff':'dataurl','.ttf':'dataurl','.svg':'dataurl','.png':'dataurl'},metafile:true,outdir:'fixture-css'});
@@ -76,7 +75,7 @@ async function run(){
  const inputs=[...new Set([...Object.keys(bundle.metafile.inputs),...Object.keys(css.metafile.inputs),...catalogPaths,themePath])].filter(p=>!p.startsWith('<')&&!p.startsWith('(disabled):'));
  const hashes=Object.fromEntries(await Promise.all(inputs.map(async p=>[p,createHash('sha256').update(await readFile(path.resolve(repo,p.split('?')[0]))).digest('hex')])));
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim();
- const workingTree=execFileSync('git',['status','--porcelain','--',...Object.values(components),'src/styles','packages/shared-ui','locales'],{cwd:repo,encoding:'utf8'}).trim();
+ const workingTree=execFileSync('git',['status','--porcelain','--',...Object.values(components),'src/styles','src/shared-ui','locales'],{cwd:repo,encoding:'utf8'}).trim();
  await mkdir(out,{recursive:true});await app.whenReady();
  for(const surface of Object.keys(components))for(const mode of ['light','dark'])for(const locale of ['en','zh-Hans']){
   const win=new BrowserWindow({width:1280,height:800,frame:false,show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});

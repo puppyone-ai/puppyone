@@ -1,5 +1,5 @@
 //! When a project last changed, for the homepage (`readWorkspaceModifiedAt`
-//! in `local-api/files/workspace-activity.mjs`). Read-only and bounded: it
+//! in `electron/local-api/files/workspace-activity.mjs`). Read-only and bounded: it
 //! never uses the opening time and never reads file contents.
 //!
 //! - A Git repository: the newest of the HEAD commit time and the change

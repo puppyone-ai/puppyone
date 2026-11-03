@@ -9,9 +9,9 @@ const root = path.resolve(import.meta.dirname, '..');
 const receiptPath = path.join(root, 'fixtures/editor/code-reference.json');
 const fixturePath = path.join(root, 'fixtures/editor/code.json');
 const {build} = await import(pathToFileURL(path.join(productRoot, 'node_modules/esbuild/lib/main.js')));
-const bundle = await build({stdin:{contents:`export {resolveCodeLanguageKey,loadCodeLanguageExtension} from './packages/shared-ui/src/editor/code/codeLanguageSupport.ts'; export {SearchQuery} from '@codemirror/search'; export {EditorState} from '@codemirror/state'; export {indentUnit} from '@codemirror/language';`,resolveDir:productRoot},absWorkingDir:productRoot,bundle:true,write:false,platform:'node',format:'esm',metafile:true});
+const bundle = await build({stdin:{contents:`export {resolveCodeLanguageKey,loadCodeLanguageExtension} from './src/shared-ui/editor/code/codeLanguageSupport.ts'; export {SearchQuery} from '@codemirror/search'; export {EditorState} from '@codemirror/state'; export {indentUnit} from '@codemirror/language';`,resolveDir:productRoot},absWorkingDir:productRoot,bundle:true,write:false,platform:'node',format:'esm',metafile:true});
 const inputs = {};
-const productFiles = ['packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx','packages/shared-ui/src/editor/find/codeMirrorFindAdapter.ts','packages/shared-ui/src/styles/editor/code-editor.css'];
+const productFiles = ['src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor.tsx','src/shared-ui/editor/find/codeMirrorFindAdapter.ts','src/shared-ui/styles/editor/code-editor.css'];
 for (const input of [...new Set([...Object.keys(bundle.metafile.inputs).filter(p => p !== '<stdin>'), ...productFiles])].sort()) {
   inputs[input] = createHash('sha256').update(await readFile(path.join(productRoot,input))).digest('hex');
 }

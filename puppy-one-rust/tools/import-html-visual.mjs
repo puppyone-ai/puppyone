@@ -19,10 +19,10 @@ const alias = {
   'react': path.join(modules, 'react'), 'react-dom': path.join(modules, 'react-dom'),
   // Only the tooltip layer imports the package root, for isTooltipSuppressed;
   // the full barrel would bundle every viewer. A missing export fails the build.
-  '@puppyone/shared-ui': source('packages/shared-ui/src/primitives/Tooltip.tsx'),
-  '@puppyone/localization/core': source('packages/localization/src/core/index.ts'),
-  '@puppyone/localization/react': source('packages/localization/src/react/index.ts'),
-  '@puppyone/localization': source('packages/localization/src/index.ts'),
+  '@puppyone/shared-ui': source('src/shared-ui/primitives/Tooltip.tsx'),
+  '@puppyone/localization/core': source('src/lib/localization/core/index.ts'),
+  '@puppyone/localization/react': source('src/lib/localization/react/index.ts'),
+  '@puppyone/localization': source('src/lib/localization/index.ts'),
 };
 // The surface's own styles and the tokens they read. Colours are overlaid by
 // the native theme at runtime (src/editor/viewers/html_visual.rs).
@@ -32,10 +32,10 @@ const STYLES = [
   'src/styles/typography/foundations.css',
   'src/styles/typography/locales.css',
   'src/styles/typography/roles.css',
-  'packages/shared-ui/src/styles/control-geometry.css',
-  'packages/shared-ui/src/styles/loading-mark.css',
-  'packages/shared-ui/src/styles/floating-notice.css',
-  'packages/shared-ui/src/styles/editor/html-editor.css',
+  'src/shared-ui/styles/control-geometry.css',
+  'src/shared-ui/styles/loading-mark.css',
+  'src/shared-ui/styles/floating-notice.css',
+  'src/shared-ui/styles/editor/html-editor.css',
   'src/styles/tooltip.css',
 ];
 const entry = await readFile(path.join(root, 'tools/html-visual-entry.tsx'), 'utf8');

@@ -1,5 +1,5 @@
 //! The canonical file format registry: a port of
-//! `packages/shared-ui/src/core/fileFormats.ts` over the product's own table
+//! `src/shared-ui/core/fileFormats.ts` over the product's own table
 //! (`assets/formats/file-formats.json`, imported by
 //! `tools/import-formats.py`). Pure: no GPUI, no I/O.
 //!

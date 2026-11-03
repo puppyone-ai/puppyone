@@ -33,8 +33,8 @@ async function run() {
   const input = `
 import React from 'react';import {createRoot} from 'react-dom/client';
 import {LocalizationProvider} from '@puppyone/localization/react';
-import {resolveEditorViewer} from ${JSON.stringify(source('packages/shared-ui/src/editor/registry/viewerRegistry.tsx'))};
-import {PresetViewerRenderer} from ${JSON.stringify(source('packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx'))};
+import {resolveEditorViewer} from ${JSON.stringify(source('src/shared-ui/editor/registry/viewerRegistry.tsx'))};
+import {PresetViewerRenderer} from ${JSON.stringify(source('src/shared-ui/editor/host/PresetViewerRenderer.tsx'))};
 import {resolveTypography, DEFAULT_TYPOGRAPHY_PREFERENCES, withTypographyScale} from ${JSON.stringify(source('src/features/typography/fontCatalog.ts'))};
 import {applyTypographyToElement} from ${JSON.stringify(source('src/features/typography/typographyRuntime.ts'))};
 const catalogs=${JSON.stringify(catalog)};const noop=()=>{};

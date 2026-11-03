@@ -490,7 +490,7 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
 
-    /// The product's own example pack (`viewer-packs/glb/manifest.json`).
+    /// The product's own example pack (`tests/fixtures/extensions/viewer-packs/glb/manifest.json`).
     fn glb() -> Value {
         serde_json::json!({
             "schemaVersion": 1,

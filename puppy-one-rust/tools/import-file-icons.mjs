@@ -10,16 +10,16 @@ import {importProductModule,productRoot,root} from './product-bundle.mjs';
 const product=await productRoot(process.argv[2]?.startsWith('--')?undefined:process.argv[2]);
 const check=process.argv.includes('--check');
 const ts=createRequire(path.join(product,'package.json'))('typescript');
-const registryPath='packages/shared-ui/src/file/icon-themes/registry.ts';
+const registryPath='src/shared-ui/file/icon-themes/registry.ts';
 const parsed=ts.createSourceFile(registryPath,await readFile(path.join(product,registryPath),'utf8'),ts.ScriptTarget.Latest,true);
 let retired;
 function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(parsed)==='RETIRED_FILE_ICON_THEME_IDS')retired=node.initializer.getText(parsed);ts.forEachChild(node,visit);}visit(parsed);
 if(!retired)throw Error('Missing retired-theme migration authority');
 const bundle=await importProductModule(product,`
 import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';
-import {FileGlyphIcon,FILE_ICON_THEMES} from './packages/shared-ui/src/file/fileIcons';
-import {FILE_FORMATS,FILE_SEMANTIC_KINDS,getFileSemanticKind} from './packages/shared-ui/src/core/fileFormats';
-import {getFileIconThemeDefinition} from './packages/shared-ui/src/file/icon-themes/registry';
+import {FileGlyphIcon,FILE_ICON_THEMES} from './src/shared-ui/file/fileIcons';
+import {FILE_FORMATS,FILE_SEMANTIC_KINDS,getFileSemanticKind} from './src/shared-ui/core/fileFormats';
+import {getFileIconThemeDefinition} from './src/shared-ui/file/icon-themes/registry';
 export const retired=${retired};
 export const defaultTheme=getFileIconThemeDefinition(null).id;
 export const themes=FILE_ICON_THEMES.map(t=>t.id);export const kinds=[...FILE_SEMANTIC_KINDS];
@@ -72,8 +72,8 @@ for(const theme of bundle.themes){
 const inputs={};
 async function hashFile(file){inputs[file]=createHash('sha256').update(await readFile(path.join(product,file))).digest('hex');}
 async function walk(dir){for(const f of await readdir(path.join(product,dir),{withFileTypes:true})){const p=`${dir}/${f.name}`;if(f.isDirectory())await walk(p);else if(/\.(tsx?|css)$/.test(p))await hashFile(p);}}
-await walk('packages/shared-ui/src/file');
-for(const file of ['packages/shared-ui/src/icons/productIcons.tsx','packages/shared-ui/src/core/fileFormats.ts','packages/shared-ui/src/core/fileFormats.json','public/fonts/geist/Geist-Variable.woff2','node_modules/lucide-react/package.json','node_modules/lucide-react/dist/esm/icons/database.js','node_modules/lucide-react/dist/esm/icons/workflow.js'])await hashFile(file);
+await walk('src/shared-ui/file');
+for(const file of ['src/shared-ui/icons/productIcons.tsx','src/shared-ui/core/fileFormats.ts','shared/fileFormats.json','public/fonts/geist/Geist-Variable.woff2','node_modules/lucide-react/package.json','node_modules/lucide-react/dist/esm/icons/database.js','node_modules/lucide-react/dist/esm/icons/workflow.js'])await hashFile(file);
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:product,encoding:'utf8'}).trim();
 async function output(file,value){const target=path.join(root,file),text=JSON.stringify(value,null,1)+'\n';if(check){if(await readFile(target,'utf8')!==text)throw Error(`Stale ${file}`);}else {await mkdir(path.dirname(target),{recursive:true});await writeFile(target,text);}}
 await output('assets/file-icons.json',{schema:2,sourceCommit,inputs,kinds:bundle.kinds,order:bundle.themes,defaultTheme:bundle.defaultTheme,retired:bundle.retired,themes});

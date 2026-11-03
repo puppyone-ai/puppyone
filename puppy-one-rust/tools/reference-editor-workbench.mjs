@@ -12,7 +12,7 @@ for (const [file, expected] of Object.entries(receipt.inputs)) {
   if (hash !== expected) throw Error(`Reviewed workbench input drift: ${file}; review, do not silently repin`);
 }
 const {build} = await import(pathToFileURL(path.join(reference, 'node_modules/esbuild/lib/main.js')));
-const bundle = await build({entryPoints:[path.join(reference,'packages/shared-ui/src/editor/workbench/editorPaneLayoutModel.ts')],bundle:true,write:false,platform:'node',format:'esm'});
+const bundle = await build({entryPoints:[path.join(reference,'src/shared-ui/editor/workbench/editorPaneLayoutModel.ts')],bundle:true,write:false,platform:'node',format:'esm'});
 const ts = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const cases = [];
 let state = ts.createEditorPaneLayout('a');

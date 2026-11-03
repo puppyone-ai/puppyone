@@ -14,12 +14,12 @@ app.setPath('userData',profile);app.on('window-all-closed',()=>{});
 async function run(){
  const bundle=await bundleProduct(`
  import React from 'react';import {createRoot} from 'react-dom/client';
- import {TestLocalizationProvider} from './packages/localization/src/testing/TestLocalizationProvider';
- import {PRODUCT_ICONS} from './packages/shared-ui/src/icons/productIcons';
- import {FileGlyphIcon} from './packages/shared-ui/src/file/fileIcons';
+ import {TestLocalizationProvider} from './src/lib/localization/testing/TestLocalizationProvider';
+ import {PRODUCT_ICONS} from './src/shared-ui/icons/productIcons';
+ import {FileGlyphIcon} from './src/shared-ui/file/fileIcons';
  const registry=PRODUCT_ICONS;
- import {LoadingMark} from './packages/shared-ui/src/primitives/LoadingMark';
- import {PlaceholderLayer,LoadingPlaceholderStyleProvider} from './packages/shared-ui/src/primitives/LoadingPlaceholder';
+ import {LoadingMark} from './src/shared-ui/primitives/LoadingMark';
+ import {PlaceholderLayer,LoadingPlaceholderStyleProvider} from './src/shared-ui/primitives/LoadingPlaceholder';
  const {board,time,still}=window.fixture;
  Object.defineProperty(performance,'now',{value:()=>time*1000});
  const actualMatchMedia=window.matchMedia.bind(window);

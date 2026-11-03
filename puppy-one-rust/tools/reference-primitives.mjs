@@ -15,9 +15,9 @@ const modules=path.resolve(process.env.PUPPYONE_NODE_MODULES??path.join(repo,'no
 const profile=mkdtempSync(path.join(os.tmpdir(),'puppyone-rust-primitives-'));
 app.setPath('userData',profile);
 app.on('window-all-closed',()=>{}); // two sequential fixture windows; quit after both
-const components=['packages/shared-ui/src/sidebar/SidebarRow.tsx','packages/shared-ui/src/sidebar/SidebarIconButton.tsx','packages/shared-ui/src/sidebar/SidebarList.tsx'];
-const cssPaths=['src/styles/cascade.css','src/styles/base.css','packages/shared-ui/src/styles/control-geometry.css','src/styles/typography/foundations.css','src/styles/typography/locales.css','src/styles/typography/roles.css','src/styles/tokens.css','packages/shared-ui/src/styles/sidebar-primitives.css'];
-const inputs=[...components,'src/styles.css','packages/shared-ui/src/styles/shared-ui-patterns.css','packages/shared-ui/src/sidebar/classNames.ts',...cssPaths,'sub-themes/default-neutral/theme.css','public/fonts/geist/Geist-Variable.woff2'];
+const components=['src/shared-ui/sidebar/SidebarRow.tsx','src/shared-ui/sidebar/SidebarIconButton.tsx','src/shared-ui/sidebar/SidebarList.tsx'];
+const cssPaths=['src/styles/cascade.css','src/styles/base.css','src/shared-ui/styles/control-geometry.css','src/styles/typography/foundations.css','src/styles/typography/locales.css','src/styles/typography/roles.css','src/styles/tokens.css','src/shared-ui/styles/sidebar-primitives.css'];
+const inputs=[...components,'src/styles.css','src/shared-ui/styles/shared-ui-patterns.css','src/shared-ui/sidebar/classNames.ts',...cssPaths,'src/features/themes/builtin/default-neutral/theme.css','public/fonts/geist/Geist-Variable.woff2'];
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 async function run() {
  const {build}=await import(pathToFileURL(path.join(modules,'esbuild/lib/main.js')));
@@ -47,7 +47,7 @@ async function run() {
   const layer=p.endsWith('base.css')?'reset':p.endsWith('sidebar-primitives.css')?'patterns':'tokens';
   return `@layer ${layer}{${source}}`;
  }))).join('\n');
- const theme=await readFile(path.join(repo,'sub-themes/default-neutral/theme.css'),'utf8');
+ const theme=await readFile(path.join(repo,'src/features/themes/builtin/default-neutral/theme.css'),'utf8');
  const light=theme.match(/@puppyone application\s*\{\s*:root\s*\{([\s\S]*?)\n  \}/)?.[1];
  const dark=theme.match(/\.dark \.theme-root\s*\{([\s\S]*?)\n  \}/)?.[1];
  if(!light||!dark)throw new Error('Default-neutral grammar changed; review fixture projection');

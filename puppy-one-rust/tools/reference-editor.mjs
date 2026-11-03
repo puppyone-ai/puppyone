@@ -1,4 +1,4 @@
-import {productRoot} from './product-source.mjs';
+import {productAliases, productRoot} from './product-source.mjs';
 // Actual product editor pane (EditorPaneShell → TextEditorFrame → Viewer) in an
 // isolated Electron profile, sized like the native editor area. Documents are
 // in-memory fixtures; no workspace, persistence or service is involved.
@@ -43,13 +43,11 @@ for (const mode of ['dark', 'light']) {
 async function run() {
   const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
   const alias = {'react': path.join(modules, 'react'), 'react-dom': path.join(modules, 'react-dom'),
-    '@puppyone/shared-ui': source('packages/shared-ui/src/index.ts'),
-    '@puppyone/localization/core': source('packages/localization/src/core/index.ts'),
-    '@puppyone/localization/react': source('packages/localization/src/react/index.ts'),
-    '@puppyone/localization': source('packages/localization/src/index.ts')};
-  const sharedPackage = JSON.parse(await readFile(source('packages/shared-ui/package.json'), 'utf8'));
-  for (const [key, value] of Object.entries(sharedPackage.exports ?? {}))
-    if (key.endsWith('.css') && typeof value === 'string') alias[`@puppyone/shared-ui/${key.slice(2)}`] = source(`packages/shared-ui/${value}`);
+    '@puppyone/shared-ui': source('src/shared-ui/index.ts'),
+    '@puppyone/localization/core': source('src/lib/localization/core/index.ts'),
+    '@puppyone/localization/react': source('src/lib/localization/react/index.ts'),
+    '@puppyone/localization': source('src/lib/localization/index.ts')};
+  for (const [key, value] of Object.entries(productAliases(repo))) if (key.startsWith('@puppyone/shared-ui/')) alias[key] = value;
   const catalogs = {}, catalogPaths = [];
   for (const locale of ['en', 'zh-Hans']) {
     catalogs[locale] = {};
@@ -67,12 +65,12 @@ async function run() {
   const input = `
 import React from 'react';import {createRoot} from 'react-dom/client';
 import {LocalizationProvider} from '@puppyone/localization/react';
-import {EditorPaneMenuContributionProvider} from ${JSON.stringify(source('packages/shared-ui/src/editor/editorPaneMenuContribution.tsx'))};
-import {EditorAppearanceProvider} from ${JSON.stringify(source('packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx'))};
-import {EditorFindHost} from ${JSON.stringify(source('packages/shared-ui/src/editor/find/editorFind.tsx'))};
-import {resolveEditorViewer} from ${JSON.stringify(source('packages/shared-ui/src/editor/registry/viewerRegistry.tsx'))};
-import {PresetViewerRenderer} from ${JSON.stringify(source('packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx'))};
-import {getFileSemanticKind} from ${JSON.stringify(source('packages/shared-ui/src/core/fileFormats.ts'))};
+import {EditorPaneMenuContributionProvider} from ${JSON.stringify(source('src/shared-ui/editor/editorPaneMenuContribution.tsx'))};
+import {EditorAppearanceProvider} from ${JSON.stringify(source('src/shared-ui/core/appearance/EditorAppearanceContext.tsx'))};
+import {EditorFindHost} from ${JSON.stringify(source('src/shared-ui/editor/find/editorFind.tsx'))};
+import {resolveEditorViewer} from ${JSON.stringify(source('src/shared-ui/editor/registry/viewerRegistry.tsx'))};
+import {PresetViewerRenderer} from ${JSON.stringify(source('src/shared-ui/editor/host/PresetViewerRenderer.tsx'))};
+import {getFileSemanticKind} from ${JSON.stringify(source('src/shared-ui/core/fileFormats.ts'))};
 import {EditorPaneShell} from ${JSON.stringify(source('src/features/editor-workbench/layout/EditorPaneShell.tsx'))};
 import ${JSON.stringify(source('src/features/editor-workbench/layout/desktop-editor-split-view.css'))};
 import {resolveTypography, DEFAULT_TYPOGRAPHY_PREFERENCES} from ${JSON.stringify(source('src/features/typography/fontCatalog.ts'))};
