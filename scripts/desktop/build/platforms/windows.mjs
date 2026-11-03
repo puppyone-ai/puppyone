@@ -17,6 +17,7 @@ export function applyWindowsBuilderConfig({ config, identity }) {
       perMachine: false,
       allowToChangeInstallationDirectory: true,
       createDesktopShortcut: true,
+      include: "assets/installer/windows-open-with.nsh",
       artifactName: "puppyone-${version}-${arch}-setup.${ext}",
     },
   };

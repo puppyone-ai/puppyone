@@ -3,7 +3,12 @@ export function applyLinuxBuilderConfig({ config, identity }) {
     ...config,
     linux: {
       category: "Office;Utility",
-      mimeTypes: [`x-scheme-handler/${config.protocols[0].schemes[0]}`],
+      mimeTypes: [
+        `x-scheme-handler/${config.protocols[0].schemes[0]}`,
+        "text/markdown",
+        "text/csv",
+        "text/html",
+      ],
       executableName: identity.applicationName,
       target: ["AppImage"],
       artifactName: "puppyone-${version}-${arch}.${ext}",

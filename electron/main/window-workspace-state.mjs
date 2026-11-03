@@ -7,9 +7,12 @@ import path from "node:path";
  * first Folder; Folder order is presentation state only.
  */
 export class WindowWorkspaceState {
+  /** Whether a File Mode window currently holds unsaved edits. */
+  fileEdited = false;
   #initialWorkspacePaths;
   #initialCloudProject;
   #initialOpenPath;
+  #fileTarget;
   #workspaceId;
   #workspaceFolders = Object.freeze([]);
   #compositions = new Map();
@@ -20,6 +23,7 @@ export class WindowWorkspaceState {
     initialWorkspacePaths = null,
     initialCloudProject = null,
     initialOpenPath = null,
+    fileTarget = null,
     focusedAt = Date.now(),
   } = {}) {
     const requestedPaths = Array.isArray(initialWorkspacePaths)
@@ -33,7 +37,13 @@ export class WindowWorkspaceState {
     this.#workspaceId = normalizeWorkspaceId(initialWorkspaceId) ?? createWorkbenchWorkspaceId();
     this.#initialCloudProject = initialCloudProject ? Object.freeze({ ...initialCloudProject }) : null;
     this.#initialOpenPath = typeof initialOpenPath === "string" && initialOpenPath ? initialOpenPath : null;
+    this.#fileTarget = fileTarget ? Object.freeze({ ...fileTarget }) : null;
     this.lastFocusedAt = focusedAt;
+  }
+
+  /** Set only for File Mode windows: the one file this window is bound to. */
+  get fileTarget() {
+    return this.#fileTarget;
   }
 
   get workspaceId() {

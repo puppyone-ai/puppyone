@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   getMimeType,
+  MAX_EDITOR_BYTES,
   openWorkspaceFileRangeStream,
   readWorkspaceTextFile,
   readWorkspaceFile,
@@ -137,6 +138,8 @@ import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
+import { askToSaveFile, createFileTarget, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode } from "./main/file-mode.mjs";
+import { registerFileModeIpcHandlers } from "./main/ipc/file-mode-ipc.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
@@ -307,6 +310,7 @@ let initialWindowReady = false;
 const trustedIpcMain = createTrustedIpcMain({
   ipcMain,
   applicationUrl: rendererApplicationUrl,
+  isAllowed: (event, channel, request) => isIpcAllowedInFileMode(windowStateById.get(event.sender.id)?.fileTarget, channel, request),
 });
 const nativeSurfaceOcclusion = createNativeSurfaceOcclusionCoordinator({
   onCallbackError: (error) => {
@@ -374,6 +378,16 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   onCloseCancelled: applicationQuitIntent.cancel,
   closeResources: async (window) => {
     return (await projectSessions.closeWindow(window.webContents.id)).closed;
+  },
+  resolveCloseChoice: (window) => {
+    const state = windowStateById.get(window.webContents.id);
+    if (!state?.fileTarget || !state.fileEdited) return "save";
+    return askToSaveFile({
+      dialog,
+      window,
+      name: state.fileTarget.name,
+      t: (messageId, values) => localeService.t(messageId, values),
+    });
   },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
@@ -626,8 +640,9 @@ async function createWindow(options = {}) {
     .filter((folderPath) => typeof folderPath === "string" && folderPath.trim())
     .map((folderPath) => path.resolve(folderPath));
   const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
+  const fileTarget = options.initialFilePath ? createFileTarget(options.initialFilePath) : null;
   const window = new BrowserWindow({
-    width: 1180,
+    width: fileTarget ? 860 : 1180,
     height: 760,
     minWidth: DESKTOP_WINDOW_MIN_WIDTH,
     minHeight: DESKTOP_WINDOW_MIN_HEIGHT,
@@ -670,7 +685,15 @@ async function createWindow(options = {}) {
     initialWorkspacePaths,
     initialCloudProject: options.initialCloudProject ?? null,
     initialOpenPath: options.initialOpenPath ?? null,
+    fileTarget,
   }));
+  if (fileTarget) {
+    workspaceWindows.add(fileTarget.rootPath, window);
+    window.setRepresentedFilename?.(fileTarget.path);
+    window.setTitle(fileTarget.name);
+    // The page's own <title> would otherwise replace the file name on load.
+    window.on("page-title-updated", (event) => event.preventDefault());
+  }
   lastFocusedWindowId = webContentsId;
 
   window.on("focus", () => {
@@ -765,10 +788,10 @@ async function createWindow(options = {}) {
 
   try {
     if (devServerUrl) {
-      await window.loadURL(devServerUrl);
+      await window.loadURL(fileTarget ? `${devServerUrl}#${FILE_MODE_HASH}` : devServerUrl);
       window.webContents.openDevTools({ mode: "detach" });
     } else {
-      await window.loadFile(rendererDistPath);
+      await window.loadFile(rendererDistPath, fileTarget ? { hash: FILE_MODE_HASH } : undefined);
     }
   } catch (error) {
     console.error("puppyone failed to open renderer:", error);
@@ -890,11 +913,50 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
     argv,
     workingDirectory,
     isPackaged: app.isPackaged,
+    openFile: openPathFromSystem,
     openWorkspaceInNewWindow,
     revealOrCreateWindow: createOrRevealWindow,
     reportError: (message, error) => console.error(message, error),
   });
 });
+
+// macOS sends files as events. Windows and Linux name them on the command line.
+const pendingOpenPaths = initialLaunchIntent.filePath ? [initialLaunchIntent.filePath] : [];
+app.on("open-file", (event, targetPath) => {
+  event.preventDefault();
+  if (initialWindowReady) void openPathFromSystem(targetPath).catch((error) => console.error("Unable to open file:", error));
+  else pendingOpenPaths.push(targetPath);
+});
+
+/** Opens everything the system asked for. True when at least one window now shows it. */
+async function openPendingPaths() {
+  const results = await Promise.allSettled(pendingOpenPaths.splice(0).map(openPathFromSystem));
+  for (const result of results) {
+    if (result.status === "rejected") console.error("Unable to open file:", result.reason);
+  }
+  return results.some((result) => result.status === "fulfilled" && result.value);
+}
+
+async function openPathFromSystem(targetPath) {
+  const realPath = await fs.promises.realpath(targetPath);
+  if ((await fs.promises.stat(realPath)).isDirectory()) {
+    await openWorkspaceInNewWindow(realPath);
+    return true;
+  }
+  if (!isFileModeFile(realPath)) {
+    console.warn("This file type cannot be opened on its own:", path.extname(realPath));
+    return false;
+  }
+  for (const [id, state] of windowStateById) {
+    const window = state.fileTarget?.path === realPath ? windowsById.get(id) : null;
+    if (window && !window.isDestroyed()) {
+      revealWindow(window);
+      return true;
+    }
+  }
+  await createWindow({ initialFilePath: realPath });
+  return true;
+}
 
 app.on("open-url", (event, url) => {
   if (url.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
@@ -1011,14 +1073,18 @@ app.whenReady().then(async () => {
   }
   await telemetryHost.start();
   updateService.start();
-  const initialWorkspaceComposition = initialLaunchIntent.workspacePath
-    ? { workspaceId: null, paths: [initialLaunchIntent.workspacePath] }
-    : await workspaceStateStore.readLastActiveWorkspaceComposition();
-  await createWindow({
-    initialWorkspaceId: initialWorkspaceComposition.workspaceId,
-    initialWorkspacePaths: initialWorkspaceComposition.paths,
-  });
+  if (!await openPendingPaths()) {
+    const initialWorkspaceComposition = initialLaunchIntent.workspacePath
+      ? { workspaceId: null, paths: [initialLaunchIntent.workspacePath] }
+      : await workspaceStateStore.readLastActiveWorkspaceComposition();
+    await createWindow({
+      initialWorkspaceId: initialWorkspaceComposition.workspaceId,
+      initialWorkspacePaths: initialWorkspaceComposition.paths,
+    });
+  }
   initialWindowReady = true;
+  // Files that arrived while the first window was opening were queued behind it.
+  await openPendingPaths();
   if (pendingTemplateIntent) {
     const window = await createOrRevealWindow();
     if (pendingTemplateIntent && !window.isDestroyed()) {
@@ -1098,6 +1164,15 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
+  registerFileModeIpcHandlers({
+    ipcMain: trustedIpcMain,
+    getFileWindow: (sender) => {
+      const state = windowStateById.get(sender.id);
+      const window = windowsById.get(sender.id);
+      return state?.fileTarget && window ? { state, window } : null;
+    },
+    openFolder: ({ rootPath, name }) => openWorkspaceInNewWindow(rootPath, { initialOpenPath: name }),
+  });
   registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });
@@ -1233,6 +1308,7 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+    decodesLegacyText: (event) => Boolean(windowStateById.get(event.sender.id)?.fileTarget),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1403,6 +1479,17 @@ async function getInitialWorkspaceResultForWindow(sender) {
   }
 
   const state = windowStateById.get(window.webContents.id);
+  if (state?.fileTarget) {
+    const { size } = await fs.promises.stat(state.fileTarget.path).catch(() => ({ size: 0 }));
+    return {
+      workspaceId: null,
+      path: null,
+      workspace: null,
+      workspaces: [],
+      initialFile: { ...state.fileTarget, tooLarge: size > MAX_EDITOR_BYTES, sizeLimit: MAX_EDITOR_BYTES },
+      error: null,
+    };
+  }
   if (state?.folders.length) {
     const workspaces = state.folders.map((folder) => folder.workspace);
     return {
@@ -1410,6 +1497,8 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: state.folderPaths[0] ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      // The renderer may only ask after the window was assigned its folders.
+      initialOpenPath: state.takeInitialOpenPath() ?? null,
       error: null,
     };
   }
@@ -1826,6 +1915,7 @@ function releaseWindowWorkspaceById(webContentsId, window = null) {
   localFileCapabilities.revokeSender(webContentsId);
   previewDocumentService.revokeOwner(webContentsId);
   const state = windowStateById.get(webContentsId);
+  if (state?.fileTarget) workspaceWindows.remove(state.fileTarget.rootPath, window);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
   for (const workspacePath of workspacePaths) {
     workspaceWindows.remove(workspacePath, window);
@@ -1872,7 +1962,9 @@ function getOrCreateWindowState(window) {
 }
 
 function resolveWindowTitle(window) {
-  const workspace = windowStateById.get(window.webContents.id)?.primaryWorkspace;
+  const state = windowStateById.get(window.webContents.id);
+  if (state?.fileTarget) return state.fileTarget.name;
+  const workspace = state?.primaryWorkspace;
   return workspace ? `${appName} - ${workspace.name}` : appName;
 }
 
@@ -1881,7 +1973,8 @@ function isOpenWorkspaceRoot(canonicalPath) {
 }
 
 function getWorkspaceRootsForSender(sender) {
-  return projectSessions.roots(sender.id);
+  const fileTarget = windowStateById.get(sender.id)?.fileTarget;
+  return fileTarget ? [fileTarget.rootPath] : projectSessions.roots(sender.id);
 }
 
 function getDialogOwnerWindow(sender) {

@@ -101,6 +101,8 @@ export type FileContent = {
   url?: string | null;
   /** Storage revision/fingerprint used as the next conditional-write base. */
   version?: string | null;
+  /** Anything but UTF-8 cannot be written back without changing the file. */
+  encoding?: "utf-8" | "gb18030" | "unknown";
 };
 
 export type AppPreviewStatus = "starting" | "running" | "stopped" | "error";

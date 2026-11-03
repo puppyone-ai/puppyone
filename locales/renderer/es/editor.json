@@ -185,6 +185,8 @@
   "html.source": "Código fuente HTML",
   "html.sourceUnavailable": "El código fuente HTML no está disponible",
   "loadingFile": "Cargando archivo…",
+  "fileMode.openFolder": "Abrir carpeta como proyecto",
+  "fileMode.readOnlyEncoding": "Este archivo no está guardado en UTF-8, así que se abre en modo de solo lectura para proteger su contenido.",
   "loadingViewer": "Cargando visor…",
   "markdown.ai.added": "Añadido por el agente",
   "markdown.ai.beforeEdit": "Antes de la edición del agente",

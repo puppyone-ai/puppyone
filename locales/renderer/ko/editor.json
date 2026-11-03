@@ -185,6 +185,8 @@
   "html.source": "HTML 소스",
   "html.sourceUnavailable": "HTML 소스를 사용할 수 없음",
   "loadingFile": "파일을 불러오는 중…",
+  "fileMode.openFolder": "폴더를 프로젝트로 열기",
+  "fileMode.readOnlyEncoding": "이 파일은 UTF-8 형식이 아니므로 내용을 보호하기 위해 읽기 전용으로 열었습니다.",
   "loadingViewer": "뷰어를 불러오는 중…",
   "markdown.ai.added": "에이전트가 추가함",
   "markdown.ai.beforeEdit": "에이전트가 편집하기 전",
