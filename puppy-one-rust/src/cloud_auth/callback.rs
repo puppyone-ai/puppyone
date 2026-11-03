@@ -18,6 +18,10 @@ pub(super) enum Input {
     Code(Secret),
     Refresh(Secret),
     Cancelled,
+    /// The login page's form carried this attempt's state but failed the
+    /// origin or token check (`onRejected` with `matchedState`). Its handoff
+    /// cannot be repeated, so the sign-in fails now instead of waiting.
+    Rejected(&'static str),
 }
 fn random() -> Result<Secret> {
     let mut bytes = zeroize::Zeroizing::new([0u8; 32]);
@@ -67,6 +71,10 @@ pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence)
             break Err(error);
         }
         if let Ok(mut candidate) = rx.try_recv() {
+            if let Input::Rejected(_) = candidate.input {
+                respond(&mut candidate.stream, 400);
+                break Err(Error::InvalidResponse);
+            }
             // Consume before exchange, even if the provider later rejects it.
             let result =
                 broker.complete_login(environment.clone(), candidate.input, &verifier, fence);
@@ -218,15 +226,37 @@ pub(super) fn parse(
         return Err(400);
     }
     let target = request.path.ok_or(400u16)?;
-    let query = if request.method == Some("POST") && target == "/auth/session" {
-        if one_header("origin")? != Some(origin)
-            || one_header("content-type")?.and_then(|v| v.split(';').next())
-                != Some("application/x-www-form-urlencoded")
+    if request.method == Some("POST") && target == "/auth/session" {
+        if one_header("content-type")?.and_then(|v| v.split(';').next())
+            != Some("application/x-www-form-urlencoded")
         {
             return Err(400);
         }
-        &bytes[offset..]
-    } else if request.method == Some("GET")
+        // `createBrowserSessionReceiver`: the state first, so a rejection
+        // from the real login page is told apart from any other request.
+        let form: Vec<_> = url::form_urlencoded::parse(&bytes[offset..])
+            .map(|(k, v)| (k.into_owned(), Secret(v.into_owned())))
+            .collect();
+        let all = |key: &'static str| -> Vec<&Secret> {
+            form.iter()
+                .filter(|(k, _)| k == key)
+                .map(|(_, v)| v)
+                .collect()
+        };
+        let states = all("state");
+        if states.len() != 1 || states[0].0 != expected {
+            return Err(400);
+        }
+        if one_header("origin")? != Some(origin) {
+            return Ok(Some(Input::Rejected("origin")));
+        }
+        let tokens = all("refresh_token");
+        return match tokens.as_slice() {
+            [token] if token.valid() => Ok(Some(Input::Refresh((*token).clone()))),
+            _ => Ok(Some(Input::Rejected("refresh-token"))),
+        };
+    }
+    let query = if request.method == Some("GET")
         && target.starts_with("/auth/callback?")
         && length == 0
         && !target.contains('#')
@@ -262,13 +292,7 @@ pub(super) fn parse(
     if one("state").map(|s| s.0.as_str()) != Some(expected) {
         return Err(400);
     }
-    if request.method == Some("POST") {
-        if params.len() != 2 {
-            return Err(400);
-        }
-        let token = one("refresh_token").filter(|s| s.valid()).ok_or(400u16)?;
-        Ok(Some(Input::Refresh(token.clone())))
-    } else {
+    {
         if params
             .iter()
             .any(|(k, _)| !matches!(k.as_str(), "state" | "code" | "error" | "error_description"))

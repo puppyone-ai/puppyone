@@ -242,9 +242,12 @@ fn native_pkce_and_email_handoffs_use_the_real_http_adapter_once() {
                 "state={}&refresh_token=synthetic-browser-refresh",
                 params["desktop_state"]
             );
+            // A form without this attempt's state is not the login page; the
+            // attempt keeps waiting for the real one.
+            let forged = "state=wrong&refresh_token=synthetic-browser-refresh";
             let bad = format!(
-                "POST /auth/session HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.test\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
-                body.len()
+                "POST /auth/session HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.test\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{forged}",
+                forged.len()
             );
             assert!(send(&host, &bad).starts_with("HTTP/1.1 400"));
             format!(
@@ -277,6 +280,45 @@ fn native_pkce_and_email_handoffs_use_the_real_http_adapter_once() {
         assert_eq!(broker.subscribe().borrow().status, Status::SignedOut);
         broker.shutdown();
     }
+}
+#[test]
+fn the_login_pages_rejected_handoff_fails_the_sign_in_at_once() {
+    let server = Server::new(|origin| {
+        Arc::new(move |_, path, _, _| match path {
+            "/api/v1/auth/config" => json(
+                serde_json::json!({"supabase_url":origin,"supabase_anon_key":"sb_publishable_fixture"}),
+            ),
+            "/auth/v1/settings" => json(serde_json::json!({"external":{"email":true}})),
+            _ => panic!("a rejected handoff must not exchange credentials"),
+        })
+    });
+    let (broker, browser) = Broker::new(
+        server.environment(),
+        Arc::new(Http::new().unwrap()),
+        Arc::new(MemoryStore::default()),
+    );
+    broker.sign_in();
+    let url = browser_event(&browser);
+    let params: std::collections::HashMap<_, _> = url
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    let callback = url::Url::parse(&params["desktop_callback"]).unwrap();
+    let host = format!("127.0.0.1:{}", callback.port().unwrap());
+    // The real page's state, from an origin this build does not pair with.
+    let body = format!("state={}&refresh_token=t", params["desktop_state"]);
+    let request = format!(
+        "POST /auth/session HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.test\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    assert!(send(&host, &request).starts_with("HTTP/1.1 400"));
+    wait(|| broker.subscribe().borrow().status == Status::SignedOut);
+    assert_eq!(
+        broker.subscribe().borrow().error,
+        Some(Error::InvalidResponse)
+    );
+    wait(|| TcpStream::connect(&host).is_err());
+    broker.shutdown();
 }
 #[test]
 fn cancelling_a_native_attempt_closes_the_listener_and_fences_late_callbacks() {

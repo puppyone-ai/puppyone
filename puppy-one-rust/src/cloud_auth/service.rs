@@ -362,6 +362,7 @@ impl Broker {
                 self.remote.refresh(&provisional, fence)?
             }
             callback::Input::Cancelled => return Err(Error::Cancelled),
+            callback::Input::Rejected(_) => return Err(Error::InvalidResponse),
         };
         self.adopt(&session, fence)?;
         // Initialization failure does not undo successful authentication. The

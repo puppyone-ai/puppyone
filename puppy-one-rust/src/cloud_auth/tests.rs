@@ -760,12 +760,30 @@ fn callback_parser_rejects_host_origin_duplicates_framing_and_token_urls() {
     for body in [
         "state=bad&refresh_token=t",
         "state=s&state=s&refresh_token=t",
-        "state=s&refresh_token=t&refresh_token=t",
-        "state=s&refresh_token=",
-        "state=s&refresh_token=t&user_id=trusted",
     ] {
         assert!(callback::parse(&form(host, origin, body), host, origin, "s").is_err());
     }
+    // This attempt's state with a bad token came from the real login page:
+    // the sign-in fails now instead of waiting (565439f04).
+    for body in [
+        "state=s&refresh_token=t&refresh_token=t",
+        "state=s&refresh_token=",
+    ] {
+        assert!(matches!(
+            callback::parse(&form(host, origin, body), host, origin, "s"),
+            Ok(Some(callback::Input::Rejected("refresh-token")))
+        ));
+    }
+    // Fields the receiver does not read are ignored, as in the product.
+    assert!(matches!(
+        callback::parse(
+            &form(host, origin, "state=s&refresh_token=t&user_id=trusted"),
+            host,
+            origin,
+            "s"
+        ),
+        Ok(Some(callback::Input::Refresh(_)))
+    ));
     assert!(
         callback::parse(
             &form("evil.test", origin, "state=s&refresh_token=t"),
@@ -775,9 +793,18 @@ fn callback_parser_rejects_host_origin_duplicates_framing_and_token_urls() {
         )
         .is_err()
     );
-    assert!(
+    assert!(matches!(
         callback::parse(
             &form(host, "https://evil.test", "state=s&refresh_token=t"),
+            host,
+            origin,
+            "s"
+        ),
+        Ok(Some(callback::Input::Rejected("origin")))
+    ));
+    assert!(
+        callback::parse(
+            &form(host, "https://evil.test", "state=x&refresh_token=t"),
             host,
             origin,
             "s"
