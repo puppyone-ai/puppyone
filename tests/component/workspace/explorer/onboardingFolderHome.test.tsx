@@ -214,7 +214,7 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
-    expect(projectActions.map((action) => action.textContent)).toEqual(["New empty project"]);
+    expect(projectActions.map((action) => action.textContent)).toEqual(["New project"]);
     expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(true);
     expect(projectActions[0]?.classList.contains("onboarding-entry-action-cta")).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
@@ -284,15 +284,14 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
   });
 
-  it("draws the Header's mark, name and avatar in the muted ink of a project's Header", () => {
+  it("names the product in the Header in words alone, in the muted ink of a project's Header", () => {
     expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
-    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text-muted\);/);
     expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
-    expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
-    expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
-    expect(onboardingCss).toMatch(/\.onboarding-shell\.dark \.desktop-titlebar \.onboarding-header-mark \{\s*filter: url\("#onboarding-header-mark-ink-fine"\);/);
+    expect(onboardingCss).not.toContain("onboarding-header-mark");
     const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
-    expect(container.querySelector(".onboarding-header-brand filter")?.id).toBe("onboarding-header-mark-ink");
+    const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand");
+    expect(brand?.textContent).toBe("puppyone");
+    expect(brand?.querySelector("img, svg")).toBeNull();
   });
 
   it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
@@ -417,7 +416,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -1106,13 +1105,15 @@ function expectBrandLockup(
   const lockup = container.querySelector(".onboarding-brand-lockup");
   const brand = state === "projects" ? container.querySelector(".desktop-titlebar .onboarding-header-brand") : lockup;
   const mark = brand?.querySelector<HTMLImageElement>("img");
-  expect(mark?.getAttribute("src")).toContain(state === "projects" ? PUPPY_BRAND_MARK_ASSETS.lite : expectedMarkAsset);
-  expect(mark?.getAttribute("alt")).toBe("");
   if (state === "projects") {
+    // The Header names the product without its mark.
+    expect(mark).toBeNull();
     expect(brand?.textContent).toBe("puppyone");
     expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
   } else {
+    expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
+    expect(mark?.getAttribute("alt")).toBe("");
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
   }
   expect(lockup?.querySelectorAll("p")).toHaveLength(0);

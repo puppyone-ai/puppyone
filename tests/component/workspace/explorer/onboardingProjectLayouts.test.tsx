@@ -179,7 +179,8 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-brand-prompt")).toBeNull();
     const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand")!;
     expect(brand.textContent).toBe("puppyone");
-    expect(brand.querySelector("img")).not.toBeNull();
+    // Named in words alone: the mark would compete with the projects below.
+    expect(brand.querySelector("img, svg")).toBeNull();
   });
 
   it("names nothing in the Header until there are projects, when the page greets you itself", () => {

@@ -54,13 +54,14 @@ const shot = async (name) => writeFile(path.join(screenshots, `${name}.png`), (a
 const timeout = setTimeout(() => { console.error("Onboarding visual smoke timed out"); app.exit(1); }, 170_000);
 app.whenReady().then(runSmoke).catch((error) => { console.error(error); app.exit(1); });
 
-async function open({ theme, state, width, height, count = 1, mixed = false, layout }) {
+async function open({ theme, state, width, height, count = 1, mixed = false, held = false, layout }) {
   window.setContentSize(width, height);
   const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
   url.searchParams.set("theme", theme);
   url.searchParams.set("state", state);
   url.searchParams.set("count", String(count));
   if (mixed) url.searchParams.set("mixed", "1");
+  if (held) url.searchParams.set("held", "1");
   await window.loadURL(url.href);
   // Attach only after navigation creates the renderer target. The app-level
   // reduced-motion switch is already visible during the initial React mount.
@@ -109,6 +110,7 @@ async function runSmoke() {
       for (const [width, height] of [[900, 680], [MINIMUM_WIDTH, MINIMUM_HEIGHT]]) {
         await validateFirstRun(theme, width, height);
         await validateProjectsHead(theme, width, height);
+        await validateProjectsArea(theme, width, height);
       }
       await validateToolbar(theme);
       await validateMenuPlacement(theme);
@@ -135,23 +137,26 @@ const rects = `const rect = (node) => { if (!node) return null; const r = node.g
 async function validateChrome(context, theme, column, width) {
   const page = await evaluate(`(() => { ${rects}
     const brand = document.querySelector('.onboarding-brand-lockup');
-    const mark = document.querySelector('.onboarding-header-mark, .onboarding-brand-mark-artwork');
+    const mark = document.querySelector('.onboarding-brand-mark-artwork');
     const title = brand.querySelector('.onboarding-brand-name');
     const controls = [...document.querySelectorAll('.onboarding-launcher button')];
     return {
       brand:rect(brand), launcher:rect(document.querySelector('.onboarding-launcher')),
-      mark:mark.getAttribute('src').split('/').pop(),
-      markFilter:getComputedStyle(mark).filter,
+      mark:mark?.getAttribute('src').split('/').pop() ?? null,
+      markFilter:mark ? getComputedStyle(mark).filter : null,
+      headerMark:!!document.querySelector('.desktop-titlebar .onboarding-header-brand :is(img, svg)'),
       titleClipped:!!title && title.scrollWidth > title.clientWidth + 1,
       outside:controls.some(control => { const r = control.getBoundingClientRect(); return r.width && (r.left < 0 || r.right > innerWidth || r.top < 38); }),
       sideways:document.documentElement.scrollWidth > innerWidth,
     };
   })()`);
-  const headerMark = column === PROJECT_COLUMN;
-  assert.equal(page.mark, theme === "light" || headerMark ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this place`);
-  const pageFilter = theme === "light" ? "none" : "grayscale(1) brightness(0.7)";
-  const headerFilter = theme === "light" ? 'url("#onboarding-header-mark-ink")' : 'url("#onboarding-header-mark-ink-fine")';
-  assert.equal(page.markFilter, headerMark ? headerFilter : pageFilter, `${context}: the mark's treatment`);
+  assert.equal(page.headerMark, false, `${context}: the Header names the product in words alone`);
+  if (column === PROJECT_COLUMN) {
+    assert.equal(page.mark, null, `${context}: with projects, the page carries no mark either`);
+  } else {
+    assert.equal(page.mark, theme === "light" ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this place`);
+    assert.equal(page.markFilter, theme === "light" ? "none" : "grayscale(1) brightness(0.7)", `${context}: the mark's treatment`);
+  }
   assert.ok(!page.titleClipped, `${context}: the title is not cut`);
   assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
   assert.equal(page.brand.width, column, `${context}: the column keeps its width`);
@@ -180,7 +185,7 @@ async function validateFirstRun(theme, width, height) {
   })()`);
   assert.equal(page.reduced, true, `${context}: visual smoke skips the full intro animation`);
   assert.equal(page.title, "Start with your files. Agent-ready.", `${context}: the first-run title`);
-  assert.equal(page.label, "New empty project", context);
+  assert.equal(page.label, "New project", context);
   assert.equal(page.primaryBorder, "0px", `${context}: no rule around the create action`);
   assert.equal(page.primaryFill, "rgba(0, 0, 0, 0)", `${context}: first run has no surface`);
   assert.equal(page.create.width, EMPTY_COLUMN, `${context}: New spans the column`);
@@ -243,6 +248,27 @@ async function validateImportPicker(context) {
   assert.equal(picker.clipped, false, `${context}: source names are not cut`);
 }
 
+/** The projects' area runs from the head to the page's end, so its wait sits in the middle of it. */
+async function validateProjectsArea(theme, width, height) {
+  const measure = `(() => { ${rects}
+    return { area:rect(document.querySelector('.onboarding-home-primary')), mark:rect(document.querySelector('.onboarding-project-list-loading')), height:innerHeight };
+  })()`;
+  const context = `projects-area/${theme}/${width}x${height}`;
+  await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
+  const short = await evaluate(measure);
+  assert.equal(Math.round(short.area.bottom), short.height - 20, `${context}: a short history's area still runs to the page's end`);
+
+  await open({ theme, state: "projects", width, height, held: true });
+  await until("!!document.querySelector('.onboarding-project-list-loading')");
+  const wait = await evaluate(measure);
+  assert.equal(Math.round(wait.area.bottom), wait.height - 20, `${context}: the area runs to the page's end while it waits`);
+  const centre = (box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  const [mark, area] = [centre(wait.mark), centre(wait.area)];
+  assert.ok(Math.abs(mark.x - area.x) <= 1 && Math.abs(mark.y - area.y) <= 1, `${context}: the wait sits in the middle of the area, not under the head (${Math.round(mark.y)} vs ${Math.round(area.y)})`);
+  await shot(`projects-wait-${theme}-${width}`);
+  console.log(`Passed ${context}: area ${Math.round(wait.area.y)}-${Math.round(wait.area.bottom)}, wait at ${Math.round(mark.y)}`);
+}
+
 async function validateProjectsHead(theme, width, height) {
   const context = `projects/${theme}/${width}x${height}`;
   await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
@@ -259,7 +285,7 @@ async function validateProjectsHead(theme, width, height) {
     const surfaceStyle = getComputedStyle(surface);
     return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface), create:rect(create), more:rect(more),
       chevron:rect(more.querySelector('svg')), label:rect(label), labelClip:getComputedStyle(label).clipPath,
-      brandName:brandName?.textContent, brandMark:rect(brand?.querySelector('img')), brandFont:brandName && getComputedStyle(brandName).fontSize,
+      brandName:brandName?.textContent, brandMark:rect(brand?.querySelector('img, svg')), brandFont:brandName && getComputedStyle(brandName).fontSize,
       brandColor:brandName && getComputedStyle(brandName).color,
       headerMuted:(probe => { document.querySelector('.desktop-titlebar').append(probe); probe.style.color = 'var(--desktop-titlebar-text-muted)'; const color = getComputedStyle(probe).color; probe.remove(); return color; })(document.createElement('span')),
       headMark:!!head.querySelector('img'), title:!!head.querySelector('.onboarding-brand-name'),
@@ -268,7 +294,7 @@ async function validateProjectsHead(theme, width, height) {
   })()`);
   assert.equal(page.brandName, "puppyone", `${context}: the Header names the product`);
   assert.equal(page.brandColor, page.headerMuted, `${context}: the name wears a project name's muted ink`);
-  assert.ok(page.brandMark.width > 0 && page.brandMark.x < 200, `${context}: the mark leads the Header`);
+  assert.equal(page.brandMark, null, `${context}: the Header names the product in words alone`);
   assert.equal(page.headMark, false, `${context}: one mark on the page`);
   assert.equal(page.title, false, `${context}: the head holds no title`);
   assert.equal(page.head.y - page.header.bottom, TITLE_INSET, `${context}: the inset above the head`);
@@ -549,9 +575,12 @@ async function validateScrollPolicy() {
   await open({ theme: "dark", state: "projects", width: 1200, height: 900, count: 1, layout: "list" });
   const short = await evaluate(`(() => { const list = document.querySelector('.onboarding-project-list'); return {
     height:list.clientHeight, content:list.scrollHeight, width:document.querySelector('.onboarding-project-row').getBoundingClientRect().width,
-    title:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top, surface:document.querySelector('.onboarding-home-primary').getBoundingClientRect().height }; })()`);
+    title:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top,
+    rowOffset:document.querySelector('.onboarding-project-row').getBoundingClientRect().top - list.getBoundingClientRect().top, listInset:parseFloat(getComputedStyle(list).paddingTop),
+    surfaceBottom:document.querySelector('.onboarding-home-primary').getBoundingClientRect().bottom, page:innerHeight }; })()`);
   assert.equal(short.height, short.content, "A short list does not manufacture overflow");
   assert.equal(short.title, 40 + TITLE_INSET, "The title keeps its place however few projects there are");
-  assert.ok(short.surface < 120, "A few projects take only the room they need");
+  assert.equal(short.rowOffset, short.listInset, "A few projects sit at the top of their area");
+  assert.equal(Math.round(short.surfaceBottom), short.page - 20, "Their area still runs to the page's end");
   assert.equal(short.width, longRow, "Stable gutter keeps short and long row geometry identical");
 }

@@ -22,7 +22,7 @@
   "action.createCloudProject": "Crear proyecto en Cloud",
   "action.continueLocally": "Continuar sin iniciar sesión",
   "action.openFolder": "Abrir una carpeta",
-  "action.createLocalProject": "Nuevo proyecto vacío",
+  "action.createLocalProject": "Nuevo proyecto",
   "action.cloneRepository": "Importar",
   "action.importFromApps": "Importar",
   "action.moreEntries": "Más formas de empezar",

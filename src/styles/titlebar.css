@@ -266,15 +266,6 @@
   color: var(--desktop-titlebar-text-muted);
 }
 
-.desktop-titlebar-context-mark {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-}
-
 .desktop-titlebar-context-name {
   min-width: 0;
   overflow: hidden;

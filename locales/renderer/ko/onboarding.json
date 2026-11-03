@@ -22,7 +22,7 @@
   "action.createCloudProject": "Cloud 프로젝트 만들기",
   "action.continueLocally": "로그인 없이 계속",
   "action.openFolder": "폴더 열기",
-  "action.createLocalProject": "새 빈 프로젝트",
+  "action.createLocalProject": "새 프로젝트",
   "action.cloneRepository": "가져오기",
   "action.importFromApps": "가져오기",
   "action.moreEntries": "다른 시작 방법",

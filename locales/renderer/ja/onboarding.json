@@ -22,7 +22,7 @@
   "action.createCloudProject": "Cloud プロジェクトを作成",
   "action.continueLocally": "ログインせずに続ける",
   "action.openFolder": "フォルダを開く",
-  "action.createLocalProject": "空のプロジェクトを作成",
+  "action.createLocalProject": "プロジェクトを作成",
   "action.cloneRepository": "インポート",
   "action.importFromApps": "インポート",
   "action.moreEntries": "その他の開始方法",

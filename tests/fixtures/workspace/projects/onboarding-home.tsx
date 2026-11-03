@@ -23,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
         ...(query.has("mixed") && index % 3 === 2 ? { cloudProjectId: `cloud-${index}` } : {}),
         lastModifiedAt: query.has("mixed") ? new Date(Date.now() - (index + 1) * 86_400_000).toISOString() : null,
       })) : []}
+      listHeld={query.has("held")}
       onChooseWorkspace={noop}
       onRemoveProject={noop}
       onOpenWorkspacePath={noop}
