@@ -81,8 +81,9 @@ tempfile = "3"
 
 [features]
 # Opt-in developer captures (screenshots, editor geometry dumps, visual
-# fixtures); absent from normal builds.
-dev-capture = []
+# fixtures); absent from normal builds. GPUI's test support renders a frame
+# off screen (`PUPPYONE_SCREENSHOT_OFFSCREEN`).
+dev-capture = ["gpui-kit/test-support"]
 
 [profile.dev]
 debug = 0

@@ -1,4 +1,5 @@
-//! Opt-in OS-composited screenshot, including native child views.
+//! Opt-in OS-composited screenshot, including native child views (or, with
+//! `PUPPYONE_SCREENSHOT_OFFSCREEN`, GPUI's own frame rendered off screen).
 //! Never used as a rendering substitute for the live editor.
 use gpui::{App, Window};
 use std::path::PathBuf;
@@ -67,6 +68,43 @@ pub fn run_in_background() {}
 pub fn pump_frames(_: &mut Window, _: &mut App) {}
 #[cfg(all(not(target_os = "macos"), feature = "dev-capture"))]
 pub fn send_to_back(_: &Window) {}
+/// Dev-capture with `PUPPYONE_SCREENSHOT_OFFSCREEN`: the window's last frame
+/// rendered off screen. GPUI's content only (no native child views or
+/// traffic lights), but it does not depend on a window behind every other
+/// one presenting its frames, which macOS stops doing while it is covered.
+#[cfg(feature = "dev-capture")]
+fn schedule_offscreen(
+    window: &Window,
+    cx: &App,
+    path: PathBuf,
+    geometry: serde_json::Value,
+) -> anyhow::Result<()> {
+    window
+        .spawn(cx, async move |cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(500))
+                .await;
+            let _ = cx.update(|window, _| {
+                let result = window.render_to_image().and_then(|image| {
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    image.save(&path)?;
+                    std::fs::write(
+                        path.with_extension("json"),
+                        serde_json::to_vec_pretty(&geometry)?,
+                    )?;
+                    Ok(())
+                });
+                if let Err(error) = result {
+                    eprintln!("Screenshot failed: {error:#}");
+                }
+                window.remove_window();
+            });
+        })
+        .detach();
+    Ok(())
+}
 #[cfg(target_os = "macos")]
 pub fn schedule(
     window: &Window,
@@ -74,6 +112,10 @@ pub fn schedule(
     path: PathBuf,
     geometry: serde_json::Value,
 ) -> anyhow::Result<()> {
+    #[cfg(feature = "dev-capture")]
+    if std::env::var_os("PUPPYONE_SCREENSHOT_OFFSCREEN").is_some() {
+        return schedule_offscreen(window, cx, path, geometry);
+    }
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let RawWindowHandle::AppKit(handle) = HasWindowHandle::window_handle(window)?.as_raw() else {
         anyhow::bail!("Expected AppKit window");

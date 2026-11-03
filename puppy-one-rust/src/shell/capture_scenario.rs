@@ -13,7 +13,9 @@
 //! `git-diff-staged:<path>` (a change's diff in Changes), `git-history`,
 //! `git-commit:<index>` (a History commit), `project-entry` (the Project
 //! entry launcher), `explorer-drag:<x>` (drag the
-//! Explorer's edge to `x` and release). The capture waits
+//! Explorer's edge to `x` and release), `home-list` (the Homepage's List
+//! layout), `home-hover:<index>` (a Homepage entry reached for) and
+//! `home-actions:<index>` (its actions menu). The capture waits
 //! for the homepage's project activity and an open diff.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
@@ -41,6 +43,9 @@ enum Step {
     Command(super::Command),
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
+    HomeList,
+    HomeHover(usize),
+    HomeActions(usize),
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -78,6 +83,9 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "toggle-explorer" => Step::Command(super::Command::ToggleExplorer),
                 "home" => Step::Command(super::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
+                "home-list" => Step::HomeList,
+                "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
+                "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -262,6 +270,41 @@ impl Shell {
             Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
             Step::Wait(_) => {}
+            Step::HomeList => self.preferences.update(cx, |p, cx| {
+                p.change(
+                    |p| {
+                        p.homepage_project_layout =
+                            crate::features::settings::preference_types::HomepageLayout::List
+                    },
+                    cx,
+                )
+            }),
+            Step::HomeHover(index) => {
+                let Some(item) = self.visible_projects(cx).into_iter().nth(*index) else {
+                    return false;
+                };
+                self.homepage.hovered = Some(item.id);
+            }
+            Step::HomeActions(index) => {
+                let Some(item) = self.visible_projects(cx).into_iter().nth(*index) else {
+                    return false;
+                };
+                let Some(target) = super::project_actions::Target::of(&item) else {
+                    return true;
+                };
+                let bounds = self
+                    .homepage
+                    .action_bounds
+                    .get(&item.id)
+                    .map(|b| b.get())
+                    .unwrap_or_default();
+                if bounds.size.width <= px(0.) {
+                    return false;
+                }
+                self.homepage.hovered = Some(item.id.clone());
+                self.homepage.actions = Some(item.id);
+                self.open_project_actions(target, bounds, true, window.viewport_size(), cx);
+            }
         }
         self.receive(window, cx);
         true
