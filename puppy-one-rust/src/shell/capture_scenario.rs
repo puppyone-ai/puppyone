@@ -39,6 +39,8 @@ enum Step {
     Submenu,
     ExplorerDrag(f32),
     Command(super::Command),
+    /// `wait:<ms>`: let asynchronous content (a web page) settle.
+    Wait(u64),
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -75,6 +77,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agent" => Step::Command(super::Command::ToggleRightSidebar),
                 "toggle-explorer" => Step::Command(super::Command::ToggleExplorer),
                 "home" => Step::Command(super::Command::Home),
+                "wait" => Step::Wait(arg.trim().parse().ok()?),
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -85,6 +88,8 @@ fn parse(text: &str) -> VecDeque<Step> {
 }
 pub(super) struct CaptureScenario {
     steps: VecDeque<Step>,
+    /// When the current `wait:` step began.
+    waiting: Option<std::time::Instant>,
     /// Frames painted since the last step, so anchors and layout settle.
     frames: u32,
     started: std::time::Instant,
@@ -94,6 +99,7 @@ impl CaptureScenario {
         let text = std::env::var("PUPPYONE_CAPTURE_SCENARIO").ok()?;
         Some(Self {
             steps: parse(&text),
+            waiting: None,
             frames: 0,
             started: std::time::Instant::now(),
         })
@@ -142,6 +148,15 @@ impl Shell {
             let reading = self.homepage.reading || self.source_control.read(cx).reading_detail();
             return !reading || timed_out;
         };
+        if let Step::Wait(ms) = step {
+            let began = *scenario.waiting.get_or_insert_with(std::time::Instant::now);
+            if began.elapsed() < std::time::Duration::from_millis(ms) {
+                return false;
+            }
+            scenario.waiting = None;
+            scenario.steps.pop_front();
+            return false;
+        }
         if !self.apply_capture_step(&step, window, cx) && !timed_out {
             // Wait for the state the step needs (a loaded folder, a painted row).
             return false;
@@ -246,6 +261,7 @@ impl Shell {
             }
             Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
+            Step::Wait(_) => {}
         }
         self.receive(window, cx);
         true
