@@ -230,6 +230,12 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   getCloudAccessPointSemantics: (request) => ipcRenderer.invoke("cloud:access-point-semantics", request),
   openExternalUrl: (href) => ipcRenderer.invoke("system:open-external-url", href),
   setFileEdited: (edited) => ipcRenderer.send("file-mode:set-edited", edited === true),
+  onFileModeFileChanged: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = () => callback();
+    ipcRenderer.on("file-mode:file-changed", listener);
+    return () => ipcRenderer.removeListener("file-mode:file-changed", listener);
+  },
   submitFeedback: (request) => ipcRenderer.invoke("feedback:submit", request),
   markdownWebEmbed: {
     create: (request) => ipcRenderer.invoke("markdown-web-embed:create", request),

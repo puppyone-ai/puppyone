@@ -312,6 +312,11 @@ export function setFileEdited(edited: boolean): void {
   getDesktopBridge().setFileEdited(edited);
 }
 
+/** Calls back when a File Mode window's file changes on disk. */
+export function subscribeFileModeFileChanges(callback: () => void): () => void {
+  return getDesktopBridge().onFileModeFileChanged(callback);
+}
+
 export async function openExternalUrl(href: string): Promise<void> {
   await getDesktopBridge().openExternalUrl(href);
 }

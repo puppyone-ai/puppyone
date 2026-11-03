@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   preview: vi.fn(),
   content: { value: null as null | Record<string, unknown> },
   setFileEdited: vi.fn(),
+  fileChanged: { value: () => undefined as void },
   publishUnsaved: { value: (_unsaved: boolean) => undefined as void },
   platformCapabilities: { value: null as null | Record<string, unknown> },
   menuItems: { value: [] as Array<
@@ -41,6 +42,10 @@ vi.mock("../../../../src/lib/localFiles", () => ({
   getInitialWorkspace: mocks.getInitialWorkspace,
   openExternalUrl: vi.fn(),
   setFileEdited: mocks.setFileEdited,
+  subscribeFileModeFileChanges: (callback: () => void) => {
+    mocks.fileChanged.value = callback;
+    return () => { mocks.fileChanged.value = () => undefined; };
+  },
   createLocalDataPort: (rootPath: string) => ({
     rootPath,
     resolveNode: mocks.resolveNode,
@@ -243,6 +248,14 @@ describe("FileModeApp", () => {
     expect(mocks.retry).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event("focus"));
+    expect(mocks.retry).toHaveBeenCalledOnce();
+  });
+
+  it("reads the file again when it changes on disk, without focus", async () => {
+    await mount();
+    expect(mocks.retry).not.toHaveBeenCalled();
+
+    act(() => mocks.fileChanged.value());
     expect(mocks.retry).toHaveBeenCalledOnce();
   });
 

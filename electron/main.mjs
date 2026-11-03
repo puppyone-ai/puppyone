@@ -138,7 +138,12 @@ import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
-import { askToSaveFile, createFileTarget, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode } from "./main/file-mode.mjs";
+import { askToSaveFile, createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
+import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
+import { createCliControlServer } from "./main/cli-control/cli-control-server.mjs";
+import { createCliControlRequests } from "./main/cli-control/cli-control-requests.mjs";
+import { resolveCliControlEndpoint } from "./main/cli-control/endpoint.mjs";
+import { CLI_CONTROL_LIMITS, CLI_LAUNCH_ARGUMENT } from "../shared/cli-control-contract/protocol.mjs";
 import { registerFileModeIpcHandlers } from "./main/ipc/file-mode-ipc.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
@@ -414,8 +419,13 @@ const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
 const itemLifecycle = createItemLifecycleSupervisor();
 const manageItemExecutions = createItemLifecycleManager({ lifecycle: itemLifecycle, dialog,
   t: (id, values) => localeService.t(id, values) });
+const cliControlEndpoint = resolveCliControlEndpoint({
+  userDataPath: app.getPath("userData"),
+  uid: typeof process.getuid === "function" ? process.getuid() : null,
+});
 const terminalService = createTerminalProcessService({
   lifecycle: itemLifecycle,
+  hostEnvironment: createTerminalHostEnvironment(),
   utilityProcess,
   modulePath: path.join(__dirname, "utility", "terminal", "main.mjs"),
   budget: itemHostBudget,
@@ -641,6 +651,8 @@ async function createWindow(options = {}) {
     .map((folderPath) => path.resolve(folderPath));
   const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
   const fileTarget = options.initialFilePath ? createFileTarget(options.initialFilePath) : null;
+  // A background open shows the window without taking focus from the caller.
+  const activate = options.activate !== false;
   const window = new BrowserWindow({
     width: fileTarget ? 860 : 1180,
     height: 760,
@@ -687,14 +699,19 @@ async function createWindow(options = {}) {
     initialOpenPath: options.initialOpenPath ?? null,
     fileTarget,
   }));
+  let stopWatchingFile = null;
   if (fileTarget) {
     workspaceWindows.add(fileTarget.rootPath, window);
     window.setRepresentedFilename?.(fileTarget.path);
     window.setTitle(fileTarget.name);
     // The page's own <title> would otherwise replace the file name on load.
     window.on("page-title-updated", (event) => event.preventDefault());
+    stopWatchingFile = watchBoundFile(fileTarget.path, () => {
+      if (!window.webContents.isDestroyed()) window.webContents.send("file-mode:file-changed");
+    });
   }
-  lastFocusedWindowId = webContentsId;
+  if (activate) lastFocusedWindowId = webContentsId;
+  const present = () => (activate ? revealWindow(window) : showWindowInactive(window));
 
   window.on("focus", () => {
     reapplyNativeWindowChrome(window);
@@ -737,12 +754,12 @@ async function createWindow(options = {}) {
   });
 
   window.once("ready-to-show", () => {
-    revealWindow(window);
+    present();
   });
 
   window.webContents.once("did-finish-load", () => {
     console.info("puppyone renderer finished loading:", window.webContents.getURL());
-    revealWindow(window);
+    present();
   });
 
   window.webContents.on("did-start-navigation", (details) => {
@@ -767,7 +784,7 @@ async function createWindow(options = {}) {
       errorDescription,
       validatedURL,
     });
-    revealWindow(window);
+    present();
   });
 
   window.webContents.on("preload-error", (_event, preloadPathWithError, error) => {
@@ -795,10 +812,10 @@ async function createWindow(options = {}) {
     }
   } catch (error) {
     console.error("puppyone failed to open renderer:", error);
-    revealWindow(window);
+    present();
   }
 
-  revealWindow(window);
+  present();
 
   window.on("closed", () => {
     void projectSessions.closeWindow(webContentsId).then(({ closed }) => {
@@ -811,6 +828,7 @@ async function createWindow(options = {}) {
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
     workspaceWatchService.stopForWindow(webContentsId);
     gitMetadataWatchService.stopForWindow(webContentsId);
+    stopWatchingFile?.();
     windowsById.delete(webContentsId);
     windowStateById.delete(webContentsId);
     if (lastFocusedWindowId === webContentsId) {
@@ -836,6 +854,18 @@ function revealWindow(window) {
   const state = windowStateById.get(window.webContents.id);
   state?.markFocused();
   desktopPlatformHost.windowChrome.focusApplication(app);
+}
+
+function showWindowInactive(window) {
+  if (!window || window.isDestroyed() || window.isVisible()) return;
+  window.center();
+  window.showInactive();
+}
+
+/** An already open target: brought forward, or left where it is for a background open. */
+function showExistingWindow(window, { activate = true } = {}) {
+  if (activate) revealWindow(window);
+  else showWindowInactive(window);
 }
 
 function reapplyNativeWindowChrome(window) {
@@ -913,8 +943,8 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
     argv,
     workingDirectory,
     isPackaged: app.isPackaged,
-    openFile: openPathFromSystem,
-    openWorkspaceInNewWindow,
+    openFile: openSystemPath,
+    openWorkspaceInNewWindow: openSystemPath,
     revealOrCreateWindow: createOrRevealWindow,
     reportError: (message, error) => console.error(message, error),
   });
@@ -924,38 +954,102 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
 const pendingOpenPaths = initialLaunchIntent.filePath ? [initialLaunchIntent.filePath] : [];
 app.on("open-file", (event, targetPath) => {
   event.preventDefault();
-  if (initialWindowReady) void openPathFromSystem(targetPath).catch((error) => console.error("Unable to open file:", error));
+  if (initialWindowReady) void openSystemPath(targetPath).catch((error) => console.error("Unable to open file:", error));
   else pendingOpenPaths.push(targetPath);
 });
 
 /** Opens everything the system asked for. True when at least one window now shows it. */
 async function openPendingPaths() {
-  const results = await Promise.allSettled(pendingOpenPaths.splice(0).map(openPathFromSystem));
+  const results = await Promise.allSettled(pendingOpenPaths.splice(0).map(openSystemPath));
   for (const result of results) {
     if (result.status === "rejected") console.error("Unable to open file:", result.reason);
   }
   return results.some((result) => result.status === "fulfilled" && result.value);
 }
 
-async function openPathFromSystem(targetPath) {
-  const realPath = await fs.promises.realpath(targetPath);
-  if ((await fs.promises.stat(realPath)).isDirectory()) {
-    await openWorkspaceInNewWindow(realPath);
+const openPathFromSystem = createSystemOpenRoute({
+  isFileModeFile,
+  maxFileBytes: MAX_EDITOR_BYTES,
+  findFileWindow: (realPath) => {
+    for (const [id, state] of windowStateById) {
+      const window = state.fileTarget?.path === realPath ? windowsById.get(id) : null;
+      if (window && !window.isDestroyed()) return window;
+    }
+    return null;
+  },
+  findProjectWindow: (realPath) => findProjectWindowForFolder(
+    [...windowStateById].map(([id, state]) => ({ window: windowsById.get(id), state })),
+    realPath,
+  ),
+  showExistingWindow,
+  openFileWindow: (realPath, { activate }) => createWindow({ initialFilePath: realPath, activate }),
+  openProjectWindow: (realPath, { activate }) => openWorkspaceInNewWindow(realPath, { activate }),
+});
+
+/** The system's and a second instance's view of the route: true when a window shows the path. */
+async function openSystemPath(targetPath) {
+  try {
+    await openPathFromSystem(targetPath);
     return true;
-  }
-  if (!isFileModeFile(realPath)) {
-    console.warn("This file type cannot be opened on its own:", path.extname(realPath));
+  } catch (error) {
+    if (!(error instanceof OpenPathRejection)) throw error;
+    console.warn("Unable to open a path from the system:", error.message);
     return false;
   }
-  for (const [id, state] of windowStateById) {
-    const window = state.fileTarget?.path === realPath ? windowsById.get(id) : null;
-    if (window && !window.isDestroyed()) {
-      revealWindow(window);
-      return true;
-    }
-  }
-  await createWindow({ initialFilePath: realPath });
-  return true;
+}
+
+// `puppyone open` reaches this window manager through a per-user socket.
+const launchedByCli = process.argv.includes(CLI_LAUNCH_ARGUMENT);
+let allowCliWindows;
+const cliWindowsAllowed = new Promise((resolve) => { allowCliWindows = resolve; });
+let settleCliLaunchRequest = () => undefined;
+const cliLaunchRequest = new Promise((resolve) => { settleCliLaunchRequest = resolve; });
+const cliControlServer = gotSingleInstanceLock && cliControlEndpoint
+  ? createCliControlServer({
+      endpoint: cliControlEndpoint,
+      handle: createCliControlRequests({
+        app: Object.freeze({ name: appName, version: desktopBuildInfo.version, channel: desktopBuildInfo.channel }),
+        openExtensions: FILE_MODE_EXTENSIONS,
+        openMaxBytes: MAX_EDITOR_BYTES,
+        openPath: openPathFromSystem,
+        whenWindowsAllowed: () => cliWindowsAllowed,
+      }),
+      // A launch may quit after a refused request, so it waits until the CLI has the answer.
+      onResponseSent: (response) => {
+        if (response?.ok === false) settleCliLaunchRequest("failed");
+        else if (Array.isArray(response?.results)) {
+          settleCliLaunchRequest(response.results.some((result) => result.status !== "rejected") ? "opened" : "failed");
+        }
+      },
+    })
+  : null;
+if (cliControlServer) {
+  void cliControlServer.start().catch((error) => console.warn("Unable to accept command-line requests:", error));
+  app.once("will-quit", () => { void cliControlServer.close(); });
+}
+
+/** Where a launch by `puppyone open` ended: "opened", "failed", or "timeout" when no request came. */
+function waitForCliLaunchRequest() {
+  return Promise.race([
+    cliLaunchRequest,
+    new Promise((resolve) => setTimeout(() => resolve("timeout"), CLI_CONTROL_LIMITS.launchWaitMs).unref?.()),
+  ]);
+}
+
+/** Tells programs in the terminal which PuppyOne hosts them, so `puppyone open` reaches this one. */
+function createTerminalHostEnvironment() {
+  const bundlePath = resolveApplicationBundlePath();
+  return Object.freeze({
+    ...(cliControlEndpoint ? { PUPPYONE_CLI_ENDPOINT: cliControlEndpoint } : {}),
+    ...(bundlePath ? { PUPPYONE_APP_PATH: bundlePath } : {}),
+  });
+}
+
+/** The .app a packaged macOS build runs from. */
+function resolveApplicationBundlePath() {
+  if (!app.isPackaged || desktopPlatformHost.platform !== "macos") return null;
+  const bundlePath = path.resolve(process.execPath, "..", "..", "..");
+  return bundlePath.endsWith(".app") ? bundlePath : null;
 }
 
 app.on("open-url", (event, url) => {
@@ -1073,7 +1167,15 @@ app.whenReady().then(async () => {
   }
   await telemetryHost.start();
   updateService.start();
-  if (!await openPendingPaths()) {
+  allowCliWindows();
+  // A launch by `puppyone open` waits for its request instead of restoring the last project.
+  const cliLaunchOutcome = launchedByCli ? await waitForCliLaunchRequest() : "none";
+  const openedPendingPaths = await openPendingPaths();
+  if (cliLaunchOutcome === "failed" && !openedPendingPaths && windowsById.size === 0) {
+    app.quit();
+    return;
+  }
+  if (cliLaunchOutcome !== "opened" && !openedPendingPaths) {
     const initialWorkspaceComposition = initialLaunchIntent.workspacePath
       ? { workspaceId: null, paths: [initialLaunchIntent.workspacePath] }
       : await workspaceStateStore.readLastActiveWorkspaceComposition();
@@ -1800,6 +1902,7 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
   const window = await createWindow({
     initialWorkspacePath: canonicalPath,
     initialOpenPath: options.initialOpenPath,
+    activate: options.activate,
   });
   const state = assignWindowWorkspace(window, workspace, canonicalPath, { cleanupPrevious: false });
   if (options.remember !== false) {

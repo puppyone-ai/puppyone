@@ -170,6 +170,11 @@ export function getMimeType(filePath) {
   return shouldUseUtf8Mime(format, mimeType) ? `${mimeType}; charset=utf-8` : mimeType;
 }
 
+/** The parsed file format registry. Callers must not mutate it. */
+export function getLocalFileFormatRegistry() {
+  return fileFormatRegistry;
+}
+
 export function getLocalFileFormatId(name) {
   return resolveLocalFileFormat({ name }).id;
 }

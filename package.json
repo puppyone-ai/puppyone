@@ -72,6 +72,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node tests/integration/workspace/files/local-api.smoke.mjs",
     "smoke:file-mode": "electron tests/e2e/workspace/file-mode/file-mode.smoke.mjs",
+    "smoke:command-line-open": "electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs && electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs --scenario=failed-launch && electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs --scenario=no-request",
     "smoke:format-aware-diff": "electron tests/integration/source-control/diff/format-aware-diff.smoke.mjs",
     "smoke:table-interaction": "electron tests/integration/editor/tables/table-interaction.smoke.mjs",
     "smoke:table-move-selection": "electron tests/integration/editor/tables/table-move-selection.smoke.mjs",

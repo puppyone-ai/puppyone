@@ -1,10 +1,13 @@
+import fs from "node:fs";
 import path from "node:path";
-import { getLocalFileFormatId, getMimeType } from "../local-api/files/file-format-policy.mjs";
+import { getLocalFileFormatRegistry, getMimeType } from "../local-api/files/file-format-policy.mjs";
+import { createFileModeExtensions, hasFileModeExtension } from "../../shared/desktop/file-mode-contract.mjs";
 
 export const FILE_MODE_HASH = "file-mode";
 
-/** Formats a File Mode window can show. */
-const FILE_MODE_FORMATS = new Set(["markdown", "csv", "html"]);
+/** Every extension a File Mode window opens. Info.plist and the CLI protocol publish the same list. */
+export const FILE_MODE_EXTENSIONS = createFileModeExtensions(getLocalFileFormatRegistry());
+const BOUND_FILE_POLL_MS = 500;
 
 /** Channels a File Mode window may use. Everything else is refused at the IPC gate. */
 const FILE_MODE_CHANNELS = new Set([
@@ -34,10 +37,24 @@ const BOUND_FILE_CHANNELS = new Set([
 ]);
 
 export function isFileModeFile(filePath) {
-  const format = getLocalFileFormatId(filePath);
-  if (!FILE_MODE_FORMATS.has(format)) return false;
-  // The HTML format also covers server templates, which do not preview on their own.
-  return format !== "html" || /\.html?$/i.test(filePath);
+  return hasFileModeExtension(path.basename(filePath), FILE_MODE_EXTENSIONS);
+}
+
+/**
+ * Tells the window when its file changes on disk. Polling one file's stat
+ * follows saves that replace the file through a rename, which file events
+ * lose, and never watches the folder around it.
+ */
+export function watchBoundFile(filePath, onChange, {
+  watchFile = fs.watchFile,
+  unwatchFile = fs.unwatchFile,
+  interval = BOUND_FILE_POLL_MS,
+} = {}) {
+  const listener = (current, previous) => {
+    if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size || current.ino !== previous.ino) onChange();
+  };
+  watchFile(filePath, { interval, persistent: false }, listener);
+  return () => unwatchFile(filePath, listener);
 }
 
 /** The one file a File Mode window is bound to. `realPath` is already canonical. */

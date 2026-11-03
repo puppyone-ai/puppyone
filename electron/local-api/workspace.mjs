@@ -10,6 +10,7 @@ import {
   resolveCopyNameExtension,
 } from "./files/file-format-policy.mjs";
 import { parseSingleByteRange } from "./files/byte-range.mjs";
+import { MAX_EDITOR_BYTES } from "../../shared/desktop/file-mode-contract.mjs";
 import { readWorkspaceModifiedAt } from "./files/workspace-activity.mjs";
 import {
   isSameOrInsidePath,
@@ -83,7 +84,7 @@ const totalCommitsByHead = new Map();
 
 const MAX_ENTRIES_PER_FOLDER = 500;
 const MAX_PREVIEW_BYTES = 4096;
-export const MAX_EDITOR_BYTES = 1024 * 1024;
+export { MAX_EDITOR_BYTES };
 // Cap for whole-file reads served over the puppyone-local:// protocol (media
 // preview). Bounds main-process memory so a huge file can't OOM the app.
 const MAX_LOCAL_FILE_BYTES = 100 * 1024 * 1024;

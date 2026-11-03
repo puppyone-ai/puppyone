@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { applyLinuxBuilderConfig } from "../../../../scripts/desktop/build/platforms/linux.mjs";
 import { applyMacosBuilderConfig } from "../../../../scripts/desktop/build/platforms/macos.mjs";
 import { applyWindowsBuilderConfig } from "../../../../scripts/desktop/build/platforms/windows.mjs";
+import { FILE_MODE_EXTENSIONS } from "../../../../electron/main/file-mode.mjs";
+import { MAX_EDITOR_BYTES } from "../../../../electron/local-api/workspace.mjs";
 
 const identity = {
   applicationName: "PuppyOne",
+  userDataName: "puppyone",
   platformBuildNumber: "1",
   release: { baseVersion: "1.0.0", channel: "stable" },
 };
@@ -21,6 +24,14 @@ describe("system file type registration", () => {
       "public.comma-separated-values-text",
       "public.html",
     ]);
+  });
+
+  it("declares what puppyone open may ask of this build", () => {
+    const info = applyMacosBuilderConfig({ config, baseBuild: {}, identity }).mac.extendInfo;
+    expect(info.PuppyOneCliProtocol).toBe(1);
+    expect(info.PuppyOneCliUserDataName).toBe("puppyone");
+    expect(info.PuppyOneOpenExtensions).toEqual([...FILE_MODE_EXTENSIONS]);
+    expect(info.PuppyOneOpenMaxBytes).toBe(MAX_EDITOR_BYTES);
   });
 
   it("never claims the user's default app on macOS", () => {

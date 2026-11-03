@@ -32,6 +32,7 @@ import {
   getInitialWorkspace,
   openExternalUrl,
   setFileEdited,
+  subscribeFileModeFileChanges,
 } from "../lib/localFiles";
 import type { FileModeTarget } from "../types/electron";
 import "./file-mode.css";
@@ -245,11 +246,15 @@ function FileModeDocument({ target, dataPort, node }: OpenedFile & { node: Docum
     ...EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT,
     assetUrlResolver: createDataPortMarkdownAssetResolver(dataPort, target.rootPath),
   }), [dataPort, target.rootPath]);
-  // There is no folder watcher here, so outside changes are picked up on return.
+  // Main watches only this file; returning to the window reads it again too.
   useEffect(() => {
     const refresh = () => retry();
     window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    const unsubscribe = subscribeFileModeFileChanges(refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      unsubscribe();
+    };
   }, [retry]);
 
   // Text we could not read as UTF-8 cannot be written back without changing it.

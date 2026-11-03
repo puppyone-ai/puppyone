@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   askToSaveFile,
   createFileTarget,
+  FILE_MODE_EXTENSIONS,
   isFileModeFile,
   isIpcAllowedInFileMode,
+  watchBoundFile,
 } from "../../../../electron/main/file-mode.mjs";
 
 const target = createFileTarget("/Users/me/notes/plan.md");
@@ -100,10 +102,42 @@ describe("File Mode formats", () => {
     (name) => expect(isFileModeFile(name)).toBe(true),
   );
 
-  it.each(["a.pdf", "a.yaml", "a.png", "a", "a.xlsx", "a.tsv", "a.ejs", "a.jsp", "a.php"])(
+  it.each(["a.pdf", "a.yaml", "a.png", "a", "a.xlsx", "a.tsv", "a.ejs", "a.jsp", "a.php", ".md", "/x/.csv"])(
     "does not open %s",
     (name) => expect(isFileModeFile(name)).toBe(false),
   );
+
+  it("publishes one lowercase list without names a shorter extension already covers", () => {
+    expect(FILE_MODE_EXTENSIONS).toEqual(expect.arrayContaining([".md", ".markdown", ".mdx", ".csv", ".html", ".htm"]));
+    expect(FILE_MODE_EXTENSIONS).not.toContain(".agent.md");
+    expect(FILE_MODE_EXTENSIONS).not.toContain(".ejs");
+    for (const extension of FILE_MODE_EXTENSIONS) expect(extension).toBe(extension.toLowerCase());
+    expect(isFileModeFile("/x/review.agent.md")).toBe(true);
+  });
+});
+
+describe("watching the bound file", () => {
+  const stats = (mtimeMs, size = 1, ino = 1) => ({ mtimeMs, size, ino });
+
+  it("reports a change in content, size or identity, and stops on request", () => {
+    let listener;
+    const watchFile = vi.fn((_path, _options, callback) => { listener = callback; });
+    const unwatchFile = vi.fn();
+    const onChange = vi.fn();
+    const stop = watchBoundFile("/x/plan.md", onChange, { watchFile, unwatchFile });
+
+    expect(watchFile).toHaveBeenCalledWith("/x/plan.md", { interval: 500, persistent: false }, listener);
+    listener(stats(1), stats(1));
+    expect(onChange).not.toHaveBeenCalled();
+    listener(stats(2), stats(1));
+    listener(stats(2, 5), stats(2));
+    // Saving through a temporary file and a rename replaces the inode.
+    listener(stats(2, 5, 9), stats(2, 5, 1));
+    expect(onChange).toHaveBeenCalledTimes(3);
+
+    stop();
+    expect(unwatchFile).toHaveBeenCalledWith("/x/plan.md", listener);
+  });
 });
 
 describe("closing with unsaved edits", () => {

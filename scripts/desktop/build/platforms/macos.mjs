@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { resolveDesktopAppIcon } from "../../../../shared/desktop/app-icon-contract.mjs";
+import { createFileModeExtensions, MAX_EDITOR_BYTES } from "../../../../shared/desktop/file-mode-contract.mjs";
+import { CLI_CONTROL_PROTOCOL, CLI_INFO_PLIST_KEYS } from "../../../../shared/cli-control-contract/protocol.mjs";
 
 /**
  * Files Desktop offers to open on their own. `Alternate` joins the system's
@@ -10,6 +13,17 @@ const FILE_MODE_DOCUMENT_TYPES = Object.freeze([
   { CFBundleTypeName: "CSV", LSItemContentTypes: ["public.comma-separated-values-text"] },
   { CFBundleTypeName: "HTML", LSItemContentTypes: ["public.html"] },
 ].map((type) => ({ ...type, CFBundleTypeRole: "Editor", LSHandlerRank: "Alternate" })));
+
+/** What `puppyone open` reads before it starts the app. */
+export function createCliDeclaration(identity) {
+  const registry = JSON.parse(readFileSync(new URL("../../../../shared/fileFormats.json", import.meta.url), "utf8"));
+  return {
+    [CLI_INFO_PLIST_KEYS.protocol]: CLI_CONTROL_PROTOCOL,
+    [CLI_INFO_PLIST_KEYS.userDataName]: identity.userDataName,
+    [CLI_INFO_PLIST_KEYS.openExtensions]: [...createFileModeExtensions(registry)],
+    [CLI_INFO_PLIST_KEYS.openMaxBytes]: MAX_EDITOR_BYTES,
+  };
+}
 
 export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
   return {
@@ -40,6 +54,7 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
         CFBundleName: identity.applicationName,
         CFBundleDisplayName: identity.applicationName,
         CFBundleDocumentTypes: FILE_MODE_DOCUMENT_TYPES,
+        ...createCliDeclaration(identity),
       },
       target: ["dmg", "zip"],
     },
