@@ -960,6 +960,8 @@
   "share.agent.request.status": "Möchte beitreten",
   "share.agent.request.allow": "Zulassen",
   "share.agent.request.deny": "Ablehnen",
+  "share.agent.demo.asking": "Bitte um Beitritt…",
+  "share.agent.demo.joined": "Bin drin. Ich lege los.",
   "share.agent.signIn.label": "Nur von dir bestätigte Agenten",
   "share.agent.signIn.description": "Wenn dein Agent beitreten möchte, lässt du ihn hier zu.",
   "share.agent.link.label": "Jeder Agent mit dem Link",

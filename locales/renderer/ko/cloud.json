@@ -960,6 +960,8 @@
   "share.agent.request.status": "참여 요청",
   "share.agent.request.allow": "허용",
   "share.agent.request.deny": "거절",
+  "share.agent.demo.asking": "참여를 요청하는 중…",
+  "share.agent.demo.joined": "참여했어요. 작업을 시작할게요.",
   "share.agent.signIn.label": "승인한 에이전트만",
   "share.agent.signIn.description": "에이전트가 참여를 요청하면 여기에서 허용합니다.",
   "share.agent.link.label": "링크가 있는 모든 에이전트",

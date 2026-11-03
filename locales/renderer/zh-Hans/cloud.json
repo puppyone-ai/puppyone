@@ -960,6 +960,8 @@
   "share.agent.request.status": "请求加入",
   "share.agent.request.allow": "允许",
   "share.agent.request.deny": "拒绝",
+  "share.agent.demo.asking": "正在请求加入…",
+  "share.agent.demo.joined": "已加入，开始工作。",
   "share.agent.signIn.label": "只允许你批准的 Agent",
   "share.agent.signIn.description": "Agent 请求加入时，你在这里允许它。",
   "share.agent.link.label": "任何拿到链接的 Agent",

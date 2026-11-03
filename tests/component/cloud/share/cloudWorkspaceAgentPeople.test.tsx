@@ -51,7 +51,7 @@ const agentButtons = () => [...document.querySelectorAll<HTMLButtonElement>("[da
 const agentButton = (id: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-agent="${id}"]`)!;
 const row = () => document.querySelector<HTMLElement>(".desktop-titlebar-cloud-agents");
 const panel = () => document.querySelector<HTMLElement>("[role=dialog]");
-const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]')!;
+const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]');
 const invite = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="invite-agent"]');
 const render = async (context = project(), mounted = true) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceHeaderTools context={context} session={session}
@@ -72,7 +72,6 @@ describe("An Agent in the Header", () => {
     expect(marks()).toEqual([]);
     expect(row()).toBeNull();
     expect(invite()!.getAttribute("aria-label")).toBe("Invite an agent");
-    expect(invite()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => invite()!.click());
     expect(panel()?.dataset.panel).toBe("agents");
     expect(panel()?.dataset.control).toBe("true");
@@ -120,14 +119,14 @@ describe("An Agent in the Header", () => {
     await render(null as unknown as ProjectCloudContext);
     expect(row()).toBeNull();
   });
-  it("appears ahead of Share as soon as it is allowed, as a control of its own", async () => {
+  it("appears ahead of the invite seat as soon as it is allowed, as a control of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
     expect(marks()[0].textContent).toBe("秘");
     expect(marks()[0].dataset.reachAudience).toBe("machine");
-    expect(row()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(row()!.contains(share())).toBe(false);
+    expect(row()!.compareDocumentPosition(invite()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row()!.contains(invite())).toBe(false);
   });
   it("is lit only while it is active", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];
@@ -159,16 +158,13 @@ describe("An Agent in the Header", () => {
     await act(async () => agentButton("c2").click());
     expect(panel()).toBeNull();
   });
-  it("keeps Share and the Agents apart: each opens only its own card", async () => {
+  it("offers no way to share with people while inviting Agents comes first", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
-    await act(async () => share().click());
-    expect(panel()?.dataset.panel).toBe("share");
-    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
+    expect(share()).toBeNull();
     await act(async () => agentButton("c1").click());
-    expect(panel()?.dataset.panel).toBe("agents");
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
-    expect(share().getAttribute("aria-expanded")).toBe("false");
+    expect(panel()?.dataset.panel).toBe("agents");
   });
   it("opens Manage agents from the list, as a dialog of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
@@ -228,8 +224,7 @@ describe("An Agent in the Header", () => {
     await render();
     expect(marks()).toEqual([]);
     expect(invite()).toBeNull();
-    await act(async () => share().click());
-    expect(panel()?.dataset.panel).toBe("share");
+    expect(share()).toBeNull();
   });
   it("does not look for Agents in a scoped view, which cannot have any", async () => {
     await render(project("scope"));

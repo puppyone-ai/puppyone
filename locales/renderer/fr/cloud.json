@@ -960,6 +960,8 @@
   "share.agent.request.status": "Demande à rejoindre",
   "share.agent.request.allow": "Autoriser",
   "share.agent.request.deny": "Refuser",
+  "share.agent.demo.asking": "Demande pour rejoindre…",
+  "share.agent.demo.joined": "C’est fait. Je me mets au travail.",
   "share.agent.signIn.label": "Seulement les agents que vous approuvez",
   "share.agent.signIn.description": "Quand votre agent demande à rejoindre le projet, vous l’autorisez ici.",
   "share.agent.link.label": "Tout agent ayant le lien",

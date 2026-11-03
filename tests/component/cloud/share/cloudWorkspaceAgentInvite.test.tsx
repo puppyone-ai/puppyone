@@ -91,10 +91,10 @@ describe("Inviting an Agent", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("says it waits for the agent beside the button while the Header does", async () => {
+  it("says it waits for the agent under the step while the Header does", async () => {
     await render({ waiting: true });
     expect(status()).toBe("Waiting for your agent…");
-    expect(document.querySelector(".desktop-cloud-agent-invite-actions .desktop-cloud-agent-invite-note svg")).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-invite-hint + .desktop-cloud-agent-invite-note svg")).not.toBeNull();
     await render({ waiting: false });
     expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
   });
@@ -149,8 +149,11 @@ describe("Inviting an Agent", () => {
   it("shows the start of the prompt and the step after it, and mints no link until it is copied", async () => {
     await render();
     expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
-    const preview = document.querySelector(".desktop-cloud-agent-prompt");
+    const preview = document.querySelector(".desktop-cloud-agent-prompt-text");
     expect(preview?.getAttribute("aria-label")).toBe("Prompt for your agent");
+    // The button that copies it sits on the prompt itself, so the two read as one thing.
+    expect(primary().parentElement?.classList.contains("desktop-cloud-agent-prompt")).toBe(true);
+    expect(primary().textContent).toBe("Copy prompt");
     // It reads true up to the link, which only copying makes.
     expect(preview?.textContent).toBe('Connect to my puppyone project "Launch plan" by following https://cloud-fixture.puppyone.ai/agent/');
     expect(document.querySelector(".desktop-cloud-agent-invite-hint")?.textContent)
@@ -167,6 +170,27 @@ describe("Inviting an Agent", () => {
     denied = false;
     await act(async () => primary().click());
     expect(onInvited).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows how inviting goes while no Agent is here, and only as an illustration", async () => {
+    await render();
+    const demo = document.querySelector<HTMLElement>("[data-cloud-agent-demo]")!;
+    expect(demo.getAttribute("aria-hidden")).toBe("true");
+    expect(demo.dataset.cloudAgentDemo).toBe("Claude Code");
+    expect(demo.textContent).toContain('Connect to my puppyone project "Launch plan"');
+    expect(demo.textContent).toContain("Wants to join");
+    expect(demo.querySelector("button")).toBeNull();
+    // Each pass of the loop shows another Agent; its parts' own passes do not count.
+    await act(async () => demo.querySelector("p")!.dispatchEvent(new Event("animationiteration", { bubbles: true })));
+    expect(demo.dataset.cloudAgentDemo).toBe("Claude Code");
+    await act(async () => demo.dispatchEvent(new Event("animationiteration", { bubbles: true })));
+    expect(demo.dataset.cloudAgentDemo).toBe("Codex");
+  });
+
+  it("leaves the illustration out once Agents are here", async () => {
+    await render({ compact: true });
+    await act(async () => select("[data-cloud-agent-invite-open]").click());
+    expect(document.querySelector("[data-cloud-agent-demo]")).toBeNull();
   });
 
   it("waits behind one row among the Agents, and opens the form rather than copying", async () => {

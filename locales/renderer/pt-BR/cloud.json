@@ -960,6 +960,8 @@
   "share.agent.request.status": "Quer entrar",
   "share.agent.request.allow": "Permitir",
   "share.agent.request.deny": "Recusar",
+  "share.agent.demo.asking": "Pedindo para entrar…",
+  "share.agent.demo.joined": "Entrei. Começando a trabalhar.",
   "share.agent.signIn.label": "Só agentes que você aprovar",
   "share.agent.signIn.description": "Quando seu agente pedir para entrar, você permite aqui.",
   "share.agent.link.label": "Qualquer agente com o link",

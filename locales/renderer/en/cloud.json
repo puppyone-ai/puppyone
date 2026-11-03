@@ -960,6 +960,8 @@
   "share.agent.request.status": "Wants to join",
   "share.agent.request.allow": "Allow",
   "share.agent.request.deny": "Deny",
+  "share.agent.demo.asking": "Asking to join…",
+  "share.agent.demo.joined": "Joined. Getting to work.",
   "share.agent.signIn.label": "Only agents you approve",
   "share.agent.signIn.description": "When your agent asks to join, you allow it here.",
   "share.agent.link.label": "Any agent with the link",

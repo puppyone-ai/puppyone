@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { Forward, Plus } from "lucide-react";
+import { Forward, LoaderCircle, Plus } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -37,6 +37,11 @@ type Props = {
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 };
 
+/**
+ * Sharing with people stays out of the Header until inviting Agents works end
+ * to end; its card and dialog are kept so it can come back as it is.
+ */
+const SHARE_WITH_PEOPLE = false;
 /** A sign-in request lasts ten minutes, so an invite with no answer by then is not awaited. */
 const INVITE_WAIT_MS = 10 * 60_000;
 /** Who opened the Agents card: one Agent's mark, the overflow count, or the invite. */
@@ -66,7 +71,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   const agentsAnchor = useRef<HTMLDivElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
-  const { agents, requests, manageable, refresh: refreshAgents } = useWorkspaceAgents(
+  const { agents, requests, manageable, loading, refresh: refreshAgents } = useWorkspaceAgents(
     agentTarget(context, session, apiBaseUrl), { waiting: panel === "agents" || invite !== null });
   const answered = invite !== null && (requests.length > 0 || agents.some(agent => !invite.has(agent.id)));
   useEffect(() => { if (answered) setInvite(null); }, [answered]);
@@ -97,21 +102,27 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     onChanged: refreshPeople,
   } : null;
   const pressedAgentId = opener === MORE || opener === INVITE ? null : opener;
+  // Until it is known whether this person may invite, the seat holds its place rather than appearing late.
+  const checking = session !== null && (!context || context.status === "resolving" || loading);
+  const seat = manageable || checking;
+  const agentsShown = (ready && listed) || seat;
   return <>
-    <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
-      {ready && (listed || manageable) && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
-        {listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
+    <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}
+      data-share-people={SHARE_WITH_PEOPLE || undefined}>
+      {agentsShown && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
+        {ready && listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
           onOpen: agentId => openAgents(agentId ?? MORE) })}
-        {manageable && <InviteAgentTool open={agentsOpen && opener === INVITE} onOpen={() => openAgents(INVITE)} />}
+        {seat && <InviteAgentTool checking={!manageable} open={agentsOpen && opener === INVITE}
+          onOpen={() => openAgents(INVITE)} />}
       </div>}
-      <Tooltip content={t(ready ? "shell.titlebar.share" : "shell.workspaceSwitcher.location.checking")}>
+      {SHARE_WITH_PEOPLE && <Tooltip content={t(ready ? "shell.titlebar.share" : "shell.workspaceSwitcher.location.checking")}>
         <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
           aria-haspopup="dialog" aria-expanded={panel === "share"} onClick={toggleShare}>
           <Forward size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
-      </Tooltip>
-      <span className="desktop-titlebar-action-divider" aria-hidden="true" />
+      </Tooltip>}
+      {(agentsShown || SHARE_WITH_PEOPLE) && <span className="desktop-titlebar-action-divider" aria-hidden="true" />}
       <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
     {context?.status === "resolved" && <Suspense fallback={null}>
@@ -125,14 +136,18 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
 }
 
 /** An empty seat beside the Agents: whoever is invited takes its place in the row. */
-function InviteAgentTool({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+function InviteAgentTool({ checking, open, onOpen }: { checking: boolean; open: boolean; onOpen: () => void }) {
   const { t } = useLocalization();
-  const label = t("cloud.share.agent.invite.title");
+  const label = t(checking ? "shell.workspaceSwitcher.location.checking" : "cloud.share.agent.invite.title");
   return <Tooltip content={label}>
     <button type="button" className="desktop-titlebar-cloud-agent desktop-titlebar-cloud-agent-invite"
-      data-cloud-workspace-tool="invite-agent" aria-label={label} aria-haspopup="dialog" aria-expanded={open}
-      onClick={onOpen}>
-      <span className="desktop-titlebar-cloud-agent-seat" aria-hidden="true"><Plus size={12} strokeWidth={2} /></span>
+      data-cloud-workspace-tool="invite-agent" data-checking={checking || undefined} disabled={checking}
+      aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={onOpen}>
+      <span className="desktop-titlebar-cloud-agent-seat" aria-hidden="true">
+        {checking
+          ? <LoaderCircle className="animate-spin" size={12} strokeWidth={2} />
+          : <Plus size={12} strokeWidth={2} />}
+      </span>
     </button>
   </Tooltip>;
 }

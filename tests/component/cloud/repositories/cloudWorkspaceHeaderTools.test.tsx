@@ -1,16 +1,19 @@
 /** @vitest-environment happy-dom */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceHeaderTools } from "../../../../src/features/cloud/workbench/CloudWorkspaceHeaderTools";
-import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
+import { cloudApiRequest, type DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
 import { withTestLocalization } from "../../../support/react/localization";
 
-vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
-  CloudWorkspaceShareDialog: ({ context, onClose }: {
-    context: { projectId: string }; onClose: () => void;
-  }) => <div role="dialog" data-project={context.projectId}>
+vi.mock("../../../../src/lib/cloudApi", async original => ({
+  ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
+}));
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
+  CloudWorkspaceAgentsPanel: ({ control, onClose }: {
+    control: { projectId: string } | null; onClose: () => void;
+  }) => <div role="dialog" data-project={control?.projectId}>
     <button onClick={onClose}>Close</button>
   </div>,
 }));
@@ -22,11 +25,16 @@ const session: DesktopCloudSession = { api_base_url: API, user_id: "one", user_e
 const context = (id = "hosted-project"): ProjectCloudContext => ({ status: "resolved", projectId: id,
   target: { kind: "project_root", project_id: id }, capabilities: ["content.read"] });
 let root: Root | null = null;
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
+beforeEach(() => {
+  vi.mocked(cloudApiRequest).mockImplementation(async path =>
+    String(path).endsWith("/agent-links") ? { links: [], connections: [] } : []);
+});
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); vi.clearAllMocks(); });
 async function render(props: Partial<Parameters<typeof CloudWorkspaceHeaderTools>[0]> = {}) {
   if (!root) { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); }
   await act(async () => root?.render(withTestLocalization(<CloudWorkspaceHeaderTools
     context={context()} session={session} apiBaseUrl={API} onSessionChange={vi.fn()} {...props} />)));
+  await act(async () => { await Promise.resolve(); });
 }
 const button = (tool: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-tool="${tool}"]`)!;
 
@@ -41,50 +49,58 @@ describe("Cloud workspace Header tools", () => {
     expect(button("agent").getAttribute("aria-label")).toBe("Hide Agent");
     act(() => button("agent").click()); expect(toggle).toHaveBeenCalledTimes(2);
   });
-  it("keeps only Share and Agent in the Header, disabled during preparation", async () => {
+  it("keeps people sharing out of the Header for now, and holds the invite seat while it is checked", async () => {
     await render({ context: null });
+    expect(button("share")).toBeNull();
     expect(button("automation")).toBeNull();
-    expect(button("connect")).toBeNull();
-    expect(button("share").getAttribute("aria-label")).toBe("Share");
     expect(button("history")).toBeNull();
-    expect(button("share").disabled).toBe(true);
-    await act(async () => button("share").click());
-    expect(document.querySelector("[role=dialog]")).toBeNull();
+    expect(button("invite-agent").disabled).toBe(true);
+    expect(button("invite-agent").getAttribute("aria-label")).toBe("Checking…");
+    expect(button("invite-agent").querySelector(".animate-spin")).not.toBeNull();
     await render();
-    expect(button("share").disabled).toBe(false);
-    expect(button("history")).toBeNull();
+    expect(button("invite-agent").disabled).toBe(false);
+    expect(button("invite-agent").getAttribute("aria-label")).toBe("Invite an agent");
   });
 
-  it("states Share as a mark with its name, and a divider between it and the Agent", async () => {
+  it("keeps the seat checking until the server answers, and drops it for someone who may not invite", async () => {
+    let refuse = () => {};
+    vi.mocked(cloudApiRequest).mockImplementation(path => String(path).endsWith("/agent-links")
+      ? new Promise((_, reject) => { refuse = () => reject(Object.assign(new Error("denied"), { status: 403 })); })
+      : Promise.resolve([]));
     await render();
-    expect(button("share").querySelector("svg")).not.toBeNull();
-    expect(button("share").textContent).toBe("");
-    expect(button("share").getAttribute("aria-label")).toBe("Share");
-    expect(button("share").dataset.tooltip).toBe("Share");
-    const divider = button("share").nextElementSibling;
+    expect(button("invite-agent").dataset.checking).toBe("true");
+    await act(async () => { refuse(); await Promise.resolve(); });
+    expect(button("invite-agent")).toBeNull();
+    // Nothing stands before the Agent pane, so no divider does either.
+    expect(document.querySelector(".desktop-titlebar-action-divider")).toBeNull();
+  });
+
+  it("puts a divider between the invite seat and the Agent pane", async () => {
+    await render();
+    const divider = button("invite-agent").closest(".desktop-titlebar-cloud-agents-anchor")?.nextElementSibling;
     expect(divider?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
-    expect(divider?.nextElementSibling).toBe(button("agent"));
+    expect(divider?.nextElementSibling?.contains(button("agent"))).toBe(true);
   });
 
-  it("opens sharing for the active hosted project and allows dismissal", async () => {
+  it("opens the Agents card for the active hosted project and allows dismissal", async () => {
     await render();
-    await act(async () => button("share").click());
+    await act(async () => button("invite-agent").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("hosted-project");
-    expect(button("share").getAttribute("aria-expanded")).toBe("true");
+    expect(button("invite-agent").getAttribute("aria-expanded")).toBe("true");
     act(() => document.querySelector<HTMLButtonElement>("[role=dialog] button")!.click());
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 
   it("closes a task when the active Cloud project changes", async () => {
-    await render(); await act(async () => button("share").click());
+    await render(); await act(async () => button("invite-agent").click());
     await render({ context: context("other-project") });
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    await act(async () => button("share").click());
+    await act(async () => button("invite-agent").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("other-project");
   });
 
   it.each(["account", "generation", "host", "sign-out"])("revokes an open task on %s change", async change => {
-    await render(); await act(async () => button("share").click());
+    await render(); await act(async () => button("invite-agent").click());
     const changes = {
       account: { session: { ...session, user_id: "two" } },
       generation: { session: { ...session, session_generation: "two" } },
@@ -93,6 +109,6 @@ describe("Cloud workspace Header tools", () => {
     };
     await render(changes[change as keyof typeof changes]);
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    if (change === "sign-out") expect(button("share").disabled).toBe(true);
+    if (change === "sign-out") expect(button("invite-agent")).toBeNull();
   });
 });

@@ -590,14 +590,18 @@
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
-/* The Agents stay beside Share, on the editor's side of the boundary. */
+/* The Agents stay on the editor's side of the boundary, beside Share where it is shown. */
 .desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
   position: absolute;
+  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"] [data-share-people] .desktop-titlebar-cloud-agents-anchor {
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px + var(--desktop-chrome-control-size));
 }
 
 .desktop-shell[data-header-follows-right-sidebar="true"]
-  .desktop-titlebar-share + .desktop-titlebar-action-divider {
+  :is(.desktop-titlebar-share, .desktop-titlebar-cloud-agents-anchor) + .desktop-titlebar-action-divider {
   position: absolute;
   inset-inline-start: 0;
   margin-inline: 0;
@@ -720,8 +724,15 @@
   border-radius: 50%;
 }
 
-.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]) {
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) {
   color: var(--desktop-titlebar-text);
+}
+
+/* Holding the seat's place while the server says whether this person may invite. */
+.desktop-titlebar-cloud-agent-invite:disabled {
+  background: transparent;
+  cursor: default;
+  opacity: 0.7;
 }
 
 .desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {

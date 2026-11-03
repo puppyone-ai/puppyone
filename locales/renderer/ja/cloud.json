@@ -960,6 +960,8 @@
   "share.agent.request.status": "参加をリクエスト中",
   "share.agent.request.allow": "許可",
   "share.agent.request.deny": "拒否",
+  "share.agent.demo.asking": "参加をリクエスト中…",
+  "share.agent.demo.joined": "参加しました。作業を始めます。",
   "share.agent.signIn.label": "承認したエージェントのみ",
   "share.agent.signIn.description": "エージェントが参加をリクエストしたら、ここで許可します。",
   "share.agent.link.label": "リンクを持つすべてのエージェント",

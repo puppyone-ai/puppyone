@@ -74,7 +74,7 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
     {(control || agents.length > 0) && <div className="desktop-cloud-agents-foot" data-alone={!listed || undefined}>
       {control && <CloudWorkspaceAgentInvite compact={listed} session={control.session} apiBaseUrl={control.apiBaseUrl}
         projectId={control.projectId} projectName={control.projectName} waiting={control.waiting}
-        onInvited={control.onInvited} />}
+        onInvited={control.onInvited} renderAgentMark={renderAgentMark} />}
       {agents.length > 0 && <DesktopMenuItem className="desktop-cloud-agents-manage desktop-cloud-agents-row-action"
         role="button" data-cloud-agents-manage=""
         icon={<Settings size={15} strokeWidth={1.75} aria-hidden="true" />}

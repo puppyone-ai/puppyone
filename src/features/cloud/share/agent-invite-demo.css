@@ -1,0 +1,84 @@
+/* Inviting an Agent, as a short loop. Every part runs on the same 9-second
+   clock so the steps stay in order: the prompt is pasted, the Agent answers,
+   its request arrives, Allow is pressed, and the Agent is at work. */
+@layer features {
+  .desktop-cloud-agent-demo {
+    --reach-mark-ground: var(--po-menu-bg);
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--po-hover);
+    animation: desktop-agent-demo-clock 9s linear infinite;
+  }
+  .desktop-cloud-agent-demo p { margin: 0; }
+  .desktop-cloud-agent-demo-chat { display: grid; gap: 6px; min-width: 0; }
+
+  .desktop-cloud-agent-demo-bubble { max-width: 86%; padding: 5px 9px; border-radius: 10px; font-size: var(--po-type-ui-micro, 11px); line-height: 15px; }
+  /* What the person pasted: their own words on the right, as any chat shows them. */
+  .desktop-cloud-agent-demo-bubble[data-from="person"] {
+    justify-self: end; overflow: hidden; border-end-end-radius: 3px;
+    background: color-mix(in srgb, var(--po-accent) 24%, transparent); color: var(--po-text);
+    text-overflow: ellipsis; white-space: nowrap;
+    animation: desktop-agent-demo-paste 9s ease infinite both;
+  }
+  .desktop-cloud-agent-demo-reply { display: flex; align-items: flex-end; gap: 6px; min-width: 0; animation: desktop-agent-demo-reply 9s ease infinite both; }
+  .desktop-cloud-agent-demo-bubble[data-from="agent"] { display: grid; border-end-start-radius: 3px; background: var(--po-menu-bg); color: var(--po-text-muted); }
+
+  /* Two moments in one place: asking, then at work. */
+  .desktop-cloud-agent-demo-step { display: flex; grid-area: 1 / 1; align-items: center; gap: 5px; min-width: 0; }
+  .desktop-cloud-agent-demo-step[data-step="asking"] { animation: desktop-agent-demo-asking 9s ease infinite both; }
+  .desktop-cloud-agent-demo-step[data-step="joined"] { opacity: 0; animation: desktop-agent-demo-joined 9s ease infinite both; }
+
+  /* The request as this card shows it, arriving under the chat. */
+  .desktop-cloud-agent-demo-request {
+    display: grid; min-height: 32px; padding: 5px 8px; border-radius: 8px;
+    background: var(--po-menu-bg); box-shadow: 0 0 0 1px var(--po-shell-divider);
+    animation: desktop-agent-demo-request 9s ease infinite both;
+  }
+  .desktop-cloud-agent-demo-request .desktop-cloud-agent-demo-step { gap: 8px; }
+  .desktop-cloud-agent-demo-name { flex-shrink: 0; color: var(--po-text); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); }
+  .desktop-cloud-agent-demo-state { flex: 1; overflow: hidden; color: var(--po-text-muted); font-size: var(--po-type-ui-micro, 11px); text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-agent-demo-allow {
+    flex-shrink: 0; padding: 3px 10px; border-radius: 6px;
+    background: var(--po-accent); color: var(--po-text-inverse);
+    font-size: var(--po-type-ui-micro, 11px); font-weight: var(--po-text-weight-medium, 500);
+    animation: desktop-agent-demo-press 9s ease infinite both;
+  }
+
+  @keyframes desktop-agent-demo-clock { from { opacity: 1; } to { opacity: 1; } }
+  @keyframes desktop-agent-demo-paste {
+    0%, 5% { opacity: 0; translate: 0 6px; }
+    10%, 90% { opacity: 1; translate: 0 0; }
+    97%, 100% { opacity: 0; translate: 0 0; }
+  }
+  @keyframes desktop-agent-demo-reply {
+    0%, 17% { opacity: 0; translate: 0 6px; }
+    22%, 90% { opacity: 1; translate: 0 0; }
+    97%, 100% { opacity: 0; translate: 0 0; }
+  }
+  @keyframes desktop-agent-demo-request {
+    0%, 32% { opacity: 0; translate: 0 6px; }
+    38%, 90% { opacity: 1; translate: 0 0; }
+    97%, 100% { opacity: 0; translate: 0 0; }
+  }
+  @keyframes desktop-agent-demo-press {
+    0%, 48% { scale: 1; filter: none; }
+    51% { scale: 0.9; filter: brightness(1.15); }
+    54%, 100% { scale: 1; filter: none; }
+  }
+  @keyframes desktop-agent-demo-asking { 0%, 55% { opacity: 1; } 60%, 100% { opacity: 0; } }
+  @keyframes desktop-agent-demo-joined { 0%, 57% { opacity: 0; } 62%, 100% { opacity: 1; } }
+
+  /* One still frame: the request waiting to be allowed, which is the step to learn. */
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-cloud-agent-demo,
+    .desktop-cloud-agent-demo-bubble[data-from="person"],
+    .desktop-cloud-agent-demo-reply,
+    .desktop-cloud-agent-demo-request,
+    .desktop-cloud-agent-demo-allow,
+    .desktop-cloud-agent-demo-step[data-step="asking"],
+    .desktop-cloud-agent-demo-step[data-step="joined"] { animation: none; }
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, LoaderCircle, Plus } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
@@ -6,6 +6,8 @@ import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { agentConnectMessage, createAgentLink, listAgentLinks, type AgentAdmission } from "./agentLinks";
+import { CloudWorkspaceAgentInviteDemo } from "./CloudWorkspaceAgentInviteDemo";
+import type { ShareAgentMark } from "./CloudWorkspaceAgentsPanel";
 
 /** Long enough to read, short enough that the button is ready for a second Agent. */
 const COPIED_MS = 3_000;
@@ -23,13 +25,14 @@ const OPTION_TEXT = {
 } as const;
 
 /**
- * Inviting an Agent: the start of the prompt, the button that copies it, and
- * what to do with it. The link inside is created only by copying, so opening
- * the card mints nothing, and every copy is a new link. Once the card lists
- * Agents, the form waits behind one row until it is asked for.
+ * Inviting an Agent: while none is here, a short loop shows how it goes; then
+ * the prompt itself, under a veil with the button that copies it, and what to
+ * do with it. The link inside is created only by copying, so opening the card
+ * mints nothing, and every copy is a new link. Once the card lists Agents, the
+ * form waits behind one row until it is asked for.
  */
 export function CloudWorkspaceAgentInvite({ projectId, projectName, session, apiBaseUrl, compact = false, waiting = false,
-  onInvited }: {
+  onInvited, renderAgentMark }: {
   projectId: string;
   projectName: string;
   session: DesktopCloudSession;
@@ -40,6 +43,8 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
   waiting?: boolean;
   /** The Header waits for the answer, so it hears about an invite at once. */
   onInvited?: () => void;
+  /** The shell's Agent marks, so the demonstration shows Agents as the Header does. */
+  renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 }) {
   const { t } = useLocalization();
   const [admission, setAdmission] = useState<AgentAdmission>("sign_in");
@@ -100,12 +105,12 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
       </p>}
     </div>;
   }
+  const prompt = agentConnectMessage(projectName, linkPreview(apiBaseUrl));
   return <section ref={form} className="desktop-cloud-agent-invite" aria-label={t("cloud.share.agent.invite.title")}>
     <h3>{t("cloud.share.agent.invite.title")}</h3>
-    {/* Enough of the prompt to recognize it; the link is made only by copying, so it fades out first. */}
-    <p className="desktop-cloud-agent-prompt" dir="ltr" aria-label={t("cloud.share.agent.invite.preview")}>
-      <span>{agentConnectMessage(projectName, linkPreview(apiBaseUrl))}</span>
-    </p>
+    {/* Someone who has never invited one sees how it goes; inviting another needs no lesson. */}
+    {!compact && <CloudWorkspaceAgentInviteDemo projectName={projectName} linkPreview={linkPreview(apiBaseUrl)}
+      renderAgentMark={renderAgentMark} />}
     {openLinks && <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.invite.title")}>
       {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
         ref={element => { options.current[option] = element; }}
@@ -117,19 +122,22 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
         <span className="desktop-cloud-agent-option-description">{t(OPTION_TEXT[option].description)}</span>
       </button>)}
     </div>}
-    <div className="desktop-cloud-agent-invite-actions">
+    {/* The words show it is a prompt; the veil and the button on it say it is copied, not read. */}
+    <div className="desktop-cloud-agent-prompt">
+      <p className="desktop-cloud-agent-prompt-text" dir="ltr" aria-label={t("cloud.share.agent.invite.preview")}>{prompt}</p>
+      <span className="desktop-cloud-agent-prompt-veil" aria-hidden="true" />
       <Button tone="primary" className="desktop-cloud-agent-share-copy" data-cloud-agent-invite=""
         disabled={status === "copying"} onClick={() => void copy()}
         leadingIcon={copied ? <Check size={14} aria-hidden="true" /> : undefined}>
         {t(COPY_LABEL[status])}
       </Button>
-      {waiting && !copied && <span className="desktop-cloud-agent-invite-note" aria-hidden="true">
-        <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
-        {t("cloud.share.agent.invite.waiting")}
-      </span>}
     </div>
     {/* The step after copying, in sight before it is needed. */}
     <p className="desktop-cloud-agent-invite-hint">{t("cloud.share.agent.invite.hint")}</p>
+    {waiting && !copied && <p className="desktop-cloud-agent-invite-note" aria-hidden="true">
+      <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
+      {t("cloud.share.agent.invite.waiting")}
+    </p>}
     <span className="desktop-cloud-share-status" role="status">{announcement(copied, waiting, t)}</span>
     {status === "failed" && <p role="alert">{t("cloud.share.agent.failed")}</p>}
     {status === "not-owner" && <p role="alert">{t("cloud.share.agent.notOwner")}</p>}

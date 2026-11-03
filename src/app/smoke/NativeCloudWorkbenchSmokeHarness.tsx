@@ -128,6 +128,7 @@ window.puppyoneDesktop = {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
+    if (operation === "agent-links" && agentLinksBarrier) await agentLinksBarrier;
     if (operation === "agent-links") return request.method === "POST"
       ? { agent_url: "https://cloud-fixture.puppyone.ai/agent/pai_smoke" }
       : { links: [], ...agentLinks };
@@ -193,6 +194,8 @@ declare global {
     finishCloudRead: () => void;
     setCloudToolsAvailable: (available: boolean) => void;
     setAgentLinks: (next: Partial<typeof agentLinks>) => void;
+    holdAgentLinks: () => void;
+    finishAgentLinks: () => void;
     setCloudSessionAvailable: (available: boolean) => void;
     setRepositoryLocalOnly: (localOnly: boolean) => void;
     setRepositoryWrongHost: (wrongHost: boolean) => void;
@@ -311,6 +314,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
       },
       agentWrite: (path, content) => { cloudBytes.delete(path); cloudFiles.set(path, content); notifyWorkspace(); },
       setAgentLinks: (next) => { agentLinks = { ...agentLinks, ...next }; },
+      holdAgentLinks: () => { agentLinksBarrier = new Promise(resolve => { releaseAgentLinks = resolve; }); },
+      finishAgentLinks: () => { releaseAgentLinks(); agentLinksBarrier = null; },
       edit: (target, text) => {
         const element = document.querySelector(`[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor`);
         const view = element ? EditorView.findFromDOM(element as HTMLElement) : null;
@@ -457,6 +462,9 @@ function SmokeAgentSidebar({ location, agent, cloudSidebar, revisionKey, content
 
 const SMOKE_AGENT = { id: "smoke-agent", name: "Claude Code", admission: "sign_in", grant_id: "smoke-grant",
   connected_at: "2026-10-30T00:00:00Z", expires_at: "2099-01-01T00:00:00Z" };
+/** While held, the Agent list has not answered yet, as on a slow first load. */
+let agentLinksBarrier: Promise<void> | null = null;
+let releaseAgentLinks = () => {};
 /** Who the owner's Agent links list: Agents already here, and Agents asking to join. */
 let agentLinks: { connections: readonly unknown[]; pending: readonly { id: string; name: string; admission: string;
   requested_at: string; expires_at: string }[] } = { connections: [SMOKE_AGENT], pending: [] };
