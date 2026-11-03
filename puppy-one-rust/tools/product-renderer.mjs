@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
-import {productRoot as repo} from './product-source.mjs';
+import {productAliases, productRoot as repo} from './product-source.mjs';
 
 export const productRoot = repo;
 export const source = p => path.join(repo, p);
@@ -31,13 +31,11 @@ export async function catalogs(namespaces, locales = ['en', 'zh-Hans']) {
 export async function bundleProduct(input, extraInputs = [], env = {}) {
   const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
   const alias = {'react': path.join(modules, 'react'), 'react-dom': path.join(modules, 'react-dom'),
-    '@puppyone/shared-ui': source('packages/shared-ui/src/index.ts'),
-    '@puppyone/localization/core': source('packages/localization/src/core/index.ts'),
-    '@puppyone/localization/react': source('packages/localization/src/react/index.ts'),
-    '@puppyone/localization': source('packages/localization/src/index.ts')};
-  const sharedPackage = JSON.parse(await readFile(source('packages/shared-ui/package.json'), 'utf8'));
-  for (const [key, value] of Object.entries(sharedPackage.exports ?? {}))
-    if (key.endsWith('.css') && typeof value === 'string') alias[`@puppyone/shared-ui/${key.slice(2)}`] = source(`packages/shared-ui/${value}`);
+    '@puppyone/shared-ui': source('src/shared-ui/index.ts'),
+    '@puppyone/localization/core': source('src/lib/localization/core/index.ts'),
+    '@puppyone/localization/react': source('src/lib/localization/react/index.ts'),
+    '@puppyone/localization': source('src/lib/localization/index.ts')};
+  for (const [key, value] of Object.entries(productAliases(repo))) if (key.startsWith('@puppyone/shared-ui/')) alias[key] = value;
   const plugins = [{name: 'offline-public-assets', setup(b) { b.onResolve({filter: /^\/(fonts|assets)\//}, args => ({path: source(`public${args.path}`)})); }}];
   const loader = {'.woff2': 'dataurl', '.woff': 'dataurl', '.ttf': 'dataurl', '.svg': 'dataurl', '.png': 'dataurl'};
   const bundle = await build({absWorkingDir: repo, stdin: {contents: input, resolveDir: repo, loader: 'tsx'}, nodePaths: [modules], alias, plugins, bundle: true, write: false, format: 'esm', platform: 'browser', jsx: 'automatic',

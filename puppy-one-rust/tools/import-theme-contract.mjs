@@ -7,10 +7,10 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveProductRoot } from './product-source.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
-const config = JSON.parse(await readFile(path.join(root, 'product-source.json'), 'utf8'));
-const product = path.resolve(process.argv[2] ?? process.env.PUPPYONE_PRODUCT_ROOT ?? path.join(root, config.checkout));
+const product = resolveProductRoot(process.argv[2]);
 const out = path.join(root, 'assets/themes');
 await mkdir(path.join(out, 'builtin'), { recursive: true });
 
@@ -24,8 +24,8 @@ await writeFile(path.join(out, 'markdown-contract.json'), JSON.stringify({
 const { DEFAULT_MARKDOWN_THEME_CSS } = await import(path.join(product, 'electron/main/themes/markdown-theme-defaults.generated.mjs'));
 await writeFile(path.join(out, 'markdown-defaults.css'), DEFAULT_MARKDOWN_THEME_CSS);
 const names = [];
-for (const dir of (await readdir(path.join(product, 'sub-themes'))).sort()) {
-  await writeFile(path.join(out, 'builtin', `${dir}.css`), await readFile(path.join(product, 'sub-themes', dir, 'theme.css')));
+for (const dir of (await readdir(path.join(product, 'src/features/themes/builtin'))).sort()) {
+  await writeFile(path.join(out, 'builtin', `${dir}.css`), await readFile(path.join(product, 'src/features/themes/builtin', dir, 'theme.css')));
   names.push(dir);
 }
 console.log(`Theme contract: ${names.join(', ')}`);

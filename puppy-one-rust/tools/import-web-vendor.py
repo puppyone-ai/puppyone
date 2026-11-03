@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Copy the product's browser renderers (the same package versions the
 Electron Office viewer uses) into assets/web/vendor. Run with --check."""
-import json
 import shutil
 import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-product = (root / json.loads((root / 'product-source.json').read_text())['checkout']).resolve()
+from product_source import product_root
+product = product_root()
 files = {
     'docx-preview.min.js': 'node_modules/docx-preview/dist/docx-preview.min.js',
     'jszip.min.js': 'node_modules/jszip/dist/jszip.min.js',

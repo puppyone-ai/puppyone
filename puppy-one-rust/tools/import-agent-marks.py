@@ -8,16 +8,14 @@ viewBox around the unmodified PNG (embedded byte-for-byte as a data URL).
 """
 import argparse
 import base64
-import json
-import os
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 parser.add_argument('--check', action='store_true', help='fail if the generated mark is stale')
 args = parser.parse_args()
-config = json.loads((root / 'product-source.json').read_text())
-product = Path(os.environ.get('PUPPYONE_PRODUCT_ROOT', root / config['checkout'])).resolve()
+from product_source import product_root
+product = product_root()
 
 png = (product / 'public/assets/icons/agents/chatgpt.png').read_bytes()
 svg = (

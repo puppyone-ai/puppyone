@@ -16,10 +16,10 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { resolveProductRoot } from "./product-source.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const source = JSON.parse(fs.readFileSync(path.join(root, "product-source.json"), "utf8"));
-const product = path.resolve(root, source.checkout);
+const product = resolveProductRoot();
 const addon = path.join(product, "node_modules/@xterm/addon-webgl");
 const bundlePath = path.join(addon, "lib/addon-webgl.js");
 const output = path.join(root, "assets/terminal-glyphs.json");

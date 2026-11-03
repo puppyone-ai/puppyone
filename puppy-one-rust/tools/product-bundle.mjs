@@ -1,15 +1,15 @@
 // Bundle and import a small entry module against the real product sources, so
 // native asset importers reuse product logic instead of re-deriving it.
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveProductRoot } from './product-source.mjs';
 
 export const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 export async function productRoot(argument) {
-  const config = JSON.parse(await readFile(path.join(root, 'product-source.json'), 'utf8'));
-  return path.resolve(argument ?? process.env.PUPPYONE_PRODUCT_ROOT ?? path.join(root, config.checkout));
+  return resolveProductRoot(argument);
 }
 export async function importProductModule(product, contents) {
   const require = createRequire(path.join(product, 'package.json'));

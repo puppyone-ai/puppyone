@@ -34,7 +34,8 @@ parser.add_argument('--electron', type=Path)
 parser.add_argument('--only', help='comma-separated case ids')
 parser.add_argument('--check', action='store_true')
 args = parser.parse_args()
-product = (ROOT / os.environ.get('PUPPYONE_PRODUCT_ROOT', json.loads((ROOT / 'product-source.json').read_text())['checkout'])).resolve()
+from product_source import product_root
+product = product_root()
 electron = args.electron or product / 'node_modules/.bin/electron'
 out = ROOT / 'artifacts/style-sync'
 out.mkdir(parents=True, exist_ok=True)

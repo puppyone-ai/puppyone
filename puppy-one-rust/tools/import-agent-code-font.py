@@ -13,7 +13,6 @@ with U+E000 and paints the chip behind it.
 """
 import hashlib
 import io
-import json
 import sys
 from pathlib import Path
 
@@ -22,7 +21,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
 root = Path(__file__).resolve().parents[1]
-product = (root / json.loads((root / "product-source.json").read_text())["checkout"]).resolve()
+from product_source import product_root
+product = product_root()
 out = root / "assets/fonts/agent-inline-code.ttf"
 FAMILY = "PuppyOne Agent Inline Code"
 TEXT, CODE = 14.0, 13.0

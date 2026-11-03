@@ -10,7 +10,6 @@ by family and weight, so each weight becomes a static face of the single
 """
 import hashlib
 import io
-import json
 import sys
 from pathlib import Path
 
@@ -18,8 +17,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
 root = Path(__file__).resolve().parents[1]
-config = json.loads((root / "product-source.json").read_text())
-product = (root / config["checkout"]).resolve()
+from product_source import product_root
+product = product_root()
 source = product / "public/fonts/geist/Geist-Variable.woff2"
 FACES = {400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold"}
 

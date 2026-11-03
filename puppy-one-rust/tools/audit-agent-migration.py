@@ -7,13 +7,16 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--source-root', type=Path, required=True)
+parser.add_argument('--source-root', type=Path, help='Web checkout (default: the pinned product-source.json checkout)')
 parser.add_argument('--require-complete', action='store_true')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
-source = args.source_root.resolve()
+sys.path.insert(0, str(root / 'tools'))
+from product_source import product_root  # noqa: E402
+source = args.source_root.resolve() if args.source_root else product_root()
 mapping_path = root / 'tools/agent-migration-map.json'
 mapping = json.loads(mapping_path.read_text())
 

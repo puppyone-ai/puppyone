@@ -24,8 +24,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
 root = Path(__file__).resolve().parents[1]
-config = json.loads((root / 'product-source.json').read_text())
-product = (root / config['checkout']).resolve()
+from product_source import product_root
+product = product_root()
 out = root / 'assets/fonts/editor'
 # Weights used by the Markdown/CSV theme contract (content 500, strong/h3 600,
 # h2 625, h1/table header/metadata 650, list markers 400) plus 700 for bold

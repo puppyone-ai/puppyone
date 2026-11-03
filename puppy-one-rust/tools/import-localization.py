@@ -3,14 +3,14 @@
 Run with --check to detect a stale native projection.
 """
 import hashlib
-import os
 import json
 from pathlib import Path
 import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
-repo = (root / os.environ.get('PUPPYONE_PRODUCT_ROOT', json.loads((root / 'product-source.json').read_text())['checkout'])).resolve()
+from product_source import product_root
+repo = product_root()
 manifest_path = repo / 'locales/manifest.json'
 manifest = json.loads(manifest_path.read_text())
 locales = [x for x in manifest['locales'] if x.get('productionReady')]

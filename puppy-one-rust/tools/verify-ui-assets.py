@@ -30,7 +30,8 @@ except ValueError:
     p.error('--times requires comma-separated seconds')
 if not times or any(not math.isfinite(t) or t<0 for t in times) or any(m not in ['dark','light'] for m in modes):
     p.error('Use dark/light modes and finite nonnegative capture times')
-product = (ROOT / os.environ.get('PUPPYONE_PRODUCT_ROOT', json.loads((ROOT / 'product-source.json').read_text())['checkout'])).resolve()
+from product_source import product_root
+product = product_root()
 electron = product / 'node_modules/.bin/electron'
 out = ROOT / 'artifacts/ui-assets'
 out.mkdir(parents=True, exist_ok=True)

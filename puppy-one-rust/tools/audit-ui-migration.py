@@ -12,7 +12,6 @@ from collections import Counter, defaultdict
 from datetime import datetime
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -28,8 +27,9 @@ parser.add_argument('--check', action='store_true',
                     help='validate only; do not write artifacts/ui-migration-audit.json')
 args = parser.parse_args()
 
-config = json.loads((root / 'product-source.json').read_text())
-source = (args.source_root or Path(os.environ.get('PUPPYONE_PRODUCT_ROOT', root / config['checkout']))).resolve()
+sys.path.insert(0, str(root / 'tools'))
+from product_source import product_root  # noqa: E402
+source = args.source_root.resolve() if args.source_root else product_root()
 mapping = json.loads((root / 'tools/ui-migration-map.json').read_text())
 errors = []
 

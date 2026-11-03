@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-reference = (root / json.loads((root / 'product-source.json').read_text())['checkout']).resolve()
+from product_source import product_root
+reference = product_root()
 receipt = json.loads((root / 'fixtures/cloud/auth-reference.json').read_text())
 changed = []
 for relative, expected in receipt['inputs'].items():

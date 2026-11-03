@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """The product's format registry and preset viewer manifest, verbatim.
 
-`packages/shared-ui/src/core/fileFormats.json` is the canonical file format
+`shared/fileFormats.json` is the canonical file format
 table (extensions, MIME types, category, default viewer, editability) and
-`packages/shared-ui/src/editor/registry/presetViewerManifest.json` the
+`shared/presetViewerManifest.json` the
 process-neutral contract of every viewer that ships with the product. The
 native registries (`src/formats`, `src/editor/registry`) read these copies.
 Run with --check to detect a stale projection.
 """
 import json
-import os
 import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-repo = (root / os.environ.get('PUPPYONE_PRODUCT_ROOT', json.loads((root / 'product-source.json').read_text())['checkout'])).resolve()
+from product_source import product_root
+repo = product_root()
 sources = {
-    'packages/shared-ui/src/core/fileFormats.json': root / 'assets/formats/file-formats.json',
-    'packages/shared-ui/src/editor/registry/presetViewerManifest.json': root / 'assets/formats/preset-viewers.json',
+    'shared/fileFormats.json': root / 'assets/formats/file-formats.json',
+    'shared/presetViewerManifest.json': root / 'assets/formats/preset-viewers.json',
 }
 stale = []
 for source, target in sources.items():
