@@ -50,7 +50,7 @@ export function ExplorerPinnedFiles({
                 onContextMenu={(event) => onContextMenu(file, event)}
               >
                 <span className="desktop-explorer-pin-icon">
-                  <FileGlyphIcon name={file.name} type={file.type} size={16} theme={fileIconTheme} />
+                  <FileGlyphIcon name={file.name} type={file.type} size={18} theme={fileIconTheme} />
                 </span>
                 <span className="desktop-explorer-pin-label" dir="auto">{getPinnedFileLabel(file.name)}</span>
               </button>

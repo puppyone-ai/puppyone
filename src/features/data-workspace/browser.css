@@ -482,20 +482,24 @@
 .desktop-explorer-pin {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* Same geometry and type as a tree row, so a pin's icon and name sit
+     exactly where a top-level row's do. */
+  gap: var(--desktop-sidebar-icon-label-gap, 4px);
   width: 100%;
   min-width: 0;
   height: var(--desktop-sidebar-row-height);
   box-sizing: border-box;
-  padding-inline: 8px;
+  padding-inline:
+    var(--desktop-sidebar-row-content-left, 6px)
+    var(--desktop-sidebar-row-content-right, 6px);
   border: 0;
   border-radius: calc(var(--desktop-sidebar-row-radius) + 2px);
   background: transparent;
   color: var(--desktop-sidebar-text-color, var(--po-text-muted));
   font: inherit;
-  font-size: var(--po-type-ui-meta, 13px);
+  font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: var(--desktop-sidebar-font-weight);
-  line-height: 18px;
+  line-height: var(--po-type-left-sidebar-line-height, 19px);
   text-align: start;
   user-select: none;
   outline: none;
@@ -522,8 +526,8 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--desktop-sidebar-icon-slot-size, 18px);
+  height: var(--desktop-sidebar-icon-slot-size, 18px);
 }
 
 .desktop-explorer-pin-label {
