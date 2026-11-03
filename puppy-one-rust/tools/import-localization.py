@@ -23,6 +23,10 @@ for descriptor in locales:
         source = repo / f'locales/renderer/{locale}/{namespace}.json'
         inputs.append(source)
         catalogs[locale].update({f'{namespace}.{k}': v for k, v in json.loads(source.read_text()).items()})
+    # The main process's own dialogs and menus; their keys carry `native.`.
+    source = repo / f'locales/native/{locale}.json'
+    inputs.append(source)
+    catalogs[locale].update(json.loads(source.read_text()))
 data = {'sourceCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
         'sourceHashes': {str(p.relative_to(repo)): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},
         'locales': locales, 'catalogs': catalogs}
