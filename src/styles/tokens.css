@@ -217,12 +217,6 @@
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
-  /* Keep light Cloud chrome grounded in the theme's Header grey, with a
-   * restrained product-blue tint. Resolve within the active theme scope. */
-  --po-cloud-header-bg: light-dark(
-    color-mix(in srgb, var(--po-header) 85%, var(--po-brand-blue) 15%),
-    #102a43
-  );
   --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-chrome: var(--po-surface-chrome);
   /* A project's folder: tones of the theme's own ink, with its front lighter than its

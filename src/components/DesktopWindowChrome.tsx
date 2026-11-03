@@ -35,7 +35,7 @@ export function DesktopWindowChrome({
   return (
     <header
       className="desktop-titlebar"
-      // Leave Local's existing skin cascade untouched; only Cloud opts into tint.
+      // States the committed place; the Header keeps the theme color in both.
       data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-window-drag-region="true"
       data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
@@ -43,7 +43,6 @@ export function DesktopWindowChrome({
       data-window-active={windowActive ? "true" : "false"}
       data-window-full-screen={fullScreen ? "true" : undefined}
     >
-      {workspaceLocation === "cloud" && <span className="desktop-cloud-header-reveal" aria-hidden="true" />}
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
           <div className="desktop-titlebar-left">

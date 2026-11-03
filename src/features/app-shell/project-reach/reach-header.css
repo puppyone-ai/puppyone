@@ -63,6 +63,11 @@
     color: inherit;
   }
 
+  /* The same Cloud mark as the place control: its outline is product blue. */
+  .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark[data-reach-place="cloud"] {
+    color: var(--po-brand-blue, var(--po-accent-text));
+  }
+
   .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark > svg {
     display: block;
     width: 100%;

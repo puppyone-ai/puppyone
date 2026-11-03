@@ -138,20 +138,17 @@ describe("native Cloud workbench for a Cloud project opened beside a local folde
     await render(shell("cloud"));
     expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBe("cloud");
     expect(document.querySelector(".desktop-shell")?.getAttribute("data-workspace-kind")).toBe("cloud");
-    const reveal = document.querySelector(".desktop-cloud-header-reveal");
-    expect(reveal).not.toBeNull();
     for (const [location, active] of [["cloud", true], ["cloud", true], ["cloud", false]] as const) {
       await render(shell(location, active));
-      expect(document.querySelector(".desktop-cloud-header-reveal")).toBe(reveal);
+      expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
       expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
       expect(document.querySelector('input[aria-label="Retained content"]')).toBe(input);
       expect(input.value).toBe("Local draft");
     }
     await render(shell("local"));
-    expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
     expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBeNull();
     await render(shell("cloud"));
-    expect(document.querySelector(".desktop-cloud-header-reveal")).not.toBe(reveal);
+    expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
     expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
     expect(input.value).toBe("Local draft");
   });

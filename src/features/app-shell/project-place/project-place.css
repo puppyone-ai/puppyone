@@ -36,6 +36,13 @@
     color: inherit;
   }
 
+  /* The Header keeps the theme's color for every project. A Cloud project is
+     told by its cloud, whose outline carries the product blue in every state
+     of the control; the label beside it keeps the Header's ink. */
+  .desktop-titlebar-place-button[data-project-place="cloud"] .desktop-titlebar-workspace-mark {
+    color: var(--po-brand-blue, var(--po-accent-text));
+  }
+
   .desktop-titlebar-place-button .desktop-titlebar-workspace-mark > svg {
     display: block;
     width: 100%;

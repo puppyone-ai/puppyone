@@ -37,41 +37,8 @@
   color: var(--desktop-titlebar-text);
 }
 
-/* Cloud identity belongs to the existing Header, without framing the workspace. */
-.desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-cloud-header-bg);
-  --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
-}
-
-/* Reveal the requested Cloud color under stationary text and controls. The
- * layer mounts once on entry and survives the subsequent provider commit. */
-.desktop-cloud-header-reveal {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background: var(--po-header);
-  pointer-events: none;
-}
-
-/* Expand the Cloud color from just right of center near the Header's bottom.
- * The circle stays clipped to the Header under stationary text and controls. */
-.desktop-cloud-header-reveal::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--po-cloud-header-bg);
-  animation: desktop-cloud-header-expand 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-@keyframes desktop-cloud-header-expand {
-  from { clip-path: circle(4px at 60% 85%); }
-  to { clip-path: circle(100% at 60% 85%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .desktop-cloud-header-reveal { display: none; }
-  .desktop-cloud-header-reveal::after { animation: none; }
-}
+/* A Cloud project keeps the theme's own Header. Its place mark, not the
+ * Header surface, carries the product blue (see project-place.css). */
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
  * needs space for macOS traffic lights inside the renderer titlebar. */

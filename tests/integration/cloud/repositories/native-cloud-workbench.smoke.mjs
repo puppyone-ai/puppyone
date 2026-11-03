@@ -96,9 +96,8 @@ async function captureSettledDialog(scene, selector) {
 
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  // Measure settled contrast after control transitions and the Header reveal.
+  // Measure settled contrast after control transitions.
   await evaluate("Promise.all([...document.querySelectorAll('.desktop-titlebar-workspace-button')].flatMap(button => button.getAnimations()).map(animation => animation.finished.catch(() => {})))");
-  await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
   const sample = await evaluate(`(() => {
     // Under Reduce Motion the app gives every property a 0.01ms transition, so
     // a style read right after a provider switch returns the old color. Settle
@@ -112,6 +111,10 @@ async function headerPresentation(location) {
     const mark = button.querySelector('.desktop-titlebar-workspace-mark');
     const svg = mark.matches('svg') ? mark : mark.querySelector('svg');
     const outline = svg.querySelector('[data-cloud-outline]');
+    // The place control beside it is where a Cloud project is told apart.
+    const place = context.querySelector('.desktop-titlebar-place-button');
+    const placeMark = place?.querySelector('.desktop-titlebar-workspace-mark');
+    const placeOutline = placeMark?.querySelector('[data-cloud-outline]');
     const h = header.getBoundingClientRect();
     const css = getComputedStyle(header);
     const shell = header.closest('.desktop-shell'), s = shell.getBoundingClientRect();
@@ -129,7 +132,6 @@ async function headerPresentation(location) {
     };
     const expected = token('var(--po-header)');
     const accent = token('var(--po-brand-blue)');
-    const cloudBackground = token('var(--po-cloud-header-bg)');
     const themeText = token('var(--po-text)');
     const activeInk = token('var(--desktop-titlebar-text)');
     const restingInk = token('var(--desktop-titlebar-text-muted)');
@@ -142,7 +144,10 @@ async function headerPresentation(location) {
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
       x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
-      cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
+      themeText:rgb(themeText),
+      place:place ? { location:place.dataset.projectPlace ?? null, cloudOutline:Boolean(placeOutline),
+        color:rgb(getComputedStyle(placeMark).color), paint:rgb(getComputedStyle(placeOutline ?? placeMark).stroke),
+        labelColor:rgb(getComputedStyle(place).color) } : null,
       backgroundImage:css.backgroundImage,
       locationControl:Boolean(header.querySelector('.desktop-titlebar-location-button, .desktop-project-location-controls')),
       icon:{ product:svg.dataset.productIcon ?? null,
@@ -166,8 +171,16 @@ async function headerPresentation(location) {
           ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
       }) };
   })()`);
-  assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.cloudBackground : sample.expected), `Cloud must tint only the Header and follow its appearance mode: ${JSON.stringify(sample)}`);
+  assert(sample.location === location, `Header place must follow the committed ${location} provider`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Both places must keep the theme's Header color: ${JSON.stringify(sample)}`);
+  if (location === 'cloud') {
+    assert(sample.place?.location === 'cloud' && sample.place.cloudOutline, `The Cloud project must show its Cloud place mark: ${JSON.stringify(sample.place)}`);
+    assert(JSON.stringify(sample.place.color) === JSON.stringify(sample.accent)
+      && JSON.stringify(sample.place.paint) === JSON.stringify(sample.accent),
+      `The Cloud mark's outline must be product blue: ${JSON.stringify(sample.place)}`);
+    assert(sample.controlInks.some(ink => JSON.stringify(ink) === JSON.stringify(sample.place.labelColor)),
+      `The place label keeps the Header's ink; only the cloud is blue: ${JSON.stringify(sample.place)}`);
+  }
   // The control uses the Header's own ink: full text while hovered or open,
   // muted at rest. A CI runner's pointer can leave Chromium's hover state a
   // frame behind, so either Header ink is accepted; a foreign color is not.
@@ -180,13 +193,13 @@ async function headerPresentation(location) {
   assert(sample.icon.product === 'home' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'The project mark must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
-  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud tint must not recolor the project name');
+  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud mark must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
   assert(sample.frame.content === 'none', 'Neither location may paint a frame around the workspace');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
-    "Tint must cover the original full-width Header, including both blank sides");
+    "The retained Header must span the full window width, including both blank sides");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
   // Verify the project label in the regular Header; Header tabs are experimental.
@@ -230,7 +243,6 @@ async function windowFramePixels(sample) {
     `Blue must not extend to the workspace side or bottom edges: ${JSON.stringify(point)}`);
   const interior = [[4,Math.floor(height/2)],[width-5,Math.floor(height/2)],[Math.floor(width/2),height-5]]
     .map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  if (sample.location === 'cloud') assert(distance(paintedFrame,paintedHeader) > 5, 'Cloud Header must remain distinct from the normal workspace');
   return {paintedHeader,paintedFrame,header,edges,interior};
 }
 
@@ -397,50 +409,17 @@ app.whenReady().then(async () => {
   await writeFile(path.join(artifacts, 'local-folder-notice.png'), (await window.webContents.capturePage()).toPNG());
   if (filesOnly) { await selectLocation('cloud'); } else {
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
-  // Freeze the 260ms Header reveal on the first frame it exists, inside the
-  // click's own step, so slower runners sample it instead of racing its end.
-  // CI runners may run without CSS animation (reduced motion); then the reveal
-  // geometry is not sampled, but the Header must still change to Cloud.
-  const revealAnimated = await evaluate(`new Promise(resolve => {
-    [...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].find(button => button.textContent === 'Open Cloud project').click();
-    let frames = 0;
-    const freeze = () => {
-      const animation = document.querySelector('.desktop-titlebar .desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0];
-      if (animation) { animation.pause(); resolve(true); return; }
-      if (++frames > 120) { resolve(false); return; }
-      requestAnimationFrame(freeze);
-    };
-    freeze();
-  })`);
+  await evaluate("[...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].find(button => button.textContent === 'Open Cloud project').click()");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
-  assert(await evaluate(`(() => {
-    const header = document.querySelector('.desktop-titlebar');
-    const reveal = header.querySelector('.desktop-cloud-header-reveal');
-    if (reveal) reveal.dataset.fixtureIdentity = 'requested-header-reveal';
-    if (!${revealAnimated}) return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light');
-    const animation = reveal.getAnimations({subtree:true})[0];
-    animation.pause(); animation.currentTime = 35;
-    const firstCircle = getComputedStyle(reveal, '::after').clipPath;
-    animation.currentTime = 70;
-    const laterCircle = getComputedStyle(reveal, '::after').clipPath;
-    const radius = circle => Number(circle.match(/[-\\d.]+(?=%)/)?.[0]);
-    return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && firstCircle.startsWith('circle(') && laterCircle.startsWith('circle(')
-      && firstCircle.endsWith('at 60% 85%)') && laterCircle.endsWith('at 60% 85%)')
-      && radius(firstCircle) > 0 && radius(laterCircle) > radius(firstCircle)
-      && animation.effect.getTiming().duration === 260
-      && animation.animationName === 'desktop-cloud-header-expand';
-  })()`), 'Header blue must expand from its lower-right center over 260ms while the Cloud project opens');
+  assert(await evaluate("document.querySelector('.desktop-titlebar').dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-header-reveal, .desktop-cloud-entry-light')"),
+    'Opening the Cloud project must state the Cloud in the Header without repainting it');
   assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes') && document.querySelectorAll('[data-cloud-workspace-tool]').length === 2"),
     'Opening the Cloud project must give the Header that project and its Cloud tools, without the folder actions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
-  if (revealAnimated) assert(await evaluate("document.querySelector('.desktop-cloud-header-reveal').dataset.fixtureIdentity === 'requested-header-reveal' && document.querySelector('.desktop-cloud-header-reveal').getAnimations({subtree:true}).every(animation => animation.playState === 'paused')"),
-    'Cloud content arriving must retain the same ongoing Header reveal');
   assert(await evaluate("!document.querySelector('.desktop-project-preparation, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && !document.querySelector('[data-workspace-location=cloud]').hidden"),
-    'Cloud content must appear immediately even while the Header animation is paused');
-  await evaluate("document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0]?.finish()");
+    'Cloud content must appear immediately, without a preparation cover');
   }
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   const initialCloudRequests = (await state()).requests;
@@ -646,12 +625,8 @@ app.whenReady().then(async () => {
       }
       if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette),
         `Header text and interaction colors must stay in the ${theme} theme when switching locations`);
-      if (location === 'cloud') {
-        const expectedCloudBackground = theme === 'dark' ? [16, 42, 67]
-          : sample.expected.map((channel, i) => Math.round(channel * 0.85 + sample.accent[i] * 0.15));
-        assert(sample.background.every((channel, i) => Math.abs(channel - expectedCloudBackground[i]) <= 1),
-          `Cloud Header must use deep blue in dark mode and theme grey tinted with product blue in light mode: ${JSON.stringify(sample.background)}`);
-      }
+      if (before) assert(JSON.stringify(sample.background) === JSON.stringify(before.background),
+        `The Header must keep one theme color across places in ${theme}: ${JSON.stringify(sample.background)}`);
       before ??= sample;
       headerPresentations.push({ theme, width, index, ...sample });
       if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
@@ -689,7 +664,6 @@ app.whenReady().then(async () => {
       assert(leading.projectGap >= leading.expectedGap - 0.1,
         `Expand and project controls must keep their gap in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
       if (location === 'cloud') {
-        await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
         await writeFile(path.join(artifacts, `header-leading-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
       }
       await evaluate("document.querySelector('.desktop-titlebar-sidebar-expand').click()");
@@ -701,8 +675,8 @@ app.whenReady().then(async () => {
     features:[{name:'prefers-reduced-motion',value:'reduce'}],
   });
   await selectLocation("cloud");
-  assert(await evaluate("!document.querySelector('.desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && getComputedStyle(document.querySelector('.desktop-cloud-header-reveal')).display === 'none' && getComputedStyle(document.querySelector('.desktop-cloud-header-reveal'), '::after').animationName === 'none'"),
-    "Reduced motion must apply the Cloud Header immediately without decorative motion");
+  assert(await evaluate("document.querySelector('.desktop-titlebar').dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-header-reveal, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep')"),
+    "Reduced motion must state the Cloud immediately without decorative motion");
   await selectLocation("local");
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features:[]});
   window.webContents.debugger.detach();
