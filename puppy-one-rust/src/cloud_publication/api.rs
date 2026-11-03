@@ -114,15 +114,15 @@ pub fn validate_remote_url(
     {
         return Err(unsafe_url());
     }
-    let origin = url.origin().ascii_serialization().to_lowercase();
-    let mut allowed = vec![api.origin().ascii_serialization().to_lowercase()];
-    if let Some(configured) = hosted_git_origin.and_then(|o| url::Url::parse(o).ok()) {
-        allowed.push(configured.origin().ascii_serialization().to_lowercase());
-    }
-    let puppyone = |h: &str| h == "puppyone.ai" || h.ends_with(".puppyone.ai");
-    if !allowed.contains(&origin)
-        && !(puppyone(api.host_str().unwrap_or_default()) && puppyone(host))
-    {
+    // The remote must belong to the Cloud this app is paired with, exactly as
+    // a folder's remote is trusted when it is opened again: the API origin,
+    // or, only for a loopback API, an explicitly configured HTTPS Git
+    // origin. Another *.puppyone.ai deployment is another environment.
+    if !crate::workspace::cloud::locator::is_trusted_git_origin(
+        url.as_str(),
+        api.as_str(),
+        hosted_git_origin,
+    ) {
         return Err(PublishError::new(
             Code::CredentialFailed,
             "Cloud returned a Git remote outside the trusted Cloud origin.",

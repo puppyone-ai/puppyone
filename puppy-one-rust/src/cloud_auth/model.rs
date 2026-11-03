@@ -127,7 +127,10 @@ impl Environment {
     /// development API may trust; never consulted for a non-loopback API.
     pub fn hosted_git_origin(&self) -> Option<String> {
         let api = Url::parse(&self.api).ok()?;
-        if !matches!(api.host_str(), Some("localhost" | "127.0.0.1")) {
+        if !matches!(
+            api.host_str(),
+            Some("localhost" | "127.0.0.1" | "::1" | "[::1]")
+        ) {
             return None;
         }
         std::env::var("VITE_DESKTOP_CLOUD_GIT_ORIGIN")

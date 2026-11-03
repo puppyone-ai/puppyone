@@ -635,8 +635,7 @@ fn issued_remotes_must_be_canonical_and_trusted() {
             "{bad}"
         );
     }
-    // A PuppyOne API trusts other PuppyOne hosts; loopback development may
-    // name its hosted Git origin explicitly.
+    // Another *.puppyone.ai deployment is another environment (a3ca3af05).
     assert!(
         api::validate_remote_url(
             "https://git.puppyone.ai/git/project-a.git",
@@ -644,16 +643,38 @@ fn issued_remotes_must_be_canonical_and_trusted() {
             api,
             None
         )
-        .is_ok()
+        .is_err()
+    );
+    // Only a loopback API may name its hosted Git origin, and only HTTPS.
+    for loopback in ["http://127.0.0.1:9090/api/v1", "http://[::1]:9090/api/v1"] {
+        assert!(
+            api::validate_remote_url(
+                "https://git.dev.example/git/project-a.git",
+                "project-a",
+                loopback,
+                Some("https://git.dev.example"),
+            )
+            .is_ok(),
+            "{loopback}"
+        );
+    }
+    assert!(
+        api::validate_remote_url(
+            "http://git.dev.example/git/project-a.git",
+            "project-a",
+            "http://127.0.0.1:9090/api/v1",
+            Some("http://git.dev.example"),
+        )
+        .is_err()
     );
     assert!(
         api::validate_remote_url(
             "https://git.dev.example/git/project-a.git",
             "project-a",
-            "http://127.0.0.1:9090/api/v1",
+            api,
             Some("https://git.dev.example"),
         )
-        .is_ok()
+        .is_err()
     );
     let _ = Memory::default().create_ref();
 }
