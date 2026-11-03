@@ -1,16 +1,17 @@
 {
   "repository": "puppyone",
-  "head": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
+  "head": "671143f2a30d352099eda35ad37f053450d4a8f9",
   "note": "Dirty reference; hashes identify actual inputs. Native implementation does not import existing credentials. Hosted acceptance is separate.",
   "inputs": {
-    "electron/cloud-auth-service.mjs": "34d05c4f9dafe412ce6414de62505810b8d799bf40aa1a9bdf7dcef58cad275d",
+    "electron/cloud-auth-service.mjs": "3ccb6f272d7b5f638683d730d75f4696f6a208e04e44c6866700352df6feaa62",
     "electron/main/auth/supabase-auth-client.mjs": "3fa411b15b181f942fcc813f239f4e01eb0e4c4ae997ef6a4482c6ade50d4698",
-    "electron/main/auth/browser-session-receiver.mjs": "008358500c6956c9e3764ac3290c066ebee3be52725a5eafa29dcedec631cc12",
-    "electron/main/auth/loopback-callback-server.mjs": "de9214212439e5418827ef7f374f001ced4145cc49e5b179fb53f374c22b10ec",
+    "electron/main/auth/browser-session-receiver.mjs": "2dab835b7cf3b81312b18715f72435ed938296f5da8a89852c35c9ae9ee46d90",
+    "electron/main/auth/loopback-callback-server.mjs": "dc97717d707267c9c35ea678359b0aa61dcd213f69d08c77b4f285f168cc1ff4",
     "electron/main/auth/credential-store.mjs": "880b79c9bc148b3f415e10409640d6487a8b344ed3aadfd281abb756066f150d",
     "electron/main/cloud-configuration.mjs": "25647e9f5276b11341b723c10be938c932ad192bbbcb2630d24142d415989856",
     "shared/cloudEndpoint.js": "b7676b210b309bdd05b296791d3b84cd8381df95f65a28164254cdd2a1da3a0c",
     "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02"
   },
-  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
+  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift (565439f04): a browser handoff whose form carries this attempt's state but fails the origin or refresh-token check now fails the sign-in at once and closes the listener; a failed handoff releases the attempt; rejection reasons are logged without secrets. Ported natively as N-5."
 }
