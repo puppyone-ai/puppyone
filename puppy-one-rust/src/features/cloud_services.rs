@@ -832,10 +832,14 @@ impl CloudServices {
         if name.is_empty() || branch.is_empty() {
             return;
         }
-        let description = (!description.is_empty()).then_some(description);
-        let fields = json!({"name": name, "description": description, "bound_git_branch": branch});
+        let update = services::ProjectUpdate {
+            name: Some(name),
+            description: Some((!description.is_empty()).then_some(description)),
+            bound_git_branch: Some(branch),
+            ..Default::default()
+        };
         self.mutate(
-            move |client| client.update_project(&project, fields).map(|_| None),
+            move |client| client.update_project(&project, update).map(|_| None),
             cx,
         );
     }
@@ -845,9 +849,11 @@ impl CloudServices {
         };
         self.mutate(
             move |client| {
-                client
-                    .update_project(&project, json!({"visibility": visibility}))
-                    .map(|_| None)
+                let update = services::ProjectUpdate {
+                    visibility: Some(visibility),
+                    ..Default::default()
+                };
+                client.update_project(&project, update).map(|_| None)
             },
             cx,
         );

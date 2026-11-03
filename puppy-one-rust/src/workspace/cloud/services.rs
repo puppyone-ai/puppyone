@@ -51,6 +51,46 @@ impl Transport for BrokerTransport {
     }
 }
 
+/// `UpdateCloudProjectInput`: only the settings being changed.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProjectUpdate {
+    pub name: Option<String>,
+    /// `Some(None)` clears the description.
+    pub description: Option<Option<String>>,
+    /// `org` or `private`.
+    pub visibility: Option<&'static str>,
+    pub bound_git_branch: Option<String>,
+}
+impl ProjectUpdate {
+    fn payload(self) -> Result<Value> {
+        let mut payload = serde_json::Map::new();
+        if let Some(name) = self.name {
+            let name = name.trim();
+            if name.is_empty() {
+                return Err(Error::Invalid("name"));
+            }
+            payload.insert("name".into(), name.into());
+        }
+        if let Some(description) = self.description {
+            payload.insert("description".into(), description.into());
+        }
+        if let Some(branch) = self.bound_git_branch {
+            let branch = branch.trim();
+            if branch.is_empty() {
+                return Err(Error::Invalid("branch"));
+            }
+            payload.insert("bound_git_branch".into(), branch.into());
+        }
+        if let Some(visibility) = self.visibility {
+            payload.insert("visibility".into(), visibility.into());
+        }
+        if payload.is_empty() {
+            return Err(Error::Invalid("update"));
+        }
+        Ok(Value::Object(payload))
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Project {
     pub id: String,
@@ -428,17 +468,23 @@ impl Client {
         }
         Ok(identity)
     }
-    /// `updateCloudProject`: the fields given, nothing else.
-    pub fn update_project(&self, id: &str, fields: Value) -> Result<Project> {
+    /// `updateCloudProject`: `PUT /projects/{id}` with the fields given and
+    /// nothing else. A name or branch is trimmed and may not be empty.
+    pub fn update_project(&self, id: &str, update: ProjectUpdate) -> Result<Project> {
         let path = format!("/projects/{}", segment(id)?);
-        let project: Project = decode(
-            self.send(Method::PATCH, path, vec![], Some(fields))?,
-            "project",
-        )?;
+        let body = update.payload()?;
+        let project: Project =
+            decode(self.send(Method::PUT, path, vec![], Some(body))?, "project")?;
         if project.id != id {
             return Err(Error::Invalid("project"));
         }
         Ok(project)
+    }
+    /// `deleteCloudProject`: access ends when the server accepts this; it
+    /// removes the stored objects afterwards.
+    pub fn delete_project(&self, id: &str) -> Result<()> {
+        let path = format!("/projects/{}", segment(id)?);
+        self.send(Method::DELETE, path, vec![], None).map(|_| ())
     }
     /// A prepared read (the History page's own requests).
     pub fn raw(&self, request: ApiRequest) -> Result<Value> {
@@ -673,6 +719,66 @@ mod tests {
                 .create_mcp_endpoint("q", "MCP Server", "docs", true)
                 .is_err()
         );
+    }
+
+    struct Recorded(std::sync::Mutex<Vec<ApiRequest>>, Value);
+    impl Transport for Recorded {
+        fn request(&self, request: ApiRequest) -> Result<Value> {
+            self.0.lock().unwrap().push(request);
+            Ok(self.1.clone())
+        }
+    }
+
+    #[test]
+    fn a_project_is_updated_with_put_and_deleted_with_delete() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"id": "p", "name": "Notes"}),
+        ));
+        let client = Client::new(transport.clone());
+        let update = ProjectUpdate {
+            name: Some("  Notes ".into()),
+            description: Some(None),
+            ..Default::default()
+        };
+        assert_eq!(client.update_project("p", update).unwrap().name, "Notes");
+        client.delete_project("p").unwrap();
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent[0].method, Method::PUT);
+        assert_eq!(sent[0].path, "/projects/p");
+        assert_eq!(
+            sent[0].body,
+            Some(json!({"name": "Notes", "description": null}))
+        );
+        assert_eq!(sent[1].method, Method::DELETE);
+        assert_eq!(sent[1].path, "/projects/p");
+        assert_eq!(sent[1].body, None);
+    }
+
+    #[test]
+    fn an_update_carries_at_least_one_valid_setting() {
+        let client = client(json!({"id": "p", "name": "N"}));
+        assert!(
+            client
+                .update_project("p", ProjectUpdate::default())
+                .is_err()
+        );
+        let blank = ProjectUpdate {
+            name: Some("  ".into()),
+            ..Default::default()
+        };
+        assert!(client.update_project("p", blank).is_err());
+        let branch = ProjectUpdate {
+            bound_git_branch: Some(" ".into()),
+            ..Default::default()
+        };
+        assert!(client.update_project("p", branch).is_err());
+        let private = ProjectUpdate {
+            visibility: Some("private"),
+            ..Default::default()
+        };
+        assert!(client.update_project("p", private).is_ok());
+        assert!(client.delete_project("a/b").is_err());
     }
 
     #[test]
