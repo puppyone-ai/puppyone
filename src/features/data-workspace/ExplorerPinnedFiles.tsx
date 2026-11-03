@@ -67,7 +67,7 @@ export function ExplorerPinnedFiles({
         onClick={() => onFilesCollapsedChange(!filesCollapsed)}
       >
         <span className="desktop-explorer-files-toggle-icon">
-          <DisclosureIcon expanded={!filesCollapsed} size={10} />
+          <DisclosureIcon expanded={!filesCollapsed} size={12} />
         </span>
         <span className="desktop-explorer-files-toggle-rule" aria-hidden="true" />
       </button>
