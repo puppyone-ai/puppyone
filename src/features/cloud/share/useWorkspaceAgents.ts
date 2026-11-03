@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalizationContextValue } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { formatRelativeTime } from "../utils";
-import { listAgentLinks, listAgentSessions, type AgentSession, type ConnectedAgent } from "./agentLinks";
+import { listAgentLinks, listAgentSessions, type AgentRequest, type AgentSession, type ConnectedAgent } from "./agentLinks";
 
 /** Soon enough after an Agent is allowed, and gentle enough for a Header that never closes. */
 const REFRESH_MS = 10_000;
+/** While someone is waiting on an Agent, a request should appear about as soon as it is made. */
+const WAITING_REFRESH_MS = 3_000;
 /**
  * An Agent follows its instructions by opening one connection per command, so
  * a session usually lasts about a second. "Connected at this instant" would be
@@ -13,6 +15,7 @@ const REFRESH_MS = 10_000;
  */
 const ACTIVE_GRACE_MS = 120_000;
 const NO_AGENTS: readonly WorkspaceAgent[] = [];
+const NO_REQUESTS: readonly AgentRequest[] = [];
 
 export type WorkspaceAgent = ConnectedAgent & Readonly<{
   active: boolean;
@@ -53,11 +56,12 @@ export function useWorkspaceAgents(target: Readonly<{
   session: DesktopCloudSession;
   projectId: string;
   apiBaseUrl: string;
-}> | null) {
+}> | null, { waiting = false }: Readonly<{ waiting?: boolean }> = {}) {
   const session = target?.session;
   const projectId = target?.projectId;
   const apiBaseUrl = target?.apiBaseUrl;
   const [agents, setAgents] = useState(NO_AGENTS);
+  const [requests, setRequests] = useState(NO_REQUESTS);
   const [manageable, setManageable] = useState(false);
   const latest = useRef(0);
   const denied = useRef(false);
@@ -75,11 +79,13 @@ export function useWorkspaceAgents(target: Readonly<{
       if ((inventory.reason as { status?: number }).status === 403) {
         denied.current = true;
         setAgents(NO_AGENTS);
+        setRequests(NO_REQUESTS);
         setManageable(false);
       }
       return;
     }
     setManageable(true);
+    setRequests(inventory.value.pending ?? NO_REQUESTS);
     setAgents(resolveWorkspaceAgents(inventory.value.connections,
       sessions.status === "fulfilled" ? sessions.value : null, Date.now()));
   }, [apiBaseUrl, projectId, session]);
@@ -87,14 +93,15 @@ export function useWorkspaceAgents(target: Readonly<{
     if (!session || !projectId || !apiBaseUrl) return undefined;
     const whenVisible = () => { if (document.visibilityState === "visible") void refresh(); };
     void refresh();
-    const timer = setInterval(whenVisible, REFRESH_MS);
+    const timer = setInterval(whenVisible, waiting ? WAITING_REFRESH_MS : REFRESH_MS);
     document.addEventListener("visibilitychange", whenVisible);
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", whenVisible);
       latest.current += 1;
     };
-  }, [apiBaseUrl, projectId, refresh, session]);
+  }, [apiBaseUrl, projectId, refresh, session, waiting]);
   /** Only someone the server lets read the list may manage it, so only they are offered it. */
-  return { agents: target ? agents : NO_AGENTS, manageable: Boolean(target) && manageable, refresh };
+  return { agents: target ? agents : NO_AGENTS, requests: target ? requests : NO_REQUESTS,
+    manageable: Boolean(target) && manageable, refresh };
 }

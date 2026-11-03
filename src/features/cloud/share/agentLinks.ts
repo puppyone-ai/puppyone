@@ -10,11 +10,21 @@ export type ConnectedAgent = Readonly<{
   connected_at: string;
   expires_at: string | null;
 }>;
+/** An Agent that followed a sign-in link and waits for the owner to allow it. */
+export type AgentRequest = Readonly<{
+  id: string;
+  name: string;
+  admission: AgentAdmission;
+  requested_at: string;
+  expires_at: string;
+}>;
 export type AgentLinkInventory = Readonly<{
   links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string }>[];
   /** The deployment decides whether a link may admit without sign-in. Absent means no. */
   open_links_enabled?: boolean;
   connections: readonly ConnectedAgent[];
+  /** Only the requests the owner can still allow. Absent from servers that predate it. */
+  pending?: readonly AgentRequest[];
 }>;
 
 /** One connection to the workspace. An Agent opens one for each command it runs. */
@@ -59,18 +69,23 @@ export function removeConnectedAgent(session: DesktopCloudSession, projectId: st
     undefined, { method: "PATCH", body: JSON.stringify({ state: "revoked" }) }, apiBaseUrl);
 }
 
+/** The owner's answer to a waiting Agent; allowing one ends the wait of others on its link. */
+export function decideAgentRequest(session: DesktopCloudSession, connectionId: string,
+  decision: "approve" | "reject", apiBaseUrl: string) {
+  return cloudApiRequest<unknown>(`/agent-links/connections/${encodeURIComponent(connectionId)}/decision`, session,
+    undefined, { method: "POST", body: JSON.stringify({ decision }) }, apiBaseUrl);
+}
+
 export function stopSharingWithAgents(session: DesktopCloudSession, projectId: string, apiBaseUrl: string) {
   return cloudApiRequest<unknown>(`${projectPath(projectId)}/agent-links`, session, undefined, { method: "DELETE" }, apiBaseUrl);
 }
 
-/** Stands in for the link until it is copied: a link is a credential, so only copying creates one. */
-export const AGENT_LINK_PLACEHOLDER = "<invite link>";
-
 /**
  * What the person pastes. Their own message is what asks the Agent to act, so it
- * says what they want in one line; the link carries the steps. It stays in
- * English because it is read by the Agent, not shown in the product.
+ * says what they want in one line; the link carries the steps, and the owner
+ * allows the Agent in puppyone. It stays in English because it is read by the
+ * Agent, not shown in the product.
  */
 export function agentConnectMessage(projectName: string, url: string) {
-  return `Connect to my PuppyOne project "${projectName}" by following ${url} — if it gives you a sign-in link, send it to me.`;
+  return `Connect to my puppyone project "${projectName}" by following ${url}`;
 }

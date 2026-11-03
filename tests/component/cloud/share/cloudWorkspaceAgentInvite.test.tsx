@@ -21,6 +21,7 @@ let denied: boolean;
 
 const select = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!;
 const primary = () => select(".desktop-cloud-agent-share-copy");
+const status = () => document.querySelector('[role="status"]')?.textContent;
 const render = async (props: Partial<ComponentProps<typeof CloudWorkspaceAgentInvite>> = {}) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceAgentInvite projectId="project-1"
     projectName="Launch plan" session={session} apiBaseUrl={API} {...props} />)));
@@ -42,7 +43,7 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
-describe("Sharing with an Agent", () => {
+describe("Inviting an Agent", () => {
   it("offers no choice while the deployment keeps open links closed", async () => {
     await render();
     expect(document.querySelector('[role="radiogroup"]')).toBeNull();
@@ -61,7 +62,7 @@ describe("Sharing with an Agent", () => {
     inventory = { links: [], connections: [], open_links_enabled: true };
     await render();
     expect(select('[data-agent-admission="sign_in"]').getAttribute("aria-checked")).toBe("true");
-    expect(document.body.textContent).toContain("sign-in link");
+    expect(document.body.textContent).toContain("you allow it here");
     expect(created).toEqual([]);
   });
 
@@ -73,23 +74,31 @@ describe("Sharing with an Agent", () => {
     expect(created[0].secret).toMatch(/^pai_[A-Za-z0-9_-]{43}$/);
     expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(LINK));
     const copied = vi.mocked(writeClipboardText).mock.calls[0][0];
-    expect(copied).toContain('"Launch plan"');
-    expect(copied).toContain("sign-in link");
-    expect(copied.split("\n")).toHaveLength(1);
-    expect(document.querySelector('[role="status"]')?.textContent).toContain("Paste it");
-    expect(primary().textContent).toBe("Copied");
+    expect(copied).toBe(`Connect to my puppyone project "Launch plan" by following ${LINK}`);
+    expect(status()).toContain("Paste it");
+    expect(document.querySelector(".desktop-cloud-agent-invite-note")?.textContent).toBe("Copied. Paste it to your agent.");
+    // The line under the button says it was copied, so the button keeps its word.
+    expect(primary().textContent).toBe("Copy invite");
   });
 
-  it("returns the button to its label so a second agent can be connected", async () => {
+  it("lets the paste instruction go, so a second agent can be invited", async () => {
     vi.useFakeTimers();
     try {
       await render();
       await act(async () => primary().click());
-      expect(primary().textContent).toBe("Copied");
+      expect(status()).toContain("Paste it");
       await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
-      expect(primary().textContent).toBe("Copy prompt");
-      expect(document.querySelector('[role="status"]')?.textContent).toBe("");
+      expect(primary().textContent).toBe("Copy invite");
+      expect(status()).toBe("");
     } finally { vi.useRealTimers(); }
+  });
+
+  it("says it waits for the agent while the Header does", async () => {
+    await render({ waiting: true });
+    expect(status()).toBe("Waiting for your agent…");
+    expect(document.querySelector(".desktop-cloud-agent-invite-note svg")).not.toBeNull();
+    await render({ waiting: false });
+    expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
   });
 
   it("says a link failed beside the button, which stays ready to retry", async () => {
@@ -98,10 +107,10 @@ describe("Sharing with an Agent", () => {
     vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline"));
     await act(async () => primary().click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
-    expect(primary().textContent).toBe("Copy prompt");
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
+    expect(primary().textContent).toBe("Copy invite");
+    expect(primary().disabled).toBe(false);
     await act(async () => primary().click());
-    expect(primary().textContent).toBe("Copied");
+    expect(status()).toContain("Paste it");
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -111,7 +120,7 @@ describe("Sharing with an Agent", () => {
     expect(select('[data-agent-admission="link"]').textContent).toContain("gets its own copy of the project");
     await act(async () => select('[data-agent-admission="link"]').click());
     expect(select('[data-agent-admission="link"]').getAttribute("aria-checked")).toBe("true");
-    expect(select('[data-agent-admission="sign_in"]').textContent).toContain("sign-in link");
+    expect(select('[data-agent-admission="sign_in"]').textContent).toContain("you allow it here");
     await act(async () => primary().click());
     expect(created[0].admission).toBe("link");
   });
@@ -139,20 +148,44 @@ describe("Sharing with an Agent", () => {
     expect(writeClipboardText).not.toHaveBeenCalled();
   });
 
-  it("shows the prompt it will copy, and mints no link until it is copied", async () => {
+  it("says who can join without showing what it copies, and mints no link until it is copied", async () => {
     await render();
-    const prompt = document.querySelector(".desktop-cloud-agent-prompt")?.textContent;
-    expect(prompt).toContain('"Launch plan"');
-    expect(prompt).toContain("<invite link>");
+    expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
+    expect(document.body.textContent).toContain("Claude Code or Codex");
+    expect(document.body.textContent).not.toContain("Launch plan");
     expect(created).toEqual([]);
-    expect(document.body.textContent).toContain("Paste this to your agent");
   });
 
-  it("tells the Header at once when a link is made", async () => {
-    const onChanged = vi.fn();
-    await render({ onChanged });
+  it("tells the Header at once when a link is made, and not when it fails", async () => {
+    const onInvited = vi.fn();
+    denied = true;
+    await render({ onInvited });
     await act(async () => primary().click());
-    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(onInvited).not.toHaveBeenCalled();
+    denied = false;
+    await act(async () => primary().click());
+    expect(onInvited).toHaveBeenCalledTimes(1);
+  });
+
+  it("is one row among the Agents once some are here, and copies from it", async () => {
+    await render({ compact: true });
+    expect(document.querySelector("h3")).toBeNull();
+    const row = select("[data-cloud-agent-invite]");
+    expect(row.textContent).toBe("Invite another agent");
+    await act(async () => row.click());
+    expect(created).toHaveLength(1);
+    expect(row.textContent).toBe("Copied. Paste it to your agent.");
+    // The row already says it was copied; the line under it is only for the wait.
+    expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
+    await render({ compact: true, waiting: true });
+    expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
+  });
+
+  it("keeps the full form beside the Agents where a deployment offers a choice of who gets in", async () => {
+    inventory = { links: [], connections: [], open_links_enabled: true };
+    await render({ compact: true });
+    expect(document.querySelector('[role="radiogroup"]')).not.toBeNull();
+    expect(primary().textContent).toBe("Copy invite");
   });
 
   it("stays usable if the list cannot be read", async () => {

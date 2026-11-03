@@ -687,6 +687,43 @@
   filter: grayscale(1);
 }
 
+/* Asking to join: in its own colours behind a dashed edge, with the accent
+   where a working mark carries its lamp, because only the owner can answer. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark {
+  box-shadow: none;
+  border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
+  color: var(--desktop-titlebar-text);
+  filter: none;
+}
+
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -2px;
+  inset-inline-end: -2px;
+  box-sizing: content-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--desktop-titlebar-bg);
+  border-radius: 50%;
+  background: var(--po-accent);
+}
+
+/* An empty seat at the end of the row: whoever is invited takes it. */
+.desktop-titlebar-cloud-agent-seat {
+  display: grid;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 50%;
+}
+
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]) {
+  color: var(--desktop-titlebar-text);
+}
+
 .desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {
   animation-delay: 260ms;
 }

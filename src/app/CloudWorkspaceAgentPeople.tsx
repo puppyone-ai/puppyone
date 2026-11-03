@@ -10,19 +10,27 @@ const VISIBLE_AGENT_LIMIT = 3;
 
 /**
  * The Agents in a hosted workspace, each its own button, and any of them opens
- * the list. Whoever is at work comes first, as the only live fact in the row.
+ * the list. An Agent asking to join comes first, since only the owner can move
+ * it on; then whoever is at work, as the only live fact in the row.
  */
-export function CloudWorkspaceAgentPeople({ agents, open, pressedAgentId, onOpen }: CloudWorkspacePeople) {
+export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgentId, onOpen }: CloudWorkspacePeople) {
   const localization = useLocalization();
   const { t } = localization;
-  const ordered = [...agents].sort((left, right) => Number(right.active) - Number(left.active));
+  const ordered = [
+    ...requests.map(request => ({ id: request.id, name: request.name, active: false, waiting: true,
+      status: t("cloud.share.agent.request.status") })),
+    ...[...agents].sort((left, right) => Number(right.active) - Number(left.active))
+      .map(agent => ({ id: agent.id, name: agent.name, active: agent.active, waiting: false,
+        status: workspaceAgentStatus(agent, localization) })),
+  ];
   const visible = ordered.slice(0, VISIBLE_AGENT_LIMIT);
   const overflow = ordered.length - visible.length;
   return <div className="desktop-titlebar-cloud-agents" role="group" aria-label={t("cloud.share.agent.connected")}>
     {visible.map(agent => {
-      const label = [agent.name, workspaceAgentStatus(agent, localization)].filter(Boolean).join(" · ");
+      const label = [agent.name, agent.status].filter(Boolean).join(" · ");
       return <Tooltip key={agent.id} content={label}>
         <button type="button" className="desktop-titlebar-cloud-agent" data-cloud-workspace-agent={agent.id}
+          data-waiting={agent.waiting || undefined}
           aria-label={label} aria-haspopup="dialog" aria-expanded={open && pressedAgentId === agent.id}
           onClick={() => onOpen(agent.id)}>
           <CloudWorkspaceAgentMark id={agent.id} name={agent.name} active={agent.active} />

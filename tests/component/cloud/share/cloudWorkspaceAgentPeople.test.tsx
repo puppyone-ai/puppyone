@@ -14,15 +14,18 @@ vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
-  CloudWorkspaceShareDialog: ({ agentInvite }: { agentInvite: { onChanged: () => void } | null }) =>
-    <div role="dialog" data-panel="share" data-invites={Boolean(agentInvite)}>
-      <button data-changed onClick={agentInvite?.onChanged}>changed</button>
-    </div>,
+  CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
-  CloudWorkspaceAgentsPanel: ({ onManage, agents }: { onManage: () => void; agents: { name: string }[] }) =>
-    <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}>
+  CloudWorkspaceAgentsPanel: ({ onManage, agents, requests, control }: { onManage: () => void;
+    agents: { name: string }[]; requests: { name: string }[];
+    control: { waiting: boolean; onInvited: () => void; onChanged: () => void } | null }) =>
+    <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}
+      data-requests={requests.map(request => request.name).join()} data-control={Boolean(control)}
+      data-waiting={control?.waiting}>
       <button data-manage onClick={onManage}>manage</button>
+      <button data-invited onClick={control?.onInvited}>invited</button>
+      <button data-answered onClick={control?.onChanged}>answered</button>
     </div>,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
@@ -39,34 +42,57 @@ const project = (kind: "project_root" | "scope" = "project_root"): ProjectCloudC
 const connection = (id: string, name: string) => ({ id, name, admission: "sign_in", grant_id: `g-${id}`,
   connected_at: "2026-10-30T00:00:00Z", expires_at: "2026-11-29T00:00:00Z" });
 const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
-let root: Root; let connections: ReturnType<typeof connection>[]; let sessions: unknown[];
+const request = (id: string, name: string) => ({ id, name, admission: "sign_in", requested_at: ago(30),
+  expires_at: new Date(Date.now() + 600_000).toISOString() });
+let root: Root; let connections: ReturnType<typeof connection>[]; let pending: ReturnType<typeof request>[];
+let sessions: unknown[];
 const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")];
 const agentButtons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-cloud-workspace-agent]")];
 const agentButton = (id: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-agent="${id}"]`)!;
 const row = () => document.querySelector<HTMLElement>(".desktop-titlebar-cloud-agents");
 const panel = () => document.querySelector<HTMLElement>("[role=dialog]");
 const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]')!;
+const invite = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="invite-agent"]');
 const render = async (context = project(), mounted = true) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceHeaderTools context={context} session={session}
     apiBaseUrl={API} onSessionChange={vi.fn()} renderPeople={mounted ? value => <CloudWorkspaceAgentPeople {...value} /> : undefined} />)));
   await act(async () => { await Promise.resolve(); });
 };
 beforeEach(() => {
-  connections = []; sessions = [];
+  connections = []; pending = []; sessions = [];
   vi.mocked(cloudApiRequest).mockImplementation(async path =>
-    String(path).endsWith("/agent-links") ? { links: [], connections } : sessions);
+    String(path).endsWith("/agent-links") ? { links: [], connections, pending } : sessions);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("shows nothing while nobody has been let in: inviting belongs to Share", async () => {
+  it("shows only an empty seat while nobody has been let in, and it opens the Agents card", async () => {
     await render();
     expect(marks()).toEqual([]);
     expect(row()).toBeNull();
-    expect(document.querySelector('[data-cloud-workspace-tool="connect-agent"]')).toBeNull();
-    await act(async () => share().click());
-    expect(panel()?.dataset.invites).toBe("true");
+    expect(invite()!.getAttribute("aria-label")).toBe("Invite an agent");
+    expect(invite()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await act(async () => invite()!.click());
+    expect(panel()?.dataset.panel).toBe("agents");
+    expect(panel()?.dataset.control).toBe("true");
+    expect(invite()!.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => invite()!.click());
+    expect(panel()).toBeNull();
+  });
+  it("puts an Agent asking to join first, apart from the ones already here, and opens the card to answer it", async () => {
+    connections = [connection("c1", "Codex")];
+    pending = [request("r1", "Claude Code")];
+    await render();
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["r1", "c1"]);
+    expect(agentButton("r1").dataset.waiting).toBe("true");
+    expect(agentButton("c1").dataset.waiting).toBeUndefined();
+    expect(agentButton("r1").getAttribute("aria-label")).toBe("Claude Code · Wants to join");
+    await act(async () => agentButton("r1").click());
+    expect(panel()?.dataset.requests).toBe("Claude Code");
+    expect(panel()?.dataset.agents).toBe("Codex");
+    expect(agentButton("r1").getAttribute("aria-expanded")).toBe("true");
+    expect(invite()!.getAttribute("aria-expanded")).toBe("false");
   });
   it("shows the kind of Agent, and an initial only for a name it cannot recognize", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper")];
@@ -174,17 +200,40 @@ describe("An Agent in the Header", () => {
     expect(panel()?.dataset.panel).toBe("agents");
     expect(more.getAttribute("aria-expanded")).toBe("true");
   });
+  it("waits for an answer after an invite, until an Agent asks to join", async () => {
+    connections = [connection("c1", "Codex")];
+    await render();
+    await act(async () => invite()!.click());
+    expect(panel()?.dataset.waiting).toBe("false");
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-invited]")!.click());
+    expect(panel()?.dataset.waiting).toBe("true");
+    pending = [request("r1", "Claude Code")];
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-answered]")!.click());
+    await act(async () => { await Promise.resolve(); });
+    expect(panel()?.dataset.waiting).toBe("false");
+    expect(agentButton("r1").dataset.waiting).toBe("true");
+  });
+  it("stops waiting when a new Agent joins without asking", async () => {
+    connections = [connection("c1", "Codex")];
+    await render();
+    await act(async () => invite()!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-invited]")!.click());
+    connections = [connection("c1", "Codex"), connection("c2", "Cursor")];
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-answered]")!.click());
+    await act(async () => { await Promise.resolve(); });
+    expect(panel()?.dataset.waiting).toBe("false");
+  });
   it("offers nothing about Agents to someone the server will not show them to", async () => {
     vi.mocked(cloudApiRequest).mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
     await render();
     expect(marks()).toEqual([]);
+    expect(invite()).toBeNull();
     await act(async () => share().click());
-    expect(panel()?.dataset.invites).toBe("false");
+    expect(panel()?.dataset.panel).toBe("share");
   });
   it("does not look for Agents in a scoped view, which cannot have any", async () => {
     await render(project("scope"));
     expect(cloudApiRequest).not.toHaveBeenCalled();
-    await act(async () => share().click());
-    expect(panel()?.dataset.invites).toBe("false");
+    expect(invite()).toBeNull();
   });
 });

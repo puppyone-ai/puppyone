@@ -1,11 +1,12 @@
-import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
-import { Forward } from "lucide-react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { Forward, Plus } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
 import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
+import type { AgentRequest } from "../share/agentLinks";
 import type { ShareAgentMark } from "../share/CloudWorkspaceAgentsPanel";
 import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAgents";
 
@@ -15,6 +16,8 @@ const AgentsDialog = lazy(() => import("../share/CloudWorkspaceAgentsDialog").th
 
 export type CloudWorkspacePeople = Readonly<{
   agents: readonly WorkspaceAgent[];
+  /** Agents asking to join; the owner answers them in the same card. */
+  requests: readonly AgentRequest[];
   open: boolean;
   /** The mark that opened the list, so the Header shows which one is pressed. */
   pressedAgentId: string | null;
@@ -34,6 +37,12 @@ type Props = {
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 };
 
+/** A sign-in request lasts ten minutes, so an invite with no answer by then is not awaited. */
+const INVITE_WAIT_MS = 10 * 60_000;
+/** Who opened the Agents card: one Agent's mark, the overflow count, or the invite. */
+const MORE = "more";
+const INVITE = "invite";
+
 /** An Agent connects to the whole workspace, so a scoped view has none to show. */
 function agentTarget(context: ProjectCloudContext | null, session: DesktopCloudSession | null, apiBaseUrl: string) {
   if (context?.status !== "resolved" || !session || context.target.kind !== "project_root") return null;
@@ -50,12 +59,22 @@ export function CloudWorkspaceHeaderTools(props: Props) {
 function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
   const { t } = useLocalization();
   const [panel, setPanel] = useState<"share" | "agents" | "manage" | null>(null);
-  const [pressedAgentId, setPressedAgentId] = useState<string | null>(null);
+  const [opener, setOpener] = useState<string | null>(null);
+  /** The Agents already here when the last invite was copied, so a newcomer ends the wait. */
+  const [invite, setInvite] = useState<ReadonlySet<string> | null>(null);
   const shareButton = useRef<HTMLButtonElement>(null);
   const agentsAnchor = useRef<HTMLDivElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
-  const { agents, manageable, refresh: refreshAgents } = useWorkspaceAgents(agentTarget(context, session, apiBaseUrl));
+  const { agents, requests, manageable, refresh: refreshAgents } = useWorkspaceAgents(
+    agentTarget(context, session, apiBaseUrl), { waiting: panel === "agents" || invite !== null });
+  const answered = invite !== null && (requests.length > 0 || agents.some(agent => !invite.has(agent.id)));
+  useEffect(() => { if (answered) setInvite(null); }, [answered]);
+  useEffect(() => {
+    if (!invite) return undefined;
+    const timer = setTimeout(() => setInvite(null), INVITE_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [invite]);
   const closePanel = () => setPanel(null);
   const toggleShare = () => {
     if (panel === "share") { closePanel(); return; }
@@ -63,18 +82,27 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     catch { setShareResource(null); }
     setPanel("share");
   };
-  const openAgents = (agentId: string | null) => {
-    if (panel === "agents" && pressedAgentId === agentId) { closePanel(); return; }
-    setPressedAgentId(agentId);
+  const openAgents = (next: string) => {
+    if (panel === "agents" && opener === next) { closePanel(); return; }
+    setOpener(next);
     setPanel("agents");
   };
-  const agentsOpen = panel === "agents" && agents.length > 0;
+  const listed = agents.length > 0 || requests.length > 0;
+  const agentsOpen = panel === "agents" && (listed || manageable);
   const refreshPeople = () => void refreshAgents();
-  const invite = manageable && session ? { session, apiBaseUrl, onChanged: refreshPeople } : null;
+  const control = manageable && session && context?.status === "resolved" ? {
+    session, apiBaseUrl, projectId: context.projectId, projectName: context.projectName || context.projectId,
+    waiting: invite !== null && !answered,
+    onInvited: () => { setInvite(new Set(agents.map(agent => agent.id))); refreshPeople(); },
+    onChanged: refreshPeople,
+  } : null;
+  const pressedAgentId = opener === MORE || opener === INVITE ? null : opener;
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
-      {ready && agents.length > 0 && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
-        {renderPeople?.({ agents, open: agentsOpen, pressedAgentId, onOpen: openAgents })}
+      {ready && (listed || manageable) && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
+        {listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
+          onOpen: agentId => openAgents(agentId ?? MORE) })}
+        {manageable && <InviteAgentTool open={agentsOpen && opener === INVITE} onOpen={() => openAgents(INVITE)} />}
       </div>}
       <Tooltip content={t(ready ? "shell.titlebar.share" : "shell.workspaceSwitcher.location.checking")}>
         <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
@@ -87,14 +115,26 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
       <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
     {context?.status === "resolved" && <Suspense fallback={null}>
-      {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel}
-        agentInvite={invite} />}
-      {agentsOpen && <AgentsPanel anchor={agentsAnchor} agents={agents} renderAgentMark={renderAgentMark}
-        onManage={() => setPanel("manage")} onClose={closePanel} />}
+      {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel} />}
+      {agentsOpen && <AgentsPanel anchor={agentsAnchor} agents={agents} requests={requests} control={control}
+        renderAgentMark={renderAgentMark} onManage={() => setPanel("manage")} onClose={closePanel} />}
       {panel === "manage" && session && <AgentsDialog projectId={context.projectId} session={session} apiBaseUrl={apiBaseUrl}
         agents={agents} renderAgentMark={renderAgentMark} onChanged={refreshPeople} onClose={closePanel} />}
     </Suspense>}
   </>;
+}
+
+/** An empty seat beside the Agents: whoever is invited takes its place in the row. */
+function InviteAgentTool({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+  const { t } = useLocalization();
+  const label = t("cloud.share.agent.invite.title");
+  return <Tooltip content={label}>
+    <button type="button" className="desktop-titlebar-cloud-agent desktop-titlebar-cloud-agent-invite"
+      data-cloud-workspace-tool="invite-agent" aria-label={label} aria-haspopup="dialog" aria-expanded={open}
+      onClick={onOpen}>
+      <span className="desktop-titlebar-cloud-agent-seat" aria-hidden="true"><Plus size={12} strokeWidth={2} /></span>
+    </button>
+  </Tooltip>;
 }
 
 function AgentPaneTool({ open, disabled, onToggle }: { open: boolean; disabled: boolean; onToggle?: () => void }) {
