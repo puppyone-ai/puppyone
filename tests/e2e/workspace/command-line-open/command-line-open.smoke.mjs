@@ -1,6 +1,7 @@
 #!/usr/bin/env electron
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
@@ -16,7 +17,9 @@ import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-i
 /**
  * `puppyone open` against the real main process. The app is started the way
  * the CLI starts it, with the launch argument, and driven over its socket.
- * PUPPYONE_CLI_BIN, when set, also runs the real CLI against it.
+ * The real CLI then runs the manual test checklist against it, and each case
+ * is recorded in the report. The CLI is PUPPYONE_CLI_BIN, or a puppyone-cli
+ * checkout next to this repository.
  *
  * Scenarios, chosen with --scenario=<name>: `full` (default), `failed-launch`
  * (a rejected first request quits the app), `no-request` (no request means a
@@ -24,8 +27,9 @@ import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-i
  */
 const scenario = process.argv.find((value) => value.startsWith("--scenario="))?.slice("--scenario=".length) ?? "full";
 if (!["full", "failed-launch", "no-request"].includes(scenario)) throw new Error(`Unknown scenario: ${scenario}`);
-const cliBin = process.env.PUPPYONE_CLI_BIN ?? null;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const siblingCli = path.resolve(repoRoot, "..", "puppyone-cli", "bin", "puppyone.js");
+const cliBin = process.env.PUPPYONE_CLI_BIN ?? (existsSync(siblingCli) ? siblingCli : null);
 const temporaryRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-cli-open-")));
 const reportDirectory = path.join(repoRoot, "artifacts/tests/command-line-open", `${scenario}-${new Date().toISOString().replaceAll(":", "-")}`);
 await fs.mkdir(reportDirectory, { recursive: true });
@@ -48,6 +52,7 @@ const report = { ok: false, scenario, stage: "fixtures", checks: {}, error: null
 const docs = path.join(temporaryRoot, "docs");
 const project = path.join(temporaryRoot, "last-project");
 const inDocs = (name) => path.join(docs, name);
+const oldApp = path.join(temporaryRoot, "old", "PuppyOne.app");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const guard = setTimeout(() => { console.error(`Command-line open check timed out during: ${report.stage}`); void finish(1); }, 180_000);
 const created = [];
@@ -96,9 +101,14 @@ function send(request) {
 const open = (paths, activate = true) => send({ protocol: 1, type: "open", paths, activate });
 const statuses = (response) => response.results.map((result) => result.error?.code ?? result.status);
 
-function runCli(args) {
-  const env = { ...process.env, PUPPYONE_CLI_ENDPOINT: endpoint };
+/** Runs the CLI as a user would in this PuppyOne's terminal, or with `outside` in another terminal. */
+function runCli(args, { outside = null } = {}) {
+  const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.PUPPYONE_APP_PATH;
+  delete env.PUPPYONE_CLI_ENDPOINT;
+  if (outside) Object.assign(env, outside);
+  else env.PUPPYONE_CLI_ENDPOINT = endpoint;
   return new Promise((resolve) => {
     execFile(process.env.PUPPYONE_CLI_NODE ?? "node", [cliBin, ...args], { cwd: docs, env },
       (error, stdout, stderr) => resolve({ code: error ? error.code : 0, stdout, stderr }));
@@ -111,6 +121,18 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(project, "note.md"), "# Last project\n");
   for (const name of ["plan.md", "second.md", "dirty.md"]) await fs.writeFile(inDocs(name), `# ${name}\n`);
   await fs.writeFile(inDocs("main.py"), "print('hi')\n");
+  for (const name of ["notes.md", "agent.md"]) await fs.writeFile(inDocs(name), `# ${name}\n`);
+  await fs.writeFile(inDocs("data.csv"), "name,city\nAda,London\n");
+  // An installed PuppyOne from before the command line, as /Applications holds it.
+  await fs.mkdir(path.join(oldApp, "Contents"), { recursive: true });
+  await fs.writeFile(path.join(oldApp, "Contents", "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>ai.puppyone.desktop</string>
+<key>CFBundleName</key><string>PuppyOne</string>
+<key>CFBundleShortVersionString</key><string>0.4.0</string>
+</dict></plist>
+`);
   await fs.writeFile(inDocs("big.md"), "x".repeat(1024 * 1024 + 1));
   const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-state.json", canonicalizeWorkspacePath: async (value) => value });
   await registry.rememberWorkspaceComposition([await workspaceFromPath(project)]);
@@ -211,19 +233,75 @@ async function outsideChanges(window) {
   dirty.destroy();
 }
 
-async function realCli() {
+/** The manual checklist, run with the real CLI. Every case lands in report.checklist. */
+async function checklist() {
   if (!cliBin) {
-    report.realCli = "skipped: set PUPPYONE_CLI_BIN to run the CLI";
+    report.checklist = "skipped: set PUPPYONE_CLI_BIN, or check out puppyone-cli next to this repository";
     return;
   }
-  const opened = await runCli(["open", "--json", "plan.md"]);
-  check("the CLI reports a focused file", [opened.code, JSON.parse(opened.stdout).results?.[0]?.status], [0, "focused"]);
-  const second = await runCli(["open", "--background", "second.md"]);
-  check("the CLI opens in the background", [second.code, second.stdout.trim()], [0, "Opened second.md in PuppyOne in the background"]);
-  const unsupported = await runCli(["open", "--json", "main.py"]);
-  check("the CLI refuses an unsupported file with exit code 4", [unsupported.code, JSON.parse(unsupported.stdout).error.code], [4, "UNSUPPORTED_TYPE"]);
-  const doctor = await runCli(["doctor", "--json"]);
-  check("the CLI doctor is ready", [doctor.code, JSON.parse(doctor.stdout).ready], [0, true]);
+  report.checklist = [];
+  const run = async (name, args, options) => {
+    const result = await runCli(args, options);
+    report.checklist.push({
+      case: name,
+      command: `puppyone ${args.join(" ")}`,
+      exitCode: result.code,
+      stdout: result.stdout.trim(),
+      stderr: result.stderr.trim(),
+    });
+    return result;
+  };
+  const lines = (result) => [result.code, result.stdout.trim(), result.stderr.trim()];
+
+  const doctor = await run("doctor reports ready", ["doctor"]);
+  check("checklist: doctor reports ready", [doctor.code, doctor.stdout.trim().endsWith("Ready")], [0, true]);
+
+  const first = await run("a file opens in its own window", ["open", "notes.md"]);
+  check("checklist: a file opens in its own window", lines(first), [0, "Opened notes.md in PuppyOne", ""]);
+  await until(() => windowNamed("notes.md"), "the notes.md window");
+  const count = windows().length;
+  const again = await run("opening it again brings it forward", ["open", "notes.md"]);
+  check("checklist: opening it again brings it forward", [...lines(again), windows().length], [0, "notes.md is already open in PuppyOne", "", count]);
+
+  focused.clear();
+  const background = await run("a background open leaves focus in the terminal", ["open", "--background", "data.csv"]);
+  const csvWindow = await until(() => windowNamed("data.csv"), "the data.csv window");
+  check("checklist: a background open leaves focus in the terminal",
+    [...lines(background), focused.has(csvWindow)], [0, "Opened data.csv in PuppyOne in the background", "", false]);
+
+  const folder = await run("a folder opens its project window", ["open", "."]);
+  const projectWindow = await until(() => projectWindows()[0], "the docs project window");
+  check("checklist: a folder opens its project window", lines(folder), [0, "Opened docs in PuppyOne", ""]);
+  await until(() => exists(projectWindow, ".desktop-titlebar-workspace-name"), "the project's title bar", 60_000);
+  const folderAgain = await run("an open folder is brought forward, not opened twice", ["open", "."]);
+  check("checklist: an open folder is brought forward, not opened twice",
+    [...lines(folderAgain), projectWindows().length], [0, "docs is already open in PuppyOne", "", 1]);
+
+  const before = windows().length;
+  const unsupported = await run("an unsupported file opens nothing, exit code 4", ["open", "main.py"]);
+  check("checklist: an unsupported file opens nothing, exit code 4", [...lines(unsupported), windows().length],
+    [4, "", "Error: PuppyOne can't open main.py.\nHint: It opens Markdown, CSV and HTML files, and folders.", before]);
+  const missing = await run("a missing file opens nothing, exit code 4", ["open", "missing.md"]);
+  check("checklist: a missing file opens nothing, exit code 4", [...lines(missing), windows().length],
+    [4, "", "Error: missing.md does not exist.", before]);
+
+  const agent = await run("an Agent's edit shows without returning to the window", ["open", "--background", "agent.md"]);
+  const agentWindow = await until(() => windowNamed("agent.md"), "the agent.md window");
+  await until(() => exists(agentWindow, ".cm-editor"), "its document");
+  await fs.writeFile(inDocs("agent.md"), "# agent.md\n\nEdited by the Agent.\n");
+  await until(async () => (await editorText(agentWindow)).includes("Edited by the Agent."), "the Agent's edit", 10_000);
+  check("checklist: an Agent's edit shows without returning to the window", [agent.code, focused.has(agentWindow)], [0, false]);
+
+  const json = await run("--json prints one JSON document", ["open", "--json", "notes.md"]);
+  const payload = JSON.parse(json.stdout);
+  check("checklist: --json prints one JSON document",
+    [json.code, payload.success, payload.results.map((result) => [result.status, result.kind, result.window])],
+    [0, true, [["focused", "file", "file"]]]);
+
+  // Another terminal on a Mac whose PuppyOne predates the command line.
+  const old = await run("an older PuppyOne asks for an update, exit code 3", ["open", "notes.md"], { outside: { PUPPYONE_APP_PATH: oldApp } });
+  check("checklist: an older PuppyOne asks for an update, exit code 3", lines(old), [3, "",
+    "Error: PuppyOne 0.4.0 can't open files from the command line.\nHint: Use PuppyOne > Check for Updates…, or download the latest version from https://www.puppyone.ai/download"]);
 }
 
 async function failedLaunch() {
@@ -272,7 +350,7 @@ async function run() {
     } else {
       report.stage = "cold start";
       const window = await coldStart();
-      for (const [stage, step] of Object.entries({ routing, outsideChanges, realCli })) {
+      for (const [stage, step] of Object.entries({ routing, outsideChanges, checklist })) {
         report.stage = stage;
         await step(window);
       }
