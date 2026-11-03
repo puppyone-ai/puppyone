@@ -1171,7 +1171,6 @@ function registerIpcHandlers() {
       const window = windowsById.get(sender.id);
       return state?.fileTarget && window ? { state, window } : null;
     },
-    openFolder: ({ rootPath, name }) => openWorkspaceInNewWindow(rootPath, { initialOpenPath: name }),
   });
   registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });

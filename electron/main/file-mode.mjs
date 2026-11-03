@@ -11,11 +11,12 @@ const FILE_MODE_CHANNELS = new Set([
   "appearance:set-window-background",
   "document-session:flush-result",
   "editor:markdown-format-active",
-  "file-mode:open-folder",
   "file-mode:set-edited",
   "localization:get-bootstrap",
   "mermaid:cancel",
   "mermaid:render",
+  // Menus over the document tell this window's own native views to step aside.
+  "native-surfaces:set-overlay-occluded",
   "platform:get-capabilities",
   "system:open-external-url",
   "theme:list",

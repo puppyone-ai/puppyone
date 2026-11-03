@@ -185,7 +185,6 @@
   "html.source": "HTML-Quelltext",
   "html.sourceUnavailable": "HTML-Quelltext nicht verfügbar",
   "loadingFile": "Datei wird geladen…",
-  "fileMode.openFolder": "Ordner als Projekt öffnen",
   "fileMode.readOnlyEncoding": "Diese Datei ist nicht in UTF-8 gespeichert und wird schreibgeschützt geöffnet, damit ihr Inhalt erhalten bleibt.",
   "loadingViewer": "Viewer wird geladen…",
   "markdown.ai.added": "Vom Agenten hinzugefügt",

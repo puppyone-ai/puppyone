@@ -312,10 +312,6 @@ export function setFileEdited(edited: boolean): void {
   getDesktopBridge().setFileEdited(edited);
 }
 
-export async function openFileFolder(): Promise<void> {
-  await getDesktopBridge().openFileFolder();
-}
-
 export async function openExternalUrl(href: string): Promise<void> {
   await getDesktopBridge().openExternalUrl(href);
 }

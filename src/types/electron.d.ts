@@ -1171,7 +1171,6 @@ declare global {
       }>;
       openExternalUrl: (href: string) => Promise<{ ok: boolean }>;
       setFileEdited: (edited: boolean) => void;
-      openFileFolder: () => Promise<void>;
       submitFeedback: (request: {
         message: string;
         email: string;

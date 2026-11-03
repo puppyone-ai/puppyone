@@ -1,28 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { MoreHorizontal } from "lucide-react";
 import {
   createDataPortMarkdownAssetResolver,
   createDocumentNavigationPort,
   DEFAULT_EDITOR_INTERACTION_PREFERENCES,
+  EditorPaneMenuContributionProvider,
   EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT,
   FilePreview,
   getEditorProviderPolicy,
   isDocumentDataNode,
   subscribeUnsavedDocumentSessions,
+  Tooltip,
   useDocumentInput,
   type DataPort,
   type DocumentDataNode,
+  type EditorPaneMenuContribution,
+  type EditorPaneMenuSegmentedControl,
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
+import { EditorPaneActionsMenu } from "../components/EditorPaneActionsMenu";
+import { EditorViewModeMenu } from "../components/EditorViewModeMenu";
 import { PageLoading } from "../components/loading";
-import { useDesktopPreference, useDesktopPreferenceEffects } from "../features/settings";
+import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
+import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../features/appearance/AppearanceRuntime";
+import { useDesktopAppearance, useDesktopPreference, useDesktopPreferenceEffects } from "../features/settings";
 import { useSubThemeCatalog } from "../features/themes/useSubThemeCatalog";
 import { useTypographyCatalog, useTypographyRuntime } from "../features/typography";
 import {
   createLocalDataPort,
   getInitialWorkspace,
   openExternalUrl,
-  openFileFolder,
   setFileEdited,
 } from "../lib/localFiles";
 import type { FileModeTarget } from "../types/electron";
@@ -44,10 +52,11 @@ export function FileModeApp() {
   const { locale, t } = useLocalization();
   const subThemeCatalog = useSubThemeCatalog();
   useDesktopPreferenceEffects(subThemeCatalog.snapshot);
-  useTypographyRuntime(useDesktopPreference((state) => state.typographyPreferences), useTypographyCatalog(), locale);
-
+  const appearance = useFileModeAppearance(locale);
+  const platformCapabilities = useDesktopPlatformCapabilities();
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [failed, setFailed] = useState(false);
+  const [menuContribution, setMenuContribution] = useState<EditorPaneMenuContribution | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,30 +72,147 @@ export function FileModeApp() {
   useEffect(() => subscribeUnsavedDocumentSessions(setFileEdited), []);
 
   return (
-    <div className="file-mode-window">
-      <header className="file-mode-window__titlebar" data-window-drag-region="true">
-        <span className="file-mode-window__name" dir="auto">{opened?.target.name}</span>
-        {opened && (
-          <button
-            type="button"
-            className="file-mode-window__action"
-            data-po-interaction="navigation"
-            onClick={() => void openFileFolder().catch((error) => console.error("Unable to open the folder:", error))}
-          >
-            {t("editor.fileMode.openFolder")}
-          </button>
-        )}
-      </header>
-      <main className="file-mode-window__document">
-        {failed && <FileUnavailable />}
-        {opened?.target.tooLarge && <FileUnavailable sizeLimit={opened.target.sizeLimit} />}
-        {opened?.node && <FileModeDocument target={opened.target} dataPort={opened.dataPort} node={opened.node} />}
-        {!failed && !opened && (
-          <PageLoading variant="fill" size="md" label={null} ariaLabel={t("editor.loadingFile")} />
-        )}
-      </main>
+    <SurfaceAppearanceProvider value={appearance}>
+      <div
+        {...appearance.rootProps}
+        className={`file-mode-window${appearance.appearance.effectiveColorMode === "dark" ? " dark" : ""}`}
+      >
+        <header
+          className="file-mode-window__titlebar"
+          data-window-drag-region="true"
+          data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
+          data-window-platform={platformCapabilities?.platform}
+        >
+          <span className="file-mode-window__name" dir="auto">{opened?.target.name}</span>
+          <FileControls name={opened?.target.name ?? null} contribution={menuContribution} />
+        </header>
+        <main className="file-mode-window__document">
+          {failed && <FileUnavailable />}
+          {opened?.target.tooLarge && <FileUnavailable sizeLimit={opened.target.sizeLimit} />}
+          {opened?.node && (
+            // Editors hand their view switch and settings to the title bar, as they do to a project pane's menu.
+            <EditorPaneMenuContributionProvider onContributionChange={setMenuContribution}>
+              <FileModeDocument target={opened.target} dataPort={opened.dataPort} node={opened.node} />
+            </EditorPaneMenuContributionProvider>
+          )}
+          {!failed && !opened && (
+            <PageLoading variant="fill" size="md" label={null} ariaLabel={t("editor.loadingFile")} />
+          )}
+        </main>
+      </div>
+    </SurfaceAppearanceProvider>
+  );
+}
+
+/**
+ * What the editor hands a project pane's menu, in the title bar: its view as one
+ * control showing the current view, anything else behind the pane's menu.
+ */
+function FileControls({ name, contribution }: { name: string | null; contribution: EditorPaneMenuContribution | null }) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const switches = useMemo(() => (contribution?.viewItems ?? []).filter(
+    (item): item is EditorPaneMenuSegmentedControl => item.kind === "segmented",
+  ), [contribution]);
+  const settings = useMemo(() => contribution && {
+    ...contribution,
+    viewItems: contribution.viewItems.filter((item) => item.kind !== "segmented"),
+  }, [contribution]);
+  if (!switches.length && !settings?.viewItems.length) return null;
+  const label = name ? t("editor.panes.actionsFor", { name }) : t("editor.panes.actions");
+  return (
+    <div className="file-mode-window__controls">
+      {switches.map((item) => (
+        <EditorViewModeMenu
+          key={item.id}
+          item={item}
+          boundarySelector=".file-mode-window"
+          className="file-mode-window__action file-mode-window__view-mode"
+        />
+      ))}
+      {settings?.viewItems.length ? <FileSettingsMenu
+        buttonRef={buttonRef}
+        label={label}
+        name={name}
+        settings={settings}
+        open={open}
+        onToggle={() => setOpen((current) => !current)}
+        onClose={close}
+      /> : null}
     </div>
   );
+}
+
+function FileSettingsMenu({ buttonRef, label, name, settings, open, onToggle, onClose }: {
+  buttonRef: RefObject<HTMLButtonElement>;
+  label: string;
+  name: string | null;
+  settings: EditorPaneMenuContribution;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <Tooltip content={label}><button
+        ref={buttonRef}
+        type="button"
+        className="file-mode-window__action"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <MoreHorizontal aria-hidden="true" />
+      </button></Tooltip>
+      <EditorPaneActionsMenu
+        anchorRef={buttonRef}
+        boundarySelector=".file-mode-window"
+        alignment="end"
+        editorLabel={name}
+        findCommand={null}
+        menuContribution={settings}
+        open={open}
+        onCloseMenu={onClose}
+        onOpenExternal={null}
+      />
+    </>
+  );
+}
+
+/** The theme boundary a project window has, so sub-themes reach this window too. */
+function useFileModeAppearance(locale: string) {
+  const { resolvedAppearance, lightThemePreset, darkThemePreset } = useDesktopAppearance();
+  const typography = useTypographyRuntime(
+    useDesktopPreference((state) => state.typographyPreferences),
+    useTypographyCatalog(),
+    locale,
+  );
+  const markdownPresentation = useDesktopPreference((state) => state.markdownPresentation);
+  const loadingPlaceholderStyle = useDesktopPreference((state) => state.loadingPlaceholderStyle);
+  const pointerCursors = useDesktopPreference((state) => state.pointerCursors);
+  const diffMarkers = useDesktopPreference((state) => state.diffMarkers);
+  return useMemo(() => resolveSurfaceAppearance({
+    appearance: resolvedAppearance,
+    typography,
+    markdownPresentation,
+    loadingPlaceholderStyle,
+    lightThemePreset,
+    darkThemePreset,
+    pointerCursors,
+    diffMarkers,
+  }), [
+    darkThemePreset,
+    diffMarkers,
+    lightThemePreset,
+    loadingPlaceholderStyle,
+    markdownPresentation,
+    pointerCursors,
+    resolvedAppearance,
+    typography,
+  ]);
 }
 
 function FileUnavailable({ sizeLimit }: { sizeLimit?: number }) {

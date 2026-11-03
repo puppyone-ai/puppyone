@@ -69,6 +69,7 @@ describe("File Mode IPC gate", () => {
     "agent:session-create",
     "cloud-workspace:watch",
     "markdown-web-embed:create",
+    "file-mode:open-folder",
     "made-up:channel",
   ])("refuses %s", (channel) => {
     expect(allowed(channel, { path: "plan.md" })).toBe(false);
@@ -88,7 +89,7 @@ describe("File Mode IPC gate", () => {
       "system:open-external-url",
       "editor:markdown-format-active",
       "file-mode:set-edited",
-      "file-mode:open-folder",
+      "native-surfaces:set-overlay-occluded",
     ]) expect(allowed(channel)).toBe(true);
   });
 });

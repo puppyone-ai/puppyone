@@ -111,7 +111,7 @@ describe("sidebar spacing architecture", () => {
     const root = readCssBlock(tokensCss, ":root");
     const semanticThemeScope = readCssBlock(
       tokensCss,
-      ":root,\n:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
+      ":root,\n:where(.app-shell, .onboarding-shell, .file-mode-window, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
     );
 
     expect(root).toContain("--desktop-sidebar-row-left-gap: 12px;");
@@ -165,7 +165,7 @@ describe("sidebar spacing architecture", () => {
   it("uses one shared quiet divider for both sidebars", () => {
     const semanticThemeScope = readCssBlock(
       tokensCss,
-      ":root,\n:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
+      ":root,\n:where(.app-shell, .onboarding-shell, .file-mode-window, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
     );
     const titlebar = compact(readCssBlock(titlebarCss, ".desktop-titlebar"));
     const paneEdge = compact(readCssBlock(

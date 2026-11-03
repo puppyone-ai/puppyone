@@ -155,7 +155,7 @@
  * workspaces use a solid, appearance-aware blue Header with the same foreground palette.
  */
 :root,
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
+:where(.app-shell, .onboarding-shell, .file-mode-window, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
   /*
    * Re-declare semantic sidebar aliases at the themed shell boundary. Custom
    * properties are resolved where they are declared, so inheriting only the

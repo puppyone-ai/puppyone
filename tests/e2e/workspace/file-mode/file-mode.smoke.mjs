@@ -26,6 +26,7 @@ app.focus = () => undefined;
 void show;
 
 const report = { ok: false, stage: "fixtures", checks: {}, asked: [], error: null };
+const LONG_NAME = "a file name long enough to reach the window controls on both sides of a narrow title bar.md";
 const docs = path.join(temporaryRoot, "docs");
 const site = path.join(temporaryRoot, "site");
 const inDocs = (name) => path.join(docs, name);
@@ -56,6 +57,36 @@ const exists = (window, selector) => evaluate(window, `!!document.querySelector(
 const windows = () => BrowserWindow.getAllWindows();
 const windowNamed = (title) => windows().find((window) => !window.isDestroyed() && window.getTitle() === title);
 const openFromSystem = (target) => app.emit("open-file", { preventDefault() {} }, target);
+/** The editor's controls in the title bar: one button per control, the view menu's options, the settings menu's items. Controls left inside the editor are reported, not hidden. */
+const titlebarControls = (window) => evaluate(window, `(async () => {
+  if (document.querySelector(".file-mode-window__document :is(.csv-table-editor__settings, .html-editor-options)")) return "inside the editor";
+  const bar = document.querySelector(".file-mode-window__titlebar");
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
+  const count = async (trigger, menuSelector, itemSelector) => {
+    if (!trigger) return 0;
+    trigger.click();
+    await settle();
+    const found = document.querySelector(menuSelector)?.querySelectorAll(itemSelector).length ?? -1;
+    trigger.click();
+    await settle();
+    return found;
+  };
+  const name = getComputedStyle(bar.querySelector(".file-mode-window__name")).color;
+  return {
+    buttons: bar.querySelectorAll("button").length,
+    iconsLikeTheName: [...bar.querySelectorAll("button svg")].every((icon) => icon.getBoundingClientRect().width === 15 && getComputedStyle(icon).color === name),
+    views: await count(bar.querySelector(".file-mode-window__view-mode"), ".desktop-editor-view-mode-menu", "[role=menuitemradio]"),
+    settings: await count(bar.querySelector(".file-mode-window__action:not(.file-mode-window__view-mode)"), ".desktop-editor-pane-menu:not(.desktop-editor-view-mode-menu)", "[role^=menuitem]"),
+  };
+})()`);
+/** Picks a view from the title bar's view menu by its place in the list. */
+const chooseView = (window, index) => evaluate(window, `(async () => {
+  document.querySelector(".file-mode-window__titlebar .file-mode-window__view-mode").click();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  document.querySelectorAll(".desktop-editor-view-mode-menu [role=menuitemradio]")[${index}].click();
+})()`);
+/** Source of a page function: the colour an element shows, from itself or the nearest painted ancestor. */
+const visibleColour = `((element) => { for (; element; element = element.parentElement) { const colour = getComputedStyle(element).backgroundColor; if (colour !== "rgba(0, 0, 0, 0)") return colour; } return null; })`;
 const editorText = (window) => evaluate(window, `document.querySelector(".cm-content")?.innerText ?? ""`);
 const pressSave = (window, target = ".editor-document-session-boundary") => evaluate(window, `document.querySelector(${JSON.stringify(target)})
   .dispatchEvent(new KeyboardEvent("keydown", { key: "s", metaKey: true, bubbles: true, cancelable: true }))`);
@@ -113,7 +144,7 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(project, "note.md"), "# Last project\n");
   await fs.writeFile(inDocs("images/dot.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKDveksOjmAAAAAElFTkSuQmCC", "base64"));
   await fs.writeFile(inDocs("plan.md"), "# Plan\n\nBody.\n\n![dot](./images/dot.png)\n\n```mermaid\ngraph TD\n  A --> B\n```\n");
-  for (const name of ["save.md", "cancel.md", "discard.md", "clean.md", "second.md", "promote.md", "theme.md"]) {
+  for (const name of ["save.md", "cancel.md", "discard.md", "clean.md", "second.md", "theme.md", LONG_NAME]) {
     await fs.writeFile(inDocs(name), `# ${name}\n`);
   }
   await fs.writeFile(inDocs("secret.txt"), "FAKE-SECRET\n");
@@ -173,17 +204,37 @@ async function coldStart() {
   check("window is in File Mode", window.webContents.getURL().endsWith("#file-mode"));
   check("title is the file name", window.getTitle(), "plan.md");
   check("title bar names the file", await evaluate(window, `document.querySelector(".file-mode-window__name").textContent`), "plan.md");
+  // macOS draws its traffic lights over the left of this bar; the name starts where the project titlebar's content does.
   check("title sits in the middle of the window", await evaluate(window, `(() => { const { left, right } = document.querySelector(".file-mode-window__name").getBoundingClientRect(); return Math.abs((left + right) / 2 - innerWidth / 2) <= 1; })()`));
+  check("title bar shares the document's colour", await evaluate(window, `${visibleColour}(document.querySelector(".file-mode-window__titlebar")) === getComputedStyle(document.querySelector(".markdown-codemirror-editor")).backgroundColor`));
   check("title bar can drag the window", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar")).webkitAppRegion`), "drag");
-  check("title bar button stays clickable", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__action")).webkitAppRegion`), "no-drag");
+  check("Markdown shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 2, settings: 0 });
   check("project shell is not mounted", await exists(window, ".desktop-editor-pane"), false);
   check("project application is not loaded", await evaluate(window, `performance.getEntriesByType("resource").some((entry) => /\\/src\\/App\\.tsx/.test(entry.name))`), false);
   await until(() => evaluate(window, `[...document.querySelectorAll("img")].some((image) => image.complete && image.naturalWidth > 0)`), "the relative image");
   check("relative image shows", true);
   await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the Mermaid diagram");
   check("Mermaid shows", true);
+  await chooseView(window, 1);
+  await until(async () => !(await exists(window, ".cm-md-mermaid-svg-root")), "the Markdown source view");
+  await chooseView(window, 0);
+  await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the rendered Markdown again");
+  check("Markdown switches between rendered and source from the title bar", true);
+  check("switching views leaves the file unedited", window.isDocumentEdited(), false);
   check("document uses the window width", await evaluate(window, `document.querySelector(".cm-editor").getBoundingClientRect().width === innerWidth`));
   await screenshot(window, "markdown");
+
+  // A name too long for the bar gives way on both sides before it reaches the traffic lights or the file's controls.
+  const long = await openAndWait(inDocs(LONG_NAME), ".cm-editor");
+  long.setSize(720, 520);
+  await wait(300);
+  check("a long title gives way before the window's controls and the file's", await evaluate(long, `(() => {
+    const name = document.querySelector(".file-mode-window__name");
+    const { left, right } = name.getBoundingClientRect();
+    const control = document.querySelector(".file-mode-window__titlebar button").getBoundingClientRect();
+    return name.scrollWidth > name.clientWidth && left >= ${process.platform === "darwin" ? 86 : 6} && right <= control.left;
+  })()`));
+  await closeAndWait(long);
   return window;
 }
 
@@ -250,6 +301,7 @@ async function routing(window) {
 async function csv() {
   const window = await openAndWait(inDocs("table.csv"), ".csv-table-editor__table");
   await screenshot(window, "csv");
+  check("CSV settings sit behind the title bar menu", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 0, settings: 4 });
   await evaluate(window, `(() => {
     const cell = document.querySelector('input[data-csv-row="1"][data-csv-column="1"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(cell, "Paris");
@@ -288,6 +340,7 @@ async function html() {
   check("page scripts cannot read local files", results, {
     "fetch sibling": "BLOCKED", "fetch nested": "BLOCKED", "xhr sibling": "BLOCKED", "json module": "BLOCKED",
   });
+  check("HTML shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 3, settings: 0 });
   check("page still loads its own stylesheet", await frame.executeJavaScript(`getComputedStyle(document.getElementById("title")).color`), "rgb(0, 187, 102)");
   const area = await evaluate(window, `(() => { const { width, height } = document.querySelector("iframe").getBoundingClientRect(); return { width, height, windowWidth: innerWidth, windowHeight: innerHeight }; })()`);
   report.htmlArea = area;
@@ -331,14 +384,23 @@ async function closing() {
   check("save writes the edits", (await read(inDocs("save.md"))).includes("written "));
 }
 
-async function intoProject(window) {
-  const file = await openAndWait(inDocs("promote.md"), ".cm-editor");
-  await evaluate(file, `document.querySelector(".file-mode-window__action").click()`);
-  const project = await until(() => windows().find((candidate) => !candidate.isDestroyed() && !candidate.webContents.getURL().includes("#file-mode") && candidate.webContents.getURL()), "the project window");
-  await until(() => file.isDestroyed(), "the file window to close");
-  await until(() => exists(project, ".desktop-editor-pane"), "the project shell", 60_000);
-  await until(async () => (await editorText(project)).includes("promote.md"), "the file in the project");
-  check("the file opens inside its folder's project", true);
+async function projectWindows(window) {
+  openFromSystem(docs);
+  const project = await until(() => windows().find((candidate) => !candidate.isDestroyed() && !candidate.webContents.getURL().includes("#file-mode") && candidate.webContents.getURL()), "the folder's project window");
+  await until(() => exists(project, ".desktop-titlebar-workspace-name"), "the project's title bar", 60_000);
+  check("a folder from the system opens as a project", true);
+  const look = (target, header, name) => evaluate(target, `(() => {
+    const style = (selector, properties, pseudo) => { const computed = getComputedStyle(document.querySelector(selector), pseudo); return properties.map((property) => computed[property]); };
+    return [
+      ...style(${JSON.stringify(header)}, ["height"]),
+      // The divider under the bar.
+      ...style(${JSON.stringify(header)}, ["content", "backgroundColor", "height", "left", "right", "bottom"], "::after"),
+      ...style(${JSON.stringify(name)}, ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight"]),
+    ].join(" | ");
+  })()`);
+  check("file and project title bars share size, divider and type",
+    await look(window, ".file-mode-window__titlebar", ".file-mode-window__name"),
+    await look(project, ".desktop-titlebar", ".desktop-titlebar-workspace-name"));
   check("project windows keep their full access", await evaluate(project, `window.puppyoneDesktop.listFolderChildren({ rootPath: ${JSON.stringify(docs)}, folderPath: null }).then((children) => children.length > 0)`));
 
   const theme = (target) => evaluate(target, `document.documentElement.dataset.initialTheme`);
@@ -347,18 +409,18 @@ async function intoProject(window) {
   await evaluate(project, `(() => {
     const key = "puppyone.desktop.appearance";
     const value = JSON.parse(localStorage.getItem(key));
-    value.byRootTheme[value.activeRootThemeId].requestedColorMode = ${JSON.stringify(before === "dark" ? "light" : "dark")};
+    const root = value.byRootTheme[value.activeRootThemeId];
+    root.requestedColorMode = ${JSON.stringify(before === "dark" ? "light" : "dark")};
+    root.requestedSubThemeIds = { light: "default.github", dark: "default.github" };
     localStorage.setItem(key, JSON.stringify(value));
   })()`);
   await until(async () => (await theme(window)) !== before, "the file window to follow the theme", 8_000);
   check("file windows follow theme changes", true);
-
+  // Sub-theme colours only reach elements under an appearance root, as in a project window.
+  await until(() => evaluate(window, `document.querySelector(".file-mode-window").dataset.subThemeId === "default.github"`), "the file window to take the sub-theme", 8_000);
+  check("title bar takes the sub-theme's document colour", await evaluate(window, `${visibleColour}(document.querySelector(".file-mode-window__titlebar"))`), before === "dark" ? "rgb(255, 255, 255)" : "rgb(13, 17, 23)");
+  check("Markdown takes the sub-theme's styles", await evaluate(window, `getComputedStyle(document.querySelector(".markdown-codemirror-editor")).getPropertyValue("--po-host-md-link-color").trim()`), before === "dark" ? "#4183c4" : "#b8c0c8");
   await closeAndWait(project);
-  const folder = temporaryRoot;
-  openFromSystem(path.join(folder, "site"));
-  const opened = await until(() => windows().find((candidate) => !candidate.isDestroyed() && !candidate.webContents.getURL().includes("#file-mode") && candidate.webContents.getURL()), "the folder's project window");
-  await until(() => exists(opened, "#root > *"), "the project window to show");
-  check("a folder from the system opens as a project", true);
 }
 
 async function finish(code) {
@@ -399,7 +461,7 @@ async function run() {
     report.stage = "cold start";
     const window = await coldStart();
     for (const [stage, scenario] of Object.entries({
-      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, closing, intoProject,
+      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, closing, projectWindows,
     })) {
       report.stage = stage;
       await scenario(window);
