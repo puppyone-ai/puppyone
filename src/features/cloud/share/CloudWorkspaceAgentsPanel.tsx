@@ -76,7 +76,8 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
     {failed && <p className="desktop-cloud-agents-panel-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
     {agents.length > 0 && asking && <DesktopMenuSeparator />}
     {agents.length > 0 && <ul className="desktop-cloud-agent-list" aria-label={t("cloud.share.agent.connected")}>
-      {agents.map(agent => {
+      {/* In the Header's order: whoever is at work first, then the ones at rest. */}
+      {[...agents].sort((left, right) => Number(right.active) - Number(left.active)).map(agent => {
         const state = agentRecency(agent, localization);
         return <li key={agent.id} data-cloud-agent-row={agent.id}>
           <span className="desktop-cloud-agent-slot">{agentMark({ ...agent, size: MENU_MARK_SIZE }, renderAgentMark)}</span>

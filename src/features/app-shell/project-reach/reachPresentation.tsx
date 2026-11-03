@@ -76,7 +76,8 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  */
 export function ReachMemberMark({ member, size = 18 }: {
   member: ReachMember;
-  size?: number;
+  /** Pixels, or any CSS length when the host's own control sets it. */
+  size?: number | string;
 }) {
   const brand = member.audience === "machine" ? resolveAgentBrand({ label: member.name }) : null;
   return (

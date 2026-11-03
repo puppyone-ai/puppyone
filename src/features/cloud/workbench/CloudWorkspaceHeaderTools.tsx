@@ -104,7 +104,8 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   const pressedAgentId = opener === MORE || opener === INVITE ? null : opener;
   // Until it is known whether this person may invite, the seat holds its place rather than appearing late.
   const checking = session !== null && (!context || context.status === "resolving" || loading);
-  const seat = manageable || checking;
+  // The empty seat is the way in only while nobody is here; once Agents are, their list invites the next.
+  const seat = (manageable || checking) && !(ready && listed);
   const agentsShown = (ready && listed) || seat;
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}
@@ -135,7 +136,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   </>;
 }
 
-/** An empty seat beside the Agents: whoever is invited takes its place in the row. */
+/** An empty seat where the Agents will be: the first one invited takes its place in the row. */
 function InviteAgentTool({ checking, open, onOpen }: { checking: boolean; open: boolean; onOpen: () => void }) {
   const { t } = useLocalization();
   const label = t(checking ? "shell.workspaceSwitcher.location.checking" : "cloud.share.agent.invite.title");
@@ -145,8 +146,8 @@ function InviteAgentTool({ checking, open, onOpen }: { checking: boolean; open: 
       aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={onOpen}>
       <span className="desktop-titlebar-cloud-agent-seat" aria-hidden="true">
         {checking
-          ? <LoaderCircle className="animate-spin" size={12} strokeWidth={2} />
-          : <Plus size={12} strokeWidth={2} />}
+          ? <LoaderCircle className="animate-spin" size={13} strokeWidth={2} />
+          : <Plus size={13} strokeWidth={2} />}
       </span>
     </button>
   </Tooltip>;

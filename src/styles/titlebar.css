@@ -613,7 +613,9 @@
 }
 
 /* The Agents stand apart from Share: they are who is here, Share is something
-   to do. Each mark is its own round button, so pressing one asks about it. */
+   to do. Whoever is live (asking to join, or at work) is its own round button
+   at the front of the row; the Agents at rest are one stacked button after a
+   gap. Any of them opens the same list. */
 .desktop-titlebar-cloud-agents-anchor {
   display: inline-flex;
   flex: 0 0 auto;
@@ -624,41 +626,85 @@
 .desktop-titlebar-cloud-agents {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
 
+/* A mark is its button's own circle. The button draws no ground of its own,
+   so nothing rings a smaller circle inside it: hovering or opening one
+   brightens the mark itself. */
 .desktop-titlebar-cloud-agent {
   appearance: none;
-  display: grid;
-  width: var(--po-control-size-compact);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: var(--po-control-size-compact);
   height: var(--po-control-size-compact);
   padding: 0;
-  place-items: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: transparent;
   color: var(--desktop-titlebar-text-muted);
-  transition: background 0.12s ease;
-}
-
-.desktop-titlebar-cloud-agent:hover,
-.desktop-titlebar-cloud-agent[aria-expanded="true"] {
-  background: var(--desktop-titlebar-hover);
 }
 
 .desktop-titlebar-cloud-agent:focus-visible {
   outline: 1px solid var(--desktop-titlebar-focus);
-  outline-offset: -1px;
+  outline-offset: 1px;
 }
 
-/* Not stacked, so nothing has to be covered: at rest a mark is a soft disc with
-   no edge, an occupied seat beside the invite's empty, dashed one. An outline
-   around a glyph read as one more icon button, and around a character as a
-   stamp. */
+/* At rest a mark is a soft disc with no edge, an occupied seat where the
+   invite's empty one is only a dashed edge. It is opaque over the Header's own
+   colour, so a mark stacked in front covers the one behind it. Only what is
+   drawn in it goes grey; greying the disc too would take the Header's tint
+   out of its fill. */
 .desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
-  --reach-mark-fill: color-mix(in srgb, currentColor 14%, transparent);
+  --reach-mark-fill: color-mix(in srgb, currentColor 14%, var(--reach-mark-ground));
   box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) > :is(img, svg) {
   filter: grayscale(1);
+}
+
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: color-mix(in srgb, currentColor 26%, var(--reach-mark-ground));
+  color: var(--desktop-titlebar-text);
+}
+
+/* A working mark is already filled, so being pointed at or opened firms its edge. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-activity] {
+  --reach-mark-outline: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+/* The Agent mark is drawn with a stroke, so it sits smaller in the circle than a brand does. */
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-brand]) > svg {
+  width: 54%;
+  height: 54%;
+}
+
+/* At rest, stacked like a pile of tokens: the first in front, each one behind
+   showing only its edge past a ring of the Header's colour. The stack does not
+   fan out; the list is where they are told apart. */
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark:not([data-reach-activity]) {
+  box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+}
+
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark + .desktop-project-reach-mark {
+  margin-inline-start: calc(var(--po-control-size-compact) * -0.72);
+}
+
+.desktop-titlebar-cloud-agent-stack > :nth-child(1) { z-index: 3; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(2) { z-index: 2; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(3) { z-index: 1; }
+
+.desktop-titlebar-cloud-agent-count {
+  margin-inline: 5px 2px;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-titlebar-cloud-agent-stack:is(:hover, [aria-expanded="true"]) .desktop-titlebar-cloud-agent-count {
+  color: var(--desktop-titlebar-text);
 }
 
 /* Asking to join: in its own colours behind a dashed edge, with the accent
@@ -684,19 +730,26 @@
   background: var(--po-accent);
 }
 
-/* An empty seat at the end of the row: whoever is invited takes it. */
+/* An empty seat, shown only while nobody is here: the first Agent invited takes
+   it. Like a mark, it is the whole button. */
 .desktop-titlebar-cloud-agent-seat {
   display: grid;
   box-sizing: border-box;
-  width: 22px;
-  height: 22px;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
   place-items: center;
   border: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
   border-radius: 50%;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) {
   color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) .desktop-titlebar-cloud-agent-seat {
+  border-color: color-mix(in srgb, currentColor 70%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 /* Holding the seat's place while the server says whether this person may invite. */

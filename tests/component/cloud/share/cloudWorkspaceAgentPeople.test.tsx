@@ -53,6 +53,9 @@ const row = () => document.querySelector<HTMLElement>(".desktop-titlebar-cloud-a
 const panel = () => document.querySelector<HTMLElement>("[role=dialog]");
 const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]');
 const invite = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="invite-agent"]');
+const stack = () => document.querySelector<HTMLButtonElement>("[data-cloud-workspace-agent-stack]");
+const working = (grantId: string) => ({ grant_id: grantId, state: "active", created_at: ago(5), closed_at: null,
+  lease_until: new Date(Date.now() + 60_000).toISOString() });
 const render = async (context = project(), mounted = true) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceHeaderTools context={context} session={session}
     apiBaseUrl={API} onSessionChange={vi.fn()} renderPeople={mounted ? value => <CloudWorkspaceAgentPeople {...value} /> : undefined} />)));
@@ -79,19 +82,20 @@ describe("An Agent in the Header", () => {
     await act(async () => invite()!.click());
     expect(panel()).toBeNull();
   });
-  it("puts an Agent asking to join first, apart from the ones already here, and opens the card to answer it", async () => {
+  it("puts an Agent asking to join first, on its own ahead of the ones at rest, and opens the card to answer it", async () => {
     connections = [connection("c1", "Codex")];
     pending = [request("r1", "Claude Code")];
     await render();
-    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["r1", "c1"]);
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["r1"]);
     expect(agentButton("r1").dataset.waiting).toBe("true");
-    expect(agentButton("c1").dataset.waiting).toBeUndefined();
+    expect(agentButton("r1").compareDocumentPosition(stack()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(stack()!.getAttribute("aria-label")).toBe("Codex");
     expect(agentButton("r1").getAttribute("aria-label")).toBe("Claude Code · Wants to join");
     await act(async () => agentButton("r1").click());
     expect(panel()?.dataset.requests).toBe("Claude Code");
     expect(panel()?.dataset.agents).toBe("Codex");
     expect(agentButton("r1").getAttribute("aria-expanded")).toBe("true");
-    expect(invite()!.getAttribute("aria-expanded")).toBe("false");
+    expect(stack()!.getAttribute("aria-expanded")).toBe("false");
   });
   it("shows the kind of Agent, and the Agent mark, never a letter of its name, when it cannot recognize one", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper"), connection("3", "秘书小陈")];
@@ -106,14 +110,15 @@ describe("An Agent in the Header", () => {
       expect(mark?.querySelector("svg")).not.toBeNull();
     }
   });
-  it("keeps the working Agent in front of the grey ones and moves it for no one who asked for less motion", async () => {
-    const now = new Date().toISOString();
+  it("keeps the working Agent in front, on its own, and moves it for no one who asked for less motion", async () => {
     connections = [connection("1", "Cursor"), connection("2", "Grok Bot"), connection("3", "Gemini CLI")];
-    sessions = [{ grant_id: "g-2", state: "active", created_at: now, closed_at: null,
-      lease_until: new Date(Date.now() + 60_000).toISOString() }];
+    sessions = [working("g-2")];
     await render();
     expect(marks().map(mark => mark.dataset.reachBrand)).toEqual(["grok-bot", "cursor", "gemini"]);
     expect(marks().map(mark => mark.dataset.reachActivity)).toEqual(["working", undefined, undefined]);
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["2"]);
+    expect([...stack()!.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")].map(mark => mark.dataset.reachBrand))
+      .toEqual(["cursor", "gemini"]);
     const styles = readFileSync(resolve(process.cwd(), "src/features/app-shell/project-reach/reach-header.css"), "utf8");
     const reduced = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(reduced).toMatch(/\[data-reach-activity\],\s+[^{]*\[data-reach-activity\]::before\s*\{\s*animation: none;/);
@@ -122,13 +127,12 @@ describe("An Agent in the Header", () => {
     await render(null as unknown as ProjectCloudContext);
     expect(row()).toBeNull();
   });
-  it("appears ahead of the invite seat as soon as it is allowed, as a control of its own", async () => {
+  it("takes the empty seat's place as soon as it is allowed: once Agents are here, their list invites the next", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
     expect(marks()[0].dataset.reachAudience).toBe("machine");
-    expect(row()!.compareDocumentPosition(invite()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(row()!.contains(invite())).toBe(false);
+    expect(invite()).toBeNull();
   });
   it("is lit only while it is active", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];
@@ -136,72 +140,76 @@ describe("An Agent in the Header", () => {
       { grant_id: "g-c1", state: "closed", created_at: ago(3601), closed_at: ago(3600), lease_until: ago(3570) }];
     await render();
     expect(marks().map(mark => mark.dataset.reachActivity)).toEqual(["working", undefined]);
-    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c2", "c1"]);
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c2"]);
     expect(agentButton("c2").getAttribute("aria-label")).toBe("Busy agent · Active now");
+    expect(stack()!.getAttribute("aria-label")).toBe("Quiet agent");
   });
-  it("makes every Agent its own button, and any of them opens the list", async () => {
+  it("stacks the Agents at rest into one button, named by all of them, that opens the list", async () => {
     connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
     await render();
-    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c1", "c2"]);
-    await act(async () => agentButton("c2").click());
+    expect(agentButtons()).toEqual([]);
+    expect(stack()!.querySelectorAll(".desktop-project-reach-mark")).toHaveLength(2);
+    expect(stack()!.getAttribute("aria-label")).toBe("秘书小陈 and Codex");
+    await act(async () => stack()!.click());
     expect(panel()?.dataset.panel).toBe("agents");
     expect(panel()?.dataset.agents).toBe("秘书小陈,Codex");
-    expect(agentButton("c2").getAttribute("aria-expanded")).toBe("true");
-    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
+    expect(stack()!.getAttribute("aria-expanded")).toBe("true");
   });
   it("stays open when another Agent is pressed, and closes when the same one is pressed again", async () => {
     connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
+    sessions = [working("g-c2")];
     await render();
-    await act(async () => agentButton("c1").click());
     await act(async () => agentButton("c2").click());
+    await act(async () => stack()!.click());
     expect(panel()).not.toBeNull();
-    expect(agentButton("c2").getAttribute("aria-expanded")).toBe("true");
-    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
-    await act(async () => agentButton("c2").click());
+    expect(stack()!.getAttribute("aria-expanded")).toBe("true");
+    expect(agentButton("c2").getAttribute("aria-expanded")).toBe("false");
+    await act(async () => stack()!.click());
     expect(panel()).toBeNull();
   });
   it("offers no way to share with people while inviting Agents comes first", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(share()).toBeNull();
-    await act(async () => agentButton("c1").click());
+    await act(async () => stack()!.click());
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
     expect(panel()?.dataset.panel).toBe("agents");
   });
   it("opens Manage agents from the list, as a dialog of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
-    await act(async () => agentButton("c1").click());
+    await act(async () => stack()!.click());
     await act(async () => document.querySelector<HTMLButtonElement>("[data-manage]")!.click());
     expect(panel()?.dataset.panel).toBe("manage");
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
   });
-  it("disappears when Manage agents removes the last one, and the dialog stays", async () => {
+  it("disappears when Manage agents removes the last one, leaving the empty seat, and the dialog stays", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
-    await act(async () => agentButton("c1").click());
+    await act(async () => stack()!.click());
     await act(async () => document.querySelector<HTMLButtonElement>("[data-manage]")!.click());
     connections = [];
     await act(async () => document.querySelector<HTMLButtonElement>("[data-changed]")!.click());
     await act(async () => { await Promise.resolve(); });
     expect(marks()).toEqual([]);
     expect(row()).toBeNull();
+    expect(invite()).not.toBeNull();
     expect(panel()?.dataset.panel).toBe("manage");
   });
-  it("collapses a crowd into a count that opens the whole list", async () => {
+  it("stacks three at rest and counts the rest, in the same button that opens the whole list", async () => {
     connections = ["A", "B", "C", "D", "E"].map(name => connection(name, name));
     await render();
     expect(marks()).toHaveLength(3);
-    const more = document.querySelector<HTMLButtonElement>("[data-cloud-workspace-agent-more]")!;
-    expect(more.textContent).toBe("+2");
-    await act(async () => more.click());
+    expect(stack()!.querySelector(".desktop-titlebar-cloud-agent-count")?.textContent).toBe("+2");
+    expect(stack()!.getAttribute("aria-label")).toBe("A, B, C, D, and E");
+    await act(async () => stack()!.click());
     expect(panel()?.dataset.panel).toBe("agents");
-    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect(stack()!.getAttribute("aria-expanded")).toBe("true");
   });
   it("waits for an answer after an invite, until an Agent asks to join", async () => {
     connections = [connection("c1", "Codex")];
     await render();
-    await act(async () => invite()!.click());
+    await act(async () => stack()!.click());
     expect(panel()?.dataset.waiting).toBe("false");
     await act(async () => document.querySelector<HTMLButtonElement>("[data-invited]")!.click());
     expect(panel()?.dataset.waiting).toBe("true");
@@ -214,7 +222,7 @@ describe("An Agent in the Header", () => {
   it("stops waiting when a new Agent joins without asking", async () => {
     connections = [connection("c1", "Codex")];
     await render();
-    await act(async () => invite()!.click());
+    await act(async () => stack()!.click());
     await act(async () => document.querySelector<HTMLButtonElement>("[data-invited]")!.click());
     connections = [connection("c1", "Codex"), connection("c2", "Cursor")];
     await act(async () => document.querySelector<HTMLButtonElement>("[data-answered]")!.click());
