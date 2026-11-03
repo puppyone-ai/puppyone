@@ -618,4 +618,44 @@ mod tests {
         .join()
         .unwrap();
     }
+    /// Every message the native code names literally exists somewhere: in a
+    /// product catalog, the asset projection, or the native catalog. A key
+    /// the product dropped shows as itself, so it fails here instead.
+    #[test]
+    fn every_literal_message_key_resolves() {
+        let pattern = regex::Regex::new(
+            r#"\b(?:t|tr|tf)\(\s*"([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)+)""#,
+        )
+        .unwrap();
+        let known = |key: &str| {
+            data()["catalogs"]["en"][key].is_string() || native()["catalogs"]["en"][key].is_string()
+        };
+        let mut missing = Vec::new();
+        let mut dirs = vec![std::path::PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src"
+        ))];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let source = std::fs::read_to_string(&path).unwrap();
+                    for found in pattern.captures_iter(&source) {
+                        let key = &found[1];
+                        if !known(key) {
+                            missing.push(format!("{}: {key}", path.display()));
+                        }
+                    }
+                }
+            }
+        }
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "unknown message keys:\n{}",
+            missing.join("\n")
+        );
+    }
 }
