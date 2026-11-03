@@ -71,7 +71,9 @@ pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence)
             break Err(error);
         }
         if let Ok(mut candidate) = rx.try_recv() {
-            if let Input::Rejected(_) = candidate.input {
+            if let Input::Rejected(reason) = candidate.input {
+                // `describeHandoffRejection`: the reason, never the form.
+                eprintln!("Cloud sign-in handoff was rejected: {reason}");
                 respond(&mut candidate.stream, 400);
                 break Err(Error::InvalidResponse);
             }
