@@ -120,11 +120,63 @@ fn distribute(exact: &[f64], target: f64, fixed: &[bool]) -> Vec<f64> {
     rounded
 }
 
+/// An image's track before it has loaded: its authored width, else 160px,
+/// at most 480px, as 8px `n`s (`reserveImageExtent`).
+fn image_extent(tag: &str) -> String {
+    let lower = tag.to_ascii_lowercase();
+    let width = lower
+        .match_indices("width=")
+        .filter(|(at, _)| !lower[..*at].ends_with(|c: char| c.is_ascii_alphanumeric() || c == '_'))
+        .find_map(|(at, key)| {
+            let value = &lower[at + key.len()..];
+            let value = value.strip_prefix(['"', '\'']).unwrap_or(value);
+            let digits: String = value.chars().take_while(char::is_ascii_digit).collect();
+            digits.parse::<f64>().ok()
+        })
+        .unwrap_or(160.);
+    "n".repeat((width.min(480.) / 8.).ceil() as usize)
+}
+
+/// Tags are not painted: `<img>` keeps its reserved extent and every other
+/// tag but `<br>` is dropped, like the product's
+/// `/<img\b[^>]*>/gi` then `/<(?!br\b)\/?[a-z][^>]*>/gi` replacements.
+fn without_tags(source: &str) -> String {
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+    let mut text = String::new();
+    let mut rest = source;
+    while let Some(at) = rest.find('<') {
+        text.push_str(&rest[..at]);
+        let after = &rest[at + 1..];
+        let Some(close) = after.find('>') else {
+            text.push_str(&rest[at..]);
+            return text;
+        };
+        let name = after.get(..3).map(str::to_ascii_lowercase);
+        if name.as_deref() == Some("img") && !word(after[3..].chars().next()) {
+            text.push_str(&image_extent(&after[..close]));
+            rest = &after[close + 1..];
+            continue;
+        }
+        let is_br = after.get(..2).is_some_and(|s| s.eq_ignore_ascii_case("br"))
+            && !word(after[2..].chars().next());
+        let name = after.strip_prefix('/').unwrap_or(after);
+        if !is_br && name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            rest = &after[close + 1..];
+            continue;
+        }
+        text.push('<');
+        rest = after;
+    }
+    text.push_str(rest);
+    text
+}
+
 /// Same source-to-visible-text estimate as the product (not a Markdown parser).
 fn visible(source: &str) -> String {
     // /!?\[([^\]]*)\]\([^)]*\)/ and /<((?:https?|mailto):[^>\s]+)>/
+    let source = without_tags(source);
     let mut text = String::new();
-    let mut rest = source;
+    let mut rest = source.as_str();
     while !rest.is_empty() {
         let label = rest.strip_prefix("![").or_else(|| rest.strip_prefix('['));
         if let Some(label) = label
@@ -292,5 +344,20 @@ mod tests {
             let expected: Vec<f32> = serde_json::from_value(case["tracks"].clone()).unwrap();
             assert_eq!(got, expected, "{}", case["id"]);
         }
+    }
+    #[test]
+    fn tags_are_not_measured_but_images_reserve_their_width() {
+        assert_eq!(without_tags("<span>a</span> <b>b</b>"), "a b");
+        assert_eq!(without_tags("a<br/>b<BR>c</br>"), "a<br/>b<BR>c");
+        assert_eq!(without_tags("x < 5 and <3"), "x < 5 and <3");
+        assert_eq!(
+            without_tags(r#"<img src="a.png" width="320">"#),
+            "n".repeat(40)
+        );
+        assert_eq!(without_tags("<IMG src=a.png>"), "n".repeat(20));
+        // `\bwidth=` also matches after `-`, as in the product.
+        assert_eq!(without_tags("<img data-width=9 width='999'>"), "nn");
+        assert_eq!(without_tags("<img alt=x width='999'>"), "n".repeat(60));
+        assert_eq!(without_tags("<imgx>"), "");
     }
 }

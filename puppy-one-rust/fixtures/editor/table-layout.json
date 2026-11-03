@@ -1,8 +1,8 @@
 {
- "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+ "sourceCommit": "671143f2a30d352099eda35ad37f053450d4a8f9",
  "inputs": {
-  "packages/shared-ui/src/editor/markdown/features/table/markdownTableColumnLayout.ts": "9dcf4a9a36f1a4fb119c8ffdcdf7cfd4d452e3b9de2848b6f3d7810898c3273d",
-  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedTableColumnGeometry.ts": "8e4b6d2b10172cb5b280e586a75d376bbfd1e1fad1477c7354e86699c5ee4c64"
+  "src/shared-ui/editor/markdown/features/table/markdownTableColumnLayout.ts": "a6fdaa838029e05ff3e1dcd56bfb76365bb7e0da1b3577257ad3f07fd64d0293",
+  "src/shared-ui/editor/markdown/platform/codemirror/embeddedTableColumnGeometry.ts": "8e4b6d2b10172cb5b280e586a75d376bbfd1e1fad1477c7354e86699c5ee4c64"
  },
  "tables": {
   "compact": [
@@ -1287,8 +1287,8 @@
    "width": 150,
    "font": 14,
    "tracks": [
-    49,
-    99
+    50,
+    98
    ]
   },
   {
@@ -1298,7 +1298,7 @@
    "font": 12,
    "tracks": [
     49,
-    269
+    170
    ]
   },
   {
@@ -1308,7 +1308,7 @@
    "font": 13,
    "tracks": [
     51,
-    267
+    182
    ]
   },
   {
@@ -1318,7 +1318,7 @@
    "font": 14,
    "tracks": [
     54,
-    264
+    194
    ]
   },
   {
@@ -1328,7 +1328,7 @@
    "font": 12,
    "tracks": [
     49,
-    287
+    170
    ]
   },
   {
@@ -1338,7 +1338,7 @@
    "font": 13,
    "tracks": [
     51,
-    309
+    182
    ]
   },
   {
@@ -1348,7 +1348,7 @@
    "font": 14,
    "tracks": [
     54,
-    331
+    194
    ]
   },
   {
@@ -1358,7 +1358,7 @@
    "font": 12,
    "tracks": [
     49,
-    287
+    170
    ]
   },
   {
@@ -1368,7 +1368,7 @@
    "font": 13,
    "tracks": [
     51,
-    309
+    182
    ]
   },
   {
@@ -1378,7 +1378,7 @@
    "font": 14,
    "tracks": [
     54,
-    331
+    194
    ]
   },
   {

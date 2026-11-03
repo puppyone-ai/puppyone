@@ -1,5 +1,5 @@
 {
- "source": "sub-themes/default-*/theme.css",
+ "source": "src/features/themes/builtin/default-*/theme.css",
  "packs": [
   {
    "id": "default.neutral",

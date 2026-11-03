@@ -236,10 +236,19 @@ mod tests {
                     .collect();
             assert_eq!(headings.0, expected, "{}", case["source"]);
         }
+        // The product's `RELATIVE_PREFIXES` lost `./` to `.//` in the
+        // packages→src move (515d798cb), so it refuses `./Space Note.md`.
+        // That is a regression of the move, not a policy: keep accepting it.
+        let reviewed = [("./Space Note.md", serde_json::json!("./Space Note.md"))];
         for case in fixture["urls"].as_array().unwrap() {
+            let value = case["value"].as_str().unwrap();
+            let expected = reviewed
+                .iter()
+                .find(|(v, _)| *v == value)
+                .map_or(&case["expected"], |(_, e)| e);
             assert_eq!(
-                serde_json::to_value(safe_href(case["value"].as_str().unwrap())).unwrap(),
-                case["expected"],
+                serde_json::to_value(safe_href(value)).unwrap(),
+                *expected,
                 "{case}"
             );
         }
