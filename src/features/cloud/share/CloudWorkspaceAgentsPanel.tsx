@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { Settings } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
-import { DesktopMenuItem } from "../../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { formatRelativeTime } from "../utils";
@@ -11,12 +11,18 @@ import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 import "./workspace-share.css";
 
-/** What the list tells the shell about an Agent, to be drawn as the Header draws it. */
-export type ShareAgentMark = Readonly<{ id: string; name: string; active: boolean }>;
+/**
+ * What the list tells the shell about an Agent, to be drawn as the Header draws
+ * it. A menu asks for its own icon size; anywhere else the shell's size holds.
+ */
+export type ShareAgentMark = Readonly<{ id: string; name: string; active: boolean; size?: number }>;
+
+/** The menu's icon slot, so an Agent's mark sits in the column every menu icon does. */
+const MENU_MARK_SIZE = 18;
 
 /** Draws one Agent: the shell's mark, or a lamp where the shell lends none. */
 export function agentMark(agent: ShareAgentMark, renderAgentMark?: (agent: ShareAgentMark) => ReactNode) {
-  return renderAgentMark?.({ id: agent.id, name: agent.name, active: agent.active })
+  return renderAgentMark?.({ id: agent.id, name: agent.name, active: agent.active, size: agent.size })
     ?? <span className="desktop-cloud-agent-lamp" data-active={agent.active || undefined} aria-hidden="true" />;
 }
 
@@ -37,6 +43,12 @@ export type AgentsPanelControl = Readonly<{
  * Everything about Agents in one card under the Header: who asks to join and
  * the answer, who is here and when each was last here, and how to invite one.
  * Removing an Agent is a bigger decision, so it stays in Manage agents.
+ *
+ * Once it lists Agents it is a Header menu like the project and place menus
+ * on the left: their surface, row height, icon column, separator, width and
+ * the edge it hangs from. It is wider only where a row needs it: the first
+ * invite, with nothing to list yet, shows how inviting goes, and an Agent
+ * asking to join keeps when it asked beside its answer.
  */
 export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], control, renderAgentMark, onManage, onClose }: {
   anchor: RefObject<HTMLElement | null>;
@@ -51,26 +63,29 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
   const { t } = localization;
   const [failed, setFailed] = useState(false);
   const listed = agents.length > 0 || requests.length > 0;
+  const asking = requests.length > 0 && control;
   return <DesktopTitlebarMenuLayer anchorRef={anchor} open onDismiss={onClose} dismissOnFocusExit={false}
-    className="desktop-cloud-workspace-share desktop-cloud-agents-panel" gap={6} preferredWidth={320}
-    preferredMaxHeight={560} widthMode="fixed" alignment="center" role="dialog"
+    className="desktop-cloud-workspace-share desktop-cloud-agents-panel" gap={2} preferredWidth={listed && !asking ? 280 : 320}
+    preferredMaxHeight={560} widthMode="fixed" alignment="end" role="dialog"
     ariaLabel={t("cloud.share.agent.connected")}>
-    {requests.length > 0 && control && <ul className="desktop-cloud-agent-list desktop-cloud-agent-requests"
+    {asking && <ul className="desktop-cloud-agent-list desktop-cloud-agent-requests"
       aria-label={t("cloud.share.agent.request.status")}>
       {requests.map(request => <AgentRequestRow key={request.id} request={request} control={control}
         renderAgentMark={renderAgentMark} onFailed={() => setFailed(true)} onDeciding={() => setFailed(false)} />)}
     </ul>}
     {failed && <p className="desktop-cloud-agents-panel-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
+    {agents.length > 0 && asking && <DesktopMenuSeparator />}
     {agents.length > 0 && <ul className="desktop-cloud-agent-list" aria-label={t("cloud.share.agent.connected")}>
       {agents.map(agent => {
-        const state = workspaceAgentStatus(agent, localization);
+        const state = agentRecency(agent, localization);
         return <li key={agent.id} data-cloud-agent-row={agent.id}>
-          {agentMark(agent, renderAgentMark)}
+          <span className="desktop-cloud-agent-slot">{agentMark({ ...agent, size: MENU_MARK_SIZE }, renderAgentMark)}</span>
           <span className="desktop-cloud-agent-name" dir="auto">{agent.name}</span>
           {state && <span className="desktop-cloud-agent-state">{state}</span>}
         </li>;
       })}
     </ul>}
+    {listed && (control || agents.length > 0) && <DesktopMenuSeparator />}
     {(control || agents.length > 0) && <div className="desktop-cloud-agents-foot" data-alone={!listed || undefined}>
       {control && <CloudWorkspaceAgentInvite compact={listed} session={control.session} apiBaseUrl={control.apiBaseUrl}
         projectId={control.projectId} projectName={control.projectName} waiting={control.waiting}
@@ -81,6 +96,16 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
         label={t("cloud.share.agent.manage")} onClick={onManage} />}
     </div>}
   </DesktopTitlebarMenuLayer>;
+}
+
+/**
+ * The row already names the Agent and the list is who is here, so the trailing
+ * fact is only how long ago it was here; "Last active" would say it twice and
+ * take the name's room.
+ */
+function agentRecency(agent: WorkspaceAgent, localization: ReturnType<typeof useLocalization>) {
+  if (agent.active || !agent.activityKnown || !agent.lastActiveAt) return workspaceAgentStatus(agent, localization);
+  return formatRelativeTime(agent.lastActiveAt, localization);
 }
 
 /**
@@ -113,8 +138,8 @@ function AgentRequestRow({ request, control, renderAgentMark, onFailed, onDecidi
     }
   };
   return <li data-cloud-agent-request={request.id}>
-    <span className="desktop-cloud-agent-waiting-mark">
-      {agentMark({ id: request.id, name: request.name, active: false }, renderAgentMark)}
+    <span className="desktop-cloud-agent-slot desktop-cloud-agent-waiting-mark">
+      {agentMark({ id: request.id, name: request.name, active: false, size: MENU_MARK_SIZE }, renderAgentMark)}
     </span>
     <span className="desktop-cloud-agent-request-text">
       <span className="desktop-cloud-agent-name" dir="auto">{request.name}</span>

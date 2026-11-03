@@ -48,7 +48,7 @@ export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgent
 }
 
 /** The same mark in the Agents panel as in the Header, so an Agent looks like itself in both. */
-export function CloudWorkspaceAgentMark({ id, name, active }: ShareAgentMark) {
-  return <ReachMemberMark size={22} member={{ id, name, audience: "machine", lastSeenAt: null,
+export function CloudWorkspaceAgentMark({ id, name, active, size = 22 }: ShareAgentMark) {
+  return <ReachMemberMark size={size} member={{ id, name, audience: "machine", lastSeenAt: null,
     activity: active ? { kind: "working", label: name } : null }} />;
 }

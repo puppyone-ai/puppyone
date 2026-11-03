@@ -74,25 +74,45 @@
   .desktop-cloud-agent-invite-hint { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-wrap: pretty; }
   /* The wait for the Agent's answer, quietly beside what started it. */
   .desktop-cloud-agent-invite-note { display: flex; align-items: center; gap: 6px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
-  .desktop-cloud-agent-invite[data-compact] .desktop-cloud-agent-invite-note { margin: 0; padding: 0 8px 6px 40px; }
+  .desktop-cloud-agent-invite[data-compact] .desktop-cloud-agent-invite-note {
+    margin: 0;
+    padding: 0 var(--po-menu-item-padding-inline) 6px
+      calc(var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap));
+  }
 
-  /* Who is here, as a menu reads: a mark, a name, when it was last here. */
-  .desktop-cloud-agents-panel { --share-inset: 6px; gap: 6px; }
+  /* Who is here, as the Header's other menus read: the project menu's surface,
+     inset, shadow and rows, so the right side of the Header opens the same
+     object the left side does. A row is a mark in the icon column, a name, and
+     when it was last here as trailing meta. */
+  .desktop-cloud-agents-panel {
+    --share-inset: 3px;
+    --po-menu-shadow-compact:
+      0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
+      0 6px 16px -4px color-mix(in srgb, var(--po-shadow) 65%, transparent);
+    gap: 0;
+  }
+  .desktop-cloud-agents-panel > .desktop-menu-separator { flex-shrink: 0; }
   .desktop-cloud-agent-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-  .desktop-cloud-agent-list li { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: var(--po-control-size-roomy); padding-inline: 8px; }
+  .desktop-cloud-agent-list li {
+    display: flex; align-items: center; gap: var(--po-menu-item-gap); min-width: 0;
+    min-height: var(--po-menu-item-height); padding-inline: var(--po-menu-item-padding-inline);
+    font-size: var(--po-menu-item-font-size); line-height: var(--po-menu-item-line-height);
+  }
+  .desktop-cloud-agent-slot { display: grid; flex: 0 0 var(--po-menu-icon-slot-size); width: var(--po-menu-icon-slot-size); height: var(--po-menu-icon-slot-size); place-items: center; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); flex-shrink: 0; animation: none; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark::before { animation: none; }
-  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark:not([data-reach-activity]) { filter: grayscale(1); }
-  .desktop-cloud-agent-state { flex-shrink: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); white-space: nowrap; }
-  .desktop-cloud-agents-foot { display: grid; margin-inline: calc(var(--share-inset) * -1); padding: 6px var(--share-inset) 0; border-top: 1px solid var(--po-shell-divider); }
-  .desktop-cloud-agents-foot[data-alone] { margin: 0; padding: 0; border-top: 0; }
-  /* Invite and Manage stand in the list's own columns, a mark's width from the edge. */
-  .desktop-cloud-agents-row-action { --po-menu-item-padding-inline: 8px; --po-menu-item-gap: 10px; min-height: var(--po-control-size-roomy); }
-  .desktop-cloud-agents-row-action .desktop-menu-item-icon { display: grid; flex: 0 0 22px; width: 22px; place-items: center; }
+  /* At rest, the same soft disc as in the Header, so an Agent looks like itself in both. */
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark:not([data-reach-activity]) {
+    --reach-mark-fill: color-mix(in srgb, currentColor 14%, transparent); box-shadow: none; filter: grayscale(1);
+  }
+  /* The menu's trailing meta, as the branch menu's counts and the place menu's details read. */
+  .desktop-cloud-agent-state { flex-shrink: 0; color: var(--po-text-subtle); font-size: var(--po-menu-meta-font-size); white-space: nowrap; }
+  .desktop-cloud-agents-foot { display: grid; gap: 2px; }
+  /* Invite and Manage are plain menu rows, in the same icon column as the marks above. */
+  .desktop-cloud-agents-row-action { flex-shrink: 0; }
 
   /* Asking to join: the Agent's mark behind a dashed edge, its name, and the answer. */
   .desktop-cloud-agent-requests li { min-height: 44px; }
-  .desktop-cloud-agent-requests ~ .desktop-cloud-agent-list { margin-inline: calc(var(--share-inset) * -1); padding: 6px var(--share-inset) 0; border-top: 1px solid var(--po-shell-divider); }
   .desktop-cloud-agent-request-text { display: grid; flex: 1; min-width: 0; }
   .desktop-cloud-agent-request-text .desktop-cloud-agent-name { line-height: 18px; }
   .desktop-cloud-agent-request-text .desktop-cloud-agent-state { overflow: hidden; line-height: 16px; text-overflow: ellipsis; }
@@ -103,7 +123,7 @@
   :is(.desktop-cloud-agent-request-deny, .desktop-cloud-agent-request-allow):focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
   .desktop-cloud-agent-waiting-mark { display: grid; flex-shrink: 0; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agent-demo) .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
-  .desktop-cloud-agents-panel-alert { padding: 0 8px; }
+  .desktop-cloud-agents-panel-alert { padding: 4px var(--po-menu-item-padding-inline); }
 
   /* Manage agents: where changes happen, so every fact and action can stand here. */
   .desktop-cloud-agents-dialog-body { display: grid; gap: 16px; padding: 4px 20px 20px; }

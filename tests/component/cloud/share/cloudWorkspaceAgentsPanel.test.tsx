@@ -68,6 +68,14 @@ describe("The Agents in a project, at a glance", () => {
     await act(async () => surface().querySelector<HTMLButtonElement>("[data-cloud-agents-manage]")!.click());
     expect(onManage).toHaveBeenCalledTimes(1);
   });
+  it("reads as a Header menu: how long ago each was here, its mark in the menu's icon column", async () => {
+    const sizes: (number | undefined)[] = [];
+    await renderWith({ agents: [{ ...agent("c1", "薄肌孙教练", false), lastActiveAt: new Date(Date.now() - 14 * 60_000).toISOString() }],
+      renderAgentMark: ({ size }) => { sizes.push(size); return <i />; } });
+    expect(surface().querySelector('[data-cloud-agent-row="c1"] .desktop-cloud-agent-state')?.textContent).toBe("14 minutes ago");
+    expect(sizes.at(-1)).toBe(18);
+    expect(surface().querySelector(".desktop-menu-separator")).not.toBeNull();
+  });
   it("draws an Agent with the mark the shell lends it", async () => {
     await render(vi.fn(), ({ name, active }) => <i data-mark={name} data-working={active} />);
     const row = surface().querySelector('[data-cloud-agent-row="c1"]')!;

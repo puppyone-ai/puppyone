@@ -93,15 +93,18 @@ describe("An Agent in the Header", () => {
     expect(agentButton("r1").getAttribute("aria-expanded")).toBe("true");
     expect(invite()!.getAttribute("aria-expanded")).toBe("false");
   });
-  it("shows the kind of Agent, and an initial only for a name it cannot recognize", async () => {
-    connections = [connection("1", "Grok Bot"), connection("2", "Research helper")];
+  it("shows the kind of Agent, and the Agent mark, never a letter of its name, when it cannot recognize one", async () => {
+    connections = [connection("1", "Grok Bot"), connection("2", "Research helper"), connection("3", "秘书小陈")];
     await render();
-    const [grok, helper] = marks();
+    const [grok, helper, secretary] = marks();
     expect(grok?.dataset.reachBrand).toBe("grok-bot");
     expect(grok?.textContent).toBe("");
     expect(grok?.querySelector("img")).not.toBeNull();
-    expect(helper?.dataset.reachBrand).toBeUndefined();
-    expect(helper?.textContent).toBe("R");
+    for (const mark of [helper, secretary]) {
+      expect(mark?.dataset.reachBrand).toBeUndefined();
+      expect(mark?.textContent).toBe("");
+      expect(mark?.querySelector("svg")).not.toBeNull();
+    }
   });
   it("keeps the working Agent in front of the grey ones and moves it for no one who asked for less motion", async () => {
     const now = new Date().toISOString();
@@ -123,7 +126,6 @@ describe("An Agent in the Header", () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
-    expect(marks()[0].textContent).toBe("秘");
     expect(marks()[0].dataset.reachAudience).toBe("machine");
     expect(row()!.compareDocumentPosition(invite()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(row()!.contains(invite())).toBe(false);
@@ -134,7 +136,7 @@ describe("An Agent in the Header", () => {
       { grant_id: "g-c1", state: "closed", created_at: ago(3601), closed_at: ago(3600), lease_until: ago(3570) }];
     await render();
     expect(marks().map(mark => mark.dataset.reachActivity)).toEqual(["working", undefined]);
-    expect(marks().map(mark => mark.textContent)).toEqual(["B", "Q"]);
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c2", "c1"]);
     expect(agentButton("c2").getAttribute("aria-label")).toBe("Busy agent · Active now");
   });
   it("makes every Agent its own button, and any of them opens the list", async () => {

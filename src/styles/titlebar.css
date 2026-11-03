@@ -651,16 +651,20 @@
   outline-offset: -1px;
 }
 
-/* Not stacked, so nothing has to be covered: at rest a mark is only its outline. */
+/* Not stacked, so nothing has to be covered: at rest a mark is a soft disc with
+   no edge, an occupied seat beside the invite's empty, dashed one. An outline
+   around a glyph read as one more icon button, and around a character as a
+   stamp. */
 .desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
-  --reach-mark-fill: transparent;
-  box-shadow: inset 0 0 0 1px var(--reach-mark-outline);
+  --reach-mark-fill: color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: none;
   filter: grayscale(1);
 }
 
 /* Asking to join: in its own colours behind a dashed edge, with the accent
    where a working mark carries its lamp, because only the owner can answer. */
 .desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark {
+  --reach-mark-fill: transparent;
   box-shadow: none;
   border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
   color: var(--desktop-titlebar-text);

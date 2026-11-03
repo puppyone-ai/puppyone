@@ -1,4 +1,5 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { Bot } from "lucide-react";
 import {
   AgentBrandImage,
   AgentMonochromeBrandImage,
@@ -60,10 +61,14 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  * Who can reach the project, as a mark.
  *
  * An agent is its brand: a user recognizes Claude's mark long before they
- * read the word, and the product already owns these assets. A person is an
- * initial, because the product knows a name and nothing more — faking an
- * avatar would claim an identity it has not been given. Both are the same
- * round mark as the account in the Homepage Header: an identity looks like one.
+ * read the word, and the product already owns these assets. An agent whose
+ * brand is unknown is still an agent, so it gets the product's Agent mark —
+ * never the first character of a name it gave itself, which reads as a
+ * person (or, for a CJK name, as a stamp) and says nothing the name beside it
+ * does not. A person is an initial, because the product knows a name and
+ * nothing more — faking an avatar would claim an identity it has not been
+ * given. All are the same round mark as the account in the Homepage Header:
+ * an identity looks like one.
  *
  * Lit means working in the project right now; everything else is quiet. That
  * is the only live state these marks carry, and it comes from the reading /
@@ -83,9 +88,19 @@ export function ReachMemberMark({ member, size = 18 }: {
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      {brand ? <ReachBrandMark brandId={brand.id} /> : initial(member.name)}
+      <ReachMemberGlyph member={member} brand={brand} />
     </span>
   );
+}
+
+/** A brand, else the Agent mark for an agent, else a person's initial. */
+function ReachMemberGlyph({ member, brand }: {
+  member: ReachMember;
+  brand: ReturnType<typeof resolveAgentBrand>;
+}) {
+  if (brand) return <ReachBrandMark brandId={brand.id} />;
+  if (member.audience === "machine") return <Bot strokeWidth={1.9} />;
+  return <>{initial(member.name)}</>;
 }
 
 /**
