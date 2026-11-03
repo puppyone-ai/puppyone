@@ -8,7 +8,7 @@
 //! is editable; the page maps elements back to source offsets with the
 //! product's compiler and falls back to Interact with "unsupported" when it
 //! cannot.
-use super::{code, html_visual, web::WebFrame};
+use super::{code, html_preview, html_visual, web::WebFrame};
 use crate::{
     editor::{
         registry::{
@@ -72,16 +72,14 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
     })
 }
 
-/// The preview document: the page with the interaction stylesheet appended
-/// to its head (or prepended when it has none).
+/// The preview document (`buildHtmlPreviewDocument`, interactive): the
+/// product's policy, a `<base>` for the document's folder and the
+/// interaction stylesheet lead its head.
 pub fn preview_html(text: &str) -> String {
     let style =
         format!("<style id=\"puppyone-html-preview-interaction\">{INTERACTION_CSS}</style>");
-    let lower = text.to_ascii_lowercase();
-    match lower.find("</head>") {
-        Some(i) => format!("{}{}{}", &text[..i], style, &text[i..]),
-        None => format!("{style}{text}"),
-    }
+    let base = format!("{}://local/", crate::platform::webview::SCHEME);
+    html_preview::interactive_document(text, &base, &style)
 }
 /// `htmlDocumentEmpty`: nothing but whitespace, comments and an empty skeleton.
 pub fn is_empty_page(text: &str) -> bool {
@@ -123,6 +121,7 @@ fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Conte
         max_bytes: BUDGET,
         assets: vec![],
         ipc: None,
+        policy: Some(html_preview::INTERACTIVE_HEADER),
     }
 }
 
@@ -451,7 +450,10 @@ mod tests {
         assert!(
             page.find("puppyone-html-preview-interaction").unwrap() < page.find("</head>").unwrap()
         );
-        assert!(preview_html("<p>bare</p>").starts_with("<style"));
+        assert!(page.contains("connect-src https:"));
+        assert!(
+            preview_html("<p>bare</p>").starts_with("<meta http-equiv=\"Content-Security-Policy\"")
+        );
         assert!(is_empty_page(
             "<!DOCTYPE html>\n<html><head></head><body>\n</body></html>"
         ));

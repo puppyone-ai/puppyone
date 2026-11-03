@@ -61,14 +61,7 @@ impl WebHost {
                 let path = request.uri().path().to_owned();
                 std::thread::spawn(move || {
                     let (status, mime, body) = respond(&served, &path);
-                    responder.respond(
-                        wry::http::Response::builder()
-                            .status(status)
-                            .header("Content-Type", mime)
-                            .header("Cache-Control", "no-store")
-                            .body(Cow::<'static, [u8]>::Owned(body))
-                            .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..]))),
-                    );
+                    responder.respond(response(status, mime, body, served.policy));
                 });
             })
             .with_asynchronous_custom_protocol(LOCAL_SCHEME.into(), move |_, request, responder| {
@@ -76,14 +69,7 @@ impl WebHost {
                 let path = request.uri().path().to_owned();
                 std::thread::spawn(move || {
                     let (status, mime, body) = respond_local(&served, &path);
-                    responder.respond(
-                        wry::http::Response::builder()
-                            .status(status)
-                            .header("Content-Type", mime)
-                            .header("Cache-Control", "no-store")
-                            .body(Cow::<'static, [u8]>::Owned(body))
-                            .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..]))),
-                    );
+                    responder.respond(response(status, mime, body, served.policy));
                 });
             })
             // OS file drags over web content never load the file into the
@@ -190,4 +176,26 @@ fn reconcile(key: u64) {
             }
         }
     });
+}
+
+/// A protocol response; `policy` travels with every one of a host's
+/// responses (`local-file-protocol.mjs` security headers).
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn response(
+    status: u16,
+    mime: &str,
+    body: Vec<u8>,
+    policy: Option<&'static str>,
+) -> wry::http::Response<Cow<'static, [u8]>> {
+    let mut builder = wry::http::Response::builder()
+        .status(status)
+        .header("Content-Type", mime)
+        .header("Cache-Control", "no-store")
+        .header("X-Content-Type-Options", "nosniff");
+    if let Some(policy) = policy {
+        builder = builder.header("Content-Security-Policy", policy);
+    }
+    builder
+        .body(Cow::<'static, [u8]>::Owned(body))
+        .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..])))
 }

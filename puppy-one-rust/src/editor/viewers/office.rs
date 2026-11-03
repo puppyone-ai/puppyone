@@ -210,6 +210,7 @@ impl OfficeView {
                 ("xlsx.full.min.js", XLSX),
             ],
             ipc: None,
+            policy: None,
         };
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), false)));
     }

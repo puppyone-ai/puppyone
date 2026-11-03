@@ -90,6 +90,9 @@ pub struct Content {
     /// Messages the trusted entry page posts (`window.ipc.postMessage`);
     /// `None` gives the page no message channel at all.
     pub ipc: Option<Ipc>,
+    /// `Content-Security-Policy` sent with every response (the entry, its
+    /// resources and any document the page navigates to).
+    pub policy: Option<&'static str>,
 }
 /// The receiving end of a page's messages.
 #[derive(Clone)]
@@ -353,6 +356,7 @@ mod tests {
             max_bytes: 32,
             assets: vec![("r.js", b"x()")],
             ipc: None,
+            policy: None,
         };
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
@@ -426,6 +430,7 @@ mod tests {
             max_bytes: 64,
             assets: vec![],
             ipc: None,
+            policy: None,
         };
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);

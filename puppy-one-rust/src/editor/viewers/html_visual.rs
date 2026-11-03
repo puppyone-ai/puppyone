@@ -135,6 +135,7 @@ impl Session {
                 ("fonts/geist/Geist-Variable.woff2", GEIST),
             ],
             ipc: Some(Ipc(tx.clone())),
+            policy: None,
         };
         #[cfg(not(test))]
         drop(tx);

@@ -115,6 +115,7 @@ fn open(request: &SurfaceRequest, kind: Kind, cx: &mut App) -> Box<dyn ViewerSur
             max_bytes: kind.budget(),
             assets: vec![],
             ipc: None,
+            policy: None,
         };
         cx.new(|_| WebFrame::new(Some(content), request.dark))
     });
