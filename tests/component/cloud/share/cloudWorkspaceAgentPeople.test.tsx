@@ -40,8 +40,8 @@ const session = { api_base_url: API, user_id: "alice", user_email: "alice@exampl
   session_generation: "1" } as DesktopCloudSession;
 const project = (kind: "project_root" | "scope" = "project_root"): ProjectCloudContext => ({ status: "resolved", projectId: "p1",
   target: kind === "scope" ? { kind, project_id: "p1", scope_id: "s" } : { kind, project_id: "p1" }, capabilities: ["content.read"] });
-const connection = (id: string, name: string) => ({ id, name, admission: "sign_in", grant_id: `g-${id}`,
-  connected_at: "2026-10-30T00:00:00Z", expires_at: "2026-11-29T00:00:00Z" });
+const connection = (id: string, name: string, avatar?: string) => ({ id, name, avatar, admission: "sign_in",
+  grant_id: `g-${id}`, connected_at: "2026-10-30T00:00:00Z", expires_at: "2026-11-29T00:00:00Z" });
 const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 const request = (id: string, name: string) => ({ id, name, admission: "sign_in", requested_at: ago(30),
   expires_at: new Date(Date.now() + 600_000).toISOString() });
@@ -115,6 +115,19 @@ describe("An Agent in the Header", () => {
     expect(creature(helper)?.creatureBody).toBe(String(agentCreatureFor("Research helper").body));
     expect(creature(secretary)?.creatureBody).toBe(String(agentCreatureFor("秘书小陈").body));
     expect(agentCreatureFor("秘书小陈")).toEqual(agentCreatureFor(" 秘书小陈 "));
+  });
+  it("draws the picture an Agent chose when it connected, over anything read from its name", async () => {
+    connections = [connection("1", "薄肌孙教练", "grok-bot"), connection("2", "Claude helper", "other"),
+      connection("3", "Codex", "a-picture-this-build-does-not-know"), connection("4", "小方")];
+    await render();
+    const byName = Object.fromEntries([...stack()!.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")]
+      .map((mark, index) => [["薄肌孙教练", "Claude helper", "Codex"][index], mark]));
+    expect(byName["薄肌孙教练"].dataset.reachBrand).toBe("grok-bot");
+    // "other" is a choice of no brand, so the name is not read for one.
+    expect(byName["Claude helper"].dataset.reachBrand).toBeUndefined();
+    expect(byName["Claude helper"].dataset.reachCreature).toBe("");
+    // A picture this build does not know is no choice: the name decides, as before.
+    expect(byName["Codex"].dataset.reachBrand).toBe("codex");
   });
   it("wakes a creature only while its Agent works", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];

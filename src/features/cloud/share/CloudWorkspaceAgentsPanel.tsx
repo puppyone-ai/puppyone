@@ -15,7 +15,14 @@ import "./workspace-share.css";
  * What the list tells the shell about an Agent, to be drawn as the Header draws
  * it. A host may ask for its own size; anywhere else the shell's size holds.
  */
-export type ShareAgentMark = Readonly<{ id: string; name: string; active: boolean; size?: number }>;
+export type ShareAgentMark = Readonly<{
+  id: string;
+  name: string;
+  active: boolean;
+  /** The picture the Agent chose when it connected, if any. */
+  avatar?: string | null;
+  size?: number;
+}>;
 
 /** Larger than in the Header: the card is where the Agents are met, not glanced at. */
 const ROSTER_MARK_SIZE = 40;
@@ -24,7 +31,8 @@ const REQUEST_MARK_SIZE = 28;
 
 /** Draws one Agent: the shell's mark, or a lamp where the shell lends none. */
 export function agentMark(agent: ShareAgentMark, renderAgentMark?: (agent: ShareAgentMark) => ReactNode) {
-  return renderAgentMark?.({ id: agent.id, name: agent.name, active: agent.active, size: agent.size })
+  return renderAgentMark?.({ id: agent.id, name: agent.name, active: agent.active, avatar: agent.avatar,
+    size: agent.size })
     ?? <span className="desktop-cloud-agent-lamp" data-active={agent.active || undefined} aria-hidden="true" />;
 }
 
@@ -145,7 +153,8 @@ function AgentRequestRow({ request, control, renderAgentMark, onFailed, onDecidi
   };
   return <li data-cloud-agent-request={request.id}>
     <span className="desktop-cloud-agent-waiting-mark">
-      {agentMark({ id: request.id, name: request.name, active: false, size: REQUEST_MARK_SIZE }, renderAgentMark)}
+      {agentMark({ id: request.id, name: request.name, active: false, avatar: request.avatar,
+        size: REQUEST_MARK_SIZE }, renderAgentMark)}
     </span>
     <span className="desktop-cloud-agent-request-text">
       <span className="desktop-cloud-agent-name" dir="auto">{request.name}</span>

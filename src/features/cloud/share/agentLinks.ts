@@ -5,6 +5,12 @@ export type AgentAdmission = "sign_in" | "link";
 export type ConnectedAgent = Readonly<{
   id: string;
   name: string;
+  /**
+   * The picture the Agent chose from the server's list when it connected:
+   * a brand the Desktop draws, or "other". Absent when it chose nothing, and
+   * from servers that predate the choice.
+   */
+  avatar?: string | null;
   admission: AgentAdmission;
   grant_id: string;
   connected_at: string;
@@ -14,6 +20,8 @@ export type ConnectedAgent = Readonly<{
 export type AgentRequest = Readonly<{
   id: string;
   name: string;
+  /** As on a connected Agent, so the owner sees the picture before allowing it. */
+  avatar?: string | null;
   admission: AgentAdmission;
   requested_at: string;
   expires_at: string;

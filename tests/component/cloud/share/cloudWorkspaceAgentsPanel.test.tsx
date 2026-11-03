@@ -129,6 +129,12 @@ describe("Letting an Agent in", () => {
     expect(surface().querySelector('[role="alert"]')).toBeNull();
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
+  it("shows the picture an Agent chose beside its request, before it is allowed", async () => {
+    const marks: { name: string; avatar?: string | null }[] = [];
+    await renderWith({ control: control(), requests: [{ ...asking("r1", "薄肌孙教练"), avatar: "grok-bot" }],
+      renderAgentMark: ({ name, avatar }) => { marks.push({ name, avatar }); return <i />; } });
+    expect(marks.at(-1)).toEqual({ name: "薄肌孙教练", avatar: "grok-bot" });
+  });
   it("names the Agent each answer is for", async () => {
     await renderWith({ control: control(), requests: [asking("r1", "Claude Code"), asking("r2", "Codex")] });
     expect([...surface().querySelectorAll(".desktop-cloud-agent-request-allow")].map(button => button.getAttribute("aria-label")))

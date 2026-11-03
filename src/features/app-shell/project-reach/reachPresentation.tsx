@@ -3,6 +3,7 @@ import {
   AgentBrandImage,
   AgentMonochromeBrandImage,
   CloudIcon,
+  getAgentBrand,
   isMonochromeAgentBrandId,
   LocalIcon,
   resolveAgentBrand,
@@ -10,6 +11,9 @@ import {
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 import { AgentCreature } from "./AgentCreature";
+
+/** The choice an agent makes when it is none of the brands on offer. */
+const AGENT_AVATAR_NONE = "other";
 
 /**
  * The marks and sentences the reach path renders, in one place because the
@@ -74,12 +78,18 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  * creature at rest sleeps. That is the only live state these marks carry, and
  * it comes from the reading / writing facts rather than from a residency claim.
  */
-export function ReachMemberMark({ member, size = 18 }: {
+export function ReachMemberMark({ member, avatar, size = 18 }: {
   member: ReachMember;
+  /**
+   * The picture an agent chose for itself when it connected. A brand it names
+   * is drawn as that brand; "other" means none, so not even its name is read
+   * for one. Without a choice, the brand is read from the name.
+   */
+  avatar?: string | null;
   /** Pixels, or any CSS length when the host's own control sets it. */
   size?: number | string;
 }) {
-  const brand = member.audience === "machine" ? resolveAgentBrand({ label: member.name }) : null;
+  const brand = member.audience === "machine" ? agentBrand(member.name, avatar) : null;
   return (
     <span
       className="desktop-project-reach-mark"
@@ -93,6 +103,11 @@ export function ReachMemberMark({ member, size = 18 }: {
       <ReachMemberGlyph member={member} brand={brand} />
     </span>
   );
+}
+
+function agentBrand(name: string, avatar: string | null | undefined) {
+  if (avatar === AGENT_AVATAR_NONE) return null;
+  return getAgentBrand(avatar) ?? resolveAgentBrand({ label: name });
 }
 
 /** A brand, else a creature for an agent, else a person's initial. */
