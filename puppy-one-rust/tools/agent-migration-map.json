@@ -1,6 +1,6 @@
 {
   "source_repository": "puppyone",
-  "source_base_commit": "e0270706ed84e55ddc9447a7fc62ef1d7a5fedd3",
+  "source_base_commit": "671143f2a30d352099eda35ad37f053450d4a8f9",
   "source_roots": [
     "src/features/desktop-agent",
     "electron/main/agent",
