@@ -214,6 +214,19 @@ impl Runtime {
                 .and_then(|key| self.hosts.get(key))
                 .is_some_and(|host| host.slots.values().any(|s| transitioning(&s.files)))
     }
+    /// Busy with something a new project choice must wait for: quitting,
+    /// or a document in a transition. A project still being prepared is
+    /// not one; the new choice replaces it.
+    pub fn navigation_blocked(&self) -> bool {
+        let transitioning = |files: &Documents| files.busy() && !files.operation_ready();
+        self.quitting
+            || transitioning(self.deref())
+            || self
+                .active
+                .as_ref()
+                .and_then(|key| self.hosts.get(key))
+                .is_some_and(|host| host.slots.values().any(|s| transitioning(&s.files)))
+    }
     pub fn open_paths(&self) -> Vec<PathBuf> {
         match self.active.as_ref().and_then(|key| self.hosts.get(key)) {
             Some(host) => host

@@ -203,7 +203,8 @@ fn modification_time(changed: SystemTime, now: SystemTime) -> String {
 impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
     pub(super) fn home_visible(&self) -> bool {
-        !self.fixture && (self.home || self.files.workspace.is_none())
+        // A project on its way in takes the window from the Homepage.
+        !self.fixture && !self.opening() && (self.home || self.files.workspace.is_none())
     }
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project
@@ -640,43 +641,6 @@ impl Shell {
             .when(!has_projects, |d| {
                 d.children(self.telemetry_disclosure(w, cx))
             })
-            .children(self.cloud_opening_overlay(cx))
-            .when(self.files.folder_busy, |d| {
-                // OnboardingProjectLoading: the chosen project's request is
-                // pending, not the native folder picker. Shared area figure.
-                d.child(
-                    div()
-                        .absolute()
-                        .top(px(metric::CHROME_HEIGHT))
-                        .bottom_0()
-                        .left_0()
-                        .right_0()
-                        .occlude()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .p(px(32.))
-                        .bg(theme::alpha(t.canvas, 0.84))
-                        .child(
-                            v_flex()
-                                .items_center()
-                                .gap(px(16.))
-                                .child(
-                                    crate::ui::loading::LoadingMark::new("project-opening")
-                                        .area()
-                                        .size(crate::ui::loading::LoaderSize::Md)
-                                        .tone(crate::ui::loading::Tone::Neutral),
-                                )
-                                .child(
-                                    div()
-                                        .text_size(px(theme::ty().ui.body))
-                                        .text_color(t.text)
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .child(tr("onboarding.status.loadingProject")),
-                                ),
-                        ),
-                )
-            })
             .into_any_element()
     }
     /// `HomepageCloudStatus`: the account, never a project row. Loading,
@@ -849,61 +813,6 @@ impl Shell {
             _ => {}
         }
         cx.notify();
-    }
-    /// The page loading overlay of an explicit Cloud opening: the two
-    /// request-driven messages and Cancel.
-    fn cloud_opening_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        use crate::workspace::cloud::opening::Phase;
-        let phase = self.files.cloud_opening()?;
-        let t = cx.palette();
-        let message = match phase {
-            Phase::Checking | Phase::Connecting => "cloud.loading.startingWorkspace",
-            Phase::Files => "cloud.loading.files",
-        };
-        Some(
-            div()
-                .absolute()
-                .top(px(metric::CHROME_HEIGHT))
-                .bottom_0()
-                .left_0()
-                .right_0()
-                .occlude()
-                .flex()
-                .items_center()
-                .justify_center()
-                .bg(theme::alpha(t.canvas, 0.84))
-                .child(
-                    v_flex()
-                        .items_center()
-                        .gap(px(16.))
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(10.))
-                                .child(
-                                    crate::ui::loading::LoadingMark::new("cloud-opening")
-                                        .size(crate::ui::loading::LoaderSize::Md)
-                                        .tone(crate::ui::loading::Tone::Neutral),
-                                )
-                                .child(
-                                    div()
-                                        .text_size(px(theme::ty().ui.body))
-                                        .text_color(t.text)
-                                        .child(tr(message)),
-                                ),
-                        )
-                        .child(
-                            Button::new("cloud-opening-cancel")
-                                .variant(ButtonVariant::Secondary)
-                                .label(tr("common.action.cancel"))
-                                .on_click(cx.listener(|s, _, _, cx| {
-                                    s.files.cancel_cloud();
-                                    cx.notify();
-                                })),
-                        ),
-                )
-                .into_any_element(),
-        )
     }
     /// `OnboardingCreateProjectAction`: "New project", the default path.
     fn create_action(&self, prominent: bool, busy: bool, cx: &mut Context<Self>) -> Button {

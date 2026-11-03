@@ -3432,3 +3432,67 @@ fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppConte
         assert!(!s.files.allow_quit);
     });
 }
+
+/// W-3: a Cloud project chosen on the Homepage is entered at once. Its
+/// window waits (the Header names it, the Explorer column and the mark
+/// stand in), and Escape abandons it for the Homepage again.
+#[gpui::test]
+fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppContext) {
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+        if request.path.ends_with("/workbench/files") {
+            std::thread::sleep(std::time::Duration::from_millis(600));
+        }
+        cloud_project_responder()(request)
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(with_catalog(responder));
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.fixture = false;
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        s.project_items(cx)
+            .iter()
+            .any(|i| i.label == "Fixture Cloud")
+    });
+    view.read_with(cx, |s, _| assert!(s.home_visible()));
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.opening());
+        assert!(!s.home_visible());
+        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
+    });
+    assert!(cx.debug_bounds("project-preparation").is_some());
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, _| {
+        assert!(!s.opening());
+        assert!(s.home_visible());
+        assert!(s.hosted_project().is_none());
+    });
+    assert!(cx.debug_bounds("project-preparation").is_none());
+}
+
+/// W-6: choosing another project while one is still opening replaces it.
+#[gpui::test]
+fn a_newer_choice_replaces_a_project_still_opening(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let first = temp.path().canonicalize().unwrap().join("first");
+    let second = temp.path().canonicalize().unwrap().join("second");
+    for dir in [&first, &second] {
+        std::fs::create_dir(dir).unwrap();
+        std::fs::write(dir.join("a.md"), "# A\n").unwrap();
+    }
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.open_project(first.clone(), w, cx);
+        assert_eq!(s.files.preparing_root(), Some(first.as_path()));
+        s.open_project(second.clone(), w, cx);
+        assert_eq!(s.files.preparing_root(), Some(second.as_path()));
+    });
+    settle_cloud(&view, cx, "the second project", &|s, _| {
+        s.workspace_root().as_deref() == Some(second.as_path())
+    });
+}

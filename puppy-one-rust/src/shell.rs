@@ -31,6 +31,7 @@ mod modals;
 mod panes;
 mod project_actions;
 mod project_menu;
+mod project_opening;
 mod project_place;
 mod rename;
 pub(crate) mod tasks;
@@ -1577,7 +1578,9 @@ impl Shell {
             .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
         {
             self.home = false;
-        } else if !self.pending && !self.files.busy() {
+        } else if !self.pending && !self.files.navigation_blocked() {
+            // `ProjectNavigation.select`: a newer choice replaces the one
+            // still opening.
             self.files.begin(Intent::OpenFolder(path), &self.wake);
         }
         self.receive(window, cx);
@@ -1831,7 +1834,15 @@ impl Shell {
             }
             return bar;
         }
-        let hosted = self.hosted_project().is_some();
+        // `ProjectWindow` while another project is on its way in: the
+        // Header states that project and its location, and what belongs to
+        // the project on screen steps out of it.
+        let opening = self.opening();
+        let hosted = if opening {
+            self.files.cloud_opening().is_some()
+        } else {
+            self.hosted_project().is_some()
+        };
         let (changes, agent, tabs) = {
             let p = &self.preferences.read(cx).state;
             (
@@ -1846,7 +1857,7 @@ impl Shell {
                 p.experimental.editor_tabs_in_header,
             )
         };
-        let project = !self.rail && (self.files.workspace.is_some() || self.fixture);
+        let project = !self.rail && (self.files.workspace.is_some() || self.fixture || opening);
         let mut bar = header::TitleBar::new().cloud(hosted);
         if !self.panes.explorer().open {
             bar = bar.leading(
@@ -1860,8 +1871,11 @@ impl Shell {
         if project {
             bar = bar.leading(self.project_context(cx));
         }
+        if opening {
+            return bar;
+        }
         // `enableEditorTabsInHeader`: the editor's tabs move into the Header.
-        if tabs && self.files.state().is_some() && self.opening_project_name(cx).is_none() {
+        if tabs && self.files.state().is_some() {
             bar = bar.tabs(self.editor_tabs(cx));
         }
         if hosted {
@@ -2095,6 +2109,10 @@ impl Render for Shell {
         if self.rail && !home {
             root = root.child(self.project_rail(h, cx));
         }
+        let opening = !home && self.opening();
+        if opening {
+            root = root.children(self.project_preparation(w, h, cx));
+        }
         // The intro's curtain covers the window under the Header, whose
         // titlebar stays above it (`z-index: 60` over the curtain's 3).
         if home {
@@ -2103,17 +2121,17 @@ impl Render for Shell {
         root = root.child(at(self.layout.header).child(self.header(cx)));
         // Each frame owns its edge while it is on screen; a closed right
         // sidebar keeps its lane at the window edge.
-        if !home && self.layout.editor.x > rail + 0.5 {
+        if !home && !opening && self.layout.editor.x > rail + 0.5 {
             root = root.child(self.sash(true, cx));
         }
-        if !home {
+        if !home && !opening {
             if self.layout.editor.right() < w - 0.5 {
                 root = root.child(self.sash(false, cx));
             } else if !self.panes.right().open {
                 root = root.child(self.collapsed_right_edge(w, cx));
             }
         }
-        if !home {
+        if !home && !opening {
             root = root.children(self.notices(w, cx));
         }
         root = root.children(self.project_actions_menu(cx));
