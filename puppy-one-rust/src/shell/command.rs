@@ -21,6 +21,10 @@ pub enum Command {
     QuitApp,
     QuitWithProcesses,
     CancelProcessQuit,
+    /// A close a document could not save for: "Keep Window Open" / "Close
+    /// Anyway".
+    KeepWindowOpen,
+    CloseAnyway,
     OpenFolder,
     /// `openProjectLauncher`: the Project entry launcher.
     CreateNew,

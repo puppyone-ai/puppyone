@@ -659,3 +659,65 @@ fn an_unreconciled_operation_refuses_overlapping_ones_only() {
     assert!(!root.path().join("unrelated.md").exists());
     assert!(r.can_retry_operation());
 }
+/// `finishInterceptedClose`: a close a document cannot save for is refused
+/// (the shell asks), and "Close Anyway" lets the window go.
+#[cfg(unix)]
+#[test]
+fn a_close_a_document_cannot_save_for_is_refused_until_abandoned() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("a.md");
+    std::fs::write(&file, "a").unwrap();
+    let lock = |mode| {
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(mode)).unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(mode | 0o100))
+            .unwrap();
+    };
+    // Read-only from the start: a change of mode is itself an observation.
+    lock(0o444);
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    r.take_outgoing();
+    // An edit the close has to save.
+    let slot = r.active_slot();
+    let id = r.slot(slot).unwrap().document.as_ref().unwrap().id.clone();
+    r.client_for(
+        slot,
+        ClientMessage::Dirty {
+            id,
+            revision: 2,
+            dirty: true,
+        },
+        &Wake::default(),
+    );
+    let answer = |r: &mut Runtime| {
+        for (slot, message) in r.take_outgoing() {
+            if let HostMessage::Snapshot { request, .. } = message {
+                let id = r.slot(slot).unwrap().document.as_ref().unwrap().id.clone();
+                let text = "changed".into();
+                let reply = ClientMessage::Snapshot {
+                    request,
+                    id,
+                    revision: 2,
+                    text,
+                };
+                r.client_for(slot, reply, &Wake::default());
+            }
+        }
+    };
+    r.begin(Intent::Quit, &Wake::default());
+    let wake = Wake::default();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.close_refused {
+        answer(&mut r);
+        r.poll(&wake);
+        assert!(Instant::now() < deadline, "the close was not refused");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!r.allow_quit);
+    r.abandon_unsaved();
+    r.poll(&wake);
+    assert!(r.allow_quit && !r.close_refused);
+    lock(0o644);
+}

@@ -3411,3 +3411,24 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
         let _ = w.draw(cx);
     });
 }
+
+/// `finishInterceptedClose`: a refused close asks "Keep Window Open" or
+/// "Close Anyway" instead of showing the save error.
+#[gpui::test]
+fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.files.error = Some("save failed".into());
+        s.files.close_refused = true;
+        s.receive(w, cx);
+        assert!(matches!(s.modals.top(), Some(Modal::CloseAnyway)));
+        assert!(s.files.error.is_none());
+    });
+    draw(cx);
+    command(&view, cx, Command::KeepWindowOpen);
+    view.update(cx, |s, cx| {
+        assert!(s.modals.is_empty());
+        assert!(!windows::quitting(cx));
+        assert!(!s.files.allow_quit);
+    });
+}

@@ -762,6 +762,10 @@ impl Shell {
             Some(Modal::ConfirmQuit) => {
                 self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
             }
+            Some(Modal::CloseAnyway) => {
+                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
+                windows::cancel_quit(cx);
+            }
             Some(Modal::Executions) => {
                 self.modals.remove(|m| matches!(m, Modal::Executions));
             }
@@ -903,6 +907,20 @@ impl Shell {
             Command::CancelProcessQuit => {
                 self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
                 windows::cancel_quit(cx);
+                cx.notify();
+                return;
+            }
+            Command::KeepWindowOpen => {
+                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
+                windows::cancel_quit(cx);
+                self.focus.focus(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::CloseAnyway => {
+                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
+                self.files.abandon_unsaved();
+                self.receive(window, cx);
                 cx.notify();
                 return;
             }
@@ -1176,6 +1194,15 @@ impl Shell {
                 project: self.cloud_project.clone().unwrap_or_default(),
                 failure,
             });
+        }
+        // `finishInterceptedClose`: a close a document could not finish asks
+        // whether to keep the window or close anyway, instead of the error.
+        if std::mem::take(&mut self.files.close_refused) {
+            self.files.error = None;
+            if !self.modals.iter().any(|m| matches!(m, Modal::CloseAnyway)) {
+                self.modals.open(Modal::CloseAnyway);
+            }
+            self.modal_focus.focus(window, cx);
         }
         for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
             self.explorer
@@ -2291,6 +2318,25 @@ impl Shell {
                                 tr("native.quit.confirm"),
                                 Command::QuitWithProcesses,
                                 ButtonVariant::SolidDanger,
+                            ),
+                        ],
+                        cx,
+                    )
+                    .into_any_element(),
+                Modal::CloseAnyway => self
+                    .simple_modal(
+                        tr("native.documentClose.message"),
+                        tr("native.documentClose.detail"),
+                        vec![
+                            (
+                                tr("native.documentClose.closeAnyway"),
+                                Command::CloseAnyway,
+                                ButtonVariant::Secondary,
+                            ),
+                            (
+                                tr("native.documentClose.keepOpen"),
+                                Command::KeepWindowOpen,
+                                ButtonVariant::Solid,
                             ),
                         ],
                         cx,

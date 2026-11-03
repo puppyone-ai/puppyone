@@ -74,6 +74,11 @@ pub struct Runtime {
     serial: u64,
     navigation: u64,
     quitting: bool,
+    /// "Close Anyway": the window closes without what could not be saved.
+    abandoned: bool,
+    /// A close that a document could not finish (`finishInterceptedClose`
+    /// with a failed flush); the shell asks whether to close anyway.
+    pub close_refused: bool,
     storage: Option<crate::platform::editor_state_storage::Storage>,
     metadata_inflight: usize,
     pub metadata_suspended: bool,
@@ -518,8 +523,17 @@ impl Runtime {
             self.scratch.load_children(path, wake);
         }
     }
+    /// "Close Anyway" after a refused close: the window may close with the
+    /// changes that could not be saved left unsaved.
+    pub fn abandon_unsaved(&mut self) {
+        self.close_refused = false;
+        self.abandoned = true;
+        self.quitting = true;
+        self.allow_quit = true;
+    }
     pub fn cancel_quit(&mut self, wake: &Wake) {
         self.quitting = false;
+        self.abandoned = false;
         self.allow_quit = false;
         for id in self.retained_slots() {
             if let Some(files) = self.slot_mut(id) {
@@ -683,13 +697,16 @@ impl Runtime {
             self.error = Some(error);
             quit_failed |= self.quitting;
         }
-        if quit_failed {
+        if quit_failed && !self.abandoned {
             self.cancel_quit(wake);
+            self.close_refused = true;
         }
         self.poll_mutations(wake);
         self.poll_metadata(wake);
         self.persist_metadata(wake, self.quitting);
-        if self.quitting {
+        if self.abandoned {
+            self.allow_quit = true;
+        } else if self.quitting {
             self.allow_quit = self.metadata_inflight == 0
                 && self.hosts.values().all(|h| h.metadata_due.is_none())
                 && self

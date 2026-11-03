@@ -39,6 +39,8 @@ pub(super) enum Modal {
     Rename(Rename),
     /// Quit while Agent or terminal processes still run.
     ConfirmQuit,
+    /// Some document changes could not be saved for a close.
+    CloseAnyway,
     /// `createItemLifecycleManager`: running Agent/terminal hosts of this
     /// window, listed from the host budget (not from their tabs).
     Executions,
