@@ -388,6 +388,8 @@ impl Remote for Http {
                 if !response.headers().get("content-type").and_then(|v| v.to_str().ok()).is_some_and(|v| v.split(';').next().unwrap_or_default().trim().eq_ignore_ascii_case("text/event-stream")) { return Err(Error::InvalidResponse); }
                 fence.check()?; sink(StreamEvent::Connected)?;
                 let mut body = response.bytes_stream();
+                // The events route sends a keepalive every 10 s, so 30 s
+                // without a byte is a dead connection, never a quiet one.
                 loop {
                     let part = tokio::time::timeout(Duration::from_secs(30), body.next()).await.map_err(|_| Error::Unavailable)?.ok_or(Error::Unavailable)?.map_err(|_| Error::Unavailable)?;
                     fence.check()?; sink(StreamEvent::Data(&part))?;

@@ -126,7 +126,23 @@ fn deliver(sinks: Vec<Sink>, event: WatchEvent) {
         }
     }
 }
+/// `cloud-workspace:watch`: identifiers a subscription may carry.
+fn subscribable(value: &str) -> bool {
+    (1..=100).contains(&value.len())
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
 fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation) {
+    if !subscribable(&shared.runtime.project_id) || !subscribable(&shared.runtime.generation) {
+        if let Some(hub) = hub.upgrade() {
+            hub.finish(
+                run,
+                Error::new(ErrorKind::InvalidInput, "Invalid Cloud file subscription."),
+            );
+        }
+        return;
+    }
     let request = shared
         .endpoint("/events", None, Method::GET, None)
         .expect("fixed endpoint");
@@ -162,9 +178,10 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
             break model::stale();
         }
         let delay = [250, 1000, 3000].get(attempts).copied();
-        // Transport loss and transient server errors reconnect; decisions do not.
+        // Transport loss, server errors and 429 reconnect; any other 4xx is
+        // a decision (`status >= 400 && status < 500 && status !== 429`).
         let transient = failure == auth::Error::Unavailable
-            || matches!(failure, auth::Error::Response(status, _) if status >= 500 || matches!(status, 408 | 429));
+            || matches!(failure, auth::Error::Response(status, _) | auth::Error::Http(status) if status >= 500 || status == 429);
         if !transient || delay.is_none() {
             break map_error(failure);
         }
