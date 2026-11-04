@@ -90,6 +90,23 @@ impl PreviewResource {
         self.lease.check()?;
         Ok(&self.data)
     }
+    /// The resource's bytes, when there are at most `max` of them (a local
+    /// file is read here, a hosted one is already in memory).
+    pub fn bytes(&self, max: u64) -> Option<Vec<u8>> {
+        use std::io::Read;
+        match self.data().ok()? {
+            PreviewData::Bytes { bytes, .. } => (bytes.len() as u64 <= max).then(|| bytes.to_vec()),
+            PreviewData::LocalFile(file) => {
+                let mut out = Vec::new();
+                std::fs::File::open(file)
+                    .ok()?
+                    .take(max + 1)
+                    .read_to_end(&mut out)
+                    .ok()?;
+                (out.len() as u64 <= max).then_some(out)
+            }
+        }
+    }
 }
 impl PartialEq for PreviewResource {
     fn eq(&self, other: &Self) -> bool {

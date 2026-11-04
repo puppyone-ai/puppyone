@@ -19,7 +19,7 @@ use crate::editor::{
         widget::{BlockWidget, WidgetCx},
     },
 };
-use gpui::{IntoElement, Rgba, SharedString, rgb};
+use gpui::{IntoElement, Rgba, SharedString};
 use std::{ops::Range, rc::Rc};
 
 pub struct CalloutFeature;
@@ -47,18 +47,7 @@ pub struct Fold {
     pub folded: bool,
 }
 
-/// `--md-callout-color` per appearance.
-fn color(appearance: &str) -> Rgba {
-    rgb(match appearance {
-        "abstract" | "tip" => 0x00bfa5,
-        "success" => 0x08b94e,
-        "question" | "warning" => 0xec7500,
-        "caution" | "failure" | "danger" | "bug" => 0xe93147,
-        "example" | "important" => 0x7852ee,
-        "quote" => 0x9e9e9e,
-        _ => 0x448aff,
-    })
-}
+use crate::editor::tokens::callout_color as color;
 
 /// The body of a folded callout, out of the flow.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

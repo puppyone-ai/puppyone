@@ -8,7 +8,7 @@
 /// session to start (another platform, a window without a native view).
 #[cfg(target_os = "macos")]
 pub fn begin_text(
-    window: &gpui::Window,
+    window: &impl raw_window_handle::HasWindowHandle,
     text: &str,
     icon_path: &str,
     ended: impl FnOnce() + 'static,
@@ -16,18 +16,18 @@ pub fn begin_text(
     use objc2::{AnyThread as _, MainThreadMarker, rc::Retained, runtime::ProtocolObject};
     use objc2_app_kit::{NSApplication, NSDraggingItem, NSEventType, NSView, NSWorkspace};
     use objc2_foundation::{NSArray, NSPoint, NSRect, NSSize, NSString};
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use raw_window_handle::RawWindowHandle;
 
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
-    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+    let Ok(handle) = window.window_handle() else {
         return false;
     };
     let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
         return false;
     };
-    // SAFETY: GPUI owns this live NSView; this runs on AppKit's main thread
+    // SAFETY: the window owns this live NSView; this runs on AppKit's main thread
     // while the view handles the event that starts the drag.
     let view = unsafe { &*handle.ns_view.as_ptr().cast::<NSView>() };
     // A session starts only from the pointer's own drag event; anything
@@ -67,7 +67,12 @@ pub fn begin_text(
     true
 }
 #[cfg(not(target_os = "macos"))]
-pub fn begin_text(_: &gpui::Window, _: &str, _: &str, _: impl FnOnce() + 'static) -> bool {
+pub fn begin_text(
+    _: &impl raw_window_handle::HasWindowHandle,
+    _: &str,
+    _: &str,
+    _: impl FnOnce() + 'static,
+) -> bool {
     false
 }
 

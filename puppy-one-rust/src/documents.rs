@@ -161,18 +161,8 @@ enum Completed {
     ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
 }
 /// Resources of a hosted document through its workspace provider.
-/// A Markdown image's bytes, at most `MARKDOWN_ASSET_MAX_BYTES`.
+/// A Markdown image's bytes, at most this many.
 const MARKDOWN_ASSET_MAX_BYTES: u64 = 32 * 1024 * 1024;
-fn read_bounded(file: &std::path::Path) -> Option<Vec<u8>> {
-    use std::io::Read;
-    let mut bytes = Vec::new();
-    std::fs::File::open(file)
-        .ok()?
-        .take(MARKDOWN_ASSET_MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .ok()?;
-    (bytes.len() as u64 <= MARKDOWN_ASSET_MAX_BYTES).then_some(bytes)
-}
 
 struct WorkspaceAssets {
     workspace: Arc<Workspace>,
@@ -574,10 +564,7 @@ impl Documents {
                     workspace: crate::editor::workbench::catalog::resource_key(&root),
                     document: doc.relative.clone(),
                     read: Arc::new(move |path: &std::path::Path| {
-                        match ws.resource(path).ok()?.data().ok()? {
-                            workspace::PreviewData::Bytes { bytes, .. } => Some(bytes.to_vec()),
-                            workspace::PreviewData::LocalFile(file) => read_bounded(file),
-                        }
+                        ws.resource(path).ok()?.bytes(MARKDOWN_ASSET_MAX_BYTES)
                     }),
                 })
             });

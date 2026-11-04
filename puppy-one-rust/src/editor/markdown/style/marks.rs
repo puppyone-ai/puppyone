@@ -47,7 +47,7 @@ pub fn marks(
             None
         },
         highlight: if has(Class::HTML_MARK) {
-            Some(packed(gpui::rgb(0xffff00)))
+            Some(packed(crate::editor::tokens::mark_colors().0))
         } else {
             has(Class::SYNTAX_HIGHLIGHT).then(|| packed(theme.inline.highlight_background))
         },
@@ -56,7 +56,7 @@ pub fn marks(
         color: if has(Class::FOOTNOTE_REFERENCE) || has(Class::HTML_SHIFTED) {
             Some(0)
         } else if has(Class::HTML_MARK) {
-            Some(packed(gpui::rgb(0x000000)))
+            Some(packed(crate::editor::tokens::mark_colors().1))
         } else if has(Class::COMMENT) {
             Some(packed(theme.inline.markup_color))
         } else if has(Class::LINK_DEFINITION) || has(Class::FOOTNOTE) {

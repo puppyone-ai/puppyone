@@ -95,6 +95,29 @@ pub fn over(top: Rgba, bottom: Rgba) -> Rgba {
     }
 }
 
+/// A mark colour packed as `0xRRGGBBAA` (`decoration::packed`).
+pub fn unpack(color: u32) -> Rgba {
+    gpui::rgba(color)
+}
+
+/// Chromium's `Mark` / `MarkText` system colours, what `<mark>` shows.
+pub fn mark_colors() -> (Rgba, Rgba) {
+    (gpui::rgb(0xffff00), gpui::rgb(0x000000))
+}
+
+/// `--md-callout-color` per callout appearance (markdown-inline-widgets.css).
+pub fn callout_color(appearance: &str) -> Rgba {
+    gpui::rgb(match appearance {
+        "abstract" | "tip" => 0x00bfa5,
+        "success" => 0x08b94e,
+        "question" | "warning" => 0xec7500,
+        "caution" | "failure" | "danger" | "bug" => 0xe93147,
+        "example" | "important" => 0x7852ee,
+        "quote" => 0x9e9e9e,
+        _ => 0x448aff,
+    })
+}
+
 /// An authored CSS colour (inline HTML `style`): `#rgb`, `#rgba`,
 /// `#rrggbb`, `#rrggbbaa`, `rgb()` / `rgba()` and the CSS basic colour
 /// keywords (plus `orange`, `grey`). Anything else (`currentColor`,

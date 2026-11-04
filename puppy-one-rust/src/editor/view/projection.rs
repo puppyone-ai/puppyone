@@ -242,8 +242,8 @@ impl LeafText {
                         strikethrough: m.strike,
                         underline: m.underline,
                         code: m.code,
-                        highlight: m.highlight.map(|c| gpui::rgba(c).into()),
-                        color: m.color.map(|c| gpui::rgba(c).into()),
+                        highlight: m.highlight.map(|c| crate::editor::tokens::unpack(c).into()),
+                        color: m.color.map(|c| crate::editor::tokens::unpack(c).into()),
                         link: m.link.as_ref().map(|url| LinkMark {
                             url: url.clone(),
                             identifier: None,

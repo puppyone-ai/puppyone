@@ -705,8 +705,9 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
                 }
             }
             "mark" => {
-                inherit.background = Some(rgb(0xffff00));
-                inherit.text.color = rgb(0x000000);
+                let (background, text) = crate::editor::tokens::mark_colors();
+                inherit.background = Some(background);
+                inherit.text.color = text;
             }
             "a" => {
                 if let Some(href) = e.attribute("href") {
