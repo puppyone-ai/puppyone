@@ -1617,7 +1617,7 @@
         "test:another_organization_clears_the_quote_and_its_keys",
         "test:the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage"
       ],
-      "remaining": "Billing is behind cloudBilling (off). Seat quotes and member activation are verified against a scripted server only, never a real payment provider."
+      "remaining": "Billing follows cloudBilling, which the product turns on. Seat quotes and member activation are verified against a scripted server only, never a real payment provider."
     },
     {
       "name": "Cloud services History view and graph",

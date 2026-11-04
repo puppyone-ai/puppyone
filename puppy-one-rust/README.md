@@ -13,7 +13,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cargo run --release --locked
 ```
 
-启动后点击 **Open folder…**，也可以通过 `⌘O` 选目录。Header 项目菜单目前只有 local/cloud 位置入口，不是完整项目管理器。
+启动后点击 **Open folder…**，也可以通过 `⌘O` 选目录。Header 项目菜单列出最近项目、打开文件夹、首页，以及当前项目的位置菜单（Put in the Cloud / History / Open in Cloud）；产品在 qubits@671143f2a 已删除 Header 的本地 / Cloud 切换。
 
 直接打开一个文件夹 / 文件：
 
@@ -86,11 +86,11 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 **Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿处理仍未启用；本地多文档工作台已接入，范围与缺口见下一节。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
 
-Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。此切片仅经回环服务验证，尚未接入菜单/主页，错误分类、并发打开合并、Cloud 草稿与未知结果恢复仍需补齐，不能视为 Cloud 完整 1:1 流程完成。
+Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。2026-11-04 起已接入首页和项目菜单：选中 Cloud 项目就在当前窗口进入并等待（阶段跟随服务端 `operation.phase`，Esc 取消），失败保留服务端错误码并显示恢复提示。仍只经回环服务验证，没有真实后端验收。
 
 ## 运行底座与多窗口（2026-10-29）
 
-- **多窗口**：`shell::windows` 管理所有窗口。File/Dock → New Window（⌘N）；已在某窗口打开的项目会切到那个窗口；菜单动作跟随当前窗口；Quit 让每个窗口各自走关闭屏障；偏好由所有窗口共享；无参数启动和 Dock 重新打开时恢复上次项目；Finder "Open With" 交给 `on_open_urls`。
+- **多窗口**：`shell::windows` 管理所有窗口。File/Dock → New Window（⌘N）；一个项目可以同时在多个窗口打开，在哪个窗口选就在哪个窗口进入；菜单动作跟随当前窗口；Quit 让每个窗口各自走关闭屏障；偏好由所有窗口共享；macOS 关掉最后一个窗口不退出，无参数启动和点 Dock 时恢复上次项目；Finder / 命令行打开文件夹总是开新窗口；Markdown、CSV、HTML 文件可在单独的文件窗口打开。
 - **一个窗口不能拖死全部**：GPUI 所有窗口共用一个前台线程。`platform::tasks` 按 TS `EDITOR_TASK_POLICY` v1 准入编辑器任务（窗口关闭时停止准入并等待退出）；`platform::host_budget` 按 `itemHostBudgetDefaults` 监督终端和 Agent CLI 进程（数量、内存、持续 CPU）；File → Manage Running Sessions 不依赖标签页；`platform::watchdog` 记录前台超过 250 ms 的卡顿、worker panic 和崩溃到 `diagnostics/main-thread-stalls.jsonl`。
 - **查看器准入**：内容型查看器按各自 `maxSourceBytes`（Markdown/文本 16 MiB、CSV/JSON 8 MiB、HTML 4 MiB）。
 - **PDF**：`platform::pdf` + `editor::viewers::pdf`，引擎为 PDFium（`python3 tools/fetch-pdfium.py` 安装到 `vendor/pdfium`，打包时进入 `Frameworks`）。没有引擎时显示资源不可用。
@@ -121,7 +121,7 @@ CSV 的引用标签/按钮和 ⌘ 点击已经接入实际宿主。Markdown 的�
 
 ## Live Cloud file Provider（第三步协议切片）
 
-`src/workspace/cloud/` 实现现有四个 Provider 端口，不增加第二套文件 UI 或保存队列。`prepare_running` 通过账号/环境绑定的 Broker 校验项目根 context、固定 workbench ID/generation，并实际读取根目录；返回 5 秒、一次性消费的准备收据。**仅接入已运行的 workbench**；创建/唤醒、opening/polling/recovery 状态机仍归后续显式导航准备，不在读文件或断线重连时偷偷 POST 启动计算。
+`src/workspace/cloud/` 实现现有四个 Provider 端口，不增加第二套文件 UI 或保存队列。`prepare_running` 通过账号/环境绑定的 Broker 校验项目根 context、固定 workbench ID/generation，并实际读取根目录；返回 5 秒、一次性消费的准备收据。创建/唤醒与 opening/polling/recovery 状态机在 `workspace/cloud/opening.rs`，只由用户显式打开项目时触发；读文件和断线重连时不会 POST 启动计算。
 
 - live list/read、条件写、新建（不覆盖）、目录创建、重命名/移动/删除；读写受服务端逐次授权与 generation 约束。Scope、复制/导入、本地路径与执行能力不开放，无本地镜像或已发布 Git 回退。
 - 不可变字节预览验证名称、类型、长度、base64 与 SHA-256；本地仍为 4 MiB/2,000 条目，Cloud 为 8 MiB/10,000 条目。文本保留 BOM/CRLF；revision 同时绑定存储、workbench、generation 和路径。并发读/list 合并，失效代次拦截旧读取。
@@ -274,7 +274,7 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
 
 ## 当前限制：务必先看
 
-- **单窗口、一个当前根目录、Editor 单文档**；Editor 尚无多标签、删除 / 重命名、Save As、正式资源监听 journal、最近项目或会话持久化；已有单文档磁盘轮询与 Folder/Markdown/text/JSON/CSV/HTML 新建。辅助工作台已有独立多标签和项目内保留。
+- **每个窗口一个当前根目录**（多窗口见上文）；编辑器工作台的范围与缺口见“Retained Editor workbench”一节。
 - 文本文件上限 **4 MiB**；单目录最多 **2,000 项**。二进制、非 UTF-8、混合换行 / CR-only 明确拒绝；不是所有格式都能编辑。
 - 保存只读文件、符号链接文件本身和硬链接会拒绝；不自动重建已被外部删除的文件。
 - 保存会保留基本权限，**不保证保留 ACL、扩展属性、原 owner 等全部元数据**。
