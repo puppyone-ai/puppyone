@@ -483,8 +483,9 @@ impl Explorer {
                     }))),
             ));
         }
-        // `showShare`: one folder, in a local or a hosted Explorer alike.
-        if share && single && folder {
+        // `showShare`: one folder of a local project. The Cloud project's
+        // Explorer has no Share (`DesktopCloudFileWorkspace` passes none).
+        if share && single && folder && !hosted {
             let path = primary.clone();
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.shareWith"))
