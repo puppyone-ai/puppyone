@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Check, Plus } from "lucide-react";
 import { AgentBrandImage, Button, Tooltip, getAgentBrand, type AgentBrandId } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
+import { useDesktopPlatformCapabilities } from "../../../platform";
 import { agentConnectMessage, createAgentLink } from "./agentLinks";
+import { agentMark, type ShareAgentMark } from "./agentMark";
 
 /**
  * Agents that can follow an invite. It asks the Agent to make its own key and
@@ -15,8 +17,12 @@ export const INVITABLE_AGENTS: readonly AgentBrandId[] = [
 ];
 
 type InviteStatus = "idle" | "copying" | "copied" | "failed" | "not-owner";
+/** How much of an invite's secret is shown; the rest is masked, as it is the key to the project. */
+const SHOWN_SECRET = 8;
 export type AgentInvite = Readonly<{
   status: InviteStatus;
+  /** What was copied, as shown: the invite's secret masked past its start. */
+  prompt: string | null;
   copy: () => Promise<void>;
   /** Folds the steps away; the invite stays copied. */
   dismiss: () => void;
@@ -36,6 +42,7 @@ export function useAgentInvite({ session, apiBaseUrl, projectId, projectName, on
   onInvited?: () => void;
 }): AgentInvite {
   const [status, setStatus] = useState<InviteStatus>("idle");
+  const [prompt, setPrompt] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const copy = async () => {
@@ -44,6 +51,7 @@ export function useAgentInvite({ session, apiBaseUrl, projectId, projectName, on
       const url = await createAgentLink(session, projectId, "sign_in", apiBaseUrl);
       await writeClipboardText(agentConnectMessage(projectName, url));
       if (!mounted.current) return;
+      setPrompt(agentConnectMessage(projectName, maskSecret(url)));
       setStatus("copied");
       onInvited?.();
     } catch (error) {
@@ -51,7 +59,14 @@ export function useAgentInvite({ session, apiBaseUrl, projectId, projectName, on
     }
   };
   const dismiss = useCallback(() => setStatus(current => current === "copied" ? "idle" : current), []);
-  return { status, copy, dismiss };
+  return { status, prompt, copy, dismiss };
+}
+
+/** The link as shown: its last segment, the secret, keeps only its start. */
+function maskSecret(url: string) {
+  const cut = url.lastIndexOf("/") + 1;
+  const secret = url.slice(cut);
+  return secret.length > SHOWN_SECRET ? `${url.slice(0, cut)}${secret.slice(0, SHOWN_SECRET)}••••••` : url;
 }
 
 /** The empty seat at the end of the row: the same + as the Header's, and pressing it invites. */
@@ -93,37 +108,85 @@ export function AgentFirstInvite({ invite, seatRef }: { invite: AgentInvite; sea
 }
 
 /**
- * What happens after pressing the seat, in three lines and nothing else: it
- * is copied, paste it to your agent (these are the ones that can come), and
- * it asks to join here for you to allow.
+ * What happens after pressing the seat, in three steps, each with what it
+ * means right under it: the prompt that was copied, as it reads; a short scene
+ * of it pasted into an agent's chat and the agent asking to join, with the
+ * agents that can come; and allowing it here.
  */
-export function AgentInviteSteps({ stepsRef, arrowX }: {
+export function AgentInviteSteps({ stepsRef, arrowX, prompt, projectName, renderAgentMark }: {
   stepsRef: RefObject<HTMLDivElement>;
   /** Where the seat is, so the steps point at what was pressed. */
   arrowX: number | null;
+  prompt: string | null;
+  projectName: string;
+  renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 }) {
   const { t } = useLocalization();
-  const steps = ["cloud.share.agent.invite.step.copied", "cloud.share.agent.invite.step.paste", "cloud.share.agent.invite.step.allow"];
   return <div ref={stepsRef} className="desktop-cloud-agent-invite-steps"
     style={arrowX === null ? undefined : { "--invite-arrow-x": `${arrowX}px` } as CSSProperties}>
     <ol>
-      {steps.map((step, index) => <li key={step} data-invite-step={index + 1}>
-        <span className="desktop-cloud-agent-invite-step-number" aria-hidden="true">
-          {index === 0 ? <Check size={12} strokeWidth={2.6} /> : index + 1}
-        </span>
+      <li data-invite-step={1}>
+        <span className="desktop-cloud-agent-invite-step-number" aria-hidden="true"><Check size={12} strokeWidth={2.6} /></span>
         <span className="desktop-cloud-agent-invite-step-text">
-          {t(step)}
-          {index === 1 && <span className="desktop-cloud-agent-invite-logos">
+          {t("cloud.share.agent.invite.step.copied")}
+          {prompt && <span className="desktop-cloud-agent-invite-prompt" dir="ltr">{prompt}</span>}
+        </span>
+      </li>
+      <li data-invite-step={2}>
+        <span className="desktop-cloud-agent-invite-step-number" aria-hidden="true">{2}</span>
+        <span className="desktop-cloud-agent-invite-step-text">
+          {t("cloud.share.agent.invite.step.paste")}
+          <AgentPasteScene projectName={projectName} prompt={prompt} renderAgentMark={renderAgentMark} />
+          <span className="desktop-cloud-agent-invite-logos">
             {INVITABLE_AGENTS.map(id => <Tooltip key={id} content={getAgentBrand(id)?.displayName}>
               <span className="desktop-cloud-agent-invite-logo" data-agent-brand={id}>
                 <AgentBrandImage brandId={id} />
               </span>
             </Tooltip>)}
-          </span>}
+          </span>
         </span>
-      </li>)}
+      </li>
+      <li data-invite-step={3}>
+        <span className="desktop-cloud-agent-invite-step-number" aria-hidden="true">{3}</span>
+        <span className="desktop-cloud-agent-invite-step-text">{t("cloud.share.agent.invite.step.allow")}</span>
+      </li>
     </ol>
   </div>;
+}
+
+/**
+ * Pasting, shown once rather than told: in an agent's chat the prompt is
+ * pasted, sent, and the agent answers that it asked to join. It plays as the
+ * steps appear and rests on its last frame; it is a picture, not read aloud.
+ */
+function AgentPasteScene({ projectName, prompt, renderAgentMark }: {
+  projectName: string;
+  prompt: string | null;
+  renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
+}) {
+  const { t } = useLocalization();
+  const platform = useDesktopPlatformCapabilities();
+  return <span className="desktop-cloud-agent-paste-scene" aria-hidden="true">
+    <span className="desktop-cloud-agent-paste-thread">
+      <span className="desktop-cloud-agent-paste-sent" dir="ltr">{prompt}</span>
+      <span className="desktop-cloud-agent-paste-reply">
+        {/* An agent of no brand: the one the person uses, whichever it is. Its name only picks a calm colour. */}
+        {agentMark({ id: "scene-agent", name: "scene-agent", avatar: "other", active: true, size: 20 }, renderAgentMark)}
+        <span className="desktop-cloud-agent-paste-bubble">
+          <span className="desktop-cloud-agent-paste-dots"><i /><i /><i /></span>
+          <span className="desktop-cloud-agent-paste-asked">
+            <Check size={11} strokeWidth={2.6} />
+            {t("cloud.share.agent.invite.scene.asked", { project: projectName })}
+          </span>
+        </span>
+      </span>
+    </span>
+    <span className="desktop-cloud-agent-paste-input">
+      <span className="desktop-cloud-agent-paste-placeholder">{t("cloud.share.agent.invite.scene.message")}</span>
+      <span className="desktop-cloud-agent-paste-typed" dir="ltr">{prompt}</span>
+      <kbd className="desktop-cloud-agent-paste-key">{t(platform?.platform === "macos" ? "cloud.share.agent.invite.scene.pasteMac" : "cloud.share.agent.invite.scene.pasteOther")}</kbd>
+    </span>
+  </span>;
 }
 
 /**

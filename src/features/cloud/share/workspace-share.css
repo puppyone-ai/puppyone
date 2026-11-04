@@ -85,7 +85,7 @@
     width: 10px; height: 10px; border-block-start: 1px solid var(--po-shell-divider); border-inline-start: 1px solid var(--po-shell-divider);
     background: var(--invite-steps-bg); rotate: 45deg;
   }
-  .desktop-cloud-agent-invite-steps ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .desktop-cloud-agent-invite-steps ol { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
   .desktop-cloud-agent-invite-steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; }
   .desktop-cloud-agent-invite-step-number {
     display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
@@ -94,7 +94,7 @@
   }
   .desktop-cloud-agent-invite-steps li[data-invite-step="1"] .desktop-cloud-agent-invite-step-number { background: color-mix(in srgb, var(--po-success) 16%, transparent); color: var(--po-success); }
   .desktop-cloud-agent-invite-steps li[data-invite-step="2"] .desktop-cloud-agent-invite-step-number { background: var(--po-accent); color: var(--po-text-inverse); }
-  .desktop-cloud-agent-invite-step-text { display: grid; gap: 8px; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); line-height: 20px; }
+  .desktop-cloud-agent-invite-step-text { display: grid; gap: 8px; min-width: 0; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); line-height: 20px; }
   .desktop-cloud-agent-invite-logos { display: flex; flex-wrap: wrap; gap: 6px; }
   .desktop-cloud-agent-invite-logo {
     display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box; overflow: hidden;
@@ -102,6 +102,69 @@
   }
   .desktop-cloud-agent-invite-logo .po-agent-brand-image { width: 64%; height: 64%; object-fit: contain; }
   .desktop-cloud-agents-roster-section [role="alert"] { margin: 0; }
+
+  /* What was copied, as it reads: the invite's secret is masked past its start. */
+  .desktop-cloud-agent-invite-prompt {
+    display: block; padding: 8px 10px; border-radius: 8px; background: var(--po-menu-bg);
+    color: var(--po-text-muted); font-family: var(--po-font-mono); font-size: var(--po-type-ui-micro, 11px); line-height: 17px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Pasting, as a short scene in an agent's chat. Each part's own style is the
+     scene's last frame, so it rests there and anyone who asked for less motion
+     sees only that frame; the animations lead into it once. */
+  .desktop-cloud-agent-paste-scene {
+    --paste-duration: 2.6s;
+    --paste-delay: .3s;
+    position: relative; display: block; height: 104px; overflow: hidden;
+    border: 1px solid var(--po-shell-divider); border-radius: 10px; background: var(--po-menu-bg);
+  }
+  .desktop-cloud-agent-paste-thread { position: absolute; inset: 8px 10px 40px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+  .desktop-cloud-agent-paste-sent {
+    align-self: flex-end; max-width: 86%; overflow: hidden; padding: 4px 9px; border-radius: 10px 10px 3px 10px;
+    background: color-mix(in srgb, var(--po-accent) 22%, transparent); color: var(--po-text);
+    font-size: var(--po-type-ui-micro, 11px); line-height: 15px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .desktop-cloud-agent-paste-reply { display: flex; align-items: center; gap: 6px; }
+  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); flex: none; animation: none; }
+  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark::before,
+  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark::after { display: none; }
+  .desktop-cloud-agent-paste-bubble {
+    display: grid; padding: 4px 9px; border-radius: 10px 10px 10px 3px; background: color-mix(in srgb, var(--po-text) 8%, transparent);
+    color: var(--po-text-muted); font-size: var(--po-type-ui-micro, 11px); line-height: 15px;
+  }
+  .desktop-cloud-agent-paste-bubble > span { display: flex; grid-area: 1 / 1; align-items: center; gap: 4px; }
+  .desktop-cloud-agent-paste-dots { opacity: 0; }
+  .desktop-cloud-agent-paste-dots > i { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .7; }
+  .desktop-cloud-agent-paste-asked { color: var(--po-success); }
+  .desktop-cloud-agent-paste-input {
+    position: absolute; inset-inline: 10px; inset-block-end: 8px; display: flex; align-items: center; height: 26px; overflow: hidden;
+    padding: 0 9px; border: 1px solid var(--po-shell-divider); border-radius: 8px; background: var(--invite-steps-bg);
+    color: var(--po-text-subtle); font-size: var(--po-type-ui-micro, 11px);
+  }
+  .desktop-cloud-agent-paste-typed { position: absolute; inset-inline: 9px 64px; overflow: hidden; color: var(--po-text); text-overflow: ellipsis; white-space: nowrap; opacity: 0; }
+  .desktop-cloud-agent-paste-key {
+    position: absolute; inset-inline-end: 6px; padding: 1px 6px; border-radius: 4px;
+    background: color-mix(in srgb, var(--po-text) 12%, transparent); color: var(--po-text); font: inherit; font-size: var(--po-type-ui-micro, 11px); line-height: 16px; opacity: 0;
+  }
+  .desktop-cloud-agent-paste-key { animation: desktop-cloud-agent-paste-key var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-placeholder { animation: desktop-cloud-agent-paste-placeholder var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-typed { animation: desktop-cloud-agent-paste-typed var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-sent { animation: desktop-cloud-agent-paste-sent var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-reply { animation: desktop-cloud-agent-paste-reply var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-dots { animation: desktop-cloud-agent-paste-dots var(--paste-duration) ease var(--paste-delay) both; }
+  .desktop-cloud-agent-paste-asked { animation: desktop-cloud-agent-paste-asked var(--paste-duration) ease var(--paste-delay) both; }
+  @keyframes desktop-cloud-agent-paste-key { 0%, 10% { opacity: 0; scale: .8; } 16%, 34% { opacity: 1; scale: 1; } 40%, 100% { opacity: 0; } }
+  @keyframes desktop-cloud-agent-paste-placeholder { 0%, 18% { opacity: 1; } 22%, 44% { opacity: 0; } 50%, 100% { opacity: 1; } }
+  @keyframes desktop-cloud-agent-paste-typed { 0%, 18% { opacity: 0; } 24%, 40% { opacity: 1; } 44%, 100% { opacity: 0; } }
+  @keyframes desktop-cloud-agent-paste-sent { 0%, 42% { opacity: 0; translate: 0 14px; } 50%, 100% { opacity: 1; translate: 0 0; } }
+  @keyframes desktop-cloud-agent-paste-reply { 0%, 56% { opacity: 0; translate: 0 6px; } 62%, 100% { opacity: 1; translate: 0 0; } }
+  @keyframes desktop-cloud-agent-paste-dots { 0%, 56% { opacity: 0; } 60%, 76% { opacity: 1; } 80%, 100% { opacity: 0; } }
+  @keyframes desktop-cloud-agent-paste-asked { 0%, 78% { opacity: 0; } 84%, 100% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-cloud-agent-paste-scene * { animation: none; }
+  }
+
 
   /* The Agents dialog: who is here in one row with a seat for the next, and
      the links still open folded away at the foot. */

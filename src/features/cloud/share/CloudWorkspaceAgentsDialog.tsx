@@ -102,7 +102,8 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
                     onRemove={() => change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))} />)}
                 <AgentInviteSeat invite={invite} seatRef={seatRef} />
               </ul>}
-            {invite.status === "copied" && <AgentInviteSteps stepsRef={stepsRef} arrowX={arrowX} />}
+            {invite.status === "copied" && <AgentInviteSteps stepsRef={stepsRef} arrowX={arrowX} prompt={invite.prompt}
+              projectName={projectName} renderAgentMark={renderAgentMark} />}
             <AgentInviteStatus invite={invite} />
             {failed && <p className="desktop-cloud-agents-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
           </section>

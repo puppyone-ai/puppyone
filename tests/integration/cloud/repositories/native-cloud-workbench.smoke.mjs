@@ -626,6 +626,15 @@ app.whenReady().then(async () => {
   })())`));
   assert(invited.below >= 0 && Math.abs(invited.aim) < 2 && invited.logos === 8 && invited.drawn,
     `The steps must hang under the seat, point at it, and show every agent mark: ${JSON.stringify(invited)}`);
+  // The paste scene plays once and rests on its last frame: the prompt sent, and the agent asking to join.
+  await evaluate("Promise.all(document.querySelector('.desktop-cloud-agent-paste-scene').getAnimations({ subtree: true }).map(animation => animation.finished))");
+  assert(await evaluate(`(() => {
+    const opacity = selector => Number(getComputedStyle(document.querySelector(selector)).opacity);
+    return opacity('.desktop-cloud-agent-paste-sent') === 1 && opacity('.desktop-cloud-agent-paste-asked') === 1
+      && opacity('.desktop-cloud-agent-paste-typed') === 0 && opacity('.desktop-cloud-agent-paste-key') === 0
+      && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.includes('/agent/')
+      && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('••••••');
+  })()`), 'The paste scene must rest on the prompt sent and the agent asking to join, under the masked prompt');
   await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
   // The Agent that follows it asks to join in the row, the steps give way, and it is let in from its tile.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");

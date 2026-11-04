@@ -74,7 +74,16 @@ describe("Inviting an Agent from the row", () => {
     expect(seat().textContent).toBe("Copied");
     expect(seat().getAttribute("aria-expanded")).toBe("true");
     expect([...steps()!.querySelectorAll("li")].map(step => step.querySelector(".desktop-cloud-agent-invite-step-text")!.firstChild!.textContent))
-      .toEqual(["Invite copied", "Paste it into your agent’s chat", "It will ask to join above. Allow it."]);
+      .toEqual(["Prompt copied", "Paste it into your agent’s chat", "It will ask to join above. Allow it."]);
+    // Under the first step, what was copied, with the invite's secret masked past its start.
+    expect(steps()!.querySelector(".desktop-cloud-agent-invite-prompt")?.textContent)
+      .toBe('Connect to my puppyone project "Launch plan" by following https://cloud-fixture.puppyone.ai/agent/pai_fixt••••••');
+    // Under the second, pasting shown in an agent's chat: sent, and the agent asking to join. A picture only.
+    const scene = steps()!.querySelector<HTMLElement>(".desktop-cloud-agent-paste-scene")!;
+    expect(scene.getAttribute("aria-hidden")).toBe("true");
+    expect(scene.querySelector(".desktop-cloud-agent-paste-sent")?.textContent).toContain('Connect to my puppyone project "Launch plan"');
+    expect(scene.querySelector(".desktop-cloud-agent-paste-asked")?.textContent).toBe("Asked to join “Launch plan”");
+    expect(scene.querySelector(".desktop-cloud-agent-paste-key")?.textContent).toMatch(/^(⌘V|Ctrl\+V)$/);
     // Which agents can come, as their marks and nothing else.
     expect([...steps()!.querySelectorAll<HTMLElement>("[data-agent-brand]")].map(logo => logo.dataset.agentBrand))
       .toEqual(["claude", "codex", "cursor", "gemini", "github-copilot", "opencode", "hermes", "devin"]);
