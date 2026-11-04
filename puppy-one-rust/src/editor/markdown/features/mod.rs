@@ -3,7 +3,9 @@
 //! widget, commands and style together — implementing
 //! `core::feature::MarkdownFeature`. The built-in list is
 //! `markdown/composition.rs`.
+pub mod callout;
 pub mod code_block;
+pub mod front_matter;
 pub mod math;
 pub mod rule;
 pub mod table;

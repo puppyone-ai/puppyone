@@ -47,7 +47,9 @@ impl MarkdownExtension {
                             .trim()
                             .to_owned()
                     })
-                })?
+                })
+                // A bare URL, or a reference link's definition.
+                .or_else(|| element.href.clone())?
         };
         let target = target.trim();
         let key = format!("{}:{target}", if wiki { "wiki" } else { "href" });

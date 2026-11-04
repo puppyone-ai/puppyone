@@ -3,7 +3,7 @@
 //! block prefix is being typed (composingBlockLine.ts), the pointer-drag
 //! freeze (pointerSelection.ts) and the hidden-block-marker caret rule
 //! (selectionBehavior.ts).
-use super::syntax::Syntax;
+use super::syntax::{Callout, Syntax};
 use crate::editor::text::{
     buffer::Buffer,
     change::{Assoc, ChangeSet},
@@ -21,6 +21,42 @@ pub struct PreviewState {
     /// A pointer selection is in progress (line boxes stay as they are).
     pub selecting: bool,
     focused: bool,
+    /// The callout title line holding the caret: its marker shows as source.
+    pub callout_title: Option<usize>,
+    pub callout_folds: CalloutFolds,
+    /// `markdownRevealedSourceField` (block presentation): a rich block a
+    /// widget asked to show as source, while the caret stays inside it.
+    pub revealed_source: Option<Range<usize>>,
+}
+
+/// `calloutFoldField`: foldable callouts folded or opened in this pane, by
+/// marker start. Fold state is view state: reading a callout does not
+/// rewrite the document.
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
+pub struct CalloutFolds(Vec<(usize, bool)>);
+
+impl CalloutFolds {
+    /// Whether `callout` shows its title alone: as toggled here, else as
+    /// authored (`[!type]-`).
+    pub fn folded(&self, callout: &Callout) -> bool {
+        callout.fold.is_some()
+            && self
+                .0
+                .iter()
+                .find(|(at, _)| *at == callout.marker.start)
+                .map_or(callout.fold == Some(true), |(_, folded)| *folded)
+    }
+
+    pub fn set(&mut self, at: usize, folded: bool) {
+        self.0.retain(|(a, _)| *a != at);
+        self.0.push((at, folded));
+    }
+
+    fn map(&mut self, changes: &ChangeSet) {
+        for (at, _) in &mut self.0 {
+            *at = changes.map(*at, Assoc::Before);
+        }
+    }
 }
 
 /// `getMarkdownListInputPrefix`:
@@ -128,6 +164,41 @@ fn touches(changes: &ChangeSet, range: Range<usize>) -> bool {
 }
 
 impl PreviewState {
+    /// Keep the revealed source while the selection is inside it; a pointer
+    /// drag or a selection (without an edit) keeps it until the next caret.
+    fn settle_revealed(&mut self, state: &EditorState, keep: bool) {
+        let s = state.selection;
+        self.revealed_source = self
+            .revealed_source
+            .take()
+            .filter(|r| keep || (r.start <= s.from() && s.to() <= r.end));
+    }
+
+    /// Whether `line` shows as source because its block was revealed.
+    pub fn revealed_line(&self, line: &Range<usize>) -> bool {
+        self.revealed_source
+            .as_ref()
+            .is_some_and(|r| line.start <= r.end && line.end >= r.start)
+    }
+
+    /// `caretLine` of the callout decorations, when it is a callout's title.
+    fn callout_title_at(
+        state: &EditorState,
+        syntax: &Syntax,
+        focused: bool,
+        read_only: bool,
+    ) -> Option<usize> {
+        if !focused || read_only {
+            return None;
+        }
+        let line = state.doc.line_index(state.selection.head);
+        syntax
+            .callouts
+            .iter()
+            .any(|c| c.first_line == line)
+            .then_some(line)
+    }
+
     /// `getInlineRevealRangeAtSelection`.
     fn reveal_at(state: &EditorState, syntax: &Syntax, read_only: bool) -> Option<Range<usize>> {
         let s = state.selection;
@@ -146,6 +217,11 @@ impl PreviewState {
         focused: bool,
         read_only: bool,
     ) {
+        self.callout_folds.map(&applied.changes);
+        self.revealed_source = self.revealed_source.as_ref().map(|r| {
+            applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
+        });
+        self.settle_revealed(state, false);
         let map = |r: &Range<usize>| {
             applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
         };
@@ -183,6 +259,7 @@ impl PreviewState {
             Self::reveal_at(state, syntax, read_only)
         };
         self.focused = focused;
+        self.callout_title = Self::callout_title_at(state, syntax, focused, read_only);
     }
 
     /// Selection or focus changed without a document change.
@@ -198,6 +275,8 @@ impl PreviewState {
         let released = self.selecting && !selecting;
         self.selecting = selecting;
         self.focused = focused;
+        self.callout_title = Self::callout_title_at(state, syntax, focused, read_only);
+        self.settle_revealed(state, selecting || !state.selection.is_empty());
         if !focused {
             self.composing = None;
         } else if let Some(c) = self.composing

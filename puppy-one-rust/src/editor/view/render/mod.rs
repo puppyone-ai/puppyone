@@ -48,6 +48,8 @@ pub struct RenderCx<'a> {
     pub scale: f32,
     /// Leaf keys handed out this frame.
     pub keys: std::collections::HashSet<u64>,
+    /// Rows of the last text leaf and where its last row ends.
+    pub text_end: (usize, f32),
     pub window: &'a mut Window,
     pub app: &'a mut App,
 }
@@ -158,6 +160,9 @@ impl RenderCx<'_> {
                         rows: line.wrap_boundaries.len() + 1,
                         ascent: f32::from(line.unwrapped_layout.ascent),
                         descent: f32::from(line.unwrapped_layout.descent),
+                        end: line
+                            .position_for_index(leaf.text.len(), px(1.))
+                            .map_or(0., |p| f32::from(p.x)),
                     },
                     _ => {
                         let (a, d) = self.primary_metrics(style);
@@ -165,6 +170,7 @@ impl RenderCx<'_> {
                             rows: 1,
                             ascent: a,
                             descent: d,
+                            end: 0.,
                         }
                     }
                 };
@@ -177,6 +183,47 @@ impl RenderCx<'_> {
             metrics.rows = *rows;
         }
         (key, metrics)
+    }
+
+    /// Rows and widest row of non-source text in `style` (a widget's own
+    /// text: `max-content` columns, wrapped values).
+    pub fn plain_extent(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        wrap: Option<f32>,
+    ) -> (usize, f32) {
+        if text.is_empty() {
+            return (1, 0.);
+        }
+        let font = Self::font(style);
+        let run = TextRun {
+            len: text.len(),
+            font,
+            color: black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let shaped = self.window.text_system().shape_text(
+            SharedString::from(text.to_owned()),
+            px(style.size),
+            &[run],
+            wrap.map(px),
+            None,
+        );
+        match shaped.ok().as_ref().and_then(|lines| lines.first()) {
+            Some(line) => {
+                let rows = line.wrap_boundaries.len() + 1;
+                let width = if rows == 1 {
+                    f32::from(line.unwrapped_layout.width)
+                } else {
+                    wrap.unwrap_or_default()
+                };
+                (rows, width)
+            }
+            None => (1, 0.),
+        }
     }
 
     /// The key of the leaf showing `source`. It follows the source, not the
@@ -272,6 +319,7 @@ impl RenderCx<'_> {
         );
         let wrap = wrap.map(|w| self.snap(w));
         let (measure_key, metrics) = self.measure(&leaf, style, wrap);
+        self.text_end = (metrics.rows, metrics.end);
         let key = self.leaf_key(&source);
         let (paragraph, text) = self.cache.borrow_mut().get(&leaf, key);
         let code = text.marks.iter().any(|(_, m)| m.code);
@@ -343,6 +391,7 @@ impl RenderCx<'_> {
             rows,
             ascent,
             descent,
+            end: 0.,
         };
         self.leaves.push(LeafEntry {
             key,
@@ -404,6 +453,7 @@ impl RenderCx<'_> {
             rows: 1,
             ascent: a,
             descent: d,
+            end: 0.,
         };
         // A one-row line box of 1lh, centred in the rect.
         let row_top = rect.y + (rect.height - style.line_height_px()) / 2.;
@@ -484,6 +534,15 @@ impl RenderCx<'_> {
                 .size_full()
                 .into_any_element()
             }
+            Paint::Icon { rect, path, color } => svg()
+                .path(path.clone())
+                .absolute()
+                .left(px(rect.x))
+                .top(px(rect.y))
+                .w(px(rect.width))
+                .h(px(rect.height))
+                .text_color(*color)
+                .into_any_element(),
         }
     }
 
@@ -545,7 +604,13 @@ impl RenderCx<'_> {
         let height = y + text_height + p.bottom + b.bottom;
         let mut line = self.block_box(top, left, width, height);
         if let Some(bg) = style.background {
-            line = line.bg(bg);
+            let [tl, tr, br, bl] = style.background_radii;
+            line = line
+                .bg(bg)
+                .rounded_tl(px(tl))
+                .rounded_tr(px(tr))
+                .rounded_br(px(br))
+                .rounded_bl(px(bl));
         }
         if let Some((n, color)) = style.inset_bottom {
             line = line.child(
@@ -576,6 +641,31 @@ impl RenderCx<'_> {
         }
         for (rect, command) in &style.hotspots {
             line = line.child(self.hotspot(*rect, command.clone()));
+        }
+        if let Some(t) = &style.trailing {
+            let (rows, end) = self.text_end;
+            let row = baseline::chromium_line_height(self.scale, style.text.line_height_px());
+            let rect = Rect::new(
+                (x + end + t.gap).min(width - p.right - b.right - t.size),
+                y + rows.saturating_sub(1) as f32 * row + (row - t.size) / 2.,
+                t.size,
+                t.size,
+            );
+            line = line
+                .child(
+                    svg()
+                        .path(t.icon.clone())
+                        .absolute()
+                        .left(px(rect.x))
+                        .top(px(rect.y))
+                        .w(px(rect.width))
+                        .h(px(rect.height))
+                        .text_color(t.color)
+                        .with_transformation(Transformation::rotate(radians(
+                            t.rotation.to_radians(),
+                        ))),
+                )
+                .child(self.hotspot(rect, t.command.clone()));
         }
         (line.into_any_element(), height)
     }

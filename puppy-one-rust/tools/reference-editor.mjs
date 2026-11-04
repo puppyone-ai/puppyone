@@ -27,6 +27,8 @@ const only = process.env.PUPPYONE_REFERENCE_ONLY?.split(',');
 const cases = [];
 for (const mode of ['dark', 'light']) {
   cases.push({id: `md-${mode}`, file: 'sample.md', mode});
+  // Front matter, callouts, footnotes, inline HTML and media.
+  cases.push({id: `md-extensions-${mode}`, file: 'extensions.md', mode});
   cases.push({id: `csv-${mode}`, file: 'sample.csv', mode});
   cases.push({id: `md-menu-${mode}`, file: 'sample.md', mode, menu: true});
   cases.push({id: `csv-menu-${mode}`, file: 'sample.csv', mode, menu: true});

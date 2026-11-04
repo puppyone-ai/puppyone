@@ -247,6 +247,89 @@ impl std::ops::BitOr for Hl {
     }
 }
 
+/// An Obsidian callout (`calloutModel.ts`): a blockquote opening with
+/// `[!type]`, optionally `+` (open) or `-` (folded), then its title.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Callout {
+    /// The appearance its type word maps to (`APPEARANCE_ALIASES`).
+    pub appearance: &'static str,
+    /// The type word, title-cased, shown when no title follows the marker.
+    pub default_title: String,
+    pub has_title: bool,
+    /// `Some(true)` folded, `Some(false)` foldable and open.
+    pub fold: Option<bool>,
+    /// `[!type]±` and the space after it.
+    pub marker: Span,
+    pub first_line: usize,
+    pub last_line: usize,
+}
+
+/// `CALLOUT_MARKER` on a blockquote's first line:
+/// `^(\s*>[ \t]?)\[!([A-Za-z][\w-]*)\]([+-]?)[ \t]*`.
+fn callout(doc: &Buffer, quote: &Element) -> Option<Callout> {
+    let line = quote.line.clone()?;
+    let text = doc.slice(line.clone());
+    let lead = text.len() - text.trim_start().len();
+    let rest = text[lead..].strip_prefix('>')?;
+    let space = usize::from(rest.starts_with([' ', '\t']));
+    let after = &rest[space..];
+    let word_len = after.strip_prefix("[!")?.find(']').filter(|&n| n > 0)?;
+    let word = &after[2..2 + word_len];
+    if !word.starts_with(|c: char| c.is_ascii_alphabetic())
+        || !word
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return None;
+    }
+    let mut end = 2 + word_len + 1;
+    let fold = match after[end..].chars().next() {
+        Some('-') => {
+            end += 1;
+            Some(true)
+        }
+        Some('+') => {
+            end += 1;
+            Some(false)
+        }
+        _ => None,
+    };
+    let marker_from = line.start + lead + 1 + space;
+    let spaces = after[end..].len() - after[end..].trim_start_matches([' ', '\t']).len();
+    let marker_to = marker_from + end + spaces;
+    let lower = word.to_lowercase();
+    let appearance = match lower.as_str() {
+        "abstract" | "summary" | "tldr" => "abstract",
+        "attention" | "warning" => "warning",
+        "bug" => "bug",
+        "caution" => "caution",
+        "check" | "done" | "success" => "success",
+        "cite" | "quote" => "quote",
+        "danger" | "error" => "danger",
+        "example" => "example",
+        "fail" | "failure" | "missing" => "failure",
+        "faq" | "help" | "question" => "question",
+        "hint" | "tip" => "tip",
+        "important" => "important",
+        "info" => "info",
+        "todo" => "todo",
+        _ => "note",
+    };
+    let mut title = lower.clone();
+    if let Some(first) = title.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    Some(Callout {
+        appearance,
+        default_title: title,
+        has_title: !doc.slice(marker_to..line.end).trim().is_empty(),
+        fold,
+        marker: marker_from..marker_to,
+        first_line: doc.line_index(line.start),
+        last_line: doc.line_index(quote.range.end.saturating_sub(1).max(quote.range.start)),
+    })
+}
+
 /// Everything the Markdown pipeline derives from one document revision.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Syntax {
@@ -262,6 +345,8 @@ pub struct Syntax {
     pub highlights: Vec<(Span, Hl)>,
     /// GFM table ranges (the parser's Table nodes).
     pub tables: Vec<Span>,
+    /// Callouts, in document order (outermost blockquotes only).
+    pub callouts: Vec<Callout>,
 }
 
 impl Syntax {
@@ -314,7 +399,27 @@ impl Syntax {
             true
         });
         syntax.fences = fences;
+        let mut covered = 0;
+        let callouts: Vec<Callout> = syntax
+            .elements
+            .iter()
+            .filter(|e| e.kind == Kind::Blockquote)
+            .filter(|e| {
+                // A quote nested in one already seen is part of it.
+                let outer = e.range.start >= covered;
+                covered = covered.max(e.range.end);
+                outer
+            })
+            .filter_map(|e| callout(doc, e))
+            .collect();
+        syntax.callouts = callouts;
         syntax
+    }
+    /// The callout whose lines include `line`.
+    pub fn callout_at(&self, line: usize) -> Option<&Callout> {
+        self.callouts
+            .iter()
+            .find(|c| c.first_line <= line && line <= c.last_line)
     }
 
     /// Elements intersecting `range` (inclusive edges).

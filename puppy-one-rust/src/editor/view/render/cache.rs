@@ -62,6 +62,8 @@ pub struct TextMetrics {
     pub rows: usize,
     pub ascent: f32,
     pub descent: f32,
+    /// Where the last row's text ends, from the leaf's left.
+    pub end: f32,
 }
 
 #[derive(Default)]

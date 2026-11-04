@@ -148,6 +148,7 @@ impl EditorElement {
             view: self.view.downgrade(),
             scale: window.scale_factor(),
             keys: Default::default(),
+            text_end: (1, 0.),
             window,
             app: cx,
         };

@@ -4,8 +4,9 @@
 //!
 //! - `core/`: the format pipeline (syntax, plans, decorations, state,
 //!   commands) and the feature contract (`core/feature.rs`)
-//! - `features/`: one vertical slice per capability (code block, table,
-//!   rule, task), each with its own style and widget
+//! - `features/`: one vertical slice per capability (front matter, math,
+//!   code block, table, rule, task, callout), each with its own style and
+//!   widget
 //! - `style/`: one typed style per element type, the line cascade and the
 //!   inline mark mapping; every value is a product token
 //! - `composition.rs`: the built-in features
@@ -52,6 +53,8 @@ struct Parsed {
     revision: u64,
     len: usize,
     syntax: Rc<Syntax>,
+    /// The callout folds the plans were compiled with.
+    folds: core::state::CalloutFolds,
     plans: Rc<Vec<Plan>>,
     headings: navigation::Headings,
 }
@@ -93,17 +96,24 @@ impl MarkdownExtension {
     }
 
     fn parse(&mut self, state: &EditorState) -> (Rc<Syntax>, Rc<Vec<Plan>>) {
-        match &self.parsed {
+        let folds = &self.preview.callout_folds;
+        match &mut self.parsed {
             Some(p) if p.revision == state.revision && p.len == state.doc.len() => {
+                // A callout folded or opened: the same syntax, new plans.
+                if p.folds != *folds {
+                    p.plans = Rc::new(plans::compile(&state.doc, &p.syntax, folds, FEATURES));
+                    p.folds = folds.clone();
+                }
                 (p.syntax.clone(), p.plans.clone())
             }
             _ => {
                 let syntax = Rc::new(Syntax::parse(&state.doc));
-                let plans = Rc::new(plans::compile(&state.doc, &syntax, FEATURES));
+                let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, FEATURES));
                 self.parsed = Some(Parsed {
                     revision: state.revision,
                     len: state.doc.len(),
                     syntax: syntax.clone(),
+                    folds: folds.clone(),
                     plans: plans.clone(),
                     headings: navigation::Headings::new(state.doc.as_str()),
                 });
@@ -153,6 +163,12 @@ impl EditorExtension for MarkdownExtension {
             self.preview.reveal.clone().map(|r| (r.start, r.end)),
             self.preview.composing,
             self.preview.selecting,
+            self.preview.callout_title,
+            &self.preview.callout_folds,
+            self.preview
+                .revealed_source
+                .clone()
+                .map(|r| (r.start, r.end)),
             self.live,
             self.scale as u8,
             crate::localization::current().code,
@@ -212,8 +228,12 @@ impl EditorExtension for MarkdownExtension {
 
     /// Commands of feature widgets and hotspots, run by the owning feature.
     fn command(&mut self, command: &Command, state: &EditorState) -> Option<Transaction> {
+        let feature = contract::find(FEATURES, command.feature())?;
+        if let Some(tr) = feature.view_command(command, &mut self.preview, state) {
+            return Some(tr);
+        }
         let (syntax, plans) = self.parse(state);
-        contract::find(FEATURES, command.feature())?.command(
+        feature.command(
             command,
             &CommandCx {
                 state,

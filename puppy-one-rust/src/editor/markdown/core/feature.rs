@@ -29,6 +29,8 @@ use std::rc::Rc;
 pub struct CompileCx<'a> {
     pub doc: &'a Buffer,
     pub syntax: &'a Syntax,
+    /// The pane's callout folds (a folded body leaves the flow).
+    pub folds: &'a super::state::CalloutFolds,
 }
 
 /// What a widget factory sees.
@@ -89,6 +91,18 @@ pub trait MarkdownFeature: Sync {
 
     /// A command from its widgets or hotspots.
     fn command(&self, _command: &Command, _cx: &CommandCx) -> Option<Transaction> {
+        None
+    }
+
+    /// A command that changes the pane's view state (a fold, a revealed
+    /// source) rather than the document; the transaction (a caret, or the
+    /// selection as it is) redraws the pane.
+    fn view_command(
+        &self,
+        _command: &Command,
+        _preview: &mut super::state::PreviewState,
+        _state: &EditorState,
+    ) -> Option<Transaction> {
         None
     }
 }

@@ -286,6 +286,12 @@ pub enum Paint {
         points: Vec<(f32, f32)>,
         color: Rgba,
     },
+    /// A monochrome SVG asset tinted `color` (a callout's glyph).
+    Icon {
+        rect: Rect,
+        path: SharedString,
+        color: Rgba,
+    },
 }
 
 impl Paint {
@@ -310,6 +316,9 @@ pub struct LineStyle {
     pub border: Edges,
     pub border_color: Option<Rgba>,
     pub background: Option<Rgba>,
+    /// The background's corner radii: top left, top right, bottom right,
+    /// bottom left.
+    pub background_radii: [f32; 4],
     /// `box-shadow: inset 0 -Npx color`: a rule along the bottom edge.
     pub inset_bottom: Option<(f32, Rgba)>,
     /// A line-through over the whole line's text (`.cm-md-task-checked`).
@@ -320,6 +329,20 @@ pub struct LineStyle {
     pub overlays: Vec<Paint>,
     /// Interactive areas (task checkboxes): rect and the format command.
     pub hotspots: Vec<(Rect, super::command::Command)>,
+    /// A control just after the text (a callout's fold toggle).
+    pub trailing: Option<Trailing>,
+}
+
+/// An icon button `gap` past the end of a line's text, centred on its last
+/// row, rotated `rotation` degrees.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Trailing {
+    pub gap: f32,
+    pub size: f32,
+    pub icon: SharedString,
+    pub color: Rgba,
+    pub rotation: f32,
+    pub command: super::command::Command,
 }
 
 impl LineStyle {
@@ -330,11 +353,13 @@ impl LineStyle {
             border: Edges::default(),
             border_color: None,
             background: None,
+            background_radii: [0.; 4],
             inset_bottom: None,
             strike: false,
             nowrap: false,
             overlays: Vec::new(),
             hotspots: Vec::new(),
+            trailing: None,
         }
     }
 }

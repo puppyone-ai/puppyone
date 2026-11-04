@@ -21,6 +21,7 @@ fn run(text: &str, intent: EditIntent) -> String {
     let plans = plans::compile(
         &state.doc,
         &syntax,
+        &Default::default(),
         crate::editor::markdown::composition::FEATURES,
     );
     let preview = PreviewState::default();

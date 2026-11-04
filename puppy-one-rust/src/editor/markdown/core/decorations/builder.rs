@@ -91,8 +91,11 @@ impl<'a> Builder<'a> {
                 plans: &plans,
                 syntax: cx.syntax,
                 theme: cx.theme,
+                preview: cx.preview,
                 context: &context,
                 style: &mut style,
+                hidden: &mut self.hidden,
+                replaced: &mut self.replaced,
             };
             for feature in cx.features {
                 feature.decorate_line(&mut decoration);
@@ -112,15 +115,15 @@ pub struct LineDecoration<'b> {
     pub range: Range<usize>,
     /// Plans whose source starts on this line.
     pub plans: &'b [&'b Plan],
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every feature; none reads it yet"
-    )]
     pub syntax: &'b Syntax,
     pub theme: &'b MarkdownTheme,
+    pub preview: &'b crate::editor::markdown::core::state::PreviewState,
     /// The cascade's facts about the line (marker slot, text row).
     pub context: &'b LineContext,
     pub style: &'b mut LineStyle,
+    /// Source the line hides, and source it shows as other text.
+    pub hidden: &'b mut Vec<Range<usize>>,
+    pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
 }
 
 /// A feature decorating its block (around its widget).

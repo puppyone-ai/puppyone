@@ -106,15 +106,21 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     let mut line = 0;
     while line < count {
         let range = doc.line_range(line);
-        if cx.preview.composing == Some(range.start) {
+        if cx.preview.composing == Some(range.start) || cx.preview.revealed_line(&range) {
             b.source_line(line);
             line += 1;
             continue;
         }
-        // A feature block starting here replaces its lines with its widget.
+        // A feature block starting here replaces its lines with its widget:
+        // the one covering most (front matter over its first `---` rule), the
+        // earlier feature on a tie (math over a code fence it claims).
         let block = b.by_line[line]
             .iter()
-            .find(|p| p.source.start == range.start && p.embed().is_some())
+            .filter(|p| p.source.start == range.start && p.embed().is_some())
+            .fold(None::<&&Plan>, |best, p| match best {
+                Some(best) if best.source.end >= p.source.end => Some(best),
+                _ => Some(p),
+            })
             .and_then(|p| Some((p.source.clone(), p.embed()?.clone())));
         let widget = block
             .as_ref()

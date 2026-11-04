@@ -6,6 +6,7 @@
 //! claim and their own block plans (`core/feature.rs`).
 use super::{
     feature::{CompileCx, Features},
+    state::CalloutFolds,
     syntax::{Element, Kind, Syntax},
 };
 use crate::editor::text::buffer::Buffer;
@@ -143,8 +144,13 @@ fn compile_element(index: usize, e: &Element) -> Plan {
 }
 
 /// Plans of every element plus feature blocks, sorted by source range.
-pub fn compile(doc: &Buffer, syntax: &Syntax, features: Features) -> Vec<Plan> {
-    let cx = CompileCx { doc, syntax };
+pub fn compile(
+    doc: &Buffer,
+    syntax: &Syntax,
+    folds: &CalloutFolds,
+    features: Features,
+) -> Vec<Plan> {
+    let cx = CompileCx { doc, syntax, folds };
     let mut plans: Vec<Plan> = syntax
         .elements
         .iter()
