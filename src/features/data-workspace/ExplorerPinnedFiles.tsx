@@ -4,6 +4,7 @@ import {
   DisclosureIcon,
   FileGlyphIcon,
   getMatchedExtension,
+  Tooltip,
   type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import type { ExplorerPinnedFile } from "./explorerPins";
@@ -40,20 +41,22 @@ export function ExplorerPinnedFiles({
           const active = file.path === activePath;
           return (
             <div key={file.path} className="desktop-explorer-pin-item" role="listitem">
-              <button
-                className="desktop-explorer-pin"
-                type="button"
-                title={file.name}
-                data-active={active ? "true" : undefined}
-                aria-current={active ? "page" : undefined}
-                onClick={() => onOpen(file)}
-                onContextMenu={(event) => onContextMenu(file, event)}
-              >
-                <span className="desktop-explorer-pin-icon">
-                  <FileGlyphIcon name={file.name} type={file.type} size={18} theme={fileIconTheme} />
-                </span>
-                <span className="desktop-explorer-pin-label" dir="auto">{getPinnedFileLabel(file.name)}</span>
-              </button>
+              {/* The full name on hover, as the product's tooltip: a pin shows only its start. */}
+              <Tooltip content={file.name}>
+                <button
+                  className="desktop-explorer-pin"
+                  type="button"
+                  data-active={active ? "true" : undefined}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => onOpen(file)}
+                  onContextMenu={(event) => onContextMenu(file, event)}
+                >
+                  <span className="desktop-explorer-pin-icon">
+                    <FileGlyphIcon name={file.name} type={file.type} size={18} theme={fileIconTheme} />
+                  </span>
+                  <span className="desktop-explorer-pin-label" dir="auto">{getPinnedFileLabel(file.name)}</span>
+                </button>
+              </Tooltip>
             </div>
           );
         })}
