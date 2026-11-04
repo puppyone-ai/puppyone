@@ -1,29 +1,20 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { Button, Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { formatRelativeTime } from "../utils";
-import { listAgentLinks, removeConnectedAgent, stopSharingWithAgents, type AgentLinkInventory,
-  type AgentRequest } from "./agentLinks";
+import { removeConnectedAgent, type AgentRequest } from "./agentLinks";
 import { agentMark, type ShareAgentMark } from "./agentMark";
 import { AgentFirstInvite, AgentInviteSeat, AgentInviteStatus, AgentInviteSteps, useAgentInvite } from "./CloudWorkspaceAgentInvite";
 import { useAgentRequestAnswer } from "./useAgentRequestAnswer";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 import "./workspace-share.css";
 
-/** While it is open, a link made or used elsewhere shows up on its own. */
-const REFRESH_MS = 5_000;
 /** The roster meets each Agent as itself, larger than in the Header. */
 const TILE_MARK_SIZE = 48;
-const EMPTY: AgentLinkInventory = { links: [], connections: [] };
-const ADMISSION_LABEL = {
-  sign_in: "cloud.share.agent.signIn.label",
-  link: "cloud.share.agent.link.label",
-} as const;
-const DATE_FORMAT = { month: "short", day: "numeric" } as const;
 
 /** Only the owner may let an Agent in, so only they get the dialog's controls. */
 export type AgentsControl = Readonly<{
@@ -39,9 +30,10 @@ export type AgentsControl = Readonly<{
 /**
  * Everything about a project's Agents, opened straight from the Header: who
  * is here, in one row, each as itself with when it last worked; an Agent
- * asking to join among them, to be let in where it stands; an empty seat with a
- * + at the end of the row that invites the next one; and, folded away at the
- * foot, the links still open.
+ * asking to join among them, to be let in where it stands; and an empty seat
+ * with a + at the end of the row that invites the next one. An invite lets one
+ * Agent in and then is spent, and one never used expires on its own, so there
+ * are no links here to look after.
  */
 export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAgentMark, onClose }: {
   control: AgentsControl;
@@ -52,25 +44,13 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
 }) {
   const { t } = useLocalization();
   const { session, apiBaseUrl, projectId, projectName } = control;
-  const [inventory, setInventory] = useState(EMPTY);
   const [failed, setFailed] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const refresh = useCallback(async () => {
-    try {
-      const next = await listAgentLinks(session, projectId, apiBaseUrl);
-      if (mounted.current) setInventory(next);
-    } catch { /* What is shown stays until a read succeeds. */ }
-  }, [apiBaseUrl, projectId, session]);
-  useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => void refresh(), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [refresh]);
-  /** A change is made, then both the links here and the Header's Agents are read again. */
+  /** A change is made, then the Header's Agents are read again, so the row and the Header follow at once. */
   const change = async (action: () => Promise<unknown>) => {
     setFailed(false);
-    try { await action(); await refresh(); control.onChanged(); return true; }
+    try { await action(); control.onChanged(); return true; }
     catch { if (mounted.current) setFailed(true); return false; }
   };
   const nobody = agents.length === 0 && requests.length === 0;
@@ -110,8 +90,6 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
             {failed && <p className="desktop-cloud-agents-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
           </section>
         </div>
-        <AgentLinks links={inventory.links} anyone={!nobody || inventory.links.length > 0}
-          onRemoveAll={() => change(() => stopSharingWithAgents(session, projectId, apiBaseUrl))} />
       </DesktopDialogSurface>
     </DesktopDialogRoot>
   </DesktopOverlayLayer>;
@@ -191,63 +169,6 @@ function AgentAskingTile({ request, control, renderAgentMark, onDeciding, onFail
       </Button>
     </span>
   </li>;
-}
-
-/**
- * The invite links still open, folded away at the foot because they are
- * looked at rarely. Removing everything asks once, since it ends every Agent's
- * access and every link together.
- */
-function AgentLinks({ links, anyone, onRemoveAll }: {
-  links: AgentLinkInventory["links"];
-  /** Whether there is anyone or anything for Remove all to end. */
-  anyone: boolean;
-  onRemoveAll: () => Promise<boolean>;
-}) {
-  const localization = useLocalization();
-  const { formatDate, t } = localization;
-  const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  const listId = useId();
-  const removeAll = async () => {
-    setRemoving(true);
-    await onRemoveAll();
-    setRemoving(false);
-    setConfirming(false);
-  };
-  return <footer className="desktop-cloud-agents-dialog-foot">
-    <button type="button" className="desktop-cloud-agents-links-toggle" aria-expanded={open} aria-controls={listId}
-      onClick={() => setOpen(value => !value)}>
-      <ChevronRight className="desktop-cloud-agents-links-chevron" size={14} strokeWidth={2} aria-hidden="true" />
-      {t("cloud.share.agent.links.manage")}
-      <span className="desktop-cloud-agents-links-count">{t("cloud.share.agent.links.count", { count: links.length })}</span>
-    </button>
-    {open && <div id={listId} className="desktop-cloud-agents-links">
-      {links.length === 0
-        ? <p className="desktop-cloud-agents-links-none">{t("cloud.share.agent.links.none")}</p>
-        : <ul aria-label={t("cloud.share.agent.links")}>{links.map(link => <li key={link.id} data-cloud-agent-link={link.id}>
-          <span className="desktop-cloud-agents-link-who">{t(ADMISSION_LABEL[link.admission])}</span>
-          {[link.created_at ? t("cloud.share.agent.links.made", { time: formatRelativeTime(link.created_at, localization) }) : null,
-            t("cloud.share.agent.linkExpires", { date: formatDate(link.expires_at, DATE_FORMAT) })]
-            .filter(Boolean).map(fact => <span key={fact} className="desktop-cloud-agents-link-fact">{fact}</span>)}
-        </li>)}</ul>}
-      {/* The service ends links and connections together, so the action says both. */}
-      {anyone && (confirming
-        ? <p className="desktop-cloud-agents-remove-all" data-confirming="">
-          <span>{t("cloud.share.agent.removeAllConfirm")}</span>
-          <button type="button" className="desktop-cloud-agent-tile-keep" disabled={removing}
-            onClick={() => setConfirming(false)}>{t("cloud.share.agent.keep")}</button>
-          <Button tone="danger" className="desktop-cloud-agent-tile-confirm" disabled={removing}
-            onClick={() => void removeAll()}>{t("cloud.share.agent.removeAll")}</Button>
-        </p>
-        : <p className="desktop-cloud-agents-remove-all">
-          <button type="button" className="desktop-cloud-agent-share-stop" onClick={() => setConfirming(true)}>
-            {t("cloud.share.agent.removeAll")}
-          </button>
-        </p>)}
-    </div>}
-  </footer>;
 }
 
 /**

@@ -651,16 +651,14 @@ app.whenReady().then(async () => {
   await captureSettledDialog('cloud-agents-asking', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request] .desktop-cloud-agent-request-allow').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-row=smoke-request]')) && !document.querySelector('[data-cloud-agent-request=smoke-request]')");
-  // The links still open are folded away at the foot.
-  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ links: [{ id: 'smoke-link', admission: 'sign_in', created_at: new Date(Date.now() - 7_200_000).toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
-  await waitFor("document.querySelector('.desktop-cloud-agents-links-toggle')?.textContent.includes('1 open')");
-  await evaluate("document.querySelector('.desktop-cloud-agents-links-toggle').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-links [data-cloud-agent-link=smoke-link]'))");
-  await captureSettledDialog('cloud-agents-links', '.desktop-cloud-agents-dialog');
+  // An invite is spent once it lets an Agent in, and one never used expires: there are no links to look after.
+  assert(await evaluate("!document.querySelector('.desktop-cloud-agents-links-toggle, .desktop-cloud-agents-dialog-foot') && !document.querySelector('.desktop-cloud-agents-dialog').textContent.includes('Remove all')"),
+    'The Agents dialog must not ask anyone to manage invite links');
+  await captureSettledDialog('cloud-agents-joined', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
   // With nobody here yet, the empty seat opens the same dialog, and inviting the first agent is all of it.
-  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [], links: [] })");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [] })");
   await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
   await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agents-first'))");

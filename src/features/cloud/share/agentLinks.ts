@@ -89,10 +89,6 @@ export function decideAgentRequest(session: DesktopCloudSession, connectionId: s
     undefined, { method: "POST", body: JSON.stringify({ decision }) }, apiBaseUrl);
 }
 
-export function stopSharingWithAgents(session: DesktopCloudSession, projectId: string, apiBaseUrl: string) {
-  return cloudApiRequest<unknown>(`${projectPath(projectId)}/agent-links`, session, undefined, { method: "DELETE" }, apiBaseUrl);
-}
-
 /**
  * What the person pastes. Their own message is what asks the Agent to act, so it
  * says what they want in one line; the link carries the steps, and the owner

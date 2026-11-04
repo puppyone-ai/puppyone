@@ -20,9 +20,7 @@ const agent = (id: string, name: string, change: Partial<WorkspaceAgent> = {}): 
   active: false, lastActiveAt: null, activityKnown: true, ...change });
 const request = (id: string, name: string): AgentRequest => ({ id, name, admission: "sign_in", requested_at: ago(1),
   expires_at: new Date(Date.now() + 600_000).toISOString() });
-const link = { id: "l1", admission: "sign_in", created_at: ago(120), expires_at: "2026-11-12T12:00:00Z" } as const;
 let root: Root;
-let inventory: { links: unknown[]; connections: unknown[] };
 let calls: { path: string; method?: string; body?: unknown }[];
 let failChanges: boolean;
 const onChanged = vi.fn();
@@ -39,15 +37,14 @@ const render = async (agents: readonly WorkspaceAgent[] = [], requests: readonly
   await act(async () => { await Promise.resolve(); });
 };
 beforeEach(() => {
-  inventory = { links: [], connections: [] }; calls = []; failChanges = false;
+  calls = []; failChanges = false;
   vi.mocked(cloudApiRequest).mockImplementation(async (path, _session, _change, init = {}) => {
     if (init.method) {
       calls.push({ path, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
       if (failChanges) throw new Error("offline");
-      if (init.method === "DELETE") inventory = { links: [], connections: [] };
       return {};
     }
-    return inventory;
+    return { links: [], connections: [] };
   });
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
@@ -130,38 +127,12 @@ describe("The Agents dialog", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
-  it("folds the open links away at the foot, with how many there are", async () => {
-    inventory = { links: [link], connections: [] };
+  it("has no links to look after: an invite is spent once it lets an Agent in, and never asks to be read", async () => {
     await render([agent("c1", "Codex")]);
-    const toggle = select(".desktop-cloud-agents-links-toggle");
-    expect(toggle.textContent).toBe("Manage links1 open");
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelector(".desktop-cloud-agents-links")).toBeNull();
-    await act(async () => toggle.click());
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(select<HTMLElement>(`#${CSS.escape(toggle.getAttribute("aria-controls")!)}`)).not.toBeNull();
-    expect(select<HTMLElement>('[data-cloud-agent-link="l1"]').textContent)
-      .toBe("Only agents you approveMade 2 hours agoExpires Nov 12");
-  });
-
-  it("says when no link is open", async () => {
-    await render([agent("c1", "Codex")]);
-    expect(select(".desktop-cloud-agents-links-toggle").textContent).toBe("Manage linksnone open");
-    await act(async () => select(".desktop-cloud-agents-links-toggle").click());
-    expect(select<HTMLElement>(".desktop-cloud-agents-links-none").textContent).toBe("No invite links are open.");
-  });
-
-  it("removes every Agent and link at once, only after asking", async () => {
-    inventory = { links: [link], connections: [] };
-    await render([agent("c1", "Codex")]);
-    await act(async () => select(".desktop-cloud-agents-links-toggle").click());
-    await act(async () => select(".desktop-cloud-agent-share-stop").click());
-    expect(select<HTMLElement>('.desktop-cloud-agents-remove-all[data-confirming] > span').textContent)
-      .toBe("Remove every agent and close every link?");
-    expect(calls).toEqual([]);
-    await act(async () => select(".desktop-cloud-agents-remove-all .desktop-cloud-agent-tile-confirm").click());
-    expect(calls).toEqual([{ path: "/projects/project-1/agent-links", method: "DELETE", body: undefined }]);
-    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(".desktop-cloud-agents-links-toggle, .desktop-cloud-agents-links, .desktop-cloud-agents-dialog-foot")).toBeNull();
+    expect(document.body.textContent).not.toContain("Remove all");
+    // Opening the dialog reads nothing of its own; the Header already holds who is here.
+    expect(cloudApiRequest).not.toHaveBeenCalled();
   });
 
   it("closes from its own button", async () => {

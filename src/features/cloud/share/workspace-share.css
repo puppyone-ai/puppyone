@@ -186,8 +186,7 @@
   }
 
 
-  /* The Agents dialog: who is here in one row with a seat for the next, and
-     the links still open folded away at the foot. */
+  /* The Agents dialog: who is here in one row, with a seat for the next. */
   .desktop-cloud-agents-dialog { --po-menu-bg: var(--po-overlay); }
   .desktop-cloud-agents-dialog .desktop-dialog-title-row { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .desktop-cloud-agents-dialog-project { min-width: 0; overflow: hidden; color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); text-overflow: ellipsis; white-space: nowrap; }
@@ -246,30 +245,6 @@
   .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
   .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark[data-reach-creature] > svg { width: 68%; height: 68%; }
 
-  /* The links still open, folded away at the foot, with ending everything last. */
-  .desktop-cloud-agents-dialog-foot { display: grid; gap: 8px; padding: 10px 20px 14px; border-top: 1px solid var(--po-shell-divider); }
-  .desktop-cloud-agents-links-toggle {
-    display: inline-flex; align-items: center; gap: 6px; justify-self: start; margin-inline-start: -4px; padding: 2px 4px;
-    border: 0; border-radius: 4px; background: none; color: var(--po-text-muted);
-    font: inherit; font-size: var(--po-type-ui-caption, 12px); line-height: 18px;
-  }
-  .desktop-cloud-agents-links-toggle:hover { color: var(--po-text); }
-  .desktop-cloud-agents-links-toggle:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
-  .desktop-cloud-agents-links-chevron { transition: rotate .15s ease; }
-  .desktop-cloud-agents-links-toggle[aria-expanded="true"] .desktop-cloud-agents-links-chevron { rotate: 90deg; }
-  .desktop-cloud-agents-links-toggle:dir(rtl) .desktop-cloud-agents-links-chevron { scale: -1 1; }
-  .desktop-cloud-agents-links-count { color: var(--po-text-subtle); }
-  .desktop-cloud-agents-links { display: grid; gap: 8px; }
-  .desktop-cloud-agents-links ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-  .desktop-cloud-agents-links li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 20px; }
-  .desktop-cloud-agents-link-who { color: var(--po-text); }
-  .desktop-cloud-agents-link-fact::before { content: "·"; margin-inline-end: 8px; color: var(--po-text-subtle); }
-  .desktop-cloud-agents-links-none { margin: 0; color: var(--po-text-subtle); font-size: var(--po-type-ui-caption, 12px); }
-  .desktop-cloud-agents-remove-all { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); }
-  .desktop-cloud-agents-remove-all[data-confirming] > span { flex: 1; color: var(--po-text); }
-  .desktop-cloud-agent-share-stop { padding: 0; border: 0; border-radius: 4px; background: none; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 20px; }
-  .desktop-cloud-agent-share-stop:hover { color: var(--po-danger); }
-  .desktop-cloud-agent-share-stop:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 2px; }
 
   .desktop-cloud-agent-lamp { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--po-text-faint, var(--po-text-muted)); }
   .desktop-cloud-agent-lamp[data-active] { background: var(--po-success); }
