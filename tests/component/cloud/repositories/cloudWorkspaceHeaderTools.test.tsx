@@ -10,10 +10,10 @@ import { withTestLocalization } from "../../../support/react/localization";
 vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
 }));
-vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
-  CloudWorkspaceAgentsPanel: ({ control, onClose }: {
-    control: { projectId: string } | null; onClose: () => void;
-  }) => <div role="dialog" data-project={control?.projectId}>
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
+  CloudWorkspaceAgentsDialog: ({ control, onClose }: {
+    control: { projectId: string }; onClose: () => void;
+  }) => <div role="dialog" data-project={control.projectId}>
     <button onClick={onClose}>Close</button>
   </div>,
 }));
@@ -82,7 +82,7 @@ describe("Cloud workspace Header tools", () => {
     expect(divider?.nextElementSibling?.contains(button("agent"))).toBe(true);
   });
 
-  it("opens the Agents card for the active hosted project and allows dismissal", async () => {
+  it("opens the Agents dialog for the active hosted project and allows dismissal", async () => {
     await render();
     await act(async () => button("invite-agent").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("hosted-project");

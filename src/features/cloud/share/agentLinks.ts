@@ -27,7 +27,8 @@ export type AgentRequest = Readonly<{
   expires_at: string;
 }>;
 export type AgentLinkInventory = Readonly<{
-  links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string }>[];
+  /** Only the links still open: neither used up, expired nor ended. */
+  links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string; created_at?: string }>[];
   /** The deployment decides whether a link may admit without sign-in. Absent means no. */
   open_links_enabled?: boolean;
   connections: readonly ConnectedAgent[];

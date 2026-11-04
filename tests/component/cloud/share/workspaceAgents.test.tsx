@@ -87,10 +87,10 @@ describe("How the status reads", () => {
     return host.textContent;
   };
   afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); });
-  it("says active, when it was last active, or nothing recent, and stays silent when unknown", async () => {
-    expect(await read({ ...agent, active: true, lastActiveAt: null, activityKnown: true })).toBe("Active now");
-    expect(await read({ ...agent, active: false, lastActiveAt: new Date(Date.now() - 300_000).toISOString(), activityKnown: true })).toContain("Last active 5 minutes ago");
-    expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: true })).toBe("No recent activity");
+  it("says working now, when it last worked, or no recent work, and stays silent when unknown", async () => {
+    expect(await read({ ...agent, active: true, lastActiveAt: null, activityKnown: true })).toBe("Working now");
+    expect(await read({ ...agent, active: false, lastActiveAt: new Date(Date.now() - 300_000).toISOString(), activityKnown: true })).toContain("Last worked 5 minutes ago");
+    expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: true })).toBe("No recent work");
     expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: false })).toBe("unknown");
   });
 });
