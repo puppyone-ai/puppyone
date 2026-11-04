@@ -961,6 +961,8 @@
   "share.agent.invite.scene.pasteMac": "⌘V",
   "share.agent.invite.scene.pasteOther": "Ctrl+V",
   "share.agent.request.status": "请求加入",
+  "share.agent.request.count": "{count} 个待处理",
+  "share.agent.request.access": "允许后可读取、修改此项目的文件并运行命令。",
   "share.agent.request.allow": "允许",
   "share.agent.request.deny": "拒绝",
   "share.agent.signIn.label": "只允许你批准的 Agent",

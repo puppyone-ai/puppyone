@@ -5,6 +5,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceAgentPeople } from "../../../../src/app/CloudWorkspaceAgentPeople";
+import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
 import { agentCreatureFor } from "../../../../src/features/app-shell/project-reach/AgentCreature";
 import { CloudWorkspaceHeaderTools } from "../../../../src/features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { cloudApiRequest, type DesktopCloudSession } from "../../../../src/lib/cloudApi";
@@ -59,9 +60,11 @@ const hover = async (target: Element, type: "pointerover" | "pointermove" = "poi
 };
 const working = (grantId: string) => ({ grant_id: grantId, state: "active", created_at: ago(5), closed_at: null,
   lease_until: new Date(Date.now() + 60_000).toISOString() });
-const render = async (context = project(), mounted = true) => {
-  await act(async () => root.render(withTestLocalization(<CloudWorkspaceHeaderTools context={context} session={session}
-    apiBaseUrl={API} onSessionChange={vi.fn()} renderPeople={mounted ? value => <CloudWorkspaceAgentPeople {...value} /> : undefined} />)));
+const render = async (context = project(), mounted = true, genericHint = false) => {
+  const tools = <CloudWorkspaceHeaderTools context={context} session={session}
+    apiBaseUrl={API} onSessionChange={vi.fn()} renderPeople={mounted ? value => <CloudWorkspaceAgentPeople {...value} /> : undefined} />;
+  await act(async () => root.render(withTestLocalization(genericHint
+    ? <><div data-tooltip="Editor mode">{tools}</div><DesktopTooltipLayer /></> : tools)));
   await act(async () => { await Promise.resolve(); });
 };
 beforeEach(() => {
@@ -85,7 +88,7 @@ describe("An Agent in the Header", () => {
     expect(panel()).toBeNull();
     expect(invite()!.getAttribute("aria-expanded")).toBe("false");
   });
-  it("puts an Agent asking to join first, on its own ahead of the ones at rest, and opens the dialog to answer it", async () => {
+  it("puts an Agent asking to join first, with its decision already showing below the Header", async () => {
     connections = [connection("c1", "Codex")];
     pending = [request("r1", "Claude Code")];
     await render();
@@ -95,10 +98,12 @@ describe("An Agent in the Header", () => {
     expect(stack()!.getAttribute("aria-label")).toBe("Codex");
     expect(agentButton("r1").getAttribute("aria-label")).toBe("Claude Code · Wants to join");
     await act(async () => agentButton("r1").click());
-    expect(panel()?.dataset.requests).toBe("Claude Code");
-    expect(panel()?.dataset.agents).toBe("Codex");
-    expect(agentButton("r1").getAttribute("aria-expanded")).toBe("true");
-    expect(stack()!.getAttribute("aria-expanded")).toBe("false");
+    expect(panel()).toBeNull();
+    expect(document.querySelector('[data-cloud-agent-request-card="r1"]')?.textContent).toContain("Claude Code");
+    expect(document.activeElement?.getAttribute("data-agent-decision")).toBe("reject");
+    expect(agentButton("r1").hasAttribute("aria-haspopup")).toBe(false);
+    expect(agentButton("r1").hasAttribute("aria-expanded")).toBe(false);
+    expect(stack()!.hasAttribute("aria-expanded")).toBe(false);
   });
   it("shows the kind of Agent, and a creature of its own, never a letter of its name, when it cannot recognize one", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper"), connection("3", "秘书小陈")];
@@ -229,7 +234,7 @@ describe("An Agent in the Header", () => {
     expect(panel()?.dataset.panel).toBe("agents");
     expect(stack()!.getAttribute("aria-expanded")).toBe("true");
   });
-  it("shows an Agent asking to join in the Header and the dialog once an invite is answered", async () => {
+  it("replaces the invite dialog with the persistent decision when an Agent asks to join", async () => {
     connections = [connection("c1", "Codex")];
     await render();
     await act(async () => stack()!.click());
@@ -238,7 +243,8 @@ describe("An Agent in the Header", () => {
     await act(async () => document.querySelector<HTMLButtonElement>("[data-answered]")!.click());
     await act(async () => { await Promise.resolve(); });
     expect(agentButton("r1").dataset.waiting).toBe("true");
-    expect(panel()?.dataset.requests).toBe("Claude Code");
+    expect(panel()).toBeNull();
+    expect(document.querySelector('[data-cloud-agent-request-card="r1"]')?.textContent).toContain("Claude Code");
   });
   it("offers nothing about Agents to someone the server will not show them to", async () => {
     vi.mocked(cloudApiRequest).mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
@@ -287,17 +293,27 @@ describe("An Agent's card in the Header", () => {
     expect(card()?.dataset.cloudAgentCard).toBe("c1");
     expect(card()?.querySelector(".desktop-cloud-agent-card-when")?.textContent).toBe("No recent work");
   });
-  it("says when an Agent asked to join, and gives way to the dialog when pressed", async () => {
+  it("never puts a hover card on top of an unanswered request's persistent card", async () => {
     pending = [request("r1", "Claude Code")];
     await render();
     await hover(agentButton("r1"));
-    expect(card()?.querySelector(".desktop-cloud-agent-card-when")?.textContent).toMatch(/^Wants to join · /);
-    expect(card()?.querySelectorAll(".desktop-cloud-agent-card-fact")).toHaveLength(0);
+    expect(card()).toBeNull();
+    expect(document.querySelectorAll("[data-cloud-agent-request-card]")).toHaveLength(1);
     await act(async () => agentButton("r1").click());
-    expect(card()).toBeNull();
-    expect(panel()?.dataset.panel).toBe("agents");
-    await hover(agentButton("r1"));
-    expect(card()).toBeNull();
+    expect(panel()).toBeNull();
+    expect(document.activeElement?.getAttribute("data-agent-decision")).toBe("reject");
+  });
+  it("shows only the face's name card, never the stack's or an ancestor editor's tooltip", async () => {
+    connections = ["Cursor", "Codex", "Gemini", "Claude Code"].map(name => connection(name, name));
+    await render(project(), true, true);
+    const face = stack()!.querySelector(".desktop-project-reach-mark")!;
+    await hover(face, "pointermove");
+    await act(async () => { face.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(600); });
+    expect(card()?.querySelector(".desktop-cloud-agent-card-name")?.textContent).toBe("Cursor");
+    expect(stack()!.hasAttribute("data-tooltip")).toBe(false);
+    expect(document.querySelector("[role=tooltip]")).toBeNull();
+    expect(row()?.dataset.tooltipDisabled).toBe("true");
   });
   it("says since when an Agent is here when its access does not end", async () => {
     connections = [{ ...connection("c1", "Codex"), expires_at: null as unknown as string }];

@@ -602,6 +602,9 @@ app.whenReady().then(async () => {
     return card.top >= header.bottom && card.right <= innerWidth && card.left >= 0 && card.width > 200
       && when === 'Working now' && getComputedStyle(document.querySelector('[data-cloud-agent-card]')).pointerEvents === 'none';
   })()`), 'The card must hang under the Header, inside the window, and say the Agent is working');
+  await new Promise(resolve => setTimeout(resolve, 650));
+  assert(await evaluate("!document.querySelector('[role=tooltip]') && document.querySelector('.desktop-titlebar-cloud-agents').dataset.tooltipDisabled === 'true'"),
+    'An Agent must show only its own name card, never a generic editor or whole-roster tooltip');
   await captureSettledDialog('cloud-agent-card', '[data-cloud-agent-card]');
   // Pressing it opens the Agents dialog straight away, with no menu in between.
   await evaluate(`${agentMark}.click()`);
@@ -645,12 +648,44 @@ app.whenReady().then(async () => {
   await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = 3600; } return true; })()");
   await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
   await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) animation.play(); return true; })()");
-  // The Agent that follows it asks to join in the row, the steps give way, and it is let in from its tile.
-  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request]')) && !document.querySelector('.desktop-cloud-agent-invite-steps')");
-  await captureSettledDialog('cloud-agents-asking', '.desktop-cloud-agents-dialog');
-  await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request] .desktop-cloud-agent-request-allow').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-row=smoke-request]')) && !document.querySelector('[data-cloud-agent-request=smoke-request]')");
+  // An application replaces the invite dialog with the Agent's own persistent decision card below the Header.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Research helper', avatar: 'codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }, { id: 'smoke-request-two', name: 'Gemini CLI', avatar: 'gemini', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
+  await waitFor("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request]')) && !document.querySelector('.desktop-cloud-agents-dialog')");
+  assert(await evaluate(`(() => {
+    const card = document.querySelector('[data-cloud-agent-request-card]');
+    const box = card.getBoundingClientRect();
+    const header = document.querySelector('.desktop-titlebar').getBoundingClientRect();
+    return box.top >= header.bottom && box.right <= innerWidth && box.left >= 0
+      && getComputedStyle(card).pointerEvents === 'auto' && card.querySelectorAll('button').length === 2
+      && card.querySelector('[data-reach-brand=codex]') && !card.contains(document.activeElement);
+  })()`), 'A request card must appear on its own, use the chosen avatar, take clicks but not steal focus');
+  await evaluate("document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+  assert(await evaluate("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request]')) && !document.querySelector('[data-cloud-agent-request-card] button[aria-label=Close]')"),
+    'Outside clicks and Escape must not dismiss an unanswered request');
+  for (const theme of ['light', 'dark']) for (const locale of ['en', 'zh-Hans', 'de', 'es', 'fr', 'ja', 'ko', 'pt-BR']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', '${locale}')`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await waitFor("[...document.querySelectorAll('[data-cloud-agent-request-card] img')].every(image => image.complete)");
+    assert(await evaluate(`(() => {
+      const card = document.querySelector('[data-cloud-agent-request-card]');
+      const box = card.getBoundingClientRect();
+      return box.bottom <= innerHeight && card.scrollWidth <= card.clientWidth
+        && [...card.querySelectorAll('button')].every(button => {
+          const r = button.getBoundingClientRect(); return r.left >= box.left && r.right <= box.right;
+        });
+    })()`), `The request card and both decisions must fit in ${theme} ${locale}`);
+    await captureSettledDialog(`cloud-agent-request-${theme}-${locale}`, '[data-cloud-agent-request-card]');
+  }
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
+  await evaluate("document.querySelector('[data-cloud-agent-request-card] [data-agent-decision=approve]').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request-two]'))");
+  assert(await evaluate("!document.querySelector('.desktop-cloud-agent-request-count') && !document.querySelector('[data-cloud-agent-request-card] button:disabled')"),
+    'Answering one request must advance to the next with fresh, enabled choices');
+  await evaluate("document.querySelector('[data-cloud-agent-request-card] [data-agent-decision=reject]').click()");
+  await waitFor("!document.querySelector('[data-cloud-agent-request-card]')");
+  // The normal roster remains available once the request has actually been answered.
+  await evaluate("document.querySelector('[data-cloud-workspace-agent=smoke-agent]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-row=smoke-request]'))");
   // An invite is spent once it lets an Agent in, and one never used expires: there are no links to look after.
   assert(await evaluate("!document.querySelector('.desktop-cloud-agents-links-toggle, .desktop-cloud-agents-dialog-foot') && !document.querySelector('.desktop-cloud-agents-dialog').textContent.includes('Remove all')"),
     'The Agents dialog must not ask anyone to manage invite links');

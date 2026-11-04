@@ -113,6 +113,9 @@ export function DesktopTooltipLayer() {
     };
     const onPointerOver = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
+      // A surface with its own cards must also clear a hint retained by a
+      // different, still-focused control (for example the editor mode button).
+      if (event.target instanceof Element && isTooltipSuppressed(event.target)) { hide(); return; }
       const target = tooltipTarget(event.target);
       if (target && !target.contains(event.relatedTarget as Node | null)) show(target, true);
     };

@@ -7,6 +7,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
 import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 import type { AgentRequest } from "../share/agentLinks";
+import { CloudWorkspaceAgentRequestCard } from "../share/CloudWorkspaceAgentRequestCard";
 import type { ShareAgentMark } from "../share/agentMark";
 import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAgents";
 
@@ -15,7 +16,7 @@ const AgentsDialog = lazy(() => import("../share/CloudWorkspaceAgentsDialog").th
 
 export type CloudWorkspacePeople = Readonly<{
   agents: readonly WorkspaceAgent[];
-  /** Agents asking to join; the owner answers them in the Agents dialog. */
+  /** Agents asking to join; their persistent card asks the owner for a decision. */
   requests: readonly AgentRequest[];
   open: boolean;
   /** The mark that opened the dialog, so the Header shows which one is pressed. */
@@ -67,11 +68,16 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   /** The Agents already here when the last invite was copied, so a newcomer ends the wait. */
   const [invite, setInvite] = useState<ReadonlySet<string> | null>(null);
   const shareButton = useRef<HTMLButtonElement>(null);
+  const agentsAnchor = useRef<HTMLDivElement>(null);
+  const denyRequest = useRef<HTMLButtonElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
-  // An Agent asking to join is answered in the dialog, so it is watched closely while the dialog is open.
+  // Inviting watches closely for an answer; a pending request then has its own persistent card.
   const { agents, requests, manageable, loading, refresh: refreshAgents } = useWorkspaceAgents(
     agentTarget(context, session, apiBaseUrl), { waiting: panel === "agents" || invite !== null });
+  const pending = requests[0];
+  // A decision takes the place of the invite/dialog, never another competing overlay.
+  useEffect(() => { if (pending?.id) setPanel(null); }, [pending?.id]);
   const answered = invite !== null && (requests.length > 0 || agents.some(agent => !invite.has(agent.id)));
   useEffect(() => { if (answered) setInvite(null); }, [answered]);
   useEffect(() => {
@@ -88,11 +94,12 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   };
   // The Agents open straight into their dialog: no menu stands between the Header and what it opens.
   const openAgents = (next: string) => {
+    if (pending) { denyRequest.current?.focus(); return; }
     setOpener(next);
     setPanel("agents");
   };
   const listed = agents.length > 0 || requests.length > 0;
-  const agentsOpen = panel === "agents" && (listed || manageable);
+  const agentsOpen = !pending && panel === "agents" && (listed || manageable);
   const refreshPeople = () => void refreshAgents();
   // After an invite, the Agents are read more often until one answers, so it shows up while it is awaited.
   const control = manageable && session && context?.status === "resolved" ? {
@@ -109,7 +116,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}
       data-share-people={SHARE_WITH_PEOPLE || undefined}>
-      {agentsShown && <div className="desktop-titlebar-cloud-agents-anchor">
+      {agentsShown && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
         {ready && listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
           onOpen: agentId => openAgents(agentId ?? MORE) })}
         {seat && <InviteAgentTool checking={!manageable} open={agentsOpen && opener === INVITE}
@@ -125,6 +132,9 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
       {(agentsShown || SHARE_WITH_PEOPLE) && <span className="desktop-titlebar-action-divider" aria-hidden="true" />}
       <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
+    {pending && control && <CloudWorkspaceAgentRequestCard key={pending.id} request={pending} count={requests.length}
+      anchorRef={agentsAnchor} denyRef={denyRequest} session={control.session} apiBaseUrl={apiBaseUrl}
+      projectName={control.projectName} onChanged={refreshPeople} renderAgentMark={renderAgentMark} />}
     {context?.status === "resolved" && <Suspense fallback={null}>
       {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel} />}
       {agentsOpen && control && <AgentsDialog control={control} agents={agents} requests={requests}

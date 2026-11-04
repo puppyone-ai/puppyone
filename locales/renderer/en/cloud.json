@@ -961,6 +961,8 @@
   "share.agent.invite.scene.pasteMac": "⌘V",
   "share.agent.invite.scene.pasteOther": "Ctrl+V",
   "share.agent.request.status": "Wants to join",
+  "share.agent.request.count": "{count} waiting",
+  "share.agent.request.access": "Can read and edit this project’s files and run commands.",
   "share.agent.request.allow": "Allow",
   "share.agent.request.deny": "Deny",
   "share.agent.signIn.label": "Only agents you approve",

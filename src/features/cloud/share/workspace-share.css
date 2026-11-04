@@ -4,6 +4,16 @@
    reach dialog's overrides of this window — its height, and its frame —
    were being quietly discarded. */
 @layer features {
+  /* The Agent's own name card, kept below the Header until its request is answered. */
+  .desktop-cloud-agent-card.desktop-cloud-agent-request-card { pointer-events: auto; overflow-y: auto; }
+  .desktop-cloud-agent-request-count { margin-inline-start: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .desktop-cloud-agent-request-access,
+  .desktop-cloud-agent-request-error { margin: 0; padding: 0 14px 12px; font-size: var(--po-type-ui-caption, 12px); line-height: 18px; }
+  .desktop-cloud-agent-request-access { color: var(--po-text-muted); }
+  .desktop-cloud-agent-request-error { color: var(--po-danger); }
+  .desktop-cloud-agent-request-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 14px 14px; }
+  .desktop-cloud-agent-request-actions .po-button { min-height: var(--po-control-size-compact); font-size: var(--po-type-ui-caption, 12px); }
+
   /* Two cards under the Header, on the project menu's own surface: Share says
      how to send something to a person, the Agents card lets Agents in and says
      who is in here. */

@@ -961,6 +961,8 @@
   "share.agent.invite.scene.pasteMac": "⌘V",
   "share.agent.invite.scene.pasteOther": "Ctrl+V",
   "share.agent.request.status": "참여 요청",
+  "share.agent.request.count": "{count}개 대기 중",
+  "share.agent.request.access": "허용하면 이 프로젝트의 파일을 읽고 편집하며 명령을 실행할 수 있습니다.",
   "share.agent.request.allow": "허용",
   "share.agent.request.deny": "거절",
   "share.agent.signIn.label": "승인한 에이전트만",

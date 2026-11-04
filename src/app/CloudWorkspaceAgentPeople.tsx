@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { Tooltip } from "@puppyone/shared-ui";
+import { disableTooltipHints } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { ReachMemberMark } from "../features/app-shell/project-reach";
 import type { CloudWorkspacePeople } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
@@ -30,13 +30,13 @@ type Hover = Readonly<{ mark: PersonMark; anchor: HTMLElement }>;
  * Agent asking to join, which only the owner can move on, then whoever is at
  * work, each its own button at the front of the row. The Agents at rest are one
  * stack after a gap, because nothing about them asks to be read apart. Resting
- * the pointer on any one of them shows its card; pressing any of them opens the
- * Agents dialog.
+ * the pointer on any one of them shows its card; pressing one opens the Agents
+ * dialog, or brings an unanswered request's persistent card into keyboard reach.
  */
 export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgentId, onOpen }: CloudWorkspacePeople) {
   const localization = useLocalization();
   const { t } = localization;
-  const card = useAgentCard(open);
+  const card = useAgentCard(open || requests.length > 0);
   const asking: PersonMark[] = requests.map(request => ({ id: request.id, name: request.name, avatar: request.avatar,
     active: false, waiting: true, status: t("cloud.share.agent.request.status"), subject: { kind: "request", request } }));
   const toMark = (agent: (typeof agents)[number]): PersonMark => ({ id: agent.id, name: agent.name,
@@ -46,19 +46,21 @@ export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgent
   const shown = live.slice(0, VISIBLE_AGENT_LIMIT);
   const resting = [...live.slice(VISIBLE_AGENT_LIMIT), ...agents.filter(agent => !agent.active).map(toMark)];
   const press = (agentId: string | null) => { card.hide(); onOpen(agentId); };
-  return <div className="desktop-titlebar-cloud-agents" role="group" aria-label={t("cloud.share.agent.connected")}>
+  return <div className="desktop-titlebar-cloud-agents" role="group" aria-label={t("cloud.share.agent.connected")}
+    ref={element => { if (element) disableTooltipHints(element); }}>
     {shown.map(agent => {
       const label = [agent.name, agent.status].filter(Boolean).join(" · ");
       return <button key={agent.id} type="button" className="desktop-titlebar-cloud-agent" data-cloud-workspace-agent={agent.id}
         data-waiting={agent.waiting || undefined}
-        aria-label={label} aria-haspopup="dialog" aria-expanded={open && pressedAgentId === agent.id}
+        aria-label={label} aria-haspopup={requests.length ? undefined : "dialog"}
+        aria-expanded={requests.length ? undefined : open && pressedAgentId === agent.id}
         onPointerEnter={event => card.show(agent, event.currentTarget)} onPointerLeave={card.hide}
         onClick={() => press(agent.id)}>
         <CloudWorkspaceAgentMark id={agent.id} name={agent.name} avatar={agent.avatar} active={agent.active}
           size={HEADER_MARK_SIZE} />
       </button>;
     })}
-    {resting.length > 0 && <RestingAgents agents={resting} expanded={open && pressedAgentId === null}
+    {resting.length > 0 && <RestingAgents agents={resting} expanded={requests.length ? undefined : open && pressedAgentId === null}
       onHover={card.show} onLeave={card.hide} onOpen={() => press(null)} />}
     {card.hovered && <CloudWorkspaceAgentCard key={card.hovered.mark.id} subject={card.hovered.mark.subject}
       anchor={card.hovered.anchor}
@@ -73,7 +75,7 @@ export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgent
  */
 function RestingAgents({ agents, expanded, onHover, onLeave, onOpen }: {
   agents: readonly PersonMark[];
-  expanded: boolean;
+  expanded: boolean | undefined;
   onHover: (mark: PersonMark, anchor: HTMLElement) => void;
   onLeave: () => void;
   onOpen: () => void;
@@ -89,8 +91,8 @@ function RestingAgents({ agents, expanded, onHover, onLeave, onOpen }: {
     if (face && stacked[index]) onHover(stacked[index], face);
     else onLeave();
   };
-  const button = <button type="button" className="desktop-titlebar-cloud-agent desktop-titlebar-cloud-agent-stack"
-    data-cloud-workspace-agent-stack="" aria-label={label} aria-haspopup="dialog" aria-expanded={expanded}
+  return <button type="button" className="desktop-titlebar-cloud-agent desktop-titlebar-cloud-agent-stack"
+    data-cloud-workspace-agent-stack="" aria-label={label} aria-haspopup={expanded === undefined ? undefined : "dialog"} aria-expanded={expanded}
     onPointerMove={follow} onPointerLeave={onLeave} onClick={onOpen}>
     {stacked.map(agent => <CloudWorkspaceAgentMark key={agent.id} id={agent.id} name={agent.name}
       avatar={agent.avatar} active={false} size={HEADER_MARK_SIZE} />)}
@@ -98,25 +100,23 @@ function RestingAgents({ agents, expanded, onHover, onLeave, onOpen }: {
       {t("shell.projectReach.more", { count: overflow })}
     </span>}
   </button>;
-  // The ones past the pile have no face to rest on, so the count still names them all.
-  return overflow > 0 ? <Tooltip content={label}>{button}</Tooltip> : button;
 }
 
 /**
  * Which mark's card is showing. It waits a moment before the first card, so
  * passing over the Header shows nothing, then follows the pointer from face to
- * face at once; it never shows while the Agents dialog is open.
+ * face at once; it gives way to an open Agents dialog or a request awaiting a decision.
  */
-function useAgentCard(dialogOpen: boolean) {
+function useAgentCard(suppressed: boolean) {
   const [hovered, setHovered] = useState<Hover | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shown = useRef(false);
   shown.current = hovered !== null;
   const cancel = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
   useEffect(() => cancel, []);
-  useEffect(() => { if (dialogOpen) { cancel(); setHovered(null); } }, [dialogOpen]);
+  useEffect(() => { if (suppressed) { cancel(); setHovered(null); } }, [suppressed]);
   const show = (mark: PersonMark, anchor: HTMLElement) => {
-    if (dialogOpen) return;
+    if (suppressed) return;
     cancel();
     if (shown.current) { setHovered(current => current?.mark.id === mark.id && current.anchor === anchor ? current : { mark, anchor }); return; }
     timer.current = setTimeout(() => setHovered({ mark, anchor }), CARD_DELAY_MS);
