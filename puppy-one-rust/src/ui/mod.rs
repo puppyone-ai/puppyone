@@ -1,4 +1,5 @@
 //! GPUI presentation primitives and text input; no document or service ownership.
+pub mod agent_brands;
 pub mod appearance;
 #[cfg(feature = "dev-capture")]
 pub mod asset_gallery;

@@ -1509,7 +1509,9 @@ impl Shell {
         match project {
             Some(project) => {
                 use crate::features::cloud_services::Section;
+                let share = crate::features::flags::share_enabled(&self.preferences, cx);
                 self.cloud_services.update(cx, |s, cx| {
+                    s.share = share;
                     s.open(project, Section::Share, cx);
                     s.start_from(path, cx);
                 });

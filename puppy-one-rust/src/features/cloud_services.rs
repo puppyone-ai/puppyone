@@ -79,9 +79,7 @@ impl Section {
     /// The permanent navigation entry a task page belongs to.
     fn nav(self) -> Section {
         match self {
-            Self::History | Self::Settings | Self::Access | Self::GitSync | Self::Share => {
-                Self::Contents
-            }
+            Self::History | Self::Settings | Self::Access | Self::GitSync => Self::Contents,
             other => other,
         }
     }
@@ -275,6 +273,9 @@ impl Default for Create {
 pub struct CloudServices {
     client: Option<Client>,
     project: Option<String>,
+    /// The Share experiment is on: Share is the second Project destination
+    /// (`withSharePageSidebarRoutes`).
+    pub share: bool,
     pub section: Section,
     pub details: Option<Details>,
     pub loading: bool,
@@ -346,6 +347,7 @@ impl CloudServices {
         Self {
             client: None,
             project: None,
+            share: false,
             section: Section::Contents,
             details: None,
             loading: false,
@@ -1481,10 +1483,50 @@ impl Render for CloudServices {
             .child(body)
     }
 }
+/// `ShareTargetMark`: the brand's own mark for an Agent product, else a
+/// glyph for what the target is, on a 32px plate.
+fn share_target_mark(target: &share::Target, t: Theme) -> Div {
+    use crate::ui::agent_brands;
+    let brand = match target.id {
+        "viktor" | "manus" | "claude" | "chatgpt" => agent_brands::get(target.id),
+        _ => None,
+    };
+    let mark: AnyElement = match brand {
+        // The ChatGPT artwork exists only in white: drawn as the monochrome
+        // mark in the surface's own text colour.
+        Some(brand) if brand.id == "chatgpt" => svg()
+            .path(agent_brands::monochrome(brand).unwrap_or_default())
+            .size(px(16.))
+            .text_color(t.text)
+            .into_any_element(),
+        Some(brand) => agent_brands::image(brand, t.dark, 16.).into_any_element(),
+        None => Icon::new(match target.id {
+            "mcp" => "mcp-logo",
+            "person" => "user-round",
+            "slack-bot" => "message-circle",
+            "grok" => "sparkles",
+            _ => "share-2",
+        })
+        .with_size(px(16.))
+        .into_any_element(),
+    };
+    div()
+        .size(px(32.))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(8.))
+        .bg(t.hover)
+        .child(mark)
+}
 impl CloudServices {
     fn navigation(&self, t: Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let ty = theme::ty().ui;
-        let active = self.section.nav();
+        let active = match self.section.nav() {
+            Section::Share if !self.share => Section::Contents,
+            other => other,
+        };
         let mut nav = v_flex()
             .id("cloud-services-navigation")
             .w(px(208.))
@@ -1495,14 +1537,18 @@ impl CloudServices {
             .border_r_1()
             .border_color(t.divider);
         let groups = [
-            (
-                "cloud.sidebar.projectGroup",
-                vec![(Section::Contents, Icon::product(ProductIcon::Home))],
-            ),
+            ("cloud.sidebar.projectGroup", {
+                let mut entries = vec![(Section::Contents, Icon::product(ProductIcon::Home))];
+                if self.share {
+                    entries.push((Section::Share, Icon::new("share-2")));
+                }
+                entries
+            }),
             (
                 "cloud.sidebar.connectionsGroup",
                 vec![
-                    (Section::Mcp, Icon::new("plug")),
+                    // `McpLogoIcon`, the protocol's own mark.
+                    (Section::Mcp, Icon::new("mcp-logo")),
                     (Section::Cli, Icon::new("square-terminal")),
                 ],
             ),
@@ -1539,7 +1585,11 @@ impl CloudServices {
                         .hover(|d| d.bg(t.hover))
                         .on_click(cx.listener(move |s, _, _, cx| s.select(section, cx)))
                         .child(icon.with_size(px(14.)))
-                        .child(tr(&format!("cloud.route.{}.label", section.route()))),
+                        .child(if section == Section::Share {
+                            tr("cloud.share.location.shareAction").to_owned()
+                        } else {
+                            tr(&format!("cloud.route.{}.label", section.route())).to_owned()
+                        }),
                 );
             }
         }
@@ -2345,33 +2395,57 @@ impl CloudServices {
                 .text_color(t.text)
                 .child(tr("cloud.share.target.question")),
         );
-        let mut grid = h_flex().flex_wrap().items_start().gap(px(8.));
-        for (index, target) in share::TARGETS.iter().copied().enumerate() {
-            grid = grid.child(
-                v_flex()
-                    .id(("cloud-share-target", index))
-                    .w(px(320.))
-                    .gap(px(2.))
-                    .p(px(10.))
-                    .border_1()
-                    .border_color(t.border)
-                    .rounded(px(8.))
-                    .hover(|d| d.bg(t.hover))
-                    .on_click(cx.listener(move |s, _, _, cx| s.begin_share(target, cx)))
-                    .child(
-                        div()
-                            .text_size(px(ty.meta))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(t.text)
-                            .child(target_label(&target)),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(ty.caption))
-                            .text_color(t.muted)
-                            .child(tr(&format!("cloud.share.target.{}.preview", target.id))),
-                    ),
-            );
+        // `.desktop-share-page-target-grid`: two columns of targets, each a
+        // mark, its name and preview, and an arrow.
+        let tile = |index: usize, target: share::Target, cx: &mut Context<Self>| {
+            h_flex()
+                .id(("cloud-share-target", index))
+                .flex_1()
+                .min_w_0()
+                .min_h(px(62.))
+                .gap(px(10.))
+                .px(px(11.))
+                .py(px(9.))
+                .border_1()
+                .border_color(t.border)
+                .rounded(px(10.))
+                .text_color(t.muted)
+                .hover(|d| d.bg(t.hover).text_color(t.text))
+                .on_click(cx.listener(move |s, _, _, cx| s.begin_share(target, cx)))
+                .child(share_target_mark(&target, t))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(ty.meta))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.text)
+                                .child(target_label(&target)),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(ty.caption))
+                                .text_color(t.muted)
+                                .child(tr(&format!("cloud.share.target.{}.preview", target.id))),
+                        ),
+                )
+                .child(Icon::new("arrow-right").with_size(px(14.)))
+        };
+        let mut grid = v_flex().gap(px(8.));
+        let targets: Vec<_> = share::TARGETS.iter().copied().enumerate().collect();
+        for pair in targets.chunks(2) {
+            let mut row = h_flex().gap(px(8.)).items_stretch();
+            for (index, target) in pair.iter().copied() {
+                row = row.child(tile(index, target, cx));
+            }
+            if pair.len() == 1 {
+                row = row.child(div().flex_1());
+            }
+            grid = grid.child(row);
         }
         page.child(grid).into_any_element()
     }
@@ -3329,12 +3403,14 @@ impl CloudServices {
     #[cfg(feature = "dev-capture")]
     pub fn lab(&mut self, section: Section, cx: &mut Context<Self>) {
         let client = Client::new(Arc::new(LabCloud { shared: false }));
+        self.share = true;
         self.open_with(client, "lab".into(), section, cx);
     }
     /// `shell-cloud-services-share-{waiting,readers}`.
     #[cfg(feature = "dev-capture")]
     pub fn lab_share(&mut self, waiting: bool, cx: &mut Context<Self>) {
         let client = Client::new(Arc::new(LabCloud { shared: true }));
+        self.share = true;
         self.open_with(client, "lab".into(), Section::Share, cx);
         if waiting {
             let pending = share::Pending {
