@@ -32,8 +32,21 @@ describe("Inviting another Agent", () => {
     expect(dialog()?.getAttribute("aria-label")).toBe("Invite an agent");
     expect(dialog()?.querySelector("h2")?.textContent).toBe("Invite an agent");
     expect(document.activeElement).toBe(dialog()?.querySelector(".desktop-cloud-agent-share-copy"));
-    // Someone inviting another has done it before: the steps are read, not shown.
-    expect(dialog()?.querySelector("[data-cloud-agent-demo]")).toBeNull();
+    expect(dialog()?.querySelector(".desktop-cloud-agent-ticket-eyebrow")?.textContent).toBe("Admit one agent");
+  });
+
+  it("lets an Agent at the ticket's door in, from the Header's own list, and tells the Header", async () => {
+    const onChanged = vi.fn();
+    const requests = [{ id: "r1", name: "Claude Code", admission: "sign_in" as const,
+      requested_at: "2026-11-04T10:00:00Z", expires_at: "2026-11-04T10:10:00Z" }];
+    await act(async () => root.render(withTestLocalization(
+      <CloudWorkspaceAgentInviteDialog control={control({ onChanged })} requests={requests} onClose={vi.fn()} />)));
+    const letIn = dialog()!.querySelector<HTMLButtonElement>('[data-cloud-agent-request="r1"] .desktop-cloud-agent-request-allow')!;
+    expect(letIn.textContent).toBe("Let in");
+    await act(async () => letIn.click());
+    expect(vi.mocked(cloudApiRequest)).toHaveBeenCalledWith("/agent-links/connections/r1/decision", expect.anything(),
+      undefined, { method: "POST", body: JSON.stringify({ decision: "approve" }) }, API);
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
   it("closes from its own close button", async () => {

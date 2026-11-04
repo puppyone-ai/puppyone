@@ -601,8 +601,33 @@ app.whenReady().then(async () => {
     'Invite another agent must open its own dialog, with copying the prompt the first thing in reach');
   assert((await workspaceRequests()).length === beforeAgents, 'Meeting the Agents must not issue workspace requests');
   await captureSettledDialog('cloud-agent-invite', '.desktop-cloud-agent-invite-dialog');
+  // Copying from the stub hands the ticket out: the stub tears off, and copying again takes the focus.
+  await evaluate("navigator.clipboard.writeText = async () => {}; true");
+  await evaluate("document.querySelector('.desktop-cloud-agent-invite-dialog .desktop-cloud-agent-ticket-stub .desktop-cloud-agent-share-copy').click()");
+  await waitFor("document.querySelector('.desktop-cloud-agent-invite-dialog .desktop-cloud-agent-ticket')?.hasAttribute('data-handed-out') && document.querySelector('.desktop-cloud-agent-door-row')?.dataset.door === 'waiting'");
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agent-ticket-again')"),
+    'Once the stub has torn off, copying again must hold the focus');
+  await captureSettledDialog('cloud-agent-invite-handed-out', '.desktop-cloud-agent-invite-dialog');
+  // The Agent comes to the door and is let in right on the ticket.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
+  await waitFor("document.querySelector('.desktop-cloud-agent-door [data-cloud-agent-request=smoke-request]')?.dataset.door === 'knocking'");
+  await captureSettledDialog('cloud-agent-invite-door', '.desktop-cloud-agent-invite-dialog');
+  await evaluate("document.querySelector('.desktop-cloud-agent-door [data-cloud-agent-request=smoke-request] .desktop-cloud-agent-request-allow').click()");
+  await waitFor("document.querySelector('.desktop-cloud-agent-door-row')?.dataset.door === 'joined' && document.querySelector('.desktop-cloud-agent-door-row').textContent.includes('Codex')");
+  await captureSettledDialog('cloud-agent-invite-joined', '.desktop-cloud-agent-invite-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agent-invite-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agent-invite-dialog')");
+  // With nobody here yet, the Agents card is the ticket itself.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [] })");
+  await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-panel .desktop-cloud-agent-ticket'))");
+  await captureSettledDialog('cloud-agent-first-invite', '.desktop-cloud-agents-panel');
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agents-panel')");
+  // The fixture's own Agent comes back, as the steps after this expect.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [{ id: 'smoke-agent', name: 'Claude Code', admission: 'sign_in', grant_id: 'smoke-grant', connected_at: '2026-10-30T00:00:00Z', expires_at: '2099-01-01T00:00:00Z' }], pending: [] })");
+  await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents [data-cloud-workspace-agent]'))");
   await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
   await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
   await evaluate("document.querySelector('[data-project-place-row=history]').click()");

@@ -88,7 +88,8 @@ describe("The Agents in a project, at a glance", () => {
 describe("Letting an Agent in", () => {
   it("offers only the invite while no Agent is here or asking", async () => {
     await renderWith({ control: control() });
-    expect(surface().querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
+    // With nobody to list, the card is the ticket itself.
+    expect(surface().querySelector(".desktop-cloud-agent-ticket-eyebrow")?.textContent).toBe("Admit one agent");
     expect(surface().querySelector("[data-cloud-agents-manage]")).toBeNull();
     expect(surface().querySelector(".desktop-cloud-agents-foot")?.hasAttribute("data-alone")).toBe(true);
   });
@@ -99,7 +100,7 @@ describe("Letting an Agent in", () => {
     expect(rows).toEqual(["r1", "c1"]);
     expect(surface().querySelector('[data-cloud-agent-request="r1"]')?.textContent).toBe("Claude CodeWants to join · nowDenyAllow");
     // Agents are listed, so inviting another is a row.
-    expect(surface().querySelector("h3")).toBeNull();
+    expect(surface().querySelector(".desktop-cloud-agent-ticket")).toBeNull();
     expect(surface().querySelector("[data-cloud-agent-invite-open]")?.textContent).toBe("Invite another agent");
   });
   it("allows an Agent with the owner's own session, and tells the Header at once", async () => {

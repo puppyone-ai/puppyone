@@ -40,37 +40,91 @@
 
   .desktop-cloud-share-targets .desktop-dialog-button { gap: 5px; height: var(--po-control-size-compact); min-width: 76px; padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
 
-  /* Inviting an Agent: how it goes, what gets pasted with the one filled shape
-     that copies it, and the step after, in that reading order. */
-  .desktop-cloud-agent-invite { position: relative; display: grid; gap: 10px; min-width: 0; }
-  .desktop-cloud-agent-invite { padding: 10px; }
-  /* The prompt under a veil, and the button that copies it in the middle of it.
-     The first line stays clear so it reads as words to paste; the veil thickens
-     toward the button, since the rest is copied, not read. */
-  .desktop-cloud-agent-prompt { position: relative; display: grid; min-height: 76px; overflow: hidden; border-radius: 8px; background: var(--po-hover); }
-  .desktop-cloud-agent-prompt-text {
-    display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
-    margin: 0; padding: 10px 12px; color: var(--po-text-muted);
-    font-size: var(--po-type-ui-caption, 12px); line-height: 18px; overflow-wrap: anywhere; user-select: none;
-    mask-image: linear-gradient(to bottom, black 30%, color-mix(in srgb, black 30%, transparent) 75%, transparent);
+  /* Inviting an Agent: an admission ticket for one Agent, the stub that copies
+     it, and under it the door the Agent comes to. */
+  .desktop-cloud-agent-invite { position: relative; display: grid; gap: 8px; min-width: 0; padding: 10px; }
+  .desktop-cloud-agent-invite p { margin: 0; }
+  .desktop-cloud-agent-ticket {
+    --ticket-stub: 108px;
+    --ticket-notch: 8px;
+    --ticket-perforation: color-mix(in srgb, var(--po-text) 20%, transparent);
+    display: grid; grid-template-columns: minmax(0, 1fr) var(--ticket-stub); min-width: 0; overflow: hidden;
+    border-radius: 10px; background: var(--po-hover);
+    /* Two bites where the stub tears off, top and bottom, as a ticket has. */
+    mask:
+      radial-gradient(circle at calc(100% - var(--ticket-stub)) 0, transparent var(--ticket-notch), black calc(var(--ticket-notch) + .5px)),
+      radial-gradient(circle at calc(100% - var(--ticket-stub)) 100%, transparent var(--ticket-notch), black calc(var(--ticket-notch) + .5px));
+    mask-composite: intersect;
+    transition: grid-template-columns .24s cubic-bezier(.4, 0, .2, 1);
   }
-  /* A soft halo behind the button, so it sits on the words without a hard edge. */
-  .desktop-cloud-agent-prompt-veil {
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse 52% 46% at 50% 50%, color-mix(in srgb, var(--po-menu-bg) 88%, transparent), transparent);
+  .desktop-cloud-agent-ticket:dir(rtl) {
+    mask:
+      radial-gradient(circle at var(--ticket-stub) 0, transparent var(--ticket-notch), black calc(var(--ticket-notch) + .5px)),
+      radial-gradient(circle at var(--ticket-stub) 100%, transparent var(--ticket-notch), black calc(var(--ticket-notch) + .5px));
+    mask-composite: intersect;
   }
-  .desktop-cloud-agent-prompt > .desktop-cloud-agent-share-copy { position: absolute; inset-block-start: 50%; inset-inline-start: 50%; translate: -50% -50%; box-shadow: 0 2px 10px color-mix(in srgb, var(--po-shadow) 45%, transparent); }
-  /* Copied is said three ways at once: the button turns to success with a check,
-     the prompt it took is outlined, and the next step appears under it. */
-  .desktop-cloud-agent-prompt { transition: box-shadow .15s ease; }
-  .desktop-cloud-agent-prompt[data-copied] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-success) 60%, transparent); }
-  .desktop-cloud-agent-share-copy { transition: background .15s ease; }
-  .desktop-cloud-agent-share-copy[data-copied],
-  .desktop-cloud-agent-share-copy[data-copied]:hover:not(:disabled) { background: var(--po-success); color: var(--po-text-inverse); }
-  .desktop-cloud-agent-invite-note[data-tone="done"] { color: var(--po-text); }
-  .desktop-cloud-agent-invite-note[data-tone="done"] > svg { color: var(--po-success); }
-  .desktop-cloud-agent-share-copy { gap: 5px; height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
-  .desktop-cloud-agent-invite-hint { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-wrap: pretty; }
+  .desktop-cloud-agent-ticket-body { display: grid; align-content: start; gap: 2px; min-width: 0; padding: 12px 14px; }
+  .desktop-cloud-agent-ticket-eyebrow {
+    display: flex; align-items: center; gap: 4px; color: var(--po-text-muted);
+    font-size: var(--po-type-ui-micro, 11px); font-weight: var(--po-text-weight-medium, 500); line-height: 16px;
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  .desktop-cloud-agent-ticket-title {
+    overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-control, 14px);
+    font-weight: var(--po-text-weight-semibold, 600); line-height: 20px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .desktop-cloud-agent-ticket-meta { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-wrap: pretty; }
+  /* Any agent with the link is the one admission that needs no one to let it in. */
+  .desktop-cloud-agent-ticket[data-admission="link"]:not([data-handed-out]) .desktop-cloud-agent-ticket-meta { color: var(--po-warning); }
+  /* The words printed on the ticket: what gets pasted, read but not selected. */
+  .desktop-cloud-agent-ticket .desktop-cloud-agent-prompt-text {
+    margin-top: 6px; overflow: hidden; color: var(--po-text-subtle); font-family: var(--po-font-mono);
+    font-size: var(--po-type-ui-micro, 11px); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; user-select: none;
+  }
+  .desktop-cloud-agent-ticket-stub {
+    display: grid; align-content: center; justify-items: center; gap: 6px; min-width: 0; padding: 10px 8px;
+    border-inline-start: 1.5px dashed var(--ticket-perforation); text-align: center;
+  }
+  .desktop-cloud-agent-ticket-give { color: var(--po-text-subtle); font-size: var(--po-type-ui-micro, 11px); line-height: 14px; text-wrap: balance; }
+  /* Handed out: the stub tears away, and the ticket keeps the torn edge. */
+  .desktop-cloud-agent-ticket[data-handed-out] { grid-template-columns: minmax(0, 1fr) 0; mask: none; }
+  .desktop-cloud-agent-ticket[data-handed-out] .desktop-cloud-agent-ticket-body { border-inline-end: 1.5px dashed var(--ticket-perforation); }
+  .desktop-cloud-agent-ticket[data-handed-out] .desktop-cloud-agent-ticket-stub { pointer-events: none; animation: desktop-cloud-agent-ticket-tear .24s ease-in both; }
+  .desktop-cloud-agent-ticket[data-handed-out] .desktop-cloud-agent-ticket-eyebrow { color: var(--po-success); }
+  .desktop-cloud-agent-ticket-again {
+    display: inline-flex; align-items: center; gap: 4px; justify-self: start; margin-top: 6px; padding: 0; border: 0;
+    border-radius: 3px; background: none; color: var(--po-accent-text, var(--po-accent));
+    font: inherit; font-size: var(--po-type-ui-caption, 12px); line-height: 18px;
+  }
+  .desktop-cloud-agent-ticket-again:hover:not(:disabled, [data-copied]) { text-decoration: underline; }
+  /* Just copied is a fact, not a link: it reads as done until it can be copied again. */
+  .desktop-cloud-agent-ticket-again[data-copied] { color: var(--po-success); cursor: default; }
+  .desktop-cloud-agent-ticket-again:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 2px; }
+  @keyframes desktop-cloud-agent-ticket-tear { to { opacity: 0; translate: 10px 4px; rotate: 6deg; visibility: hidden; } }
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-cloud-agent-ticket { transition: none; }
+    .desktop-cloud-agent-ticket[data-handed-out] .desktop-cloud-agent-ticket-stub { animation: none; visibility: hidden; }
+  }
+  .desktop-cloud-agent-share-copy { gap: 5px; height: var(--po-control-size-compact); padding: 0 14px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
+
+  /* The door: nobody, someone awaited, an Agent asking to come in, or one come in. */
+  .desktop-cloud-agent-door { display: grid; gap: 4px; min-width: 0; }
+  .desktop-cloud-agent-door-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .desktop-cloud-agent-door-row {
+    --reach-mark-ground: var(--po-menu-bg);
+    display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 40px; padding: 6px 10px;
+    border-radius: 10px; background: color-mix(in srgb, var(--po-hover) 55%, transparent);
+  }
+  .desktop-cloud-agent-door-row .desktop-project-reach-mark { flex-shrink: 0; animation: none; }
+  .desktop-cloud-agent-door-row .desktop-project-reach-mark::before { animation: none; }
+  /* Awaited is awake but not at work, so it has no lamp. */
+  .desktop-cloud-agent-door-row[data-door="waiting"] .desktop-project-reach-mark::before,
+  .desktop-cloud-agent-door-row[data-door="waiting"] .desktop-project-reach-mark::after { display: none; }
+  .desktop-cloud-agent-door-text { display: grid; flex: 1; min-width: 0; }
+  .desktop-cloud-agent-door-text .desktop-cloud-agent-name { font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 18px; }
+  .desktop-cloud-agent-door-state { flex: 1; min-width: 0; overflow: hidden; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-overflow: ellipsis; }
+  .desktop-cloud-agent-door-row[data-door="joined"] .desktop-cloud-agent-door-state { color: var(--po-success); }
+  .desktop-cloud-agent-door [role="alert"] { color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
   /* The wait for the Agent's answer, quietly beside what started it. */
   .desktop-cloud-agent-invite-note { display: flex; align-items: center; gap: 6px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
   .desktop-cloud-agents-foot > .desktop-cloud-agent-invite-note {
@@ -142,15 +196,13 @@
   .desktop-cloud-agent-waiting-mark { display: grid; flex-shrink: 0; }
   /* A creature asking to join waits inside the dashed edge, not across it. */
   .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark[data-reach-creature] > svg { width: 68%; height: 68%; }
-  :is(.desktop-cloud-agent-list, .desktop-cloud-agent-demo) .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agent-door) .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
   .desktop-cloud-agents-panel-alert { padding: 4px var(--po-menu-item-padding-inline); }
 
-  /* Inviting another Agent, as its own dialog: the same form as the first
+  /* Inviting another Agent, as its own dialog: the same ticket as the first
      invite, on the dialog's ground, under the dialog's own title. */
   .desktop-cloud-agent-invite-dialog { --po-menu-bg: var(--po-overlay); }
   .desktop-cloud-agent-invite-dialog .desktop-cloud-agent-invite { padding: 0; }
-  .desktop-cloud-agent-invite-dialog :is(h3, p) { margin: 0; }
-  .desktop-cloud-agent-invite-dialog h3 { color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
   .desktop-cloud-agent-invite-dialog [role="alert"] { color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
 
   /* Manage agents: where changes happen, so every fact and action can stand here. */

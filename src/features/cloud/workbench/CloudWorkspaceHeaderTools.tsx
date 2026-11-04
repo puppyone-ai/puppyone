@@ -72,8 +72,9 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   const agentsAnchor = useRef<HTMLDivElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
+  // The invite dialog's door is where an Agent is let in, so it is watched as closely as the Agents card.
   const { agents, requests, manageable, loading, refresh: refreshAgents } = useWorkspaceAgents(
-    agentTarget(context, session, apiBaseUrl), { waiting: panel === "agents" || invite !== null });
+    agentTarget(context, session, apiBaseUrl), { waiting: panel === "agents" || panel === "invite" || invite !== null });
   const answered = invite !== null && (requests.length > 0 || agents.some(agent => !invite.has(agent.id)));
   useEffect(() => { if (answered) setInvite(null); }, [answered]);
   useEffect(() => {
@@ -132,8 +133,8 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
       {agentsOpen && <AgentsPanel anchor={agentsAnchor} agents={agents} requests={requests} control={control}
         renderAgentMark={renderAgentMark} onInvite={() => setPanel("invite")} onManage={() => setPanel("manage")}
         onClose={closePanel} />}
-      {panel === "invite" && control && <InviteDialog control={control} renderAgentMark={renderAgentMark}
-        onClose={closePanel} />}
+      {panel === "invite" && control && <InviteDialog control={control} agents={agents} requests={requests}
+        renderAgentMark={renderAgentMark} onClose={closePanel} />}
       {panel === "manage" && session && <AgentsDialog projectId={context.projectId} session={session} apiBaseUrl={apiBaseUrl}
         agents={agents} renderAgentMark={renderAgentMark} onChanged={refreshPeople} onClose={closePanel} />}
     </Suspense>}

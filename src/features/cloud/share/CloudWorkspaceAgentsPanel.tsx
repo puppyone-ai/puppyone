@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { LoaderCircle, Plus, Settings } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
@@ -6,7 +6,8 @@ import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/Deskt
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { formatRelativeTime } from "../utils";
-import { decideAgentRequest, type AgentRequest } from "./agentLinks";
+import type { AgentRequest } from "./agentLinks";
+import { useAgentRequestAnswer } from "./useAgentRequestAnswer";
 import { agentMark, type ShareAgentMark } from "./agentMark";
 import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
@@ -41,8 +42,8 @@ export type AgentsPanelControl = Readonly<{
  * it was last here under it, the one at work awake, rather than rows squeezed
  * into an icon column. Inviting another and managing are menu rows, each
  * opening a dialog of its own. It is wider only where a row needs it: the first
- * invite, with nothing to list yet, is the form itself and shows how inviting
- * goes, and an Agent asking to join keeps when it asked beside its answer.
+ * invite, with nothing to list yet, is the ticket itself, and an Agent asking
+ * to join keeps when it asked beside its answer.
  */
 export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], control, renderAgentMark, onInvite, onManage,
   onClose }: {
@@ -128,22 +129,9 @@ function AgentRequestRow({ request, control, renderAgentMark, onFailed, onDecidi
 }) {
   const localization = useLocalization();
   const { t } = localization;
-  const [deciding, setDeciding] = useState(false);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const decide = async (decision: "approve" | "reject") => {
-    setDeciding(true);
-    onDeciding();
-    try {
-      await decideAgentRequest(control.session, request.id, decision, control.apiBaseUrl);
-      // The row stays, disabled, until the list that no longer holds it arrives.
-      control.onChanged();
-    } catch {
-      if (!mounted.current) return;
-      setDeciding(false);
-      onFailed();
-    }
-  };
+  const { deciding, answer } = useAgentRequestAnswer({ session: control.session, apiBaseUrl: control.apiBaseUrl,
+    onChanged: control.onChanged, onDeciding, onFailed });
+  const decide = (decision: "approve" | "reject") => answer(request.id, decision);
   return <li data-cloud-agent-request={request.id}>
     <span className="desktop-cloud-agent-waiting-mark">
       {agentMark({ id: request.id, name: request.name, active: false, avatar: request.avatar,
