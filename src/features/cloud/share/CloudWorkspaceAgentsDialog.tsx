@@ -29,9 +29,9 @@ export type AgentsControl = Readonly<{
 
 /**
  * Everything about a project's Agents, opened straight from the Header: who
- * is here, in one row, each as itself with when it last worked; an Agent
+ * is here, in a wrapping grid, each as itself with when it last worked; an Agent
  * asking to join among them, to be let in where it stands; and an empty seat
- * with a + at the end of the row that invites the next one. An invite lets one
+ * with a + at the end of the grid that invites the next one. An invite lets one
  * Agent in and then is spent, and one never used expires on its own, so there
  * are no links here to look after.
  */
@@ -76,7 +76,7 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
           <section ref={sectionRef} className="desktop-cloud-agents-roster-section" aria-label={t("cloud.share.agent.connected")}>
             {nobody
               ? <AgentFirstInvite invite={invite} seatRef={seatRef} />
-              : <ul className="desktop-cloud-agents-roster" data-po-scrollbar="menu">
+              : <ul className="desktop-cloud-agents-roster">
                 {requests.map(request => <AgentAskingTile key={request.id} request={request} control={control}
                   renderAgentMark={renderAgentMark} onDeciding={() => setFailed(false)} onFailed={() => setFailed(true)} />)}
                 {/* In the Header's order: whoever is at work first, then the ones at rest. */}
@@ -183,12 +183,22 @@ function useInviteSteps(invite: ReturnType<typeof useAgentInvite>, present: numb
   const shown = invite.open;
   const { close: dismiss } = invite;
   useLayoutEffect(() => {
-    const seat = seatRef.current?.getBoundingClientRect();
-    const section = sectionRef.current;
-    const box = section?.getBoundingClientRect();
-    // Measured in the section's own pixels, so a dialog still scaling in as it opens does not skew it.
-    const scale = box && section?.offsetWidth ? box.width / section.offsetWidth : 1;
-    setArrowX(shown && seat && box ? (seat.left + seat.width / 2 - box.left) / (scale || 1) : null);
+    if (!shown) { setArrowX(null); return undefined; }
+    const update = () => {
+      const seat = seatRef.current?.getBoundingClientRect();
+      const section = sectionRef.current;
+      const box = section?.getBoundingClientRect();
+      // Measured in the section's own pixels, even while the dialog scales in.
+      const scale = box && section?.offsetWidth ? box.width / section.offsetWidth : 1;
+      setArrowX(seat && box ? (seat.left + seat.width / 2 - box.left) / (scale || 1) : null);
+    };
+    update();
+    // A narrower window can move the invite seat to another column or row.
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(update) : null;
+    if (sectionRef.current) observer?.observe(sectionRef.current);
+    if (seatRef.current) observer?.observe(seatRef.current);
+    window.addEventListener("resize", update);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", update); };
   }, [shown]);
   useEffect(() => {
     if (!shown) return undefined;

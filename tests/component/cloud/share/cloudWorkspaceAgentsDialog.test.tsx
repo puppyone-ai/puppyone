@@ -51,7 +51,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("The Agents dialog", () => {
-  it("is titled Agents, names the project, and meets everyone in one row, the one at work first", async () => {
+  it("is titled Agents, names the project, and meets everyone in a grid, the one at work first", async () => {
     await render([agent("c1", "Codex", { lastActiveAt: ago(120) }), agent("c2", "Claude Code", { active: true })]);
     expect(dialog().getAttribute("aria-label")).toBe("Agents");
     expect(select<HTMLElement>("h2").textContent).toBe("Agents");
@@ -61,11 +61,11 @@ describe("The Agents dialog", () => {
     expect(state("c2").textContent).toBe("Working now");
     expect(state("c2").dataset.live).toBe("true");
     expect(state("c1").textContent).toBe("2 hours ago");
-    // Inviting the next one is the seat at the end of the same row.
+    // Inviting the next one is the last seat in the grid.
     expect(select(".desktop-cloud-agent-seat-button").textContent).toBe("Invite agent");
   });
 
-  it("is only the first invite while nobody is here, and the row once someone is", async () => {
+  it("is only the first invite while nobody is here, and the grid once someone is", async () => {
     await render();
     expect(document.querySelector(".desktop-cloud-agents-roster")).toBeNull();
     expect(select<HTMLElement>(".desktop-cloud-agents-first h3").textContent).toBe("Invite your first agent");
@@ -74,7 +74,31 @@ describe("The Agents dialog", () => {
     expect(document.querySelector("[data-desktop-dialog-initial-focus]")).toBeNull();
   });
 
-  it("puts an Agent asking to join at the front of the row, and lets it in from its tile", async () => {
+  it("keeps every Agent and the invite seat in grid order, without a separate horizontal scroll area", async () => {
+    const agents = Array.from({ length: 12 }, (_, index) => agent(`c${index}`, `Helper ${index}`));
+    await render(agents);
+    expect(tiles()).toEqual([...agents.map(value => value.id), "seat"]);
+    expect(select(".desktop-cloud-agents-roster").hasAttribute("data-po-scrollbar")).toBe(false);
+  });
+
+  it("keeps the invitation aimed at its seat when a narrower grid moves it", async () => {
+    await render(Array.from({ length: 6 }, (_, index) => agent(`c${index}`, `Helper ${index}`)));
+    const seat = select(".desktop-cloud-agent-seat-button");
+    const section = select<HTMLElement>(".desktop-cloud-agents-roster-section");
+    let left = 100;
+    vi.spyOn(seat, "getBoundingClientRect").mockImplementation(() => new DOMRect(left, 120, 48, 48));
+    vi.spyOn(section, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 0, 400, 400));
+    Object.defineProperty(section, "offsetWidth", { configurable: true, value: 400 });
+    await act(async () => seat.click());
+    const steps = select<HTMLElement>(".desktop-cloud-agent-invite-steps");
+    expect(steps.style.getPropertyValue("--invite-arrow-x")).toBe("104px");
+    left = 200;
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    expect(steps.style.getPropertyValue("--invite-arrow-x")).toBe("204px");
+    expect(cloudApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("puts an Agent asking to join at the front of the grid, and lets it in from its tile", async () => {
     await render([agent("c1", "Codex")], [request("r1", "Claude Code")]);
     expect(tiles()).toEqual(["r1", "c1", "seat"]);
     const asking = select<HTMLElement>('[data-cloud-agent-request="r1"]');

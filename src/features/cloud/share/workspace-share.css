@@ -196,7 +196,7 @@
   }
 
 
-  /* The Agents dialog: who is here in one row, with a seat for the next. */
+  /* The Agents dialog: who is here in a wrapping grid, with a seat for the next. */
   .desktop-cloud-agents-dialog { --po-menu-bg: var(--po-overlay); }
   .desktop-cloud-agents-dialog .desktop-dialog-title-row { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .desktop-cloud-agents-dialog-project { min-width: 0; overflow: hidden; color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); text-overflow: ellipsis; white-space: nowrap; }
@@ -204,12 +204,14 @@
   .desktop-cloud-agents-dialog [role="alert"] { margin: 0; color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
   .desktop-cloud-agents-roster-section { display: grid; gap: 6px; min-width: 0; }
 
-  /* The roster: every Agent in one row, each as itself, its name and when it
-     last worked under it; past the dialog's width the row scrolls sideways. */
-  .desktop-cloud-agents-roster { display: flex; gap: 4px; margin: 0 -8px; padding: 0 0 4px; overflow-x: auto; list-style: none; }
+  /* Equal seats wrap below rather than making the dialog scroll sideways. */
+  .desktop-cloud-agents-roster {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr)); gap: 8px 4px;
+    margin: 0 -8px; padding: 0 0 4px; list-style: none;
+  }
   .desktop-cloud-agent-tile {
-    position: relative; display: grid; flex: none; justify-items: center; align-content: start; gap: 2px;
-    box-sizing: border-box; min-width: 96px; max-width: 156px; padding: 12px 8px 10px; border-radius: 12px; text-align: center;
+    position: relative; display: grid; justify-items: center; align-content: start; gap: 2px;
+    box-sizing: border-box; min-width: 0; padding: 12px 8px 10px; border-radius: 12px; text-align: center;
   }
   .desktop-cloud-agent-tile:is(:hover, :focus-within) { background: var(--po-hover); }
   .desktop-cloud-agent-portrait { display: grid; margin-bottom: 6px; place-items: center; }
@@ -239,7 +241,7 @@
     background: color-mix(in srgb, var(--po-danger) 8%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-danger) 35%, transparent);
   }
-  .desktop-cloud-agent-tile-actions { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; }
+  .desktop-cloud-agent-tile-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; max-width: 100%; margin-top: 6px; }
   :is(.desktop-cloud-agent-tile-keep, .desktop-cloud-agent-request-deny) {
     height: 24px; padding: 0 8px; border: 0; border-radius: var(--desktop-control-radius); background: none;
     color: var(--po-text-muted); font: inherit; font-size: var(--po-type-ui-caption, 12px); white-space: nowrap;

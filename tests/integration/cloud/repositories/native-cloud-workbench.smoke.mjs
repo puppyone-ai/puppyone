@@ -692,6 +692,56 @@ app.whenReady().then(async () => {
   await captureSettledDialog('cloud-agents-joined', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
+  // A full roster is a grid: every seat wraps below, including Invite, with no sideways scrolling.
+  const gridAgents = ['Claude Code', 'Codex', 'Cursor', 'Gemini CLI', 'Research assistant with a long name',
+    '薄肌孙教练', 'OpenCode', 'Hermes', 'Devin', 'GitHub Copilot', 'Analyst'].map((name, index) => ({
+    id: index === 0 ? 'smoke-agent' : `grid-${index}`, name, admission: 'sign_in',
+    grant_id: index === 0 ? 'smoke-grant' : `grid-grant-${index}`,
+    connected_at: '2026-10-30T00:00:00Z', expires_at: '2099-01-01T00:00:00Z',
+  }));
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: ${JSON.stringify(gridAgents)}, pending: [] })`);
+  await waitFor("document.querySelector('.desktop-titlebar-cloud-agent-count')?.textContent === '+7'");
+  await evaluate("document.querySelector('[data-cloud-workspace-agent=smoke-agent]').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agents-roster > li').length === 12");
+  // Translated confirmation actions also wrap inside their own seat, rather than widening its column.
+  await evaluate("document.querySelector('[data-cloud-agent-remove=smoke-agent]').click()");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-invite-steps'))");
+  for (const width of [1100, 480]) {
+    window.setContentSize(width, 760);
+    await waitFor(`innerWidth === ${width}`);
+    for (const theme of ['light', 'dark']) for (const locale of ['en', 'zh-Hans', 'de', 'es', 'fr', 'ja', 'ko', 'pt-BR']) {
+      await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', '${locale}')`);
+      await evaluate("(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); await document.fonts.ready; })()");
+      if (locale === 'en' || locale === 'zh-Hans') await captureSettledDialog(`cloud-agents-grid-${width}-${theme}-${locale}`, '.desktop-cloud-agents-dialog');
+      const grid = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const roster = document.querySelector('.desktop-cloud-agents-roster');
+        const box = roster.getBoundingClientRect();
+        const tiles = [...roster.children].map(tile => tile.getBoundingClientRect());
+        const seat = roster.querySelector('[data-cloud-agent-invite-seat]').getBoundingClientRect();
+        const steps = document.querySelector('.desktop-cloud-agent-invite-steps');
+        const arrow = parseFloat(getComputedStyle(steps).getPropertyValue('--invite-arrow-x'));
+        const body = document.querySelector('.desktop-cloud-agents-dialog-body');
+        const actions = [...roster.querySelectorAll('.desktop-cloud-agent-tile-actions button')];
+        return { display: getComputedStyle(roster).display, rows: new Set(tiles.map(tile => Math.round(tile.top))).size,
+          overflow: roster.scrollWidth > roster.clientWidth || body.scrollWidth > body.clientWidth,
+          inside: tiles.every(tile => tile.left >= box.left - 1 && tile.right <= box.right + 1),
+          actionsInside: actions.every(button => { const r = button.getBoundingClientRect();
+            const tile = button.closest('.desktop-cloud-agent-tile').getBoundingClientRect();
+            return r.left >= tile.left && r.right <= tile.right; }),
+          aim: steps.getBoundingClientRect().left + arrow - (seat.left + seat.width / 2),
+          inviteLast: roster.lastElementChild.classList.contains('desktop-cloud-agent-invite-seat') };
+      })())`));
+      assert(grid.display === 'grid' && grid.rows >= 3 && !grid.overflow && grid.inside && grid.actionsInside
+        && Math.abs(grid.aim) < 2 && grid.inviteLast,
+      `Agents and their actions must wrap in ${width}px ${theme} ${locale}, with the invite still aimed at its seat: ${JSON.stringify(grid)}`);
+    }
+  }
+  window.setContentSize(1100, 760);
+  await waitFor('innerWidth === 1100');
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
   // With nobody here yet, the empty seat opens the same dialog, and inviting the first agent is all of it.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [] })");
   await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
