@@ -36,6 +36,7 @@ pub(super) struct Builder<'a> {
     pub atomic: Vec<Range<usize>>,
     /// Source shown as other text.
     pub replaced: Vec<(Range<usize>, SharedString)>,
+    pub superscripts: Vec<crate::editor::view::decoration::Superscript>,
     pub spans: Vec<ClassSpan>,
     /// Inline context of each source line (`None` inside widgets).
     pub contexts: Vec<Option<LineContext>>,
@@ -56,6 +57,7 @@ impl<'a> Builder<'a> {
             hidden: Vec::new(),
             atomic: Vec::new(),
             replaced: Vec::new(),
+            superscripts: Vec::new(),
             spans: Vec::new(),
             contexts: vec![None; count],
             by_line,

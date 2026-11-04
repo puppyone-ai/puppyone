@@ -132,7 +132,11 @@ fn compile_element(index: usize, e: &Element) -> Plan {
             ..visible
         },
         // The caret reveals these atoms, so a keystroke edits one character.
-        Kind::Emoji | Kind::Entity | Kind::MathInline => match &e.text {
+        Kind::Emoji
+        | Kind::Entity
+        | Kind::MathInline
+        | Kind::FootnoteReference
+        | Kind::FootnoteDefinition => match &e.text {
             Some(text) => Plan {
                 presentation: Presentation::InlineAtom(Atom::Text(text.clone())),
                 ..visible

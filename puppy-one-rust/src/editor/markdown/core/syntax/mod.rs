@@ -5,12 +5,14 @@
 //! product detects with expressions (strikethrough, quote markers, fences,
 //! wiki links) use the same expressions here.
 mod autolink;
+mod footnotes;
 mod inline_syntax;
 mod lines;
 #[cfg(test)]
 mod tests;
 mod tree;
 
+pub use footnotes::Footnotes;
 pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule_line};
 
 use crate::editor::text::buffer::Buffer;
@@ -44,6 +46,10 @@ pub enum Kind {
     Entity,
     /// `$formula$` shown as its text (the `math` feature).
     MathInline,
+    /// `[^id]` shown as its note's number (the `footnote` feature).
+    FootnoteReference,
+    /// `[^id]:` opening a note, shown as its number.
+    FootnoteDefinition,
 }
 
 impl Kind {
@@ -62,6 +68,8 @@ impl Kind {
                 | Kind::Emoji
                 | Kind::Entity
                 | Kind::MathInline
+                | Kind::FootnoteReference
+                | Kind::FootnoteDefinition
         )
     }
     /// Kinds decorated inline (marks + hidden markers).
@@ -81,6 +89,8 @@ impl Kind {
                 | Kind::Emoji
                 | Kind::Entity
                 | Kind::MathInline
+                | Kind::FootnoteReference
+                | Kind::FootnoteDefinition
         )
     }
     /// Block kinds whose leading marker is deleted as a unit at the visible start.
@@ -101,7 +111,11 @@ impl Kind {
             Kind::Emphasis => 7,
             Kind::Escape => 8,
             Kind::Highlight => 6,
-            Kind::Emoji | Kind::Entity | Kind::MathInline => 8,
+            Kind::Emoji
+            | Kind::Entity
+            | Kind::MathInline
+            | Kind::FootnoteReference
+            | Kind::FootnoteDefinition => 8,
             _ => 9,
         }
     }
@@ -347,6 +361,9 @@ pub struct Syntax {
     pub tables: Vec<Span>,
     /// Callouts, in document order (outermost blockquotes only).
     pub callouts: Vec<Callout>,
+    /// Starts of link reference definitions labelled `^id`.
+    pub note_definitions: Vec<usize>,
+    pub footnotes: Footnotes,
 }
 
 impl Syntax {
@@ -364,6 +381,7 @@ impl Syntax {
         );
         blocks.sort_by_key(|r| r.start);
         lines::add_line_elements(doc, &blocks, &mut syntax.elements);
+        footnotes::add(doc, &blocks, &mut syntax);
         syntax.elements.sort_by(|a, b| {
             a.range
                 .start
@@ -386,6 +404,19 @@ impl Syntax {
                 || !code
                     .iter()
                     .any(|c| c.start < e.range.end && e.range.start < c.end)
+        });
+        // A footnote marker is no link (`[^1]` defined as a link reference).
+        let notes: Vec<Span> = syntax
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, Kind::FootnoteReference | Kind::FootnoteDefinition))
+            .map(|e| e.range.clone())
+            .collect();
+        syntax.elements.retain(|e| {
+            e.kind != Kind::Link
+                || !notes
+                    .iter()
+                    .any(|n| n.start < e.range.end && e.range.start < n.end)
         });
         // A link inside a wiki link belongs to the wiki link.
         let mut wiki_end = 0;

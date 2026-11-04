@@ -23,6 +23,19 @@ impl MarkdownExtension {
             return None;
         }
         let (syntax, _) = self.parse(state);
+        // A footnote marker jumps to its definition, and a definition to its
+        // first reference (FootnoteMarkerWidget).
+        if let Some(note) = syntax.elements.iter().find(|e| {
+            matches!(e.kind, Kind::FootnoteReference | Kind::FootnoteDefinition)
+                && e.range.contains(&offset)
+                && (release || self.preview.reveal.as_ref() != Some(&e.range))
+        }) {
+            return Some(LinkActivation {
+                label: note.range.clone(),
+                key: format!("footnote:{:?}:{}", note.kind, note.href.as_deref()?),
+                action: LinkAction::Position(syntax.footnotes.target(note)?),
+            });
+        }
         let element = syntax.elements.iter().find(|element| {
             matches!(element.kind, Kind::Link | Kind::WikiLink)
                 && element

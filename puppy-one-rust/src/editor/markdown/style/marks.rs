@@ -47,11 +47,13 @@ pub fn marks(
             None
         },
         highlight: has(Class::SYNTAX_HIGHLIGHT).then(|| packed(theme.inline.highlight_background)),
-        // `.cm-md-comment` takes the markup colour, `.cm-md-link-definition`
-        // the link colour.
-        color: if has(Class::COMMENT) {
+        // `.cm-md-comment` takes the markup colour, link definitions and
+        // footnote markers the link colour.
+        color: if has(Class::FOOTNOTE_REFERENCE) {
+            Some(0)
+        } else if has(Class::COMMENT) {
             Some(packed(theme.inline.markup_color))
-        } else if has(Class::LINK_DEFINITION) {
+        } else if has(Class::LINK_DEFINITION) || has(Class::FOOTNOTE) {
             Some(packed(theme.inline.link_color))
         } else {
             None

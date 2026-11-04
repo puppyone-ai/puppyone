@@ -2671,7 +2671,13 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
         highlight.background_color = Some(color);
     }
     if let Some(color) = mark.color {
-        highlight.color = Some(color);
+        // PuppyOne patch: GPUI blends a highlight colour over the text's, so
+        // a transparent one alone would leave the glyphs; it hides them.
+        if color.a == 0. {
+            highlight.fade_out = Some(1.);
+        } else {
+            highlight.color = Some(color);
+        }
     }
     InlineHighlight {
         style: highlight,

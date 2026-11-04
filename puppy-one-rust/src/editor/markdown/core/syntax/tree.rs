@@ -1004,6 +1004,7 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             continue;
         };
         if source[open + 1..].starts_with('^') {
+            w.syntax.note_definitions.push(span.start + open);
             continue;
         }
         let (open, close) = (span.start + open, span.start + close);

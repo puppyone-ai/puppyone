@@ -141,16 +141,44 @@ impl Builder<'_> {
                         href: None,
                     });
                 }
-                Kind::Emoji | Kind::Entity | Kind::MathInline => {
+                Kind::Emoji
+                | Kind::Entity
+                | Kind::MathInline
+                | Kind::FootnoteReference
+                | Kind::FootnoteDefinition => {
                     if let Presentation::InlineAtom(Atom::Text(text)) = &plan.presentation
                         && !reveal
                     {
-                        self.replaced
-                            .push((e.range.clone(), SharedString::from(text.clone())));
-                        if e.kind == Kind::MathInline {
+                        // `.cm-md-footnote-definition`: margin-right 0.5em
+                        // (an en space).
+                        let shown = if e.kind == Kind::FootnoteDefinition {
+                            format!("{text}\u{2002}")
+                        } else {
+                            text.clone()
+                        };
+                        let shown = SharedString::from(shown);
+                        self.replaced.push((e.range.clone(), shown.clone()));
+                        // `.cm-md-footnote-reference`: a `<sup>` at the meta
+                        // size in the link colour.
+                        if e.kind == Kind::FootnoteReference {
+                            self.superscripts
+                                .push(crate::editor::view::decoration::Superscript {
+                                    range: e.range.clone(),
+                                    text: shown,
+                                    size: crate::theme::ty().ui.meta,
+                                    color: self.cx.theme.inline.link_color,
+                                });
+                        }
+                        let classes = match e.kind {
+                            Kind::MathInline => Some(Class::MATH),
+                            Kind::FootnoteReference => Some(Class::FOOTNOTE_REFERENCE),
+                            Kind::FootnoteDefinition => Some(Class::FOOTNOTE),
+                            _ => None,
+                        };
+                        if let Some(classes) = classes {
                             self.spans.push(ClassSpan {
                                 range: e.range.clone(),
-                                classes: Class::MATH,
+                                classes,
                                 href: None,
                             });
                         }

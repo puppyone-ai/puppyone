@@ -180,3 +180,20 @@ fn front_matter_source_shows_until_the_caret_leaves(cx: &mut TestAppContext) {
     });
     assert_eq!(blocks(&view, cx), vec![0..3, 3..4]);
 }
+
+#[test]
+fn a_footnote_marker_jumps_to_its_counterpart() {
+    use crate::editor::{
+        text::state::EditorState,
+        view::extension::{EditorExtension, LinkAction},
+    };
+    let mut ext = MarkdownExtension::new(false, Scale::Medium);
+    let state = EditorState::new("a[^n] b\n\n[^n]: note\n");
+    let to_note = ext.link_at(&state, 2, false).unwrap();
+    assert_eq!(
+        (to_note.label, to_note.action),
+        (1..5, LinkAction::Position(9))
+    );
+    let back = ext.link_at(&state, 10, false).unwrap();
+    assert_eq!((back.label, back.action), (9..14, LinkAction::Position(1)));
+}

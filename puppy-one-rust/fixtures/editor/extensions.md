@@ -24,3 +24,11 @@ status: "draft"
 > Look closely, then look again.
 
 > A plain quote stays a quote.
+
+## Footnotes
+
+Moss grows on the north side[^moss] and lichens almost anywhere[^lichen].
+
+[^lichen]: Lichens are a partnership of fungus and alga.
+
+[^moss]: Mostly true in the northern hemisphere.

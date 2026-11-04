@@ -95,6 +95,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
             hidden: Vec::new(),
             atomic: Vec::new(),
             replaced: Vec::new(),
+            superscripts: Vec::new(),
             surface: surface(cx.theme),
         };
     }
@@ -162,12 +163,16 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     atomic.extend(b.atomic.into_iter().filter(|r| !r.is_empty()));
     atomic.extend(replaced.iter().map(|(r, _)| r.clone()));
     atomic.sort_by_key(|r| r.start);
+    let mut superscripts = std::mem::take(&mut b.superscripts);
+    superscripts.retain(|s| replaced.iter().any(|(r, _)| *r == s.range));
+    superscripts.sort_by_key(|s| s.range.start);
     Decorations {
         blocks: b.blocks,
         marks,
         atomic,
         hidden,
         replaced,
+        superscripts,
         surface: surface(cx.theme),
     }
 }

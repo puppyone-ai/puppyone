@@ -36,6 +36,13 @@ use std::{
     rc::Rc,
 };
 
+/// Blink's `vertical-align: super`: the baseline rises by a third of the
+/// parent's font size plus one layout pixel (a device pixel, as Blink lays
+/// out zoomed for the device scale).
+fn super_shift(scale: f32, font_size: f32) -> f32 {
+    font_size / 3. + 1. / scale
+}
+
 pub struct RenderCx<'a> {
     pub doc: &'a Buffer,
     pub decorations: &'a Decorations,
@@ -75,6 +82,52 @@ impl RenderCx<'_> {
         }
     }
 
+    /// Shaping runs of `leaf` as Kit's plain inline path styles it.
+    fn runs(leaf: &LeafText, style: &TextStyle) -> Vec<TextRun> {
+        let base = Self::font(style);
+        // Inline code shapes as Geist Mono at the full size (what the
+        // inline-code family renders at Kit's 0.875 code size).
+        let mono = TextStyle {
+            mono: true,
+            ..style.clone()
+        }
+        .family();
+        let run = |len: usize, bold: bool, italic: bool, code: bool| TextRun {
+            len,
+            font: Font {
+                family: if code {
+                    mono.clone()
+                } else {
+                    base.family.clone()
+                },
+                weight: if bold { FontWeight::BOLD } else { base.weight },
+                style: if italic {
+                    FontStyle::Italic
+                } else {
+                    base.style
+                },
+                ..base.clone()
+            },
+            color: black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let mut runs = Vec::new();
+        let mut at = 0;
+        for (r, m) in &leaf.marks {
+            if r.start > at {
+                runs.push(run(r.start - at, false, false, false));
+            }
+            runs.push(run(r.len(), m.bold, m.italic, m.code));
+            at = r.end;
+        }
+        if at < leaf.text.len() {
+            runs.push(run(leaf.text.len() - at, false, false, false));
+        }
+        runs
+    }
+
     /// Shape `leaf` with the runs Kit's plain inline path uses.
     fn measure(
         &mut self,
@@ -107,47 +160,7 @@ impl RenderCx<'_> {
             Some(m) => m,
             None => {
                 drop(cache);
-                let base = Self::font(style);
-                // Inline code shapes as Geist Mono at the full size (what the
-                // inline-code family renders at Kit's 0.875 code size).
-                let mono = TextStyle {
-                    mono: true,
-                    ..style.clone()
-                }
-                .family();
-                let run = |len: usize, bold: bool, italic: bool, code: bool| TextRun {
-                    len,
-                    font: Font {
-                        family: if code {
-                            mono.clone()
-                        } else {
-                            base.family.clone()
-                        },
-                        weight: if bold { FontWeight::BOLD } else { base.weight },
-                        style: if italic {
-                            FontStyle::Italic
-                        } else {
-                            base.style
-                        },
-                        ..base.clone()
-                    },
-                    color: black(),
-                    background_color: None,
-                    underline: None,
-                    strikethrough: None,
-                };
-                let mut runs = Vec::new();
-                let mut at = 0;
-                for (r, m) in &leaf.marks {
-                    if r.start > at {
-                        runs.push(run(r.start - at, false, false, false));
-                    }
-                    runs.push(run(r.len(), m.bold, m.italic, m.code));
-                    at = r.end;
-                }
-                if at < leaf.text.len() {
-                    runs.push(run(leaf.text.len() - at, false, false, false));
-                }
+                let runs = Self::runs(leaf, style);
                 let shaped = self.window.text_system().shape_text(
                     leaf.text.clone().into(),
                     px(style.size),
@@ -546,6 +559,100 @@ impl RenderCx<'_> {
         }
     }
 
+    /// How far a superscript in `source` reaches above its row: the line
+    /// box grows by that much (Blink's line box around a raised `<sup>`).
+    fn superscript_lift(&mut self, source: &Range<usize>, style: &TextStyle) -> f32 {
+        let d = self.decorations;
+        let first = d
+            .superscripts
+            .partition_point(|s| s.range.start < source.start);
+        let Some(size) = d.superscripts[first..]
+            .iter()
+            .take_while(|s| s.range.end <= source.end)
+            .map(|s| s.size)
+            .reduce(f32::max)
+        else {
+            return 0.;
+        };
+        let text = TextStyle {
+            size,
+            ..style.clone()
+        };
+        let scale = self.scale;
+        let line = baseline::chromium_baseline(scale, style, self.primary_metrics(style), 0.);
+        let sup = baseline::chromium_baseline(scale, &text, self.primary_metrics(&text), 0.);
+        (sup + super_shift(scale, style.size) - line).max(0.)
+    }
+
+    /// The superscripts in the leaf just built for `source` (first row at
+    /// `x`, `y` in its line box): each painted over the room the leaf keeps
+    /// for it, its baseline `super_shift` above the line's.
+    fn superscripts(
+        &mut self,
+        source: &Range<usize>,
+        style: &TextStyle,
+        wrap: Option<f32>,
+        (x, y): (f32, f32),
+        block_top: f32,
+    ) -> Vec<AnyElement> {
+        let d = self.decorations;
+        let first = d
+            .superscripts
+            .partition_point(|s| s.range.start < source.start);
+        let found: Vec<_> = d.superscripts[first..]
+            .iter()
+            .take_while(|s| s.range.end <= source.end)
+            .cloned()
+            .collect();
+        let Some(leaf) = self
+            .leaves
+            .last()
+            .map(|l| l.text.clone())
+            .filter(|_| !found.is_empty())
+        else {
+            return Vec::new();
+        };
+        let runs = Self::runs(&leaf, style);
+        let shaped = self.window.text_system().shape_text(
+            leaf.text.clone().into(),
+            px(style.size),
+            &runs,
+            wrap.map(|w| px(self.snap(w))),
+            None,
+        );
+        let Some(shaped) = shaped.ok().and_then(|lines| lines.into_iter().next()) else {
+            return Vec::new();
+        };
+        let row = baseline::chromium_line_height(self.scale, style.line_height_px());
+        let scale = self.scale;
+        let line_baseline =
+            baseline::chromium_baseline(scale, style, self.primary_metrics(style), 0.);
+        let mut out = Vec::new();
+        for sup in found {
+            let index = leaf.to_display(sup.range.start - leaf.source.start, false);
+            let Some(at) = shaped.position_for_index(index, px(row)) else {
+                continue;
+            };
+            let text = TextStyle {
+                size: sup.size,
+                color: sup.color,
+                ..style.clone()
+            };
+            let raise = super_shift(scale, style.size);
+            let top = y + f32::from(at.y) + line_baseline
+                - baseline::chromium_baseline(scale, &text, self.primary_metrics(&text), 0.)
+                - raise;
+            let rect = Rect::new(
+                x + f32::from(at.x),
+                top,
+                sup.size * 4.,
+                text.line_height_px(),
+            );
+            out.push(self.label(rect, &sup.text, &text, Align::Start, block_top));
+        }
+        out
+    }
+
     /// An interactive area that runs `command` through the format.
     pub fn hotspot(&mut self, rect: Rect, command: Command) -> AnyElement {
         let view = self.view.clone();
@@ -589,10 +696,10 @@ impl RenderCx<'_> {
     ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
-        let y = b.top + p.top;
+        let y = b.top + p.top + self.superscript_lift(&source, &style.text);
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
         let (text, text_height) = self.text(
-            source,
+            source.clone(),
             &style.text,
             style.strike,
             wrap,
@@ -636,6 +743,9 @@ impl RenderCx<'_> {
             }
         }
         line = line.child(text);
+        for sup in self.superscripts(&source, &style.text, wrap, (x, y), top) {
+            line = line.child(sup);
+        }
         for paint in &style.overlays {
             line = line.child(self.paint(paint, top));
         }

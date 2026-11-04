@@ -118,8 +118,12 @@ the editor paints every span through `TextMark`, which knew weight, style,
 strikethrough, underline, code, a highlight background and a link, but no
 colour. `TextMark::color: Option<Hsla>` is that colour: `merge` keeps the
 latest, and `mark_highlight` writes it as the run's `HighlightStyle::color`
-(a link's own colour still applies over it). `None` (the default) changes
-nothing. The Markdown editor's marks set it (`src/editor/view/projection.rs`).
+(a link's own colour still applies over it). GPUI blends a highlight colour
+over the text's, so a fully transparent one is written as `fade_out: 1`
+instead: the glyphs keep their room but are not painted (a footnote
+reference's digits, which the editor paints as a superscript over them).
+`None` (the default) changes nothing. The Markdown editor's marks set it
+(`src/editor/view/projection.rs`).
 
 ```diff
 --- registry/gpui-base-0.8.0/src/text/node.rs
@@ -135,7 +139,11 @@ nothing. The Markdown editor's marks set it (`src/editor/view/projection.rs`).
 +        }
 @@ fn mark_highlight
 +    if let Some(color) = mark.color {
-+        highlight.color = Some(color);
++        if color.a == 0. {
++            highlight.fade_out = Some(1.);
++        } else {
++            highlight.color = Some(color);
++        }
 +    }
 ```
 

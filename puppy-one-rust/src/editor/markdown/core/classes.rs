@@ -107,6 +107,11 @@ classes! {
     LINK_DEFINITION = 39;
     /// `cm-md-math-inline-widget`
     MATH = 40;
+    /// `cm-md-footnote-definition`
+    FOOTNOTE = 41;
+    /// `cm-md-footnote-reference` (the leaf keeps its room; it is painted
+    /// as a superscript)
+    FOOTNOTE_REFERENCE = 42;
 }
 
 impl Class {
