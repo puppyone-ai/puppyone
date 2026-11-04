@@ -501,9 +501,11 @@ impl Runtime {
         }
     }
     pub fn client_for(&mut self, slot: SlotId, message: ClientMessage, wake: &Wake) {
-        // Hidden slots may acknowledge snapshots and save, but cannot navigate.
+        // Hidden slots may acknowledge snapshots and save, but cannot navigate;
+        // a file window's lone file has no neighbours to open.
         if let ClientMessage::OpenPaths { paths } = message {
             if slot == self.active_slot()
+                && !self.file_window
                 && let Some(path) = paths.first()
             {
                 self.begin(

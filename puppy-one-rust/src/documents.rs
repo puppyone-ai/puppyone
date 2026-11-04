@@ -370,6 +370,10 @@ impl Documents {
     /// A hosted Agent's accepted publication: revalidate once, as a watch
     /// invalidation would (a saved editor rereads; a draft is kept).
     pub fn observe_publication(&mut self) {
+        self.revalidate();
+    }
+    /// Read the open file again once, as a watch invalidation would.
+    pub fn revalidate(&mut self) {
         if self.document.is_some() {
             self.observation_pending = true;
         }

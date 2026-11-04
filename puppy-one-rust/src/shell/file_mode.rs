@@ -79,6 +79,23 @@ impl FileTarget {
     }
 }
 
+/// A file window's own state: the bound file, the title bar menu that is
+/// open, and whether the close question is on screen.
+pub struct FileWindow {
+    pub target: FileTarget,
+    pub(super) menu: Option<FileMenu>,
+    pub(super) asking: bool,
+}
+impl FileWindow {
+    pub fn new(target: FileTarget) -> Self {
+        Self {
+            target,
+            menu: None,
+            asking: false,
+        }
+    }
+}
+
 /// What the document area shows (`FileModeApp`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Shown {
@@ -123,10 +140,10 @@ pub(super) enum FileMenu {
 
 impl Shell {
     pub(super) fn file_mode(&self) -> bool {
-        self.file_target.is_some()
+        self.file.is_some()
     }
     pub(super) fn file_shown(&self) -> Shown {
-        match self.file_target.as_ref().map(|f| f.admission) {
+        match self.file.as_ref().map(|f| f.target.admission) {
             Some(Admission::Unavailable) => Shown::Unavailable(None),
             Some(Admission::TooLarge) => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
             _ if self.files.workspace.is_none() => Shown::Loading,
@@ -153,7 +170,7 @@ impl Shell {
         trigger: Button,
         build: impl FnOnce(Menu) -> Menu + 'static,
     ) -> PopoverMenu {
-        let open = self.file_menu == Some(menu);
+        let open = self.file.as_ref().is_some_and(|f| f.menu == Some(menu));
         let host = self.weak.clone();
         PopoverMenu::new(match menu {
             FileMenu::View => "file-view-menu",
@@ -164,8 +181,10 @@ impl Shell {
         .open(open)
         .on_open_change(move |opened, _, cx| {
             let _ = host.update(cx, |s, cx| {
-                if *opened != (s.file_menu == Some(menu)) {
-                    s.file_menu = opened.then_some(menu);
+                if let Some(file) = &mut s.file
+                    && *opened != (file.menu == Some(menu))
+                {
+                    file.menu = opened.then_some(menu);
                     cx.notify();
                 }
             });
@@ -178,13 +197,15 @@ impl Shell {
     fn file_controls(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let editor = self.file_editor()?;
         let controls = editor.read(cx).title_controls(cx);
-        let name = self.file_target.as_ref()?.name.clone();
+        let name = self.file.as_ref()?.target.name.clone();
         let action = |action: Action| {
             let editor = editor.downgrade();
             let host = self.weak.clone();
             move |w: &mut Window, cx: &mut App| {
                 let _ = host.update(cx, |s, cx| {
-                    s.file_menu = None;
+                    if let Some(file) = &mut s.file {
+                        file.menu = None;
+                    }
                     cx.notify();
                 });
                 let _ = editor.update(cx, |e, cx| e.run_title_action(action.clone(), w, cx));
@@ -280,10 +301,10 @@ impl Shell {
         let ty = theme::ty().header;
         // `opened?.target.name`: nothing until the file is found.
         let name = self
-            .file_target
+            .file
             .as_ref()
             .filter(|_| !matches!(self.file_shown(), Shown::Loading | Shown::Unavailable(None)))
-            .map(|f| f.name.clone())
+            .map(|f| f.target.name.clone())
             .unwrap_or_default();
         let room = theme::control() * 2. + CONTROLS_GAP;
         let start = if cfg!(target_os = "macos") {
@@ -414,36 +435,43 @@ impl Shell {
             }
         }
     }
-    /// `askToSaveFile`: unsaved edits when a file window closes.
-    pub(super) fn file_close_dialog(&self, cx: &mut Context<Self>) -> AnyElement {
-        let name = self
-            .file_target
-            .as_ref()
-            .map(|f| f.name.clone())
-            .unwrap_or_default();
-        self.simple_modal(
-            &tf("native.fileClose.message", &[("name", name.into())]),
-            tr("native.fileClose.detail"),
-            vec![
-                (
-                    tr("native.fileClose.cancel"),
-                    Command::CancelFileClose,
-                    ButtonVariant::Secondary,
-                ),
-                (
-                    tr("native.fileClose.discard"),
-                    Command::DiscardFileChanges,
-                    ButtonVariant::Secondary,
-                ),
-                (
-                    tr("native.fileClose.save"),
-                    Command::SaveFileAndClose,
-                    ButtonVariant::Solid,
-                ),
+    /// `askToSaveFile`: unsaved edits when a file window closes, in a
+    /// native warning (Save is the default, Cancel takes Escape). One
+    /// question at a time; its answer runs as a command.
+    pub(super) fn ask_to_save_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(file) = self.file.as_mut().filter(|f| !f.asking) else {
+            return;
+        };
+        file.asking = true;
+        let message = tf(
+            "native.fileClose.message",
+            &[("name", file.target.name.clone().into())],
+        );
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            &message,
+            Some(tr("native.fileClose.detail")),
+            &[
+                PromptButton::new(tr("native.fileClose.save")),
+                PromptButton::new(tr("native.fileClose.discard")),
+                PromptButton::cancel(tr("native.fileClose.cancel")),
             ],
             cx,
-        )
-        .into_any_element()
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            let command = match answer.await {
+                Ok(0) => Command::SaveFileAndClose,
+                Ok(1) => Command::DiscardFileChanges,
+                _ => Command::CancelFileClose,
+            };
+            let _ = this.update_in(cx, |s, window, cx| {
+                if let Some(file) = &mut s.file {
+                    file.asking = false;
+                }
+                s.command(command, window, cx);
+            });
+        })
+        .detach();
     }
 }
 

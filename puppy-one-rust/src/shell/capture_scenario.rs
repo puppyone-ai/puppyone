@@ -378,7 +378,11 @@ impl Shell {
                 }
                 self.open_manage_agents(cx);
             }
-            Step::FileMenu(menu) => self.file_menu = Some(*menu),
+            Step::FileMenu(menu) => {
+                if let Some(file) = &mut self.file {
+                    file.menu = Some(*menu);
+                }
+            }
             // Typed through the input handler at the end of the first line
             // (invisible there, and nothing scrolls).
             Step::FileEdit => {

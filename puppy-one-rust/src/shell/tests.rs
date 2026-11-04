@@ -1456,8 +1456,12 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     });
     command(&view, cx, Command::CloseAbout);
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    // No update service in this build: the native "Updates Unavailable".
     command(&view, cx, Command::CheckForUpdates);
-    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
+    assert!(cx.has_pending_prompt());
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    cx.simulate_prompt_answer("OK");
+    assert!(!cx.has_pending_prompt());
 }
 
 /// C-4: Share is a card under its button, not a dialog; Escape closes it.
@@ -3829,7 +3833,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         s.startup_file = Some(PathBuf::from(&file.name));
         s.files
             .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
-        s.file_target = Some(file);
+        s.file = Some(file_mode::FileWindow::new(file));
     });
     settle_cloud(&view, cx, "the file", &|s, _| {
         s.files
@@ -3845,21 +3849,63 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         // Not remembered as a project, never shared or put in the Cloud.
         assert!(s.preferences.read(cx).state.recent_projects.is_empty());
         assert!(s.local_folder_notice(cx).is_none());
+        // Nothing watches the file.
+        assert!(!s.files.watching());
     });
-    // Project commands do nothing here.
+    // It is read again when the window comes back.
+    std::fs::write(root.join("notes.md"), "# Notes, changed\n").unwrap();
+    view.update_in(cx, |s, w, cx| {
+        s.files.revalidate();
+        s.receive(w, cx);
+    });
+    settle_cloud(&view, cx, "the reread", &|s, _| {
+        s.files
+            .document
+            .as_ref()
+            .is_some_and(|d| d.text == "# Notes, changed\n")
+    });
+    // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
     view.read_with(cx, |s, _| assert!(!s.home && !s.home_visible()));
-    // Unsaved edits: Save, Don't Save or Cancel.
-    view.update(cx, |s, _| s.files.dirty = true);
-    command(&view, cx, Command::Quit);
-    view.read_with(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::SaveFile)))
-    });
-    command(&view, cx, Command::CancelFileClose);
+    for c in [Command::Settings, Command::Feedback, Command::CloseFile] {
+        command(&view, cx, c);
+    }
+    cx.run_until_parked();
     view.read_with(cx, |s, _| {
         assert!(s.modals.is_empty());
-        assert!(!s.files.allow_quit);
+        assert!(s.files.opened().is_some());
     });
+    // A link to a neighbour opens nothing: the file has none.
+    let slot = view.read_with(cx, |s, _| s.files.active_slot());
+    view.update(cx, |s, _| {
+        s.files.client_for(
+            slot,
+            crate::documents::ClientMessage::OpenPaths {
+                paths: vec!["other.md".into()],
+            },
+            &s.wake,
+        )
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |s, _| {
+        assert_eq!(
+            s.files.opened().map(|(_, p)| p.to_owned()),
+            Some(PathBuf::from("notes.md"))
+        )
+    });
+    // Unsaved edits: the native Save, Don't Save or Cancel, asked once.
+    view.update(cx, |s, _| s.files.dirty = true);
+    command(&view, cx, Command::Quit);
+    command(&view, cx, Command::Quit);
+    assert!(cx.has_pending_prompt());
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    cx.simulate_prompt_answer("Cancel");
+    cx.run_until_parked();
+    view.read_with(cx, |s, _| {
+        assert!(!s.files.allow_quit);
+        assert!(!s.file.as_ref().unwrap().asking);
+    });
+    assert!(!cx.has_pending_prompt());
 }
 
 /// N-12: an account's last list stands in for its first answer (not as

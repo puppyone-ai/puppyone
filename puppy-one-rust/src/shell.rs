@@ -117,10 +117,8 @@ pub struct Shell {
     copied_path: Option<(String, std::time::Instant)>,
     /// The window title, represented file and edited mark last applied.
     window_title: Option<(String, Option<PathBuf>, bool)>,
-    /// A file window's file (File Mode); `None` for a project window.
-    pub(super) file_target: Option<file_mode::FileTarget>,
-    /// The file window's open title bar menu.
-    file_menu: Option<file_mode::FileMenu>,
+    /// A file window's own state (File Mode); `None` for a project window.
+    pub(super) file: Option<file_mode::FileWindow>,
     /// The Share card's links, captured when it opened.
     share_panel: share_panel::SharePanel,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
@@ -300,8 +298,7 @@ impl Shell {
             repository_cloud: Self::new_repository_cloud(cx),
             copied_path: None,
             window_title: None,
-            file_target: None,
-            file_menu: None,
+            file: None,
             share_panel: Default::default(),
             dismissed_cloud_notice: None,
             replace_url: None,
@@ -510,6 +507,13 @@ impl Shell {
                 crate::features::telemetry::note_foreground(cx);
                 // A returning window may probe the Cloud association once.
                 s.repository_cloud.update(cx, |r, cx| r.probe(cx));
+                // A file window watches nothing: the file is read again
+                // when the window comes back (FileModeDocument's `focus`).
+                if s.file_mode() {
+                    s.files.revalidate();
+                    s.receive(window, cx);
+                    cx.notify();
+                }
             }
         })
         .detach();
@@ -706,7 +710,7 @@ impl Shell {
                 s.files
                     .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
             }
-            s.file_target = Some(file);
+            s.file = Some(file_mode::FileWindow::new(file));
         } else if let Some(path) = workspace {
             if launch.open.is_some() {
                 s.startup_file = launch.open.clone();
@@ -859,10 +863,6 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
                 windows::cancel_quit(cx);
             }
-            Some(Modal::SaveFile) => {
-                self.modals.remove(|m| matches!(m, Modal::SaveFile));
-                windows::cancel_quit(cx);
-            }
             Some(Modal::Executions) => {
                 self.modals.remove(|m| matches!(m, Modal::Executions));
             }
@@ -943,7 +943,9 @@ impl Shell {
             windows::quit_all(cx);
             return;
         }
-        // A file window has no project to leave, browse or share.
+        // A file window has no project to leave, browse or share, and
+        // `FileModeApp` takes no Settings or Help request; its one file is
+        // never closed out of it.
         if self.file_mode()
             && matches!(
                 command,
@@ -957,6 +959,9 @@ impl Shell {
                     | Command::CloudHistory
                     | Command::OpenFolder
                     | Command::CreateNew
+                    | Command::Settings
+                    | Command::Feedback
+                    | Command::CloseFile
             )
         {
             return;
@@ -984,12 +989,24 @@ impl Shell {
                 cx.notify();
                 return;
             }
-            // Check for Updates: the General page owns update status.
+            // `checkForUpdatesFromNativeMenu`: this build has no update
+            // service, so the native answer is `createUnavailableDialog`.
             Command::CheckForUpdates => {
-                self.task_ui.settings.update(cx, |s, cx| {
-                    s.select_page(crate::features::settings::Page::General, cx)
-                });
-                self.command(Command::Settings, window, cx);
+                let message = crate::localization::tf(
+                    "native.update.manual.unavailable.message",
+                    &[("appName", windows::APP_NAME.into())],
+                );
+                let detail = crate::localization::t("native.update.manual.unavailable.detail");
+                // Only OK: nothing waits for the answer.
+                drop(window.prompt(
+                    PromptLevel::Info,
+                    &message,
+                    Some(detail),
+                    &[PromptButton::ok(crate::localization::t(
+                        "native.update.manual.ok",
+                    ))],
+                    cx,
+                ));
                 return;
             }
             _ => {}
@@ -1006,29 +1023,22 @@ impl Shell {
         match command {
             // `askToSaveFile`: a file window with unsaved edits asks first.
             Command::Quit if self.file_mode() && self.files.dirty => {
-                if !self.modals.iter().any(|m| matches!(m, Modal::SaveFile)) {
-                    self.modals.open(Modal::SaveFile);
-                }
-                self.modal_focus.focus(window, cx);
-                cx.notify();
+                self.ask_to_save_file(window, cx);
                 return;
             }
             Command::SaveFileAndClose => {
-                self.modals.remove(|m| matches!(m, Modal::SaveFile));
                 self.files.begin(Intent::Quit, &self.wake);
                 self.receive(window, cx);
                 cx.notify();
                 return;
             }
             Command::DiscardFileChanges => {
-                self.modals.remove(|m| matches!(m, Modal::SaveFile));
                 self.files.abandon_unsaved();
                 self.receive(window, cx);
                 cx.notify();
                 return;
             }
             Command::CancelFileClose => {
-                self.modals.remove(|m| matches!(m, Modal::SaveFile));
                 windows::cancel_quit(cx);
                 self.focus.focus(window, cx);
                 cx.notify();
@@ -1377,7 +1387,7 @@ impl Shell {
                 .unwrap_or_default();
             // A file window's folder is not a project to remember.
             if !cfg!(test)
-                && self.file_target.is_none()
+                && self.file.is_none()
                 && let Some(opened) = opened
             {
                 self.preferences.update(cx, |p, cx| {
@@ -1465,7 +1475,7 @@ impl Shell {
                 {
                     self.editor_tab_focus.insert(slot, cx.focus_handle());
                     let owner = cx.entity_id();
-                    let file_mode = self.file_target.is_some();
+                    let file_mode = self.file.is_some();
                     let editor = cx.new(|cx| {
                         let mut editor = crate::editor::host::DocumentEditor::new(cx);
                         editor.workbench = true;
@@ -1939,7 +1949,7 @@ impl Shell {
     /// represented file; nothing in full screen, where macOS shows it.
     /// A file window is titled by its file and shows when it is unsaved.
     fn sync_window_title(&mut self, window: &mut Window) {
-        let (title, path, edited) = match &self.file_target {
+        let (title, path, edited) = match self.file.as_ref().map(|f| &f.target) {
             Some(file) => (file.name.clone(), Some(file.path.clone()), self.files.dirty),
             None => {
                 let root = self.workspace_root();
@@ -2525,7 +2535,6 @@ impl Shell {
                         cx,
                     )
                     .into_any_element(),
-                Modal::SaveFile => self.file_close_dialog(cx),
                 Modal::CloseAnyway => self
                     .simple_modal(
                         tr("native.documentClose.message"),
