@@ -83,7 +83,8 @@ impl Shell {
         h: f32,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if !self.opening() {
+        // A file window waits in its document (`PageLoading`).
+        if !self.opening() || self.file_mode() {
             return None;
         }
         let t = cx.palette();

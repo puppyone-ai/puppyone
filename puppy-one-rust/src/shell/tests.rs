@@ -3496,3 +3496,52 @@ fn a_newer_choice_replaces_a_project_still_opening(cx: &mut TestAppContext) {
         s.workspace_root().as_deref() == Some(second.as_path())
     });
 }
+
+/// W-2: a file window shows its one file under a title bar of its own, with
+/// no project around it, and asks before closing over unsaved edits.
+#[gpui::test]
+fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("notes.md"), "# Notes\n").unwrap();
+    std::fs::write(root.join("other.md"), "# Other\n").unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| {
+        let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
+        s.fixture = false;
+        s.files.manual_save = true;
+        s.startup_file = Some(PathBuf::from(&file.name));
+        s.files
+            .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
+        s.file_target = Some(file);
+    });
+    settle_cloud(&view, cx, "the file", &|s, _| {
+        s.files
+            .opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("notes.md"))
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!s.home_visible());
+        assert!(!s.opening());
+        // The document spans the window under the title bar.
+        assert_eq!(s.layout.editor.x, 0.);
+        assert_eq!(s.layout.explorer.w, 0.);
+        // Not remembered as a project, never shared or put in the Cloud.
+        assert!(s.preferences.read(cx).state.recent_projects.is_empty());
+        assert!(s.local_folder_notice(cx).is_none());
+    });
+    // Project commands do nothing here.
+    command(&view, cx, Command::Home);
+    view.read_with(cx, |s, _| assert!(!s.home && !s.home_visible()));
+    // Unsaved edits: Save, Don't Save or Cancel.
+    view.update(cx, |s, _| s.files.dirty = true);
+    command(&view, cx, Command::Quit);
+    view.read_with(cx, |s, _| {
+        assert!(matches!(s.modals.top(), Some(Modal::SaveFile)))
+    });
+    command(&view, cx, Command::CancelFileClose);
+    view.read_with(cx, |s, _| {
+        assert!(s.modals.is_empty());
+        assert!(!s.files.allow_quit);
+    });
+}

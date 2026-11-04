@@ -139,12 +139,15 @@ impl Shell {
     ) -> bool {
         let timed_out = scenario.started.elapsed() > std::time::Duration::from_secs(20);
         // The real workspace and its Git status must be in place first.
+        // A file window has no Explorer rows or Git; its file must be open.
+        let file = self.file_mode();
         let workspace_ready = self.files.workspace.is_some()
             && !self.fixture
-            && !self.explorer.read(cx).tree().rows.is_empty()
+            && (file || !self.explorer.read(cx).tree().rows.is_empty())
+            && (!file || self.files.opened().is_some())
             && !self.files.busy()
             && !self.files.folder_busy;
-        let git_ready = self.source_control.read(cx).snapshot.is_some();
+        let git_ready = file || self.source_control.read(cx).snapshot.is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
         }

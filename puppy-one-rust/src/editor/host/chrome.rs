@@ -33,6 +33,25 @@ impl DocumentEditor {
         }
     }
 
+    /// A file window's title bar controls (`FileControls`): the editor's
+    /// view switch and its settings; the window has no find command, pane
+    /// close or external opener there.
+    pub fn title_controls(&self, cx: &App) -> Contribution {
+        Contribution {
+            find: false,
+            open_external: false,
+            ..self.contribution(cx)
+        }
+    }
+    /// Runs a title bar control's action.
+    pub fn run_title_action(
+        &mut self,
+        action: Action,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.run_pane_action(action, window, cx);
+    }
     pub(super) fn toggle_pane_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.chrome.open = !self.chrome.open;
         if self.chrome.open {

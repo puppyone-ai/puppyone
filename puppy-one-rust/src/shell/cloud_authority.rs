@@ -31,7 +31,8 @@ impl Shell {
     }
     /// Keep the open folder's association current for the account.
     pub(super) fn sync_repository_cloud(&mut self, cx: &mut Context<Self>) {
-        let root = self.workspace_root();
+        // A file window has no project and so no Cloud project.
+        let root = self.workspace_root().filter(|_| !self.file_mode());
         let enabled = self.cloud_enabled(cx);
         self.repository_cloud
             .update(cx, |r, cx| r.sync(root.as_deref(), enabled, cx));

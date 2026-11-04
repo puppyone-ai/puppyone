@@ -204,7 +204,10 @@ impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
     pub(super) fn home_visible(&self) -> bool {
         // A project on its way in takes the window from the Homepage.
-        !self.fixture && !self.opening() && (self.home || self.files.workspace.is_none())
+        !self.fixture
+            && !self.file_mode()
+            && !self.opening()
+            && (self.home || self.files.workspace.is_none())
     }
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project

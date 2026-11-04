@@ -167,6 +167,7 @@ impl Shell {
     /// The open local folder's notice, while Cloud is on.
     pub(super) fn local_folder_notice(&self, cx: &App) -> Option<Notice> {
         if !crate::features::flags::cloud_enabled(&self.preferences, cx)
+            || self.file_mode()
             || self.hosted_project().is_some()
             || self.workspace_root().is_none()
         {

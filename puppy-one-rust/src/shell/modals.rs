@@ -41,6 +41,8 @@ pub(super) enum Modal {
     ConfirmQuit,
     /// Some document changes could not be saved for a close.
     CloseAnyway,
+    /// A file window closes with unsaved edits.
+    SaveFile,
     /// `createItemLifecycleManager`: running Agent/terminal hosts of this
     /// window, listed from the host budget (not from their tabs).
     Executions,

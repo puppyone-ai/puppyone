@@ -228,6 +228,9 @@ pub struct Documents {
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
+    /// `editorSaveMode="manual"` (a file window): edits wait for ⌘S or the
+    /// close, instead of saving themselves.
+    pub manual_save: bool,
     serial: u64,
     session: Option<DocumentEditingSession>,
     autosave_request: Option<(u64, u64, Instant)>,
@@ -257,6 +260,7 @@ impl Default for Documents {
             tree_update: None,
             children_update: None,
             folder_busy: false,
+            manual_save: false,
             serial: 0,
             session: None,
             autosave_request: None,
@@ -1236,6 +1240,7 @@ impl Documents {
         }
         if matches!(self.phase, Phase::Idle) {
             if self.autosave_request.is_none()
+                && !self.manual_save
                 && let Some(s) = &mut self.session
                 && s.needs_snapshot
             {

@@ -49,6 +49,9 @@ struct Session {
 
 pub struct DocumentEditor {
     pub workbench: bool,
+    /// A file window: the view switch and settings live in its title bar,
+    /// so the pane has no handle or menu of its own.
+    pub file_mode: bool,
     pub pane_drag: Option<crate::editor::workbench::pane::PaneDrag>,
     session: Option<Session>,
     surface: Option<Box<dyn ViewerSurface>>,
@@ -82,6 +85,7 @@ impl DocumentEditor {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             workbench: false,
+            file_mode: false,
             pane_drag: None,
             session: None,
             surface: None,
@@ -489,7 +493,9 @@ impl Render for DocumentEditor {
             );
             (handle, menu)
         });
-        let (handle, menu) = chrome.map_or((None, None), |(h, m)| (Some(h), m));
+        let (handle, menu) = chrome
+            .filter(|_| !self.file_mode)
+            .map_or((None, None), |(h, m)| (Some(h), m));
         div()
             .id("desktop-editor-pane")
             .key_context(KEY_CONTEXT)

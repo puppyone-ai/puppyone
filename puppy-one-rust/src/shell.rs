@@ -24,6 +24,7 @@ mod command;
 mod create_new;
 mod editor_workbench;
 mod explorer;
+mod file_mode;
 mod footer;
 mod header;
 mod home;
@@ -102,8 +103,12 @@ pub struct Shell {
     repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
     /// A project path the Header menu just copied, and when.
     copied_path: Option<(String, std::time::Instant)>,
-    /// The window title and represented folder last applied.
-    window_title: Option<(String, Option<PathBuf>)>,
+    /// The window title, represented file and edited mark last applied.
+    window_title: Option<(String, Option<PathBuf>, bool)>,
+    /// A file window's file (File Mode); `None` for a project window.
+    pub(super) file_target: Option<file_mode::FileTarget>,
+    /// The file window's open title bar menu.
+    file_menu: Option<file_mode::FileMenu>,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
     dismissed_cloud_notice: Option<String>,
     /// The `puppyone` remote as reviewed when replacing a vanished
@@ -277,6 +282,8 @@ impl Shell {
             repository_cloud: Self::new_repository_cloud(cx),
             copied_path: None,
             window_title: None,
+            file_target: None,
+            file_menu: None,
             dismissed_cloud_notice: None,
             replace_url: None,
             popover: None,
@@ -640,7 +647,24 @@ impl Shell {
                 });
             }
         }
-        if let Some(path) = workspace {
+        // Dev captures open a file window with `PUPPYONE_FILE_MODE`.
+        #[cfg(feature = "dev-capture")]
+        let file = launch.file.clone().or_else(|| {
+            std::env::var_os("PUPPYONE_FILE_MODE")
+                .filter(|_| launch.from_args)
+                .and_then(|p| PathBuf::from(p).canonicalize().ok())
+        });
+        #[cfg(not(feature = "dev-capture"))]
+        let file = launch.file.clone();
+        if let Some(file) = file.and_then(file_mode::FileTarget::of) {
+            // The file's folder is the window's root; only the file shows,
+            // and it saves when asked.
+            s.files.manual_save = true;
+            s.startup_file = Some(PathBuf::from(&file.name));
+            s.files
+                .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
+            s.file_target = Some(file);
+        } else if let Some(path) = workspace {
             s.files.begin(Intent::OpenFolder(path), &s.wake);
         } else if launch.from_args && !fixture && !cfg!(test) {
             // `readLastActiveWorkspaceComposition`: the last active project.
@@ -767,6 +791,10 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
                 windows::cancel_quit(cx);
             }
+            Some(Modal::SaveFile) => {
+                self.modals.remove(|m| matches!(m, Modal::SaveFile));
+                windows::cancel_quit(cx);
+            }
             Some(Modal::Executions) => {
                 self.modals.remove(|m| matches!(m, Modal::Executions));
             }
@@ -849,6 +877,25 @@ impl Shell {
             windows::quit_all(cx);
             return;
         }
+        // A file window has no project to leave, browse or share.
+        if self.file_mode()
+            && matches!(
+                command,
+                Command::Home
+                    | Command::ProjectMenu
+                    | Command::LocationMenu
+                    | Command::ToggleExplorer
+                    | Command::ToggleRightSidebar
+                    | Command::Changes
+                    | Command::CloudServices
+                    | Command::ShareCloud
+                    | Command::CloudHistory
+                    | Command::OpenFolder
+                    | Command::CreateNew
+            )
+        {
+            return;
+        }
         match command {
             Command::Minimize => {
                 window.minimize_window();
@@ -892,6 +939,36 @@ impl Shell {
             self.end_editor_resize(false, cx);
         }
         match command {
+            // `askToSaveFile`: a file window with unsaved edits asks first.
+            Command::Quit if self.file_mode() && self.files.dirty => {
+                if !self.modals.iter().any(|m| matches!(m, Modal::SaveFile)) {
+                    self.modals.open(Modal::SaveFile);
+                }
+                self.modal_focus.focus(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::SaveFileAndClose => {
+                self.modals.remove(|m| matches!(m, Modal::SaveFile));
+                self.files.begin(Intent::Quit, &self.wake);
+                self.receive(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::DiscardFileChanges => {
+                self.modals.remove(|m| matches!(m, Modal::SaveFile));
+                self.files.abandon_unsaved();
+                self.receive(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::CancelFileClose => {
+                self.modals.remove(|m| matches!(m, Modal::SaveFile));
+                windows::cancel_quit(cx);
+                self.focus.focus(window, cx);
+                cx.notify();
+                return;
+            }
             Command::Quit if self.workbench.read(cx).has_running(cx) => {
                 self.modals.open(Modal::ConfirmQuit);
                 self.focus.focus(window, cx);
@@ -1215,7 +1292,9 @@ impl Shell {
             let ws = self.files.workspace.clone().unwrap();
             self.explorer
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
-            if let Some(root) = ws.local_root() {
+            if self.file_mode() {
+                // A lone file has no Agent, Git or Terminal.
+            } else if let Some(root) = ws.local_root() {
                 self.workbench
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
                 self.source_control
@@ -1235,7 +1314,9 @@ impl Shell {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or_default();
+            // A file window's folder is not a project to remember.
             if !cfg!(test)
+                && self.file_target.is_none()
                 && let Some(opened) = opened
             {
                 self.preferences.update(cx, |p, cx| {
@@ -1322,9 +1403,11 @@ impl Shell {
                 {
                     self.editor_tab_focus.insert(slot, cx.focus_handle());
                     let owner = cx.entity_id();
+                    let file_mode = self.file_target.is_some();
                     let editor = cx.new(|cx| {
                         let mut editor = crate::editor::host::DocumentEditor::new(cx);
                         editor.workbench = true;
+                        editor.file_mode = file_mode;
                         editor.pane_drag =
                             Some(crate::editor::workbench::pane::PaneDrag { owner, slot });
                         editor
@@ -1795,19 +1878,30 @@ impl Shell {
     }
     /// `resolveWindowTitle`: "PuppyOne - <project>" with the folder as the
     /// represented file; nothing in full screen, where macOS shows it.
+    /// A file window is titled by its file and shows when it is unsaved.
     fn sync_window_title(&mut self, window: &mut Window) {
-        let root = self.workspace_root();
+        let (title, path, edited) = match &self.file_target {
+            Some(file) => (file.name.clone(), Some(file.path.clone()), self.files.dirty),
+            None => {
+                let root = self.workspace_root();
+                let title = if root.is_some() && !self.project.is_empty() {
+                    format!("{} - {}", windows::APP_NAME, self.project)
+                } else {
+                    windows::APP_NAME.to_owned()
+                };
+                (title, root, false)
+            }
+        };
         let title = if window.is_fullscreen() {
             String::new()
-        } else if root.is_some() && !self.project.is_empty() {
-            format!("{} - {}", windows::APP_NAME, self.project)
         } else {
-            windows::APP_NAME.to_owned()
+            title
         };
-        let next = (title, root);
+        let next = (title, path, edited);
         if self.window_title.as_ref() != Some(&next) {
             window.set_window_title(&next.0);
             window.set_document_path(next.1.as_deref());
+            window.set_window_edited(next.2);
             self.window_title = Some(next);
         }
     }
@@ -1999,7 +2093,12 @@ impl Render for Shell {
         let rail = self.rail_width();
         self.constrain_window(window);
         let panes = self.panes.frame(w, h, rail, cx.reduce_motion());
-        self.layout = panes.layout;
+        self.layout = if self.file_mode() {
+            // `.file-mode-window`: the title bar over the document alone.
+            Layout::new(w, h, 0., 0., 0.)
+        } else {
+            panes.layout
+        };
         if panes.running {
             window.request_animation_frame();
         }
@@ -2073,7 +2172,8 @@ impl Render for Shell {
             });
         }
         // A closing pane stays painted, clipped to its frame, until it has closed.
-        if (self.panes.explorer().open || panes.left_clip.is_some()) && !home {
+        let file = self.file_mode();
+        if (self.panes.explorer().open || panes.left_clip.is_some()) && !home && !file {
             let explorer = div()
                 .absolute()
                 .top_0()
@@ -2085,7 +2185,7 @@ impl Render for Shell {
                 });
             root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
-        if (self.panes.right().open || panes.right_clip.is_some()) && !home {
+        if (self.panes.right().open || panes.right_clip.is_some()) && !home && !file {
             // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
             // content starts at the divider like the product's.
             let auxiliary =
@@ -2106,7 +2206,7 @@ impl Render for Shell {
                     });
             root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
-        if self.rail && !home {
+        if self.rail && !home && !file {
             root = root.child(self.project_rail(h, cx));
         }
         let opening = !home && self.opening();
@@ -2118,13 +2218,17 @@ impl Render for Shell {
         if home {
             root = root.children(self.home_intro_curtain(w, h, cx));
         }
-        root = root.child(at(self.layout.header).child(self.header(cx)));
+        root = if file {
+            root.child(self.file_titlebar(w, cx))
+        } else {
+            root.child(at(self.layout.header).child(self.header(cx)))
+        };
         // Each frame owns its edge while it is on screen; a closed right
         // sidebar keeps its lane at the window edge.
-        if !home && !opening && self.layout.editor.x > rail + 0.5 {
+        if !home && !opening && !file && self.layout.editor.x > rail + 0.5 {
             root = root.child(self.sash(true, cx));
         }
-        if !home && !opening {
+        if !home && !opening && !file {
             if self.layout.editor.right() < w - 0.5 {
                 root = root.child(self.sash(false, cx));
             } else if !self.panes.right().open {
@@ -2341,6 +2445,7 @@ impl Shell {
                         cx,
                     )
                     .into_any_element(),
+                Modal::SaveFile => self.file_close_dialog(cx),
                 Modal::CloseAnyway => self
                     .simple_modal(
                         tr("native.documentClose.message"),
