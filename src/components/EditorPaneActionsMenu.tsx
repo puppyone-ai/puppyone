@@ -126,14 +126,7 @@ export function EditorPaneActionsMenu({
       if (items.length === 0) return;
       event.preventDefault();
       const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : event.key === "ArrowUp"
-            ? (currentIndex - 1 + items.length) % items.length
-            : (currentIndex + 1) % items.length;
-      items[nextIndex]?.focus({ preventScroll: true });
+      items[menuKeyTarget(event.key, currentIndex, items.length)]?.focus({ preventScroll: true });
     };
     document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("focusin", dismissOnFocusExit, true);
@@ -287,4 +280,12 @@ function PaneMenuSegmentedControl({
       })}
     </div>
   );
+}
+
+/** The item a menu key moves to: the ends for Home and End, else one step, wrapping around. */
+function menuKeyTarget(key: string, current: number, count: number) {
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  if (key === "ArrowUp") return (current - 1 + count) % count;
+  return (current + 1) % count;
 }

@@ -1033,10 +1033,5 @@
     "no-nested-ternary": {
       "count": 2
     }
-  },
-  "src/components/EditorPaneActionsMenu.tsx": {
-    "no-nested-ternary": {
-      "count": 2
-    }
   }
 }
