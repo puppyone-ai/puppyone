@@ -1,6 +1,6 @@
 //! Explorer menus: `DesktopCreateEntryMenu` (new file or folder, with the
-//! Custom files submenu) and `DesktopNodeActionMenu` (copy path, clipboard,
-//! duplicate, reveal, rename, delete).
+//! Custom files submenu) and `DesktopNodeActionMenu` (pin, copy path,
+//! clipboard, duplicate, reveal, rename, delete).
 //!
 //! GPUI Kit places, layers and dismisses them: a row's "+" / "⋮" and the
 //! list-end "New" row own a [`PopoverMenu`], a right click opens an
@@ -246,7 +246,15 @@ impl Explorer {
                     _ => MenuAt::Row(primary.clone(), RowTrigger::Create),
                 };
                 let share = crate::features::flags::share_enabled(&self.preferences, cx);
-                self.node_menu(paths.clone(), primary.clone(), create_at, share)
+                // `showPin`: one file of a project.
+                let pinned = (paths.len() == 1 && !self.tree.is_folder(primary))
+                    .then(|| self.pins_key())
+                    .flatten()
+                    .map(|_| {
+                        self.pins(cx)
+                            .is_pinned(&primary.to_string_lossy().replace('\\', "/"))
+                    });
+                self.node_menu(paths.clone(), primary.clone(), create_at, share, pinned)
             }
         }
     }
@@ -352,6 +360,7 @@ impl Explorer {
         primary: PathBuf,
         create_at: MenuAt,
         share: bool,
+        pinned: Option<bool>,
     ) -> MenuFill {
         let host = self.weak.clone();
         let act = move |f: Action| {
@@ -378,6 +387,19 @@ impl Explorer {
             .and_then(|ws| ws.absolute(&primary).ok());
         // `None` is a separator.
         let mut rows: Vec<Option<MenuItem>> = vec![];
+        if let Some(pinned) = pinned {
+            let path = primary.clone();
+            rows.push(Some(
+                MenuItem::new(tr(if pinned {
+                    "workspace.node.unpin"
+                } else {
+                    "workspace.node.pin"
+                }))
+                .icon(if pinned { "pin-off" } else { "pin" })
+                .on_click(act(Box::new(move |s, _, cx| s.toggle_pin(&path, cx)))),
+            ));
+            rows.push(None);
+        }
         let copy_text = absolute.as_ref().unwrap_or(&primary).display().to_string();
         rows.push(Some(
             MenuItem::new(tr("workspace.node.copyPath"))

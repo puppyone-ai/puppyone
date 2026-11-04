@@ -122,6 +122,8 @@ embedded! {
     "icons" / "panel-right.svg",
     "icons" / "paperclip.svg",
     "icons" / "pencil.svg",
+    "icons" / "pin.svg",
+    "icons" / "pin-off.svg",
     "icons" / "plug.svg",
     "icons" / "plus.svg",
     "icons" / "refresh-cw.svg",

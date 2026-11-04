@@ -305,6 +305,82 @@ pub struct Preferences {
     pub homepage_project_sort: HomepageSort,
     /// `puppyone.desktop.firstRunSignInCompleted.v1`.
     pub first_run_sign_in_completed: bool,
+    /// `puppyone.desktop.explorer-pins.v1:<project>`: each project's pinned
+    /// files, by its folder path (or its Cloud storage).
+    pub explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
+}
+/// A file pinned above a project's tree: enough to open it again without
+/// the tree loaded.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PinnedFile {
+    /// Workspace-relative, `/`-separated.
+    pub path: String,
+    pub name: String,
+}
+/// `ExplorerPinsState`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ExplorerPins {
+    pub files: Vec<PinnedFile>,
+    /// The file tree under the pins is folded away.
+    pub files_collapsed: bool,
+}
+fn same_or_under(path: &str, base: &str) -> bool {
+    path == base
+        || path
+            .strip_prefix(base)
+            .is_some_and(|rest| rest.starts_with('/'))
+}
+impl ExplorerPins {
+    pub fn is_pinned(&self, path: &str) -> bool {
+        self.files.iter().any(|f| f.path == path)
+    }
+    /// Pin, or unpin, a file.
+    pub fn toggle(&mut self, path: &str) {
+        if self.is_pinned(path) {
+            self.files.retain(|f| f.path != path);
+        } else {
+            let name = path.rsplit('/').next().unwrap_or(path).to_owned();
+            self.files.push(PinnedFile {
+                path: path.to_owned(),
+                name,
+            });
+        }
+        self.settle();
+    }
+    /// A renamed or moved file, or anything under a moved folder, keeps its
+    /// pin.
+    pub fn rebase(&mut self, from: &str, to: &str) -> bool {
+        let mut changed = false;
+        for file in &mut self.files {
+            if from != to && same_or_under(&file.path, from) {
+                file.path = format!("{to}{}", &file.path[from.len()..]);
+                file.name = file
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&file.path)
+                    .to_owned();
+                changed = true;
+            }
+        }
+        changed
+    }
+    /// A deleted file, or anything under a deleted folder, loses its pin.
+    pub fn remove_under(&mut self, path: &str) -> bool {
+        let before = self.files.len();
+        self.files.retain(|f| !same_or_under(&f.path, path));
+        self.settle();
+        before != self.files.len()
+    }
+    pub fn set_files_collapsed(&mut self, collapsed: bool) {
+        self.files_collapsed = collapsed;
+        self.settle();
+    }
+    /// Folding the tree means nothing without pins.
+    fn settle(&mut self) {
+        self.files_collapsed &= !self.files.is_empty();
+    }
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -337,6 +413,7 @@ impl Default for Preferences {
             homepage_project_layout: HomepageLayout::Grid,
             homepage_project_sort: HomepageSort::Modified,
             first_run_sign_in_completed: false,
+            explorer_pins: Default::default(),
         }
     }
 }
@@ -432,6 +509,14 @@ impl Preferences {
     }
     pub fn forget_project(&mut self, path: &std::path::Path) {
         self.recent_projects.retain(|p| p.path != path);
+    }
+    /// A project's pins; changing them to none forgets the project's entry.
+    pub fn change_pins(&mut self, project: &str, change: impl FnOnce(&mut ExplorerPins)) {
+        let mut pins = self.explorer_pins.remove(project).unwrap_or_default();
+        change(&mut pins);
+        if !pins.files.is_empty() {
+            self.explorer_pins.insert(project.to_owned(), pins);
+        }
     }
     pub fn agent_visible(&self, id: &str) -> bool {
         !self.local_agents.hidden_agent_ids.iter().any(|h| h == id)

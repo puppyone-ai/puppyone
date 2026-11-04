@@ -43,6 +43,9 @@ impl Explorer {
             .and_then(|ws| ws.resource_id(Path::new("")).ok())
             .map(|id| crate::editor::workbench::catalog::resource_key(&id));
         let is_active = active.as_deref() == Some(owner);
+        if is_active {
+            self.carry_pins(&outcome.moved, &outcome.removed, cx);
+        }
         let inline = is_active && std::mem::take(&mut self.op_inline);
         let tree = if is_active {
             self.op = false;

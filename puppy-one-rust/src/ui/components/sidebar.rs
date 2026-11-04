@@ -330,7 +330,7 @@ fn solid(color: Rgba) -> Background {
     Hsla::from(color).into()
 }
 /// `--tree-row-selected-bg`: the selected tint fading toward the row's end.
-fn selected_gradient(t: Theme) -> Background {
+pub fn selected_gradient(t: Theme) -> Background {
     linear_gradient(
         90.,
         linear_color_stop(theme::alpha(t.selected, 0.96), 0.),

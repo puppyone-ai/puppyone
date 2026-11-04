@@ -34,6 +34,8 @@ mod keys {
     pub const FIRST_RUN_SIGN_IN: &str = "puppyone.desktop.firstRunSignInCompleted.v1";
     pub const HOMEPAGE_LAYOUT: &str = "puppyone.desktop.homepageProjectLayout";
     pub const HOMEPAGE_SORT: &str = "puppyone.desktop.homepageProjectSort";
+    /// `EXPLORER_PINS_STORAGE_PREFIX`, then `:` and the project's path.
+    pub const EXPLORER_PINS: &str = "puppyone.desktop.explorer-pins.v1:";
 }
 
 /// The native preferences a first launch starts from.
@@ -165,7 +167,55 @@ pub fn import(data: &ElectronData) -> Preferences {
         p.header_terminal = enabled.get("terminal") != Some(&Value::Bool(false));
     }
     p.first_run_sign_in_completed = get(keys::FIRST_RUN_SIGN_IN) == Some("true");
+    p.explorer_pins = explorer_pins(data);
     p
+}
+/// `readStoredPins` for every single-folder project (a multi-folder key
+/// joins its folders with U+001F; native projects have one folder).
+fn explorer_pins(
+    data: &ElectronData,
+) -> std::collections::BTreeMap<String, super::preference_types::ExplorerPins> {
+    use super::preference_types::{ExplorerPins, PinnedFile};
+    data.storage
+        .iter()
+        .filter_map(|(key, value)| {
+            let project = key.strip_prefix(keys::EXPLORER_PINS)?;
+            if project.is_empty() || project.contains('\u{1f}') {
+                return None;
+            }
+            let parsed: Value = serde_json::from_str(value).ok()?;
+            let files: Vec<PinnedFile> = parsed["files"]
+                .as_array()?
+                .iter()
+                .filter(|f| {
+                    ["id", "name", "path", "type"]
+                        .iter()
+                        .all(|k| f[k].is_string())
+                        && f["type"] != "folder"
+                })
+                .filter_map(|f| {
+                    let path = f["path"].as_str()?;
+                    let relative = path
+                        .strip_prefix(project)
+                        .unwrap_or(path)
+                        .trim_start_matches('/');
+                    (!relative.is_empty()).then(|| PinnedFile {
+                        path: relative.to_owned(),
+                        name: f["name"].as_str().unwrap_or(relative).to_owned(),
+                    })
+                })
+                .collect();
+            (!files.is_empty()).then(|| {
+                (
+                    project.to_owned(),
+                    ExplorerPins {
+                        files,
+                        files_collapsed: parsed["filesCollapsed"] == true,
+                    },
+                )
+            })
+        })
+        .collect()
 }
 
 /// `appearancePreferences.ts`: the v6 document, else the legacy keys it
@@ -370,6 +420,26 @@ mod tests {
         assert_eq!(p.git_sidebar_layout, GitSidebarLayout::Dividers);
         assert!(p.first_run_sign_in_completed);
         assert!(!p.header_changes && p.header_terminal);
+    }
+
+    #[test]
+    fn a_projects_pins_come_along() {
+        let p = import(&data(&[
+            (
+                "puppyone.desktop.explorer-pins.v1:/p/notes",
+                r#"{"files":[{"id":"plan.md","name":"plan.md","path":"plan.md","type":"file"},
+                   {"id":"x","name":"x","path":"docs","type":"folder"}],"filesCollapsed":true}"#,
+            ),
+            (
+                "puppyone.desktop.explorer-pins.v1:/a\u{1f}/b",
+                r#"{"files":[]}"#,
+            ),
+        ]));
+        let pins = &p.explorer_pins["/p/notes"];
+        assert_eq!(pins.files.len(), 1);
+        assert_eq!(pins.files[0].path, "plan.md");
+        assert!(pins.files_collapsed);
+        assert_eq!(p.explorer_pins.len(), 1);
     }
 
     #[test]

@@ -37,6 +37,7 @@ mod file_ops;
 mod keyboard;
 mod menus;
 mod motion;
+mod pins;
 mod rows;
 
 pub(super) use file_ops::FileClipboard;
@@ -662,6 +663,9 @@ impl Render for Explorer {
         let empty = self.tree.rows.is_empty() && !loading && self.workspace.is_some();
         let operation_error = self.operation_error.clone().filter(|_| !loading);
         let count = self.tree.rows.len() + usize::from(self.workspace.is_some() || self.fixture);
+        let pins = self.pins(cx);
+        let pinned = !pins.files.is_empty();
+        let folded = pinned && pins.files_collapsed;
         let tree = div()
             .id("explorer-tree")
             .flex_1()
@@ -712,7 +716,8 @@ impl Render for Explorer {
                     }),
                 )
                 .size_full()
-                .pt(px(12.))
+                // The fold line already separates the pins from the first file.
+                .pt(px(if pinned { 2. } else { 12. }))
                 .pb(px(6.))
                 .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
                 .track_scroll(&self.scroll),
@@ -722,29 +727,40 @@ impl Render for Explorer {
             .flex()
             .flex_col()
             .bg(t.sidebar)
+            .when(pinned, |d| d.child(self.pins_view(&pins, cx)))
             .children(
                 operation_error
                     .clone()
+                    .filter(|_| !folded)
                     .map(|error| self.operation_error_banner(error, empty, t, cx)),
             )
-            .when((loading || empty) && operation_error.is_none(), |d| {
-                d.child(
-                    div()
-                        .px(px(
-                            metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
-                        ))
-                        .pt(px(12.))
-                        .text_size(px(theme::ty().left.meta))
-                        .text_color(t.subtle)
-                        .child(tr(if loading {
-                            "shared-ui.explorer.loadingWorkspace"
-                        } else {
-                            "shared-ui.explorer.emptyFolder"
-                        })),
-                )
+            .when(
+                (loading || empty) && operation_error.is_none() && !folded,
+                |d| {
+                    d.child(
+                        div()
+                            .px(px(
+                                metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
+                            ))
+                            .pt(px(12.))
+                            .text_size(px(theme::ty().left.meta))
+                            .text_color(t.subtle)
+                            .child(tr(if loading {
+                                "shared-ui.explorer.loadingWorkspace"
+                            } else {
+                                "shared-ui.explorer.emptyFolder"
+                            })),
+                    )
+                },
+            )
+            // Folded away under the pins, the tree keeps its place.
+            .child(
+                self.on_explorer_actions(tree, cx)
+                    .when(folded, |d| d.invisible()),
+            )
+            .when(theme::footer() > 0. && !folded, |d| {
+                d.child(self.tree_bottom_fade(t))
             })
-            .child(self.on_explorer_actions(tree, cx))
-            .when(theme::footer() > 0., |d| d.child(self.tree_bottom_fade(t)))
             .child(crate::ui::scrollbar::vertical(
                 "explorer-scrollbar",
                 &self.scroll,

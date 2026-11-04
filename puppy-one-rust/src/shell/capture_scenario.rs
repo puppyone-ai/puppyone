@@ -15,7 +15,8 @@
 //! entry launcher), `explorer-drag:<x>` (drag the
 //! Explorer's edge to `x` and release), `home-list` (the Homepage's List
 //! layout), `home-hover:<index>` (a Homepage entry reached for) and
-//! `home-actions:<index>` (its actions menu), `template` (a template
+//! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
+//! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
 //! allowed or not), `agents:<more|invite|agent id>` (their card) and
@@ -52,6 +53,8 @@ enum Step {
     HomeActions(usize),
     /// `template`: a template link's card (with `PUPPYONE_TEMPLATE_LAB`).
     Template,
+    /// `pin:<path>`: pin a file above the tree.
+    Pin(PathBuf),
     AgentsFixture(bool),
     Agents(String),
     ManageAgents,
@@ -96,6 +99,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
                 "template" => Step::Template,
+                "pin" => Step::Pin(path()),
                 "agents-fixture" => Step::AgentsFixture(arg == "open"),
                 "agents" => Step::Agents(arg.to_string()),
                 "manage-agents" => Step::ManageAgents,
@@ -323,6 +327,10 @@ impl Shell {
                 self.homepage.hovered = Some(item.id.clone());
                 self.homepage.actions = Some(item.id);
                 self.open_project_actions(target, bounds, true, window.viewport_size(), cx);
+            }
+            Step::Pin(path) => {
+                let path = path.clone();
+                self.explorer.update(cx, |e, cx| e.toggle_pin(&path, cx));
             }
             Step::Template => self.open_template_link(
                 "https://www.puppyone.ai/t/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),

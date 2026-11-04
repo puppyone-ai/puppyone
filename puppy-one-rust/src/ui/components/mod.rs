@@ -37,7 +37,9 @@ pub use settings::{
     MutedRow, SettingRow, SettingsCategory, SettingsCategoryList, SettingsList, SettingsSection,
     SettingsSubsection, ValueRow,
 };
-pub use sidebar::{RowActionButton, RowVariant, SectionHeader, SidebarGroup, SidebarRow};
+pub use sidebar::{
+    RowActionButton, RowVariant, SectionHeader, SidebarGroup, SidebarRow, selected_gradient,
+};
 pub use spinner::Spinner;
 pub use switch::Switch;
 
