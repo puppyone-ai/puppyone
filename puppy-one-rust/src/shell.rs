@@ -704,6 +704,17 @@ impl Shell {
         windows::register(window.window_handle(), cx.weak_entity(), cx);
         cx.observe(&s.cloud_catalog, |_, _, cx| cx.notify())
             .detach();
+        // `DesktopDialogRoot`'s focus keeper: a control disabled or removed
+        // while it holds focus drops focus out of the dialog; focus returns
+        // to the nearest surface still there (the dialog's own).
+        cx.on_focus_lost(window, |s, window, cx| {
+            if !s.modals.is_empty()
+                && let Some(target) = window.focus_lost_restore_target(cx)
+            {
+                target.focus(window, cx);
+            }
+        })
+        .detach();
         // Until preferences load: the default Sub Theme in the start-up mode.
         crate::ui::appearance::Appearance::default()
             .with_dark(s.dark)

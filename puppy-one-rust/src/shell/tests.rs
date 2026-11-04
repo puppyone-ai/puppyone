@@ -450,6 +450,23 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     });
 }
 #[gpui::test]
+fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        let path = s.explorer.read(cx).tree().rows[0].path.clone();
+        s.begin_rename(path, false, w, cx);
+    });
+    draw(cx);
+    // Focus moves to a control that is no longer there (removed or disabled).
+    let gone = cx.update(|_, cx| cx.focus_handle());
+    view.update_in(cx, |_, w, cx| gone.focus(w, cx));
+    draw(cx);
+    draw(cx);
+    // The dialog still holds the keyboard: Escape cancels it.
+    cx.simulate_keystrokes("escape");
+    view.update(cx, |s, _| assert!(s.modals.rename().is_none()));
+}
+#[gpui::test]
 fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
     use crate::features::create_new::create_entry_menu_registry::Entry;
     let temp = tempfile::tempdir().unwrap();
