@@ -148,10 +148,6 @@ pub fn get(id: &str) -> Option<&'static Brand> {
 }
 /// `nameWords`: a name as whole words, so "Grok Bot", "grok-bot" and
 /// "GROK_BOT" are one name and "Groq" is not "Grok".
-#[cfg_attr(
-    not(test),
-    allow(dead_code, reason = "the Agents marks (C-3) name connections")
-)]
 fn name_words(value: &str) -> String {
     let words: Vec<String> = value
         .to_lowercase()
@@ -163,10 +159,6 @@ fn name_words(value: &str) -> String {
 }
 /// `resolveAgentBrand`: an exact id or icon key, else the first brand one
 /// of whose aliases appears in the identity as whole words.
-#[cfg_attr(
-    not(test),
-    allow(dead_code, reason = "the Agents marks (C-3) name connections")
-)]
 pub fn resolve(
     id: Option<&str>,
     icon_key: Option<&str>,
@@ -191,23 +183,30 @@ pub fn resolve(
 }
 /// `AgentBrandImage`: the theme's mark at its optical scale in a `size` slot.
 pub fn image(brand: &Brand, dark: bool, size: f32) -> Div {
-    let file = if dark {
-        brand.dark.unwrap_or(brand.light)
-    } else {
-        brand.light
-    };
-    let drawn = size * brand.scale;
     div()
         .size(px(size))
         .flex()
         .flex_none()
         .items_center()
         .justify_center()
-        .child(
-            img(SharedString::from(format!("agents/{file}")))
-                .size(px(drawn))
-                .object_fit(ObjectFit::Contain),
-        )
+        .child(artwork(brand, dark, size * brand.scale))
+}
+/// The theme's artwork alone, `size` square.
+pub fn artwork(brand: &Brand, dark: bool, size: f32) -> Img {
+    let file = if dark {
+        brand.dark.unwrap_or(brand.light)
+    } else {
+        brand.light
+    };
+    img(SharedString::from(format!("agents/{file}")))
+        .size(px(size))
+        .flex_none()
+        .object_fit(ObjectFit::Contain)
+}
+/// Square tiles whose ground runs to the asset's edge: in a round mark the
+/// tile becomes the mark (`.desktop-project-reach-mark:is([data-reach-brand=…])`).
+pub fn tile(brand: &Brand) -> bool {
+    matches!(brand.id, "grok-bot" | "hermes" | "manus" | "opencode")
 }
 /// `MONOCHROME_AGENT_BRAND_IDS`: single-colour marks drawn in the surface's
 /// text colour (the ChatGPT artwork exists only in white).

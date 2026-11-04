@@ -17,6 +17,7 @@ use std::path::PathBuf;
 mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
+mod cloud_agents_ui;
 mod cloud_authority;
 mod cloud_publish;
 pub(crate) mod coachmarks;
@@ -63,6 +64,8 @@ pub enum Popover {
     Place,
     /// `CloudWorkspaceShareDialog`: the Share card under its button.
     Share,
+    /// `CloudWorkspaceAgentsPanel`: the Agents card under their marks.
+    Agents,
 }
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
@@ -102,6 +105,12 @@ pub struct Shell {
     source_control: Entity<crate::features::source_control::SourceControl>,
     /// The hosted Project's History sidebar (Cloud Header).
     cloud_history: Entity<crate::features::source_control::CloudHistory>,
+    /// Who is in the hosted Project (`useWorkspaceAgents`).
+    cloud_agents: Entity<crate::features::cloud_agents::CloudAgents>,
+    agents_anchor: cloud_agents_ui::AgentsAnchor,
+    /// Captures: the Header shows the Cloud tools over a local folder.
+    #[cfg(feature = "dev-capture")]
+    capture_hosted: bool,
     /// The open checkout's Cloud association (Header location).
     repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
     /// A project path the Header menu just copied, and when.
@@ -284,6 +293,10 @@ impl Shell {
             source_control: cx
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
             cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
+            cloud_agents: cx.new(|_| crate::features::cloud_agents::CloudAgents::new()),
+            agents_anchor: Default::default(),
+            #[cfg(feature = "dev-capture")]
+            capture_hosted: false,
             repository_cloud: Self::new_repository_cloud(cx),
             copied_path: None,
             window_title: None,
@@ -471,6 +484,15 @@ impl Shell {
             },
         )
         .detach();
+        cx.observe(&s.cloud_agents, |_, _, cx| cx.notify()).detach();
+        // A hidden window is not polled for its Agents, and catches up
+        // when it returns.
+        let agents = s.cloud_agents.downgrade();
+        window
+            .observe_window_visibility(move |visibility, _, cx| {
+                let _ = agents.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
+            })
+            .detach();
         // Leaving the window abandons a pane drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
             let active = window.is_window_active();
@@ -841,6 +863,7 @@ impl Shell {
                 self.modals
                     .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
             }
+            Some(Modal::ManageAgents) => self.close_manage_agents(window, cx),
             None => {}
         }
     }
@@ -1489,6 +1512,13 @@ impl Shell {
         self.cloud_catalog
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
+    /// Captures: the Header shows the Cloud tools.
+    fn capture_hosted(&self) -> bool {
+        #[cfg(feature = "dev-capture")]
+        return self.capture_hosted;
+        #[cfg(not(feature = "dev-capture"))]
+        false
+    }
     /// The hosted Project this window shows (a Cloud workspace, no local root).
     fn hosted_project(&self) -> Option<String> {
         self.files
@@ -1898,7 +1928,7 @@ impl Shell {
         let hosted = if opening {
             self.files.cloud_opening().is_some()
         } else {
-            self.hosted_project().is_some()
+            self.hosted_project().is_some() || self.capture_hosted()
         };
         let (changes, agent, tabs) = {
             let p = &self.preferences.read(cx).state;
@@ -1936,6 +1966,9 @@ impl Shell {
             bar = bar.tabs(self.editor_tabs(cx));
         }
         if hosted {
+            if let Some(agents) = self.agents_control(cx) {
+                bar = bar.action(agents);
+            }
             bar = bar.action(self.share_control(cx)).divider(cx);
         } else {
             // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
@@ -2063,6 +2096,7 @@ impl Render for Shell {
         self.sync_editor(window, cx);
         self.sync_explorer(window, cx);
         self.guard_cloud_history(cx);
+        self.sync_cloud_agents(cx);
         self.sync_repository_cloud(cx);
         self.sync_cloud_publish(cx);
         self.guard_cloud_authority(window, cx);
@@ -2445,6 +2479,7 @@ impl Shell {
                 Modal::CloudRecovery { project, failure } => self
                     .cloud_open_recovery_dialog(project, failure, cx)
                     .into_any_element(),
+                Modal::ManageAgents => self.manage_agents_dialog(cx).into_any_element(),
             })
             .collect();
         if self.files.cloud_conflict() {

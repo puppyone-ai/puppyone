@@ -1,6 +1,7 @@
 pub mod agent_presence;
 pub mod agent_settings;
 pub mod cloud_account;
+pub mod cloud_agents;
 pub mod cloud_catalog;
 pub mod cloud_publish;
 pub mod cloud_services;

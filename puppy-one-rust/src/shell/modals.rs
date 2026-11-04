@@ -70,6 +70,8 @@ pub(super) enum Modal {
         project: String,
         failure: crate::workspace::cloud::opening::Failure,
     },
+    /// `CloudWorkspaceAgentsDialog`: Manage agents.
+    ManageAgents,
 }
 
 /// Open modals, bottom to top.

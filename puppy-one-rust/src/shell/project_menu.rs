@@ -83,6 +83,7 @@ impl Shell {
             Popover::Project => "project-menu",
             Popover::Place => "place-menu",
             Popover::Share => "share-panel",
+            Popover::Agents => "agents-panel",
         };
         let host = self.weak.clone();
         let mut menu = PopoverMenu::new(id)
@@ -130,8 +131,9 @@ impl Shell {
                         });
                     }
                 }
-                // The Share card has its own control (`share_control`).
-                Popover::Share => {}
+                // The Share and Agents cards have their own controls
+                // (`share_control`, `agents_control`).
+                Popover::Share | Popover::Agents => {}
             }
         }
         menu

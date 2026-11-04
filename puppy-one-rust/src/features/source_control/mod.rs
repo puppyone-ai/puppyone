@@ -6,7 +6,7 @@
 //! A selected change opens its file diff in place (`WorkingFileDetail` over
 //! the format-aware `diff` registry).
 mod cloud_history;
-pub(crate) use cloud_history::relative_time;
+pub(crate) use cloud_history::{relative_time, short_date};
 mod diff;
 mod history;
 mod refresh;

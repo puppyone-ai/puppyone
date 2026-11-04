@@ -26,7 +26,7 @@ impl Shell {
         cx.observe(&entity, |_, _, cx| cx.notify()).detach();
         entity
     }
-    fn cloud_enabled(&self, cx: &App) -> bool {
+    pub(super) fn cloud_enabled(&self, cx: &App) -> bool {
         crate::features::flags::cloud_enabled(&self.preferences, cx)
     }
     /// Keep the open folder's association current for the account.

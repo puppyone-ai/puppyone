@@ -74,6 +74,10 @@ pub fn control_mini() -> f32 {
 pub fn control_micro() -> f32 {
     control() - 12.
 }
+/// `--po-control-size-roomy`.
+pub fn control_roomy() -> f32 {
+    control() + 4.
+}
 pub fn control_compact() -> f32 {
     control() - 4.
 }

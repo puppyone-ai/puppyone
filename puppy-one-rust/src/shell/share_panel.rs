@@ -265,19 +265,33 @@ fn share_card(
     } else {
         v_flex().gap(px(4.)).children(rows).into_any_element()
     };
+    card("cloud-workspace-share", t, WIDTH, INSET, max_height)
+        .gap(px(10.))
+        .child(heading)
+        .child(body)
+}
+/// `.desktop-cloud-workspace-share`: a card under the Header on the project
+/// menu's own surface, `inset` from its edge.
+pub(super) fn card(
+    id: &'static str,
+    t: Theme,
+    width: f32,
+    inset: f32,
+    max_height: Pixels,
+) -> Stateful<Div> {
     v_flex()
-        .id("cloud-workspace-share")
-        .debug_selector(|| "cloud-workspace-share".into())
+        .id(id)
+        .debug_selector(move || id.into())
         .occlude()
-        .w(px(WIDTH))
+        .w(px(width))
         .max_h(max_height)
         .overflow_y_scroll()
-        .p(px(INSET))
-        .gap(px(10.))
+        .p(px(inset))
         .rounded(px(metric::MENU_RADIUS))
         .border_1()
         .border_color(t.shell_divider)
         .bg(t.header)
+        .text_color(t.text)
         .shadow(vec![
             BoxShadow {
                 color: theme::alpha(t.shadow, 0.45).into(),
@@ -294,8 +308,6 @@ fn share_card(
                 inset: false,
             },
         ])
-        .child(heading)
-        .child(body)
 }
 
 #[cfg(test)]

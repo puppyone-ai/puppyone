@@ -297,7 +297,7 @@ pub struct SeatUsage {
 }
 
 /// `{code, data}` yields `data`.
-fn unwrap(value: Value) -> Value {
+pub(super) fn unwrap(value: Value) -> Value {
     match value {
         Value::Object(mut map) if map.contains_key("data") => {
             map.remove("data").unwrap_or(Value::Null)
@@ -305,11 +305,14 @@ fn unwrap(value: Value) -> Value {
         value => value,
     }
 }
-fn decode<T: serde::de::DeserializeOwned>(value: Value, what: &'static str) -> Result<T> {
+pub(super) fn decode<T: serde::de::DeserializeOwned>(
+    value: Value,
+    what: &'static str,
+) -> Result<T> {
     serde_json::from_value(unwrap(value)).map_err(|_| Error::Invalid(what))
 }
 /// A path segment: nothing that would need escaping reaches a request.
-fn segment(id: &str) -> Result<&str> {
+pub(super) fn segment(id: &str) -> Result<&str> {
     if !id.is_empty()
         && id.len() <= 128
         && id

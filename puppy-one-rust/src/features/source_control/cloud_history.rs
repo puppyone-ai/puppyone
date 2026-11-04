@@ -298,6 +298,13 @@ pub(crate) fn relative_time(iso: &str, now: i64) -> Option<String> {
     })
 }
 
+/// `formatDate(iso, { month: "short", day: "numeric" })` in local time.
+pub(crate) fn short_date(iso: &str) -> Option<String> {
+    let time = chrono::DateTime::parse_from_rfc3339(iso).ok()?.timestamp();
+    let (_, m, d) = history::local_day(time);
+    Some(localization::month_day(None, m, d))
+}
+
 impl CloudHistory {
     pub fn new(cx: &mut Context<Self>) -> Self {
         cx.on_release(|s: &mut Self, cx| s.release(cx)).detach();

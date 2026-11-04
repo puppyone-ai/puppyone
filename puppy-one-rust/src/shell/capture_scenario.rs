@@ -15,7 +15,10 @@
 //! entry launcher), `explorer-drag:<x>` (drag the
 //! Explorer's edge to `x` and release), `home-list` (the Homepage's List
 //! layout), `home-hover:<index>` (a Homepage entry reached for) and
-//! `home-actions:<index>` (its actions menu). The capture waits
+//! `home-actions:<index>` (its actions menu), `agents-fixture` /
+//! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
+//! allowed or not), `agents:<more|invite|agent id>` (their card) and
+//! `manage-agents`. The capture waits
 //! for the homepage's project activity and an open diff.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
@@ -46,6 +49,9 @@ enum Step {
     HomeList,
     HomeHover(usize),
     HomeActions(usize),
+    AgentsFixture(bool),
+    Agents(String),
+    ManageAgents,
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -86,6 +92,9 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
+                "agents-fixture" => Step::AgentsFixture(arg == "open"),
+                "agents" => Step::Agents(arg.to_string()),
+                "manage-agents" => Step::ManageAgents,
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -307,6 +316,32 @@ impl Shell {
                 self.homepage.hovered = Some(item.id.clone());
                 self.homepage.actions = Some(item.id);
                 self.open_project_actions(target, bounds, true, window.viewport_size(), cx);
+            }
+            Step::AgentsFixture(open_links) => {
+                self.capture_hosted = true;
+                let client = crate::features::cloud_agents::lab_client(*open_links);
+                let name = self.project.clone();
+                self.cloud_agents.update(cx, |a, cx| {
+                    a.attach_client("lab-project", &name, client, cx)
+                });
+            }
+            Step::Agents(opener) => {
+                use crate::features::cloud_agents::Opener;
+                if !self.cloud_agents.read(cx).manageable {
+                    return false;
+                }
+                let opener = match opener.as_str() {
+                    "more" => Opener::More,
+                    "invite" => Opener::Invite,
+                    id => Opener::Agent(id.to_owned()),
+                };
+                self.press_agents(opener, cx);
+            }
+            Step::ManageAgents => {
+                if !self.cloud_agents.read(cx).manageable {
+                    return false;
+                }
+                self.open_manage_agents(cx);
             }
         }
         self.receive(window, cx);

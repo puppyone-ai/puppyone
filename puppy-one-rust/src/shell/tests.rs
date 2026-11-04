@@ -1422,6 +1422,96 @@ fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppCo
     view.read_with(cx, |s, _| assert!(s.popover.is_none()));
 }
 
+/// C-3, N-6: the Agents in a hosted workspace stand beside Share, someone
+/// asking to join first. Any mark opens their card and the same mark closes
+/// it; a press outside closes it; Manage agents opens over the window.
+#[gpui::test]
+fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let base = cloud_project_responder();
+    let responder = with_catalog(std::sync::Arc::new(move |request| {
+        let path = request.path.as_str();
+        if path.ends_with("/agent-links") && request.method == reqwest::Method::GET {
+            return Ok(serde_json::json!({"code": 0, "data": {"links": [],
+                "connections": [{"id": "c1", "name": "Claude Code", "admission": "sign_in",
+                    "grant_id": "g1", "connected_at": "2026-10-30T12:00:00Z", "expires_at": null}],
+                "pending": [{"id": "r1", "name": "Codex", "admission": "sign_in",
+                    "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}]}}));
+        }
+        if path.ends_with("/access/sessions") {
+            return Ok(serde_json::json!({"code": 0, "data": []}));
+        }
+        base(request)
+    }));
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the Agents", &|s, cx| {
+        s.cloud_agents.read(cx).manageable
+    });
+    draw(cx);
+    let request = cx.debug_bounds("cloud-workspace-agent:r1").unwrap();
+    let agent = cx.debug_bounds("cloud-workspace-agent:c1").unwrap();
+    let seat = cx
+        .debug_bounds("cloud-workspace-tool:invite-agent")
+        .unwrap();
+    assert!(request.origin.x < agent.origin.x && agent.origin.x < seat.origin.x);
+    cx.simulate_click(agent.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Agents)));
+    let card = cx.debug_bounds("cloud-agents-panel").unwrap();
+    assert!((f32::from(card.size.width) - 320.).abs() < 0.5);
+    assert!(card.origin.y > agent.origin.y);
+    assert!(cx.debug_bounds("cloud-agent-row:c1").is_some());
+    // Another mark moves the card; the same one closes it.
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.popover, Some(Popover::Agents));
+        assert_eq!(
+            s.cloud_agents.read(cx).opener,
+            crate::features::cloud_agents::Opener::Invite
+        );
+    });
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, _| assert_eq!(s.popover, None));
+    // A press outside closes it.
+    cx.simulate_click(agent.center(), Modifiers::none());
+    draw(cx);
+    cx.simulate_click(point(px(400.), px(500.)), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, _| assert_eq!(s.popover, None));
+    // Manage agents takes the card's place, and Escape closes it.
+    cx.simulate_click(agent.center(), Modifiers::none());
+    draw(cx);
+    let manage = cx.debug_bounds("cloud-agents-manage").unwrap();
+    cx.simulate_click(manage.center(), Modifiers::none());
+    settle_cloud(&view, cx, "Manage agents", &|s, cx| {
+        s.cloud_agents
+            .read(cx)
+            .manage
+            .as_ref()
+            .is_some_and(|m| m.inventory.connections.len() == 1)
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.popover, None);
+        assert!(matches!(s.modals.top(), Some(Modal::ManageAgents)));
+    });
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, cx| {
+        assert!(s.modals.is_empty());
+        assert!(s.cloud_agents.read(cx).manage.is_none());
+    });
+}
+
 #[gpui::test]
 fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
