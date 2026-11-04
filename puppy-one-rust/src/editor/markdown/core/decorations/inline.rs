@@ -141,12 +141,19 @@ impl Builder<'_> {
                         href: None,
                     });
                 }
-                Kind::Emoji | Kind::Entity => {
+                Kind::Emoji | Kind::Entity | Kind::MathInline => {
                     if let Presentation::InlineAtom(Atom::Text(text)) = &plan.presentation
                         && !reveal
                     {
                         self.replaced
                             .push((e.range.clone(), SharedString::from(text.clone())));
+                        if e.kind == Kind::MathInline {
+                            self.spans.push(ClassSpan {
+                                range: e.range.clone(),
+                                classes: Class::MATH,
+                                href: None,
+                            });
+                        }
                     }
                 }
                 _ => {}

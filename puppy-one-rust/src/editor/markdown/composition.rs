@@ -3,11 +3,13 @@
 //! source (earlier wins).
 use super::{
     core::feature::{Features, MarkdownFeature},
-    features::{code_block, rule, table, task},
+    features::{code_block, math, rule, table, task},
 };
 
 pub static FEATURES: Features = &[
-    &code_block::FEATURE as &dyn MarkdownFeature,
+    // Math claims the fences labelled `math` before code blocks do.
+    &math::FEATURE as &dyn MarkdownFeature,
+    &code_block::FEATURE,
     &table::FEATURE,
     &rule::FEATURE,
     &task::FEATURE,

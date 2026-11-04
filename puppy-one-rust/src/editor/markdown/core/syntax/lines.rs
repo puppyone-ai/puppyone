@@ -177,6 +177,19 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
                 Some(from + 2..to - 2),
             ));
         }
+        for (open, close) in super::inline_syntax::inline_math(text) {
+            let (from, to) = (range.start + open, range.start + close + 1);
+            let mut e = Element::new(
+                Kind::MathInline,
+                from..to,
+                vec![from..from + 1, to - 1..to],
+                Some(from + 1..to - 1),
+            );
+            e.text = Some(crate::editor::markdown::features::math::tex::convert(
+                &text[open + 1..close],
+            ));
+            elements.push(e);
+        }
         for comment in super::inline_syntax::percent_comments(text) {
             let r = range.start + comment.start..range.start + comment.end;
             elements.push(Element::new(Kind::Comment, r.clone(), vec![], Some(r)));

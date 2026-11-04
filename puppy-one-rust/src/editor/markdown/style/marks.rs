@@ -37,7 +37,7 @@ pub fn marks(
     use crate::editor::view::decoration::packed;
     MarkStyle {
         bold: weight > line.weight,
-        italic: has(Class::SYNTAX_EMPHASIS),
+        italic: has(Class::SYNTAX_EMPHASIS) || has(Class::MATH),
         strike: has(Class::SYNTAX_STRIKE),
         underline: false,
         code: has(Class::SYNTAX_MONOSPACE),

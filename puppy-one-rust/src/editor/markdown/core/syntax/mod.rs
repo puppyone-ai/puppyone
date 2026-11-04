@@ -42,6 +42,8 @@ pub enum Kind {
     Emoji,
     /// `&name;` shown as its character.
     Entity,
+    /// `$formula$` shown as its text (the `math` feature).
+    MathInline,
 }
 
 impl Kind {
@@ -59,6 +61,7 @@ impl Kind {
                 | Kind::LinkDefinition
                 | Kind::Emoji
                 | Kind::Entity
+                | Kind::MathInline
         )
     }
     /// Kinds decorated inline (marks + hidden markers).
@@ -77,6 +80,7 @@ impl Kind {
                 | Kind::LinkDefinition
                 | Kind::Emoji
                 | Kind::Entity
+                | Kind::MathInline
         )
     }
     /// Block kinds whose leading marker is deleted as a unit at the visible start.
@@ -97,7 +101,7 @@ impl Kind {
             Kind::Emphasis => 7,
             Kind::Escape => 8,
             Kind::Highlight => 6,
-            Kind::Emoji | Kind::Entity => 8,
+            Kind::Emoji | Kind::Entity | Kind::MathInline => 8,
             _ => 9,
         }
     }
@@ -293,7 +297,7 @@ impl Syntax {
             .map(|e| e.range.clone())
             .collect();
         syntax.elements.retain(|e| {
-            !matches!(e.kind, Kind::Highlight | Kind::Comment)
+            !matches!(e.kind, Kind::Highlight | Kind::Comment | Kind::MathInline)
                 || !code
                     .iter()
                     .any(|c| c.start < e.range.end && e.range.start < c.end)

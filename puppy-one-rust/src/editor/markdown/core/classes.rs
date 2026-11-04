@@ -105,6 +105,8 @@ classes! {
     COMMENT = 38;
     /// `cm-md-link-definition`
     LINK_DEFINITION = 39;
+    /// `cm-md-math-inline-widget`
+    MATH = 40;
 }
 
 impl Class {

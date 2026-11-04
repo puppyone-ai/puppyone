@@ -87,6 +87,71 @@ pub fn highlights(text: &str) -> Vec<(usize, usize)> {
     out
 }
 
+fn escaped(bytes: &[u8], at: usize) -> bool {
+    bytes[..at]
+        .iter()
+        .rev()
+        .take_while(|b| **b == b'\\')
+        .count()
+        % 2
+        == 1
+}
+/// `$formula$` on one line (`scanInlineMath`): no `$$`, no space just
+/// inside either `$`, and not a price range such as `$5-$10`.
+/// (opening, closing) byte offsets of the two `$`.
+pub fn inline_math(text: &str) -> Vec<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let space = |i: usize| bytes.get(i).is_none_or(|b| b.is_ascii_whitespace());
+    let mut out = Vec::new();
+    let mut open = 0;
+    while open < bytes.len() {
+        if bytes[open] != b'$'
+            || bytes.get(open + 1) == Some(&b'$')
+            || escaped(bytes, open)
+            || space(open + 1)
+        {
+            open += 1;
+            continue;
+        }
+        let mut next = open;
+        let mut close = open + 1;
+        while close < bytes.len() {
+            if bytes[close] != b'$' || escaped(bytes, close) {
+                close += 1;
+                continue;
+            }
+            if bytes[close - 1] == b'$'
+                || bytes.get(close + 1) == Some(&b'$')
+                || bytes[close - 1].is_ascii_whitespace()
+            {
+                next = if bytes.get(close + 1) == Some(&b'$') {
+                    close + 1
+                } else {
+                    close - 1
+                };
+                break;
+            }
+            let source = &text[open + 1..close];
+            let currency = bytes.get(close + 1).is_some_and(u8::is_ascii_digit)
+                && source
+                    .trim_start_matches(['+', '-'])
+                    .trim_end_matches(['-', '–', '—'])
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == ',' || c == '.')
+                && source
+                    .trim_start_matches(['+', '-'])
+                    .starts_with(|c: char| c.is_ascii_digit());
+            if !currency {
+                out.push((open, close));
+            }
+            next = close;
+            break;
+        }
+        open = next.max(open) + 1;
+    }
+    out
+}
+
 /// `%%comment%%` on one line (`PercentComment`).
 pub fn percent_comments(text: &str) -> Vec<Range<usize>> {
     let mut out = Vec::new();
@@ -120,5 +185,9 @@ mod tests {
         assert_eq!(highlights("a ==b c== d === e"), vec![(2, 7)]);
         assert!(highlights("== spaced ==").is_empty());
         assert_eq!(percent_comments("x %%hidden%% y %%open"), vec![2..12]);
+        assert_eq!(inline_math("a $x^2$ b"), vec![(2, 6)]);
+        assert!(inline_math("costs $5 and $10").is_empty());
+        assert!(inline_math("$$x$$ and $ y$").is_empty());
+        assert!(inline_math(r"\$x$").is_empty());
     }
 }

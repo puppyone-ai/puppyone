@@ -4,6 +4,7 @@
 //! `core::feature::MarkdownFeature`. The built-in list is
 //! `markdown/composition.rs`.
 pub mod code_block;
+pub mod math;
 pub mod rule;
 pub mod table;
 pub mod task;
