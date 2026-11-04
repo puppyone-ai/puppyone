@@ -138,6 +138,23 @@
 | shell（反馈、引导卡片、首页空态与开场 9 例） | 99.45–99.99 |
 | editor（代码、JSON、Markdown 及其菜单 / 源码 / 查找、CSV、图片、二进制 11 例） | 99.30–99.99 |
 
+### 0.7 2026-11-05 右侧栏与单文件窗口
+
+- [x] 右侧栏把“开没开”和“显示什么”分开（`rightSidebarOpen` / `rightSidebarSurface`）：收起时内容不变，所以 Git 收起时不再闪成 Chat；显示什么（Chat / Changes / History）存为 `puppyone.desktop.rightSidebarSurface`，从 Electron 导入，启动时恢复到收起的侧栏上，History 跨项目保留；Header 的 Git 入口回到 Changes 列表，从边缘拉出时打开上次的面板。
+- [x] 单文件窗口按 `FileModeApp` 逐项对齐：
+  - 状态：找到文件前是 `PageLoading`，标题栏还没有名字；文件不在了是 `FileUnavailable`，超过 1 MB 时多一行限制说明；这两种情况都不读文件。
+  - 不是 UTF-8 的文本：先按 GB18030 解码，解不了就用替换字符显示（`decodeTextFile`）；只读，上方显示编码提示，永远不写回；视图切换照常可用。
+  - Save 提示：有未保存的编辑时显示 Save changes，保存中和保存后显示 Saving… / Saved，图标、脉冲和淡入用 `EditorSaveButton` 原样。
+  - 关闭：有未保存的编辑时弹原生警告（Save 是默认，Cancel 对应 Esc），同一时间只问一次。
+  - 外部改动：不监听文件；窗口回到前台时重读一次，有草稿时按监听的规则保留草稿。
+  - 孤立文件：链接到其他文件不打开，没有引用上下文、拖入或 presence 标记；Settings、Help、Close File 在单文件窗口里不起作用；最小尺寸是窗口自己的 720 × 520。
+  - 标题栏菜单：用产品的菜单行（视图项带自己的图标，末尾一个淡色勾；开关项的勾在图标位），按钮在打开状态下保持标题的颜色。
+  - 启动：命令行最后一个文件或文件夹参数生效，非路径参数忽略，不再报用法错误；Finder 在启动时要打开的东西替代默认窗口；单实例锁，后启动的进程把参数交给已运行的进程（`handleSecondInstanceLaunch`）。
+- [x] 顺带发现并修正的编辑器问题：Markdown 的强调、粗体、删除线、行内代码使用各自的颜色，行内代码用主题的内边距（Kit 原来固定 4px），链接不再有下划线；CSV 表格查看器没有源码切换（产品的 `providerPolicy.sourceToggle` 为 false），左下角的切换和快捷键在所有窗口都去掉了。
+- [x] Check for Updates 按产品菜单动作：这个构建没有更新服务，所以弹原生的 Updates Unavailable。
+- 像素（新套件 `tools/file-scenarios.json`，参考为真实 `FileModeApp`）：md 99.42、视图菜单 99.36、已编辑 99.33、旧编码 99.52、csv 99.99、csv 菜单 99.87、加载 99.97、打不开 99.95、超大 99.95；剩下的差异是文字抗锯齿。editor 套件 md 从 99.37 升到 99.53，csv 99.99。
+- 未改：菜单栏本身和产品不完全一样（多 Open Folder / Reload / Close File，Help 菜单是反馈而不是系统帮助菜单，没有 Edit / View 角色菜单的全部项目）；这影响所有窗口，留作下一批。
+
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
