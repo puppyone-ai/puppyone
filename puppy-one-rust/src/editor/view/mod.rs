@@ -5,6 +5,7 @@
 //! `EditorExtension` and block widgets.
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
+mod block_drag;
 pub mod command;
 pub mod commands;
 mod composition;
@@ -176,8 +177,10 @@ macro_rules! motion {
 impl Render for EditorView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.watch_focus(window, cx);
+        let overlay = self.block_drag_overlay(cx);
         let root = div()
             .id("puppy-editor")
+            .relative()
             .size_full()
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
@@ -197,6 +200,13 @@ impl Render for EditorView {
             }))
             .on_action(cx.listener(|v, _: &MoveLineStart, _, cx| {
                 v.intent_or_motion(EditIntent::LineStart, Motion::LineStart, cx)
+            }))
+            // The block-drag experiment moves the caret's block instead.
+            .on_action(cx.listener(|v, _: &SelectDocStart, _, cx| {
+                v.intent_or_select(EditIntent::BlockUp, Motion::DocStart, cx)
+            }))
+            .on_action(cx.listener(|v, _: &SelectDocEnd, _, cx| {
+                v.intent_or_select(EditIntent::BlockDown, Motion::DocEnd, cx)
             }));
         motion!(self, root, cx,
             MoveRight => Motion::CharRight, false;
@@ -217,8 +227,6 @@ impl Render for EditorView {
             SelectGroupRight => Motion::GroupRight, true;
             SelectLineStart => Motion::LineStart, true;
             SelectLineEnd => Motion::LineEnd, true;
-            SelectDocStart => Motion::DocStart, true;
-            SelectDocEnd => Motion::DocEnd, true;
             SelectPageUp => Motion::PageUp, true;
             SelectPageDown => Motion::PageDown, true;
         );
@@ -296,5 +304,6 @@ impl Render for EditorView {
             .on_action(cx.listener(|v, _: &Undo, _, cx| v.undo(false, cx)))
             .on_action(cx.listener(|v, _: &Redo, _, cx| v.undo(true, cx)))
             .child(EditorElement { view: cx.entity() })
+            .children(overlay)
     }
 }

@@ -104,7 +104,7 @@ impl DocLayout {
         point(p.x, p.y + px(scroll_now) - self.scroll)
     }
 
-    fn leaf_of(&self, offset: usize) -> Option<&Leaf> {
+    pub(super) fn leaf_of(&self, offset: usize) -> Option<&Leaf> {
         let i = self.leaves.partition_point(|l| l.source().start <= offset);
         let leaf = self.leaves.get(i.checked_sub(1)?)?;
         (offset <= leaf.source().end).then_some(leaf)

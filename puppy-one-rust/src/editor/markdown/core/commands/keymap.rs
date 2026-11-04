@@ -67,6 +67,12 @@ pub fn intercept(intent: EditIntent, cx: &Cx) -> Option<Transaction> {
             inline::toggle(cx.state, cx.syntax, inline::Spec::UNDERLINE)
         }
         EditIntent::Link if editing => inline::wrap_link(cx.state),
+        EditIntent::BlockUp if editing => {
+            super::block_move::move_by_keyboard(cx.state, cx.syntax, true)
+        }
+        EditIntent::BlockDown if editing => {
+            super::block_move::move_by_keyboard(cx.state, cx.syntax, false)
+        }
         // Read-only editors still own their formatting keys.
         EditIntent::Bold
         | EditIntent::Italic

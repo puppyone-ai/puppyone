@@ -135,6 +135,36 @@ impl EditorExtension for MarkdownExtension {
     ) -> Option<crate::editor::view::extension::LinkActivation> {
         self.link_activation(state, offset, release)
     }
+    fn movable_block(
+        &mut self,
+        state: &EditorState,
+        offset: usize,
+    ) -> Option<crate::editor::view::extension::MovableBlock> {
+        use self::core::commands::block_move;
+        if !self.live || self.read_only || !block_move::enabled() {
+            return None;
+        }
+        let (syntax, _) = self.parse(state);
+        let m = block_move::movable_at(&state.doc, &syntax, offset)?;
+        Some(crate::editor::view::extension::MovableBlock {
+            nested: m.depth > 1,
+            range: m.range,
+            group: m.group,
+            index: m.index,
+        })
+    }
+    fn move_block(
+        &mut self,
+        state: &EditorState,
+        block: &crate::editor::view::extension::MovableBlock,
+        boundary: usize,
+    ) -> Option<Transaction> {
+        use self::core::commands::block_move;
+        let (syntax, _) = self.parse(state);
+        let m = block_move::movable_at(&state.doc, &syntax, block.range.start)
+            .filter(|m| m.range == block.range)?;
+        block_move::move_block(state, &syntax, &m, boundary)
+    }
     fn link_target(
         &mut self,
         state: &EditorState,

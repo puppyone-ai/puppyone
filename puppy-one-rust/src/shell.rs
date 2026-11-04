@@ -717,6 +717,9 @@ impl Shell {
         let p = self.preferences.read(cx).state.clone();
         // The built-in Agent offers PuppyOne compute only while Payments is on.
         crate::cloud_auth::set_payments(p.experimental.payments);
+        crate::editor::markdown::core::commands::block_move::set_enabled(
+            p.experimental.markdown_block_drag,
+        );
         self.dark = match p.theme_mode {
             ThemeMode::Dark => true,
             ThemeMode::Light => false,

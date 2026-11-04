@@ -123,6 +123,13 @@ impl EditorView {
         }) {
             self.link_press = None;
         }
+        if self.block_drag.dragging.is_some() {
+            self.block_drag_move(event.position, cx);
+            return;
+        }
+        if event.pressed_button.is_none() {
+            self.block_drag_hover(event.position, cx);
+        }
         let Some(drag) = self.drag else { return };
         if event.pressed_button != Some(MouseButton::Left) {
             return;
@@ -165,6 +172,9 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         if event.button != MouseButton::Left {
+            return;
+        }
+        if self.block_drag_drop(cx) {
             return;
         }
         if let Some(press) = self.link_press.take()

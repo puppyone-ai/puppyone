@@ -35,6 +35,7 @@ embedded! {
     "icons" / "arrow-up-right.svg",
     "icons" / "asterisk.svg",
     "icons" / "at-sign.svg",
+    "icons" / "block-drag-grip.svg",
     "icons" / "bot.svg",
     "icons" / "brain.svg",
     "icons" / "callout-abstract.svg",

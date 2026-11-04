@@ -283,3 +283,32 @@ fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
     });
     assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
 }
+
+#[gpui::test]
+fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppContext) {
+    use super::core::commands::block_move;
+    use crate::editor::view::extension::EditorExtension;
+    let text = "# A\n\npara\n\nlast";
+    let (view, cx) = setup(cx, text);
+    block_move::set_enabled(true);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_keystrokes("cmd-shift-down");
+    view.update(cx, |v, _| assert_eq!(v.text(), "para\n\n# A\n\nlast"));
+    // The handle's drop moves the block it dragged.
+    view.update_in(cx, |v, _, cx| {
+        let mut md = super::MarkdownExtension::new(true, Scale::Medium);
+        let block = md.movable_block(v.state(), 13).unwrap();
+        assert_eq!((block.index, block.group.len()), (2, 3));
+        v.begin_block_drag_for_tests(block, 0);
+        v.finish_block_drag_for_tests(cx);
+    });
+    view.update(cx, |v, _| assert_eq!(v.text(), "last\n\npara\n\n# A"));
+    block_move::set_enabled(false);
+    // Without the experiment the keys select to the document's edge.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_keystrokes("cmd-shift-down");
+    view.update(cx, |v, _| {
+        assert_eq!(v.text(), "last\n\npara\n\n# A");
+        assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
+    });
+}

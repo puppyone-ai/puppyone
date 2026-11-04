@@ -381,6 +381,8 @@ pub struct Syntax {
     pub inline_tags: Vec<Span>,
     /// Top-level HTML blocks (Lezer `HTMLBlock` children of the document).
     pub html_blocks: Vec<Span>,
+    /// Every child block of the document, in order.
+    pub top_blocks: Vec<Span>,
     pub footnotes: Footnotes,
 }
 

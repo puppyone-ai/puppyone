@@ -54,6 +54,19 @@ pub enum EditIntent {
     OrderedList,
     TaskList,
     Quote,
+    /// ⌘⇧↑ / ⌘⇧↓ (before selecting to the document's edge).
+    BlockUp,
+    BlockDown,
+}
+
+/// A block the pointer can drag to another place among its siblings.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MovableBlock {
+    pub range: std::ops::Range<usize>,
+    pub group: Vec<std::ops::Range<usize>>,
+    pub index: usize,
+    /// A list item below the top level (its handle sits by its marker).
+    pub nested: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +93,20 @@ pub trait EditorExtension: std::any::Any {
         _offset: usize,
         _release: bool,
     ) -> Option<LinkActivation> {
+        None
+    }
+    /// The block a drag handle at `offset`'s line would move, while the
+    /// format lets blocks move.
+    fn movable_block(&mut self, _state: &EditorState, _offset: usize) -> Option<MovableBlock> {
+        None
+    }
+    /// Move `block` before its sibling `boundary` (0 ..= siblings).
+    fn move_block(
+        &mut self,
+        _state: &EditorState,
+        _block: &MovableBlock,
+        _boundary: usize,
+    ) -> Option<Transaction> {
         None
     }
     /// Where a link a widget carries leads (a linked image's href).

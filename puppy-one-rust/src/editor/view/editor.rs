@@ -62,6 +62,7 @@ struct DecoKey {
 pub struct EditorView {
     pub(super) state: EditorState,
     pub(super) link_press: Option<super::pointer::LinkPress>,
+    pub(super) block_drag: super::block_drag::BlockDrag,
     pub(super) history: History,
     pub(super) extension: Box<dyn EditorExtension>,
     pub(super) focus: FocusHandle,
@@ -124,6 +125,7 @@ impl EditorView {
         Self {
             state,
             link_press: None,
+            block_drag: Default::default(),
             history: History::default(),
             extension,
             focus: cx.focus_handle(),

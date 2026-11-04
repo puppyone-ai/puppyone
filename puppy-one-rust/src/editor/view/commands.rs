@@ -228,6 +228,19 @@ impl EditorView {
         self.motion(motion, false, cx);
     }
 
+    /// `intent_or_motion` for a selecting motion; read-only editors only
+    /// select.
+    pub fn intent_or_select(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
+        self.commit_composition(cx);
+        if !self.read_only
+            && let Some(tr) = self.extension.intercept(intent, &self.state)
+        {
+            self.dispatch(tr, cx);
+            return;
+        }
+        self.motion(motion, true, cx);
+    }
+
     pub fn select_all(&mut self, cx: &mut Context<Self>) {
         let len = self.state.doc.len();
         self.dispatch(Transaction::select(Selection::range(0, len)), cx);

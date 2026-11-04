@@ -2,6 +2,7 @@
 //! a source transaction; the view applies it. `intercept` is the
 //! `markdownEditingKeymap` entry point for the view's edit intents.
 mod block;
+pub mod block_move;
 mod inline;
 mod keymap;
 #[cfg(test)]

@@ -52,6 +52,9 @@ await writeFile(path.join(root, 'assets/icons', 'spinner-track.svg'), `<svg xmln
 await writeFile(path.join(root, 'assets/icons', 'spinner-arc.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><path d="M2.141 2.141A4.75 4.75 0 0 1 8.859 2.141"/></svg>\n`);
 // VersionControlIcon (source-control): the product's Changes glyph.
 await writeFile(path.join(root, 'assets/icons', 'version-control.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="3"/><path d="M5 9v12"/><circle cx="19" cy="18" r="3"/><path d="m15 9-3-3 3-3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/></svg>\n`);
+// The Markdown block-drag grip (blockDragOverlay.ts `createGrip`): six 1.2px
+// dots in an 8×13 box.
+await writeFile(path.join(root, 'assets/icons', 'block-drag-grip.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 8 13" fill="white"><circle cx="1.5" cy="1.5" r="1.2"/><circle cx="1.5" cy="6.5" r="1.2"/><circle cx="1.5" cy="11.5" r="1.2"/><circle cx="6.5" cy="1.5" r="1.2"/><circle cx="6.5" cy="6.5" r="1.2"/><circle cx="6.5" cy="11.5" r="1.2"/></svg>\n`);
 // DesktopDialogCloseButton: its own 16-unit cross, drawn into a 12px box.
 await writeFile(path.join(root, 'assets/icons', 'dialog-close.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round"><path d="M5 5L11 11M11 5L5 11"/></svg>\n`);
 // Chromium's `resize: vertical` grip (the Files pattern textarea), traced in

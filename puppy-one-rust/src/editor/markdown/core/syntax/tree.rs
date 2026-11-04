@@ -223,6 +223,10 @@ impl<'a> Walker<'a> {
             self.inline_content(&range);
         } else {
             self.end_implicit();
+            // Document children (`markdownBlockBoundaries` root blocks).
+            if self.stack.len() == 1 {
+                self.syntax.top_blocks.push(trim(self.doc, range.clone()));
+            }
         }
         let doc = self.doc;
         match tag {
@@ -991,6 +995,9 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             Event::Rule => {
                 w.end_implicit();
                 let range = trim(doc, range);
+                if w.stack.len() == 1 {
+                    w.syntax.top_blocks.push(range.clone());
+                }
                 let line = line_start(doc, range.start)..line_end(doc, range.start);
                 let mut e = Element::new(Kind::Rule, range.clone(), vec![range.clone()], None);
                 e.line = Some(line);
