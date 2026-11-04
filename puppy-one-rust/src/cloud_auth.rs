@@ -2,6 +2,7 @@
 mod callback;
 mod http;
 pub mod model;
+mod result_page;
 mod service;
 mod store;
 mod transport;
@@ -22,6 +23,19 @@ mod tests;
 /// last applied. It grants nothing a binding check would not.
 static CURRENT: std::sync::Mutex<Option<(std::sync::Arc<Broker>, bool)>> =
     std::sync::Mutex::new(None);
+/// "Return to PuppyOne Desktop" on the sign-in result page: the app comes
+/// forward (`onReturnToApp`). The UI listens once, for the whole process.
+fn reveal() -> &'static (async_channel::Sender<()>, async_channel::Receiver<()>) {
+    static REVEAL: std::sync::OnceLock<(async_channel::Sender<()>, async_channel::Receiver<()>)> =
+        std::sync::OnceLock::new();
+    REVEAL.get_or_init(async_channel::unbounded)
+}
+pub(crate) fn reveal_app() {
+    let _ = reveal().0.try_send(());
+}
+pub fn reveal_requests() -> async_channel::Receiver<()> {
+    reveal().1.clone()
+}
 pub fn install_current(broker: Option<std::sync::Arc<Broker>>) {
     if let Ok(mut current) = CURRENT.lock() {
         let payments = current.as_ref().is_some_and(|(_, p)| *p);

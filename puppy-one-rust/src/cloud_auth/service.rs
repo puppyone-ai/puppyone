@@ -290,6 +290,8 @@ impl Broker {
             return;
         };
         let broker = self.clone();
+        // The result page speaks the app's language.
+        let locale = super::result_page::locale(&crate::localization::current_code(), None);
         std::thread::spawn(move || {
             let mut fence = fence;
             fence.deadline = Some(deadline);
@@ -297,7 +299,7 @@ impl Broker {
             let result = broker
                 .remote
                 .providers(&environment, &fence)
-                .and_then(|_| callback::run(&broker, environment, &fence));
+                .and_then(|_| callback::run(&broker, environment, locale, &fence));
             if let Err(error) = result {
                 broker.fail(&fence, error);
             }

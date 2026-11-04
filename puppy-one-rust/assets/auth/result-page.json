@@ -1,0 +1,278 @@
+{
+ "sourceCommit": "671143f2a30d352099eda35ad37f053450d4a8f9",
+ "brandMark": "<svg width=\"128\" height=\"128\" viewBox=\"0 0 128 128\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">\n<rect width=\"128\" height=\"128\" rx=\"32\" fill=\"#1C1D1F\"/>\n<path d=\"M82.7344 34.5305L88.541 40.3372L88.6025 40.8528L93.6025 82.8528L93.668 83.4026L82.916 99.5305H43.3105L32.5586 83.4026L32.624 82.8528L37.624 40.8528L37.6855 40.3372L43.4922 34.5305H82.7344Z\" fill=\"#FFA73D\" stroke=\"#1C1D1F\" stroke-width=\"3\"/>\n<path d=\"M64.1126 77.0313L64.1123 80.6603C64.1122 82.1813 63.4955 83.6478 62.3924 84.7508L61.5204 85.6226C60.6063 86.5366 59.4119 87.1469 58.1137 87.3632L57.3184 87.4958C55.3137 87.8299 53.2747 87.1918 51.875 85.7921L50.113 84.0302\" stroke=\"#1C1D1F\" stroke-width=\"3\"/>\n<path d=\"M64.1113 76.031L64.1113 80.6874C64.1113 82.192 64.7147 83.6344 65.7968 84.7165L66.7347 85.6544C67.6293 86.549 68.7998 87.1458 70.0774 87.3587L70.8829 87.4929C72.8997 87.8291 74.9668 87.1755 76.3909 85.7515L78.1113 84.031\" stroke=\"#1C1D1F\" stroke-width=\"3\"/>\n<path d=\"M76.4941 52.0305L68.4941 58.0305L76.6128 63.5305\" stroke=\"#1C1D1F\" stroke-width=\"3\"/>\n<path d=\"M50.4941 52.0305L58.4941 58.0305L50.4941 64.0305\" stroke=\"#1C1D1F\" stroke-width=\"3\"/>\n<path d=\"M102.696 32.7872L106.206 63.588L92.2957 65.1728L88.7864 34.3721L102.696 32.7872Z\" fill=\"#FFA73D\" stroke=\"#1C1D1F\" stroke-width=\"4\"/>\n<path d=\"M37.2059 34.3713L33.6966 65.172L19.7866 63.5872L23.2959 32.7864L37.2059 34.3713Z\" fill=\"#FFA73D\" stroke=\"#1C1D1F\" stroke-width=\"4\"/>\n<rect x=\"55.1133\" y=\"69.0305\" width=\"17\" height=\"8\" fill=\"#1C1D1F\"/>\n<rect x=\"61.1133\" y=\"71.0305\" width=\"6\" height=\"1\" fill=\"white\"/>\n</svg>",
+ "copy": {
+  "en": {
+   "returnButton": "Return to PuppyOne Desktop",
+   "openAppManually": "Desktop didn't open? Click here to launch it.",
+   "success": [
+    "Signed in successfully",
+    "PuppyOne Desktop is ready to use.",
+    "You can close this browser tab."
+   ],
+   "unrecognized": [
+    "Sign-in link not recognized",
+    "This page is not part of an active PuppyOne Desktop sign-in.",
+    "Return to the app and start sign-in again."
+   ],
+   "notReady": [
+    "Sign-in is not ready",
+    "PuppyOne Desktop is still preparing the sign-in request.",
+    "Return to the app and try again."
+   ],
+   "alreadyUsed": [
+    "Sign-in link already used",
+    "This sign-in link can only be opened once.",
+    "If you're not signed in, return to the app and try again."
+   ],
+   "stateMismatch": [
+    "Sign-in could not be verified",
+    "This page does not match the sign-in request from PuppyOne Desktop.",
+    "Return to the app and start sign-in again."
+   ],
+   "failed": [
+    "Sign-in did not finish",
+    "PuppyOne Desktop could not complete sign-in.",
+    "Return to the app and try again."
+   ]
+  },
+  "es": {
+   "returnButton": "Volver a PuppyOne Desktop",
+   "openAppManually": "¿No se abrió Desktop? Haz clic aquí para iniciarlo.",
+   "success": [
+    "Sesión iniciada correctamente",
+    "PuppyOne Desktop está listo para usarse.",
+    "Puedes cerrar esta pestaña del navegador."
+   ],
+   "unrecognized": [
+    "Enlace de inicio de sesión no reconocido",
+    "Esta página no corresponde a un inicio de sesión activo de PuppyOne Desktop.",
+    "Vuelve a la aplicación e inicia sesión de nuevo."
+   ],
+   "notReady": [
+    "El inicio de sesión aún no está listo",
+    "PuppyOne Desktop está preparando la solicitud de inicio de sesión.",
+    "Vuelve a la aplicación e inténtalo de nuevo."
+   ],
+   "alreadyUsed": [
+    "Enlace de inicio de sesión ya utilizado",
+    "Este enlace de inicio de sesión solo puede abrirse una vez.",
+    "Si aún no has iniciado sesión, vuelve a la aplicación e inténtalo de nuevo."
+   ],
+   "stateMismatch": [
+    "No se pudo verificar el inicio de sesión",
+    "Esta página no coincide con la solicitud de inicio de sesión de PuppyOne Desktop.",
+    "Vuelve a la aplicación e inicia sesión de nuevo."
+   ],
+   "failed": [
+    "No se completó el inicio de sesión",
+    "PuppyOne Desktop no pudo completar el inicio de sesión.",
+    "Vuelve a la aplicación e inténtalo de nuevo."
+   ]
+  },
+  "pt-BR": {
+   "returnButton": "Voltar ao PuppyOne Desktop",
+   "openAppManually": "O Desktop não abriu? Clique aqui para iniciá-lo.",
+   "success": [
+    "Login realizado com sucesso",
+    "O PuppyOne Desktop está pronto para uso.",
+    "Você pode fechar esta aba do navegador."
+   ],
+   "unrecognized": [
+    "Link de login não reconhecido",
+    "Esta página não faz parte de um login ativo do PuppyOne Desktop.",
+    "Volte ao aplicativo e inicie o login novamente."
+   ],
+   "notReady": [
+    "O login ainda não está pronto",
+    "O PuppyOne Desktop ainda está preparando a solicitação de login.",
+    "Volte ao aplicativo e tente novamente."
+   ],
+   "alreadyUsed": [
+    "Link de login já utilizado",
+    "Este link de login só pode ser aberto uma vez.",
+    "Se você ainda não entrou, volte ao aplicativo e tente novamente."
+   ],
+   "stateMismatch": [
+    "Não foi possível verificar o login",
+    "Esta página não corresponde à solicitação de login do PuppyOne Desktop.",
+    "Volte ao aplicativo e inicie o login novamente."
+   ],
+   "failed": [
+    "O login não foi concluído",
+    "O PuppyOne Desktop não conseguiu concluir o login.",
+    "Volte ao aplicativo e tente novamente."
+   ]
+  },
+  "fr": {
+   "returnButton": "Revenir à PuppyOne Desktop",
+   "openAppManually": "Desktop ne s’est pas ouvert ? Cliquez ici pour le lancer.",
+   "success": [
+    "Connexion réussie",
+    "PuppyOne Desktop est prêt à être utilisé.",
+    "Vous pouvez fermer cet onglet du navigateur."
+   ],
+   "unrecognized": [
+    "Lien de connexion non reconnu",
+    "Cette page ne correspond à aucune connexion active à PuppyOne Desktop.",
+    "Retournez dans l’application et recommencez la connexion."
+   ],
+   "notReady": [
+    "La connexion n’est pas encore prête",
+    "PuppyOne Desktop prépare encore la demande de connexion.",
+    "Retournez dans l’application et réessayez."
+   ],
+   "alreadyUsed": [
+    "Lien de connexion déjà utilisé",
+    "Ce lien de connexion ne peut être ouvert qu’une seule fois.",
+    "Si vous n’êtes pas connecté, retournez dans l’application et réessayez."
+   ],
+   "stateMismatch": [
+    "Connexion impossible à vérifier",
+    "Cette page ne correspond pas à la demande de connexion de PuppyOne Desktop.",
+    "Retournez dans l’application et recommencez la connexion."
+   ],
+   "failed": [
+    "Connexion non terminée",
+    "PuppyOne Desktop n’a pas pu terminer la connexion.",
+    "Retournez dans l’application et réessayez."
+   ]
+  },
+  "de": {
+   "returnButton": "Zurück zu PuppyOne Desktop",
+   "openAppManually": "Desktop wurde nicht geöffnet? Klicke hier, um es zu starten.",
+   "success": [
+    "Anmeldung erfolgreich",
+    "PuppyOne Desktop ist einsatzbereit.",
+    "Du kannst diesen Browser-Tab schließen."
+   ],
+   "unrecognized": [
+    "Anmeldelink nicht erkannt",
+    "Diese Seite gehört zu keiner aktiven Anmeldung bei PuppyOne Desktop.",
+    "Kehre zur App zurück und starte die Anmeldung erneut."
+   ],
+   "notReady": [
+    "Anmeldung noch nicht bereit",
+    "PuppyOne Desktop bereitet die Anmeldung noch vor.",
+    "Kehre zur App zurück und versuche es erneut."
+   ],
+   "alreadyUsed": [
+    "Anmeldelink bereits verwendet",
+    "Dieser Anmeldelink kann nur einmal geöffnet werden.",
+    "Falls du noch nicht angemeldet bist, kehre zur App zurück und versuche es erneut."
+   ],
+   "stateMismatch": [
+    "Anmeldung konnte nicht bestätigt werden",
+    "Diese Seite passt nicht zur Anmeldeanfrage von PuppyOne Desktop.",
+    "Kehre zur App zurück und starte die Anmeldung erneut."
+   ],
+   "failed": [
+    "Anmeldung nicht abgeschlossen",
+    "PuppyOne Desktop konnte die Anmeldung nicht abschließen.",
+    "Kehre zur App zurück und versuche es erneut."
+   ]
+  },
+  "ja": {
+   "returnButton": "PuppyOne Desktop に戻る",
+   "openAppManually": "Desktop が開かない場合は、ここをクリックして起動してください。",
+   "success": [
+    "ログインが完了しました",
+    "PuppyOne Desktop を使用できます。",
+    "このブラウザーのタブは閉じてもかまいません。"
+   ],
+   "unrecognized": [
+    "ログインリンクを確認できません",
+    "このページは有効な PuppyOne Desktop のログイン操作に含まれていません。",
+    "アプリに戻ってログインをやり直してください。"
+   ],
+   "notReady": [
+    "ログインの準備ができていません",
+    "PuppyOne Desktop はログインの準備中です。",
+    "アプリに戻ってもう一度お試しください。"
+   ],
+   "alreadyUsed": [
+    "ログインリンクは使用済みです",
+    "このログインリンクは一度しか開けません。",
+    "まだログインしていない場合は、アプリに戻ってやり直してください。"
+   ],
+   "stateMismatch": [
+    "ログインを確認できません",
+    "このページは PuppyOne Desktop のログイン要求と一致しません。",
+    "アプリに戻ってログインをやり直してください。"
+   ],
+   "failed": [
+    "ログインが完了しませんでした",
+    "PuppyOne Desktop でログインを完了できませんでした。",
+    "アプリに戻ってもう一度お試しください。"
+   ]
+  },
+  "ko": {
+   "returnButton": "PuppyOne Desktop으로 돌아가기",
+   "openAppManually": "Desktop이 열리지 않았나요? 여기를 클릭해 실행하세요.",
+   "success": [
+    "로그인 완료",
+    "PuppyOne Desktop을 사용할 준비가 되었습니다.",
+    "이 브라우저 탭을 닫아도 됩니다."
+   ],
+   "unrecognized": [
+    "로그인 링크를 확인할 수 없습니다",
+    "이 페이지는 진행 중인 PuppyOne Desktop 로그인 요청에 속하지 않습니다.",
+    "앱으로 돌아가 로그인을 다시 시작하세요."
+   ],
+   "notReady": [
+    "로그인 준비가 끝나지 않았습니다",
+    "PuppyOne Desktop이 로그인 요청을 준비하고 있습니다.",
+    "앱으로 돌아가 다시 시도하세요."
+   ],
+   "alreadyUsed": [
+    "이미 사용한 로그인 링크입니다",
+    "이 로그인 링크는 한 번만 열 수 있습니다.",
+    "아직 로그인하지 않았다면 앱으로 돌아가 다시 시도하세요."
+   ],
+   "stateMismatch": [
+    "로그인을 확인할 수 없습니다",
+    "이 페이지는 PuppyOne Desktop의 로그인 요청과 일치하지 않습니다.",
+    "앱으로 돌아가 로그인을 다시 시작하세요."
+   ],
+   "failed": [
+    "로그인이 완료되지 않았습니다",
+    "PuppyOne Desktop에서 로그인을 완료할 수 없습니다.",
+    "앱으로 돌아가 다시 시도하세요."
+   ]
+  },
+  "zh-Hans": {
+   "returnButton": "返回 PuppyOne Desktop",
+   "openAppManually": "Desktop 没有打开？点击这里启动。",
+   "success": [
+    "登录成功",
+    "PuppyOne Desktop 已准备就绪。",
+    "你可以关闭这个浏览器标签页。"
+   ],
+   "unrecognized": [
+    "无法识别登录链接",
+    "此页面不属于当前的 PuppyOne Desktop 登录请求。",
+    "请返回应用重新发起登录。"
+   ],
+   "notReady": [
+    "登录尚未准备好",
+    "PuppyOne Desktop 正在准备登录请求。",
+    "请返回应用重试。"
+   ],
+   "alreadyUsed": [
+    "登录链接已使用",
+    "此登录链接只能使用一次。",
+    "如果应用中尚未登录，请返回应用重试。"
+   ],
+   "stateMismatch": [
+    "无法验证登录",
+    "此页面与 PuppyOne Desktop 发起的登录请求不匹配。",
+    "请返回应用重新发起登录。"
+   ],
+   "failed": [
+    "登录未完成",
+    "PuppyOne Desktop 未能完成登录。",
+    "请返回应用重试。"
+   ]
+  }
+ }
+}

@@ -272,8 +272,24 @@ fn native_pkce_and_email_handoffs_use_the_real_http_adapter_once() {
             vault.saved.lock().unwrap().as_ref().unwrap().user,
             "fixture-user"
         );
-        // A completed callback either rejects at the receiver or finds its port closed.
-        wait(|| TcpStream::connect(&host).is_err());
+        // N-21: the page offers to bring the app forward; the listener keeps
+        // only that one-time path, and a used callback says it was used.
+        let path = output
+            .split(r#"action=""#)
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .unwrap()
+            .to_owned();
+        assert!(path.starts_with("/auth/return/"));
+        let replay = send(&host, &request);
+        assert!(replay.starts_with("HTTP/1.1 409") || replay.starts_with("HTTP/1.1 404"));
+        let reveal = crate::cloud_auth::reveal_requests();
+        let returned = send(
+            &host,
+            &format!("POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\n\r\n"),
+        );
+        assert!(returned.starts_with("HTTP/1.1 204"));
+        wait(|| reveal.try_recv().is_ok());
         assert_eq!(exchanges.load(Ordering::SeqCst), 1);
         broker.sign_out();
         wait(|| logged_out.load(Ordering::SeqCst) == 1 && vault.saved.lock().unwrap().is_none());

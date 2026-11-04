@@ -77,6 +77,22 @@ impl CloudAccount {
             }
         })
         .detach();
+        // "Return to PuppyOne Desktop": the app and its key window come
+        // forward.
+        let reveal = crate::cloud_auth::reveal_requests();
+        cx.spawn(async move |_, cx| {
+            while reveal.recv().await.is_ok() {
+                cx.update(|cx| {
+                    cx.activate(true);
+                    if let Some(window) =
+                        cx.active_window().or_else(|| cx.windows().first().copied())
+                    {
+                        let _ = window.update(cx, |_, window, _| window.activate_window());
+                    }
+                });
+            }
+        })
+        .detach();
         let weak = Arc::downgrade(&broker);
         cx.on_app_quit(move |_, _| {
             let completion = weak.upgrade().map(|b| b.shutdown_and_drain());

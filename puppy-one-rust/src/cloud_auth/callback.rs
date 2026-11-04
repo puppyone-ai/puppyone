@@ -1,6 +1,10 @@
 //! Temporary IP-loopback receiver. Only credentials from a validated, single-use
 //! top-level form or a PKCE code are accepted; no CORS, token URL, or login form.
-use super::{model::*, service::Broker};
+use super::{
+    model::*,
+    result_page::{self, Outcome},
+    service::Broker,
+};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use sha2::{Digest, Sha256};
 use std::{
@@ -42,7 +46,27 @@ impl Drop for Stop {
     }
 }
 
-pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence) -> Result<()> {
+/// `RETURN_ACTION_TTL_MS`: how long "Return to PuppyOne Desktop" works.
+const RETURN_FOR: Duration = Duration::from_secs(10 * 60);
+/// A refused request: its status and the page that says why.
+pub(super) type Refusal = (u16, Outcome);
+fn refusal(status: u16) -> Refusal {
+    (
+        status,
+        match status {
+            409 => Outcome::AlreadyUsed,
+            503 => Outcome::NotReady,
+            _ => Outcome::Unrecognized,
+        },
+    )
+}
+
+pub(super) fn run(
+    broker: &Arc<Broker>,
+    environment: Environment,
+    locale: &'static str,
+    fence: &Fence,
+) -> Result<()> {
     fence.check()?;
     let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|_| Error::Unavailable)?;
     listener
@@ -74,23 +98,35 @@ pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence)
             if let Input::Rejected(reason) = candidate.input {
                 // `describeHandoffRejection`: the reason, never the form.
                 eprintln!("Cloud sign-in handoff was rejected: {reason}");
-                respond(&mut candidate.stream, 400);
+                respond(&mut candidate.stream, (400, Outcome::Failed), locale, None);
                 break Err(Error::InvalidResponse);
             }
             // Consume before exchange, even if the provider later rejects it.
             let result =
                 broker.complete_login(environment.clone(), candidate.input, &verifier, fence);
-            respond(
-                &mut candidate.stream,
-                if result.is_ok() { 200 } else { 400 },
-            );
+            if result.is_ok() {
+                // `finish`: the page offers to bring the app forward, through
+                // a one-time path this listener keeps for a while.
+                let path = format!("/auth/return/{}", random()?.0);
+                respond(
+                    &mut candidate.stream,
+                    (200, Outcome::Success),
+                    locale,
+                    Some(&path),
+                );
+                let listener = listener.try_clone().map_err(|_| Error::Unavailable)?;
+                let host = host.clone();
+                std::thread::spawn(move || keep_return(listener, host, path, locale));
+            } else {
+                respond(&mut candidate.stream, (400, Outcome::Failed), locale, None);
+            }
             break result;
         }
         workers.retain(|worker| !worker.is_finished());
         match listener.accept() {
             Ok((mut stream, peer)) => {
                 if !peer.ip().is_loopback() || workers.len() >= 8 {
-                    respond(&mut stream, 503);
+                    respond(&mut stream, refusal(503), locale, None);
                     continue;
                 }
                 let (state, host, origin, stopped, fence, tx) = (
@@ -109,10 +145,10 @@ pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence)
                                 | mpsc::TrySendError::Disconnected(mut candidate),
                             ) = tx.try_send(Candidate { stream, input })
                             {
-                                respond(&mut candidate.stream, 409);
+                                respond(&mut candidate.stream, refusal(409), locale, None);
                             }
                         }
-                        Err(status) => respond(&mut stream, status),
+                        Err(refused) => respond(&mut stream, refused, locale, None),
                     }
                 }));
             }
@@ -128,9 +164,47 @@ pub(super) fn run(broker: &Arc<Broker>, environment: Environment, fence: &Fence)
         let _ = worker.join();
     }
     while let Ok(mut candidate) = rx.try_recv() {
-        respond(&mut candidate.stream, 409);
+        respond(&mut candidate.stream, refusal(409), locale, None);
     }
     result
+}
+/// After a sign-in: the listener answers "Return to PuppyOne Desktop" (a
+/// POST to `path`) for a while, says a used link was used, and closes.
+fn keep_return(listener: TcpListener, host: String, path: String, locale: &'static str) {
+    let until = Instant::now() + RETURN_FOR;
+    while Instant::now() < until {
+        let Ok((mut stream, peer)) = listener.accept() else {
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        };
+        if !peer.ip().is_loopback() {
+            continue;
+        }
+        let _ = stream.set_nonblocking(false);
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+        let mut bytes = [0u8; 4096];
+        let n = stream.read(&mut bytes).unwrap_or(0);
+        let mut headers = [httparse::EMPTY_HEADER; 32];
+        let mut request = httparse::Request::new(&mut headers);
+        if request.parse(&bytes[..n]).is_err() {
+            continue;
+        }
+        let host_ok = request
+            .headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case("host"))
+            .is_some_and(|h| h.value == host.as_bytes());
+        match (request.method, request.path) {
+            (Some("POST"), Some(target)) if host_ok && target == path => {
+                let _ = stream.write_all(result_page::returned());
+                super::reveal_app();
+            }
+            (Some("GET"), Some(target)) if host_ok && target.starts_with("/auth/callback") => {
+                respond(&mut stream, refusal(409), locale, None)
+            }
+            _ => respond(&mut stream, refusal(404), locale, None),
+        }
+    }
 }
 fn receive(
     stream: &mut TcpStream,
@@ -139,38 +213,47 @@ fn receive(
     state: &str,
     fence: &Fence,
     stopped: &AtomicBool,
-) -> std::result::Result<Input, u16> {
-    stream.set_nonblocking(true).map_err(|_| 400u16)?;
+) -> std::result::Result<Input, Refusal> {
+    stream.set_nonblocking(true).map_err(|_| refusal(400))?;
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut bytes = zeroize::Zeroizing::new(Vec::new());
     loop {
         if stopped.load(Ordering::SeqCst) || fence.check().is_err() {
-            return Err(409);
+            return Err(refusal(409));
         }
         if Instant::now() >= deadline {
-            return Err(408);
+            return Err(refusal(408));
         }
         let mut chunk = zeroize::Zeroizing::new([0u8; 2048]);
         match stream.read(chunk.as_mut()) {
-            Ok(0) => return Err(400),
+            Ok(0) => return Err(refusal(400)),
             Ok(n) => {
                 bytes.extend_from_slice(&chunk[..n]);
                 if bytes.len() > 24 * 1024 {
-                    return Err(413);
+                    return Err(refusal(413));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(10));
                 continue;
             }
-            Err(_) => return Err(400),
+            Err(_) => return Err(refusal(400)),
         }
-        match parse(&bytes, host, origin, state)? {
+        match parse(&bytes, host, origin, state).map_err(|status| {
+            // `stateMismatch`: a well-formed request for another attempt.
+            if status == STATE_MISMATCH {
+                (400, Outcome::StateMismatch)
+            } else {
+                refusal(status)
+            }
+        })? {
             Some(input) => return Ok(input),
             None => continue,
         }
     }
 }
+/// `parse`'s status for a request carrying another attempt's state.
+const STATE_MISMATCH: u16 = 4000;
 pub(super) fn parse(
     bytes: &[u8],
     host: &str,
@@ -246,8 +329,11 @@ pub(super) fn parse(
                 .collect()
         };
         let states = all("state");
-        if states.len() != 1 || states[0].0 != expected {
+        if states.len() != 1 {
             return Err(400);
+        }
+        if states[0].0 != expected {
+            return Err(STATE_MISMATCH);
         }
         if one_header("origin")? != Some(origin) {
             return Ok(Some(Input::Rejected("origin")));
@@ -291,8 +377,10 @@ pub(super) fn parse(
             Some(first)
         }
     };
-    if one("state").map(|s| s.0.as_str()) != Some(expected) {
-        return Err(400);
+    match one("state") {
+        None => return Err(400),
+        Some(state) if state.0 != expected => return Err(STATE_MISMATCH),
+        Some(_) => {}
     }
     {
         if params
@@ -311,17 +399,13 @@ pub(super) fn parse(
         Ok(Some(Input::Code(code.clone())))
     }
 }
-fn respond(stream: &mut TcpStream, status: u16) {
+fn respond(
+    stream: &mut TcpStream,
+    (status, outcome): Refusal,
+    locale: &str,
+    return_path: Option<&str>,
+) {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_write_timeout(Some(Duration::from_millis(250)));
-    let body = if status == 200 {
-        "Sign-in complete. You can close this page and return to Puppyone."
-    } else {
-        "This sign-in request could not be completed. Return to Puppyone and start again."
-    };
-    let response = format!(
-        "HTTP/1.1 {status} Result\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: private, no-store\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; frame-ancestors 'none'\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
-    let _ = stream.write_all(response.as_bytes());
+    let _ = stream.write_all(&result_page::response(status, outcome, locale, return_path));
 }
