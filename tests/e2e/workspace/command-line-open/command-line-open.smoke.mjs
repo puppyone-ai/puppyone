@@ -253,8 +253,8 @@ async function checklist() {
   };
   const lines = (result) => [result.code, result.stdout.trim(), result.stderr.trim()];
 
-  const doctor = await run("doctor reports ready", ["doctor"]);
-  check("checklist: doctor reports ready", [doctor.code, doctor.stdout.trim().endsWith("Ready")], [0, true]);
+  const ready = await run("check reports ready", ["check"]);
+  check("checklist: check reports ready", [ready.code, ready.stdout.trim().endsWith("Ready")], [0, true]);
 
   const first = await run("a file opens in its own window", ["open", "notes.md"]);
   check("checklist: a file opens in its own window", lines(first), [0, "Opened notes.md in PuppyOne", ""]);
