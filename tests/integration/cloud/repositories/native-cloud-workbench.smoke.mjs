@@ -625,6 +625,12 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 2 && Boolean(document.querySelector('.desktop-cloud-agent-paste-art'))");
   // The marks are pictures that load as the step appears.
   await waitFor("[...document.querySelectorAll('.desktop-cloud-agent-invite-steps img')].every(image => image.complete)");
+  // Test both accessibility modes explicitly, rather than inheriting the runner's macOS preference.
+  window.webContents.debugger.attach('1.3');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  });
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   const invited = JSON.parse(await evaluate(`JSON.stringify((() => {
     const seat = document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').getBoundingClientRect();
     const steps = document.querySelector('.desktop-cloud-agent-invite-steps').getBoundingClientRect();
@@ -647,7 +653,21 @@ app.whenReady().then(async () => {
   // Shown at the drawing's resting beat: the prompt pasted and the agent answering with a tick.
   await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = 3600; } return true; })()");
   await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
-  await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) animation.play(); return true; })()");
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  });
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert(await evaluate(`(() => {
+    const art = document.querySelector('.desktop-cloud-agent-paste-art');
+    const opacity = selector => Number(getComputedStyle(art.querySelector(selector)).opacity);
+    return matchMedia('(prefers-reduced-motion: reduce)').matches && art.getAnimations({ subtree: true }).length === 0
+      && opacity('.desktop-cloud-agent-paste-out') === 1 && opacity('.desktop-cloud-agent-paste-in') === 1
+      && opacity('.desktop-cloud-agent-paste-tick') === 1 && opacity('.desktop-cloud-agent-paste-dots') === 0
+      && opacity('.desktop-cloud-agent-paste-sheet') === 0 && opacity('.desktop-cloud-agent-paste-key') === 0;
+  })()`), 'Reduced motion must show the static completed paste, with no loop, flying sheet or typing dots');
+  await captureSettledDialog('cloud-agent-invite-reduced', '.desktop-cloud-agents-dialog');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
+  window.webContents.debugger.detach();
   // An application replaces the invite dialog with the Agent's own persistent decision card below the Header.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Research helper', avatar: 'codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }, { id: 'smoke-request-two', name: 'Gemini CLI', avatar: 'gemini', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
   await waitFor("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request]')) && !document.querySelector('.desktop-cloud-agents-dialog')");
