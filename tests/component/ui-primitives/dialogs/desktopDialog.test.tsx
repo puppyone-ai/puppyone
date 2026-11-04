@@ -92,7 +92,7 @@ describe("DesktopDialog", () => {
     root = createRoot(container);
 
     act(() => root?.render(
-      <DesktopDialogRoot><DesktopDialogSurface ariaLabel="Dialog" /></DesktopDialogRoot>,
+      <DesktopDialogRoot><DesktopDialogSurface ariaLabel="Dialog">{null}</DesktopDialogSurface></DesktopDialogRoot>,
     ));
     expect(page.hasAttribute("inert")).toBe(true);
     expect(overlay.hasAttribute("inert")).toBe(false);
@@ -109,8 +109,8 @@ describe("DesktopDialog", () => {
     root = createRoot(container);
     const dialogs = (second: boolean) => (
       <>
-        <DesktopDialogRoot><DesktopDialogSurface ariaLabel="First" /></DesktopDialogRoot>
-        {second && <DesktopDialogRoot><DesktopDialogSurface ariaLabel="Second" /></DesktopDialogRoot>}
+        <DesktopDialogRoot><DesktopDialogSurface ariaLabel="First">{null}</DesktopDialogSurface></DesktopDialogRoot>
+        {second && <DesktopDialogRoot><DesktopDialogSurface ariaLabel="Second">{null}</DesktopDialogSurface></DesktopDialogRoot>}
       </>
     );
 
@@ -138,7 +138,7 @@ describe("DesktopDialog", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    act(() => root?.render(<DesktopDialogRoot><DesktopDialogSurface ariaLabel="Dialog" /></DesktopDialogRoot>));
+    act(() => root?.render(<DesktopDialogRoot><DesktopDialogSurface ariaLabel="Dialog">{null}</DesktopDialogSurface></DesktopDialogRoot>));
     expect(document.documentElement.hasAttribute("data-pointer-resting")).toBe(false);
 
     act(() => root?.render(null));

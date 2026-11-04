@@ -58,7 +58,7 @@ const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
 };
 
 const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
-const withCloudActions = (overrides: Partial<HomeWithEntryFlowProps> = {}): Partial<MinimalOnboardingProps> => ({
+const withCloudActions = (overrides: Partial<HomeWithEntryFlowProps> = {}): Partial<HomeWithEntryFlowProps> => ({
   projectItems: [local, linked, { ...cloud, cloudActions: { rename: true, delete: true } }],
   onRenameProject: vi.fn(async () => undefined),
   onRenameCloudProject: vi.fn(async () => undefined),
