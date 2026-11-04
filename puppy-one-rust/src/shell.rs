@@ -2133,6 +2133,10 @@ impl Shell {
     /// fit, like the product's `setMinimumSize` + `setSize`. Full screen
     /// cannot grow, so the layout keeps its minimum width there.
     fn constrain_window(&mut self, window: &mut Window) {
+        // A file window has no panes: the window's own 720 × 520 holds.
+        if self.file_mode() {
+            return;
+        }
         let Some(minimum) = self.panes.take_window_minimum(self.rail_width()) else {
             return;
         };
