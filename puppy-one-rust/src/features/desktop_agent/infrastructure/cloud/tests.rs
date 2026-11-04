@@ -201,8 +201,17 @@ fn a_definite_refusal_forgets_the_submission() {
     let mut rt = runtime(&s.hub, "tab-1");
     rt.send("hello".into());
     settle(&mut rt, "the refusal", |snap| snap.error.is_some());
-    settle(&mut rt, "the release", |_| true);
-    assert!(rt.can_release());
+    // Forgetting the submission is a write of its own; the tab may go once
+    // it has landed.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !rt.can_release() {
+        rt.poll();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the release did not settle"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[test]
