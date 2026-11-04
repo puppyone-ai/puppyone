@@ -262,10 +262,11 @@ impl RenderCx<'_> {
         align: TextAlign,
     ) -> (AnyElement, f32) {
         let d = self.decorations;
-        let leaf = LeafText::build(
+        let leaf = LeafText::build_replaced(
             self.doc.as_str(),
             source.clone(),
             d.hidden_in(&source),
+            d.replaced_in(&source),
             d.marks_in(&source),
             strike,
         );
@@ -333,7 +334,8 @@ impl RenderCx<'_> {
         highlight: impl FnOnce(&str) -> std::sync::Arc<Vec<(Range<usize>, HighlightStyle)>>,
     ) -> (AnyElement, f32) {
         let key = self.leaf_key(&source);
-        let leaf = LeafText::build_with_tabs(self.doc.as_str(), source, &[], &[], false, tab_size);
+        let leaf =
+            LeafText::build_with_tabs(self.doc.as_str(), source, &[], &[], &[], false, tab_size);
         let styles = highlight(&leaf.text);
         let rows = leaf.text.split('\n').count();
         let (ascent, descent) = self.primary_metrics(style);

@@ -23,6 +23,9 @@ pub struct InlineStyle {
     pub code_padding: Edges,
     /// `--po-md-inline-code-font-size` (`None`: unset, inherited).
     pub code_size: Option<f32>,
+    /// `.cm-md-syntax-highlight`: `color-mix(in srgb, var(--po-accent) 32%,
+    /// transparent)`.
+    pub highlight_background: Rgba,
 }
 
 impl InlineStyle {
@@ -41,6 +44,13 @@ impl InlineStyle {
             code_background: t.color("--po-md-inline-code-background"),
             code_padding: t.edges_at("--po-md-inline-code-padding", code_size.unwrap_or(size)),
             code_size,
+            highlight_background: {
+                let accent = t.color("--po-accent");
+                Rgba {
+                    a: accent.a * 0.32,
+                    ..accent
+                }
+            },
         }
     }
 }

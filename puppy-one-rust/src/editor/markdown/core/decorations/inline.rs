@@ -5,7 +5,7 @@ use super::builder::{Builder, ClassSpan};
 use crate::editor::markdown::core::{
     classes::{Class, SourceSyntax},
     links,
-    plans::{Plan, Presentation},
+    plans::{Atom, Plan, Presentation},
     syntax::{Element, Kind},
 };
 use gpui::SharedString;
@@ -69,11 +69,15 @@ impl Builder<'_> {
                         range.start + t.range.start == e.range.start
                             && range.start + t.range.end == e.range.end
                     });
-                    let href = token.map(|t| t.href.clone()).or_else(|| {
-                        (cx.doc.as_str().as_bytes()[e.range.start] == b'<')
-                            .then(|| cx.doc.slice(content.clone()).trim().to_owned())
-                            .filter(|h| !h.is_empty())
-                    });
+                    let href = e
+                        .href
+                        .clone()
+                        .or_else(|| token.map(|t| t.href.clone()))
+                        .or_else(|| {
+                            (cx.doc.as_str().as_bytes()[e.range.start] == b'<')
+                                .then(|| cx.doc.slice(content.clone()).trim().to_owned())
+                                .filter(|h| !h.is_empty())
+                        });
                     let Some(href) = href else { continue };
                     let mut classes = Class::SYNTAX_LINK | Class::LINK_LABEL;
                     if is_external(&href) {
@@ -118,6 +122,31 @@ impl Builder<'_> {
                 Kind::Escape => {
                     for m in &e.markers {
                         self.hide(m.clone(), SourceSyntax::Escape, false);
+                    }
+                }
+                Kind::Highlight | Kind::LinkDefinition | Kind::Comment => {
+                    let Presentation::InlineMark { content, markers } = &plan.presentation else {
+                        continue;
+                    };
+                    for m in markers {
+                        self.hide(m.clone(), SourceSyntax::Delimiter, reveal);
+                    }
+                    self.spans.push(ClassSpan {
+                        range: content.clone(),
+                        classes: match e.kind {
+                            Kind::Highlight => Class::SYNTAX_HIGHLIGHT,
+                            Kind::LinkDefinition => Class::LINK_DEFINITION,
+                            _ => Class::COMMENT,
+                        },
+                        href: None,
+                    });
+                }
+                Kind::Emoji | Kind::Entity => {
+                    if let Presentation::InlineAtom(Atom::Text(text)) = &plan.presentation
+                        && !reveal
+                    {
+                        self.replaced
+                            .push((e.range.clone(), SharedString::from(text.clone())));
                     }
                 }
                 _ => {}

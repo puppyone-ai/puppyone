@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with four additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with five additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -108,6 +108,35 @@ the product geometry once (`theme::product_scrollbar`).
 >             });
 >         }
 > 
+```
+
+## The patch: a text colour mark
+
+The product's Markdown colours some inline spans on their own — a comment
+in the markup colour, a link definition's label in the link colour — and
+the editor paints every span through `TextMark`, which knew weight, style,
+strikethrough, underline, code, a highlight background and a link, but no
+colour. `TextMark::color: Option<Hsla>` is that colour: `merge` keeps the
+latest, and `mark_highlight` writes it as the run's `HighlightStyle::color`
+(a link's own colour still applies over it). `None` (the default) changes
+nothing. The Markdown editor's marks set it (`src/editor/view/projection.rs`).
+
+```diff
+--- registry/gpui-base-0.8.0/src/text/node.rs
++++ vendor/gpui-base/src/text/node.rs
+@@ pub struct TextMark
+     pub highlight: Option<Hsla>,
++    /// PuppyOne patch: the text's own colour (`None` keeps the paragraph's).
++    pub color: Option<Hsla>,
+     pub link: Option<LinkMark>,
+@@ pub fn merge
++        if other.color.is_some() {
++            self.color = other.color;
++        }
+@@ fn mark_highlight
++    if let Some(color) = mark.color {
++        highlight.color = Some(color);
++    }
 ```
 
 ## Upgrading

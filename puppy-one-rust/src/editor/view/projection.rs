@@ -3,6 +3,7 @@
 //! `cm-md-hidden-syntax`), tabs expand to their stops, and offsets map both
 //! ways between source and leaf text.
 use super::decoration::{Mark, MarkStyle};
+use gpui::SharedString;
 use gpui_kit::base::text::editor_host::{InlineNode, LinkMark, Paragraph, TextMark};
 use std::ops::Range;
 
@@ -31,6 +32,7 @@ pub struct LeafText {
 impl LeafText {
     /// `hidden` and `marks` may be any superset of those touching `source`
     /// (sorted by start). `strike_all` strikes the whole text (task done).
+    #[cfg(test)]
     pub fn build(
         doc: &str,
         source: Range<usize>,
@@ -38,7 +40,19 @@ impl LeafText {
         marks: &[Mark],
         strike_all: bool,
     ) -> Self {
-        Self::build_with_tabs(doc, source, hidden, marks, strike_all, TAB_SIZE)
+        Self::build_with_tabs(doc, source, hidden, &[], marks, strike_all, TAB_SIZE)
+    }
+
+    /// As `build`, with `replaced` source shown as other text.
+    pub fn build_replaced(
+        doc: &str,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        replaced: &[(Range<usize>, SharedString)],
+        marks: &[Mark],
+        strike_all: bool,
+    ) -> Self {
+        Self::build_with_tabs(doc, source, hidden, replaced, marks, strike_all, TAB_SIZE)
     }
 
     /// As `build` with an explicit `tab-size` (code panels use 2 or 4).
@@ -46,6 +60,7 @@ impl LeafText {
         doc: &str,
         source: Range<usize>,
         hidden: &[Range<usize>],
+        replaced: &[(Range<usize>, SharedString)],
         marks: &[Mark],
         strike_all: bool,
         tab_size: usize,
@@ -99,8 +114,21 @@ impl LeafText {
                 text.push_str(&doc[run_start..to]);
             }
         };
+        // Hidden ranges show nothing; replaced ones show their text.
         let first = hidden.partition_point(|r| r.end <= source.start);
-        for r in hidden[first..].iter().take_while(|r| r.start < source.end) {
+        let mut cuts: Vec<(Range<usize>, &str)> = hidden[first..]
+            .iter()
+            .take_while(|r| r.start < source.end)
+            .map(|r| (r.clone(), ""))
+            .collect();
+        cuts.extend(
+            replaced
+                .iter()
+                .filter(|(r, _)| r.start >= source.start && r.end <= source.end && r.start < r.end)
+                .map(|(r, t)| (r.clone(), t.as_ref())),
+        );
+        cuts.sort_by_key(|(r, _)| (r.start, r.end));
+        for (r, shown) in cuts {
             let start = r.start.max(cursor);
             if start > cursor {
                 push_text(cursor, start, &mut text, &mut pieces, &mut column);
@@ -108,10 +136,12 @@ impl LeafText {
             let end = r.end.min(source.end).max(start);
             pieces.push(Piece {
                 display: text.len(),
-                display_len: 0,
+                display_len: shown.len(),
                 source: start - base,
                 source_len: end - start,
             });
+            text.push_str(shown);
+            column += shown.chars().count();
             cursor = end.max(cursor);
         }
         if cursor < source.end {
@@ -210,13 +240,15 @@ impl LeafText {
                         bold: m.bold,
                         italic: m.italic,
                         strikethrough: m.strike,
+                        underline: m.underline,
                         code: m.code,
+                        highlight: m.highlight.map(|c| gpui::rgba(c).into()),
+                        color: m.color.map(|c| gpui::rgba(c).into()),
                         link: m.link.as_ref().map(|url| LinkMark {
                             url: url.clone(),
                             identifier: None,
                             title: None,
                         }),
-                        ..Default::default()
                     },
                 )
             })

@@ -9,6 +9,7 @@
 //! derived from the source here with the same extents.
 use super::{
     BlockKind, Element, Hl, Kind, List, ListItem, Paragraph, Span, Syntax, TaskLine, autolink,
+    inline_syntax,
 };
 use crate::editor::text::buffer::Buffer;
 use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
@@ -62,6 +63,8 @@ struct Walker<'a> {
     doc: &'a str,
     syntax: Syntax,
     stack: Vec<(Frame, HlNode)>,
+    /// The end of the HTML comment being read (its later events are inside).
+    comment_end: usize,
 }
 
 /// `trimEnd`: container ranges end at their last content byte, as Lezer's do.
@@ -101,6 +104,7 @@ impl<'a> Walker<'a> {
             doc,
             syntax: Syntax::default(),
             stack: vec![(Frame::Root, HlNode::new(0..doc.len(), Hl::NONE, false))],
+            comment_end: 0,
         }
     }
 
@@ -349,8 +353,9 @@ impl<'a> Walker<'a> {
                 );
             }
             Tag::Strikethrough => {
-                // Lezer's GFM extension only knows `~~`; the element itself
-                // comes from the product's line expression (lines.rs).
+                // `~~` comes from the product's line expression (lines.rs);
+                // a single `~` is Lezer's `Subscript`, which the product
+                // reads as strikethrough when its content has no space.
                 let double = doc[range.clone()].starts_with("~~") && range.len() >= 4;
                 let mut node = HlNode::new(
                     range.clone(),
@@ -362,11 +367,43 @@ impl<'a> Walker<'a> {
                         .push(HlNode::leaf(range.start..range.start + 2, Hl::MARKUP));
                     node.children
                         .push(HlNode::leaf(range.end - 2..range.end, Hl::MARKUP));
+                } else if range.len() >= 3
+                    && doc[range.clone()].starts_with('~')
+                    && doc[range.clone()].ends_with('~')
+                    && !doc[range.start + 1..range.end - 1]
+                        .chars()
+                        .any(char::is_whitespace)
+                {
+                    let markers = vec![range.start..range.start + 1, range.end - 1..range.end];
+                    for m in &markers {
+                        node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
+                    }
+                    self.syntax.elements.push(Element::new(
+                        Kind::Strike,
+                        range.clone(),
+                        markers,
+                        Some(range.start + 1..range.end - 1),
+                    ));
                 }
                 self.push(Frame::Strike, node);
             }
-            Tag::Link { link_type, .. } | Tag::Image { link_type, .. } => {
+            Tag::Link {
+                link_type,
+                ref dest_url,
+                ..
+            }
+            | Tag::Image {
+                link_type,
+                ref dest_url,
+                ..
+            } => {
                 let image = matches!(tag, Tag::Image { .. });
+                // A reference link opens what its definition names.
+                let reference = matches!(
+                    link_type,
+                    LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut
+                )
+                .then(|| dest_url.to_string());
                 let autolink = matches!(link_type, LinkType::Autolink | LinkType::Email);
                 let marks = if autolink {
                     vec![range.start..range.start + 1, range.end - 1..range.end]
@@ -385,7 +422,9 @@ impl<'a> Walker<'a> {
                     let content = marks[0].end..marks[1].start.max(marks[0].end);
                     let mut e =
                         Element::new(Kind::Link, range.clone(), marks.clone(), Some(content));
-                    e.href = autolink.then(|| doc[marks[0].end..marks[1].start].trim().to_owned());
+                    e.href = autolink
+                        .then(|| doc[marks[0].end..marks[1].start].trim().to_owned())
+                        .or(reference);
                     self.syntax.elements.push(e);
                 }
                 self.push(Frame::Link, node);
@@ -570,8 +609,44 @@ impl<'a> Walker<'a> {
         self.attach(node);
     }
 
-    fn text(&mut self, range: Span) {
+    /// A bare URL is a link only as direct inline content of a paragraph or
+    /// heading (`BARE_URL_PARENTS`).
+    fn bare_url_parent(&self) -> bool {
+        matches!(
+            self.stack.last(),
+            Some((Frame::Paragraph | Frame::Heading, _))
+                | Some((
+                    Frame::Item {
+                        implicit: Some(_),
+                        ..
+                    },
+                    _
+                ))
+        )
+    }
+
+    fn text(&mut self, range: Span, shown: &str) {
         let doc = self.doc;
+        if !self.in_code() {
+            let source = &doc[range.clone()];
+            // pulldown-cmark reports a character reference as its own text.
+            if source.len() > 2
+                && source.starts_with('&')
+                && source.ends_with(';')
+                && shown != source
+            {
+                let mut e = Element::new(Kind::Entity, range.clone(), vec![range.clone()], None);
+                e.text = Some(shown.to_owned());
+                self.syntax.elements.push(e);
+                return;
+            }
+            for (r, emoji) in inline_syntax::emoji(source) {
+                let r = range.start + r.start..range.start + r.end;
+                let mut e = Element::new(Kind::Emoji, r.clone(), vec![r], None);
+                e.text = Some(emoji.to_owned());
+                self.syntax.elements.push(e);
+            }
+        }
         // A backslash escape: pulldown-cmark drops the backslash, so the text
         // starts right after an uncovered `\` followed by punctuation.
         if !self.in_code()
@@ -585,13 +660,40 @@ impl<'a> Walker<'a> {
             self.attach(HlNode::leaf(b..b + 2, Hl::NONE));
         }
         if !self.in_code() && !self.in_link() {
+            let bare = self.bare_url_parent();
             for r in autolink::find(&doc[range.clone()]) {
-                self.attach(HlNode::leaf(
-                    range.start + r.start..range.start + r.end,
-                    Hl::LINK,
-                ));
+                let r = range.start + r.start..range.start + r.end;
+                self.attach(HlNode::leaf(r.clone(), Hl::LINK));
+                if bare {
+                    let mut e = Element::new(Kind::Link, r.clone(), vec![], Some(r.clone()));
+                    e.href = Some(autolink::href(&doc[r]));
+                    self.syntax.elements.push(e);
+                }
             }
         }
+    }
+    /// `<!-- … -->` (Lezer `Comment` / `CommentBlock`): one element over the
+    /// whole comment, however many events it arrives in.
+    fn html(&mut self, range: Span) {
+        if range.start < self.comment_end {
+            return;
+        }
+        let doc = self.doc;
+        let source = doc[range.clone()].trim_start();
+        if !source.starts_with("<!--") {
+            return;
+        }
+        let start = range.end - doc[range.clone()].trim_start().len();
+        let end = doc[start + 4..]
+            .find("-->")
+            .map_or(trim(doc, range.clone()).end, |i| start + 4 + i + 3);
+        self.comment_end = end;
+        self.syntax.elements.push(Element::new(
+            Kind::Comment,
+            start..end,
+            vec![],
+            Some(start..end),
+        ));
     }
 
     fn code(&mut self, range: Span) {
@@ -850,13 +952,14 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
     let mut w = Walker::new(doc);
-    for (event, range) in Parser::new_ext(doc, options).into_offset_iter() {
+    let mut events = Parser::new_ext(doc, options).into_offset_iter();
+    for (event, range) in &mut events {
         match event {
             Event::Start(tag) => w.start(tag, range),
             Event::End(tag) => w.end(tag),
-            Event::Text(_) => {
+            Event::Text(text) => {
                 w.inline_content(&range);
-                w.text(range);
+                w.text(range, &text);
             }
             Event::Code(_) => {
                 w.inline_content(&range);
@@ -875,14 +978,41 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
                 w.syntax.elements.push(e);
                 w.attach(HlNode::leaf(range, Hl::MARKUP));
             }
+            Event::InlineHtml(_) => {
+                w.inline_content(&range);
+                w.html(range);
+            }
             Event::SoftBreak
             | Event::HardBreak
-            | Event::InlineHtml(_)
             | Event::FootnoteReference(_)
             | Event::InlineMath(_)
             | Event::DisplayMath(_) => w.inline_content(&range),
-            Event::Html(_) => w.end_implicit(),
+            Event::Html(_) => {
+                w.end_implicit();
+                w.html(range);
+            }
         }
+    }
+    // `LinkReference`: a definition's label and colon, not a footnote's.
+    for (_, definition) in events.reference_definitions().iter() {
+        let span = definition.span.clone();
+        let source = &doc[span.clone()];
+        let Some(open) = source.find('[') else {
+            continue;
+        };
+        let Some(close) = source[open..].find("]:").map(|i| open + i) else {
+            continue;
+        };
+        if source[open + 1..].starts_with('^') {
+            continue;
+        }
+        let (open, close) = (span.start + open, span.start + close);
+        w.syntax.elements.push(Element::new(
+            Kind::LinkDefinition,
+            open..close + 2,
+            vec![open..open + 1, close..close + 2],
+            Some(open + 1..close),
+        ));
     }
     while w.stack.len() > 1 {
         w.pop();

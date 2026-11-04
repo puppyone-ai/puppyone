@@ -16,8 +16,18 @@ pub struct MarkStyle {
     pub bold: bool,
     pub italic: bool,
     pub strike: bool,
+    pub underline: bool,
     pub code: bool,
     pub link: Option<SharedString>,
+    /// A background behind the text (`<mark>`, `==highlight==`), as RGBA.
+    pub highlight: Option<u32>,
+    /// The text's own colour, as RGBA.
+    pub color: Option<u32>,
+}
+/// An `Rgba` as the packed RGBA a mark stores.
+pub fn packed(color: Rgba) -> u32 {
+    let channel = |v: f32| (v.clamp(0., 1.) * 255.).round() as u32;
+    channel(color.r) << 24 | channel(color.g) << 16 | channel(color.b) << 8 | channel(color.a)
 }
 
 impl MarkStyle {
@@ -82,6 +92,10 @@ pub struct Decorations {
     pub hidden: Vec<Range<usize>>,
     /// Ranges the caret may not rest strictly inside (CodeMirror atomicRanges).
     pub atomic: Vec<Range<usize>>,
+    /// Source shown as other text (an entity as its character, a shortcode
+    /// as its emoji): sorted, non-overlapping, each within one source line,
+    /// never overlapping a hidden range.
+    pub replaced: Vec<(Range<usize>, SharedString)>,
     pub surface: Surface,
 }
 
@@ -97,6 +111,15 @@ impl Decorations {
     }
 
     /// Hidden ranges touching `range` (empty ranges at its edges included).
+    /// Replacements touching `range`.
+    pub fn replaced_in(&self, range: &Range<usize>) -> &[(Range<usize>, SharedString)] {
+        let first = self.replaced.partition_point(|(r, _)| r.end <= range.start);
+        let last = self
+            .replaced
+            .partition_point(|(r, _)| r.start < range.end)
+            .max(first);
+        &self.replaced[first..last]
+    }
     pub fn hidden_in(&self, range: &Range<usize>) -> &[Range<usize>] {
         let first = self.hidden.partition_point(|r| r.end < range.start);
         let last = self

@@ -1,7 +1,8 @@
 //! GFM autolink literals (`www.`, `http(s)://`, e-mail, `mailto:` / `xmpp:`),
-//! ported from @lezer/markdown's `Autolink` extension. The product only
-//! colours these (`URL` → `tags.url` → `cm-md-syntax-link`); they are not
-//! link elements and never hide source.
+//! ported from @lezer/markdown's `Autolink` extension. The product colours
+//! them (`URL` → `tags.url` → `cm-md-syntax-link`), and a bare URL directly
+//! in a paragraph or heading is a link (`createBareUrlElement`) that hides
+//! nothing.
 use std::ops::Range;
 
 fn is_word(c: u8) -> bool {
@@ -133,6 +134,22 @@ fn email_end(text: &[u8], from: usize) -> Option<usize> {
         b'_' | b'-' => None,
         b'.' => Some(i - 1),
         _ => Some(i),
+    }
+}
+
+/// Where a literal opens: `www.` over HTTP, an address as `mailto:`.
+pub fn href(literal: &str) -> String {
+    let lower = literal.to_ascii_lowercase();
+    if lower.starts_with("www.") {
+        format!("http://{literal}")
+    } else if !lower.contains("://")
+        && !lower.starts_with("mailto:")
+        && !lower.starts_with("xmpp:")
+        && literal.contains('@')
+    {
+        format!("mailto:{literal}")
+    } else {
+        literal.to_owned()
     }
 }
 

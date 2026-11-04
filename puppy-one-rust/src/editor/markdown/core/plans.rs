@@ -20,7 +20,11 @@ use std::{
 #[derive(Clone, Debug, PartialEq)]
 pub enum Atom {
     Escape,
-    TaskCheckbox { checked: bool },
+    TaskCheckbox {
+        checked: bool,
+    },
+    /// Short source shown as the text it means (an emoji, an entity).
+    Text(String),
 }
 
 /// A block replaced by a feature widget: the owning feature and its model
@@ -106,7 +110,10 @@ fn compile_element(index: usize, e: &Element) -> Plan {
         | Kind::Strike
         | Kind::InlineCode
         | Kind::Link
-        | Kind::WikiLink => match &e.content {
+        | Kind::WikiLink
+        | Kind::Highlight
+        | Kind::LinkDefinition
+        | Kind::Comment => match &e.content {
             Some(c) if c.start < c.end => Plan {
                 element: Some(index),
                 source: e.range.clone(),
@@ -122,6 +129,14 @@ fn compile_element(index: usize, e: &Element) -> Plan {
             presentation: Presentation::InlineAtom(Atom::Escape),
             delete_units: e.markers.clone(),
             ..visible
+        },
+        // The caret reveals these atoms, so a keystroke edits one character.
+        Kind::Emoji | Kind::Entity => match &e.text {
+            Some(text) => Plan {
+                presentation: Presentation::InlineAtom(Atom::Text(text.clone())),
+                ..visible
+            },
+            None => visible,
         },
         _ => visible,
     }

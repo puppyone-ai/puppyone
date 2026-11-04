@@ -168,6 +168,19 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
             e.href = Some(token.target);
             elements.push(e);
         }
+        for (open, close) in super::inline_syntax::highlights(text) {
+            let (from, to) = (range.start + open, range.start + close + 2);
+            elements.push(Element::new(
+                Kind::Highlight,
+                from..to,
+                vec![from..from + 2, to - 2..to],
+                Some(from + 2..to - 2),
+            ));
+        }
+        for comment in super::inline_syntax::percent_comments(text) {
+            let r = range.start + comment.start..range.start + comment.end;
+            elements.push(Element::new(Kind::Comment, r.clone(), vec![], Some(r)));
+        }
         for (open, close) in strikes(text) {
             let (from, to) = (range.start + open, range.start + close + 2);
             elements.push(Element::new(

@@ -94,6 +94,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
             marks,
             hidden: Vec::new(),
             atomic: Vec::new(),
+            replaced: Vec::new(),
             surface: surface(cx.theme),
         };
     }
@@ -146,14 +147,21 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     }
     let marks = b.marks();
     let hidden = merge(std::mem::take(&mut b.hidden));
+    let mut replaced = std::mem::take(&mut b.replaced);
+    replaced.sort_by_key(|(r, _)| r.start);
+    replaced.dedup_by(|b, a| b.0.start < a.0.end);
+    // Nothing is both hidden and replaced.
+    replaced.retain(|(r, _)| !hidden.iter().any(|h| h.start < r.end && r.start < h.end));
     let mut atomic = hidden.clone();
     atomic.extend(b.atomic.into_iter().filter(|r| !r.is_empty()));
+    atomic.extend(replaced.iter().map(|(r, _)| r.clone()));
     atomic.sort_by_key(|r| r.start);
     Decorations {
         blocks: b.blocks,
         marks,
         atomic,
         hidden,
+        replaced,
         surface: surface(cx.theme),
     }
 }

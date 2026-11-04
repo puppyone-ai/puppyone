@@ -98,6 +98,13 @@ classes! {
     SOURCE_SYNTAX_LIST = 35;
     /// `cm-md-source-syntax-task`
     SOURCE_SYNTAX_TASK = 36;
+    // The `inline-syntax` feature's marks.
+    /// `cm-md-syntax-highlight`
+    SYNTAX_HIGHLIGHT = 37;
+    /// `cm-md-comment`
+    COMMENT = 38;
+    /// `cm-md-link-definition`
+    LINK_DEFINITION = 39;
 }
 
 impl Class {

@@ -34,6 +34,8 @@ pub(super) struct Builder<'a> {
     pub hidden: Vec<Range<usize>>,
     /// Source the caret may not rest inside besides hidden ranges.
     pub atomic: Vec<Range<usize>>,
+    /// Source shown as other text.
+    pub replaced: Vec<(Range<usize>, SharedString)>,
     pub spans: Vec<ClassSpan>,
     /// Inline context of each source line (`None` inside widgets).
     pub contexts: Vec<Option<LineContext>>,
@@ -53,6 +55,7 @@ impl<'a> Builder<'a> {
             blocks: Vec::with_capacity(count),
             hidden: Vec::new(),
             atomic: Vec::new(),
+            replaced: Vec::new(),
             spans: Vec::new(),
             contexts: vec![None; count],
             by_line,

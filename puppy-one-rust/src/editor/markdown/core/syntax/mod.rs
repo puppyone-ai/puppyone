@@ -5,6 +5,7 @@
 //! product detects with expressions (strikethrough, quote markers, fences,
 //! wiki links) use the same expressions here.
 mod autolink;
+mod inline_syntax;
 mod lines;
 #[cfg(test)]
 mod tests;
@@ -31,6 +32,16 @@ pub enum Kind {
     Strong,
     Task,
     WikiLink,
+    /// `==text==` (the `inline-syntax` feature).
+    Highlight,
+    /// `%%text%%` or `<!-- text -->`: markup-coloured, never hidden.
+    Comment,
+    /// A link reference definition's `[label]:`.
+    LinkDefinition,
+    /// `:shortcode:` shown as its emoji.
+    Emoji,
+    /// `&name;` shown as its character.
+    Entity,
 }
 
 impl Kind {
@@ -44,6 +55,10 @@ impl Kind {
                 | Kind::Strike
                 | Kind::Strong
                 | Kind::WikiLink
+                | Kind::Highlight
+                | Kind::LinkDefinition
+                | Kind::Emoji
+                | Kind::Entity
         )
     }
     /// Kinds decorated inline (marks + hidden markers).
@@ -57,6 +72,11 @@ impl Kind {
                 | Kind::Strike
                 | Kind::Strong
                 | Kind::WikiLink
+                | Kind::Highlight
+                | Kind::Comment
+                | Kind::LinkDefinition
+                | Kind::Emoji
+                | Kind::Entity
         )
     }
     /// Block kinds whose leading marker is deleted as a unit at the visible start.
@@ -76,6 +96,8 @@ impl Kind {
             Kind::Strike => 6,
             Kind::Emphasis => 7,
             Kind::Escape => 8,
+            Kind::Highlight => 6,
+            Kind::Emoji | Kind::Entity => 8,
             _ => 9,
         }
     }
@@ -93,6 +115,8 @@ pub struct Element {
     pub level: u8,
     pub checked: bool,
     pub href: Option<String>,
+    /// What an emoji or entity shows instead of its source.
+    pub text: Option<String>,
 }
 
 impl Element {
@@ -106,6 +130,7 @@ impl Element {
             level: 0,
             checked: false,
             href: None,
+            text: None,
         }
     }
     /// Where visible content starts after the block markers.
@@ -260,6 +285,19 @@ impl Syntax {
         syntax
             .elements
             .dedup_by(|b, a| a.kind == b.kind && a.range == b.range);
+        // Line expressions do not reach into inline code.
+        let code: Vec<Span> = syntax
+            .elements
+            .iter()
+            .filter(|e| e.kind == Kind::InlineCode)
+            .map(|e| e.range.clone())
+            .collect();
+        syntax.elements.retain(|e| {
+            !matches!(e.kind, Kind::Highlight | Kind::Comment)
+                || !code
+                    .iter()
+                    .any(|c| c.start < e.range.end && e.range.start < c.end)
+        });
         // A link inside a wiki link belongs to the wiki link.
         let mut wiki_end = 0;
         syntax.elements.retain(|e| {

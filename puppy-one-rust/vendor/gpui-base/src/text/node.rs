@@ -707,6 +707,8 @@ pub struct TextMark {
     ///
     /// `None` means the text is not highlighted.
     pub highlight: Option<Hsla>,
+    /// PuppyOne patch: the text's own colour (`None` keeps the paragraph's).
+    pub color: Option<Hsla>,
     pub link: Option<LinkMark>,
 }
 
@@ -755,6 +757,9 @@ impl TextMark {
         self.code |= other.code;
         if other.highlight.is_some() {
             self.highlight = other.highlight;
+        }
+        if other.color.is_some() {
+            self.color = other.color;
         }
         if let Some(link) = other.link {
             self.link = Some(link);
@@ -2664,6 +2669,9 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
     }
     if let Some(color) = mark.highlight {
         highlight.background_color = Some(color);
+    }
+    if let Some(color) = mark.color {
+        highlight.color = Some(color);
     }
     InlineHighlight {
         style: highlight,
