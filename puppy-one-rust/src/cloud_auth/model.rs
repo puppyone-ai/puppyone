@@ -364,10 +364,16 @@ impl ApiRequest {
             || (self.method == reqwest::Method::POST && self.project_endpoint("repository-context"))
     }
     /// Opening/status have a server-side wait. Keep ordinary APIs bounded to
-    /// 15 s, while allowing the explicit workbench handshake to finish.
+    /// 15 s, while allowing the explicit workbench handshake to finish. A
+    /// workbench file read or write has no deadline in the product
+    /// (`sessionReadOptions`): an 8 MiB file on a slow link must not turn a
+    /// save into an unknown outcome, so only a dead connection (10 minutes)
+    /// ends one.
     pub fn timeout(&self) -> Duration {
         let workbench = self.project_endpoint("workbench");
-        if workbench && self.method == reqwest::Method::POST {
+        if self.project_endpoint("workbench/file") || self.project_endpoint("workbench/files") {
+            Duration::from_secs(600)
+        } else if workbench && self.method == reqwest::Method::POST {
             Duration::from_secs(120)
         } else if workbench
             && self.method == reqwest::Method::GET
@@ -410,12 +416,30 @@ mod request_policy_tests {
     }
 
     #[test]
-    fn workbench_wait_budget_does_not_extend_file_or_account_requests() {
+    fn workbench_waits_and_file_transfers_get_their_own_budgets() {
         for (path, method, wait, seconds) in [
             ("/projects/project-a/workbench", Method::POST, false, 120),
             ("/projects/project-a/workbench", Method::GET, true, 25),
             ("/projects/project-a/workbench", Method::GET, false, 15),
-            ("/projects/project-a/workbench/file", Method::GET, true, 15),
+            ("/projects/project-a/workbench/file", Method::GET, true, 600),
+            (
+                "/projects/project-a/workbench/file",
+                Method::PUT,
+                false,
+                600,
+            ),
+            (
+                "/projects/project-a/workbench/files",
+                Method::POST,
+                false,
+                600,
+            ),
+            (
+                "/projects/project-a/workbench/events",
+                Method::GET,
+                false,
+                15,
+            ),
             (
                 "/projects/project-a/nested/workbench",
                 Method::POST,

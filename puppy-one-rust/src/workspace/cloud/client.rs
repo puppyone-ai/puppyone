@@ -133,7 +133,8 @@ impl Shared {
             return Err(Error::from("Cloud files are limited to 8 MiB"));
         }
         self.invalidate();
-        let result = self.request(self.endpoint("/file", None, Method::PUT, Some(json!({"path": model::path(path, false)?, "content_base64": STANDARD.encode(bytes), "expected_revision": expected})))?);
+        // `query(path)`: the generation and the path, as for every file request.
+        let result = self.request(self.endpoint("/file", Some(path), Method::PUT, Some(json!({"path": model::path(path, false)?, "content_base64": STANDARD.encode(bytes), "expected_revision": expected})))?);
         self.invalidate();
         let value = result?;
         let revision = model::digest(bytes);
@@ -166,7 +167,7 @@ impl Shared {
             body["destination"] = model::path(destination, false)?.into();
         }
         self.invalidate();
-        let result = self.request(self.endpoint("/files", None, Method::POST, Some(body))?);
+        let result = self.request(self.endpoint("/files", Some(path), Method::POST, Some(body))?);
         self.invalidate();
         if result? != json!({}) {
             return Err(Error::new(
