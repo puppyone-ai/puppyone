@@ -1,0 +1,69 @@
+{
+  "note": "File Mode (FileModeApp, electron/main/file-mode.mjs): one fixture file in a window of its own, 860x760. Reference: tools/reference-file-entry.tsx over an offline bridge; native: a real file window on the same file (PUPPYONE_FILE_MODE) with the scenario's `native` capture steps. `state` is the bridge's answer (loading never resolves, unavailable fails to resolve, too-large is over the 1 MB editor limit); `edit` types a space at the end of the first line; `encoding` reads the fixture as legacy text.",
+  "scenarios": [
+    {
+      "scenario": "md",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md"
+    },
+    {
+      "scenario": "md-view-menu",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md",
+      "click": ".file-mode-window__view-mode",
+      "native": "file-menu:view"
+    },
+    {
+      "scenario": "md-edited",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md",
+      "edit": true,
+      "native": "file-edit;wait:300;blur"
+    },
+    {
+      "scenario": "md-legacy",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/file/legacy.md",
+      "encoding": "gb18030"
+    },
+    {
+      "scenario": "csv",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.csv"
+    },
+    {
+      "scenario": "csv-settings-menu",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.csv",
+      "click": ".file-mode-window__controls button[aria-haspopup=menu]:not(.file-mode-window__view-mode)",
+      "native": "file-menu:settings"
+    },
+    {
+      "scenario": "loading",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md",
+      "state": "loading"
+    },
+    {
+      "scenario": "unavailable",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md",
+      "state": "unavailable"
+    },
+    {
+      "scenario": "too-large",
+      "width": 860,
+      "height": 760,
+      "file": "fixtures/editor/sample.md",
+      "state": "too-large"
+    }
+  ]
+}

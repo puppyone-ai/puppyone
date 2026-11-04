@@ -39,7 +39,9 @@ SUITES = {"workbench": ("tools/workbench-scenarios.json", ""),
           "settings": ("tools/settings-scenarios.json", "settings-"),
           "cloud": ("tools/cloud-scenarios.json", "cloud-"),
           "editor": ("tools/editor-scenarios.json", "editor-"),
-          "shell": ("tools/shell-scenarios.json", "shell-")}
+          "shell": ("tools/shell-scenarios.json", "shell-"),
+          # Not a lab case: a real file window on the scenario's file.
+          "file": ("tools/file-scenarios.json", None)}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("only", nargs="*")
@@ -57,6 +59,22 @@ selected = [c for c in cases if not args.only or c["id"] in args.only]
 if not selected:
     sys.exit(f"No matching cases; known: {', '.join(c['id'] for c in cases)}")
 
+def file_mode_path(case, data):
+    """The file a File Mode case opens: the fixture itself, a copy over the
+    editor's 1 MB limit (`too-large`) or a name that is not there
+    (`unavailable`), both in the run's scratch folder."""
+    fixture = root / case["file"]
+    state = case.get("state")
+    if state not in ("too-large", "unavailable"):
+        return str(fixture)
+    folder = Path(data) / f"file-{state}"
+    folder.mkdir(exist_ok=True)
+    target = folder / fixture.name
+    if state == "too-large":
+        target.write_bytes(b"x" * (1024 * 1024 + 1))
+    return str(target)
+
+
 if not args.compare_only:
     if not args.no_build:
         cargo = shutil.which("cargo") or str(Path.home() / ".cargo/bin/cargo")
@@ -67,11 +85,22 @@ if not args.compare_only:
             env = {k: v for k, v in os.environ.items() if not k.startswith("PUPPYONE_")}
             env.update(
                 PUPPYONE_RUST_DATA_DIR=data,
-                PUPPYONE_LAB=lab_prefix + case["id"],
                 PUPPYONE_WIDTH=str(case["width"]),
                 PUPPYONE_HEIGHT=str(case["height"]),
                 PUPPYONE_SCREENSHOT=str(native_dir / f"{case['id']}.png"),
             )
+            if lab_prefix is None:
+                env["PUPPYONE_FILE_MODE"] = file_mode_path(case, data)
+                # The reference blurs the page before capturing: no caret
+                # (a scenario that types blurs itself afterwards).
+                if "file-edit" not in case.get("native", ""):
+                    env["PUPPYONE_EDITOR_FOCUS"] = "0"
+                if case.get("native"):
+                    env["PUPPYONE_CAPTURE_SCENARIO"] = case["native"]
+                if case.get("state") == "loading":
+                    env["PUPPYONE_FILE_HOLD"] = "1"
+            else:
+                env["PUPPYONE_LAB"] = lab_prefix + case["id"]
             # A real shell in the lab follows its own preferences; pin the mode.
             env["PUPPYONE_THEME"] = case["mode"]
             # Render the frame off screen: no window appears on the desktop.

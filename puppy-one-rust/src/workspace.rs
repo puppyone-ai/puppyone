@@ -21,7 +21,7 @@ mod tests;
 
 use crate::model::Node;
 use contracts::{Descriptor, RelativePath, Revision, TextSnapshot, WriteResult};
-pub use contracts::{Error, ErrorKind, PreviewData, ResourceId, Result};
+pub use contracts::{Error, ErrorKind, PreviewData, ResourceId, Result, TextEncoding};
 use ports::{Notify, Provider, WatchCancellation, WatchEvent, WatchSubscription};
 use std::{
     path::{Path, PathBuf},
@@ -71,6 +71,8 @@ pub struct Document {
     pub relative: PathBuf,
     pub text: String,
     pub identity: ResourceId,
+    /// Not UTF-8: shown read-only, never written (`FileContent.encoding`).
+    pub encoding: TextEncoding,
     revision: Revision,
     lease: Uuid,
 }
@@ -129,7 +131,11 @@ impl Subscription {
 }
 impl Workspace {
     pub fn open(path: &Path) -> Result<Arc<Self>> {
-        Self::from_provider(local::open(path)?)
+        Self::open_with(path, false)
+    }
+    /// A local folder; `legacy_text` for a file window's (`decodesLegacyText`).
+    pub fn open_with(path: &Path, legacy_text: bool) -> Result<Arc<Self>> {
+        Self::from_provider(local::open(path, legacy_text)?)
     }
     pub fn from_provider(provider: Arc<dyn Provider>) -> Result<Arc<Self>> {
         provider.check_authority()?;
@@ -241,6 +247,7 @@ impl Workspace {
             relative: identity.path.as_path().to_owned(),
             text: value.text,
             identity,
+            encoding: value.encoding,
             revision: value.revision,
             lease: self.lease.id,
         })

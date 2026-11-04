@@ -264,6 +264,7 @@ impl Version {
             crlf,
         };
         Ok(TextSnapshot {
+            encoding: Default::default(),
             text: normalized,
             revision: version.revision()?,
         })

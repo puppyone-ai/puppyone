@@ -231,9 +231,11 @@ pub struct Documents {
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
-    /// `editorSaveMode="manual"` (a file window): edits wait for ⌘S or the
-    /// close, instead of saving themselves.
-    pub manual_save: bool,
+    /// A file window's document (`FileModeApp`): edits wait for ⌘S or the
+    /// close (`editorSaveMode="manual"`); nothing watches the file, it is
+    /// read again when the window comes back; text that is not UTF-8 is
+    /// decoded for reading (`decodesLegacyText`) and never written.
+    pub file_window: bool,
     serial: u64,
     session: Option<DocumentEditingSession>,
     autosave_request: Option<(u64, u64, Instant)>,
@@ -263,7 +265,7 @@ impl Default for Documents {
             tree_update: None,
             children_update: None,
             folder_busy: false,
-            manual_save: false,
+            file_window: false,
             serial: 0,
             session: None,
             autosave_request: None,
@@ -356,6 +358,7 @@ impl Documents {
         if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
             && ws.capabilities().watch
             && !self.allow_quit
+            && !self.file_window
         {
             let wake = ctx.clone();
             match ws.watch(doc, Arc::new(move || wake.notify())) {
@@ -789,8 +792,9 @@ impl Documents {
                 self.status = "Opening folder…".into();
                 let tx = self.tx.clone();
                 let ctx = ctx.clone();
+                let legacy_text = self.file_window;
                 crate::localization::spawn(move || {
-                    let result = Workspace::open(&path)
+                    let result = Workspace::open_with(&path, legacy_text)
                         .and_then(|ws| ws.list(std::path::Path::new("")).map(|rows| (ws, rows)));
                     let _ = tx.send(Completed::Root(result));
                     ctx.notify();
@@ -1261,7 +1265,7 @@ impl Documents {
         }
         if matches!(self.phase, Phase::Idle) {
             if self.autosave_request.is_none()
-                && !self.manual_save
+                && !self.file_window
                 && let Some(s) = &mut self.session
                 && s.needs_snapshot
             {

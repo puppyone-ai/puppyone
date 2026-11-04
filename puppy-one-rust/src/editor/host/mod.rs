@@ -52,6 +52,9 @@ pub struct DocumentEditor {
     /// A file window: the view switch and settings live in its title bar,
     /// so the pane has no handle or menu of its own.
     pub file_mode: bool,
+    /// The document only reads (a file window's legacy text): the surface
+    /// takes no edits, while view switches still work.
+    pub read_only: bool,
     pub pane_drag: Option<crate::editor::workbench::pane::PaneDrag>,
     session: Option<Session>,
     surface: Option<Box<dyn ViewerSurface>>,
@@ -86,6 +89,7 @@ impl DocumentEditor {
         Self {
             workbench: false,
             file_mode: false,
+            read_only: false,
             pane_drag: None,
             session: None,
             surface: None,
@@ -405,6 +409,7 @@ impl DocumentEditor {
 
     fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let read_only = self.blocked
+            || self.read_only
             || self
                 .session
                 .as_ref()
@@ -422,6 +427,21 @@ impl DocumentEditor {
         let Some(surface) = &self.surface else { return };
         surface.command(name, window, cx);
         self.focus_document(window, cx);
+    }
+
+    /// Captures type `text` at the end of the first line, as the input
+    /// method would deliver it.
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_type(&self, text: &str, window: &mut Window, cx: &mut App) {
+        use gpui::EntityInputHandler as _;
+        let Some(view) = self.surface.as_ref().and_then(|s| s.editor_view()) else {
+            return;
+        };
+        view.update(cx, |v, cx| {
+            let end = v.state().doc.line_range(0).end;
+            v.set_selection(crate::editor::text::selection::Selection::cursor(end), cx);
+            v.replace_text_in_range(None, text, window, cx);
+        });
     }
 
     pub fn focus_document(&self, window: &mut Window, cx: &mut App) {

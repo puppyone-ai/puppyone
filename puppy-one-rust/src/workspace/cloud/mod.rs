@@ -331,6 +331,7 @@ impl DocumentStoragePort for Cloud {
             Ok(revision) => {
                 version.revision = revision;
                 Ok(WriteResult::Saved(TextSnapshot {
+                    encoding: Default::default(),
                     text: text.into(),
                     revision: version.revision()?,
                 }))

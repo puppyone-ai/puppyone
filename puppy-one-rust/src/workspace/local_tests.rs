@@ -277,3 +277,29 @@ fn rename_move_copy_import_and_delete_stay_inside_the_grant() {
     assert!(!dir.path().join("docs").exists());
     assert!(ws.remove_entry(p("../escape")).is_err());
 }
+#[test]
+fn a_file_windows_folder_reads_legacy_text_and_never_writes_it() {
+    let temp = tempdir().unwrap();
+    let gb = encoding_rs::GB18030.encode("旧编码\n").0.into_owned();
+    std::fs::write(temp.path().join("gb.md"), &gb).unwrap();
+    std::fs::write(temp.path().join("bytes.md"), b"caf\xe9\n").unwrap();
+    // A project refuses text that is not UTF-8.
+    let project = Workspace::open(temp.path()).unwrap();
+    assert!(project.read(Path::new("gb.md")).is_err());
+    // A file window decodes GB18030, else shows replacement characters.
+    let window = Workspace::open_with(temp.path(), true).unwrap();
+    let doc = window.read(Path::new("gb.md")).unwrap();
+    assert_eq!(
+        (doc.text.as_str(), doc.encoding),
+        ("旧编码\n", TextEncoding::Gb18030)
+    );
+    let doc = window.read(Path::new("bytes.md")).unwrap();
+    assert_eq!(doc.encoding, TextEncoding::Unknown);
+    assert!(doc.text.contains('\u{fffd}'));
+    // Neither is ever written back.
+    assert!(window.save(&doc, "café\n").is_err());
+    assert_eq!(
+        std::fs::read(temp.path().join("bytes.md")).unwrap(),
+        b"caf\xe9\n"
+    );
+}

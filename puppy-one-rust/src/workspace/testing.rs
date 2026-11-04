@@ -44,6 +44,7 @@ impl Memory {
     fn snapshot(&self) -> TextSnapshot {
         let text = self.text.lock().unwrap().clone();
         TextSnapshot {
+            encoding: Default::default(),
             revision: Revision(blake3::hash(text.as_bytes()).to_string()),
             text,
         }

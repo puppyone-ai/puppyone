@@ -1,6 +1,6 @@
 //! Private local filesystem adapter. Capability checks and byte-preserving
 //! conditional writes stay here; application code uses the provider ports.
-use super::contracts::{Error, ErrorKind, Result, Revision, TextSnapshot};
+use super::contracts::{Error, ErrorKind, Result, Revision, TextEncoding, TextSnapshot};
 use crate::model::{MAX_DIRECTORY_ENTRIES, Node};
 use cap_std::fs::{Dir, Metadata, OpenOptions};
 use std::{
@@ -18,6 +18,9 @@ pub struct Workspace {
     pub path: PathBuf,
     id: Uuid,
     dir: Dir,
+    /// A file window's folder (`decodesLegacyText`): text that is not UTF-8
+    /// is decoded for reading instead of refused.
+    legacy_text: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Version {
@@ -61,6 +64,7 @@ pub struct Document {
     workspace_id: Uuid,
     bom: bool,
     crlf: bool,
+    encoding: TextEncoding,
 }
 #[derive(Debug)]
 pub struct WriteOutcome {
@@ -91,7 +95,16 @@ impl Document {
         TextSnapshot {
             revision: self.version.revision(),
             text: self.text,
+            encoding: self.encoding,
         }
+    }
+}
+/// `decodeTextFile` for legacy text: GB18030 when it decodes without
+/// errors, otherwise UTF-8 with replacement characters, which say so honestly.
+fn decode_legacy(bytes: &[u8]) -> (std::borrow::Cow<'_, str>, TextEncoding) {
+    match encoding_rs::GB18030.decode_without_bom_handling_and_without_replacement(bytes) {
+        Some(text) => (text, TextEncoding::Gb18030),
+        None => (String::from_utf8_lossy(bytes), TextEncoding::Unknown),
     }
 }
 fn validate(path: &Path, allow_empty: bool) -> Result<()> {
@@ -105,13 +118,14 @@ fn validate(path: &Path, allow_empty: bool) -> Result<()> {
     Ok(())
 }
 impl Workspace {
-    pub fn open(path: &Path) -> Result<Arc<Self>> {
+    pub fn open_with(path: &Path, legacy_text: bool) -> Result<Arc<Self>> {
         let path = std::fs::canonicalize(path).map_err(io)?;
         let dir = Dir::open_ambient_dir(&path, cap_std::ambient_authority()).map_err(io)?;
         Ok(Arc::new(Self {
             path,
             id: Uuid::new_v4(),
             dir,
+            legacy_text,
         }))
     }
     fn directory(&self, relative: &Path) -> Result<Dir> {
@@ -193,8 +207,11 @@ impl Workspace {
         let (bytes, meta) = Self::read_from(&dir, &name)?;
         let version = Version::new(&bytes, &meta);
         let bom = bytes.starts_with(&[0xef, 0xbb, 0xbf]);
-        let text = std::str::from_utf8(if bom { &bytes[3..] } else { &bytes })
-            .map_err(|_| crate::localization::t("native.workspace.notUtf8"))?;
+        let (text, encoding) = match std::str::from_utf8(if bom { &bytes[3..] } else { &bytes }) {
+            Ok(text) => (std::borrow::Cow::Borrowed(text), TextEncoding::Utf8),
+            Err(_) if self.legacy_text => decode_legacy(&bytes),
+            Err(_) => return Err(crate::localization::t("native.workspace.notUtf8").into()),
+        };
         if text.contains('\0') {
             return Err(crate::localization::t("native.workspace.binary").into());
         }
@@ -211,6 +228,7 @@ impl Workspace {
             workspace_id: self.id,
             bom,
             crlf,
+            encoding,
         })
     }
     /// Publish a new entry without replacing a name that another writer created.
@@ -470,6 +488,13 @@ impl Workspace {
         }
         if text.len() > MAX_TEXT_BYTES || text.contains(['\0', '\r']) {
             return Err(crate::localization::t("native.workspace.invalidText").into());
+        }
+        // A wrong guess must never be saved (`decodeTextFile`).
+        if document.encoding != TextEncoding::Utf8 {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                crate::localization::t("editor.fileMode.readOnlyEncoding"),
+            ));
         }
         let (dir, name) = self.parent(&document.relative)?;
         let (current, meta) = Self::read_from(&dir, &name)?;

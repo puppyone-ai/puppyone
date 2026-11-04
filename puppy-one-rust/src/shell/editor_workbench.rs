@@ -44,15 +44,18 @@ impl Shell {
             .then(|| relative.to_path_buf())
     }
     /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
-    /// Retry everywhere; hosted documents also show Saving… and Saved
-    /// (`showSaveStatus`). Clean documents show nothing.
-    fn save_chip(&self, slot: u64, cx: &mut Context<Self>) -> Option<AnyElement> {
+    /// Retry everywhere; hosted documents and file windows also show
+    /// Saving… and Saved (`showSaveStatus`), and a file window's unsaved
+    /// edits offer Save (`saveMode === "manual"`). Clean documents show
+    /// nothing.
+    pub(super) fn save_chip(&self, slot: u64, cx: &mut Context<Self>) -> Option<AnyElement> {
         use crate::documents::SaveStatus;
         let files = self.files.slot(slot)?;
         let hosted = files
             .workspace
             .as_ref()
             .is_some_and(|ws| ws.local_root().is_none());
+        let show_status = hosted || files.file_window;
         let status = files.save_status();
         if status == SaveStatus::Saved && self.saved_refresh.is_none() {
             let weak = cx.weak_entity();
@@ -76,6 +79,7 @@ impl Shell {
             });
         }
         let t = cx.palette();
+        // `.editor-save-chip`, fading in over 180ms (`editor-save-fade-in`).
         let chip = |id: &'static str| {
             h_flex()
                 .id(SharedString::from(format!("{id}-{slot}")))
@@ -87,48 +91,78 @@ impl Shell {
                 .font_weight(FontWeight::MEDIUM)
                 .whitespace_nowrap()
         };
-        let body = match status {
-            SaveStatus::Failed => chip("editor-save-failed")
-                .bg(theme::alpha(t.danger, 0.16))
-                .text_color(t.danger)
-                .hover(|d| d.bg(theme::alpha(t.danger, 0.24)))
-                .child(
-                    Icon::new("triangle-alert")
-                        .with_size(px(14.))
-                        .color(t.danger),
-                )
-                .child(crate::localization::t("editor.save.failed"))
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    s.files.retry_slot_save(slot, &s.wake);
-                    cx.notify();
-                }))
-                .into_any_element(),
-            SaveStatus::Saving if hosted => chip("editor-save-saving")
-                .bg(t.border_subtle)
-                .text_color(t.muted)
-                .child(
-                    div()
-                        .size(px(7.))
-                        .rounded_full()
-                        .bg(t.muted)
-                        .with_animation(
-                            ElementId::NamedInteger("editor-save-pulse".into(), slot),
-                            Animation::new(std::time::Duration::from_millis(820)).repeat(),
-                            |d, delta| {
-                                // `tree-loading-pulse`: 0.35 → 1 → 0.35.
-                                let wave = 1. - (delta * 2. - 1.).abs();
-                                d.opacity(0.35 + 0.65 * wave)
-                            },
-                        ),
-                )
-                .child(crate::localization::t("editor.save.saving"))
-                .into_any_element(),
-            SaveStatus::Saved if hosted => chip("editor-save-saved")
-                .bg(theme::alpha(t.success, 0.14))
-                .text_color(t.success)
-                .child(Icon::new("check").with_size(px(14.)).color(t.success))
-                .child(crate::localization::t("editor.save.saved"))
-                .into_any_element(),
+        let glyph =
+            |name: &'static str, color: Rgba| Icon::new(name).with_size(px(14.)).color(color);
+        // `dirty` outranks `saved`: typing after a save asks to save again.
+        let unsaved = files.file_window && files.dirty && status != SaveStatus::Saving;
+        let (key, body) = match status {
+            SaveStatus::Failed => (
+                "failed",
+                chip("editor-save-failed")
+                    .bg(theme::alpha(t.danger, 0.16))
+                    .text_color(t.danger)
+                    .hover(|d| d.bg(theme::alpha(t.danger, 0.24)))
+                    .child(glyph("editor-save-alert", t.danger))
+                    .child(crate::localization::t("editor.save.failed"))
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        s.files.retry_slot_save(slot, &s.wake);
+                        cx.notify();
+                    }))
+                    .into_any_element(),
+            ),
+            _ if unsaved => (
+                "action",
+                chip("editor-save-action")
+                    .bg(t.warning)
+                    .text_color(t.text_inverse)
+                    .hover(|d| d.bg(theme::mix(t.warning, t.text, 0.88)))
+                    .child(glyph("editor-save", t.text_inverse))
+                    .child(crate::localization::t("editor.save.action"))
+                    .on_click(cx.listener(|s, _, window, cx| s.command(Command::Save, window, cx)))
+                    .into_any_element(),
+            ),
+            SaveStatus::Saving if show_status => (
+                "saving",
+                chip("editor-save-saving")
+                    .bg(t.border_subtle)
+                    .text_color(t.muted)
+                    .child(
+                        div()
+                            .size(px(7.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                div()
+                                    .size(px(7.))
+                                    .rounded_full()
+                                    .bg(t.muted)
+                                    .with_animation(
+                                        ElementId::NamedInteger("editor-save-pulse".into(), slot),
+                                        Animation::new(std::time::Duration::from_millis(820))
+                                            .repeat(),
+                                        |d, delta| {
+                                            // `tree-loading-pulse`: 0.35 → 0.9 → 0.35
+                                            // opacity, 0.86 → 1 scale.
+                                            let wave = 1. - (delta * 2. - 1.).abs();
+                                            d.opacity(0.35 + 0.55 * wave)
+                                                .size(px(7. * (0.86 + 0.14 * wave)))
+                                        },
+                                    ),
+                            ),
+                    )
+                    .child(crate::localization::t("editor.save.saving"))
+                    .into_any_element(),
+            ),
+            SaveStatus::Saved if show_status => (
+                "saved",
+                chip("editor-save-saved")
+                    .bg(theme::alpha(t.success, 0.14))
+                    .text_color(t.success)
+                    .child(glyph("editor-save-check", t.success))
+                    .child(crate::localization::t("editor.save.saved"))
+                    .into_any_element(),
+            ),
             _ => return None,
         };
         Some(
@@ -136,7 +170,14 @@ impl Shell {
                 .absolute()
                 .top(px(10.))
                 .right(px(12.))
-                .child(body)
+                .child(
+                    div().child(body).with_animation(
+                        SharedString::from(format!("editor-save-fade-{key}-{slot}")),
+                        Animation::new(std::time::Duration::from_millis(180))
+                            .with_easing(|t| crate::ui::motion::cubic_bezier(0., 0., 0.58, 1., t)),
+                        |d, delta| d.opacity(delta).mt(px(-2. * (1. - delta))),
+                    ),
+                )
                 .into_any_element(),
         )
     }

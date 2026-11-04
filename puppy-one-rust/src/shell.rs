@@ -684,19 +684,28 @@ impl Shell {
         // Dev captures open a file window with `PUPPYONE_FILE_MODE`.
         #[cfg(feature = "dev-capture")]
         let file = launch.file.clone().or_else(|| {
+            // A path that is not there opens on the unavailable state.
             std::env::var_os("PUPPYONE_FILE_MODE")
                 .filter(|_| launch.from_args)
-                .and_then(|p| PathBuf::from(p).canonicalize().ok())
+                .map(PathBuf::from)
+                .map(|p| p.canonicalize().unwrap_or(p))
         });
         #[cfg(not(feature = "dev-capture"))]
         let file = launch.file.clone();
         if let Some(file) = file.and_then(file_mode::FileTarget::of) {
             // The file's folder is the window's root; only the file shows,
-            // and it saves when asked.
-            s.files.manual_save = true;
-            s.startup_file = Some(PathBuf::from(&file.name));
-            s.files
-                .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
+            // and it saves when asked. A file that is gone or too large is
+            // never read.
+            s.files.file_window = true;
+            #[cfg(feature = "dev-capture")]
+            let hold = std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
+            #[cfg(not(feature = "dev-capture"))]
+            let hold = false;
+            if file.admission == file_mode::Admission::Readable && !hold {
+                s.startup_file = Some(PathBuf::from(&file.name));
+                s.files
+                    .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
+            }
             s.file_target = Some(file);
         } else if let Some(path) = workspace {
             if launch.open.is_some() {
@@ -1439,6 +1448,7 @@ impl Shell {
     }
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.files.persist_metadata(&self.wake, false);
+        let file = self.file_mode();
         let active = self.files.active_slot();
         let mut focus_native = self
             .native_hosts
@@ -1496,7 +1506,7 @@ impl Shell {
                         crate::documents::HostMessage::Open { .. }
                             | crate::documents::HostMessage::OpenResource { .. }
                     );
-                let references = self.files.slot(slot).and_then(|files| {
+                let references = self.files.slot(slot).filter(|_| !file).and_then(|files| {
                     let workspace = files.workspace.as_ref()?;
                     let (_, path) = files.opened()?;
                     self.explorer.update(cx, |explorer, _| {
@@ -1521,8 +1531,10 @@ impl Shell {
         let modal = self.modal() || self.workbench.read(cx).dialog_open();
         let home = self.home_visible();
         let visible = self.files.visible_slots();
+        let read_only = self.file_read_only();
         for (slot, editor) in &self.native_hosts {
-            let references = self.files.slot(*slot).and_then(|files| {
+            // A lone file has no neighbours (`EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT`).
+            let references = self.files.slot(*slot).filter(|_| !file).and_then(|files| {
                 let workspace = files.workspace.as_ref()?;
                 let (_, path) = files.opened()?;
                 self.explorer.update(cx, |explorer, _| {
@@ -1538,6 +1550,7 @@ impl Shell {
                     .is_none_or(|f| f.busy() || f.allow_quit);
             editor.update(cx, |s, cx| {
                 s.set_reference_context(references, cx);
+                s.read_only = read_only;
                 s.gate(blocked, self.dark, window, cx);
             });
         }
@@ -2218,7 +2231,11 @@ impl Render for Shell {
                     }
                 }),
             )
-            .child(self.editor(cx));
+            .child(if self.file_mode() {
+                self.file_document(cx)
+            } else {
+                self.editor(cx)
+            });
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));

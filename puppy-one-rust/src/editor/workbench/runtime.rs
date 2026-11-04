@@ -76,8 +76,8 @@ pub struct Runtime {
     quitting: bool,
     /// "Close Anyway": the window closes without what could not be saved.
     abandoned: bool,
-    /// A file window's documents save only when asked.
-    pub manual_save: bool,
+    /// A file window's documents (`Documents::file_window`).
+    pub file_window: bool,
     /// A close that a document could not finish (`finishInterceptedClose`
     /// with a failed flush); the shell asks whether to close anyway.
     pub close_refused: bool,
@@ -338,6 +338,7 @@ impl Runtime {
                 }
                 self.revoke_preparing();
                 let mut preparing = Documents::default();
+                preparing.file_window = self.file_window;
                 self.preparing_root = Some(path.clone());
                 preparing.begin(Intent::OpenFolder(path), wake);
                 self.preparing = Some(preparing);
@@ -375,7 +376,7 @@ impl Runtime {
                 }
                 self.serial += 1;
                 let mut files = Documents::in_workspace(ws);
-                files.manual_save = self.manual_save;
+                files.file_window = self.file_window;
                 files.begin(Intent::OpenFile(path), wake);
                 host.slots.insert(
                     self.serial,

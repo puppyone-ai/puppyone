@@ -11,8 +11,8 @@ struct LocalProvider {
     inner: Arc<Workspace>,
     descriptor: Descriptor,
 }
-pub(in crate::workspace) fn open(path: &Path) -> Result<Arc<dyn Provider>> {
-    let inner = Workspace::open(path)?;
+pub(in crate::workspace) fn open(path: &Path, legacy_text: bool) -> Result<Arc<dyn Provider>> {
+    let inner = Workspace::open_with(path, legacy_text)?;
     let uri = url::Url::from_directory_path(&inner.path)
         .map_err(|_| Error::from("Invalid local workspace root"))?;
     let descriptor = Descriptor {

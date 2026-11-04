@@ -108,10 +108,22 @@ pub struct ResourceId {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Revision(pub String);
+/// How the stored bytes became the text (`FileContent.encoding`): anything
+/// but UTF-8 cannot be written back without changing the file.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextEncoding {
+    #[default]
+    Utf8,
+    /// Decoded as GB18030 (a file window's `decodeLegacyText`).
+    Gb18030,
+    /// Not UTF-8 and not GB18030: shown with replacement characters.
+    Unknown,
+}
 #[derive(Clone, Debug)]
 pub struct TextSnapshot {
     pub text: String,
     pub revision: Revision,
+    pub encoding: TextEncoding,
 }
 #[derive(Clone, Debug)]
 pub enum WriteResult {

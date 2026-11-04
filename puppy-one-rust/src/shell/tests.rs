@@ -3825,7 +3825,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     view.update(cx, |s, _| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
         s.fixture = false;
-        s.files.manual_save = true;
+        s.files.file_window = true;
         s.startup_file = Some(PathBuf::from(&file.name));
         s.files
             .begin(Intent::OpenFolder(file.root.clone()), &s.wake);

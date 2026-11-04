@@ -5,6 +5,7 @@
 //   settings  — SettingsDialog, one page per case; fixtures mirror src/lab.rs
 //   cloud     — Cloud surfaces (History sidebar); data shared with src/lab.rs
 //   shell     — the feedback dialog and the empty Homepage (intro, disclosure)
+//   file      — File Mode (FileModeApp): one fixture file in its own window
 //
 //   <product>/node_modules/.bin/electron tools/reference-workbench.mjs
 //   PUPPYONE_REFERENCE_SUITE=settings ... for the Settings suite.
@@ -38,6 +39,9 @@ const SUITES = {
     scope: 'real product DesktopHelpLauncher and MinimalOnboarding; offline fixture services',
     elements: '.onboarding-shell, .onboarding-shell *, #desktop-overlay-root *',
     env: {VITE_DESKTOP_CLOUD_API_URL: 'https://api.puppyone.ai'}},
+  file: {entry: 'tools/reference-file-entry.tsx', scenarios: 'tools/file-scenarios.json',
+    scope: 'real product FileModeApp; offline fixture bridge serving one file',
+    elements: '.file-mode-window, .file-mode-window *, #desktop-overlay-root *'},
 };
 const suiteName = process.env.PUPPYONE_REFERENCE_SUITE ?? 'workbench';
 const suite = SUITES[suiteName];
@@ -63,11 +67,14 @@ async function run() {
     if (only && !only.includes(c.id)) continue;
     const fixture = {id: c.id, mode: c.mode, locale: 'en', width: c.width, height: c.height, intro: c.intro ?? null};
     // A scenario may bring its own data; non-JSON files arrive as a string.
-    const dataFile = c.data ?? suite.data;
-    // Images arrive as base64.
-    const raw = dataFile ? await readFile(path.join(root, dataFile), dataFile.endsWith('.png') ? 'base64' : 'utf8') : null;
-    const data = raw === null ? 'null' : dataFile.endsWith('.json') ? raw : JSON.stringify(raw);
-    const page = `window.__catalogs=${JSON.stringify(catalogMap)};window.__fixtureData=${data};\n${script}`;
+    const dataFile = c.data ?? c.file ?? suite.data;
+    // Images and text in a legacy encoding arrive as base64.
+    const binary = dataFile?.endsWith('.png') || Boolean(c.encoding);
+    const raw = dataFile ? await readFile(path.join(root, dataFile), binary ? 'base64' : 'utf8') : null;
+    const data = raw === null ? 'null' : dataFile.endsWith('.json') && !c.file ? raw : JSON.stringify(raw);
+    // A File Mode scenario names the file the window is bound to.
+    const file = c.file ? {name: path.basename(c.file), encoding: c.encoding ?? null, state: c.state ?? null, edit: Boolean(c.edit)} : null;
+    const page = `window.__catalogs=${JSON.stringify(catalogMap)};window.__fixtureData=${data};window.__fixtureFile=${JSON.stringify(file)};\n${script}`;
     const win = await openPage(profile, {width: c.width, height: c.height, mode: c.mode, fixture, script: page, style});
     try {
       await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;

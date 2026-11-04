@@ -19,8 +19,10 @@
 //! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
-//! allowed or not), `agents:<more|invite|agent id>` (their card) and
-//! `manage-agents`. The capture waits
+//! allowed or not), `agents:<more|invite|agent id>` (their card),
+//! `manage-agents`, and in a file window `file-menu:<view|settings>` (a
+//! title bar menu), `file-edit` (a space typed at the end of the first
+//! line) and `blur` (focus leaves the document). The capture waits
 //! for the homepage's project activity and an open diff.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
@@ -58,6 +60,9 @@ enum Step {
     AgentsFixture(bool),
     Agents(String),
     ManageAgents,
+    FileMenu(super::file_mode::FileMenu),
+    FileEdit,
+    Blur,
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -103,6 +108,12 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agents-fixture" => Step::AgentsFixture(arg == "open"),
                 "agents" => Step::Agents(arg.to_string()),
                 "manage-agents" => Step::ManageAgents,
+                "file-menu" => Step::FileMenu(match arg {
+                    "settings" => super::file_mode::FileMenu::Settings,
+                    _ => super::file_mode::FileMenu::View,
+                }),
+                "file-edit" => Step::FileEdit,
+                "blur" => Step::Blur,
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -158,12 +169,16 @@ impl Shell {
         // The real workspace and its Git status must be in place first.
         // A file window has no Explorer rows or Git; its file must be open.
         let file = self.file_mode();
-        let workspace_ready = self.files.workspace.is_some()
-            && !self.fixture
-            && (file || !self.explorer.read(cx).tree().rows.is_empty())
-            && (!file || self.files.opened().is_some())
-            && !self.files.busy()
-            && !self.files.folder_busy;
+        // A file window held loading or showing it cannot open is settled.
+        let file_settled = file && self.file_shown() != super::file_mode::Shown::Document
+            || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
+        let workspace_ready = file_settled
+            || self.files.workspace.is_some()
+                && !self.fixture
+                && (file || !self.explorer.read(cx).tree().rows.is_empty())
+                && (!file || self.files.opened().is_some())
+                && !self.files.busy()
+                && !self.files.folder_busy;
         let git_ready = file || self.source_control.read(cx).snapshot.is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
@@ -363,6 +378,19 @@ impl Shell {
                 }
                 self.open_manage_agents(cx);
             }
+            Step::FileMenu(menu) => self.file_menu = Some(*menu),
+            // Typed through the input handler at the end of the first line
+            // (invisible there, and nothing scrolls).
+            Step::FileEdit => {
+                let Some(editor) = self.file_editor() else {
+                    return false;
+                };
+                editor.update(cx, |e, cx| {
+                    e.focus_document(window, cx);
+                    e.lab_type(" ", window, cx);
+                });
+            }
+            Step::Blur => self.focus.focus(window, cx),
         }
         self.receive(window, cx);
         true
