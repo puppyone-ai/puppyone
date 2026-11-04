@@ -6,7 +6,10 @@
 //! - A project opens in the window it was chosen from, even when another
 //!   window shows it too (`workspace-window-index.mjs`: the app "never
 //!   chooses a user's destination window").
-//! - A folder from Finder or a second launch opens in a new window.
+//! - A folder from Finder or a second launch opens in a new window; a
+//!   Markdown, CSV or HTML file in a file window of its own (the window
+//!   already showing it comes forward). At launch such a request replaces
+//!   the window the launch would otherwise open.
 //! - Menu-bar actions (and Undo/Redo) reach the active window's shell.
 //! - Quit asks every window to close through its own close barrier. On
 //!   macOS closing the last window leaves the app running; the Dock opens
@@ -288,10 +291,12 @@ fn open_template_link(url: &str, cx: &mut App) -> bool {
 }
 /// Paths the platform asked us to open (`openPathFromSystem`): a folder in
 /// a new window; a Markdown, CSV or HTML file in its own file window. Other
-/// files cannot be opened on their own.
-pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) {
+/// files cannot be opened on their own. `true` when a window now shows one.
+pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
+    let mut shown = false;
     for url in urls {
         if open_template_link(&url, cx) {
+            shown = true;
             continue;
         }
         let Some(path) = url::Url::parse(&url)
@@ -302,15 +307,126 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) {
         else {
             continue;
         };
-        if path.is_dir() {
-            let _ = open(Some(path), cx);
-        } else if super::file_mode::is_file_mode_file(&path) {
-            let _ = open_file(path, cx);
-        } else {
-            eprintln!(
-                "This file type cannot be opened on its own: {}",
-                path.display()
-            );
+        shown |= open_path(path, cx);
+    }
+    shown
+}
+
+/// `openPathFromSystem`: `true` when a window now shows `path`.
+pub fn open_path(path: PathBuf, cx: &mut App) -> bool {
+    if path.is_dir() {
+        open(Some(path), cx).is_ok()
+    } else if super::file_mode::is_file_mode_file(&path) {
+        open_file(path, cx).is_ok()
+    } else {
+        eprintln!(
+            "This file type cannot be opened on its own: {}",
+            path.display()
+        );
+        false
+    }
+}
+
+/// What a command line names (`findLaunchTargetArg`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LaunchArgs {
+    /// The last folder or file named; anything that is not a path is
+    /// ignored, as are other flags.
+    pub target: Option<PathBuf>,
+    /// `--file <relative>`: the project's document to open first.
+    pub open: Option<PathBuf>,
+}
+/// Parse arguments (without the program) resolved against `cwd`; a
+/// `file://` URI names its path. `--workspace <folder>` and `--file
+/// <relative>` are the native build's own developer flags.
+pub fn parse_launch_args(
+    args: impl IntoIterator<Item = std::ffi::OsString>,
+    cwd: &std::path::Path,
+) -> LaunchArgs {
+    let resolve = |arg: &std::ffi::OsStr| {
+        let text = arg.to_string_lossy();
+        let path = match url::Url::parse(&text).ok().filter(|u| u.scheme() == "file") {
+            Some(url) => url.to_file_path().ok()?,
+            None => PathBuf::from(arg),
+        };
+        let path = cwd.join(path).canonicalize().ok()?;
+        (path.is_dir() || path.is_file()).then_some(path)
+    };
+    let mut parsed = LaunchArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--workspace" {
+            if let Some(path) = args.next().as_deref().and_then(resolve) {
+                parsed.target = Some(path);
+            }
+        } else if arg == "--file" {
+            parsed.open = args.next().map(PathBuf::from);
+        } else if !arg.to_string_lossy().starts_with('-')
+            && let Some(path) = resolve(&arg)
+        {
+            parsed.target = Some(path);
         }
+    }
+    parsed
+}
+
+/// `handleSecondInstanceLaunch`: a later launch's command line. A template
+/// link shows its card; a file opens in its file window, a folder in a new
+/// window; otherwise (or when that fails) a window comes forward.
+pub fn second_instance(args: Vec<std::ffi::OsString>, cwd: PathBuf, cx: &mut App) {
+    if args
+        .iter()
+        .any(|arg| open_template_link(&arg.to_string_lossy(), cx))
+    {
+        return;
+    }
+    let parsed = parse_launch_args(args, &cwd);
+    if parsed.target.is_some_and(|path| open_path(path, cx)) {
+        return;
+    }
+    reveal_or_create(cx);
+}
+
+/// `createOrRevealWindow`: the window last in front comes forward, or a new
+/// one opens.
+fn reveal_or_create(cx: &mut App) {
+    let front = active(cx).or_else(|| live(cx).into_iter().next());
+    match front {
+        Some((handle, _)) => {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+        }
+        None => {
+            let _ = open(last_active_project(cx), cx);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use std::ffi::OsString;
+
+    #[test]
+    fn the_last_folder_or_file_on_the_command_line_is_the_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::write(root.join("a.md"), "# A\n").unwrap();
+        std::fs::create_dir(root.join("notes")).unwrap();
+        let parse = |args: &[&str]| parse_launch_args(args.iter().map(OsString::from), &root);
+        // Flags and names that are not there are ignored; the last path wins.
+        assert_eq!(
+            parse(&["-psn_0_1", "missing.md", "a.md"]).target,
+            Some(root.join("a.md"))
+        );
+        assert_eq!(parse(&["a.md", "notes"]).target, Some(root.join("notes")));
+        let uri = url::Url::from_file_path(root.join("a.md")).unwrap();
+        assert_eq!(parse(&[uri.as_str()]).target, Some(root.join("a.md")));
+        assert_eq!(parse(&["--unknown"]), LaunchArgs::default());
+        // The native developer flags.
+        let parsed = parse(&["--workspace", "notes", "--file", "README.md"]);
+        assert_eq!(parsed.target, Some(root.join("notes")));
+        assert_eq!(parsed.open, Some(PathBuf::from("README.md")));
     }
 }

@@ -22,6 +22,8 @@ pub mod preference_storage;
 pub mod process;
 pub mod project_activity;
 pub mod repository_import;
+#[cfg(unix)]
+pub mod single_instance;
 pub mod tasks;
 pub mod telemetry;
 pub mod templates;

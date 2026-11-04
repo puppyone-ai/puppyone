@@ -647,26 +647,19 @@ impl Shell {
             },
         )
         .detach();
-        let mut args = if cfg!(test) || !launch.from_args {
-            vec![]
-        } else {
-            std::env::args_os().skip(1).collect::<Vec<_>>()
-        }
-        .into_iter();
         let mut workspace = if cfg!(test) || !launch.from_args {
             launch.workspace.clone()
         } else {
             std::env::var_os("PUPPYONE_WORKSPACE").map(PathBuf::from)
         };
-        while let Some(arg) = args.next() {
-            if arg == "--workspace" {
-                workspace = args.next().map(PathBuf::from);
-            } else if arg == "--file" {
-                s.startup_file = args.next().map(PathBuf::from);
-            } else if !arg.to_string_lossy().starts_with('-') && workspace.is_none() {
-                workspace = Some(PathBuf::from(arg));
-            } else {
-                s.show_error(crate::localization::t("native.usage"));
+        // `findLaunchTargetArg`: the first window opens the folder the
+        // command line names (a named file has its own window, from main).
+        if !cfg!(test) && launch.from_args {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let parsed = windows::parse_launch_args(std::env::args_os().skip(1), &cwd);
+            s.startup_file = parsed.open;
+            if let Some(path) = parsed.target.filter(|p| p.is_dir()) {
+                workspace = Some(path);
             }
         }
         #[cfg(feature = "dev-capture")]

@@ -36,6 +36,27 @@ fn main() {
         platform::agent_activity::hook::run();
         return;
     }
+    // `requestSingleInstanceLock`: a later launch hands its command line to
+    // the running app and exits (captures and the lab run on their own).
+    #[cfg(unix)]
+    let instance = {
+        let isolated = std::env::var_os("PUPPYONE_LAB").is_some()
+            || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let args: Vec<_> = std::env::args_os().skip(1).collect();
+        let cwd = std::env::current_dir().unwrap_or_default();
+        if isolated {
+            None
+        } else {
+            platform::single_instance::acquire(&platform::data_dir(), &args, &cwd)
+        }
+    };
+    #[cfg(unix)]
+    if matches!(
+        instance,
+        Some(platform::single_instance::Instance::Forwarded)
+    ) {
+        return;
+    }
     platform::text_rendering::match_product_font_smoothing();
     let application = gpui_kit::application().with_assets(assets::Assets);
     // Dock click with no window: the last active project (`activate`).
@@ -160,12 +181,41 @@ fn main() {
         }
         #[cfg(not(feature = "dev-capture"))]
         features::telemetry::init(cx);
+        // What the launch itself was asked to open (a file or folder from
+        // Finder) arrives before launching finishes and replaces the window
+        // the launch would otherwise open (`openPendingPaths`).
+        let pending: Vec<String> = std::iter::from_fn(|| open_rx.try_recv().ok())
+            .flatten()
+            .collect();
+        let mut launched = !pending.is_empty() && shell::windows::open_launch_urls(pending, cx);
+        // A file named on the command line opens in a file window of its
+        // own instead, as `pendingOpenPaths` does (folders stay the first
+        // window's, `findLaunchTargetArg`).
+        if !background
+            && let Some(file) = shell::windows::parse_launch_args(
+                std::env::args_os().skip(1),
+                &std::env::current_dir().unwrap_or_default(),
+            )
+            .target
+            .filter(|path| path.is_file())
+        {
+            launched |= shell::windows::open_path(file, cx);
+        }
         cx.spawn(async move |cx| {
             while let Ok(urls) = open_rx.recv().await {
                 cx.update(|cx| shell::windows::open_launch_urls(urls, cx));
             }
         })
         .detach();
+        #[cfg(unix)]
+        if let Some(platform::single_instance::Instance::Primary(launches)) = instance {
+            cx.spawn(async move |cx| {
+                while let Ok((args, cwd)) = launches.recv().await {
+                    cx.update(|cx| shell::windows::second_instance(args, cwd, cx));
+                }
+            })
+            .detach();
+        }
         // One foreground serves every window: beat for the stall watcher.
         platform::watchdog::start();
         platform::watchdog::install_crash_hook();
@@ -178,23 +228,25 @@ fn main() {
             }
         })
         .detach();
-        let mut options = shell::windows::window_options(bounds, !background);
-        if background {
-            options.focus = false;
+        if !launched {
+            let mut options = shell::windows::window_options(bounds, !background);
+            if background {
+                options.focus = false;
+            }
+            let (window, _shell_view) = open_shell_window(options, cx, |window, cx| {
+                cx.new(|cx| shell::Shell::new(window, cx))
+            })
+            .expect("open GPUI window");
+            #[cfg(feature = "dev-capture")]
+            if background {
+                let _ = window.update(cx, |_, window, cx| {
+                    capture::send_to_back(window);
+                    capture::pump_frames(window, cx);
+                });
+            }
+            #[cfg(not(feature = "dev-capture"))]
+            let _ = window;
         }
-        let (window, _shell_view) = open_shell_window(options, cx, |window, cx| {
-            cx.new(|cx| shell::Shell::new(window, cx))
-        })
-        .expect("open GPUI window");
-        #[cfg(feature = "dev-capture")]
-        if background {
-            let _ = window.update(cx, |_, window, cx| {
-                capture::send_to_back(window);
-                capture::pump_frames(window, cx);
-            });
-        }
-        #[cfg(not(feature = "dev-capture"))]
-        let _ = window;
         // GPUI's macOS Undo/Redo menu items dispatch GPUI actions. Native
         // input consumes these first; an unhandled action reaches the
         // active window's editor model. Every menu-bar action follows

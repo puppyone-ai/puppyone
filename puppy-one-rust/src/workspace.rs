@@ -130,6 +130,8 @@ impl Subscription {
     }
 }
 impl Workspace {
+    /// A project folder (tests, the lab and benches open fixtures with it).
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
     pub fn open(path: &Path) -> Result<Arc<Self>> {
         Self::open_with(path, false)
     }
