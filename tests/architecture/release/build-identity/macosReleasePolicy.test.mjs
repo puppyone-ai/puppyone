@@ -145,6 +145,18 @@ describe("macOS internal release workflow", () => {
     expect(inspectInternalReleaseWorkflow(workflow)).toEqual([]);
   });
 
+  it.each([
+    ['.event == "push"', "the Internal workflow must require a main push CI run"],
+    [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
+    ['.status == "completed"', "the Internal workflow must require completed CI records"],
+    ['.conclusion == "success"', "the Internal workflow must require successful CI"],
+  ])("keeps the green-main gate fail-closed without %s", (condition, error) => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url), "utf8",
+    ).replace(condition, "true");
+    expect(inspectInternalReleaseWorkflow(workflow)).toContain(error);
+  });
+
   it("rejects an Internal workflow without the green-main source gate", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),

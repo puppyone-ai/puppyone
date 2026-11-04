@@ -52,6 +52,8 @@ jobs:
             echo "Internal releases must be built from the main branch." >&2
             exit 1
           fi
+          # The server-side status index can lag behind a completed run. Match
+          # exact source, event and terminal success in the returned run records.
           SUCCESSFUL_CI_RUNS="$(
             gh api \
               --method GET \
@@ -59,8 +61,7 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
               -f branch=main \
               -f head_sha="${GITHUB_SHA}" \
-              -f status=completed \
-              --jq '[.workflow_runs[] | select(.event == "push" and .conclusion == "success")] | length'
+              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | length'
           )"
           if [ "${SUCCESSFUL_CI_RUNS}" -lt 1 ]; then
             echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on main." >&2
