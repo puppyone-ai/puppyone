@@ -36,6 +36,11 @@ impl Builder<'_> {
             for (r, _) in hl {
                 cuts.extend([r.start, r.end]);
             }
+            for (r, _, _) in &self.colors {
+                if r.end > range.start && r.start < range.end {
+                    cuts.extend([r.start, r.end]);
+                }
+            }
             cuts.retain(|c| *c >= range.start && *c <= range.end);
             cuts.sort_unstable();
             cuts.dedup();
@@ -62,7 +67,14 @@ impl Builder<'_> {
                 if classes.has(Class::SYNTAX_LINK) && href.is_none() {
                     href = Some(SharedString::from(cx.doc.slice(seg.clone()).to_owned()));
                 }
-                let style = mark_style::marks(cx.theme, classes, context, href.as_ref(), cx.live);
+                let mut style =
+                    mark_style::marks(cx.theme, classes, context, href.as_ref(), cx.live);
+                for (r, color, background) in &self.colors {
+                    if cx.live && r.start <= seg.start && r.end >= seg.end {
+                        style.color = color.or(style.color);
+                        style.highlight = background.or(style.highlight);
+                    }
+                }
                 if style.is_plain() {
                     continue;
                 }

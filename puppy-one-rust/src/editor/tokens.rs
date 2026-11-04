@@ -95,6 +95,87 @@ pub fn over(top: Rgba, bottom: Rgba) -> Rgba {
     }
 }
 
+/// An authored CSS colour (inline HTML `style`): `#rgb`, `#rgba`,
+/// `#rrggbb`, `#rrggbbaa`, `rgb()` / `rgba()` and the CSS basic colour
+/// keywords (plus `orange`, `grey`). Anything else (`currentColor`,
+/// functions of other spaces) is no colour.
+pub fn parse_css_color(value: &str) -> Option<Rgba> {
+    let v = value.trim().to_ascii_lowercase();
+    if let Some(hex) = v.strip_prefix('#') {
+        let digits: Vec<u8> = hex
+            .chars()
+            .map(|c| c.to_digit(16).map(|d| d as u8))
+            .collect::<Option<_>>()?;
+        let channel = |hi: u8, lo: u8| f32::from(hi * 16 + lo) / 255.;
+        let (r, g, b, a) = match digits[..] {
+            [r, g, b] => (channel(r, r), channel(g, g), channel(b, b), 1.),
+            [r, g, b, a] => (channel(r, r), channel(g, g), channel(b, b), channel(a, a)),
+            [r1, r2, g1, g2, b1, b2] => (channel(r1, r2), channel(g1, g2), channel(b1, b2), 1.),
+            [r1, r2, g1, g2, b1, b2, a1, a2] => (
+                channel(r1, r2),
+                channel(g1, g2),
+                channel(b1, b2),
+                channel(a1, a2),
+            ),
+            _ => return None,
+        };
+        return Some(Rgba { r, g, b, a });
+    }
+    if let Some(inner) = v
+        .strip_prefix("rgba(")
+        .or_else(|| v.strip_prefix("rgb("))
+        .and_then(|s| s.strip_suffix(')'))
+    {
+        let (rgb, alpha) = match inner.split_once('/') {
+            Some((c, a)) => (c, Some(a.trim())),
+            None => (inner, None),
+        };
+        let parts: Vec<&str> = rgb
+            .split(|c: char| c == ',' || c.is_whitespace())
+            .filter(|p| !p.is_empty())
+            .collect();
+        let alpha = alpha.or_else(|| parts.get(3).copied());
+        let number = |p: &str| match p.strip_suffix('%') {
+            Some(pct) => pct.parse::<f32>().ok().map(|n| n / 100.),
+            None => p.parse::<f32>().ok().map(|n| n / 255.),
+        };
+        let a = match alpha {
+            Some(a) => match a.strip_suffix('%') {
+                Some(pct) => pct.parse::<f32>().ok()? / 100.,
+                None => a.parse::<f32>().ok()?,
+            },
+            None => 1.,
+        };
+        return Some(Rgba {
+            r: number(parts.first()?)?.clamp(0., 1.),
+            g: number(parts.get(1)?)?.clamp(0., 1.),
+            b: number(parts.get(2)?)?.clamp(0., 1.),
+            a: a.clamp(0., 1.),
+        });
+    }
+    let hex = match v.as_str() {
+        "black" => 0x000000,
+        "silver" => 0xc0c0c0,
+        "gray" | "grey" => 0x808080,
+        "white" => 0xffffff,
+        "maroon" => 0x800000,
+        "red" => 0xff0000,
+        "purple" => 0x800080,
+        "fuchsia" | "magenta" => 0xff00ff,
+        "green" => 0x008000,
+        "lime" => 0x00ff00,
+        "olive" => 0x808000,
+        "yellow" => 0xffff00,
+        "navy" => 0x000080,
+        "blue" => 0x0000ff,
+        "teal" => 0x008080,
+        "aqua" | "cyan" => 0x00ffff,
+        "orange" => 0xffa500,
+        _ => return None,
+    };
+    Some(gpui::rgb(hex))
+}
+
 pub fn parse_color(value: &str) -> Option<Rgba> {
     let v = value.trim();
     let (r, g, b, a) = if let Some(inner) = v

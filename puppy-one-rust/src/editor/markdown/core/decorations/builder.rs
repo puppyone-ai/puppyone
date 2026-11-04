@@ -37,6 +37,9 @@ pub(super) struct Builder<'a> {
     /// Source shown as other text.
     pub replaced: Vec<(Range<usize>, SharedString)>,
     pub superscripts: Vec<crate::editor::view::decoration::Superscript>,
+    /// Colours an element sets on its content (inline HTML `style`): text
+    /// and background, packed.
+    pub colors: Vec<(Range<usize>, Option<u32>, Option<u32>)>,
     pub spans: Vec<ClassSpan>,
     /// Inline context of each source line (`None` inside widgets).
     pub contexts: Vec<Option<LineContext>>,
@@ -58,6 +61,7 @@ impl<'a> Builder<'a> {
             atomic: Vec::new(),
             replaced: Vec::new(),
             superscripts: Vec::new(),
+            colors: Vec::new(),
             spans: Vec::new(),
             contexts: vec![None; count],
             by_line,

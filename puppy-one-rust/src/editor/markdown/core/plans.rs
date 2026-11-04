@@ -114,7 +114,8 @@ fn compile_element(index: usize, e: &Element) -> Plan {
         | Kind::WikiLink
         | Kind::Highlight
         | Kind::LinkDefinition
-        | Kind::Comment => match &e.content {
+        | Kind::Comment
+        | Kind::InlineHtml => match &e.content {
             Some(c) if c.start < c.end => Plan {
                 element: Some(index),
                 source: e.range.clone(),

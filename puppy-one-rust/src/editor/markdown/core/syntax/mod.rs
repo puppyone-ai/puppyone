@@ -6,6 +6,7 @@
 //! wiki links) use the same expressions here.
 mod autolink;
 mod footnotes;
+mod inline_html;
 mod inline_syntax;
 mod lines;
 #[cfg(test)]
@@ -13,6 +14,7 @@ mod tests;
 mod tree;
 
 pub use footnotes::Footnotes;
+pub use inline_html::InlineTag;
 pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule_line};
 
 use crate::editor::text::buffer::Buffer;
@@ -50,6 +52,8 @@ pub enum Kind {
     FootnoteReference,
     /// `[^id]:` opening a note, shown as its number.
     FootnoteDefinition,
+    /// `<tag>content</tag>` of the inline-editable HTML profile.
+    InlineHtml,
 }
 
 impl Kind {
@@ -70,6 +74,7 @@ impl Kind {
                 | Kind::MathInline
                 | Kind::FootnoteReference
                 | Kind::FootnoteDefinition
+                | Kind::InlineHtml
         )
     }
     /// Kinds decorated inline (marks + hidden markers).
@@ -91,6 +96,7 @@ impl Kind {
                 | Kind::MathInline
                 | Kind::FootnoteReference
                 | Kind::FootnoteDefinition
+                | Kind::InlineHtml
         )
     }
     /// Block kinds whose leading marker is deleted as a unit at the visible start.
@@ -135,6 +141,8 @@ pub struct Element {
     pub href: Option<String>,
     /// What an emoji or entity shows instead of its source.
     pub text: Option<String>,
+    /// An inline HTML element's tag.
+    pub html: Option<Box<InlineTag>>,
 }
 
 impl Element {
@@ -149,6 +157,7 @@ impl Element {
             checked: false,
             href: None,
             text: None,
+            html: None,
         }
     }
     /// Where visible content starts after the block markers.
@@ -363,6 +372,8 @@ pub struct Syntax {
     pub callouts: Vec<Callout>,
     /// Starts of link reference definitions labelled `^id`.
     pub note_definitions: Vec<usize>,
+    /// The parser's inline HTML (tags), in document order.
+    pub inline_tags: Vec<Span>,
     pub footnotes: Footnotes,
 }
 
@@ -382,6 +393,8 @@ impl Syntax {
         blocks.sort_by_key(|r| r.start);
         lines::add_line_elements(doc, &blocks, &mut syntax.elements);
         footnotes::add(doc, &blocks, &mut syntax);
+        let html = inline_html::elements(doc.as_str(), &syntax.inline_tags);
+        syntax.elements.extend(html);
         syntax.elements.sort_by(|a, b| {
             a.range
                 .start

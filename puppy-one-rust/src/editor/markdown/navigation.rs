@@ -37,7 +37,8 @@ impl MarkdownExtension {
             });
         }
         let element = syntax.elements.iter().find(|element| {
-            matches!(element.kind, Kind::Link | Kind::WikiLink)
+            (matches!(element.kind, Kind::Link | Kind::WikiLink)
+                || element.kind == Kind::InlineHtml && element.href.is_some())
                 && element
                     .content
                     .as_ref()
@@ -48,6 +49,8 @@ impl MarkdownExtension {
         let wiki = element.kind == Kind::WikiLink;
         let target = if wiki {
             links::find_wiki_links(source).first()?.target.clone()
+        } else if element.kind == Kind::InlineHtml {
+            element.href.clone()?
         } else {
             links::find_links(source)
                 .first()

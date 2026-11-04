@@ -164,7 +164,14 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     atomic.extend(replaced.iter().map(|(r, _)| r.clone()));
     atomic.sort_by_key(|r| r.start);
     let mut superscripts = std::mem::take(&mut b.superscripts);
-    superscripts.retain(|s| replaced.iter().any(|(r, _)| *r == s.range));
+    // Only text that is shown: a replacement that survived, or source that
+    // is not hidden.
+    superscripts.retain(|s| {
+        replaced.iter().any(|(r, _)| *r == s.range)
+            || !hidden
+                .iter()
+                .any(|h| h.start < s.range.end && s.range.start < h.end)
+    });
     superscripts.sort_by_key(|s| s.range.start);
     Decorations {
         blocks: b.blocks,

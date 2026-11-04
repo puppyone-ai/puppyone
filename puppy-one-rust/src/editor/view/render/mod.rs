@@ -20,7 +20,7 @@ use crate::editor::{
     text::buffer::Buffer,
     view::{
         command::Command,
-        decoration::Decorations,
+        decoration::{Decorations, Superscript},
         editor::EditorView,
         projection::LeafText,
         style::{Align, LineStyle, Paint, Rect, TextStyle},
@@ -35,13 +35,6 @@ use std::{
     ops::Range,
     rc::Rc,
 };
-
-/// Blink's `vertical-align: super`: the baseline rises by a third of the
-/// parent's font size plus one layout pixel (a device pixel, as Blink lays
-/// out zoomed for the device scale).
-fn super_shift(scale: f32, font_size: f32) -> f32 {
-    font_size / 3. + 1. / scale
-}
 
 pub struct RenderCx<'a> {
     pub doc: &'a Buffer,
@@ -559,34 +552,64 @@ impl RenderCx<'_> {
         }
     }
 
-    /// How far a superscript in `source` reaches above its row: the line
-    /// box grows by that much (Blink's line box around a raised `<sup>`).
-    fn superscript_lift(&mut self, source: &Range<usize>, style: &TextStyle) -> f32 {
+    /// The shifted texts (`<sup>`, `<sub>`) fully inside `source`.
+    fn shifted_in(&self, source: &Range<usize>) -> Vec<Superscript> {
         let d = self.decorations;
         let first = d
             .superscripts
             .partition_point(|s| s.range.start < source.start);
-        let Some(size) = d.superscripts[first..]
+        d.superscripts[first..]
             .iter()
-            .take_while(|s| s.range.end <= source.end)
-            .map(|s| s.size)
-            .reduce(f32::max)
-        else {
-            return 0.;
-        };
-        let text = TextStyle {
-            size,
-            ..style.clone()
-        };
-        let scale = self.scale;
-        let line = baseline::chromium_baseline(scale, style, self.primary_metrics(style), 0.);
-        let sup = baseline::chromium_baseline(scale, &text, self.primary_metrics(&text), 0.);
-        (sup + super_shift(scale, style.size) - line).max(0.)
+            .take_while(|s| s.range.start < source.end)
+            .filter(|s| s.range.end <= source.end)
+            .cloned()
+            .collect()
     }
 
-    /// The superscripts in the leaf just built for `source` (first row at
+    /// The style a shifted text is painted in, on a line of `style`.
+    fn shifted_style(sup: &Superscript, style: &TextStyle) -> TextStyle {
+        TextStyle {
+            // `font-size: smaller`: Blink's next smaller size, ÷ 1.2.
+            size: sup.size.unwrap_or(style.size / 1.2),
+            color: sup.color.unwrap_or(style.color),
+            ..style.clone()
+        }
+    }
+
+    /// How far its baseline moves up: Blink's `vertical-align: super` (a
+    /// third of the parent's font size) or `sub` (a fifth, down), plus one
+    /// layout pixel (a device pixel, as Blink lays out zoomed for the device
+    /// scale).
+    fn shift(&self, sup: &Superscript, style: &TextStyle) -> f32 {
+        let one = 1. / self.scale;
+        if sup.lower {
+            -(style.size / 5. + one)
+        } else {
+            style.size / 3. + one
+        }
+    }
+
+    /// How far the shifted texts in `source` reach above and below its row:
+    /// the line box grows by that much (Blink's line box around a raised
+    /// `<sup>` or a lowered `<sub>`).
+    fn shifted_growth(&mut self, source: &Range<usize>, style: &TextStyle) -> (f32, f32) {
+        let scale = self.scale;
+        let line = baseline::chromium_baseline(scale, style, self.primary_metrics(style), 0.);
+        let below = style.line_height_px() - line;
+        let (mut lift, mut drop): (f32, f32) = (0., 0.);
+        for sup in self.shifted_in(source) {
+            let text = Self::shifted_style(&sup, style);
+            let above = baseline::chromium_baseline(scale, &text, self.primary_metrics(&text), 0.);
+            let shift = self.shift(&sup, style);
+            lift = lift.max(above + shift - line);
+            drop = drop.max(text.line_height_px() - above - shift - below);
+        }
+        (lift, drop)
+    }
+
+    /// The shifted texts in the leaf just built for `source` (first row at
     /// `x`, `y` in its line box): each painted over the room the leaf keeps
-    /// for it, its baseline `super_shift` above the line's.
+    /// for it.
     fn superscripts(
         &mut self,
         source: &Range<usize>,
@@ -595,15 +618,7 @@ impl RenderCx<'_> {
         (x, y): (f32, f32),
         block_top: f32,
     ) -> Vec<AnyElement> {
-        let d = self.decorations;
-        let first = d
-            .superscripts
-            .partition_point(|s| s.range.start < source.start);
-        let found: Vec<_> = d.superscripts[first..]
-            .iter()
-            .take_while(|s| s.range.end <= source.end)
-            .cloned()
-            .collect();
+        let found = self.shifted_in(source);
         let Some(leaf) = self
             .leaves
             .last()
@@ -633,21 +648,12 @@ impl RenderCx<'_> {
             let Some(at) = shaped.position_for_index(index, px(row)) else {
                 continue;
             };
-            let text = TextStyle {
-                size: sup.size,
-                color: sup.color,
-                ..style.clone()
-            };
-            let raise = super_shift(scale, style.size);
+            let text = Self::shifted_style(&sup, style);
             let top = y + f32::from(at.y) + line_baseline
                 - baseline::chromium_baseline(scale, &text, self.primary_metrics(&text), 0.)
-                - raise;
-            let rect = Rect::new(
-                x + f32::from(at.x),
-                top,
-                sup.size * 4.,
-                text.line_height_px(),
-            );
+                - self.shift(&sup, style);
+            let width = (sup.text.chars().count() as f32 + 1.) * text.size;
+            let rect = Rect::new(x + f32::from(at.x), top, width, text.line_height_px());
             out.push(self.label(rect, &sup.text, &text, Align::Start, block_top));
         }
         out
@@ -696,7 +702,8 @@ impl RenderCx<'_> {
     ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
-        let y = b.top + p.top + self.superscript_lift(&source, &style.text);
+        let (lift, drop) = self.shifted_growth(&source, &style.text);
+        let y = b.top + p.top + lift;
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
         let (text, text_height) = self.text(
             source.clone(),
@@ -708,7 +715,7 @@ impl RenderCx<'_> {
             x,
             y,
         );
-        let height = y + text_height + p.bottom + b.bottom;
+        let height = y + text_height + drop + p.bottom + b.bottom;
         let mut line = self.block_box(top, left, width, height);
         if let Some(bg) = style.background {
             let [tl, tr, br, bl] = style.background_radii;

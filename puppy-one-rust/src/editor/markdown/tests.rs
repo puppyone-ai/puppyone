@@ -197,3 +197,30 @@ fn a_footnote_marker_jumps_to_its_counterpart() {
     let back = ext.link_at(&state, 10, false).unwrap();
     assert_eq!((back.label, back.action), (9..14, LinkAction::Position(1)));
 }
+
+#[gpui::test]
+fn inline_html_tags_hide_and_style_their_content(cx: &mut TestAppContext) {
+    let text = "a <b>bold</b> and <q>said</q>\n\nend";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(hidden(&view, cx), vec![2..5, 9..13]);
+    view.update(cx, |v, _| {
+        let d = v.decorations();
+        assert!(d.marks.iter().any(|m| m.range == (5..9) && m.style.bold));
+        // A `q` shows its quotation marks for its tags.
+        let quotes: Vec<_> = d
+            .replaced
+            .iter()
+            .map(|(r, s)| (r.clone(), s.to_string()))
+            .collect();
+        assert_eq!(
+            quotes,
+            vec![(18..21, "\u{201c}".into()), (25..29, "\u{201d}".into())]
+        );
+    });
+    // The caret inside shows the tags as source.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(7), cx));
+    assert!(hidden(&view, cx).is_empty());
+}

@@ -96,20 +96,25 @@ pub struct Decorations {
     /// as its emoji): sorted, non-overlapping, each within one source line,
     /// never overlapping a hidden range.
     pub replaced: Vec<(Range<usize>, SharedString)>,
-    /// Replaced text set as `<sup>` (sorted by start).
+    /// Text set as `<sup>` / `<sub>` (sorted by start).
     pub superscripts: Vec<Superscript>,
     pub surface: Surface,
 }
 
-/// Replaced text set as `<sup>`: at its own size and colour, its baseline
-/// raised (`vertical-align: super`). One shaped run has one size, so the
-/// leaf keeps the text's room, transparent, and the renderer paints it.
+/// Text set as `<sup>` or `<sub>`: at its own size and colour, its baseline
+/// shifted (`vertical-align: super` / `sub`). One shaped run has one size,
+/// so the leaf keeps the text's room, transparent, and the renderer paints
+/// it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Superscript {
     pub range: Range<usize>,
     pub text: SharedString,
-    pub size: f32,
-    pub color: gpui::Rgba,
+    /// `None`: `font-size: smaller` (the line's size ÷ 1.2).
+    pub size: Option<f32>,
+    /// `None`: the line's colour.
+    pub color: Option<gpui::Rgba>,
+    /// `vertical-align: sub` rather than `super`.
+    pub lower: bool,
 }
 
 impl Decorations {

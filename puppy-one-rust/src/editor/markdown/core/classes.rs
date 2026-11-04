@@ -112,6 +112,13 @@ classes! {
     /// `cm-md-footnote-reference` (the leaf keeps its room; it is painted
     /// as a superscript)
     FOOTNOTE_REFERENCE = 42;
+    // Inline HTML whose element styles its content (the browser's defaults).
+    /// `u`, `ins`: underlined
+    HTML_UNDERLINE = 43;
+    /// `mark`: Chromium's `Mark` / `MarkText` system colours
+    HTML_MARK = 44;
+    /// `sup`, `sub`: the leaf keeps the text's room; it is painted shifted
+    HTML_SHIFTED = 45;
 }
 
 impl Class {

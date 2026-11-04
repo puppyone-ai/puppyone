@@ -980,6 +980,9 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             }
             Event::InlineHtml(_) => {
                 w.inline_content(&range);
+                if !w.in_code() {
+                    w.syntax.inline_tags.push(range.clone());
+                }
                 w.html(range);
             }
             Event::SoftBreak

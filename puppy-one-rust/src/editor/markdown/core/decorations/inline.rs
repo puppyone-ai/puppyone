@@ -141,6 +141,7 @@ impl Builder<'_> {
                         href: None,
                     });
                 }
+                Kind::InlineHtml => self.inline_html(plan, e, reveal),
                 Kind::Emoji
                 | Kind::Entity
                 | Kind::MathInline
@@ -165,8 +166,9 @@ impl Builder<'_> {
                                 .push(crate::editor::view::decoration::Superscript {
                                     range: e.range.clone(),
                                     text: shown,
-                                    size: crate::theme::ty().ui.meta,
-                                    color: self.cx.theme.inline.link_color,
+                                    size: Some(crate::theme::ty().ui.meta),
+                                    color: Some(self.cx.theme.inline.link_color),
+                                    lower: false,
                                 });
                         }
                         let classes = match e.kind {
@@ -186,6 +188,69 @@ impl Builder<'_> {
                 }
                 _ => {}
             }
+        }
+    }
+}
+
+impl Builder<'_> {
+    /// `applyInlineHtmlPlan`: the tags hide like delimiters (a `q`'s show as
+    /// its quotation marks) and the content takes the element's default
+    /// presentation: weight, slant, rules, monospace, `mark`'s system
+    /// colours, a shifted size, and the colours of its `style`.
+    fn inline_html(&mut self, plan: &Plan, e: &Element, reveal: bool) {
+        let (Presentation::InlineMark { content, markers }, Some(tag)) =
+            (&plan.presentation, e.html.as_deref())
+        else {
+            return;
+        };
+        if tag.name == "q" && !reveal {
+            for (marker, quote) in markers.iter().zip(["\u{201c}", "\u{201d}"]) {
+                self.replaced
+                    .push((marker.clone(), SharedString::from(quote)));
+            }
+        } else {
+            for m in markers {
+                self.hide(m.clone(), SourceSyntax::Delimiter, reveal);
+            }
+        }
+        let classes = match tag.name.as_str() {
+            "b" | "strong" => Class::SYNTAX_STRONG,
+            "i" | "em" | "cite" | "var" | "dfn" => Class::SYNTAX_EMPHASIS,
+            "s" | "del" | "strike" => Class::SYNTAX_STRIKE,
+            "u" | "ins" => Class::HTML_UNDERLINE,
+            "code" | "kbd" | "samp" | "tt" => Class::SYNTAX_MONOSPACE,
+            "mark" => Class::HTML_MARK,
+            // `.cm-md-inline-html[data-md-href]`: the text's own colour, a
+            // transparent underline; it still follows its link.
+            "sup" | "sub" if !reveal => {
+                self.superscripts
+                    .push(crate::editor::view::decoration::Superscript {
+                        range: content.clone(),
+                        text: SharedString::from(self.cx.doc.slice(content.clone()).to_owned()),
+                        size: None,
+                        color: None,
+                        lower: tag.name == "sub",
+                    });
+                Class::HTML_SHIFTED
+            }
+            _ => Class::NONE,
+        };
+        if classes != Class::NONE {
+            self.spans.push(ClassSpan {
+                range: content.clone(),
+                classes,
+                href: None,
+            });
+        }
+        let css = |value: &Option<String>| {
+            value
+                .as_deref()
+                .and_then(crate::editor::tokens::parse_css_color)
+                .map(crate::editor::view::decoration::packed)
+        };
+        let (color, background) = (css(&tag.color), css(&tag.background));
+        if color.is_some() || background.is_some() {
+            self.colors.push((content.clone(), color, background));
         }
     }
 }
