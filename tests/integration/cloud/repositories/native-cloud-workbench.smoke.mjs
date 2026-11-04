@@ -60,6 +60,13 @@ const presentation = (location) => evaluate(`(async () => {
 const state = () => evaluate("window.__nativeCloudWorkbenchSmoke.state()");
 // The Header and Share keep the Agent list current by themselves, whatever else is happening.
 const workspaceRequests = async () => (await state()).requests.filter(path => !/\/(agent-links|access\/sessions)$/.test(path));
+// The Cloud Header's tools: the Agent pane, and the empty invite seat only while
+// no Agent is here (or while that is still being checked). Share with people
+// stays out of the Header until inviting Agents works end to end.
+const cloudTools = `(() => {
+  const tools = [...document.querySelectorAll('[data-cloud-workspace-tool]')].map(tool => tool.dataset.cloudWorkspaceTool);
+  return tools.includes('agent') && tools.every(tool => tool === 'agent' || tool === 'invite-agent');
+})()`;
 const waitFor = async (expression) => {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((resolve) => setTimeout(resolve, 50)); }
@@ -413,7 +420,9 @@ app.whenReady().then(async () => {
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
   assert(await evaluate("document.querySelector('.desktop-titlebar').dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-header-reveal, .desktop-cloud-entry-light')"),
     'Opening the Cloud project must state the Cloud in the Header without repainting it');
-  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes') && document.querySelectorAll('[data-cloud-workspace-tool]').length === 2"),
+  assert(await evaluate(`document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud'
+    && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')
+    && ${cloudTools}`),
     'Opening the Cloud project must give the Header that project and its Cloud tools, without the folder actions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
@@ -565,24 +574,29 @@ app.whenReady().then(async () => {
   }
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
-  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
-    'Cloud Header exposes Share and Agent');
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect], [data-cloud-workspace-tool=share]')"),
+    'Cloud Header exposes the Agents and the Agent pane, not retired entries or Share');
   await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents .desktop-project-reach-mark[data-reach-activity=working]'))");
   assert(await evaluate(`(() => {
     const people = document.querySelector('.desktop-titlebar-cloud-agents').getBoundingClientRect();
-    const share = document.querySelector('[data-cloud-workspace-tool=share]').getBoundingClientRect();
-    return people.height > 0 && people.right <= share.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
-  })()`), 'An active Agent stands in the Header ahead of Share, inside the Header');
-  const beforeSharing = (await workspaceRequests()).length;
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
-  // The link covers what the user is looking at (2b347d52): the canonical
-  // project URL, narrowed to the open file when one is open.
-  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('[data-share-target]').dataset.shareUrl)"),
-    'Workspace sharing must expose its canonical human URL for what is being viewed');
-  assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
-  await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
+    const pane = document.querySelector('[data-cloud-workspace-tool=agent]').getBoundingClientRect();
+    return people.height > 0 && people.right <= pane.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
+  })()`), 'An active Agent stands in the Header ahead of the Agent pane, inside the Header');
+  // Once an Agent is here, the list it opens invites the next: the Header has no empty seat.
+  await waitFor("!document.querySelector('[data-cloud-workspace-tool=invite-agent]')");
+  const beforeAgents = (await workspaceRequests()).length;
+  await evaluate("document.querySelector('.desktop-titlebar-cloud-agents [data-cloud-workspace-agent]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-panel .desktop-cloud-agent-roster [data-cloud-agent-row]'))");
+  await captureSettledDialog('cloud-agents', '.desktop-cloud-agents-panel');
+  // Inviting another Agent is a dialog of its own, as Manage agents is, and opening it creates no link.
+  await evaluate("document.querySelector('.desktop-cloud-agents-panel [data-cloud-agent-invite-open]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-invite-dialog .desktop-cloud-agent-share-copy'))");
+  assert(await evaluate("!document.querySelector('.desktop-cloud-agents-panel') && document.activeElement === document.querySelector('.desktop-cloud-agent-invite-dialog .desktop-cloud-agent-share-copy')"),
+    'Invite another agent must open its own dialog, with copying the prompt the first thing in reach');
+  assert((await workspaceRequests()).length === beforeAgents, 'Meeting the Agents must not issue workspace requests');
+  await captureSettledDialog('cloud-agent-invite', '.desktop-cloud-agent-invite-dialog');
+  await evaluate("document.querySelector('.desktop-cloud-agent-invite-dialog button[aria-label=Close]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agent-invite-dialog')");
   await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
   await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
   await evaluate("document.querySelector('[data-project-place-row=history]').click()");
@@ -602,7 +616,7 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       if (location === "cloud") await captureCloudReady(`${theme}-${width}`);
       const sample = await headerPresentation(location);
-      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
+      assert(await evaluate(location === 'cloud' ? cloudTools : "document.querySelectorAll('[data-cloud-workspace-tool]').length === 0"),
         'Cloud CTAs must follow the active environment in both themes and widths');
       if (location === 'cloud') assert(await evaluate(`(() => {
         const project = document.querySelector('.desktop-titlebar-context').getBoundingClientRect();
