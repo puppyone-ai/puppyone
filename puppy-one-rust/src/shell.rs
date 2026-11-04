@@ -35,6 +35,7 @@ mod project_menu;
 mod project_opening;
 mod project_place;
 mod rename;
+mod share_panel;
 pub(crate) mod tasks;
 pub mod windows;
 use command::on_shell_actions;
@@ -60,6 +61,8 @@ pub enum Popover {
     Project,
     /// `ProjectPlaceMenu`: where the open project is.
     Place,
+    /// `CloudWorkspaceShareDialog`: the Share card under its button.
+    Share,
 }
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
@@ -109,6 +112,8 @@ pub struct Shell {
     pub(super) file_target: Option<file_mode::FileTarget>,
     /// The file window's open title bar menu.
     file_menu: Option<file_mode::FileMenu>,
+    /// The Share card's links, captured when it opened.
+    share_panel: share_panel::SharePanel,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
     dismissed_cloud_notice: Option<String>,
     /// The `puppyone` remote as reviewed when replacing a vanished
@@ -284,6 +289,7 @@ impl Shell {
             window_title: None,
             file_target: None,
             file_menu: None,
+            share_panel: Default::default(),
             dismissed_cloud_notice: None,
             replace_url: None,
             popover: None,
@@ -806,9 +812,6 @@ impl Shell {
                 self.modals
                     .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
             }
-            Some(Modal::Share { .. }) => {
-                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
-            }
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
@@ -888,7 +891,6 @@ impl Shell {
                     | Command::ToggleRightSidebar
                     | Command::Changes
                     | Command::CloudServices
-                    | Command::ShareCloud
                     | Command::CloudHistory
                     | Command::OpenFolder
                     | Command::CreateNew
@@ -1170,29 +1172,6 @@ impl Shell {
                 self.files.error = None;
             }
             Command::CloudServices => self.open_cloud_share(String::new(), window, cx),
-            Command::ShareCloud => {
-                // One snapshot when Share opens owns the copied locator: the
-                // selected folder, else the active document, else the root.
-                let url = self.share_url(cx);
-                self.popover = None;
-                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
-                self.modals.open(Modal::Share { url, copied: None });
-                self.modal_focus.focus(window, cx);
-            }
-            Command::CopyShareLink => {
-                if let Some(Modal::Share {
-                    url: Some(url),
-                    copied,
-                }) = self.modals.top_mut()
-                {
-                    cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
-                    *copied = Some(true);
-                }
-            }
-            Command::CloseShare => {
-                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
-                self.focus.focus(window, cx);
-            }
             Command::CloudHistory => {
                 let Some(project) = self.hosted_project() else {
                     return;
@@ -1579,24 +1558,6 @@ impl Shell {
     /// Explicit Cloud opening of a hosted Project root in this window.
     /// `cloudWorkspaceShareResource`: the selected folder, else the active
     /// document, else the authorized root.
-    fn share_url(&self, cx: &App) -> Option<String> {
-        let (_, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
-        let project = self.cloud_project.clone()?;
-        let (path, folder) = match self.explorer.read(cx).selected_folder() {
-            Some(folder) => (folder, true),
-            None => match self.files.opened() {
-                Some((_, relative)) => (relative.to_path_buf(), false),
-                None => (PathBuf::new(), true),
-            },
-        };
-        crate::workspace::cloud::locator::resource_url(
-            binding.environment.web(),
-            &project,
-            &path.to_string_lossy(),
-            folder,
-        )
-        .ok()
-    }
     fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
         let link = crate::features::cloud_account::broker_and_binding(cx)
             .zip(self.cloud_project.clone())
@@ -1973,12 +1934,7 @@ impl Shell {
             bar = bar.tabs(self.editor_tabs(cx));
         }
         if hosted {
-            bar = bar
-                .action(
-                    header::share_entry()
-                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::ShareCloud, w, cx))),
-                )
-                .divider(cx);
+            bar = bar.action(self.share_control(cx)).divider(cx);
         } else {
             // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
             let share = self.workspace_root().is_some()
@@ -2471,9 +2427,6 @@ impl Shell {
                 Modal::ProjectFailure { message, .. } => {
                     self.project_failure_dialog(message, cx).into_any_element()
                 }
-                Modal::Share { url, copied } => self
-                    .share_dialog(url.clone(), *copied, cx)
-                    .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
                 Modal::CloudPublish => self.cloud_publish_dialog(cx).into_any_element(),
                 Modal::ConfirmPublish => self.publish_confirmation_dialog(cx).into_any_element(),

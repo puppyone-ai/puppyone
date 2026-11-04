@@ -1388,33 +1388,38 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
 }
 
+/// C-4: Share is a card under its button, not a dialog; Escape closes it.
 #[gpui::test]
-fn cloud_share_dialog_copies_the_captured_link(cx: &mut TestAppContext) {
+fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    view.update_in(cx, |s, w, cx| {
-        s.modals.open(Modal::Share {
-            url: Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/".into()),
-            copied: None,
-        });
-        s.command(Command::CopyShareLink, w, cx);
-        assert!(matches!(
-            s.modals.top(),
-            Some(Modal::Share {
-                copied: Some(true),
-                ..
-            })
-        ));
+    let (broker, browser) =
+        crate::cloud_auth::responding_account_fixture(with_catalog(cloud_project_responder()));
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
-    let copied = cx.read_from_clipboard().and_then(|c| c.text());
-    assert_eq!(
-        copied.as_deref(),
-        Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/")
-    );
-    cx.update(|w, cx| {
-        let _ = w.draw(cx);
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
     });
-    command(&view, cx, Command::CloseShare);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the hosted Project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    view.update(cx, |s, cx| {
+        s.snapshot_share_panel(cx);
+        s.popover = Some(Popover::Share);
+        cx.notify();
+    });
+    draw(cx);
+    // The fixture's project id is not one the website can address, so the
+    // card says the project cannot be shared yet (the links themselves are
+    // `share_panel::tests`).
+    let card = cx.debug_bounds("cloud-workspace-share").unwrap();
+    assert!((f32::from(card.size.width) - 380.).abs() < 0.5);
+    view.read_with(cx, |s, _| assert!(s.share_panel.targets.is_empty()));
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, _| assert!(s.popover.is_none()));
 }
 
 #[gpui::test]
@@ -3256,29 +3261,6 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
         assert!(s.files.cloud_opening().is_none());
         assert_eq!(s.opening_project_name(cx), None);
     });
-}
-
-/// C-8.2: the preview comes from what is already loaded: no service files,
-/// at most eight entries, and the open document always among them.
-#[test]
-fn the_share_preview_uses_cached_entries_and_keeps_the_open_file() {
-    use crate::model::Node;
-    let node = |name: &str, folder: bool| {
-        serde_json::from_value::<Node>(serde_json::json!({"name": name, "folder": folder,
-            "expanded": false, "children": []}))
-        .unwrap()
-    };
-    let mut nodes = vec![
-        node(".git", true),
-        node(".DS_Store", false),
-        node("docs", true),
-    ];
-    nodes.extend((0..10).map(|i| node(&format!("{i}.md"), false)));
-    let entries = tasks::share_preview_entries(&nodes, Some("deep.md"));
-    assert_eq!(entries.len(), 9);
-    assert_eq!(entries[0], ("docs".to_owned(), true));
-    assert_eq!(entries[8], ("deep.md".to_owned(), false));
-    assert!(tasks::share_preview_entries(&[], None).is_empty());
 }
 
 /// `useAccountPlan`: "Never show one organization's money under another's

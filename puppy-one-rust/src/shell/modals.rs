@@ -50,11 +50,6 @@ pub(super) enum Modal {
     About,
     /// `CloudDialog`: the linked Project's Cloud services.
     CloudServices,
-    /// `CloudWorkspaceShareDialog`: the captured resource URL and its copy state.
-    Share {
-        url: Option<String>,
-        copied: Option<bool>,
-    },
     /// A notice; a later one replaces it.
     Error(String),
     /// `openCloudDialogAt("initialize")`: putting the open folder in the

@@ -82,6 +82,7 @@ impl Shell {
         let id = match popover {
             Popover::Project => "project-menu",
             Popover::Place => "place-menu",
+            Popover::Share => "share-panel",
         };
         let host = self.weak.clone();
         let mut menu = PopoverMenu::new(id)
@@ -129,6 +130,8 @@ impl Shell {
                         });
                     }
                 }
+                // The Share card has its own control (`share_control`).
+                Popover::Share => {}
             }
         }
         menu

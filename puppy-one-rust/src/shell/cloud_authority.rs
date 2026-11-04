@@ -61,7 +61,9 @@ impl Shell {
         }
         self.cloud_authority = None;
         self.files.cancel_cloud();
-        self.modals.remove(|m| matches!(m, Modal::Share { .. }));
+        if self.popover == Some(Popover::Share) {
+            self.popover = None;
+        }
         if self.hosted_project().is_some() {
             self.close_workspace_sidebars(window, cx);
             self.files.deactivate();
