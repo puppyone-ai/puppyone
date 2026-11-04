@@ -2541,6 +2541,127 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
     });
 }
 
+/// H-20: a new project starts with Getting started, which opens first;
+/// "Paste template link" refuses anything but a template link.
+#[gpui::test]
+fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().canonicalize().unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.fixture = false;
+        s.begin_create_project(w, cx);
+        let create = s.modals.create_project().unwrap();
+        create.destination.location = Some(parent.clone());
+        create
+            .destination
+            .name
+            .update(cx, |input, cx| input.set_text("Notes".to_owned(), cx));
+    });
+    cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string("just words".into())));
+    view.update_in(cx, |s, w, cx| s.paste_template_link(w, cx));
+    view.update(cx, |s, _| {
+        let create = s.modals.create_project().unwrap();
+        assert_eq!(
+            create.error.as_deref(),
+            Some(crate::localization::t("onboarding.template.noLink"))
+        );
+    });
+    view.update_in(cx, |s, w, cx| s.submit_create_project(w, cx));
+    settle_cloud(&view, cx, "the new project", &|s, _| {
+        s.files
+            .opened()
+            .is_some_and(|(_, relative)| relative == std::path::Path::new("Getting Started.md"))
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.workspace_root(), Some(parent.join("Notes")));
+        assert!(s.modals.is_empty());
+    });
+}
+
+/// H-20, W-7: a template link opens its card; "Get a copy" writes the
+/// verified files under a name no folder has, and the copy opens on its
+/// first document — in a window of its own when a project is open here.
+#[gpui::test]
+fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
+    crate::platform::templates::store::install_test_store(&[("Plan.md", "# Week\n")]);
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().canonicalize().unwrap();
+    std::fs::create_dir(parent.join("Weekly plan")).unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| s.fixture = false);
+    command(&view, cx, Command::Home);
+    cx.update(|_, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(format!(
+            "https://www.puppyone.ai/t/{}",
+            crate::platform::templates::package::tests::ID
+        )))
+    });
+    // ⌘V on the Homepage takes the link.
+    command(&view, cx, Command::PasteTemplateLink);
+    view.update(cx, |s, _| {
+        let Some(Modal::TemplateImport(import)) = s.modals.top_mut() else {
+            panic!("the template card");
+        };
+        import.destination.location = Some(parent.clone());
+    });
+    settle_cloud(
+        &view,
+        cx,
+        "the template",
+        &|s, _| matches!(s.modals.top(), Some(Modal::TemplateImport(i)) if i.detail.is_some()),
+    );
+    view.read_with(cx, |s, cx| {
+        let Some(Modal::TemplateImport(import)) = s.modals.top() else {
+            unreachable!()
+        };
+        // A display name becomes a folder name.
+        assert_eq!(import.destination.name.read(cx).text(), "Weekly plan");
+    });
+    view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
+    settle_cloud(&view, cx, "the copy", &|s, _| {
+        s.files
+            .opened()
+            .is_some_and(|(_, relative)| relative == std::path::Path::new("Plan.md"))
+    });
+    view.read_with(cx, |s, _| {
+        // "Weekly plan" was taken, so the copy is numbered.
+        assert_eq!(s.workspace_root(), Some(parent.join("Weekly plan 2")));
+        assert!(s.modals.is_empty());
+    });
+    assert_eq!(
+        std::fs::read_to_string(parent.join("Weekly plan 2/Plan.md")).unwrap(),
+        "# Week\n"
+    );
+    // With a project open here, the next copy opens in a window of its own.
+    let link = format!(
+        "https://www.puppyone.ai/t/{}",
+        crate::platform::templates::package::tests::ID
+    );
+    view.update_in(cx, |s, w, cx| s.open_template_link(link, w, cx));
+    view.update(cx, |s, _| {
+        let Some(Modal::TemplateImport(import)) = s.modals.top_mut() else {
+            panic!("the template card");
+        };
+        assert!(import.new_window);
+        import.destination.location = Some(parent.clone());
+    });
+    settle_cloud(
+        &view,
+        cx,
+        "the template again",
+        &|s, _| matches!(s.modals.top(), Some(Modal::TemplateImport(i)) if i.detail.is_some()),
+    );
+    view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
+    settle_cloud(&view, cx, "the second window", &|_, cx| {
+        windows::count(cx) == 2
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.workspace_root(), Some(parent.join("Weekly plan 2")));
+    });
+    assert!(parent.join("Weekly plan 3/Plan.md").is_file());
+}
+
 /// H-16: a local project dragged off the Homepage carries its absolute
 /// path, which also goes to the clipboard; the row dims while it moves.
 #[gpui::test]

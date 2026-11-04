@@ -693,6 +693,9 @@ impl Shell {
                 .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
             s.file_target = Some(file);
         } else if let Some(path) = workspace {
+            if launch.open.is_some() {
+                s.startup_file = launch.open.clone();
+            }
             s.files.begin(Intent::OpenFolder(path), &s.wake);
         } else if launch.from_args && !fixture && !cfg!(test) {
             // `readLastActiveWorkspaceComposition`: the last active project.
@@ -810,6 +813,7 @@ impl Shell {
                 }
             }
             Some(Modal::CreateProject(_)) => self.close_create_project(window, cx),
+            Some(Modal::TemplateImport(_)) => self.dismiss_template(window, cx),
             Some(Modal::ImportRepository(_)) => self.close_import(window, cx),
             Some(Modal::Rename(_)) => self.cancel_rename(window, cx),
             Some(Modal::ConfirmQuit) => {
@@ -1177,6 +1181,17 @@ impl Shell {
                 let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !closed && self.popover.take().is_some() {
                     self.project_focus.focus(window, cx);
+                }
+            }
+            Command::PasteTemplateLink => {
+                if !self.modal() && !self.file_mode() {
+                    let text = cx
+                        .read_from_clipboard()
+                        .and_then(|item| item.text())
+                        .unwrap_or_default();
+                    if crate::platform::templates::link::looks_like(&text) {
+                        self.open_template_link(text.trim().to_owned(), window, cx);
+                    }
                 }
             }
             Command::ToggleMarkdownSource => {
@@ -2123,8 +2138,12 @@ impl Render for Shell {
             }
         }
         let t = cx.palette();
+        // ⌘V on the Homepage takes a template link (`onPaste`); elsewhere a
+        // paste belongs to what is focused.
+        let homepage = self.home_visible();
         let mut root = div()
             .id("gpui-shell")
+            .when(homepage, |d| d.key_context("Homepage"))
             .relative()
             .size_full()
             .font(crate::ui::fonts::font(
@@ -2414,6 +2433,9 @@ impl Shell {
                     .into_any_element(),
                 Modal::CreateProject(create) => {
                     self.create_project_dialog(create, cx).into_any_element()
+                }
+                Modal::TemplateImport(import) => {
+                    self.template_import_dialog(import, cx).into_any_element()
                 }
                 Modal::ImportRepository(import) => {
                     self.import_dialog(import, cx).into_any_element()

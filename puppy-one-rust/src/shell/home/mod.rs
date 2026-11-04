@@ -44,9 +44,11 @@ mod import_repository;
 mod intro;
 pub(in crate::shell) mod project_entry;
 mod projects;
+mod template_import;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
 pub(in crate::shell) use projects::{HomeMenu, Place};
+pub(super) use template_import::TemplateImport;
 
 /// `--onboarding-column-width`: room for five folders across with
 /// projects, 440px on first run.

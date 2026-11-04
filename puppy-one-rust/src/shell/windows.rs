@@ -36,6 +36,9 @@ pub struct Launch {
     pub workspace: Option<PathBuf>,
     /// A file window's file (`initialFilePath`).
     pub file: Option<PathBuf>,
+    /// The project's document to open first (`initialOpenPath`), relative
+    /// to the project.
+    pub open: Option<PathBuf>,
     /// The process arguments apply to the first window only.
     pub from_args: bool,
 }
@@ -53,6 +56,7 @@ pub(super) fn take_launch(cx: &mut App) -> Launch {
         None => Launch {
             workspace: None,
             file: None,
+            open: None,
             from_args: first,
         },
     }
@@ -180,6 +184,24 @@ pub fn open(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Result<AnyWindo
         Launch {
             workspace,
             file: None,
+            open: None,
+            from_args: false,
+        },
+        cx,
+    )
+}
+/// A new window on a project just created, its first document open
+/// (`openWorkspaceInNewWindow(path, { initialOpenPath })`).
+pub fn open_created(
+    workspace: PathBuf,
+    open: Option<PathBuf>,
+    cx: &mut App,
+) -> anyhow::Result<AnyWindowHandle> {
+    open_with(
+        Launch {
+            workspace: Some(workspace),
+            file: None,
+            open,
             from_args: false,
         },
         cx,
@@ -202,6 +224,7 @@ pub fn open_file(path: PathBuf, cx: &mut App) -> anyhow::Result<AnyWindowHandle>
         Launch {
             workspace: None,
             file: Some(path),
+            open: None,
             from_args: false,
         },
         cx,
@@ -236,11 +259,41 @@ pub fn last_active_project(cx: &App) -> Option<PathBuf> {
         .filter(|p| p.is_dir())
 }
 
+/// `queueTemplateIntent`: the app's own template link
+/// (`puppyone://templates/import?id=…`) shows its card in the window in
+/// front, or a new one. Anything else is not a template link.
+fn open_template_link(url: &str, cx: &mut App) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    let channel = build_identity::current().channel;
+    if !url.starts_with(&format!("{}://templates/", link::scheme(channel))) {
+        return false;
+    }
+    let origin = link::store_origin();
+    let Ok(template) = link::parse(url, &origin, channel) else {
+        // Invalid external intents are ignored.
+        return true;
+    };
+    let share = link::share_link(&template, &origin);
+    let target = active(cx).or_else(|| {
+        let handle = open(None, cx).ok()?;
+        live(cx).into_iter().find(|(h, _)| *h == handle)
+    });
+    if let Some((handle, shell)) = target {
+        let _ = handle.update(cx, |_, window, cx| {
+            window.activate_window();
+            shell.update(cx, |s, cx| s.open_template_link(share, window, cx));
+        });
+    }
+    true
+}
 /// Paths the platform asked us to open (`openPathFromSystem`): a folder in
 /// a new window; a Markdown, CSV or HTML file in its own file window. Other
 /// files cannot be opened on their own.
 pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) {
     for url in urls {
+        if open_template_link(&url, cx) {
+            continue;
+        }
         let Some(path) = url::Url::parse(&url)
             .ok()
             .filter(|u| u.scheme() == "file")

@@ -6,7 +6,10 @@
 //! The Documents error (`Documents::error`) is not a modal here: it is live
 //! save status that clears itself when a retry succeeds, so the shell shows
 //! it above this layer for as long as it is set.
-use super::{home::CreateProject, rename::Rename};
+use super::{
+    home::{CreateProject, TemplateImport},
+    rename::Rename,
+};
 use crate::features::create_new::create_entry_dialog::CreateEntryDialog;
 use gpui::Entity;
 
@@ -25,6 +28,8 @@ pub(super) enum Modal {
     CreateEntry(Entity<CreateEntryDialog>),
     /// The homepage's "Create a project".
     CreateProject(CreateProject),
+    /// `TemplateImportCard`: a template store link and "Get a copy".
+    TemplateImport(Box<TemplateImport>),
     /// `ProjectEntryLauncherDialog`: create, open a folder, or import.
     ProjectEntry,
     /// `ProjectNavigationFailure`: a local Project that could not open, and

@@ -129,8 +129,7 @@
       "native.menu.zoom": "Zoom",
       "native.menu.help": "Help",
       "native.menu.closeWindow": "Close Window",
-      "native.about.version": "Version {version}",
-      "onboarding.template.useLink": "Use a template link"
+      "native.about.version": "Version {version}"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -260,8 +259,7 @@
       "native.menu.zoom": "缩放",
       "native.menu.help": "帮助",
       "native.menu.closeWindow": "关闭窗口",
-      "native.about.version": "版本 {version}",
-      "onboarding.template.useLink": "使用模板链接"
+      "native.about.version": "版本 {version}"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -391,8 +389,7 @@
       "native.menu.zoom": "拡大/縮小",
       "native.menu.help": "ヘルプ",
       "native.menu.closeWindow": "ウインドウを閉じる",
-      "native.about.version": "バージョン {version}",
-      "onboarding.template.useLink": "テンプレートリンクを使う"
+      "native.about.version": "バージョン {version}"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -522,8 +519,7 @@
       "native.menu.zoom": "확대/축소",
       "native.menu.help": "도움말",
       "native.menu.closeWindow": "윈도우 닫기",
-      "native.about.version": "버전 {version}",
-      "onboarding.template.useLink": "템플릿 링크 사용"
+      "native.about.version": "버전 {version}"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -653,8 +649,7 @@
       "native.menu.zoom": "Zoom",
       "native.menu.help": "Ayuda",
       "native.menu.closeWindow": "Cerrar ventana",
-      "native.about.version": "Versión {version}",
-      "onboarding.template.useLink": "Usar un enlace de plantilla"
+      "native.about.version": "Versión {version}"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -784,8 +779,7 @@
       "native.menu.zoom": "Zoom",
       "native.menu.help": "Ajuda",
       "native.menu.closeWindow": "Fechar Janela",
-      "native.about.version": "Versão {version}",
-      "onboarding.template.useLink": "Usar um link de modelo"
+      "native.about.version": "Versão {version}"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -915,8 +909,7 @@
       "native.menu.zoom": "Réduire/agrandir",
       "native.menu.help": "Aide",
       "native.menu.closeWindow": "Fermer la fenêtre",
-      "native.about.version": "Version {version}",
-      "onboarding.template.useLink": "Utiliser un lien de modèle"
+      "native.about.version": "Version {version}"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1046,12 +1039,7 @@
       "native.menu.zoom": "Zoomen",
       "native.menu.help": "Hilfe",
       "native.menu.closeWindow": "Fenster schließen",
-      "native.about.version": "Version {version}",
-      "onboarding.template.useLink": "Vorlagenlink verwenden"
+      "native.about.version": "Version {version}"
     }
-  },
-  "legacy": [
-    "onboarding.template.useLink"
-  ],
-  "legacyNote": "Temporary: product keys deleted at 671143f2a that native code still renders. Each is removed here together with the native code that uses it."
+  }
 }

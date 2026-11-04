@@ -42,6 +42,17 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<()> {
         Err(Error::Unsupported)
     }
+    /// `requestTemplateDownload`: the template store's download POST, as
+    /// the account, at the store's fixed origin.
+    fn template_download(
+        &self,
+        _session: &Session,
+        _url: &url::Url,
+        _body: &Value,
+        _fence: &Fence,
+    ) -> Result<Value> {
+        Err(Error::Unsupported)
+    }
     /// `openAgentStream`: one managed inference POST, streamed back.
     fn completion(
         &self,
@@ -245,6 +256,28 @@ impl Remote for Http {
         let url = env.api_url(path, &[])?;
         let request = self.client(&url).get(url);
         self.send(request, 1024 * 1024, fence)
+    }
+    fn template_download(
+        &self,
+        session: &Session,
+        url: &url::Url,
+        body: &Value,
+        fence: &Fence,
+    ) -> Result<Value> {
+        let request = self
+            .client(url)
+            .post(url.clone())
+            .bearer_auth(&session.access.0)
+            .json(body);
+        // A refusal is the account's (401) or the store's; never its prose.
+        fn refused(status: u16, _: &Value) -> Error {
+            if status == 401 {
+                Error::InvalidCredentials
+            } else {
+                Error::Http(status)
+            }
+        }
+        self.send_mapped(request, 16 * 1024, fence, Duration::from_secs(20), refused)
     }
     fn providers(&self, env: &Environment, fence: &Fence) -> Result<()> {
         let value = self.auth(env, "/settings", None, None, fence)?;

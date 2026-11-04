@@ -746,6 +746,30 @@ impl Broker {
         self.remote
             .completion(&session, body, request_id, &fence, sink)
     }
+    /// `requestTemplateDownload`: the template store's download for a
+    /// release it keeps for accounts, as this account, once more with a
+    /// fresh session if the first is refused. Only `url` on the store's
+    /// fixed origin ever receives the credential.
+    pub fn template_download(
+        &self,
+        binding: &Binding,
+        url: &url::Url,
+        release: &str,
+        cancel: &super::Cancellation,
+    ) -> Result<serde_json::Value> {
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
+        let body = serde_json::json!({ "release_id": release });
+        let session = self.session_for(binding, None)?;
+        let mut result = self.remote.template_download(&session, url, &body, &fence);
+        if result.as_ref().err() == Some(&Error::InvalidCredentials) {
+            let session = self.session_for(binding, Some(&session.access))?;
+            result = self.remote.template_download(&session, url, &body, &fence);
+        }
+        fence.check()?;
+        result
+    }
     /// The signed-in account's binding, for owners outside the UI (the
     /// built-in Agent's managed compute).
     pub fn signed_in_binding(&self) -> Option<Binding> {

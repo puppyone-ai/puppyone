@@ -1,55 +1,38 @@
 //! "Create a project" (`OnboardingProjectEntryDialog`): a name, prefilled,
 //! and a location, prefilled with the built-in `Documents/PuppyOne` folder,
-//! so the default path is a single Create. A blank project is an empty
-//! folder (`project-entry-service.mjs` with the blank template); it opens
-//! as soon as it exists. Template links need the template marketplace and
-//! are not native yet, so that option is shown inert.
+//! so the default path is a single Create. A new project starts with the
+//! built-in Getting started guide in the app's language, which opens first
+//! (`project-catalog.mjs`). "Paste template link" hands a template store
+//! link on the clipboard to its own card (`template_import`).
 use super::*;
-use crate::ui::{
-    components::{Checkbox, Dialog, Icon},
-    form_input::{InputEvent, TextInput},
+use crate::{
+    platform::templates::{self, builtin},
+    ui::{
+        components::{Dialog, Icon},
+        form_input::{InputEvent, TextInput},
+    },
 };
 use std::path::Path;
 
 /// `PROJECT_NAME_MAX_LENGTH`.
-const NAME_MAX: usize = 120;
+const NAME_MAX: usize = templates::NAME_MAX;
 /// `DEFAULT_PROJECTS_FOLDER_NAME`, under the user's Documents folder.
 const DEFAULT_FOLDER: &str = "PuppyOne";
 
-pub(in crate::shell) struct CreateProject {
+/// Where a new project goes: its name and the folder it goes in.
+pub(in crate::shell) struct Destination {
     pub(in crate::shell) name: Entity<TextInput>,
-    location: Option<PathBuf>,
-    choosing: bool,
-    error: Option<String>,
+    pub(in crate::shell) location: Option<PathBuf>,
+    pub(in crate::shell) choosing: bool,
+}
+pub(in crate::shell) struct CreateProject {
+    pub(in crate::shell) destination: Destination,
+    pub(in crate::shell) error: Option<String>,
 }
 
-/// `requireProjectName`: trimmed, at most 120 characters, a portable file name.
-fn validate_name(value: &str) -> Result<&str, &'static str> {
-    let name = value.trim();
-    if name.is_empty() {
-        return Err("Enter a project name.");
-    }
-    if name.chars().count() > NAME_MAX {
-        return Err("Project names must be 120 characters or fewer.");
-    }
-    let stem = name.split('.').next().unwrap_or(name).to_ascii_lowercase();
-    let reserved = matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
-        || (stem.len() == 4
-            && (stem.starts_with("com") || stem.starts_with("lpt"))
-            && matches!(stem.as_bytes()[3], b'1'..=b'9'));
-    if name == "."
-        || name == ".."
-        || name.chars().any(|c| {
-            matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') || c.is_control()
-        })
-        || name.ends_with(['.', ' '])
-        || reserved
-    {
-        return Err(
-            "Use a project name without slashes, reserved characters, or a trailing period.",
-        );
-    }
-    Ok(name)
+/// `requireProjectName`.
+fn validate_name(value: &str) -> Result<&str, String> {
+    templates::require_project_name(value)
 }
 /// `Documents/PuppyOne`, created if missing.
 pub(super) fn default_location() -> Option<PathBuf> {
@@ -58,19 +41,43 @@ pub(super) fn default_location() -> Option<PathBuf> {
     std::fs::create_dir_all(&folder).ok()?;
     folder.canonicalize().ok()
 }
-/// Creates the empty project folder; it must not exist yet.
-fn create_folder(parent: &Path, name: &str) -> Result<PathBuf, String> {
-    let path = parent.join(name);
-    match std::fs::create_dir(&path) {
-        Ok(()) => Ok(path),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
-            "A file or folder named “{name}” already exists in that location."
-        )),
-        Err(error) => Err(error.to_string()),
-    }
+/// `createProject` with Getting started: the project folder, made whole,
+/// and the document it opens on.
+fn create_folder(
+    parent: &Path,
+    name: &str,
+    locale: &str,
+) -> Result<(PathBuf, Option<String>), String> {
+    let plan = builtin::getting_started(locale);
+    let path = templates::materialize(parent, name, &plan)?;
+    Ok((path, plan.initial_open))
 }
 
 impl Shell {
+    /// The project name field, `text` selected for replacing.
+    pub(in crate::shell) fn project_name_input(
+        &mut self,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        submit: fn(&mut Self, &mut Window, &mut Context<Self>),
+    ) -> Entity<TextInput> {
+        let name = cx.new(|cx| {
+            let mut input = TextInput::new("", false, NAME_MAX, window, cx);
+            input.submit_on_enter = true;
+            input.appearance = false;
+            input.prompt_text = Some((theme::ty().ui.control, 18.));
+            input.set_text(text, cx);
+            input
+        });
+        cx.subscribe_in(&name, window, move |s, _, event, w, cx| {
+            if matches!(event, InputEvent::Submit) {
+                submit(s, w, cx)
+            }
+        })
+        .detach();
+        name
+    }
     /// `openCreate`: the dialog with a fresh name in the default folder.
     pub(in crate::shell) fn begin_create_project(
         &mut self,
@@ -78,31 +85,39 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let suffix = format!("{:04X}", rand_suffix());
-        let name = cx.new(|cx| {
-            let mut input = TextInput::new("", false, NAME_MAX, window, cx);
-            input.submit_on_enter = true;
-            input.appearance = false;
-            input.prompt_text = Some((theme::ty().ui.control, 18.));
-            input.set_text(
-                format!("{} {suffix}", tr("onboarding.entry.create.defaultName")),
-                cx,
-            );
-            input
-        });
-        cx.subscribe_in(&name, window, |s, _, event, w, cx| {
-            if matches!(event, InputEvent::Submit) {
-                s.submit_create_project(w, cx)
-            }
-        })
-        .detach();
+        let name = self.project_name_input(
+            format!("{} {suffix}", tr("onboarding.entry.create.defaultName")),
+            window,
+            cx,
+            Self::submit_create_project,
+        );
         name.read(cx).focus_handle(cx).focus(window, cx);
         self.modals.open(Modal::CreateProject(CreateProject {
-            name,
-            location: default_location(),
-            choosing: false,
+            destination: Destination {
+                name,
+                location: default_location(),
+                choosing: false,
+            },
             error: None,
         }));
         cx.notify();
+    }
+    /// The destination of the entry dialog on top.
+    pub(in crate::shell) fn destination(&mut self) -> Option<&mut Destination> {
+        match self.modals.top_mut()? {
+            Modal::CreateProject(create) => Some(&mut create.destination),
+            Modal::TemplateImport(import) => Some(&mut import.destination),
+            _ => None,
+        }
+    }
+    fn set_destination_error(&mut self, error: Option<String>) {
+        if let Some(modal) = self.modals.top_mut() {
+            match modal {
+                Modal::CreateProject(create) => create.error = error,
+                Modal::TemplateImport(import) => import.error = error,
+                _ => {}
+            }
+        }
     }
     pub(in crate::shell) fn close_create_project(
         &mut self,
@@ -119,12 +134,19 @@ impl Shell {
         }
     }
     /// Browse for another parent folder.
-    fn choose_project_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(create) = self.modals.create_project() else {
+    pub(in crate::shell) fn choose_project_location(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(destination) = self.destination() else {
             return;
         };
-        create.choosing = true;
-        create.error = None;
+        if destination.choosing {
+            return;
+        }
+        destination.choosing = true;
+        self.set_destination_error(None);
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -134,18 +156,22 @@ impl Shell {
         cx.spawn_in(window, async move |this, cx| {
             let result = prompt.await;
             let _ = this.update(cx, |s, cx| {
-                if let Some(create) = s.modals.create_project() {
-                    create.choosing = false;
+                let mut error = None;
+                if let Some(destination) = s.destination() {
+                    destination.choosing = false;
                     match result {
                         Ok(Ok(Some(paths))) => {
                             if let Some(path) = paths.into_iter().next() {
-                                create.location = Some(path);
+                                destination.location = path.canonicalize().ok().or(Some(path));
                             }
                         }
-                        Ok(Err(error)) => create.error = Some(error.to_string()),
-                        Err(error) => create.error = Some(error.to_string()),
+                        Ok(Err(e)) => error = Some(e.to_string()),
+                        Err(e) => error = Some(e.to_string()),
                         _ => {}
                     }
+                }
+                if error.is_some() {
+                    s.set_destination_error(error);
                 }
                 cx.notify();
             });
@@ -153,21 +179,27 @@ impl Shell {
         .detach();
         cx.notify();
     }
-    fn submit_create_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::shell) fn submit_create_project(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(create) = self.modals.create_project() else {
             return;
         };
-        let Some(location) = create.location.clone() else {
+        let Some(location) = create.destination.location.clone() else {
             return;
         };
-        let value = create.name.read(cx).text().to_owned();
+        if create.destination.choosing {
+            return;
+        }
+        let value = create.destination.name.read(cx).text().to_owned();
         let created = validate_name(&value)
-            .map_err(str::to_owned)
-            .and_then(|name| create_folder(&location, name));
+            .and_then(|name| create_folder(&location, name, &crate::localization::current_code()));
         match created {
-            Ok(path) => {
+            Ok((path, open)) => {
                 self.modals.remove(|m| matches!(m, Modal::CreateProject(_)));
-                self.open_project(path, window, cx);
+                self.open_created_project(path, open.map(PathBuf::from), false, window, cx);
             }
             Err(error) => {
                 create.error = Some(error);
@@ -175,14 +207,56 @@ impl Shell {
             }
         }
     }
-    pub(in crate::shell) fn create_project_dialog(
-        &self,
-        create: &CreateProject,
+    /// A project just created opens here — or, when `new_window`, in a
+    /// window of its own — on its first document.
+    pub(in crate::shell) fn open_created_project(
+        &mut self,
+        path: PathBuf,
+        open: Option<PathBuf>,
+        new_window: bool,
+        window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Dialog {
+    ) {
+        if new_window {
+            cx.defer(move |cx| {
+                if let Err(error) = windows::open_created(path, open, cx) {
+                    eprintln!("Could not open the new window: {error:#}");
+                }
+            });
+            return;
+        }
+        self.open_project(path, window, cx);
+        if self.files.busy() {
+            self.startup_file = open;
+        }
+    }
+    /// "Paste template link": the clipboard is read only now, when asked,
+    /// and only a template link is acted on.
+    pub(in crate::shell) fn paste_template_link(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let text = cx
+            .read_from_clipboard()
+            .and_then(|item| item.text())
+            .unwrap_or_default();
+        if templates::link::looks_like(&text) {
+            self.open_template_link(text.trim().to_owned(), window, cx);
+        } else if let Some(create) = self.modals.create_project() {
+            create.error = Some(tr("onboarding.template.noLink").into());
+            cx.notify();
+        }
+    }
+    /// `.onboarding-entry-create-fields`: the name, and the folder it goes in.
+    pub(in crate::shell) fn destination_fields(
+        &self,
+        destination: &Destination,
+        locked: bool,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         let ty = theme::ty();
-        let host = self.weak.clone();
         let label = |text: &'static str| {
             div()
                 .text_size(px(ty.ui.body))
@@ -201,12 +275,84 @@ impl Shell {
                 .rounded(px(8.))
                 .bg(t.input)
                 .text_size(px(ty.ui.body))
+                .when(locked, |d| d.opacity(0.58))
         };
-        let location = create
+        let location = destination
             .location
             .as_ref()
             .map(|path| path.display().to_string());
-        let can_create = location.is_some() && !create.choosing;
+        v_flex()
+            .gap(px(18.))
+            .child(
+                v_flex()
+                    .gap(px(8.))
+                    .child(label("onboarding.entry.create.nameLabel"))
+                    .child(
+                        field().px(px(8.)).child(
+                            div()
+                                .w_full()
+                                .text_color(t.text)
+                                .child(destination.name.clone()),
+                        ),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .gap(px(8.))
+                    .child(label("onboarding.entry.create.locationLabel"))
+                    .child(
+                        field()
+                            .id("create-project-location")
+                            .px(px(11.))
+                            .gap(px(10.))
+                            .when(!destination.choosing && !locked, |d| {
+                                d.cursor(theme::clickable_cursor()).on_click(
+                                    cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)),
+                                )
+                            })
+                            .child(
+                                Icon::product(crate::ui::components::ProductIcon::Folder)
+                                    .with_size(px(17.))
+                                    .stroke(1.8)
+                                    .color(t.muted),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_color(if location.is_some() { t.text } else { t.subtle })
+                                    .child(location.unwrap_or_else(|| {
+                                        tr("onboarding.entry.create.locationPlaceholder").into()
+                                    })),
+                            )
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .text_size(px(ty.ui.meta))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.muted)
+                                    .child(tr(if destination.choosing {
+                                        "onboarding.entry.create.browsing"
+                                    } else if destination.location.is_some() {
+                                        "onboarding.entry.create.change"
+                                    } else {
+                                        "onboarding.entry.create.browse"
+                                    })),
+                            ),
+                    ),
+            )
+    }
+    pub(in crate::shell) fn create_project_dialog(
+        &self,
+        create: &CreateProject,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
+        let t = cx.palette();
+        let ty = theme::ty();
+        let host = self.weak.clone();
+        let destination = &create.destination;
+        let can_create = destination.location.is_some() && !destination.choosing;
         Dialog::new("create-project")
             .width(400.)
             .inset(24.)
@@ -218,83 +364,25 @@ impl Shell {
             })
             .child(
                 v_flex()
-                    .gap(px(18.))
-                    .child(
-                        Checkbox::new("create-project-template")
-                            .label(tr("onboarding.template.useLink"))
-                            .tooltip(tf(
-                                "settings.sidebar.notAvailable",
-                                &[("section", tr("onboarding.template.useLink").into())],
-                            ))
-                            .text_size(px(ty.ui.body))
-                            .line_height(px(18.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(t.text),
-                    )
-                    .child(
-                        v_flex()
-                            .gap(px(8.))
-                            .child(label("onboarding.entry.create.nameLabel"))
-                            .child(field().px(px(8.)).child(
-                                div().w_full().text_color(t.text).child(create.name.clone()),
-                            )),
-                    )
-                    .child(
-                        v_flex()
-                            .gap(px(8.))
-                            .child(label("onboarding.entry.create.locationLabel"))
-                            .child(
-                                field()
-                                    .id("create-project-location")
-                                    .px(px(11.))
-                                    .gap(px(10.))
-                                    .when(!create.choosing, |d| d.cursor(theme::clickable_cursor()))
-                                    .on_click(
-                                        cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)),
-                                    )
-                                    .child(
-                                        Icon::product(crate::ui::components::ProductIcon::Folder)
-                                            .with_size(px(17.))
-                                            .stroke(1.8)
-                                            .color(t.muted),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .min_w_0()
-                                            .truncate()
-                                            .text_color(if location.is_some() {
-                                                t.text
-                                            } else {
-                                                t.subtle
-                                            })
-                                            .child(location.unwrap_or_else(|| {
-                                                tr("onboarding.entry.create.locationPlaceholder")
-                                                    .into()
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex_shrink_0()
-                                            .text_size(px(ty.ui.meta))
-                                            .font_weight(FontWeight::MEDIUM)
-                                            .text_color(t.muted)
-                                            .child(tr(if create.choosing {
-                                                "onboarding.entry.create.browsing"
-                                            } else if create.location.is_some() {
-                                                "onboarding.entry.create.change"
-                                            } else {
-                                                "onboarding.entry.create.browse"
-                                            })),
-                                    ),
-                            ),
-                    )
+                    .child(self.destination_fields(destination, false, cx))
                     .children(create.error.clone().map(|error| {
                         div()
+                            .mt(px(8.))
                             .text_size(px(ty.ui.meta))
+                            .line_height(px(18.))
                             .text_color(t.danger)
                             .child(error)
                     })),
+            )
+            // `.onboarding-entry-paste-template`: apart, at the start.
+            .footer(
+                div().mr_auto().child(
+                    Button::new("create-project-paste-template")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("onboarding.template.paste"))
+                        .disabled(destination.choosing)
+                        .on_click(cx.listener(|s, _, w, cx| s.paste_template_link(w, cx))),
+                ),
             )
             .footer(
                 Button::new("create-project-cancel")
@@ -353,14 +441,18 @@ mod tests {
         assert!(validate_name("COM0").is_ok());
     }
 
+    /// A new project starts with Getting started, in the app's language,
+    /// and opens on it; an existing folder is never reused.
     #[test]
-    fn a_blank_project_is_a_new_empty_folder() {
+    fn a_new_project_starts_with_its_guide() {
         let temp = tempfile::tempdir().unwrap();
-        let created = create_folder(temp.path(), "Notes").unwrap();
-        assert!(created.is_dir());
-        assert_eq!(std::fs::read_dir(&created).unwrap().count(), 0);
+        let (created, open) = create_folder(temp.path(), "Notes", "zh-Hans").unwrap();
+        assert_eq!(open.as_deref(), Some("Getting Started.md"));
+        let guide = std::fs::read_to_string(created.join("Getting Started.md")).unwrap();
+        assert!(guide.starts_with("# "));
+        assert_eq!(std::fs::read_dir(&created).unwrap().count(), 1);
         assert!(
-            create_folder(temp.path(), "Notes")
+            create_folder(temp.path(), "Notes", "en")
                 .unwrap_err()
                 .contains("already exists")
         );

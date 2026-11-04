@@ -24,6 +24,7 @@ pub mod project_activity;
 pub mod repository_import;
 pub mod tasks;
 pub mod telemetry;
+pub mod templates;
 pub mod terminal;
 pub mod text_rendering;
 pub mod themes;

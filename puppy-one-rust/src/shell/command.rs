@@ -47,6 +47,9 @@ pub enum Command {
     LocationMenu,
     Home,
     Escape,
+    /// ⌘V outside a text field: a template link on the clipboard opens its
+    /// card; anything else keeps its usual paste.
+    PasteTemplateLink,
     /// View → Toggle Markdown Source.
     ToggleMarkdownSource,
     ClearError,
@@ -119,6 +122,7 @@ shell_actions! {
     CloseFile => CloseFile,
     Quit => QuitApp,
     Escape => Escape,
+    PasteTemplateLink => PasteTemplateLink,
     ToggleMarkdownSource => ToggleMarkdownSource,
     ManageExecutions => ManageExecutions,
     NewWindow => NewWindow,
@@ -147,6 +151,7 @@ pub fn bind_keys(cx: &mut App) {
             KeyBinding::new(&key("w"), CloseFile, None),
             KeyBinding::new(&key("q"), Quit, None),
             KeyBinding::new(&key("n"), NewWindow, None),
+            KeyBinding::new(&key("v"), PasteTemplateLink, Some("Homepage")),
         ]);
     }
     cx.bind_keys([

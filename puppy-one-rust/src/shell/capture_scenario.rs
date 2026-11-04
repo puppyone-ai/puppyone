@@ -15,7 +15,8 @@
 //! entry launcher), `explorer-drag:<x>` (drag the
 //! Explorer's edge to `x` and release), `home-list` (the Homepage's List
 //! layout), `home-hover:<index>` (a Homepage entry reached for) and
-//! `home-actions:<index>` (its actions menu), `agents-fixture` /
+//! `home-actions:<index>` (its actions menu), `template` (a template
+//! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
 //! allowed or not), `agents:<more|invite|agent id>` (their card) and
 //! `manage-agents`. The capture waits
@@ -49,6 +50,8 @@ enum Step {
     HomeList,
     HomeHover(usize),
     HomeActions(usize),
+    /// `template`: a template link's card (with `PUPPYONE_TEMPLATE_LAB`).
+    Template,
     AgentsFixture(bool),
     Agents(String),
     ManageAgents,
@@ -92,6 +95,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
+                "template" => Step::Template,
                 "agents-fixture" => Step::AgentsFixture(arg == "open"),
                 "agents" => Step::Agents(arg.to_string()),
                 "manage-agents" => Step::ManageAgents,
@@ -245,7 +249,10 @@ impl Shell {
                 self.begin_create_project(window, cx);
                 if let Some(create) = self.modals.create_project() {
                     let name = name.clone();
-                    create.name.update(cx, |input, cx| input.set_text(name, cx));
+                    create
+                        .destination
+                        .name
+                        .update(cx, |input, cx| input.set_text(name, cx));
                 }
             }
             Step::Collapse(path) => {
@@ -317,6 +324,11 @@ impl Shell {
                 self.homepage.actions = Some(item.id);
                 self.open_project_actions(target, bounds, true, window.viewport_size(), cx);
             }
+            Step::Template => self.open_template_link(
+                "https://www.puppyone.ai/t/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),
+                window,
+                cx,
+            ),
             Step::AgentsFixture(open_links) => {
                 self.capture_hosted = true;
                 let client = crate::features::cloud_agents::lab_client(*open_links);
