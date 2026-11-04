@@ -2541,6 +2541,57 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
     });
 }
 
+/// H-16: a local project dragged off the Homepage carries its absolute
+/// path, which also goes to the clipboard; the row dims while it moves.
+#[gpui::test]
+fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Field Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.fixture = false;
+        s.preferences
+            .update(cx, |p, _| p.state.remember_project(&folder, 1));
+        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the Homepage list", &|s, _| {
+        !s.homepage.list_held()
+    });
+    draw(cx);
+    let id = view.read_with(cx, |s, cx| s.visible_projects(cx)[0].id.clone());
+    let selector: &'static str = Box::leak(format!("home-project:{id}").into_boxed_str());
+    let row = cx.debug_bounds(selector).unwrap();
+    let from = row.center();
+    cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_move(
+        point(from.x + px(40.), from.y + px(30.)),
+        Some(MouseButton::Left),
+        Modifiers::default(),
+    );
+    draw(cx);
+    let path = folder.to_string_lossy().into_owned();
+    assert_eq!(
+        cx.read_from_clipboard().and_then(|c| c.text()),
+        Some(path.clone())
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.homepage.dragging_path.as_deref(), Some(path.as_str()))
+    });
+    cx.simulate_mouse_up(
+        point(from.x + px(40.), from.y + px(30.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert!(s.homepage.dragging_path.is_none());
+        // Dragging is not opening.
+        assert!(s.home_visible());
+    });
+}
+
 #[gpui::test]
 fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mut TestAppContext) {
     use crate::{features::telemetry, platform::telemetry::Level};

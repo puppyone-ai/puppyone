@@ -98,6 +98,8 @@ pub(super) struct Homepage {
     pub actions: Option<String>,
     /// A folder is being dragged over the window.
     pub dragging: bool,
+    /// The project being dragged out, by its absolute path (`draggingPath`).
+    pub dragging_path: Option<String>,
     /// `onboarding-homepage-error`: why a drop or opening failed.
     pub error: Option<String>,
     /// The empty-state intro that is playing.

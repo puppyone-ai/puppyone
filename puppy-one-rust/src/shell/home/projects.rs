@@ -18,6 +18,34 @@ pub(in crate::shell) enum Place {
     Local,
     Cloud,
 }
+/// A local project dragged out of the Homepage: its absolute path.
+#[derive(Clone)]
+pub(in crate::shell) struct ProjectDrag {
+    pub path: String,
+    label: SharedString,
+    /// The system draws the drag (it can leave the window).
+    native: bool,
+}
+impl Render for ProjectDrag {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.palette();
+        if self.native {
+            return div();
+        }
+        div()
+            .px(px(10.))
+            .py(px(6.))
+            .rounded(px(6.))
+            .bg(t.menu_bg)
+            .border_1()
+            .border_color(t.border)
+            .text_color(t.text)
+            .text_size(px(theme::ty().ui.body))
+            .opacity(0.9)
+            .child(self.label.clone())
+    }
+}
+
 pub(super) fn place_of(item: &Item) -> Place {
     if item.local_path.is_some() {
         Place::Local
@@ -789,6 +817,8 @@ impl Shell {
         }
     }
     /// The parts every project has: its open control and what it reacts to.
+    /// A local project drags out as its absolute path, which also goes to
+    /// the clipboard (`startProjectDrag`).
     fn open_control(
         &self,
         id: impl Into<ElementId>,
@@ -801,8 +831,19 @@ impl Shell {
         let hover_id = item.id.clone();
         let focus_id = item.id.clone();
         let open = item.clone();
+        let drag = item
+            .local_path
+            .clone()
+            .filter(|path| !busy && !path.trim().is_empty())
+            .map(|path| ProjectDrag {
+                path: path.trim().to_owned(),
+                label: item_name(item).into(),
+                native: false,
+            });
+        let selector = format!("home-project:{}", item.id);
         div()
             .id(id)
+            .debug_selector(move || selector.clone())
             .track_focus(&focus)
             .on_key_down(keys)
             .on_hover(cx.listener(move |s, hovered: &bool, _, cx| {
@@ -825,6 +866,51 @@ impl Shell {
                 d.cursor(theme::clickable_cursor())
                     .on_click(cx.listener(move |s, _, w, cx| s.open_item(&open, w, cx)))
             })
+            .when_some(drag, |d, drag| {
+                let host = cx.weak_entity();
+                d.on_drag(drag, move |drag, _, window, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(drag.path.clone()));
+                    let path = drag.path.clone();
+                    let _ = host.update(cx, |s, cx| {
+                        s.homepage.dragging_path = Some(path);
+                        cx.notify();
+                    });
+                    // Out of the window as text; when that session ends, so
+                    // does the drag here.
+                    let (ended, end) = async_channel::bounded(1);
+                    let native =
+                        crate::platform::drag_out::begin_text(window, &drag.path, &drag.path, {
+                            move || {
+                                let _ = ended.try_send(());
+                            }
+                        });
+                    if native {
+                        let handle = window.window_handle();
+                        let host = host.clone();
+                        cx.spawn(async move |cx| {
+                            if end.recv().await.is_ok() {
+                                let _ = handle.update(cx, |_, window, cx| {
+                                    cx.stop_active_drag(window);
+                                });
+                                let _ = host.update(cx, |s, cx| {
+                                    s.homepage.dragging_path = None;
+                                    cx.notify();
+                                });
+                            }
+                        })
+                        .detach();
+                    }
+                    cx.new(|_| ProjectDrag {
+                        native,
+                        ..drag.clone()
+                    })
+                })
+            })
+    }
+    /// `.onboarding-project-row-wrap.is-dragging`.
+    fn dragging_item(&self, item: &Item) -> bool {
+        item.local_path.is_some()
+            && self.homepage.dragging_path.as_deref() == item.local_path.as_deref().map(str::trim)
     }
     /// One project as a row (`DesktopMenuItem.onboarding-project-row`).
     #[allow(clippy::too_many_arguments)]
@@ -855,6 +941,7 @@ impl Shell {
             )
         });
         let narrow = self.layout.header.w <= 520.;
+        let dragging = self.dragging_item(item);
         // `.has-cloud-project` rests quieter: the Cloud project is where
         // people and agents work.
         let name_color = if linked && !lit { t.subtle } else { t.text };
@@ -884,6 +971,7 @@ impl Shell {
             .text_color(t.text)
             .when(lit && !busy, |d| d.bg(t.hover))
             .when(busy, |d| d.opacity(0.58))
+            .when(dragging, |d| d.bg(t.hover).opacity(0.62))
             .child(
                 div()
                     .size(px(metric::MENU_ICON_SLOT))
@@ -1012,6 +1100,7 @@ impl Shell {
             .text_color(t.text)
             .when(lit && !busy, |d| d.bg(t.hover))
             .when(busy, |d| d.opacity(0.58))
+            .when(self.dragging_item(item), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
             .child(super::folder::grid_folder(item.location(), rise, lit, t))
             .child(

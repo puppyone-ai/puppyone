@@ -2073,6 +2073,7 @@ impl Render for Shell {
         crate::web_host::frame_drawn(window);
         if !cx.has_active_drag() {
             self.editor_drop = None;
+            self.homepage.dragging_path = None;
         }
         #[cfg(test)]
         {

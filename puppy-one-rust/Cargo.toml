@@ -64,8 +64,8 @@ wry = "=0.57.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3.7"
 objc2 = "=0.6.4"
-objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSResponder", "NSView", "NSWindow"] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry", "NSDate", "NSDateFormatter", "NSFormatter", "NSLocale", "NSString", "NSObject"] }
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSDragging", "NSDraggingItem", "NSDraggingSession", "NSEvent", "NSImage", "NSPasteboard", "NSResponder", "NSView", "NSWindow", "NSWorkspace"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSDate", "NSDateFormatter", "NSFormatter", "NSLocale", "NSString", "NSObject"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

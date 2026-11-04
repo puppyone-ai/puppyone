@@ -3,6 +3,7 @@ pub mod agent_activity;
 pub mod build_identity;
 pub mod database;
 pub mod desktop;
+pub mod drag_out;
 pub mod editor_state_storage;
 pub mod electron_import;
 pub mod environment;
