@@ -110,6 +110,81 @@ fn explicit_opening_wakes_once_and_only_observes_pending_operation() {
     assert!(prepared.into_parts().is_ok());
 }
 
+/// N-7: `initializing` and `checking_files` mean the wait is for the files.
+/// N-8: the operation's reason decides the copy and the action.
+#[test]
+fn an_opening_follows_the_server_phase_and_keeps_its_reason() {
+    let f = Fixture::new();
+    let mut preparing = opening_row("starting");
+    preparing["operation"] = json!({"pending":true,"deadline":null,"error":null,"retryable":true,"phase":"checking_files"});
+    f.state.opening_status.lock().unwrap().extend([
+        opening_row("paused"),
+        preparing,
+        opening_row("running"),
+    ]);
+    let mut pending = opening_row("starting");
+    pending["operation"] =
+        json!({"pending":true,"deadline":null,"error":null,"retryable":true,"phase":"starting"});
+    *f.state.opening_reply.lock().unwrap() = Some(pending);
+    let mut phases = Vec::new();
+    let mut files_after = None;
+    explicit_open(&f, &Cancellation::default(), |p| {
+        if p == opening::Phase::Files {
+            files_after = Some(f.state.count("GET", "/workbench"));
+        }
+        phases.push(p)
+    })
+    .unwrap();
+    assert_eq!(
+        phases,
+        vec![
+            opening::Phase::Checking,
+            opening::Phase::Connecting,
+            opening::Phase::Files
+        ]
+    );
+    // The Files stage begins while the server still checks its files,
+    // before the poll that finds it running.
+    assert_eq!(files_after, Some(2));
+    assert_eq!(f.state.count("GET", "/workbench"), 3);
+
+    for (reason, retryable, code, recovery) in [
+        (
+            "workbench_plan_required",
+            false,
+            "workspace-plan-required",
+            opening::Recovery::Account,
+        ),
+        (
+            "workbench_preparing",
+            true,
+            "workspace-preparing",
+            opening::Recovery::Retry,
+        ),
+        (
+            "something_new",
+            false,
+            "workspace-open-failed",
+            opening::Recovery::None,
+        ),
+    ] {
+        let f = Fixture::new();
+        f.state
+            .opening_status
+            .lock()
+            .unwrap()
+            .push_back(opening_row("paused"));
+        let mut failed = opening_row("starting");
+        failed["operation"] =
+            json!({"pending":false,"deadline":null,"error":reason,"retryable":retryable});
+        *f.state.opening_reply.lock().unwrap() = Some(failed);
+        let error = explicit_open(&f, &Cancellation::default(), |_| {})
+            .err()
+            .unwrap();
+        assert_eq!((error.code, error.recovery), (code, recovery), "{reason}");
+    }
+}
+
 #[test]
 fn explicit_opening_recovery_and_access_denial_never_wake() {
     for retained in ["retained", "cleanup_pending"] {

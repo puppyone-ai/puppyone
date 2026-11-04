@@ -101,13 +101,18 @@ pub(super) struct Operation {
     pub deadline: Option<String>,
     #[serde(default)]
     pub retryable: bool,
+    /// `operation.phase`: what the server is doing while it is pending.
+    #[serde(default)]
+    pub phase: Option<String>,
+}
+/// `accept`: a workspace row names its generation; only the event stream
+/// constrains its spelling.
+pub fn generation(value: &str) -> bool {
+    !value.is_empty()
 }
 impl Runtime {
     pub fn ready(&self, project: &str) -> Result<()> {
-        if self.project_id != project
-            || !identifier(&self.id)
-            || uuid::Uuid::parse_str(&self.generation).is_err()
-        {
+        if self.project_id != project || !identifier(&self.id) || !generation(&self.generation) {
             return Err(invalid());
         }
         if self.state != "running"

@@ -54,6 +54,21 @@ impl Failure {
             super::Refusal::Unreadable => Self::new("project-access-denied", Recovery::None),
         }
     }
+    /// `describeCloudOpeningFailure` of the opening's own failure, at the
+    /// workspace stage.
+    fn described(status: Option<u16>, reason: Option<&str>, retryable: Option<bool>) -> Self {
+        use super::failure::{Action, Stage, describe};
+        let described = describe(status, reason, retryable, Stage::Workspace);
+        Self {
+            code: described.code,
+            recovery: match described.action {
+                Action::Retry => Recovery::Retry,
+                Action::Account => Recovery::Account,
+                Action::None => Recovery::None,
+            },
+            status: described.status,
+        }
+    }
     fn staged(error: AuthError, stage: super::failure::Stage) -> Self {
         use super::failure::{Action, describe, from_auth};
         let (status, reason, retryable) = from_auth(&error);
@@ -116,25 +131,29 @@ fn request(
 fn decode(value: serde_json::Value, project: &str) -> Result<model::Runtime, Failure> {
     let row: model::Runtime = serde_json::from_value(value)
         .map_err(|_| Failure::new("project-response-mismatch", Recovery::None))?;
-    if row.project_id != project
-        || row.id.is_empty()
-        || uuid::Uuid::parse_str(&row.generation).is_err()
-    {
+    if row.project_id != project || row.id.is_empty() || !model::generation(&row.generation) {
         return Err(Failure::new("project-response-mismatch", Recovery::None));
     }
     Ok(row)
 }
+/// `cloudWorkspaceOpeningPhase`: compute comes up first; these server
+/// phases mean the wait is now for the files.
+fn phase(row: &model::Runtime) -> Phase {
+    match row.operation.as_ref().and_then(|op| op.phase.as_deref()) {
+        Some("initializing" | "checking_files") => Phase::Files,
+        _ => Phase::Connecting,
+    }
+}
 fn state(row: &model::Runtime) -> Result<bool, Failure> {
+    // `failure("…", 503, operation.error, operation.retryable)`: the
+    // server's reason decides the copy and the action.
     if let Some(operation) = &row.operation
-        && operation.error.is_some()
+        && let Some(error) = &operation.error
     {
-        return Err(Failure::new(
-            "workspace-open-failed",
-            if operation.retryable {
-                Recovery::Retry
-            } else {
-                Recovery::None
-            },
+        return Err(Failure::described(
+            Some(503),
+            Some(error),
+            Some(operation.retryable),
         ));
     }
     if matches!(row.state.as_str(), "retained" | "cleanup_pending") {
@@ -169,8 +188,16 @@ pub fn prepare(
     target: Target,
     cancel: &Cancellation,
     force: bool,
-    mut progress: impl FnMut(Phase),
+    mut report: impl FnMut(Phase),
 ) -> Result<Prepared, Failure> {
+    // `progress.set`: a stage is reported once, when it changes.
+    let mut last = None;
+    let mut progress = |phase: Phase| {
+        if last != Some(phase) {
+            last = Some(phase);
+            report(phase);
+        }
+    };
     progress(Phase::Checking);
     let scope = cancel.child();
     let context =
@@ -202,8 +229,14 @@ pub fn prepare(
             let deadline = deadline(&row)?;
             while !state(&row)? {
                 scope.check().map_err(Failure::auth)?;
+                progress(phase(&row));
                 if Instant::now() >= deadline {
-                    return Err(Failure::new("workspace-open-failed", Recovery::Retry));
+                    // `504 workbench_start_timeout`: a connection timeout.
+                    return Err(Failure::described(
+                        Some(504),
+                        Some("workbench_start_timeout"),
+                        None,
+                    ));
                 }
                 let started = Instant::now();
                 let mut next = request(&broker, &binding, &scope, project, Method::GET, true)?;
