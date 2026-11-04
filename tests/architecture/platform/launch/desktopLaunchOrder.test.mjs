@@ -24,6 +24,7 @@ describe("Desktop launch intent", () => {
       "const terminalService = createTerminalProcessService({",
       "const agentRuntimeRegistry = createDefaultAgentRuntimeHost({",
       "const cloudAuthService = createCloudAuthService({",
+      "const cliControlServer = gotSingleInstanceLock && cliControlEndpoint",
     ]) {
       expect(mainSource.indexOf(optionalComposition)).toBeGreaterThan(instanceBoundary);
     }

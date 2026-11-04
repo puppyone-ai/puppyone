@@ -1,6 +1,7 @@
 import type { DesktopCloudProject } from "../../../lib/cloudApi";
 
 const CATALOG_CACHE_KEY = "puppyone.desktop.cloud-project-catalog.v1";
+const ORGANIZATION_NAMES_CACHE_KEY = "puppyone.desktop.cloud-organization-names.v1";
 
 /**
  * The list an account last saw, so its Homepage can appear whole at once. It only
@@ -32,7 +33,7 @@ export function readLastCatalog(apiBaseUrl: string) {
 }
 
 export function writeCachedCatalog(scope: string, projects: readonly DesktopCloudProject[]) {
-  const kept = projects.map(({ id, name, updated_at, capabilities }) => ({ id, name, updated_at, capabilities }));
+  const kept = projects.map(({ id, name, org_id, updated_at, capabilities }) => ({ id, name, org_id, updated_at, capabilities }));
   try {
     window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ scope, projects: kept }));
   } catch {
@@ -40,9 +41,34 @@ export function writeCachedCatalog(scope: string, projects: readonly DesktopClou
   }
 }
 
+/**
+ * The names of an account's organizations, so an open Cloud project's Header can
+ * say where it is from the first frame. Like the catalog, it only stands in until
+ * the account answers, and it holds names, so signing out removes it.
+ */
+export function readCachedOrganizationNames(scope: string): ReadonlyMap<string, string> | undefined {
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(ORGANIZATION_NAMES_CACHE_KEY) ?? "null") as
+      { scope?: unknown; names?: unknown } | null;
+    if (cached?.scope !== scope || !cached.names || typeof cached.names !== "object") return undefined;
+    return new Map(Object.entries(cached.names).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedOrganizationNames(scope: string, names: ReadonlyMap<string, string>) {
+  try {
+    window.localStorage.setItem(ORGANIZATION_NAMES_CACHE_KEY, JSON.stringify({ scope, names: Object.fromEntries(names) }));
+  } catch {
+    // Without the cache the next launch states the Cloud until the account answers.
+  }
+}
+
 export function clearCachedCatalog() {
   try {
     window.localStorage.removeItem(CATALOG_CACHE_KEY);
+    window.localStorage.removeItem(ORGANIZATION_NAMES_CACHE_KEY);
   } catch {
     // Nothing was readable either, so nothing can be shown from it.
   }

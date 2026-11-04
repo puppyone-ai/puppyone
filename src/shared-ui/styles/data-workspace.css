@@ -87,6 +87,35 @@
   pointer-events: none;
 }
 
+.data-explorer-pinned {
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--po-sidebar);
+}
+
+/* Folding hides the tree instead of unmounting it, so its scroll position,
+   open folders and virtual window are all still there when it unfolds. */
+.data-explorer-view-stack > .data-explorer-view-frame[data-view-mode="files"] {
+  transition:
+    opacity var(--po-motion-fast, 160ms) ease,
+    visibility 0s linear 0s;
+}
+
+.data-explorer-view-stack[data-tree-collapsed="true"] > .data-explorer-view-frame[data-view-mode="files"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--po-motion-fast, 160ms) ease,
+    visibility 0s linear var(--po-motion-fast, 160ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-explorer-view-stack > .data-explorer-view-frame[data-view-mode="files"] {
+    transition: none;
+  }
+}
+
 .data-main-view-frame {
   background: var(--po-canvas);
 }

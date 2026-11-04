@@ -266,6 +266,42 @@ describe("marketplace template links", () => {
     expect(host.textContent).toContain("Hiring Tracker");
   });
 
+  it("says so when a template link cannot be read, keeps it for a retry, and does not nag after Close", async () => {
+    preferences(false);
+    const readTemplateImportIntent = vi.fn()
+      .mockRejectedValueOnce(new Error("no answer"))
+      .mockRejectedValueOnce(new Error("no answer"))
+      .mockResolvedValue({ id: "intent-one", url: link });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    installBridge({ readTemplateImportIntent });
+    const host = mount();
+    const footerButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>(".desktop-dialog-footer button")]
+      .find((button) => button.textContent === label);
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); });
+    expect(host.textContent).toContain("This template link didn't open");
+
+    await act(async () => { footerButton("Retry")!.click(); await flush(); });
+    expect(readTemplateImportIntent).toHaveBeenCalledTimes(2);
+    expect(host.textContent).toContain("This template link didn't open");
+
+    await act(async () => { footerButton("Close")!.click(); await flush(); });
+    expect(readTemplateImportIntent).toHaveBeenCalledTimes(2);
+    expect(host.querySelector("[role='dialog']")).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a template's card up when the link cannot be acknowledged", async () => {
+    preferences(false);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    installBridge({ acknowledgeTemplateImportIntent: vi.fn(async () => { throw new Error("no answer"); }) });
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
+
+    expect(host.textContent).toContain("Hiring Tracker");
+    expect(host.textContent).not.toContain("This template link didn't open");
+    vi.restoreAllMocks();
+  });
+
   it("opens a pasted template link, and leaves every other paste alone", async () => {
     preferences(false);
     const bridge = installBridge({ readTemplateImportIntent: vi.fn(async () => null) });

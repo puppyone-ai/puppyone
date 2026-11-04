@@ -25,30 +25,41 @@ import {
   DesktopMenuItem,
   DesktopMenuSection,
   DesktopMenuSurface,
-} from "../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../../components/useAnchoredOverlayPosition";
+} from "./DesktopMenu";
+import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
 
 const PANE_ACTIONS_MENU_MAX_HEIGHT = 360;
 
 export type EditorPaneActionsMenuProps = Readonly<{
   anchorRef: RefObject<HTMLElement | null>;
+  /** Where the menu may open: a project's split view, or a file window. */
+  boundarySelector?: string;
+  /** How the menu lines up with its anchor: centred under a pane handle, or end-aligned under a title bar button. */
+  alignment?: "start" | "center" | "end";
   editorLabel: string | null;
   findCommand: EditorFindCommand | null;
   menuContribution: EditorPaneMenuContribution | null;
   open: boolean;
   onCloseMenu: () => void;
-  onClosePane: () => void;
+  /** Absent where the document is the whole window, which has nothing to close but itself. */
+  onClosePane?: () => void;
   onOpenExternal: (() => void | Promise<void>) | null;
-  onSplit: (
+  onSplit?: (
     direction: EditorSplitDirection,
     placement: NonNullable<EditorPaneSplitOptions["placement"]>,
   ) => void;
 }>;
 
-/** Portal-owned menu: it cannot be clipped or hit-tested by an editor pane. */
+/**
+ * Portal-owned menu: it cannot be clipped or hit-tested by an editor pane.
+ * Project panes and file windows share it, so a document's view switch and
+ * settings look the same wherever the document is open.
+ */
 export function EditorPaneActionsMenu({
   anchorRef,
+  boundarySelector = ".desktop-editor-split-view",
+  alignment = "center",
   editorLabel,
   findCommand,
   menuContribution,
@@ -62,17 +73,18 @@ export function EditorPaneActionsMenu({
   const viewItems = menuContribution?.viewItems ?? [];
   const segmentedControl = viewItems.find((item) => item.kind === "segmented") ?? null;
   const hasSecondaryActions = viewItems.some((item) => item.kind !== "segmented");
+  const hasEndActions = Boolean(findCommand || onOpenExternal || onClosePane);
   const { setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
     anchorRef,
-    boundarySelector: ".desktop-editor-split-view",
+    boundarySelector,
     // CSS owns the intrinsic width; positioning only limits available space.
     preferredWidth: 0,
     widthMode: "content",
     preferredMaxHeight: PANE_ACTIONS_MENU_MAX_HEIGHT,
     gap: 4,
     margin: 8,
-    alignment: "center",
+    alignment,
     placementPreference: "below",
   });
 
@@ -114,14 +126,7 @@ export function EditorPaneActionsMenu({
       if (items.length === 0) return;
       event.preventDefault();
       const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : event.key === "ArrowUp"
-            ? (currentIndex - 1 + items.length) % items.length
-            : (currentIndex + 1) % items.length;
-      items[nextIndex]?.focus({ preventScroll: true });
+      items[menuKeyTarget(event.key, currentIndex, items.length)]?.focus({ preventScroll: true });
     };
     document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("focusin", dismissOnFocusExit, true);
@@ -166,9 +171,9 @@ export function EditorPaneActionsMenu({
           : t("editor.panes.actions")}
         style={menuStyle}
       >
-        <div className="desktop-editor-pane-menu-primary-actions">
+        {(segmentedControl || hasEndActions) && <div className="desktop-editor-pane-menu-primary-actions">
           {segmentedControl && <PaneMenuSegmentedControl item={segmentedControl} />}
-          <div className="desktop-editor-pane-menu-end-actions">
+          {hasEndActions && <div className="desktop-editor-pane-menu-end-actions">
             {segmentedControl && (
               <span className="desktop-editor-pane-menu-action-divider" aria-hidden="true" />
             )}
@@ -190,15 +195,17 @@ export function EditorPaneActionsMenu({
                 onClick={() => runAndClose(onOpenExternal)}
               /></Tooltip>
             )}
-            <Tooltip content={t("editor.panes.closePane")}><DesktopMenuIconButton
-              className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-close-action"
-              icon={<X size={15} strokeWidth={1.8} />}
-              label={t("editor.panes.closePane")}
-              role="menuitem"
-              onClick={() => runAndClose(onClosePane)}
-            /></Tooltip>
-          </div>
-        </div>
+            {onClosePane && (
+              <Tooltip content={t("editor.panes.closePane")}><DesktopMenuIconButton
+                className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-close-action"
+                icon={<X size={15} strokeWidth={1.8} />}
+                label={t("editor.panes.closePane")}
+                role="menuitem"
+                onClick={() => runAndClose(onClosePane)}
+              /></Tooltip>
+            )}
+          </div>}
+        </div>}
         {hasSecondaryActions && (
           <DesktopMenuSection className="desktop-editor-pane-menu-secondary-actions">
             {viewItems.map((item) => {
@@ -273,4 +280,12 @@ function PaneMenuSegmentedControl({
       })}
     </div>
   );
+}
+
+/** The item a menu key moves to: the ends for Home and End, else one step, wrapping around. */
+function menuKeyTarget(key: string, current: number, count: number) {
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  if (key === "ArrowUp") return (current - 1 + count) % count;
+  return (current + 1) % count;
 }

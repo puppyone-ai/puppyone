@@ -163,6 +163,10 @@ describe("HTML projection and resource boundaries", () => {
     expect(projected).toContain("window.pageReady=true");
     expect(projected).toContain("script-src 'unsafe-inline' https: puppyone-local:");
     expect(projected).toContain('target="_self"');
+    expect(interactive.csp).toMatch(/connect-src https:;/);
+    expect(interactive.csp).not.toMatch(/connect-src[^;]*puppyone-local:/);
+    expect(interactive.csp).toMatch(/img-src[^;]*puppyone-local:/);
+    expect(interactive.csp).toMatch(/style-src[^;]*puppyone-local:/);
     expect(getHtmlPreviewPolicy("safe").csp).toContain("script-src 'none'");
     expect(getHtmlPreviewPolicy("safe").sandbox).not.toContain("allow-scripts");
   });

@@ -1,0 +1,145 @@
+@layer features {
+  .file-mode-window {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+    /* One surface from the window's top edge: the title bar shares the document's colour. */
+    background: var(--po-editor-bg);
+    color: var(--po-text);
+  }
+
+  /*
+   * The project titlebar's geometry, divider and type (styles/titlebar.css), so
+   * both windows read as one app, without its own fill. Header text uses the
+   * muted ink. Overlay chrome draws the native window controls over this row.
+   */
+  .file-mode-window__titlebar {
+    --file-mode-titlebar-safe-start: 0px;
+    --file-mode-titlebar-safe-end: 0px;
+    /* The file's own controls: up to two icon commands. */
+    --file-mode-titlebar-controls-room: calc(var(--desktop-chrome-control-size) * 2 + 3px);
+    --file-mode-titlebar-side: max(
+      var(--file-mode-titlebar-safe-start),
+      calc(var(--file-mode-titlebar-safe-end) + var(--file-mode-titlebar-controls-room))
+    );
+    position: relative;
+    flex: none;
+    display: grid;
+    /* Equal sides keep the name in the middle of the window, clear of the window's controls and the file's. */
+    grid-template-columns:
+      minmax(var(--file-mode-titlebar-side), 1fr)
+      minmax(0, auto)
+      minmax(var(--file-mode-titlebar-side), 1fr);
+    align-items: center;
+    height: var(--desktop-chrome-height);
+    padding-inline: 6px;
+    color: var(--po-text-muted);
+    font-family: var(--po-font-ui);
+    font-size: var(--po-type-header-content);
+    font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
+    line-height: var(--po-type-header-line-height, 20px);
+  }
+
+  /* The project titlebar's divider, kept off the native window frame's edge pixels. */
+  .file-mode-window__titlebar::after {
+    position: absolute;
+    inset-inline: 1px;
+    inset-block-end: 0;
+    height: 1px;
+    background: var(--po-header-divider);
+    content: "";
+    pointer-events: none;
+  }
+
+  /* Mirrors the project titlebar's traffic-light inset. */
+  .file-mode-window__titlebar[data-window-platform="macos"][data-window-chrome-mode="overlay"] {
+    --file-mode-titlebar-safe-start: 80px;
+  }
+
+  /* Windows reports the area left free by its caption buttons. */
+  .file-mode-window__titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
+    --file-mode-titlebar-safe-start: env(titlebar-area-x, 0px);
+    --file-mode-titlebar-safe-end: calc(
+      100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))
+    );
+  }
+
+  .file-mode-window__name {
+    grid-column: 2;
+    min-width: 0;
+    padding-inline: 6px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The editor's view and settings, spaced as a project pane menu's commands. */
+  .file-mode-window__controls {
+    grid-column: 3;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-inline-end: var(--file-mode-titlebar-safe-end);
+  }
+
+  /* Each control is an icon command on the project titlebar's terms. */
+  .file-mode-window__action {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--desktop-chrome-control-size);
+    height: var(--desktop-titlebar-control-height);
+    padding: 0;
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    outline: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    cursor: var(--po-clickable-cursor, default);
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  /* Icons keep the name's ink in every state; only the fill says hover, focus or open. */
+  .file-mode-window__action:hover {
+    background: var(--po-hover);
+  }
+
+  .file-mode-window__action:focus-visible {
+    background: var(--po-hover);
+    box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+  }
+
+  .file-mode-window__action[aria-expanded="true"] {
+    background: var(--po-selected);
+  }
+
+  /* One size and weight for every icon here, the project titlebar's, whichever editor drew it. */
+  .file-mode-window__action svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.85;
+  }
+
+  .file-mode-window__notice {
+    flex: none;
+    margin: 0;
+    padding: 8px 16px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-header-content);
+    line-height: var(--po-type-header-line-height);
+  }
+
+  .file-mode-window__document {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+}

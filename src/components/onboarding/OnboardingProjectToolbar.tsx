@@ -1,7 +1,7 @@
 import { CloudIcon, LocalIcon } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { ArrowUpDown, Check, ListFilter, X } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   PROJECT_HOME_PLACES,
   projectHomeLocations,
@@ -16,6 +16,20 @@ import { DesktopMenuItem, DesktopMenuSection } from "../DesktopMenu";
 import { OnboardingToolbarMenu } from "./OnboardingToolbarMenu";
 
 const ICON = { size: 14, strokeWidth: 1.85, "aria-hidden": true } as const;
+const NO_DATES: ReadonlyMap<string, string> = new Map();
+
+/**
+ * The date each project had when first shown this visit, or the same map when there
+ * is nothing new. A date learned after a row is on screen waits for the next visit,
+ * so rows only ever move because someone asked them to. A held list starts a visit.
+ */
+function settleShownDates(shown: ReadonlyMap<string, string>, items: ProjectHomeItem[], held: boolean) {
+  if (held) return NO_DATES;
+  const learned = items.flatMap(({ id, lastModifiedAt }) => (
+    lastModifiedAt && !shown.has(id) ? [[id, lastModifiedAt] as const] : []
+  ));
+  return learned.length ? new Map([...shown, ...learned]) : shown;
+}
 
 /**
  * How the Homepage's projects are narrowed and ordered. The order is remembered like
@@ -34,22 +48,16 @@ export function useHomepageProjectView(items: ProjectHomeItem[], held = false) {
     [chosenPlaces, locations],
   );
   const untitled = t("onboarding.projects.untitled");
-  // A date learned after a row is on screen waits for the next visit, so rows only
-  // ever move because someone asked them to. A held list is the start of a visit: a
-  // Homepage kept mounted behind a Cloud project has no other.
-  const shownDates = useRef(new Map<string, string>());
+  const [shownDates, setShownDates] = useState(NO_DATES);
+  const settledDates = settleShownDates(shownDates, items, held);
+  if (settledDates !== shownDates) setShownDates(settledDates);
   const visibleItems = useMemo(() => {
-    if (held) {
-      shownDates.current.clear();
-      return [];
-    }
+    if (held) return [];
     return viewProjectHomeItems(items.map((item) => {
-      const shown = shownDates.current.get(item.id);
-      if (shown) return { ...item, lastModifiedAt: shown };
-      if (item.lastModifiedAt) shownDates.current.set(item.id, item.lastModifiedAt);
-      return item;
+      const shown = settledDates.get(item.id);
+      return shown ? { ...item, lastModifiedAt: shown } : item;
     }), { places, sort, locale, untitled });
-  }, [held, items, places, sort, locale, untitled]);
+  }, [held, items, settledDates, places, sort, locale, untitled]);
   const togglePlace = (place: ProjectHomePlace) => setChosenPlaces((current) => {
     const next = new Set(current);
     if (!next.delete(place)) next.add(place);

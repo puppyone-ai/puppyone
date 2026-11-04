@@ -55,6 +55,8 @@ app.whenReady().then(async () => {
   await openProject("alpha");
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_CLOUD_BODY')");
   assert(await evaluate("document.querySelector('.desktop-titlebar-workspace-name').textContent === 'Hosted alpha'"), "Header must identify the selected Cloud project");
+  // The Cloud mark says which kind of place; the words name the organization that holds the project.
+  await waitFor("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-place-button[data-project-place=cloud]')?.textContent === 'Fixture team'");
   const geometry = await evaluate(`(() => {
     const shell = document.querySelector('.desktop-account-cloud-workspace');
     const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { x:r.x, width:r.width, height:r.height }; };
@@ -63,20 +65,22 @@ app.whenReady().then(async () => {
   })()`);
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--po-cloud-header-bg)'; header.append(probe);
-    const expected = getComputedStyle(probe).color;
-    const ink = getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color; probe.remove();
+    const token = (value) => { const probe = document.createElement('span'); probe.style.color = value;
+      header.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; };
+    const ink = getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color;
+    const placeMark = header.querySelector('.desktop-titlebar-place-button[data-project-place="cloud"] .desktop-titlebar-workspace-mark');
     const shell = header.closest('.desktop-shell'), frame = getComputedStyle(shell, '::after');
     return header.dataset.workspaceKind === 'cloud' && shell.dataset.workspaceKind === 'cloud'
-      && getComputedStyle(header).backgroundColor === expected
+      && getComputedStyle(header).backgroundColor === token('var(--po-header)')
       && getComputedStyle(header).backgroundImage === 'none'
+      && !header.querySelector('.desktop-cloud-header-reveal')
       && frame.content === 'none'
       && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark')).color === ink
+      && Boolean(placeMark) && getComputedStyle(placeMark).color === token('var(--po-brand-blue)')
       && !header.querySelector('.desktop-titlebar-location-button, .desktop-project-location-controls')
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
-  })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
+  })()`), "Hosted-only projects keep the theme Header, a product-blue Cloud mark and no outer frame");
   assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
     'Hosted-only Cloud must expose Share and Agent');
   assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-bar .desktop-feedback'))"), 'Hosted Cloud must retain the Feedback footer');

@@ -3,12 +3,17 @@ import {
   AgentBrandImage,
   AgentMonochromeBrandImage,
   CloudIcon,
+  getAgentBrand,
   isMonochromeAgentBrandId,
   LocalIcon,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
+import { AgentCreature } from "./AgentCreature";
+
+/** The choice an agent makes when it is none of the brands on offer. */
+const AGENT_AVATAR_NONE = "other";
 
 /**
  * The marks and sentences the reach path renders, in one place because the
@@ -60,32 +65,59 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  * Who can reach the project, as a mark.
  *
  * An agent is its brand: a user recognizes Claude's mark long before they
- * read the word, and the product already owns these assets. A person is an
- * initial, because the product knows a name and nothing more — faking an
- * avatar would claim an identity it has not been given. Both are the same
- * round mark as the account in the Homepage Header: an identity looks like one.
+ * read the word, and the product already owns these assets. An agent whose
+ * brand is unknown is a creature of its own, made from its name (see
+ * AgentCreature): never the first character of that name, which reads as a
+ * person (or, for a CJK name, as a stamp), and never one stock glyph that
+ * makes every Agent the same. A person is an initial, because the product
+ * knows a name and nothing more — faking an avatar would claim an identity it
+ * has not been given. A brand and an initial sit in the same round mark as the
+ * account in the Homepage Header; a creature is its own shape.
  *
- * Lit means working in the project right now; everything else is quiet. That
- * is the only live state these marks carry, and it comes from the reading /
- * writing facts rather than from a residency claim.
+ * Lit means working in the project right now; everything else is quiet, and a
+ * creature at rest sleeps. That is the only live state these marks carry, and
+ * it comes from the reading / writing facts rather than from a residency claim.
  */
-export function ReachMemberMark({ member, size = 18 }: {
+export function ReachMemberMark({ member, avatar, size = 18 }: {
   member: ReachMember;
-  size?: number;
+  /**
+   * The picture an agent chose for itself when it connected. A brand it names
+   * is drawn as that brand; "other" means none, so not even its name is read
+   * for one. Without a choice, the brand is read from the name.
+   */
+  avatar?: string | null;
+  /** Pixels, or any CSS length when the host's own control sets it. */
+  size?: number | string;
 }) {
-  const brand = member.audience === "machine" ? resolveAgentBrand({ label: member.name }) : null;
+  const brand = member.audience === "machine" ? agentBrand(member.name, avatar) : null;
   return (
     <span
       className="desktop-project-reach-mark"
       data-reach-audience={member.audience}
       data-reach-activity={member.activity?.kind}
       data-reach-brand={brand?.id}
+      data-reach-creature={member.audience === "machine" && !brand ? "" : undefined}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      {brand ? <ReachBrandMark brandId={brand.id} /> : initial(member.name)}
+      <ReachMemberGlyph member={member} brand={brand} />
     </span>
   );
+}
+
+function agentBrand(name: string, avatar: string | null | undefined) {
+  if (avatar === AGENT_AVATAR_NONE) return null;
+  return getAgentBrand(avatar) ?? resolveAgentBrand({ label: name });
+}
+
+/** A brand, else a creature for an agent, else a person's initial. */
+function ReachMemberGlyph({ member, brand }: {
+  member: ReachMember;
+  brand: ReturnType<typeof resolveAgentBrand>;
+}) {
+  if (brand) return <ReachBrandMark brandId={brand.id} />;
+  if (member.audience === "machine") return <AgentCreature seed={member.name} awake={Boolean(member.activity)} />;
+  return <>{initial(member.name)}</>;
 }
 
 /**

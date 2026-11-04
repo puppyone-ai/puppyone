@@ -131,7 +131,8 @@ export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, inter
       csp: ["default-src 'none'", "script-src 'unsafe-inline' https: puppyone-local:",
         "style-src 'unsafe-inline' https: puppyone-local:", "img-src data: blob: https: puppyone-local:",
         "media-src data: blob: https: puppyone-local:", "font-src data: https: puppyone-local:",
-        "connect-src https: puppyone-local:", "object-src 'none'", "frame-src 'none'",
+        // Pages load their own CSS and images by reference. Reading local files from script is not offered.
+        "connect-src https:", "object-src 'none'", "frame-src 'none'",
         "base-uri https: puppyone-local:", "form-action https:"].join("; "),
       linkTarget: "_self",
     };

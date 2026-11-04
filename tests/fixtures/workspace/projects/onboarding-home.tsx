@@ -2,7 +2,7 @@ import "../../../../src/styles/cascade.css";
 import "../../../../src/styles.css";
 import { createRoot } from "react-dom/client";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
@@ -14,7 +14,7 @@ const location = async () => ({ grantId: "fixture-location", path: "/example/Pro
 
 createRoot(document.getElementById("root")!).render(
   <TestLocalizationProvider locale="en" messages={englishCatalog}>
-    <MinimalOnboarding
+    <HomeWithEntryFlow
       appearance={createTestSurfaceAppearance({ themeMode })}
       projectItems={query.get("state") === "projects" ? Array.from({ length: Math.max(1, Math.min(100, Number(query.get("count")) || 1)) }, (_, index) => ({
         id: `example-project-${index}`,
@@ -23,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
         ...(query.has("mixed") && index % 3 === 2 ? { cloudProjectId: `cloud-${index}` } : {}),
         lastModifiedAt: query.has("mixed") ? new Date(Date.now() - (index + 1) * 86_400_000).toISOString() : null,
       })) : []}
+      listHeld={query.has("held")}
       onChooseWorkspace={noop}
       onRemoveProject={noop}
       onOpenWorkspacePath={noop}

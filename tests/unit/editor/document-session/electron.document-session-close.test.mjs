@@ -96,6 +96,92 @@ describe("Electron document close coordination", () => {
     expect(harness.window.destroyed).toBe(true);
   });
 
+  describe("when a window asks what to do with unsaved edits", () => {
+    const flushRequests = (harness) => harness.webContents.sent
+      .filter(({ channel }) => channel === DOCUMENT_SESSION_FLUSH_REQUEST_CHANNEL);
+
+    it("starts the flush immediately when there is nothing to ask", () => {
+      const harness = createHarness({ resolveCloseChoice: () => "save" });
+      harness.webContents.emit("did-finish-load");
+      harness.window.requestClose();
+
+      expect(flushRequests(harness)).toHaveLength(1);
+      expect(flushRequests(harness)[0].payload.discard).toBeUndefined();
+    });
+
+    it("does not start the save deadline until the person has answered", async () => {
+      vi.useFakeTimers();
+      try {
+        let answer;
+        const harness = createHarness({
+          timeoutMs: 1_000,
+          resolveCloseChoice: () => new Promise((resolve) => { answer = resolve; }),
+        });
+        harness.webContents.emit("did-finish-load");
+        harness.window.requestClose();
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(flushRequests(harness)).toHaveLength(0);
+        expect(harness.dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(harness.window.destroyed).toBe(false);
+
+        answer("save");
+        await vi.advanceTimersByTimeAsync(0);
+        expect(flushRequests(harness)).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("asks the renderer to drop edits when the person chooses not to save", async () => {
+      const harness = createHarness({ resolveCloseChoice: async () => "discard" });
+      harness.webContents.emit("did-finish-load");
+      harness.window.requestClose();
+      await nextMicrotask();
+
+      const [request] = flushRequests(harness);
+      expect(request.payload.discard).toBe(true);
+      harness.reply(request.payload.requestId, { ok: true });
+      await nextMicrotask();
+      expect(harness.window.destroyed).toBe(true);
+    });
+
+    it("keeps the window and stops a quit when the person cancels", async () => {
+      const onCloseCancelled = vi.fn();
+      const harness = createHarness({ resolveCloseChoice: async () => "cancel", onCloseCancelled });
+      harness.webContents.emit("did-finish-load");
+      harness.window.requestClose();
+      await nextMicrotask();
+
+      expect(flushRequests(harness)).toHaveLength(0);
+      expect(harness.window.destroyed).toBe(false);
+      expect(onCloseCancelled).toHaveBeenCalledWith(harness.window);
+    });
+
+    it("can be asked again after a cancel", async () => {
+      const resolveCloseChoice = vi.fn().mockResolvedValueOnce("cancel").mockResolvedValueOnce("save");
+      const harness = createHarness({ resolveCloseChoice });
+      harness.webContents.emit("did-finish-load");
+      harness.window.requestClose();
+      await nextMicrotask();
+      harness.window.requestClose();
+      await nextMicrotask();
+
+      expect(resolveCloseChoice).toHaveBeenCalledTimes(2);
+      expect(flushRequests(harness)).toHaveLength(1);
+    });
+
+    it("keeps the window when asking fails", async () => {
+      const harness = createHarness({ resolveCloseChoice: async () => { throw new Error("no dialog"); } });
+      harness.webContents.emit("did-finish-load");
+      harness.window.requestClose();
+      await nextMicrotask();
+
+      expect(harness.window.destroyed).toBe(false);
+      expect(flushRequests(harness)).toHaveLength(0);
+    });
+  });
+
   it("ignores a forged acknowledgement from a different renderer", async () => {
     const harness = createHarness();
     harness.webContents.emit("did-finish-load");
@@ -223,6 +309,7 @@ function createHarness({
   onCloseCancelled = () => undefined,
   timeoutMs = 1_000,
   closeResources = async () => true,
+  resolveCloseChoice,
 } = {}) {
   let resultListener = null;
   const trustedIpc = {
@@ -240,6 +327,7 @@ function createHarness({
     logger: { error: vi.fn() },
     onCloseCancelled,
     closeResources,
+    ...(resolveCloseChoice ? { resolveCloseChoice } : {}),
   });
   coordinator.registerIpc(trustedIpc);
   const window = new FakeWindow();

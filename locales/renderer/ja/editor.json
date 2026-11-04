@@ -185,6 +185,7 @@
   "html.source": "HTML ソース",
   "html.sourceUnavailable": "HTML ソースを利用できません",
   "loadingFile": "ファイルを読み込み中…",
+  "fileMode.readOnlyEncoding": "このファイルは UTF-8 ではないため、内容を保護するために読み取り専用で開いています。",
   "loadingViewer": "ビューアーを読み込み中…",
   "markdown.ai.added": "エージェントによって追加",
   "markdown.ai.beforeEdit": "エージェントによる編集前",

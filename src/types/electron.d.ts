@@ -661,6 +661,15 @@ export type GitRepositoryWindowFocusEvent = {
 
 export type CloudProjectWindowTarget = Readonly<{ projectId: string; userId: string }>;
 
+/** The one file a File Mode window is bound to. Main owns these paths. */
+export type FileModeTarget = Readonly<{
+  path: string;
+  rootPath: string;
+  name: string;
+  tooLarge: boolean;
+  sizeLimit: number;
+}>;
+
 export type LastWorkspaceResult = {
   workspaceId: string | null;
   path: string | null;
@@ -668,6 +677,7 @@ export type LastWorkspaceResult = {
   workspaces?: Workspace[];
   initialCloudProject?: CloudProjectWindowTarget | null;
   initialOpenPath?: string | null;
+  initialFile?: FileModeTarget | null;
   error: string | null;
 };
 
@@ -1059,6 +1069,7 @@ declare global {
         callback: (request: {
           requestId: string;
           reason: "app-close" | "git-auto-commit";
+          discard: boolean;
         }) => void | Promise<void>,
       ) => () => void;
       onDocumentSessionCloseCancelled: (
@@ -1159,6 +1170,8 @@ declare global {
         };
       }>;
       openExternalUrl: (href: string) => Promise<{ ok: boolean }>;
+      setFileEdited: (edited: boolean) => void;
+      onFileModeFileChanged: (callback: () => void) => () => void;
       submitFeedback: (request: {
         message: string;
         email: string;

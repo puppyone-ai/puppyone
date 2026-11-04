@@ -121,6 +121,25 @@ describe("DesktopTooltipLayer", () => {
     }
   });
 
+  it("clears a focused editor control's hint when the pointer enters a surface with its own card", () => {
+    vi.useFakeTimers();
+    const button = mountTooltip("Editor mode");
+    const scope = document.createElement("div");
+    const mark = document.createElement("button"); scope.append(mark); document.body.append(scope);
+    disableTooltipHints(scope);
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Editor mode");
+    act(() => {
+      button.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: mark }));
+      mark.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, relatedTarget: button }));
+    });
+    expect(document.activeElement).toBe(button);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(button.hasAttribute("aria-describedby")).toBe(false);
+    act(() => vi.advanceTimersByTime(900));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
   it("rechecks suppression before a delayed hover hint opens", () => {
     vi.useFakeTimers();
     const button = mountTooltip();

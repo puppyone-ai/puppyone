@@ -5,25 +5,48 @@ export type AgentAdmission = "sign_in" | "link";
 export type ConnectedAgent = Readonly<{
   id: string;
   name: string;
+  /**
+   * The picture the Agent chose from the server's list when it connected:
+   * a brand the Desktop draws, or "other". Absent when it chose nothing, and
+   * from servers that predate the choice.
+   */
+  avatar?: string | null;
   admission: AgentAdmission;
   grant_id: string;
   connected_at: string;
   expires_at: string | null;
 }>;
+/** An Agent that followed a sign-in link and waits for the owner to allow it. */
+export type AgentRequest = Readonly<{
+  id: string;
+  name: string;
+  /** As on a connected Agent, so the owner sees the picture before allowing it. */
+  avatar?: string | null;
+  admission: AgentAdmission;
+  requested_at: string;
+  expires_at: string;
+}>;
 export type AgentLinkInventory = Readonly<{
-  links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string }>[];
+  /** Only the links still open: neither used up, expired nor ended. */
+  links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string; created_at?: string }>[];
   /** The deployment decides whether a link may admit without sign-in. Absent means no. */
   open_links_enabled?: boolean;
   connections: readonly ConnectedAgent[];
+  /** Only the requests the owner can still allow. Absent from servers that predate it. */
+  pending?: readonly AgentRequest[];
 }>;
 
-/** One connection to the workspace. An Agent opens one for each command it runs. */
+/** One connection to the workspace, kept open across the commands an Agent runs over it. */
 export type AgentSession = Readonly<{
   grant_id: string;
   state: "active" | "stopping" | "closed";
   created_at: string;
   closed_at: string | null;
   lease_until: string;
+  /** Commands running over it now. Absent from servers that predate it. */
+  commands_running?: number;
+  /** When its last command started or ended; null before its first. */
+  last_command_at?: string | null;
 }>;
 
 const projectPath = (projectId: string) => `/projects/${encodeURIComponent(projectId)}`;
@@ -59,18 +82,19 @@ export function removeConnectedAgent(session: DesktopCloudSession, projectId: st
     undefined, { method: "PATCH", body: JSON.stringify({ state: "revoked" }) }, apiBaseUrl);
 }
 
-export function stopSharingWithAgents(session: DesktopCloudSession, projectId: string, apiBaseUrl: string) {
-  return cloudApiRequest<unknown>(`${projectPath(projectId)}/agent-links`, session, undefined, { method: "DELETE" }, apiBaseUrl);
+/** The owner's answer to a waiting Agent; allowing one ends the wait of others on its link. */
+export function decideAgentRequest(session: DesktopCloudSession, connectionId: string,
+  decision: "approve" | "reject", apiBaseUrl: string) {
+  return cloudApiRequest<unknown>(`/agent-links/connections/${encodeURIComponent(connectionId)}/decision`, session,
+    undefined, { method: "POST", body: JSON.stringify({ decision }) }, apiBaseUrl);
 }
-
-/** Stands in for the link until it is copied: a link is a credential, so only copying creates one. */
-export const AGENT_LINK_PLACEHOLDER = "<invite link>";
 
 /**
  * What the person pastes. Their own message is what asks the Agent to act, so it
- * says what they want in one line; the link carries the steps. It stays in
- * English because it is read by the Agent, not shown in the product.
+ * says what they want in one line; the link carries the steps, and the owner
+ * allows the Agent in puppyone. It stays in English because it is read by the
+ * Agent, not shown in the product.
  */
 export function agentConnectMessage(projectName: string, url: string) {
-  return `Connect to my PuppyOne project "${projectName}" by following ${url} — if it gives you a sign-in link, send it to me.`;
+  return `Connect to my puppyone project "${projectName}" by following ${url}`;
 }

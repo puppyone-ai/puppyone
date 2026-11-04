@@ -43,6 +43,7 @@ import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWork
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
+import { useCloudOrganizationName } from "./features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
 import {
   AccountCloudWorkspaceSurface,
@@ -92,7 +93,7 @@ import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
-import { resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
+import { cloudProjectAddress, localProjectAddress, resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
@@ -134,6 +135,7 @@ import {
 import { createExplorerDataPort } from "./features/data-workspace/explorer";
 import { createWorkbenchDataService } from "./features/data-workspace/workbenchDataPort";
 import { useProjectExplorerSelection } from "./features/data-workspace/useProjectExplorerSession";
+import { explorerPinsStore, getExplorerPinsProjectKey } from "./features/data-workspace/explorerPins";
 import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions";
 import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
@@ -479,12 +481,15 @@ function AppContent() {
     workbenchWorkspace?.id ?? null,
   );
   const activeDocumentPath = editorWorkbench.activePath;
+  const explorerPinsProjectKey = getExplorerPinsProjectKey(workspace, workbenchWorkspace?.folders ?? []);
   const handleResourceMoved = useCallback(async (previousPath: string, nextPath: string) => {
     editorWorkbench.rebaseResource(previousPath, nextPath);
-  }, [editorWorkbench]);
+    explorerPinsStore.rebase(explorerPinsProjectKey, previousPath, nextPath);
+  }, [editorWorkbench, explorerPinsProjectKey]);
   const handleResourceDeleted = useCallback(async (path: string) => {
     editorWorkbench.closeUnderResource(path);
-  }, [editorWorkbench]);
+    explorerPinsStore.removeUnder(explorerPinsProjectKey, path);
+  }, [editorWorkbench, explorerPinsProjectKey]);
   const [activeExplorerNode, setActiveExplorerNode] = useProjectExplorerSelection(workspace);
   const activeDocumentResource = resolveWorkspaceResource(activeDocumentPath);
   const currentActiveDocumentPath = activeDocumentResource ? activeDocumentPath : null;
@@ -1574,6 +1579,14 @@ function AppContent() {
     />
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
+  // Where in the Cloud the open project is, for the Header: the organization that holds it.
+  const activeCloudProjectId = !cloudWorkspaceActive ? null
+    : getResolvedCloudProjectId(accountCloud.context) ?? hostedWorkspace?.projectId ?? null;
+  const openCloudOrganizationName = useCloudOrganizationName({
+    session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    organizationId: activeCloudProjectId
+      ? projectCatalog.items.find((item) => item.cloudProjectId === activeCloudProjectId)?.cloudOrganizationId : null,
+  });
   const {
     projectOpening, projectOpeningInWindow, projectOpeningSurface,
   } = useProjectOpeningSurfaces({
@@ -1583,7 +1596,7 @@ function AppContent() {
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
-    presentation={accountCloudPresentation} active={cloudWorkspaceActive}
+    presentation={accountCloudPresentation} active={cloudWorkspaceActive} organizationName={openCloudOrganizationName}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onHome={() => void goToHomepage()}
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
@@ -1712,8 +1725,11 @@ function AppContent() {
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
+        {/* A project on its way only covers the Homepage, which has to be there if the
+            open fails. Once a Cloud project is in, the visit is over, as it is for a local
+            one, so that nothing the page held outlives it. */}
         <div hidden={homepageHidden} style={{ display: homepageHidden ? "none" : "contents" }}>
-          {content}
+          {!cloudWorkspaceActive && content}
         </div>
         {accountCloudSurface}
         {projectOpeningSurface}
@@ -1740,15 +1756,9 @@ function AppContent() {
     return themeRuntime(
       <MinimalOnboarding
         projectEntryController={projectEntryFlow}
+        canCreateProject
+        canImport
         onChooseWorkspace={openFolder}
-        onChooseProjectLocation={chooseProjectLocation}
-        onDefaultProjectLocation={defaultProjectLocation}
-        onCreateProject={createProject}
-        onImportSource={importSource}
-        onConnectImportSource={connectImportSource}
-        onListImportResources={listImportResources}
-        onCancelImportSource={cancelImportSource}
-        onImportSourceProgress={onImportSourceProgress}
         onOpenDroppedWorkspace={openDroppedProject}
         onOpenWorkspacePath={selectProject}
         onRemoveProject={removeWorkspaceFromRecents}
@@ -1857,6 +1867,7 @@ function AppContent() {
   const placeMenu = cloudEnabled ? {
     menu: resolveProjectPlaceMenu({
       place: workspaceLocation,
+      address: workspaceLocation === "cloud" ? cloudProjectAddress(openCloudOrganizationName) : localProjectAddress(workspace?.path),
       unhosted: projectCloudContext.status === "local-only",
       publishPending: repositoryCloudInitializationPending,
       notice: cloudProjectNoticeState,
@@ -2169,6 +2180,11 @@ function AppContent() {
               canCopy={fileClipboardController.canCopy}
               canCut={fileClipboardController.canCut}
               canDuplicate={fileClipboardController.canDuplicate}
+              pinned={explorerPinsStore.isPinned(explorerPinsProjectKey, nodeActionMenu.node.path)}
+              onTogglePin={() => {
+                explorerPinsStore.toggle(explorerPinsProjectKey, nodeActionMenu.node);
+                setNodeActionMenu(null);
+              }}
               onChange={setNodeActionMenu}
               onCancel={() => setNodeActionMenu(null)}
               onCopyPath={copyNodePathFromMenu}

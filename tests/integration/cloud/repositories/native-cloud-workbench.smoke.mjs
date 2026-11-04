@@ -60,6 +60,13 @@ const presentation = (location) => evaluate(`(async () => {
 const state = () => evaluate("window.__nativeCloudWorkbenchSmoke.state()");
 // The Header and Share keep the Agent list current by themselves, whatever else is happening.
 const workspaceRequests = async () => (await state()).requests.filter(path => !/\/(agent-links|access\/sessions)$/.test(path));
+// The Cloud Header's tools: the Agent pane, and the empty invite seat only while
+// no Agent is here (or while that is still being checked). Share with people
+// stays out of the Header until inviting Agents works end to end.
+const cloudTools = `(() => {
+  const tools = [...document.querySelectorAll('[data-cloud-workspace-tool]')].map(tool => tool.dataset.cloudWorkspaceTool);
+  return tools.includes('agent') && tools.every(tool => tool === 'agent' || tool === 'invite-agent');
+})()`;
 const waitFor = async (expression) => {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((resolve) => setTimeout(resolve, 50)); }
@@ -96,9 +103,8 @@ async function captureSettledDialog(scene, selector) {
 
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  // Measure settled contrast after control transitions and the Header reveal.
+  // Measure settled contrast after control transitions.
   await evaluate("Promise.all([...document.querySelectorAll('.desktop-titlebar-workspace-button')].flatMap(button => button.getAnimations()).map(animation => animation.finished.catch(() => {})))");
-  await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
   const sample = await evaluate(`(() => {
     // Under Reduce Motion the app gives every property a 0.01ms transition, so
     // a style read right after a provider switch returns the old color. Settle
@@ -112,6 +118,10 @@ async function headerPresentation(location) {
     const mark = button.querySelector('.desktop-titlebar-workspace-mark');
     const svg = mark.matches('svg') ? mark : mark.querySelector('svg');
     const outline = svg.querySelector('[data-cloud-outline]');
+    // The place control beside it is where a Cloud project is told apart.
+    const place = context.querySelector('.desktop-titlebar-place-button');
+    const placeMark = place?.querySelector('.desktop-titlebar-workspace-mark');
+    const placeOutline = placeMark?.querySelector('[data-cloud-outline]');
     const h = header.getBoundingClientRect();
     const css = getComputedStyle(header);
     const shell = header.closest('.desktop-shell'), s = shell.getBoundingClientRect();
@@ -129,7 +139,6 @@ async function headerPresentation(location) {
     };
     const expected = token('var(--po-header)');
     const accent = token('var(--po-brand-blue)');
-    const cloudBackground = token('var(--po-cloud-header-bg)');
     const themeText = token('var(--po-text)');
     const activeInk = token('var(--desktop-titlebar-text)');
     const restingInk = token('var(--desktop-titlebar-text-muted)');
@@ -142,7 +151,12 @@ async function headerPresentation(location) {
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
       x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
-      cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
+      themeText:rgb(themeText),
+      place:place ? { location:place.dataset.projectPlace ?? null, cloudOutline:Boolean(placeOutline),
+        color:rgb(getComputedStyle(placeMark).color), paint:rgb(getComputedStyle(placeOutline ?? placeMark).stroke),
+        labelColor:rgb(getComputedStyle(place).color), text:place.textContent,
+        addressFits:(() => { const a = place.querySelector('.desktop-titlebar-place-address'); return Boolean(a) && a.scrollWidth <= a.clientWidth; })(),
+        right:place.getBoundingClientRect().right } : null,
       backgroundImage:css.backgroundImage,
       locationControl:Boolean(header.querySelector('.desktop-titlebar-location-button, .desktop-project-location-controls')),
       icon:{ product:svg.dataset.productIcon ?? null,
@@ -166,8 +180,20 @@ async function headerPresentation(location) {
           ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
       }) };
   })()`);
-  assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.cloudBackground : sample.expected), `Cloud must tint only the Header and follow its appearance mode: ${JSON.stringify(sample)}`);
+  assert(sample.location === location, `Header place must follow the committed ${location} provider`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Both places must keep the theme's Header color: ${JSON.stringify(sample)}`);
+  // The mark says which kind of place; the words say where it is.
+  assert(sample.place?.location === location && sample.place.text === (location === 'cloud' ? 'Fixture team' : '~/Documents/Clients')
+    && sample.place.addressFits && sample.place.right <= sample.viewport,
+    `The Header must state the ${location} project's place by its address, whole and on screen: ${JSON.stringify(sample.place)}`);
+  if (location === 'cloud') {
+    assert(sample.place?.location === 'cloud' && sample.place.cloudOutline, `The Cloud project must show its Cloud place mark: ${JSON.stringify(sample.place)}`);
+    assert(JSON.stringify(sample.place.color) === JSON.stringify(sample.accent)
+      && JSON.stringify(sample.place.paint) === JSON.stringify(sample.accent),
+      `The Cloud mark's outline must be product blue: ${JSON.stringify(sample.place)}`);
+    assert(sample.controlInks.some(ink => JSON.stringify(ink) === JSON.stringify(sample.place.labelColor)),
+      `The place label keeps the Header's ink; only the cloud is blue: ${JSON.stringify(sample.place)}`);
+  }
   // The control uses the Header's own ink: full text while hovered or open,
   // muted at rest. A CI runner's pointer can leave Chromium's hover state a
   // frame behind, so either Header ink is accepted; a foreign color is not.
@@ -180,13 +206,13 @@ async function headerPresentation(location) {
   assert(sample.icon.product === 'home' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'The project mark must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
-  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud tint must not recolor the project name');
+  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud mark must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
   assert(sample.frame.content === 'none', 'Neither location may paint a frame around the workspace');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
-    "Tint must cover the original full-width Header, including both blank sides");
+    "The retained Header must span the full window width, including both blank sides");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
   // Verify the project label in the regular Header; Header tabs are experimental.
@@ -230,7 +256,6 @@ async function windowFramePixels(sample) {
     `Blue must not extend to the workspace side or bottom edges: ${JSON.stringify(point)}`);
   const interior = [[4,Math.floor(height/2)],[width-5,Math.floor(height/2)],[Math.floor(width/2),height-5]]
     .map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  if (sample.location === 'cloud') assert(distance(paintedFrame,paintedHeader) > 5, 'Cloud Header must remain distinct from the normal workspace');
   return {paintedHeader,paintedFrame,header,edges,interior};
 }
 
@@ -397,50 +422,19 @@ app.whenReady().then(async () => {
   await writeFile(path.join(artifacts, 'local-folder-notice.png'), (await window.webContents.capturePage()).toPNG());
   if (filesOnly) { await selectLocation('cloud'); } else {
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
-  // Freeze the 260ms Header reveal on the first frame it exists, inside the
-  // click's own step, so slower runners sample it instead of racing its end.
-  // CI runners may run without CSS animation (reduced motion); then the reveal
-  // geometry is not sampled, but the Header must still change to Cloud.
-  const revealAnimated = await evaluate(`new Promise(resolve => {
-    [...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].find(button => button.textContent === 'Open Cloud project').click();
-    let frames = 0;
-    const freeze = () => {
-      const animation = document.querySelector('.desktop-titlebar .desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0];
-      if (animation) { animation.pause(); resolve(true); return; }
-      if (++frames > 120) { resolve(false); return; }
-      requestAnimationFrame(freeze);
-    };
-    freeze();
-  })`);
+  await evaluate("[...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].find(button => button.textContent === 'Open Cloud project').click()");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
-  assert(await evaluate(`(() => {
-    const header = document.querySelector('.desktop-titlebar');
-    const reveal = header.querySelector('.desktop-cloud-header-reveal');
-    if (reveal) reveal.dataset.fixtureIdentity = 'requested-header-reveal';
-    if (!${revealAnimated}) return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light');
-    const animation = reveal.getAnimations({subtree:true})[0];
-    animation.pause(); animation.currentTime = 35;
-    const firstCircle = getComputedStyle(reveal, '::after').clipPath;
-    animation.currentTime = 70;
-    const laterCircle = getComputedStyle(reveal, '::after').clipPath;
-    const radius = circle => Number(circle.match(/[-\\d.]+(?=%)/)?.[0]);
-    return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && firstCircle.startsWith('circle(') && laterCircle.startsWith('circle(')
-      && firstCircle.endsWith('at 60% 85%)') && laterCircle.endsWith('at 60% 85%)')
-      && radius(firstCircle) > 0 && radius(laterCircle) > radius(firstCircle)
-      && animation.effect.getTiming().duration === 260
-      && animation.animationName === 'desktop-cloud-header-expand';
-  })()`), 'Header blue must expand from its lower-right center over 260ms while the Cloud project opens');
-  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes') && document.querySelectorAll('[data-cloud-workspace-tool]').length === 2"),
+  assert(await evaluate("document.querySelector('.desktop-titlebar').dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-header-reveal, .desktop-cloud-entry-light')"),
+    'Opening the Cloud project must state the Cloud in the Header without repainting it');
+  assert(await evaluate(`document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud'
+    && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')
+    && ${cloudTools}`),
     'Opening the Cloud project must give the Header that project and its Cloud tools, without the folder actions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
-  if (revealAnimated) assert(await evaluate("document.querySelector('.desktop-cloud-header-reveal').dataset.fixtureIdentity === 'requested-header-reveal' && document.querySelector('.desktop-cloud-header-reveal').getAnimations({subtree:true}).every(animation => animation.playState === 'paused')"),
-    'Cloud content arriving must retain the same ongoing Header reveal');
   assert(await evaluate("!document.querySelector('.desktop-project-preparation, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && !document.querySelector('[data-workspace-location=cloud]').hidden"),
-    'Cloud content must appear immediately even while the Header animation is paused');
-  await evaluate("document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0]?.finish()");
+    'Cloud content must appear immediately, without a preparation cover');
   }
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   const initialCloudRequests = (await state()).requests;
@@ -586,24 +580,201 @@ app.whenReady().then(async () => {
   }
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
-  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
-    'Cloud Header exposes Share and Agent');
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect], [data-cloud-workspace-tool=share]')"),
+    'Cloud Header exposes the Agents and the Agent pane, not retired entries or Share');
   await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents .desktop-project-reach-mark[data-reach-activity=working]'))");
   assert(await evaluate(`(() => {
     const people = document.querySelector('.desktop-titlebar-cloud-agents').getBoundingClientRect();
-    const share = document.querySelector('[data-cloud-workspace-tool=share]').getBoundingClientRect();
-    return people.height > 0 && people.right <= share.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
-  })()`), 'An active Agent stands in the Header ahead of Share, inside the Header');
-  const beforeSharing = (await workspaceRequests()).length;
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
-  // The link covers what the user is looking at (2b347d52): the canonical
-  // project URL, narrowed to the open file when one is open.
-  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('[data-share-target]').dataset.shareUrl)"),
-    'Workspace sharing must expose its canonical human URL for what is being viewed');
-  assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
-  await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
+    const pane = document.querySelector('[data-cloud-workspace-tool=agent]').getBoundingClientRect();
+    return people.height > 0 && people.right <= pane.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
+  })()`), 'An active Agent stands in the Header ahead of the Agent pane, inside the Header');
+  // Once an Agent is here, the list it opens invites the next: the Header has no empty seat.
+  await waitFor("!document.querySelector('[data-cloud-workspace-tool=invite-agent]')");
+  const beforeAgents = (await workspaceRequests()).length;
+  // Resting the pointer on an Agent shows its card under it: when it last worked, who it is, how it got in.
+  const agentMark = "document.querySelector('.desktop-titlebar-cloud-agents [data-cloud-workspace-agent]')";
+  await evaluate(`${agentMark}.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); true`);
+  await waitFor("Boolean(document.querySelector('[data-cloud-agent-card]')?.textContent.includes('Claude Code'))");
+  assert(await evaluate(`(() => {
+    const card = document.querySelector('[data-cloud-agent-card]').getBoundingClientRect();
+    const header = document.querySelector('.desktop-titlebar').getBoundingClientRect();
+    const when = document.querySelector('.desktop-cloud-agent-card-when').textContent;
+    return card.top >= header.bottom && card.right <= innerWidth && card.left >= 0 && card.width > 200
+      && when === 'Working now' && getComputedStyle(document.querySelector('[data-cloud-agent-card]')).pointerEvents === 'none';
+  })()`), 'The card must hang under the Header, inside the window, and say the Agent is working');
+  await new Promise(resolve => setTimeout(resolve, 650));
+  assert(await evaluate("!document.querySelector('[role=tooltip]') && document.querySelector('.desktop-titlebar-cloud-agents').dataset.tooltipDisabled === 'true'"),
+    'An Agent must show only its own name card, never a generic editor or whole-roster tooltip');
+  await captureSettledDialog('cloud-agent-card', '[data-cloud-agent-card]');
+  // Pressing it opens the Agents dialog straight away, with no menu in between.
+  await evaluate(`${agentMark}.click()`);
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-tile[data-cloud-agent-row]'))");
+  assert(await evaluate("!document.querySelector('[data-cloud-agent-card], .desktop-cloud-agents-panel') && document.querySelector('.desktop-cloud-agents-roster > :last-child')?.classList.contains('desktop-cloud-agent-invite-seat')"),
+    'The Agents dialog must replace the card and end its row with the seat that invites, with no menu in between');
+  assert((await workspaceRequests()).length === beforeAgents, 'Meeting the Agents must not issue workspace requests');
+  await captureSettledDialog('cloud-agents', '.desktop-cloud-agents-dialog');
+  // Pressing the seat shows only the first step: the prompt to copy and Copy, with nothing made yet.
+  await evaluate("navigator.clipboard.writeText = async () => {}; true");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 1");
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy') && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('/agent/••••••') && !document.querySelector('.desktop-cloud-agent-paste-art')"),
+    'The seat must show the prompt to copy, with Copy focused and no invite made yet');
+  await captureSettledDialog('cloud-agents-invite-copy', '.desktop-cloud-agents-dialog');
+  // Copy makes the invite; then the one thing left, beside a drawing of it that takes no pointer.
+  await evaluate("document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 2 && Boolean(document.querySelector('.desktop-cloud-agent-paste-art'))");
+  // The marks are pictures that load as the step appears.
+  await waitFor("[...document.querySelectorAll('.desktop-cloud-agent-invite-steps img')].every(image => image.complete)");
+  // Test both accessibility modes explicitly, rather than inheriting the runner's macOS preference.
+  window.webContents.debugger.attach('1.3');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  });
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  const invited = JSON.parse(await evaluate(`JSON.stringify((() => {
+    const seat = document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').getBoundingClientRect();
+    const steps = document.querySelector('.desktop-cloud-agent-invite-steps').getBoundingClientRect();
+    const arrow = parseFloat(getComputedStyle(document.querySelector('.desktop-cloud-agent-invite-steps')).getPropertyValue('--invite-arrow-x'));
+    const art = document.querySelector('.desktop-cloud-agent-paste-art');
+    const square = art.getBoundingClientRect();
+    // A mark with light and dark pictures draws both and shows the one for the theme.
+    const shown = [...document.querySelectorAll('.desktop-cloud-agent-invite-logo')]
+      .map(logo => [...logo.querySelectorAll('img')].filter(image => getComputedStyle(image).display !== 'none'));
+    return { below: steps.top - seat.bottom, aim: steps.left + arrow - (seat.left + seat.width / 2), logos: shown.length,
+      drawn: shown.every(images => images.length === 1 && images[0].complete && images[0].naturalWidth > 0),
+      square: [square.width, square.height], inert: getComputedStyle(art).pointerEvents,
+      looping: art.getAnimations({ subtree: true }).some(animation => animation.effect.getComputedTiming().iterations === Infinity),
+      masked: document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('••••••')
+        && !document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('/agent/••••••') };
+  })())`));
+  assert(invited.below >= 0 && Math.abs(invited.aim) < 2 && invited.logos === 8 && invited.drawn
+    && invited.square[0] === invited.square[1] && invited.inert === 'none' && invited.looping && invited.masked,
+    `After Copy, the steps must point at the seat, show the masked prompt, every agent mark and a square looping drawing that takes no pointer: ${JSON.stringify(invited)}`);
+  // Shown at the drawing's resting beat: the prompt pasted and the agent answering with a tick.
+  await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = 3600; } return true; })()");
+  await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  });
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert(await evaluate(`(() => {
+    const art = document.querySelector('.desktop-cloud-agent-paste-art');
+    const opacity = selector => Number(getComputedStyle(art.querySelector(selector)).opacity);
+    return matchMedia('(prefers-reduced-motion: reduce)').matches && art.getAnimations({ subtree: true }).length === 0
+      && opacity('.desktop-cloud-agent-paste-out') === 1 && opacity('.desktop-cloud-agent-paste-in') === 1
+      && opacity('.desktop-cloud-agent-paste-tick') === 1 && opacity('.desktop-cloud-agent-paste-dots') === 0
+      && opacity('.desktop-cloud-agent-paste-sheet') === 0 && opacity('.desktop-cloud-agent-paste-key') === 0;
+  })()`), 'Reduced motion must show the static completed paste, with no loop, flying sheet or typing dots');
+  await captureSettledDialog('cloud-agent-invite-reduced', '.desktop-cloud-agents-dialog');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
+  window.webContents.debugger.detach();
+  // An application replaces the invite dialog with the Agent's own persistent decision card below the Header.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Research helper', avatar: 'codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }, { id: 'smoke-request-two', name: 'Gemini CLI', avatar: 'gemini', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
+  await waitFor("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request]')) && !document.querySelector('.desktop-cloud-agents-dialog')");
+  assert(await evaluate(`(() => {
+    const card = document.querySelector('[data-cloud-agent-request-card]');
+    const box = card.getBoundingClientRect();
+    const header = document.querySelector('.desktop-titlebar').getBoundingClientRect();
+    return box.top >= header.bottom && box.right <= innerWidth && box.left >= 0
+      && getComputedStyle(card).pointerEvents === 'auto' && card.querySelectorAll('button').length === 2
+      && card.querySelector('[data-reach-brand=codex]') && !card.contains(document.activeElement);
+  })()`), 'A request card must appear on its own, use the chosen avatar, take clicks but not steal focus');
+  await evaluate("document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+  assert(await evaluate("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request]')) && !document.querySelector('[data-cloud-agent-request-card] button[aria-label=Close]')"),
+    'Outside clicks and Escape must not dismiss an unanswered request');
+  for (const theme of ['light', 'dark']) for (const locale of ['en', 'zh-Hans', 'de', 'es', 'fr', 'ja', 'ko', 'pt-BR']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', '${locale}')`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await waitFor("[...document.querySelectorAll('[data-cloud-agent-request-card] img')].every(image => image.complete)");
+    assert(await evaluate(`(() => {
+      const card = document.querySelector('[data-cloud-agent-request-card]');
+      const box = card.getBoundingClientRect();
+      return box.bottom <= innerHeight && card.scrollWidth <= card.clientWidth
+        && [...card.querySelectorAll('button')].every(button => {
+          const r = button.getBoundingClientRect(); return r.left >= box.left && r.right <= box.right;
+        });
+    })()`), `The request card and both decisions must fit in ${theme} ${locale}`);
+    await captureSettledDialog(`cloud-agent-request-${theme}-${locale}`, '[data-cloud-agent-request-card]');
+  }
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
+  await evaluate("document.querySelector('[data-cloud-agent-request-card] [data-agent-decision=approve]').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-agent-request-card=smoke-request-two]'))");
+  assert(await evaluate("!document.querySelector('.desktop-cloud-agent-request-count') && !document.querySelector('[data-cloud-agent-request-card] button:disabled')"),
+    'Answering one request must advance to the next with fresh, enabled choices');
+  await evaluate("document.querySelector('[data-cloud-agent-request-card] [data-agent-decision=reject]').click()");
+  await waitFor("!document.querySelector('[data-cloud-agent-request-card]')");
+  // The normal roster remains available once the request has actually been answered.
+  await evaluate("document.querySelector('[data-cloud-workspace-agent=smoke-agent]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-row=smoke-request]'))");
+  // An invite is spent once it lets an Agent in, and one never used expires: there are no links to look after.
+  assert(await evaluate("!document.querySelector('.desktop-cloud-agents-links-toggle, .desktop-cloud-agents-dialog-foot') && !document.querySelector('.desktop-cloud-agents-dialog').textContent.includes('Remove all')"),
+    'The Agents dialog must not ask anyone to manage invite links');
+  await captureSettledDialog('cloud-agents-joined', '.desktop-cloud-agents-dialog');
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
+  // A full roster is a grid: every seat wraps below, including Invite, with no sideways scrolling.
+  const gridAgents = ['Claude Code', 'Codex', 'Cursor', 'Gemini CLI', 'Research assistant with a long name',
+    '薄肌孙教练', 'OpenCode', 'Hermes', 'Devin', 'GitHub Copilot', 'Analyst'].map((name, index) => ({
+    id: index === 0 ? 'smoke-agent' : `grid-${index}`, name, admission: 'sign_in',
+    grant_id: index === 0 ? 'smoke-grant' : `grid-grant-${index}`,
+    connected_at: '2026-10-30T00:00:00Z', expires_at: '2099-01-01T00:00:00Z',
+  }));
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: ${JSON.stringify(gridAgents)}, pending: [] })`);
+  await waitFor("document.querySelector('.desktop-titlebar-cloud-agent-count')?.textContent === '+7'");
+  await evaluate("document.querySelector('[data-cloud-workspace-agent=smoke-agent]').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agents-roster > li').length === 12");
+  // Translated confirmation actions also wrap inside their own seat, rather than widening its column.
+  await evaluate("document.querySelector('[data-cloud-agent-remove=smoke-agent]').click()");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-invite-steps'))");
+  for (const width of [1100, 480]) {
+    window.setContentSize(width, 760);
+    await waitFor(`innerWidth === ${width}`);
+    for (const theme of ['light', 'dark']) for (const locale of ['en', 'zh-Hans', 'de', 'es', 'fr', 'ja', 'ko', 'pt-BR']) {
+      await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', '${locale}')`);
+      await evaluate("(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); await document.fonts.ready; })()");
+      if (locale === 'en' || locale === 'zh-Hans') await captureSettledDialog(`cloud-agents-grid-${width}-${theme}-${locale}`, '.desktop-cloud-agents-dialog');
+      const grid = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const roster = document.querySelector('.desktop-cloud-agents-roster');
+        const box = roster.getBoundingClientRect();
+        const tiles = [...roster.children].map(tile => tile.getBoundingClientRect());
+        const seat = roster.querySelector('[data-cloud-agent-invite-seat]').getBoundingClientRect();
+        const steps = document.querySelector('.desktop-cloud-agent-invite-steps');
+        const arrow = parseFloat(getComputedStyle(steps).getPropertyValue('--invite-arrow-x'));
+        const body = document.querySelector('.desktop-cloud-agents-dialog-body');
+        const actions = [...roster.querySelectorAll('.desktop-cloud-agent-tile-actions button')];
+        return { display: getComputedStyle(roster).display, rows: new Set(tiles.map(tile => Math.round(tile.top))).size,
+          overflow: roster.scrollWidth > roster.clientWidth || body.scrollWidth > body.clientWidth,
+          inside: tiles.every(tile => tile.left >= box.left - 1 && tile.right <= box.right + 1),
+          actionsInside: actions.every(button => { const r = button.getBoundingClientRect();
+            const tile = button.closest('.desktop-cloud-agent-tile').getBoundingClientRect();
+            return r.left >= tile.left && r.right <= tile.right; }),
+          aim: steps.getBoundingClientRect().left + arrow - (seat.left + seat.width / 2),
+          inviteLast: roster.lastElementChild.classList.contains('desktop-cloud-agent-invite-seat') };
+      })())`));
+      assert(grid.display === 'grid' && grid.rows >= 3 && !grid.overflow && grid.inside && grid.actionsInside
+        && Math.abs(grid.aim) < 2 && grid.inviteLast,
+      `Agents and their actions must wrap in ${width}px ${theme} ${locale}, with the invite still aimed at its seat: ${JSON.stringify(grid)}`);
+    }
+  }
+  window.setContentSize(1100, 760);
+  await waitFor('innerWidth === 1100');
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
+  // With nobody here yet, the empty seat opens the same dialog, and inviting the first agent is all of it.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [] })");
+  await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agents-first'))");
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy') && document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 1"),
+    'With nobody here yet, Copy must be the first thing in reach');
+  await captureSettledDialog('cloud-agents-empty', '.desktop-cloud-agents-dialog');
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
+  // The fixture's own Agent comes back, as the steps after this expect.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [{ id: 'smoke-agent', name: 'Claude Code', admission: 'sign_in', grant_id: 'smoke-grant', connected_at: '2026-10-30T00:00:00Z', expires_at: '2099-01-01T00:00:00Z' }], pending: [] })");
+  await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents [data-cloud-workspace-agent]'))");
   await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
   await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
   await evaluate("document.querySelector('[data-project-place-row=history]').click()");
@@ -623,7 +794,7 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       if (location === "cloud") await captureCloudReady(`${theme}-${width}`);
       const sample = await headerPresentation(location);
-      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
+      assert(await evaluate(location === 'cloud' ? cloudTools : "document.querySelectorAll('[data-cloud-workspace-tool]').length === 0"),
         'Cloud CTAs must follow the active environment in both themes and widths');
       if (location === 'cloud') assert(await evaluate(`(() => {
         const project = document.querySelector('.desktop-titlebar-context').getBoundingClientRect();
@@ -646,12 +817,8 @@ app.whenReady().then(async () => {
       }
       if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette),
         `Header text and interaction colors must stay in the ${theme} theme when switching locations`);
-      if (location === 'cloud') {
-        const expectedCloudBackground = theme === 'dark' ? [16, 42, 67]
-          : sample.expected.map((channel, i) => Math.round(channel * 0.85 + sample.accent[i] * 0.15));
-        assert(sample.background.every((channel, i) => Math.abs(channel - expectedCloudBackground[i]) <= 1),
-          `Cloud Header must use deep blue in dark mode and theme grey tinted with product blue in light mode: ${JSON.stringify(sample.background)}`);
-      }
+      if (before) assert(JSON.stringify(sample.background) === JSON.stringify(before.background),
+        `The Header must keep one theme color across places in ${theme}: ${JSON.stringify(sample.background)}`);
       before ??= sample;
       headerPresentations.push({ theme, width, index, ...sample });
       if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
@@ -689,7 +856,6 @@ app.whenReady().then(async () => {
       assert(leading.projectGap >= leading.expectedGap - 0.1,
         `Expand and project controls must keep their gap in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
       if (location === 'cloud') {
-        await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
         await writeFile(path.join(artifacts, `header-leading-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
       }
       await evaluate("document.querySelector('.desktop-titlebar-sidebar-expand').click()");
@@ -701,8 +867,8 @@ app.whenReady().then(async () => {
     features:[{name:'prefers-reduced-motion',value:'reduce'}],
   });
   await selectLocation("cloud");
-  assert(await evaluate("!document.querySelector('.desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && getComputedStyle(document.querySelector('.desktop-cloud-header-reveal')).display === 'none' && getComputedStyle(document.querySelector('.desktop-cloud-header-reveal'), '::after').animationName === 'none'"),
-    "Reduced motion must apply the Cloud Header immediately without decorative motion");
+  assert(await evaluate("document.querySelector('.desktop-titlebar').dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-header-reveal, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep')"),
+    "Reduced motion must state the Cloud immediately without decorative motion");
   await selectLocation("local");
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features:[]});
   window.webContents.debugger.detach();

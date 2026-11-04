@@ -1,3 +1,4 @@
+import { isUtf8 } from "node:buffer";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -9,6 +10,7 @@ import {
   resolveCopyNameExtension,
 } from "./files/file-format-policy.mjs";
 import { parseSingleByteRange } from "./files/byte-range.mjs";
+import { MAX_EDITOR_BYTES } from "../../shared/desktop/file-mode-contract.mjs";
 import { readWorkspaceModifiedAt } from "./files/workspace-activity.mjs";
 import {
   isSameOrInsidePath,
@@ -82,7 +84,7 @@ const totalCommitsByHead = new Map();
 
 const MAX_ENTRIES_PER_FOLDER = 500;
 const MAX_PREVIEW_BYTES = 4096;
-const MAX_EDITOR_BYTES = 1024 * 1024;
+export { MAX_EDITOR_BYTES };
 // Cap for whole-file reads served over the puppyone-local:// protocol (media
 // preview). Bounds main-process memory so a huge file can't OOM the app.
 const MAX_LOCAL_FILE_BYTES = 100 * 1024 * 1024;
@@ -433,7 +435,23 @@ export async function readWorkspaceFileRange(rootPath, relativePath, request = {
 
 export const RESOURCE_MAX_RANGE_READ_BYTES = MAX_RANGE_READ_BYTES;
 
-export async function readWorkspaceTextFile(rootPath, relativePath) {
+/**
+ * `encoding` tells a host whether the text can be written back unchanged.
+ * Legacy decoding is for read-only display: a wrong guess must never be saved.
+ */
+function decodeTextFile(bytes, { decodeLegacyText = false } = {}) {
+  if (isUtf8(bytes)) return { content: bytes.toString("utf8"), encoding: "utf-8" };
+  if (decodeLegacyText) {
+    try {
+      return { content: new TextDecoder("gb18030", { fatal: true }).decode(bytes), encoding: "gb18030" };
+    } catch {
+      // Not this encoding either. The replacement characters below say so honestly.
+    }
+  }
+  return { content: bytes.toString("utf8"), encoding: "unknown" };
+}
+
+export async function readWorkspaceTextFile(rootPath, relativePath, options = undefined) {
   const filePath = await resolveExistingWorkspacePath(rootPath, relativePath);
   const metadata = await fs.stat(filePath).catch((error) => {
     throw new Error(`Unable to read file metadata: ${error.message}`);
@@ -463,7 +481,7 @@ export async function readWorkspaceTextFile(rootPath, relativePath) {
     path: normalizeRelativePath(relativePath),
     name: path.basename(filePath),
     type: classifyFile(filePath),
-    content: bytes.toString("utf8"),
+    ...decodeTextFile(bytes, options),
     mimeType: getMimeType(filePath) ?? "text/plain; charset=utf-8",
     size: formatFileSize(metadata.size),
     version: getWorkspaceTextVersion(bytes),

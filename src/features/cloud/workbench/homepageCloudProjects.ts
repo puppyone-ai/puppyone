@@ -29,6 +29,7 @@ export function buildHomepageProjects({ local, cloud, apiBaseUrl, activity = new
   });
   for (const project of cloud) {
     items.push({ id: `cloud:${project.id}`, label: project.name, localPath: "", cloudProjectId: project.id,
+      ...(project.org_id ? { cloudOrganizationId: project.org_id } : {}),
       cloudActions: { rename: projectAllows(project, "project.settings.manage"), delete: projectAllows(project, "project.delete") },
       lastModifiedAt: latestProjectModifiedAt(project.updated_at, activity.get(project.id)) });
   }

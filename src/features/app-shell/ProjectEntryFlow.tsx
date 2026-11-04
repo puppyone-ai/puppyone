@@ -1,3 +1,4 @@
+import { useLocalization } from "@puppyone/localization";
 import { useDesktopPreference } from "../../preferencesStore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
@@ -13,6 +14,7 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../../types/electron";
 import { ProjectEntryLauncherDialog } from "./ProjectEntryLauncherDialog";
+import { ProjectNavigationFailure } from "./ProjectNavigationFailure";
 import {
   resolveImportPreviewBrands,
   resolveVisibleImportSources,
@@ -91,23 +93,34 @@ export function ProjectEntryFlow({
   onImportProgress,
   projectIsOpen = false,
 }: ProjectEntryFlowProps) {
-  // A link from the store waits in Main until this window can show it.
+  const { t } = useLocalization();
+  const [templateLinkFailed, setTemplateLinkFailed] = useState(false);
+  const [templateLinkAttempt, setTemplateLinkAttempt] = useState(0);
+  // A link from the store waits in Main until this window can show it, so someone
+  // who followed one is told if it cannot be read, and it stays there for a retry.
   useEffect(() => {
     if (controller.step !== null || !onCreateProject) return;
     const bridge = window.puppyoneDesktop;
     if (!bridge?.readTemplateImportIntent) return;
     let active = true;
     const consume = async () => {
-      const intent = await bridge.readTemplateImportIntent();
-      if (active && intent) {
+      try {
+        const intent = await bridge.readTemplateImportIntent();
+        if (!active || !intent) return;
         controller.openTemplate(intent.url);
-        await bridge.acknowledgeTemplateImportIntent(intent.id);
+        // The card is up by now. A link left unacknowledged only comes round again.
+        await bridge.acknowledgeTemplateImportIntent(intent.id).catch((error: unknown) => {
+          console.warn("Unable to acknowledge the template link:", error);
+        });
+      } catch (error) {
+        console.warn("Unable to read the template link:", error);
+        if (active) setTemplateLinkFailed(true);
       }
     };
-    const stop = bridge.onTemplateImportRequested(() => { void consume().catch(() => {}); });
-    void consume().catch(() => {});
+    const stop = bridge.onTemplateImportRequested(() => { void consume(); });
+    void consume();
     return () => { active = false; stop(); };
-  }, [controller, onCreateProject]);
+  }, [controller, onCreateProject, templateLinkAttempt]);
   // Pasting is the user's own action, so its text is read only then, and only a
   // template link is acted on. Anything else keeps its usual paste.
   useEffect(() => {
@@ -125,6 +138,20 @@ export function ProjectEntryFlow({
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const visibleImportSources = resolveVisibleImportSources({ enableOtherAppImports });
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
+
+  if (templateLinkFailed && controller.step === null) {
+    return (
+      <ProjectNavigationFailure
+        title={t("onboarding.template.linkFailedTitle")}
+        message={t("onboarding.template.linkFailed")}
+        onClose={() => setTemplateLinkFailed(false)}
+        onRetry={() => {
+          setTemplateLinkFailed(false);
+          setTemplateLinkAttempt((attempt) => attempt + 1);
+        }}
+      />
+    );
+  }
 
   if (controller.step === "launcher") {
     return (

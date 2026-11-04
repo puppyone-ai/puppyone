@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import {
   HOMEPAGE_FIRST_PAINT_BUDGET_MS,
   useHomepageFirstPaint,
@@ -53,7 +53,7 @@ function Harness({ local, localSettled, restoring = false, sessionRestoring = fa
   const catalog = useHomepageCloudProjects({ visible: !restoring, enabled: true, session, restoring: sessionRestoring, apiBaseUrl: API, local });
   const ready = useHomepageFirstPaint({ restoring, settled: localSettled && !sessionRestoring && catalog.settled,
     account: catalog.account, accountRestoring: sessionRestoring });
-  return ready ? <MinimalOnboarding appearance={appearance} projectItems={catalog.items} listHeld={listHeld} onChooseWorkspace={async () => {}}
+  return ready ? <HomeWithEntryFlow appearance={appearance} projectItems={catalog.items} listHeld={listHeld} onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} /> : <p data-holding />;
 }
 
@@ -193,12 +193,13 @@ describe("a Homepage that never shows part of its list", () => {
   };
   const home = { local: hydratedLocal, localSettled: true };
 
-  it("remembers only what the list needs from the catalog", async () => {
+  it("remembers only what the list and the Header's place need from the catalog", async () => {
     await render(home);
     await act(async () => listing.resolve(cloudProjects.map((project) => ({ ...project, description: "private notes", org_id: "org" }))));
     const cached = JSON.parse(localStorage.getItem(CATALOG_KEY)!);
     expect(cached.scope).toBe(scopeOf("alice"));
-    expect(cached.projects[0]).toEqual(cloudProjects[0]);
+    // The organization's id lets an open Cloud project's Header say where it is; the description stays behind.
+    expect(cached.projects[0]).toEqual({ ...cloudProjects[0], org_id: "org" });
   });
 
   it("holds a returning account's list until its real order is known", async () => {

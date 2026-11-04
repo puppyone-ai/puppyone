@@ -39,7 +39,7 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("tints committed Cloud chrome while preserving the theme foreground palette", () => {
+  it("keeps the theme's Header for Cloud projects instead of tinting it", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
 
     expect(tokensCss).toContain(
@@ -51,10 +51,9 @@ describe("titlebar typography architecture", () => {
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
-    const cloud = readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"]');
-    expect(cloud).toContain("--desktop-titlebar-bg: var(--po-cloud-header-bg);");
-    expect(tokensCss).toContain("color-mix(in srgb, var(--po-header) 85%, var(--po-brand-blue) 15%)");
-    expect(cloud).not.toMatch(/--desktop-titlebar-(?:text|hover|active|focus|divider)\s*:/);
+    expect(titlebarCss).not.toContain('.desktop-titlebar[data-workspace-kind="cloud"]');
+    expect(titlebarCss).not.toContain("desktop-cloud-header-reveal");
+    expect(tokensCss).not.toContain("--po-cloud-header-bg");
     expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
     expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
@@ -63,8 +62,17 @@ describe("titlebar typography architecture", () => {
     expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
   });
 
-  it("lets the Cloud Header mark inherit project text while Homepage marks use product blue", () => {
+  it("draws the Header's Cloud place mark in product blue and leaves the project mark in text ink", () => {
     expect(tokensCss).toContain("--po-brand-blue: #4599df;");
+    const placeCss = readFileSync(
+      new URL("../../../../src/features/app-shell/project-place/project-place.css", import.meta.url), "utf8");
+    // Feature styles sit indented inside their layer.
+    expect(placeCss).toMatch(
+      /\.desktop-titlebar-place-button\[data-project-place="cloud"\] \.desktop-titlebar-workspace-mark \{\s*color: var\(--po-brand-blue, var\(--po-accent-text\)\);/);
+    const reachCss = readFileSync(
+      new URL("../../../../src/features/app-shell/project-reach/reach-header.css", import.meta.url), "utf8");
+    expect(reachCss).toMatch(
+      /\.desktop-titlebar-reach-button \.desktop-titlebar-workspace-mark\[data-reach-place="cloud"\] \{\s*color: var\(--po-brand-blue, var\(--po-accent-text\)\);/);
     expect(titlebarCss).not.toContain('.desktop-titlebar-workspace-mark[data-project-location="cloud"]');
     const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
     // Whatever else shares the rule, the Homepage Cloud mark is painted product blue.

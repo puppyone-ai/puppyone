@@ -28,7 +28,9 @@ export type ProjectPlaceMenuProps = Readonly<{
 
 /**
  * Where the open project is, in the Header, and the one thing to do about it:
- * put a folder in the Cloud, or open the other project of a linked pair.
+ * put a folder in the Cloud, or open the other project of a linked pair. The
+ * mark says which kind of place it is, so the words say where: the folder that
+ * holds a local project, or the organization that holds a Cloud project.
  */
 export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
   projectMenuOpen?: boolean;
@@ -38,17 +40,20 @@ export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = fals
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const placeLabel = useProjectPlaceLabel(menu.place);
+  const address = menu.address;
   useEffect(() => { if (projectMenuOpen) setOpen(false); }, [projectMenuOpen]);
   return <div className="desktop-titlebar-place-wrap">
     <button ref={anchor} type="button" className="desktop-titlebar-place-button"
       data-project-place={menu.place} data-place-action={menu.action?.kind}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={`${placeLabel}, ${t("cloud.placeMenu.label")}`}
+      aria-label={[placeLabel, address?.full, t("cloud.placeMenu.label")].filter(Boolean).join(", ")}
       onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}>
       <span className="desktop-titlebar-workspace-mark" aria-hidden="true">
         {menu.place === "cloud" ? <CloudIcon size={16} strokeWidth={1.75} /> : <LocalIcon size={16} strokeWidth={1.75} />}
       </span>
-      <span>{placeLabel}</span>
+      {address
+        ? <span className="desktop-titlebar-place-address"><PlaceAddress place={menu.place} text={address.short} /></span>
+        : <span>{placeLabel}</span>}
     </button>
     <DesktopTitlebarMenuLayer anchorRef={anchor} open={open} onDismiss={() => setOpen(false)}
       dismissOnFocusExit={false} className="desktop-project-place-menu" gap={2}
@@ -75,7 +80,8 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
       icon={<span className="desktop-project-place-mark" aria-hidden="true">
         {menu.place === "cloud" ? <CloudIcon size={15} strokeWidth={1.75} /> : <LocalIcon size={15} strokeWidth={1.75} />}
       </span>}
-      label={placeLabel} trailing={<Check size={14} aria-hidden="true" />} />
+      label={placeLabel} detail={menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined}
+      trailing={<Check size={14} aria-hidden="true" />} />
     {menu.action && <>
       <DesktopMenuSeparator />
       <ProjectPlaceActionRow action={menu.action} handlers={handlers} onDismiss={onDismiss} />
@@ -139,6 +145,11 @@ function useProjectPlaceActionRow(action: ProjectPlaceAction, handlers: ProjectP
         label: t(`cloud.placeMenu.openFolder.${device}`), detail: bidiIsolate(action.name),
         run: () => handlers.onOpenLocalFolder(action.path) };
   }
+}
+
+/** A folder path always reads left to right; an organization's name follows its own script. */
+function PlaceAddress({ place, text }: { place: ProjectPlaceMenu["place"]; text: string }) {
+  return place === "local" ? <bdi dir="ltr">{text}</bdi> : <bdi>{text}</bdi>;
 }
 
 function useProjectPlaceLabel(place: "local" | "cloud") {

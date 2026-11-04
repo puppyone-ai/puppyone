@@ -1,5 +1,5 @@
 import { useDesktopPreference, useDesktopAppearance } from "../features/settings";
-import { resolveProjectPlaceMenu } from "../features/app-shell/project-place/projectPlaceMenuState";
+import { cloudProjectAddress, resolveProjectPlaceMenu } from "../features/app-shell/project-place/projectPlaceMenuState";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
 import type { ProjectShell } from "../components/ProjectShell";
@@ -63,14 +63,16 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 }
 
 /** A Cloud project is its own project; a folder linked to it is another one. */
-function hostedPlaceMenu({ projectId, projectItems, sidebar, onSelectProject }: {
+function hostedPlaceMenu({ projectId, organizationName, projectItems, sidebar, onSelectProject }: {
   projectId: string | null | undefined;
+  organizationName: string | null | undefined;
   projectItems: readonly ProjectHomeItem[];
   sidebar: CloudWorkspaceSidebarController;
   onSelectProject: (path: string) => void;
 }) {
   const linkedFolder = projectItems.find((item) => item.localPath && item.linkedCloudProject?.id === projectId);
-  return { menu: resolveProjectPlaceMenu({ place: "cloud", unhosted: false, publishPending: false, notice: null,
+  return { menu: resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress(organizationName),
+    unhosted: false, publishPending: false, notice: null,
     missingReplaceable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
   handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
     onOpenLocalFolder: (path: string) => onSelectProject(path),
@@ -79,12 +81,14 @@ function hostedPlaceMenu({ projectId, projectItems, sidebar, onSelectProject }: 
 
 /** Cloud project surface used when no local folder is open. With a local folder
  * open, the retained local shell embeds the presentation above instead. */
-export function AccountCloudWorkspaceSurface({ opening, workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
+export function AccountCloudWorkspaceSurface({ opening, workbench, presentation, active, organizationName, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   /** Another project on its way into this window: its name and its wait. */
   opening?: ProjectWindowOpening & Readonly<{ projectName: string }>;
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
+  /** The organization that holds this Cloud project, once known; the Header states it as the project's place. */
+  organizationName?: string | null;
   agent?: ReturnType<typeof useCloudAgentWorkspace>;
   sidebar?: CloudWorkspaceSidebarController;
   appearance: ResolvedSurfaceAppearance;
@@ -115,7 +119,7 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
-  const placeMenu = hostedPlaceMenu({ projectId: service.workspace.projectId, projectItems, sidebar, onSelectProject });
+  const placeMenu = hostedPlaceMenu({ projectId: service.workspace.projectId, organizationName, projectItems, sidebar, onSelectProject });
   // The rail states the Project it is switching between, so the hosted Header
   // repeats neither the name nor the place while the rail is present.
   const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}

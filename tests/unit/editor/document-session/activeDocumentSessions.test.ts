@@ -1,10 +1,103 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  discardActiveDocumentSessions,
   flushActiveDocumentSessions,
+  hasUnsavedDocumentSessions,
   registerActiveDocumentSession,
+  subscribeUnsavedDocumentSessions,
 } from "../../../../src/shared-ui/editor/document-session/activeDocumentSessions";
 import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
 import type { DocumentEditingSessionHandle } from "../../../../src/shared-ui/editor/document-session/types";
+import type { DocumentPersistenceRequest } from "../../../../src/shared-ui/core/types";
+
+describe("unsaved documents in a window", () => {
+  function editableSession(
+    persist = vi.fn(async (_request: DocumentPersistenceRequest) => ({ ok: true as const, version: "next" })),
+  ) {
+    const session = new DocumentEditingSession({
+      documentId: "notes.md",
+      initialContent: "saved",
+      initialVersion: "base",
+      saveMode: "manual",
+      persistence: { kind: "local-fs", storageIdentity: "test", persist },
+    });
+    let content = "saved";
+    let revision = 0;
+    session.attachSource({
+      readSnapshot: () => ({ content, revision: String(revision) }),
+      replaceContent: (next: string) => {
+        content = next;
+        return { content, revision: String(revision) };
+      },
+    });
+    const type = (next: string) => {
+      content = next;
+      revision += 1;
+      session.reportRevision({ revision: String(revision), origin: "local-edit" });
+    };
+    return { session, persist, type };
+  }
+
+  it("reports when a window starts and stops holding unsaved edits", async () => {
+    const { session, type } = editableSession();
+    const listener = vi.fn();
+    const stopListening = subscribeUnsavedDocumentSessions(listener);
+    const unregister = registerActiveDocumentSession(session);
+
+    try {
+      expect(hasUnsavedDocumentSessions()).toBe(false);
+      type("edited");
+      expect(hasUnsavedDocumentSessions()).toBe(true);
+      expect(listener).toHaveBeenLastCalledWith(true);
+
+      await session.requestSave();
+      expect(hasUnsavedDocumentSessions()).toBe(false);
+      expect(listener).toHaveBeenLastCalledWith(false);
+      expect(listener).toHaveBeenCalledTimes(2);
+    } finally {
+      stopListening();
+      unregister();
+      await Promise.resolve();
+    }
+  });
+
+  it("writes nothing after a host gives up its edits", async () => {
+    const { session, persist, type } = editableSession();
+    const unregister = registerActiveDocumentSession(session);
+
+    try {
+      type("edited");
+      discardActiveDocumentSessions();
+      expect(hasUnsavedDocumentSessions()).toBe(false);
+
+      await flushActiveDocumentSessions("app-close");
+      await session.requestSave();
+      type("typed while closing");
+      await flushActiveDocumentSessions("app-close");
+
+      expect(persist).not.toHaveBeenCalled();
+      expect(session.hasUnpersistedChanges()).toBe(false);
+    } finally {
+      unregister();
+      await Promise.resolve();
+    }
+  });
+
+  it("still flushes edits when a host does not give them up", async () => {
+    const { session, persist, type } = editableSession();
+    const unregister = registerActiveDocumentSession(session);
+
+    try {
+      type("edited");
+      await flushActiveDocumentSessions("app-close");
+      expect(persist).toHaveBeenCalledOnce();
+      expect(persist.mock.lastCall?.[0]).toMatchObject({ content: "edited" });
+    } finally {
+      unregister();
+      await Promise.resolve();
+    }
+  });
+});
 
 describe("active Document Session registry", () => {
   it("drains every registered session and forgets unmounted sessions", async () => {
@@ -113,6 +206,7 @@ function mockSession(
     dispose: vi.fn(),
     flushCurrent: vi.fn(flush),
     hasUnpersistedChanges: () => false,
+    subscribe: () => () => undefined,
   } as unknown as DocumentEditingSessionHandle;
 }
 

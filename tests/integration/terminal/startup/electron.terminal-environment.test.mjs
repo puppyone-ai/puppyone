@@ -142,6 +142,22 @@ describe("Desktop Terminal environment boundary", () => {
     expect(environment.HOME).toBe("/Users/test");
   });
 
+  it("names the PuppyOne that hosts the terminal, never an inherited one", () => {
+    const environment = buildTerminalEnvironment({
+      HOME: "/Users/test",
+      PUPPYONE_CLI_ENDPOINT: "/inherited/control.sock",
+      PUPPYONE_APP_PATH: "/Applications/Other.app",
+    }, {
+      appVersion: "test",
+      platform: "darwin",
+      hostEnvironment: { PUPPYONE_CLI_ENDPOINT: "/host/cli/control.sock", PUPPYONE_APP_PATH: "", UNRELATED: "x" },
+    });
+
+    expect(environment.PUPPYONE_CLI_ENDPOINT).toBe("/host/cli/control.sock");
+    expect(environment.PUPPYONE_APP_PATH).toBeUndefined();
+    expect(environment.UNRELATED).toBeUndefined();
+  });
+
   it("preserves Conda state for a non-login shell while still removing npm process metadata", () => {
     const environment = buildTerminalEnvironment({
       PATH: "/opt/anaconda3/envs/project/bin:/usr/bin",

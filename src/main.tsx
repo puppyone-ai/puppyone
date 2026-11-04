@@ -4,19 +4,20 @@ import "./styles.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import {
+  discardActiveDocumentSessions,
   flushActiveDocumentSessions,
   retireEditorTasks,
   holdEditorRuntimeAdmission,
   reconcilePendingDocumentOperations,
 } from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
-import { App } from "./App";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
 import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
+import { holdInert } from "./lib/inertHold";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
 import { installNativeTitleSuppression } from "./lib/nativeTitleSuppression";
 import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
@@ -30,17 +31,19 @@ if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 let activeCloseRequestId: string | null = null;
 let releaseRuntimeAdmission: (() => void) | null = null;
 let previouslyFocusedElement: HTMLElement | null = null;
+let releaseCloseInteractionBarrier: (() => void) | null = null;
 const setCloseInteractionBarrier = (locked: boolean) => {
   if (locked) {
     releaseRuntimeAdmission ??= holdEditorRuntimeAdmission();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    rootElement.inert = true;
+    releaseCloseInteractionBarrier ??= holdInert(rootElement);
     rootElement.setAttribute("aria-busy", "true");
     return;
   }
-  rootElement.inert = false;
+  releaseCloseInteractionBarrier?.();
+  releaseCloseInteractionBarrier = null;
   releaseRuntimeAdmission?.();
   releaseRuntimeAdmission = null;
   rootElement.removeAttribute("aria-busy");
@@ -50,7 +53,7 @@ const setCloseInteractionBarrier = (locked: boolean) => {
 };
 
 const stopDocumentSessionFlushListener = window.puppyoneDesktop
-  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason }) => {
+  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason, discard }) => {
     const closesWindow = reason === "app-close";
     if (closesWindow) {
       activeCloseRequestId = requestId;
@@ -58,6 +61,7 @@ const stopDocumentSessionFlushListener = window.puppyoneDesktop
     }
     try {
       if (closesWindow) await reconcilePendingDocumentOperations();
+      if (discard) discardActiveDocumentSessions();
       await flushActiveDocumentSessions(reason);
       if (closesWindow) await retireEditorTasks();
     } catch (error) {
@@ -147,6 +151,20 @@ const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
   }],
 ]);
 
+/** The window's mode is fixed at creation. This is the only place that reads it. */
+async function loadApplicationSurface() {
+  const Root = window.location.hash === "#file-mode"
+    ? (await import("./app/FileModeApp")).FileModeApp
+    : (await import("./App")).App;
+  return (
+    <TypographyCatalogProvider>
+      <FeatureFlagsProvider>
+        <Root />
+      </FeatureFlagsProvider>
+    </TypographyCatalogProvider>
+  );
+}
+
 async function renderApplication() {
   const [localization, platformCapabilities] = await Promise.all([
     bootstrapRendererLocalization(),
@@ -158,13 +176,7 @@ async function renderApplication() {
     delete document.documentElement.dataset.desktopPlatform;
   }
   const loadSmokeSurface = smokeSurfaces.get(window.location.hash);
-  const surface = loadSmokeSurface ? await loadSmokeSurface() : (
-    <TypographyCatalogProvider>
-      <FeatureFlagsProvider>
-        <App />
-      </FeatureFlagsProvider>
-    </TypographyCatalogProvider>
-  );
+  const surface = loadSmokeSurface ? await loadSmokeSurface() : await loadApplicationSurface();
 
   root.render(
     <React.StrictMode>

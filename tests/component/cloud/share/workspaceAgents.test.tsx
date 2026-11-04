@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveWorkspaceAgents, useWorkspaceAgents, workspaceAgentStatus,
   type WorkspaceAgent } from "../../../../src/features/cloud/share/useWorkspaceAgents";
 import { cloudApiRequest, type DesktopCloudSession } from "../../../../src/lib/cloudApi";
-import type { AgentSession, ConnectedAgent } from "../../../../src/features/cloud/share/agentLinks";
+import type { AgentRequest, AgentSession, ConnectedAgent } from "../../../../src/features/cloud/share/agentLinks";
 import { useLocalization } from "@puppyone/localization/react";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -18,6 +18,8 @@ const now = Date.parse("2026-10-30T12:00:00Z");
 const at = (secondsAgo: number) => new Date(now - secondsAgo * 1000).toISOString();
 const agent: ConnectedAgent = { id: "c1", name: "秘书小陈", admission: "sign_in", grant_id: "g1",
   connected_at: at(9000), expires_at: "2026-11-29T00:00:00Z" };
+const request: AgentRequest = { id: "r1", name: "Claude Code", admission: "sign_in",
+  requested_at: "2026-11-03T00:00:00Z", expires_at: "2026-11-03T00:10:00Z" };
 const closed = (grant: string, secondsAgo: number, length = 1): AgentSession => ({ grant_id: grant, state: "closed",
   created_at: at(secondsAgo + length), closed_at: at(secondsAgo), lease_until: at(secondsAgo - 30) });
 const one = (sessions: readonly AgentSession[] | null) => resolveWorkspaceAgents([agent], sessions, now)[0];
@@ -47,6 +49,32 @@ describe("What the Header says about an Agent", () => {
   });
 });
 
+describe("What the Header says about an Agent on a server that reports commands", () => {
+  // One connection stays open for half an hour; being on it is not being at work.
+  const connection = (running: number, lastSecondsAgo: number | null): AgentSession => ({
+    grant_id: "g1", state: "active", created_at: at(1500), closed_at: null, lease_until: at(-30),
+    commands_running: running, last_command_at: lastSecondsAgo === null ? null : at(lastSecondsAgo),
+  });
+  it("is not at work while connected with nothing running", () => {
+    expect(one([connection(0, null)])).toMatchObject({ active: false, lastActiveAt: null });
+    expect(one([connection(0, 900)])).toMatchObject({ active: false, lastActiveAt: at(900) });
+  });
+  it("is at work while a command runs, however long ago it started", () => {
+    expect(one([connection(1, 900)]).active).toBe(true);
+  });
+  it("stays at work through the pause between one command and the next", () => {
+    expect(one([connection(0, 40)]).active).toBe(true);
+  });
+  it("is not at work on a connection whose lease ran out, even with a command recorded as running", () => {
+    const lapsed = { ...connection(1, 3900), lease_until: at(3800) };
+    expect(one([lapsed]).active).toBe(false);
+  });
+  it("remembers the last command, not when the connection opened", () => {
+    const closedConnection = { ...connection(0, 700), state: "closed" as const, closed_at: at(60) };
+    expect(one([closedConnection])).toMatchObject({ active: false, lastActiveAt: at(700) });
+  });
+});
+
 function Status({ value }: { value: WorkspaceAgent }) {
   return <output>{workspaceAgentStatus(value, useLocalization()) ?? "unknown"}</output>;
 }
@@ -59,32 +87,35 @@ describe("How the status reads", () => {
     return host.textContent;
   };
   afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); });
-  it("says active, when it was last active, or nothing recent, and stays silent when unknown", async () => {
-    expect(await read({ ...agent, active: true, lastActiveAt: null, activityKnown: true })).toBe("Active now");
-    expect(await read({ ...agent, active: false, lastActiveAt: new Date(Date.now() - 300_000).toISOString(), activityKnown: true })).toContain("Last active 5 minutes ago");
-    expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: true })).toBe("No recent activity");
+  it("says working now, when it last worked, or no recent work, and stays silent when unknown", async () => {
+    expect(await read({ ...agent, active: true, lastActiveAt: null, activityKnown: true })).toBe("Working now");
+    expect(await read({ ...agent, active: false, lastActiveAt: new Date(Date.now() - 300_000).toISOString(), activityKnown: true })).toContain("Last worked 5 minutes ago");
+    expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: true })).toBe("No recent work");
     expect(await read({ ...agent, active: false, lastActiveAt: null, activityKnown: false })).toBe("unknown");
   });
 });
 
 describe("Keeping the Header current", () => {
-  let root: Root; let seen: readonly WorkspaceAgent[]; let refresh: () => Promise<void>;
-  let connections: ConnectedAgent[]; let listError: Error | null; let sessionsError: Error | null; let visibility: DocumentVisibilityState;
+  let root: Root; let seen: readonly WorkspaceAgent[]; let asking: readonly AgentRequest[]; let refresh: () => Promise<void>;
+  let connections: ConnectedAgent[]; let pending: AgentRequest[] | undefined;
+  let listError: Error | null; let sessionsError: Error | null; let visibility: DocumentVisibilityState;
   const listCalls = () => vi.mocked(cloudApiRequest).mock.calls.filter(([path]) => String(path).endsWith("/agent-links")).length;
-  function Probe({ target }: { target: Parameters<typeof useWorkspaceAgents>[0] }) {
-    const value = useWorkspaceAgents(target); seen = value.agents; refresh = value.refresh; return null;
+  function Probe({ target, waiting }: { target: Parameters<typeof useWorkspaceAgents>[0]; waiting?: boolean }) {
+    const value = useWorkspaceAgents(target, { waiting });
+    seen = value.agents; asking = value.requests; refresh = value.refresh; return null;
   }
-  const mount = async (target: Parameters<typeof useWorkspaceAgents>[0] = { session, projectId: "p", apiBaseUrl: API }) => {
-    await act(async () => root.render(<Probe target={target} />));
+  const mount = async (target: Parameters<typeof useWorkspaceAgents>[0] = { session, projectId: "p", apiBaseUrl: API },
+    waiting = false) => {
+    await act(async () => root.render(<Probe target={target} waiting={waiting} />));
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   };
   const tick = async (ms = 10_000) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
-    connections = [agent]; listError = null; sessionsError = null; visibility = "visible";
+    connections = [agent]; pending = undefined; listError = null; sessionsError = null; visibility = "visible";
     vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility);
     vi.mocked(cloudApiRequest).mockImplementation(async path => {
-      if (String(path).endsWith("/agent-links")) { if (listError) throw listError; return { links: [], connections }; }
+      if (String(path).endsWith("/agent-links")) { if (listError) throw listError; return { links: [], connections, pending }; }
       if (sessionsError) throw sessionsError;
       return [];
     });
@@ -96,6 +127,23 @@ describe("Keeping the Header current", () => {
     connections = []; await mount(); expect(seen).toEqual([]);
     connections = [agent]; await tick(); expect(seen.map(item => item.name)).toEqual(["秘书小陈"]);
     connections = []; await tick(); expect(seen).toEqual([]);
+  });
+  it("lists the Agents asking to join, and none from a server that predates them", async () => {
+    await mount(); expect(asking).toEqual([]);
+    pending = [request]; await tick(); expect(asking.map(item => item.name)).toEqual(["Claude Code"]);
+    pending = []; await tick(); expect(asking).toEqual([]);
+  });
+  it("asks about every three seconds while someone waits on an Agent, and returns to ten after", async () => {
+    await mount(undefined, true);
+    let calls = listCalls(); await tick(3_000); expect(listCalls()).toBe(calls + 1);
+    await mount(undefined, false);
+    calls = listCalls(); await tick(3_000); expect(listCalls()).toBe(calls);
+    await tick(7_000); expect(listCalls()).toBe(calls + 1);
+  });
+  it("forgets who asked once the server says this person is not the owner", async () => {
+    pending = [request]; await mount(); expect(asking).toHaveLength(1);
+    listError = Object.assign(new Error("denied"), { status: 403 }); await tick();
+    expect(asking).toEqual([]);
   });
   it("updates at once when asked, without waiting for the next poll", async () => {
     await mount(); connections = [];

@@ -37,41 +37,8 @@
   color: var(--desktop-titlebar-text);
 }
 
-/* Cloud identity belongs to the existing Header, without framing the workspace. */
-.desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-cloud-header-bg);
-  --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
-}
-
-/* Reveal the requested Cloud color under stationary text and controls. The
- * layer mounts once on entry and survives the subsequent provider commit. */
-.desktop-cloud-header-reveal {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background: var(--po-header);
-  pointer-events: none;
-}
-
-/* Expand the Cloud color from just right of center near the Header's bottom.
- * The circle stays clipped to the Header under stationary text and controls. */
-.desktop-cloud-header-reveal::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--po-cloud-header-bg);
-  animation: desktop-cloud-header-expand 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-@keyframes desktop-cloud-header-expand {
-  from { clip-path: circle(4px at 60% 85%); }
-  to { clip-path: circle(100% at 60% 85%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .desktop-cloud-header-reveal { display: none; }
-  .desktop-cloud-header-reveal::after { animation: none; }
-}
+/* A Cloud project keeps the theme's own Header. Its place mark, not the
+ * Header surface, carries the product blue (see project-place.css). */
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
  * needs space for macOS traffic lights inside the renderer titlebar. */
@@ -264,15 +231,6 @@
 .desktop-titlebar-context-item svg {
   flex: 0 0 auto;
   color: var(--desktop-titlebar-text-muted);
-}
-
-.desktop-titlebar-context-mark {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
 }
 
 .desktop-titlebar-context-name {
@@ -599,14 +557,18 @@
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
-/* The Agents stay beside Share, on the editor's side of the boundary. */
+/* The Agents stay on the editor's side of the boundary, beside Share where it is shown. */
 .desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
   position: absolute;
+  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"] [data-share-people] .desktop-titlebar-cloud-agents-anchor {
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px + var(--desktop-chrome-control-size));
 }
 
 .desktop-shell[data-header-follows-right-sidebar="true"]
-  .desktop-titlebar-share + .desktop-titlebar-action-divider {
+  :is(.desktop-titlebar-share, .desktop-titlebar-cloud-agents-anchor) + .desktop-titlebar-action-divider {
   position: absolute;
   inset-inline-start: 0;
   margin-inline: 0;
@@ -651,7 +613,9 @@
 }
 
 /* The Agents stand apart from Share: they are who is here, Share is something
-   to do. Each mark is its own round button, so pressing one asks about it. */
+   to do. Whoever is live (asking to join, or at work) is its own round button
+   at the front of the row; the Agents at rest are one stacked button after a
+   gap. Any of them opens the same list. */
 .desktop-titlebar-cloud-agents-anchor {
   display: inline-flex;
   flex: 0 0 auto;
@@ -662,38 +626,142 @@
 .desktop-titlebar-cloud-agents {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
 
+/* A mark is its button's own circle. The button draws no ground of its own,
+   so nothing rings a smaller circle inside it: hovering or opening one
+   brightens the mark itself. */
 .desktop-titlebar-cloud-agent {
   appearance: none;
-  display: grid;
-  width: var(--po-control-size-compact);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: var(--po-control-size-compact);
   height: var(--po-control-size-compact);
   padding: 0;
-  place-items: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: transparent;
   color: var(--desktop-titlebar-text-muted);
-  transition: background 0.12s ease;
-}
-
-.desktop-titlebar-cloud-agent:hover,
-.desktop-titlebar-cloud-agent[aria-expanded="true"] {
-  background: var(--desktop-titlebar-hover);
 }
 
 .desktop-titlebar-cloud-agent:focus-visible {
   outline: 1px solid var(--desktop-titlebar-focus);
-  outline-offset: -1px;
+  outline-offset: 1px;
 }
 
-/* Not stacked, so nothing has to be covered: at rest a mark is only its outline. */
+/* At rest a mark is a soft disc with no edge, an occupied seat where the
+   invite's empty one is only a dashed edge. It is opaque over the Header's own
+   colour, so a mark stacked in front covers the one behind it. Only what is
+   drawn in it goes grey; greying the disc too would take the Header's tint
+   out of its fill. */
 .desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
-  --reach-mark-fill: transparent;
-  box-shadow: inset 0 0 0 1px var(--reach-mark-outline);
+  --reach-mark-fill: color-mix(in srgb, currentColor 14%, var(--reach-mark-ground));
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) > :is(img, svg) {
   filter: grayscale(1);
+}
+
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: color-mix(in srgb, currentColor 26%, var(--reach-mark-ground));
+  color: var(--desktop-titlebar-text);
+}
+
+/* A working mark is already filled, so being pointed at or opened firms its edge. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-activity] {
+  --reach-mark-outline: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+/* A sleeping creature comes to its full colour while it is pointed at or opened. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-creature] > svg {
+  filter: none;
+}
+
+/* At rest, stacked like a pile of tokens: the first in front, each one behind
+   showing only its edge past a ring of the Header's colour. The stack does not
+   fan out; the list is where they are told apart. */
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) {
+  box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+}
+
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark + .desktop-project-reach-mark {
+  margin-inline-start: calc(var(--po-control-size-compact) * -0.72);
+}
+
+.desktop-titlebar-cloud-agent-stack > :nth-child(1) { z-index: 3; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(2) { z-index: 2; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(3) { z-index: 1; }
+
+.desktop-titlebar-cloud-agent-count {
+  margin-inline: 5px 2px;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-titlebar-cloud-agent-stack:is(:hover, [aria-expanded="true"]) .desktop-titlebar-cloud-agent-count {
+  color: var(--desktop-titlebar-text);
+}
+
+/* Asking to join: in its own colours behind a dashed edge, with the accent
+   where a working mark carries its lamp, because only the owner can answer. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark {
+  --reach-mark-fill: transparent;
+  box-shadow: none;
+  border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
+  color: var(--desktop-titlebar-text);
+  filter: none;
+}
+
+/* A creature asking to join waits inside the dashed edge, not across it. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark[data-reach-creature] > svg {
+  width: 68%;
+  height: 68%;
+}
+
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -2px;
+  inset-inline-end: -2px;
+  box-sizing: content-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--desktop-titlebar-bg);
+  border-radius: 50%;
+  background: var(--po-accent);
+}
+
+/* An empty seat, shown only while nobody is here: the first Agent invited takes
+   it. Like a mark, it is the whole button. */
+.desktop-titlebar-cloud-agent-seat {
+  display: grid;
+  box-sizing: border-box;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 50%;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) .desktop-titlebar-cloud-agent-seat {
+  border-color: color-mix(in srgb, currentColor 70%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Holding the seat's place while the server says whether this person may invite. */
+.desktop-titlebar-cloud-agent-invite:disabled {
+  background: transparent;
+  cursor: default;
+  opacity: 0.7;
 }
 
 .desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {
@@ -702,6 +770,87 @@
 
 .desktop-titlebar-cloud-agent:nth-child(3) .desktop-project-reach-mark[data-reach-activity] {
   animation-delay: 520ms;
+}
+
+/* An Agent's card under its Header mark, as a person's card reads in Notion:
+ * when it last worked across the top, then the Agent and how it got in. It
+ * only reads, so it never takes the pointer. */
+.desktop-cloud-agent-card {
+  --reach-mark-ground: var(--po-menu-bg, var(--po-overlay));
+  position: fixed;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--po-menu-border, var(--po-shell-divider));
+  border-radius: 12px;
+  background: var(--po-menu-bg, var(--po-overlay));
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--po-shadow) 35%, transparent),
+    0 12px 32px -6px color-mix(in srgb, var(--po-shadow) 60%, transparent);
+  color: var(--po-text);
+  pointer-events: none;
+}
+
+.desktop-cloud-agent-card-when {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--po-shell-divider);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 16px;
+}
+
+.desktop-cloud-agent-card[data-live] .desktop-cloud-agent-card-when {
+  color: var(--po-text);
+}
+
+.desktop-cloud-agent-card[data-live] .desktop-cloud-agent-card-when::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--po-success);
+}
+
+.desktop-cloud-agent-card-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+}
+
+.desktop-cloud-agent-card-who .desktop-project-reach-mark,
+.desktop-cloud-agent-card-who .desktop-project-reach-mark::before {
+  flex: none;
+  animation: none;
+}
+
+.desktop-cloud-agent-card-facts {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.desktop-cloud-agent-card-name {
+  overflow: hidden;
+  font-size: var(--po-type-ui-control, 14px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-cloud-agent-card-fact {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 17px;
+}
+
+.desktop-cloud-agent-card-fact + .desktop-cloud-agent-card-fact {
+  color: var(--po-text-subtle);
 }
 
 .desktop-titlebar-cloud-tool > svg {

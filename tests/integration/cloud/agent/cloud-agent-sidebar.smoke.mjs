@@ -172,7 +172,6 @@ async function exercise(mode) {
     await evaluate(hosted ? `${api}.setTheme('${theme}')` : `${api}.setLoginAppearance('${theme}', 'en')`);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await waitFor(`${rightPane}.dataset.panePresentation === 'expanded'`);
-    await waitFor("[...document.querySelectorAll('.desktop-cloud-header-reveal')].every(element => element.getAnimations({subtree:true}).every(animation => animation.playState === 'finished'))");
     const geometry = await evaluate(`(() => {
       const panel = document.querySelector('.desktop-cloud-agent-sidebar').getBoundingClientRect();
       const input = document.querySelector('.desktop-agent-composer').getBoundingClientRect();

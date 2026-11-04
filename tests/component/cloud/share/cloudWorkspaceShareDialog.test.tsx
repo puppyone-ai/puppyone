@@ -4,8 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceShareDialog } from "../../../../src/features/cloud/share/CloudWorkspaceShareDialog";
 import { writeClipboardText } from "../../../../src/lib/clipboard";
+import { cloudApiRequest } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
-import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { CloudWorkspaceShareResource } from "../../../../src/features/cloud/share/cloudWorkspaceShareResource";
 
 vi.mock("../../../../src/lib/cloudApi", () => ({
@@ -16,14 +16,13 @@ vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn().mo
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const projectId = "11111111-1111-4111-8111-111111111111";
 let root: Root | null = null;
-const invite = { session: { user_id: "alice" } as DesktopCloudSession, apiBaseUrl: "https://cloud-fixture.puppyone.ai/api/v1" };
-async function render(scopePath?: string, resource?: CloudWorkspaceShareResource | null, agentInvite?: typeof invite) {
+async function render(scopePath?: string, resource?: CloudWorkspaceShareResource | null) {
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   const onClose = vi.fn();
   await act(async () => root!.render(withTestLocalization(<CloudWorkspaceShareDialog anchor={anchor()}
     context={{ status: "resolved", projectId, projectName: "Research", scopePath,
       target: scopePath ? { kind: "scope", project_id: projectId, scope_id: "limited" } : { kind: "project_root", project_id: projectId } }}
-    resource={resource} agentInvite={agentInvite} onClose={onClose} />)));
+    resource={resource} onClose={onClose} />)));
   return onClose;
 }
 const anchor = () => { const button = document.createElement("button"); document.body.append(button); return { current: button }; };
@@ -68,21 +67,12 @@ describe("Cloud workspace link sharing", () => {
     await render("Research/Limited");
     expect(said()).toEqual([["Limited", "This folder"]]);
   });
-  it("has one way in for each kind of visitor, the Agent's first", async () => {
-    await render(undefined, { path: "AGENTS.md", directory: false }, invite);
-    expect([...document.querySelectorAll("h3")].map(node => node.textContent)).toEqual(["For agents", "For people"]);
-    expect(document.querySelector(".desktop-cloud-agent-prompt")?.textContent).toContain('"Research"');
-    expect(document.querySelectorAll(".desktop-cloud-workspace-share .po-button--primary")).toHaveLength(1);
-  });
-  it("offers only the link to someone who may not let an Agent in", async () => {
+  it("is for people only: an Agent is invited from its own card", async () => {
     await render(undefined, { path: "AGENTS.md", directory: false });
     expect([...document.querySelectorAll("h3")].map(node => node.textContent)).toEqual(["For people"]);
-    expect(document.querySelector(".desktop-cloud-agent-prompt")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-invite")).toBeNull();
     expect(document.querySelector(".desktop-cloud-workspace-share .po-button--primary")).toBeNull();
-  });
-  it("offers only the link in a scoped view, which an Agent cannot connect to", async () => {
-    await render("Research", undefined, invite);
-    expect(document.querySelector(".desktop-cloud-agent-prompt")).toBeNull();
+    expect(cloudApiRequest).not.toHaveBeenCalled();
   });
   it("copies the row that was pressed and says so only on that row", async () => {
     await render(undefined, { path: "AGENTS.md", directory: false });

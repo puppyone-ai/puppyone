@@ -50,6 +50,12 @@ import {
 } from "../desktop-agent-presence";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
+import {
+  ExplorerPinnedFiles,
+  explorerPinsStore,
+  getExplorerPinsProjectKey,
+  useExplorerPins,
+} from "../data-workspace";
 
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
@@ -187,6 +193,9 @@ export function DesktopDataWorkspaceSurface({
     ?? workspaceFolders[0]?.uri
     ?? null;
   const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
+  const pinsProjectKey = getExplorerPinsProjectKey(workspace, workspaceFolders);
+  const pins = useExplorerPins(pinsProjectKey);
+  const hasPins = pins.files.length > 0;
   const defaultExpandedWorkspaceRoots = useMemo(
     () => workspaceFolders.length > 1
       ? workspaceFolders.map((folder) => folder.uri)
@@ -215,6 +224,7 @@ export function DesktopDataWorkspaceSurface({
       className="desktop-data-workspace-wrap"
       data-cloud-native={documentSourceKind === "cloud" ? "true" : undefined}
       data-file-workbench="true"
+      data-explorer-pins={hasPins ? "true" : undefined}
       data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
         ? "bottom"
         : undefined}
@@ -300,6 +310,25 @@ export function DesktopDataWorkspaceSurface({
         onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
         explorerLoadingPresentation="skeleton"
+        explorerTreeCollapsed={hasPins && pins.filesCollapsed}
+        explorerPinnedSlot={hasPins
+          ? (
+              <ExplorerPinnedFiles
+                files={pins.files}
+                activePath={activeDocumentPath ?? activeExplorerPath}
+                filesCollapsed={pins.filesCollapsed}
+                fileIconTheme={fileIconTheme}
+                onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
+                onContextMenu={(file, event) => {
+                  if (!canChangeNodes) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onNodeActionMenu(file, getContextMenuAnchorRect(event), [file]);
+                }}
+                onFilesCollapsedChange={(collapsed) => explorerPinsStore.setFilesCollapsed(pinsProjectKey, collapsed)}
+              />
+            )
+          : undefined}
         // The New command follows the last row in a short tree and pins to the
         // sidebar's bottom edge once the tree overflows, so it stays reachable.
         explorerListEndPlacement="sticky"

@@ -185,6 +185,7 @@
   "html.source": "HTML source",
   "html.sourceUnavailable": "HTML source unavailable",
   "loadingFile": "Loading file…",
+  "fileMode.readOnlyEncoding": "This file isn't saved as UTF-8, so it opens read-only to keep its contents intact.",
   "loadingViewer": "Loading viewer…",
   "markdown.ai.added": "Added by Agent",
   "markdown.ai.beforeEdit": "Before Agent edit",

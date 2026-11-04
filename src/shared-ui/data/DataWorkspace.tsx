@@ -39,7 +39,7 @@ import {
   type MarkdownLinkGraphDocument,
   type MarkdownLinkGraphIndexSnapshot,
 } from "../editor/markdown/linkIndex";
-import { resolveMarkdownAssetPath } from "../editor/markdown/assetResolution";
+import { createDataPortMarkdownAssetResolver } from "../editor/markdown/dataPortAssetResolver";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
 import {
   ExplorerTree,
@@ -48,7 +48,6 @@ import {
   type ExplorerTreeProps,
 } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
-import { acquireFileResource } from "../editor/resource/FileResourcePool";
 import { useDocumentInput } from "../editor/resource/useDocumentInput";
 import { getDocumentInputRuntime, getEditorStorageIdentity, invalidateDocumentInputs } from "../editor/resource/DocumentInputRuntime";
 import { ProjectsHeader } from "./ProjectsHeader";
@@ -148,6 +147,10 @@ export type DataWorkspaceProps = {
   explorerListStartSlot?: DataWorkspaceSlot;
   explorerListEndSlot?: DataWorkspaceSlot;
   explorerListEndPlacement?: ExplorerListEndPlacement;
+  /** Sits above the file tree and stays put while the tree scrolls. */
+  explorerPinnedSlot?: DataWorkspaceSlot;
+  /** Folds the file tree away under the pinned slot; the tree keeps its state. */
+  explorerTreeCollapsed?: boolean;
   explorerLoadingPresentation?: ExplorerLoadingPresentation;
   showExplorerRoot?: boolean;
   explorerRootContentSlot?: DataWorkspaceSlot;
@@ -248,6 +251,8 @@ export function DataWorkspace({
   explorerListStartSlot,
   explorerListEndSlot,
   explorerListEndPlacement = "flow",
+  explorerPinnedSlot,
+  explorerTreeCollapsed = false,
   explorerLoadingPresentation = "dots",
   showExplorerRoot = true,
   explorerRootContentSlot,
@@ -957,18 +962,8 @@ export function DataWorkspace({
       markdownLinkMetadataDocuments,
     ],
   );
-  const markdownAssetUrlResolver = useCallback(
-    async (sourcePath: string, href: string, signal?: AbortSignal) => {
-      if (!dataPort.getFileUrl || signal?.aborted) return null;
-      const assetPath = resolveMarkdownAssetPath(sourcePath, href, workspace.path);
-      if (!assetPath) return null;
-
-      try {
-        return await acquireFileResource(dataPort, assetPath, { purpose: "markdown-asset" }, signal);
-      } catch {
-        return null;
-      }
-    },
+  const markdownAssetUrlResolver = useMemo(
+    () => createDataPortMarkdownAssetResolver(dataPort, workspace.path),
     [dataPort, workspace.path],
   );
   if (markdownAssetResolverRevisionRef.current.resolver !== markdownAssetUrlResolver) {
@@ -1269,12 +1264,21 @@ export function DataWorkspace({
                 </div>
               )
             )}
-            <div className="data-explorer-view-stack" data-view-mode={filesExplorerActive ? "files" : "custom"}>
+            {filesExplorerActive && explorerPinnedSlot && (
+              <div className="data-explorer-pinned">
+                {renderWorkspaceSlot(explorerPinnedSlot, workspaceState)}
+              </div>
+            )}
+            <div
+              className="data-explorer-view-stack"
+              data-view-mode={filesExplorerActive ? "files" : "custom"}
+              data-tree-collapsed={filesExplorerActive && explorerTreeCollapsed ? "true" : undefined}
+            >
               <div
                 className="data-explorer-view-frame"
                 data-view-mode="files"
                 data-active={filesExplorerActive ? "true" : "false"}
-                aria-hidden={filesExplorerActive ? undefined : true}
+                aria-hidden={filesExplorerActive && !explorerTreeCollapsed ? undefined : true}
               >
                 <ExplorerTree
                   nodes={explorerPresentationPending ? EMPTY_DATA_NODE_LIST : tree}

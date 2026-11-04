@@ -435,3 +435,147 @@
    provider participates in layout and native preview bounds. */
 .desktop-workspace-location-surface { display: contents; }
 .desktop-workspace-location-surface[hidden] { display: none; }
+
+/* Pinned files: compact tabs above the file tree, like pinned browser tabs.
+   They have no fill of their own: hover and the open file are marked exactly
+   as tree rows are. A chevron on a hairline under them folds the tree away;
+   it carries no title. */
+.desktop-data-workspace-wrap[data-explorer-pins="true"] {
+  /* The fold line already separates the pins from the first file. */
+  --po-tree-no-root-top-gap: 2px;
+}
+
+.desktop-explorer-pins {
+  /* The tree's own row fills, so a pin reads as a row and not a button. */
+  --desktop-explorer-pin-hover-bg: var(
+    --po-tree-row-hover-bg,
+    color-mix(in srgb, var(--po-hover) 86%, transparent)
+  );
+  --desktop-explorer-pin-selected-bg: var(
+    --po-tree-row-selected-bg,
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--po-selected) 96%, transparent) 0%,
+      color-mix(in srgb, var(--po-selected) 88%, transparent) calc(100% - 36px),
+      color-mix(in srgb, var(--po-selected) 62%, transparent) 100%
+    )
+  );
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: var(--desktop-sidebar-row-left-gap) 0;
+  padding-inline: var(--desktop-sidebar-row-left-gap) var(--desktop-sidebar-row-right-gap);
+}
+
+.desktop-explorer-pin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 4px;
+}
+
+.desktop-explorer-pin-item {
+  display: flex;
+  min-width: 0;
+}
+
+.desktop-explorer-pin {
+  display: flex;
+  align-items: center;
+  /* Same geometry and type as a tree row, so a pin's icon and name sit
+     exactly where a top-level row's do. */
+  gap: var(--desktop-sidebar-icon-label-gap, 4px);
+  width: 100%;
+  min-width: 0;
+  height: var(--desktop-sidebar-row-height);
+  box-sizing: border-box;
+  padding-inline:
+    var(--desktop-sidebar-row-content-left, 6px)
+    var(--desktop-sidebar-row-content-right, 6px);
+  border: 0;
+  border-radius: calc(var(--desktop-sidebar-row-radius) + 2px);
+  background: transparent;
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
+  font: inherit;
+  font-size: var(--po-type-left-sidebar-content, 14px);
+  font-weight: var(--desktop-sidebar-font-weight);
+  line-height: var(--po-type-left-sidebar-line-height, 19px);
+  text-align: start;
+  user-select: none;
+  outline: none;
+  cursor: var(--po-clickable-cursor, default);
+  transition: color var(--po-motion-fast, 120ms) ease;
+}
+
+.desktop-explorer-pin:hover,
+.desktop-explorer-pin[data-active="true"] {
+  background: var(--desktop-explorer-pin-hover-bg);
+  color: var(--po-text);
+}
+
+.desktop-explorer-pin[data-active="true"]:hover {
+  background: var(--desktop-explorer-pin-selected-bg);
+}
+
+.desktop-explorer-pin:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-explorer-pin-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-sidebar-icon-slot-size, 18px);
+  height: var(--desktop-sidebar-icon-slot-size, 18px);
+}
+
+.desktop-explorer-pin-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-explorer-files-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  box-sizing: border-box;
+  padding-inline: var(--desktop-sidebar-row-content-left, 6px) 0;
+  border: 0;
+  border-radius: var(--desktop-sidebar-row-radius);
+  background: transparent;
+  color: var(--desktop-sidebar-section-title-color, var(--po-text-subtle));
+  user-select: none;
+  outline: none;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.desktop-explorer-files-toggle:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-explorer-files-toggle-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-sidebar-icon-slot-size, 18px);
+  opacity: 0.5;
+  transition: opacity var(--po-motion-fast, 120ms) ease;
+}
+
+.desktop-explorer-files-toggle-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  margin-inline: 2px;
+  background: var(--po-sidebar-divider, var(--po-divider));
+}
+
+.desktop-explorer-files-toggle:hover .desktop-explorer-files-toggle-icon,
+.desktop-explorer-files-toggle:focus-visible .desktop-explorer-files-toggle-icon {
+  opacity: 1;
+}

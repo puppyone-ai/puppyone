@@ -31,7 +31,7 @@ const paneChromeSource = readFileSync(
   "utf8",
 );
 const paneActionsMenuSource = readFileSync(
-  new URL("../../../../src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx", import.meta.url),
+  new URL("../../../../src/components/EditorPaneActionsMenu.tsx", import.meta.url),
   "utf8",
 );
 const paneChromeRevealSource = readFileSync(
@@ -356,7 +356,9 @@ describe("editor split-pane architecture", () => {
     expect(paneChromeSource).not.toContain("consumeDraggedClick");
     expect(paneActionsMenuSource).toContain("<DesktopOverlayLayer>");
     expect(paneActionsMenuSource).toContain("useAnchoredOverlayPosition");
-    expect(paneActionsMenuSource).toContain('alignment: "center"');
+    // Project panes centre the menu under their handle; only a file window's title bar end-aligns it.
+    expect(paneActionsMenuSource).toContain('alignment = "center"');
+    expect(paneChromeSource).not.toContain("alignment=");
     expect(paneActionsMenuSource).toContain('placementPreference: "below"');
     expect(splitSource).not.toContain("key={layout.root.id}");
     expect(splitSource).toContain("key={split.first.id}");

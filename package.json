@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -71,6 +71,8 @@
     "package:windows:release": "npm run package:windows:prepared && node scripts/verify-packaged-desktop-build.mjs --target windows-x64",
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node tests/integration/workspace/files/local-api.smoke.mjs",
+    "smoke:file-mode": "electron tests/e2e/workspace/file-mode/file-mode.smoke.mjs",
+    "smoke:command-line-open": "electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs && electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs --scenario=failed-launch && electron tests/e2e/workspace/command-line-open/command-line-open.smoke.mjs --scenario=no-request",
     "smoke:format-aware-diff": "electron tests/integration/source-control/diff/format-aware-diff.smoke.mjs",
     "smoke:table-interaction": "electron tests/integration/editor/tables/table-interaction.smoke.mjs",
     "smoke:table-move-selection": "electron tests/integration/editor/tables/table-move-selection.smoke.mjs",
@@ -154,6 +156,7 @@
     "smoke:project-sidebar-stability": "electron tests/e2e/workspace/projects/project-sidebar-stability.smoke.mjs",
     "smoke:homepage-launch-mark": "electron tests/e2e/workspace/projects/homepage-launch-mark.smoke.mjs",
     "smoke:homepage-return-order": "electron tests/e2e/workspace/projects/homepage-return-order.smoke.mjs",
+    "smoke:homepage-interaction": "electron tests/e2e/workspace/projects/homepage-interaction.smoke.mjs",
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "pretest:core:coverage": "npm run build:native-templates",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",

@@ -35,10 +35,12 @@
   }
 }
 
+/* Fills the projects' area, so the mark sits at its centre rather than under the head. */
 .onboarding-project-list-wait {
   display: grid;
   width: 100%;
-  min-height: 240px;
+  height: 100%;
+  min-height: 0;
   place-items: center;
 }
 
@@ -94,8 +96,10 @@
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-launcher {
-  /* Short histories hug content; long histories shrink only the middle track. */
-  flex: 0 1 auto;
+  /* The projects' area runs from the head to the page's end, whatever the history's
+     length: a wait is centred in it, a dropped folder lands anywhere in it, and only
+     the list inside scrolls. */
+  flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -165,31 +169,7 @@
   text-wrap: balance;
 }
 
-/* The product's name in the Header, in the same muted ink as a project's name there,
-   with the mark at the Header's own size and in that ink, whatever the theme. */
-.desktop-titlebar .onboarding-header-mark {
-  display: block;
-  width: 18px;
-  max-width: 18px;
-  height: 18px;
-  filter: url("#onboarding-header-mark-ink");
-  pointer-events: none;
-}
-
-.onboarding-shell.dark .desktop-titlebar .onboarding-header-mark {
-  filter: url("#onboarding-header-mark-ink-fine");
-}
-
-.onboarding-header-mark-ink {
-  position: absolute;
-  width: 0;
-  height: 0;
-}
-
-.onboarding-header-mark-ink feFlood {
-  flood-color: var(--desktop-titlebar-text-muted);
-}
-
+/* The product's name in the Header, in the same muted ink as a project's name there. */
 .onboarding-header-brand {
   color: var(--desktop-titlebar-text-muted);
 }
@@ -429,8 +409,13 @@
   min-height: 0;
   align-content: start;
   gap: 2px;
+  margin: 0;
+  padding-inline: 0;
   padding-block: 8px;
+  list-style: none;
   overflow-y: auto;
+  /* The arrow keys scroll a project clear of the fades at either end. */
+  scroll-padding-block: 8px;
   overflow-x: hidden;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
@@ -466,7 +451,7 @@
 
 /* A local folder that has its own Cloud project is the quieter of the two
    entries: the Cloud project is where people and agents work. */
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
   color: var(--po-text-subtle);
 }
 
@@ -484,14 +469,14 @@
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
-.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-cloud-link,
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-cloud-link {
   opacity: 1;
   pointer-events: auto;
 }
 
 .onboarding-project-row-wrap:has(.onboarding-project-cloud-link):hover .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):focus-within .onboarding-project-row {
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):has(:focus-visible) .onboarding-project-row {
   padding-inline-end: 132px;
 }
 
@@ -581,9 +566,17 @@ span.homepage-cloud-feedback {
   opacity: 1;
 }
 
+/* Keyboard focus lights a project as hover does. Focus a pointer left behind, on a
+   tile it clicked or a button a dialog handed back to, must not stay lit after it. */
 .onboarding-project-row-wrap {
   position: relative;
   min-width: 0;
+}
+
+/* A dialog closing over a resting pointer uncovers a project nobody pointed at. The
+   rows wait, not the list, so that the wheel still scrolls it in the meantime. */
+:root[data-pointer-resting] .onboarding-project-row-wrap {
+  pointer-events: none;
 }
 
 .onboarding-project-actions {
@@ -597,7 +590,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-actions,
-.onboarding-project-row-wrap:focus-within .onboarding-project-actions,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-actions,
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-actions {
   opacity: 1;
   pointer-events: auto;
@@ -621,7 +614,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap:focus-within .onboarding-project-row:not(:disabled),
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-row:not(:disabled),
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-row {
   background: var(--po-hover);
   color: var(--po-text);
@@ -638,7 +631,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
-.onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
+.onboarding-project-row-wrap:has(:focus-visible) .desktop-menu-item-trailing,
 .onboarding-project-row-wrap[data-menu-open] .desktop-menu-item-trailing {
   opacity: 0;
 }
@@ -853,7 +846,7 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-sheet-ink);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-sheet {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-sheet {
   transform: translateY(-7px);
 }
 
@@ -877,11 +870,11 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-front);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-back {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-back {
   fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-front {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-front {
   fill: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
 }
 
@@ -929,7 +922,7 @@ span.homepage-cloud-feedback {
   outline-offset: -2px;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   color: var(--po-text);
 }
 
@@ -943,7 +936,7 @@ span.homepage-cloud-feedback {
   color: inherit;
 }
 
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile-name {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile-name {
   color: var(--po-text-subtle);
 }
 
@@ -975,7 +968,7 @@ span.homepage-cloud-feedback {
   text-align: center;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   background: var(--po-hover);
 }
 

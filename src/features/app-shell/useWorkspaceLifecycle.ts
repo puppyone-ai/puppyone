@@ -392,6 +392,7 @@ export function useWorkspaceLifecycle({
     onWorkspaceCleared();
   }, [onWorkspaceCleared, workspace?.id]);
 
+  const initialWorkspaceRequestRef = useRef<ReturnType<typeof getInitialWorkspace> | null>(null);
   useEffect(() => {
     let cancelled = false;
     const navigation = navigationRequestRef.current;
@@ -403,7 +404,9 @@ export function useWorkspaceLifecycle({
       if (!cancelled) setRestoringProject(project);
     }, () => undefined);
 
-    Promise.all([getInitialWorkspace(), getRecentWorkspaces()])
+    // The window's first document can be taken only once, and Strict Mode runs this effect twice.
+    initialWorkspaceRequestRef.current ??= getInitialWorkspace();
+    Promise.all([initialWorkspaceRequestRef.current, getRecentWorkspaces()])
       .then(([initialWorkspace, recentWorkspaces]) => {
         if (cancelled) return;
         setInitialCloudProject(initialWorkspace.initialCloudProject ?? null);

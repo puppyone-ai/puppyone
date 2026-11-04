@@ -3,11 +3,10 @@ import { Check, FileText } from "lucide-react";
 import { FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
-import { getDesktopCloudWebUrl, type DesktopCloudSession } from "../../../lib/cloudApi";
+import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { ProjectCloudContext } from "../project/context";
-import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
 import "./workspace-share.css";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
 
@@ -28,16 +27,14 @@ type ShareTarget = Readonly<{
 }>;
 
 /**
- * Share, as a card under the button that opens it, with one way in for each
- * kind of visitor: an Agent gets a prompt to paste, a person gets a link. Each
- * link's row names what it opens, so a file called anything still reads as a file.
+ * Share with people, as a card under the button that opens it: a link to what
+ * is open and one to the whole project. Each row names what it opens, so a file
+ * called anything still reads as a file. Agents are invited from their own card.
  */
-export function CloudWorkspaceShareDialog({ anchor, context, resource, agentInvite, onClose }: {
+export function CloudWorkspaceShareDialog({ anchor, context, resource, onClose }: {
   anchor: RefObject<HTMLElement | null>;
   context: ResolvedContext;
   resource?: CloudWorkspaceShareResource | null;
-  /** Present only for someone who may let an Agent in, which needs the whole project. */
-  agentInvite?: Readonly<{ session: DesktopCloudSession; apiBaseUrl: string; onChanged?: () => void }> | null;
   onClose: () => void;
 }) {
   const { t } = useLocalization();
@@ -53,9 +50,7 @@ export function CloudWorkspaceShareDialog({ anchor, context, resource, agentInvi
   const failed = status?.state === "failed" ? targets.find(target => target.id === status.target) : undefined;
   return <DesktopTitlebarMenuLayer anchorRef={anchor} open onDismiss={onClose} dismissOnFocusExit={false}
     className="desktop-cloud-workspace-share" gap={6} preferredWidth={380} preferredMaxHeight={560}
-    widthMode="fixed" alignment="end" role="dialog" ariaLabel={t("cloud.share.thisProject")}>
-    {agentInvite && context.target.kind === "project_root" && <CloudWorkspaceAgentInvite {...agentInvite}
-      projectId={context.projectId} projectName={context.projectName || context.projectId} />}
+    widthMode="fixed" alignment="center" role="dialog" ariaLabel={t("cloud.share.thisProject")}>
     <section className="desktop-cloud-share-people">
       <div className="desktop-cloud-share-heading">
         <h3>{t("cloud.share.people.title")}</h3>

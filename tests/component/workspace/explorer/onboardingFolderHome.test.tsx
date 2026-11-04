@@ -7,7 +7,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
-import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
 import {
@@ -214,7 +214,7 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
-    expect(projectActions.map((action) => action.textContent)).toEqual(["New empty project"]);
+    expect(projectActions.map((action) => action.textContent)).toEqual(["New project"]);
     expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(true);
     expect(projectActions[0]?.classList.contains("onboarding-entry-action-cta")).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
@@ -284,15 +284,14 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
   });
 
-  it("draws the Header's mark, name and avatar in the muted ink of a project's Header", () => {
+  it("names the product in the Header in words alone, in the muted ink of a project's Header", () => {
     expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
-    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text-muted\);/);
     expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
-    expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
-    expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
-    expect(onboardingCss).toMatch(/\.onboarding-shell\.dark \.desktop-titlebar \.onboarding-header-mark \{\s*filter: url\("#onboarding-header-mark-ink-fine"\);/);
+    expect(onboardingCss).not.toContain("onboarding-header-mark");
     const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
-    expect(container.querySelector(".onboarding-header-brand filter")?.id).toBe("onboarding-header-mark-ink");
+    const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand");
+    expect(brand?.textContent).toBe("puppyone");
+    expect(brand?.querySelector("img, svg")).toBeNull();
   });
 
   it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
@@ -346,9 +345,9 @@ describe("project folder home", () => {
     const list = container.querySelector<HTMLElement>(".onboarding-project-list");
     expect(list?.dataset.poScrollbar).toBe("menu");
     expect(list?.dataset.poScrollbarVisibility).toBe("always");
-    expect(list?.getAttribute("role")).toBe("region");
+    expect(list?.tagName).toBe("UL");
     expect(list?.getAttribute("aria-label")).toBe("Projects");
-    expect(list?.tabIndex).toBe(0);
+    expect(list?.hasAttribute("tabindex")).toBe(false);
   });
 
   it("lets the project scrollport use remaining height without fixed list caps", () => {
@@ -417,7 +416,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -1077,13 +1076,13 @@ const projectMenuItem = (label: string) => [...document.body.querySelectorAll<HT
   .find((item) => item.textContent === label);
 
 function renderHome(
-  overrides: Partial<Omit<MinimalOnboardingProps, "appearance">> & Pick<Partial<MinimalOnboardingProps>, "appearance"> = {},
+  overrides: Partial<Omit<HomeWithEntryFlowProps, "appearance">> & Pick<Partial<HomeWithEntryFlowProps>, "appearance"> = {},
   appearanceInput: Parameters<typeof createTestSurfaceAppearance>[0] = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  const props: MinimalOnboardingProps = {
+  const props: HomeWithEntryFlowProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
@@ -1094,7 +1093,7 @@ function renderHome(
   props.onListImportResources ??= vi.fn(async () => ({ items: [], nextCursor: null }));
   props.onCancelImportSource ??= vi.fn(async () => ({ cancelled: true }));
   props.onImportSourceProgress ??= vi.fn(() => () => undefined);
-  act(() => renderWithTestLocalization(root, React.createElement(MinimalOnboarding, props)));
+  act(() => renderWithTestLocalization(root, React.createElement(HomeWithEntryFlow, props)));
   return container;
 }
 
@@ -1106,13 +1105,15 @@ function expectBrandLockup(
   const lockup = container.querySelector(".onboarding-brand-lockup");
   const brand = state === "projects" ? container.querySelector(".desktop-titlebar .onboarding-header-brand") : lockup;
   const mark = brand?.querySelector<HTMLImageElement>("img");
-  expect(mark?.getAttribute("src")).toContain(state === "projects" ? PUPPY_BRAND_MARK_ASSETS.lite : expectedMarkAsset);
-  expect(mark?.getAttribute("alt")).toBe("");
   if (state === "projects") {
+    // The Header names the product without its mark.
+    expect(mark).toBeNull();
     expect(brand?.textContent).toBe("puppyone");
     expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
   } else {
+    expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
+    expect(mark?.getAttribute("alt")).toBe("");
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
   }
   expect(lockup?.querySelectorAll("p")).toHaveLength(0);

@@ -19,6 +19,7 @@ import { resolveLocalFolderCloudEntry, resolveLocalFolderCloudNotice } from "../
 import { MissingCloudProjectReplacement } from "../../features/cloud/project/MissingCloudProjectReplacement";
 import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { cloudProjectAddress, localProjectAddress } from "../../features/app-shell/project-place/projectPlaceMenuState";
 import { cloudMessage } from "../../features/cloud/cloudPresentation";
 import type { ProjectCloudContext } from "../../features/cloud/project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
@@ -42,7 +43,9 @@ initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeIte
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const localRoot = createWorkspaceRootUri("cloud-switch-fixture-local");
 const localPath = createWorkspaceResourceUri(localRoot, "readme.txt");
-const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/native-workspace", status: "recording" };
+const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/Documents/Clients/native-workspace", status: "recording" };
+/** The organization that holds the fixture's Cloud project, as the Header states it. */
+const FIXTURE_ORGANIZATION = "Fixture team";
 const localFolder: WorkspaceFolder = { id: localWorkspace.id, name: localWorkspace.name, uri: localRoot,
   index: 0, capabilities: { read: true, write: true, watch: false, execute: true }, trustState: "trusted", workspace: localWorkspace };
 const localNodes = [{ id: localPath, name: "readme.txt", path: localPath, type: "text" as const, source: "local" as const },
@@ -128,7 +131,19 @@ window.puppyoneDesktop = {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
-    if (operation === "agent-links") return { links: [], connections: [SMOKE_AGENT] };
+    if (operation === "agent-links" && agentLinksBarrier) await agentLinksBarrier;
+    if (operation === "agent-links") return request.method === "POST"
+      ? { agent_url: "https://cloud-fixture.puppyone.ai/agent/pai_smoke" }
+      : { links: [], ...agentLinks };
+    if (operation === "decision") {
+      const asked = agentLinks.pending.find(item => url.pathname.includes(item.id));
+      agentLinks = { pending: agentLinks.pending.filter(item => item !== asked),
+        connections: asked && body.decision === "approve"
+          ? [{ id: asked.id, name: asked.name, admission: asked.admission, grant_id: `grant-${asked.id}`,
+            connected_at: new Date().toISOString(), expires_at: "2099-01-01T00:00:00Z" }, ...agentLinks.connections]
+          : agentLinks.connections };
+      return { id: asked?.id, state: body.decision === "approve" ? "approved" : "rejected" };
+    }
     if (url.pathname.endsWith("/access/sessions")) return [SMOKE_AGENT_SESSION];
     if (operation === "repository-context") return cloudProjectMissing
       ? { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Project not found" } }
@@ -181,6 +196,9 @@ declare global {
     holdCloudRead: () => void;
     finishCloudRead: () => void;
     setCloudToolsAvailable: (available: boolean) => void;
+    setAgentLinks: (next: Partial<typeof agentLinks>) => void;
+    holdAgentLinks: () => void;
+    finishAgentLinks: () => void;
     setCloudSessionAvailable: (available: boolean) => void;
     setRepositoryLocalOnly: (localOnly: boolean) => void;
     setRepositoryWrongHost: (wrongHost: boolean) => void;
@@ -298,6 +316,9 @@ export function NativeCloudWorkbenchSmokeHarness() {
         workbench.refresh();
       },
       agentWrite: (path, content) => { cloudBytes.delete(path); cloudFiles.set(path, content); notifyWorkspace(); },
+      setAgentLinks: (next) => { agentLinks = { ...agentLinks, ...next }; },
+      holdAgentLinks: () => { agentLinksBarrier = new Promise(resolve => { releaseAgentLinks = resolve; }); },
+      finishAgentLinks: () => { releaseAgentLinks(); agentLinksBarrier = null; },
       edit: (target, text) => {
         const element = document.querySelector(`[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor`);
         const view = element ? EditorView.findFromDOM(element as HTMLElement) : null;
@@ -330,9 +351,11 @@ export function NativeCloudWorkbenchSmokeHarness() {
         projectItems={projectItems} {...smokeHeaderProject(location === "cloud" ? workbench.service : null)}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject}
-        placeMenu={location === "cloud" ? { menu: { place: "cloud", action: null }, handlers: { onPutInCloud: noop,
-          onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
-          ...(cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } } : null} />;
+        placeMenu={{ menu: location === "cloud"
+          ? { place: "cloud", address: cloudProjectAddress(FIXTURE_ORGANIZATION), action: null }
+          : { place: "local", address: localProjectAddress(localWorkspace.path), action: null },
+        handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
+          ...(location === "cloud" && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } }} />;
   const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
   const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
     onOpenCloudProject={openCloudProject} onSignIn={requestCloud}
@@ -444,8 +467,14 @@ function SmokeAgentSidebar({ location, agent, cloudSidebar, revisionKey, content
 
 const SMOKE_AGENT = { id: "smoke-agent", name: "Claude Code", admission: "sign_in", grant_id: "smoke-grant",
   connected_at: "2026-10-30T00:00:00Z", expires_at: "2099-01-01T00:00:00Z" };
+/** While held, the Agent list has not answered yet, as on a slow first load. */
+let agentLinksBarrier: Promise<void> | null = null;
+let releaseAgentLinks = () => {};
+/** Who the owner's Agent links list: Agents already here, and Agents asking to join. */
+let agentLinks: { connections: readonly unknown[]; pending: readonly { id: string; name: string; admission: string;
+  requested_at: string; expires_at: string }[] } = { connections: [SMOKE_AGENT], pending: [] };
 const SMOKE_AGENT_SESSION = { grant_id: "smoke-grant", state: "active", created_at: "2026-10-30T00:00:00Z",
-  closed_at: null, lease_until: "2099-01-01T00:00:00Z" };
+  closed_at: null, lease_until: "2099-01-01T00:00:00Z", commands_running: 1, last_command_at: "2026-10-30T00:00:00Z" };
 
 function cloudMetadataFixture(operation: string | undefined) {
     if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))

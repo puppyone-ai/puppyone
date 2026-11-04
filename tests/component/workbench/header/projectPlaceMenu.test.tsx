@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { resolveProjectReachState } from "../../../../src/features/app-shell/project-reach";
 import {
+  cloudProjectAddress,
+  localProjectAddress,
   resolveProjectPlaceMenu,
   type ProjectPlaceMenu,
 } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
@@ -125,6 +127,41 @@ describe("the Header place menu (ADR-001)", () => {
     expect(rows()).toEqual([["current", "Cloud project", null], ["open-local-folder", "Open folder on this Mac", "⁨One⁩"]]);
     click("open-local-folder");
     expect(handlers.onOpenLocalFolder).toHaveBeenCalledWith("/tmp/one");
+  });
+
+  it("states a local project by the folder that holds it, and a Cloud project by its organization", async () => {
+    await renderHeader(local({ unhosted: true, address: localProjectAddress("/Users/example/project/puppyone-qubits") }));
+    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
+    expect(button.textContent).toBe("~/project");
+    expect(button.querySelector("bdi")?.getAttribute("dir")).toBe("ltr");
+    // The words name the place; the kind of place stays in the accessible name and the menu.
+    expect(button.getAttribute("aria-label")).toBe("This Mac, ~/project/puppyone-qubits, Where this project is");
+    openMenu();
+    expect(rows()[0]).toEqual(["current", "This Mac", "~/project/puppyone-qubits"]);
+    act(() => button.click());
+
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme"), unhosted: false,
+      publishPending: false, notice: null, missingReplaceable: false }));
+    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
+    expect(cloud.dataset.projectPlace).toBe("cloud");
+    expect(cloud.textContent).toBe("Acme");
+    expect(cloud.getAttribute("aria-label")).toBe("Cloud project, Acme, Where this project is");
+    openMenu();
+    expect(rows()).toEqual([["current", "Cloud project", "Acme"]]);
+  });
+
+  it("shortens a local project's place to its root and last folders, and knows no Cloud place without a name", () => {
+    expect(localProjectAddress("/Users/example/Library/Mobile Documents/Clients/2026/Pitch/"))
+      .toEqual({ short: "~/\u2026/Clients/2026", full: "~/Library/Mobile Documents/Clients/2026/Pitch" });
+    expect(localProjectAddress("/private/tmp/one")).toEqual({ short: "/private/tmp", full: "/private/tmp/one" });
+    expect(localProjectAddress("/workspace")).toEqual({ short: "/", full: "/workspace" });
+    expect(localProjectAddress("/Users/example")).toEqual({ short: "~", full: "~" });
+    expect(localProjectAddress("C:\\Users\\example\\Documents\\Clients\\Pitch"))
+      .toEqual({ short: "C:\\\u2026\\Documents\\Clients", full: "C:\\Users\\example\\Documents\\Clients\\Pitch" });
+    expect(localProjectAddress("puppyone-cloud://project/p1")).toBeNull();
+    expect(localProjectAddress("")).toBeNull();
+    expect(cloudProjectAddress("  ")).toBeNull();
+    expect(cloudProjectAddress(null)).toBeNull();
   });
 
   it("offers nothing that cannot work, and never a switch of one project's place", async () => {

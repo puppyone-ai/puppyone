@@ -10,11 +10,15 @@ for (const flag of flags) {
 const scenarios = [
   ["../../e2e/workspace/projects/project-sidebar-stability.smoke.mjs"],
   ["../../e2e/workspace/projects/project-opening-mark.smoke.mjs"],
+  ["../../e2e/workspace/file-mode/file-mode.smoke.mjs"],
+  ["../../e2e/workspace/command-line-open/command-line-open.smoke.mjs"],
+  ["../../e2e/workspace/command-line-open/command-line-open.smoke.mjs", null, ["--scenario=failed-launch"]],
+  ["../../e2e/workspace/command-line-open/command-line-open.smoke.mjs", null, ["--scenario=no-request"]],
   ["../../e2e/workspace/projects/project-sessions.smoke.mjs", "--agent-draft"],
   ["../../e2e/workbench/layout/sidebar-visibility.smoke.mjs", "--native"],
 ];
-for (const [relative, flag] of scenarios) {
-  const child = spawn(electron, [fileURLToPath(new URL(relative, import.meta.url)), ...flags.filter(value => value === flag)], { stdio: "inherit" });
+for (const [relative, flag, fixedArguments = []] of scenarios) {
+  const child = spawn(electron, [fileURLToPath(new URL(relative, import.meta.url)), ...fixedArguments, ...flags.filter(value => value === flag)], { stdio: "inherit" });
   const stop = signal => child.kill(signal);
   const interrupt = () => stop("SIGINT"), terminate = () => stop("SIGTERM");
   process.once("SIGINT", interrupt); process.once("SIGTERM", terminate);

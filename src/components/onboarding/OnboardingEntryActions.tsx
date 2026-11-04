@@ -17,7 +17,7 @@ type OnboardingEntryActionsProps = {
 };
 
 /**
- * First-run entry actions, under "New empty project", which is the default path
+ * First-run entry actions, under "New project", which is the default path
  * because it is the only entry that does not require the user to hunt for an
  * existing folder first. Once there are projects, these move into the entry menu.
  */
