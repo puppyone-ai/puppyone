@@ -51,11 +51,11 @@ import {
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
+  ExplorerPinnedFiles,
   explorerPinsStore,
   getExplorerPinsProjectKey,
   useExplorerPins,
-} from "../data-workspace/explorerPins";
-import { ExplorerPinnedFiles } from "../data-workspace/ExplorerPinnedFiles";
+} from "../data-workspace";
 
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
