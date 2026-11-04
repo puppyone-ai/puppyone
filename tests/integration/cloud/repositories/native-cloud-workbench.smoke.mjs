@@ -154,7 +154,9 @@ async function headerPresentation(location) {
       themeText:rgb(themeText),
       place:place ? { location:place.dataset.projectPlace ?? null, cloudOutline:Boolean(placeOutline),
         color:rgb(getComputedStyle(placeMark).color), paint:rgb(getComputedStyle(placeOutline ?? placeMark).stroke),
-        labelColor:rgb(getComputedStyle(place).color) } : null,
+        labelColor:rgb(getComputedStyle(place).color), text:place.textContent,
+        addressFits:(() => { const a = place.querySelector('.desktop-titlebar-place-address'); return Boolean(a) && a.scrollWidth <= a.clientWidth; })(),
+        right:place.getBoundingClientRect().right } : null,
       backgroundImage:css.backgroundImage,
       locationControl:Boolean(header.querySelector('.desktop-titlebar-location-button, .desktop-project-location-controls')),
       icon:{ product:svg.dataset.productIcon ?? null,
@@ -180,6 +182,10 @@ async function headerPresentation(location) {
   })()`);
   assert(sample.location === location, `Header place must follow the committed ${location} provider`);
   assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Both places must keep the theme's Header color: ${JSON.stringify(sample)}`);
+  // The mark says which kind of place; the words say where it is.
+  assert(sample.place?.location === location && sample.place.text === (location === 'cloud' ? 'Fixture team' : '~/Documents/Clients')
+    && sample.place.addressFits && sample.place.right <= sample.viewport,
+    `The Header must state the ${location} project's place by its address, whole and on screen: ${JSON.stringify(sample.place)}`);
   if (location === 'cloud') {
     assert(sample.place?.location === 'cloud' && sample.place.cloudOutline, `The Cloud project must show its Cloud place mark: ${JSON.stringify(sample.place)}`);
     assert(JSON.stringify(sample.place.color) === JSON.stringify(sample.accent)

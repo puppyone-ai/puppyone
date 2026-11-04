@@ -19,6 +19,7 @@ import { resolveLocalFolderCloudEntry, resolveLocalFolderCloudNotice } from "../
 import { MissingCloudProjectReplacement } from "../../features/cloud/project/MissingCloudProjectReplacement";
 import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { cloudProjectAddress, localProjectAddress } from "../../features/app-shell/project-place/projectPlaceMenuState";
 import { cloudMessage } from "../../features/cloud/cloudPresentation";
 import type { ProjectCloudContext } from "../../features/cloud/project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
@@ -42,7 +43,9 @@ initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeIte
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const localRoot = createWorkspaceRootUri("cloud-switch-fixture-local");
 const localPath = createWorkspaceResourceUri(localRoot, "readme.txt");
-const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/native-workspace", status: "recording" };
+const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/Documents/Clients/native-workspace", status: "recording" };
+/** The organization that holds the fixture's Cloud project, as the Header states it. */
+const FIXTURE_ORGANIZATION = "Fixture team";
 const localFolder: WorkspaceFolder = { id: localWorkspace.id, name: localWorkspace.name, uri: localRoot,
   index: 0, capabilities: { read: true, write: true, watch: false, execute: true }, trustState: "trusted", workspace: localWorkspace };
 const localNodes = [{ id: localPath, name: "readme.txt", path: localPath, type: "text" as const, source: "local" as const },
@@ -348,9 +351,11 @@ export function NativeCloudWorkbenchSmokeHarness() {
         projectItems={projectItems} {...smokeHeaderProject(location === "cloud" ? workbench.service : null)}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject}
-        placeMenu={location === "cloud" ? { menu: { place: "cloud", action: null }, handlers: { onPutInCloud: noop,
-          onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
-          ...(cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } } : null} />;
+        placeMenu={{ menu: location === "cloud"
+          ? { place: "cloud", address: cloudProjectAddress(FIXTURE_ORGANIZATION), action: null }
+          : { place: "local", address: localProjectAddress(localWorkspace.path), action: null },
+        handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
+          ...(location === "cloud" && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } }} />;
   const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
   const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
     onOpenCloudProject={openCloudProject} onSignIn={requestCloud}

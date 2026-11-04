@@ -20,6 +20,8 @@ export type ProjectHomeItem = {
   localPath: string;
   /** Present only on a Cloud project's own entry. */
   cloudProjectId?: string;
+  /** The organization a Cloud project's own entry belongs to, when the catalog states it. */
+  cloudOrganizationId?: string;
   /**
    * A local folder's link to the Cloud project it was put in the Cloud as.
    * Only a mark and a way to open that other project; never merges them.
@@ -118,6 +120,18 @@ export function getWorkspaceParentPathForDisplay(workspacePath: string): string 
 
 export function getWorkspacePathForDisplay(workspacePath: string): string {
   return workspacePath.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
+}
+
+/**
+ * A display path short enough for one line: its root and its last `tail` folders,
+ * with the folders between them elided (`~/…/Clients/2026`).
+ */
+export function compactDisplayPath(displayPath: string, tail = 2): string {
+  const separator = displayPath.includes("\\") && !displayPath.includes("/") ? "\\" : "/";
+  const parts = displayPath.split(separator);
+  // parts[0] is the root: "~", "" for "/", or a drive such as "C:".
+  if (parts.length <= tail + 2) return displayPath;
+  return [parts[0], "…", ...parts.slice(-tail)].join(separator);
 }
 
 export function getProjectName(item: ProjectHomeItem, fallback: string): string {

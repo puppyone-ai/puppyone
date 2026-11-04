@@ -43,6 +43,7 @@ import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWork
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
+import { useCloudOrganizationName } from "./features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
 import {
   AccountCloudWorkspaceSurface,
@@ -92,7 +93,7 @@ import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
-import { resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
+import { cloudProjectAddress, localProjectAddress, resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
@@ -1578,6 +1579,14 @@ function AppContent() {
     />
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
+  // Where in the Cloud the open project is, for the Header: the organization that holds it.
+  const activeCloudProjectId = !cloudWorkspaceActive ? null
+    : getResolvedCloudProjectId(accountCloud.context) ?? hostedWorkspace?.projectId ?? null;
+  const openCloudOrganizationName = useCloudOrganizationName({
+    session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    organizationId: activeCloudProjectId
+      ? projectCatalog.items.find((item) => item.cloudProjectId === activeCloudProjectId)?.cloudOrganizationId : null,
+  });
   const {
     projectOpening, projectOpeningInWindow, projectOpeningSurface,
   } = useProjectOpeningSurfaces({
@@ -1587,7 +1596,7 @@ function AppContent() {
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
-    presentation={accountCloudPresentation} active={cloudWorkspaceActive}
+    presentation={accountCloudPresentation} active={cloudWorkspaceActive} organizationName={openCloudOrganizationName}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onHome={() => void goToHomepage()}
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
@@ -1858,6 +1867,7 @@ function AppContent() {
   const placeMenu = cloudEnabled ? {
     menu: resolveProjectPlaceMenu({
       place: workspaceLocation,
+      address: workspaceLocation === "cloud" ? cloudProjectAddress(openCloudOrganizationName) : localProjectAddress(workspace?.path),
       unhosted: projectCloudContext.status === "local-only",
       publishPending: repositoryCloudInitializationPending,
       notice: cloudProjectNoticeState,

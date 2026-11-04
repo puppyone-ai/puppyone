@@ -7,6 +7,7 @@ import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../featu
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "../../features/cloud/workbench/useHomepageCloudProjects";
+import { useCloudOrganizationName } from "../../features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "../../features/cloud/workbench/HomepageCloudStatus";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "../../features/cloud/workbench/useAccountCloudWorkspace";
@@ -120,6 +121,10 @@ function AccountCloudFixture() {
       { workspace: { id: "local-notes", name: "Local notes", path: "/fixture/notes", status: "recording", lastModifiedAt: "2026-05-01T00:00:00Z" } },
       ...Array.from({ length: 4 }, (_, i) => ({ workspace: { id: `local-${i}`, name: `Local sample ${i}`, path: `/fixture/sample-${i}`, status: "recording" as const } })),
     ] : [] });
+  // As in App: the open Cloud project's organization, named in the Header as its place.
+  const organizationName = useCloudOrganizationName({ session, apiBaseUrl: API,
+    organizationId: account.active && account.context.projectId
+      ? homepage.items.find((item) => item.cloudProjectId === account.context.projectId)?.cloudOrganizationId : null });
   const workbench = useNativeCloudWorkbench({ context: account.context, prepared: account.prepared, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: filesVisibilitySettings });
   const [settingsOpened, setSettingsOpened] = useState(0);
@@ -155,7 +160,7 @@ function AccountCloudFixture() {
     <AccountCloudWorkspaceSurface projectItems={homepage.items} onSelectProject={path => { setSelectedLocalPath(path); account.useLocal(); }}
       onSelectCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       onCreateProject={() => {}} workbench={workbench} presentation={presentation} active={account.active}
-      context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}
+      organizationName={organizationName} context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}
       appearance={appearance} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }
