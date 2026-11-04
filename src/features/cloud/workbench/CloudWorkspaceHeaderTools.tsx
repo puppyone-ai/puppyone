@@ -13,6 +13,7 @@ import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAg
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 const AgentsPanel = lazy(() => import("../share/CloudWorkspaceAgentsPanel").then(module => ({ default: module.CloudWorkspaceAgentsPanel })));
 const AgentsDialog = lazy(() => import("../share/CloudWorkspaceAgentsDialog").then(module => ({ default: module.CloudWorkspaceAgentsDialog })));
+const InviteDialog = lazy(() => import("../share/CloudWorkspaceAgentInviteDialog").then(module => ({ default: module.CloudWorkspaceAgentInviteDialog })));
 
 export type CloudWorkspacePeople = Readonly<{
   agents: readonly WorkspaceAgent[];
@@ -63,7 +64,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
 
 function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
   const { t } = useLocalization();
-  const [panel, setPanel] = useState<"share" | "agents" | "manage" | null>(null);
+  const [panel, setPanel] = useState<"share" | "agents" | "manage" | "invite" | null>(null);
   const [opener, setOpener] = useState<string | null>(null);
   /** The Agents already here when the last invite was copied, so a newcomer ends the wait. */
   const [invite, setInvite] = useState<ReadonlySet<string> | null>(null);
@@ -129,7 +130,10 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     {context?.status === "resolved" && <Suspense fallback={null}>
       {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel} />}
       {agentsOpen && <AgentsPanel anchor={agentsAnchor} agents={agents} requests={requests} control={control}
-        renderAgentMark={renderAgentMark} onManage={() => setPanel("manage")} onClose={closePanel} />}
+        renderAgentMark={renderAgentMark} onInvite={() => setPanel("invite")} onManage={() => setPanel("manage")}
+        onClose={closePanel} />}
+      {panel === "invite" && control && <InviteDialog control={control} renderAgentMark={renderAgentMark}
+        onClose={closePanel} />}
       {panel === "manage" && session && <AgentsDialog projectId={context.projectId} session={session} apiBaseUrl={apiBaseUrl}
         agents={agents} renderAgentMark={renderAgentMark} onChanged={refreshPeople} onClose={closePanel} />}
     </Suspense>}

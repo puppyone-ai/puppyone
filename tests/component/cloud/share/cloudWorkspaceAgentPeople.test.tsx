@@ -18,16 +18,21 @@ vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => 
   CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
-  CloudWorkspaceAgentsPanel: ({ onManage, agents, requests, control }: { onManage: () => void;
+  CloudWorkspaceAgentsPanel: ({ onInvite, onManage, agents, requests, control }: { onInvite: () => void; onManage: () => void;
     agents: { name: string }[]; requests: { name: string }[];
     control: { waiting: boolean; onInvited: () => void; onChanged: () => void } | null }) =>
     <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}
       data-requests={requests.map(request => request.name).join()} data-control={Boolean(control)}
       data-waiting={control?.waiting}>
       <button data-manage onClick={onManage}>manage</button>
+      <button data-invite-another onClick={onInvite}>invite another</button>
       <button data-invited onClick={control?.onInvited}>invited</button>
       <button data-answered onClick={control?.onChanged}>answered</button>
     </div>,
+}));
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentInviteDialog", () => ({
+  CloudWorkspaceAgentInviteDialog: ({ control }: { control: { waiting: boolean } }) =>
+    <div role="dialog" data-panel="invite" data-waiting={control.waiting} />,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
   CloudWorkspaceAgentsDialog: ({ onChanged }: { onChanged: () => void }) =>
@@ -209,6 +214,14 @@ describe("An Agent in the Header", () => {
     await act(async () => stack()!.click());
     await act(async () => document.querySelector<HTMLButtonElement>("[data-manage]")!.click());
     expect(panel()?.dataset.panel).toBe("manage");
+    expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
+  });
+  it("opens inviting another Agent from the list as a dialog of its own, in place of the list", async () => {
+    connections = [connection("c1", "秘书小陈")];
+    await render();
+    await act(async () => stack()!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-invite-another]")!.click());
+    expect(panel()?.dataset.panel).toBe("invite");
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
   });
   it("disappears when Manage agents removes the last one, leaving the empty seat, and the dialog stays", async () => {

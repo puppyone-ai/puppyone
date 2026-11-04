@@ -129,6 +129,17 @@ describe("Letting an Agent in", () => {
     expect(surface().querySelector('[role="alert"]')).toBeNull();
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
+  it("opens inviting another Agent as a dialog of its own, and says the wait under its row", async () => {
+    const onInvite = vi.fn();
+    await renderWith({ control: control({ waiting: true }), agents: [agent("c1", "Codex", false)], onInvite });
+    const row = surface().querySelector<HTMLButtonElement>("[data-cloud-agent-invite-open]")!;
+    expect(row.getAttribute("aria-haspopup")).toBe("dialog");
+    // The form is not in the menu: there is nothing to copy here.
+    expect(surface().querySelector(".desktop-cloud-agent-invite, .desktop-cloud-agent-share-copy")).toBeNull();
+    expect(surface().querySelector(".desktop-cloud-agent-invite-note")?.textContent).toBe("Waiting for your agent…");
+    await act(async () => row.click());
+    expect(onInvite).toHaveBeenCalledTimes(1);
+  });
   it("shows the picture an Agent chose beside its request, before it is allowed", async () => {
     const marks: { name: string; avatar?: string | null }[] = [];
     await renderWith({ control: control(), requests: [{ ...asking("r1", "薄肌孙教练"), avatar: "grok-bot" }],

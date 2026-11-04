@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Check, LoaderCircle, Plus } from "lucide-react";
+import { Check, LoaderCircle } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
-import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { agentConnectMessage, createAgentLink, listAgentLinks, type AgentAdmission } from "./agentLinks";
@@ -25,20 +24,22 @@ const OPTION_TEXT = {
 } as const;
 
 /**
- * Inviting an Agent: while none is here, a short loop shows how it goes; then
- * the prompt itself, under a veil with the button that copies it, and what to
- * do with it. The link inside is created only by copying, so opening the card
- * mints nothing, and every copy is a new link. Once the card lists Agents, the
- * form waits behind one row until it is asked for.
+ * Inviting an Agent: the prompt itself, under a veil with the button that
+ * copies it, and what to do with it; for a first Agent, a short loop under it
+ * shows how it goes. The link inside is created only by copying, so opening the
+ * form mints nothing, and every copy is a new link. The first invite is the
+ * Agents card itself; inviting another is its own dialog.
  */
-export function CloudWorkspaceAgentInvite({ projectId, projectName, session, apiBaseUrl, compact = false, waiting = false,
-  onInvited, renderAgentMark }: {
+export function CloudWorkspaceAgentInvite({ projectId, projectName, session, apiBaseUrl, another = false,
+  initialFocus = false, waiting = false, onInvited, renderAgentMark }: {
   projectId: string;
   projectName: string;
   session: DesktopCloudSession;
   apiBaseUrl: string;
-  /** Agents are already listed above it. */
-  compact?: boolean;
+  /** Agents are already here, so the steps are read rather than shown. */
+  another?: boolean;
+  /** Where a dialog puts focus first: the one thing to do. */
+  initialFocus?: boolean;
   /** An invite is out and no Agent has answered it yet. */
   waiting?: boolean;
   /** The Header waits for the answer, so it hears about an invite at once. */
@@ -50,8 +51,6 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
   const [admission, setAdmission] = useState<AgentAdmission>("sign_in");
   const [openLinks, setOpenLinks] = useState(false);
   const [status, setStatus] = useState<keyof typeof COPY_LABEL>("idle");
-  const [expanded, setExpanded] = useState(false);
-  const form = useRef<HTMLElement>(null);
   const mounted = useRef(true);
   const options = useRef<Partial<Record<AgentAdmission, HTMLButtonElement | null>>>({});
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -60,10 +59,6 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
       .then(inventory => { if (mounted.current) setOpenLinks(Boolean(inventory.open_links_enabled)); })
       .catch(() => undefined); // Only the choice depends on it; inviting does not.
   }, [apiBaseUrl, projectId, session]);
-  // The row that opened the form is gone, so focus moves on to what it opened.
-  useEffect(() => {
-    if (expanded) form.current?.querySelector<HTMLButtonElement>("[data-cloud-agent-invite]")?.focus();
-  }, [expanded]);
   useEffect(() => {
     if (status !== "copied") return undefined;
     const timer = setTimeout(() => setStatus("idle"), COPIED_MS);
@@ -93,22 +88,11 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
   };
 
   const copied = status === "copied";
-  // A row stands in for the form beside the Agents until it is asked for.
-  if (compact && !openLinks && !expanded) {
-    return <div className="desktop-cloud-agent-invite" data-compact="">
-      <DesktopMenuItem className="desktop-cloud-agents-row-action" role="button" data-cloud-agent-invite-open=""
-        icon={<Plus size={15} strokeWidth={1.75} aria-hidden="true" />}
-        label={t("cloud.share.agent.invite.another")} onClick={() => setExpanded(true)} />
-      {waiting && <p className="desktop-cloud-agent-invite-note" role="status">
-        <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
-        {t("cloud.share.agent.invite.waiting")}
-      </p>}
-    </div>;
-  }
   const prompt = agentConnectMessage(projectName, linkPreview(apiBaseUrl));
   // The illustration shows the steps to a first-timer; someone inviting another reads them.
-  const demo = !compact;
-  return <section ref={form} className="desktop-cloud-agent-invite" aria-label={t("cloud.share.agent.invite.title")}>
+  const demo = !another;
+  return <section className="desktop-cloud-agent-invite" data-another={another || undefined}
+    aria-label={t("cloud.share.agent.invite.title")}>
     <h3>{t("cloud.share.agent.invite.lead")}</h3>
     {openLinks && <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.invite.title")}>
       {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
@@ -126,7 +110,7 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
       <p className="desktop-cloud-agent-prompt-text" dir="ltr" aria-label={t("cloud.share.agent.invite.preview")}>{prompt}</p>
       <span className="desktop-cloud-agent-prompt-veil" aria-hidden="true" />
       <Button tone="primary" className="desktop-cloud-agent-share-copy" data-cloud-agent-invite=""
-        data-copied={copied || undefined} disabled={status === "copying"} onClick={() => void copy()}
+        data-desktop-dialog-initial-focus={initialFocus || undefined} data-copied={copied || undefined} disabled={status === "copying"} onClick={() => void copy()}
         leadingIcon={copied ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : undefined}>
         {t(COPY_LABEL[status])}
       </Button>

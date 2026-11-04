@@ -43,8 +43,7 @@
   /* Inviting an Agent: how it goes, what gets pasted with the one filled shape
      that copies it, and the step after, in that reading order. */
   .desktop-cloud-agent-invite { position: relative; display: grid; gap: 10px; min-width: 0; }
-  .desktop-cloud-agent-invite:not([data-compact]) { padding: 10px; }
-  .desktop-cloud-agent-invite[data-compact] { gap: 0; }
+  .desktop-cloud-agent-invite { padding: 10px; }
   /* The prompt under a veil, and the button that copies it in the middle of it.
      The first line stays clear so it reads as words to paste; the veil thickens
      toward the button, since the rest is copied, not read. */
@@ -74,7 +73,7 @@
   .desktop-cloud-agent-invite-hint { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-wrap: pretty; }
   /* The wait for the Agent's answer, quietly beside what started it. */
   .desktop-cloud-agent-invite-note { display: flex; align-items: center; gap: 6px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
-  .desktop-cloud-agent-invite[data-compact] .desktop-cloud-agent-invite-note {
+  .desktop-cloud-agents-foot > .desktop-cloud-agent-invite-note {
     margin: 0;
     padding: 0 var(--po-menu-item-padding-inline) 6px
       calc(var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap));
@@ -145,6 +144,14 @@
   .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark[data-reach-creature] > svg { width: 68%; height: 68%; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agent-demo) .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
   .desktop-cloud-agents-panel-alert { padding: 4px var(--po-menu-item-padding-inline); }
+
+  /* Inviting another Agent, as its own dialog: the same form as the first
+     invite, on the dialog's ground, under the dialog's own title. */
+  .desktop-cloud-agent-invite-dialog { --po-menu-bg: var(--po-overlay); }
+  .desktop-cloud-agent-invite-dialog .desktop-cloud-agent-invite { padding: 0; }
+  .desktop-cloud-agent-invite-dialog :is(h3, p) { margin: 0; }
+  .desktop-cloud-agent-invite-dialog h3 { color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
+  .desktop-cloud-agent-invite-dialog [role="alert"] { color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
 
   /* Manage agents: where changes happen, so every fact and action can stand here. */
   .desktop-cloud-agents-dialog-body { display: grid; gap: 16px; padding: 4px 20px 20px; }

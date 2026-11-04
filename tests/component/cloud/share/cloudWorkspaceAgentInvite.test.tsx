@@ -199,35 +199,26 @@ describe("Inviting an Agent", () => {
     expect(demo.dataset.cloudAgentDemo).toBe("Codex");
   });
 
-  it("leaves the illustration out once Agents are here", async () => {
-    await render({ compact: true });
-    await act(async () => select("[data-cloud-agent-invite-open]").click());
+  it("leaves the illustration out once Agents are here, and says the step after copying instead", async () => {
+    await render({ another: true });
     expect(document.querySelector("[data-cloud-agent-demo]")).toBeNull();
-  });
-
-  it("waits behind one row among the Agents, and opens the form rather than copying", async () => {
-    await render({ compact: true });
-    expect(document.querySelector("h3")).toBeNull();
-    const row = select("[data-cloud-agent-invite-open]");
-    expect(row.textContent).toBe("Invite another agent");
-    await act(async () => row.click());
+    expect(document.querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
+    expect(document.querySelector(".desktop-cloud-agent-invite-hint")).not.toBeNull();
+    // Opening the form mints nothing; only copying does.
     expect(created).toEqual([]);
     expect(writeClipboardText).not.toHaveBeenCalled();
-    expect(document.querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
-    // With no illustration, the step after copying is in sight.
-    expect(document.querySelector(".desktop-cloud-agent-invite-hint")).not.toBeNull();
-    // The row it replaced is gone, so focus lands on what to press next.
-    expect(document.activeElement).toBe(primary());
   });
 
-  it("says the wait under the row while the form is closed", async () => {
-    await render({ compact: true, waiting: true });
-    expect(document.querySelector(".desktop-cloud-agent-invite-note")?.textContent).toBe("Waiting for your agent…");
+  it("asks a dialog to put focus on copying, the one thing to do", async () => {
+    await render({ another: true, initialFocus: true });
+    expect(primary().dataset.desktopDialogInitialFocus).toBe("true");
+    await render({ another: true });
+    expect(primary().dataset.desktopDialogInitialFocus).toBeUndefined();
   });
 
-  it("keeps the full form beside the Agents where a deployment offers a choice of who gets in", async () => {
+  it("keeps the choice of who gets in where a deployment offers one", async () => {
     inventory = { links: [], connections: [], open_links_enabled: true };
-    await render({ compact: true });
+    await render({ another: true });
     expect(document.querySelector('[role="radiogroup"]')).not.toBeNull();
     expect(primary().textContent).toBe("Copy prompt");
   });

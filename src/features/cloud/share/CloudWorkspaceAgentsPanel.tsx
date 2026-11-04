@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Settings } from "lucide-react";
+import { LoaderCircle, Plus, Settings } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
@@ -58,17 +58,20 @@ export type AgentsPanelControl = Readonly<{
  * surface, inset, separator, width and the edge it hangs from) except where it
  * meets the Agents: they are a roster, each as itself with its name and when
  * it was last here under it, the one at work awake, rather than rows squeezed
- * into an icon column. Inviting and managing stay menu rows. It is wider only
- * where a row needs it: the first invite, with nothing to list yet, shows how
- * inviting goes, and an Agent asking to join keeps when it asked beside its
- * answer.
+ * into an icon column. Inviting another and managing are menu rows, each
+ * opening a dialog of its own. It is wider only where a row needs it: the first
+ * invite, with nothing to list yet, is the form itself and shows how inviting
+ * goes, and an Agent asking to join keeps when it asked beside its answer.
  */
-export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], control, renderAgentMark, onManage, onClose }: {
+export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], control, renderAgentMark, onInvite, onManage,
+  onClose }: {
   anchor: RefObject<HTMLElement | null>;
   agents: readonly WorkspaceAgent[];
   requests?: readonly AgentRequest[];
   control?: AgentsPanelControl | null;
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
+  /** Inviting another Agent is a dialog of its own, as Manage agents is. */
+  onInvite?: () => void;
   onManage: () => void;
   onClose: () => void;
 }) {
@@ -101,9 +104,18 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
     </ul>}
     {listed && (control || agents.length > 0) && <DesktopMenuSeparator />}
     {(control || agents.length > 0) && <div className="desktop-cloud-agents-foot" data-alone={!listed || undefined}>
-      {control && <CloudWorkspaceAgentInvite compact={listed} session={control.session} apiBaseUrl={control.apiBaseUrl}
+      {control && !listed && <CloudWorkspaceAgentInvite session={control.session} apiBaseUrl={control.apiBaseUrl}
         projectId={control.projectId} projectName={control.projectName} waiting={control.waiting}
         onInvited={control.onInvited} renderAgentMark={renderAgentMark} />}
+      {control && listed && <DesktopMenuItem className="desktop-cloud-agents-row-action" role="button"
+        data-cloud-agent-invite-open="" aria-haspopup="dialog"
+        icon={<Plus size={15} strokeWidth={1.75} aria-hidden="true" />}
+        label={t("cloud.share.agent.invite.another")} onClick={onInvite} />}
+      {/* An invite copied in the dialog is still awaited here, under the row that opens it. */}
+      {control && listed && control.waiting && <p className="desktop-cloud-agent-invite-note" role="status">
+        <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
+        {t("cloud.share.agent.invite.waiting")}
+      </p>}
       {agents.length > 0 && <DesktopMenuItem className="desktop-cloud-agents-manage desktop-cloud-agents-row-action"
         role="button" data-cloud-agents-manage=""
         icon={<Settings size={15} strokeWidth={1.75} aria-hidden="true" />}
