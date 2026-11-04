@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, X } from "lucide-react";
 import { Button, Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
@@ -9,7 +9,7 @@ import { formatRelativeTime } from "../utils";
 import { listAgentLinks, removeConnectedAgent, stopSharingWithAgents, type AgentLinkInventory,
   type AgentRequest } from "./agentLinks";
 import { agentMark, type ShareAgentMark } from "./agentMark";
-import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
+import { AgentFirstInvite, AgentInviteSeat, AgentInviteStatus, AgentInviteSteps, useAgentInvite } from "./CloudWorkspaceAgentInvite";
 import { useAgentRequestAnswer } from "./useAgentRequestAnswer";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 import "./workspace-share.css";
@@ -39,8 +39,9 @@ export type AgentsControl = Readonly<{
 /**
  * Everything about a project's Agents, opened straight from the Header: who
  * is here, in one row, each as itself with when it last worked; an Agent
- * asking to join among them, to be let in where it stands; the prompt that
- * invites the next one; and, folded away at the foot, the links still open.
+ * asking to join among them, to be let in where it stands; an empty seat with a
+ * + at the end of the row that invites the next one; and, folded away at the
+ * foot, the links still open.
  */
 export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAgentMark, onClose }: {
   control: AgentsControl;
@@ -74,6 +75,8 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
   };
   const nobody = agents.length === 0 && requests.length === 0;
   const title = t("cloud.share.agent.title");
+  const invite = useAgentInvite({ session, apiBaseUrl, projectId, projectName, onInvited: control.onInvited });
+  const { seatRef, stepsRef, sectionRef, arrowX } = useInviteSteps(invite, agents.length + requests.length);
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={onClose}>
       <DesktopDialogSurface className="desktop-cloud-agents-dialog" width={560} ariaLabel={title}>
@@ -87,12 +90,9 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
           </Tooltip>
         </header>
         <div className="desktop-dialog-body desktop-cloud-agents-dialog-body">
-          <section className="desktop-cloud-agents-roster-section" aria-label={t("cloud.share.agent.connected")}>
+          <section ref={sectionRef} className="desktop-cloud-agents-roster-section" aria-label={t("cloud.share.agent.connected")}>
             {nobody
-              ? <p className="desktop-cloud-agents-empty">
-                <span className="desktop-cloud-agents-empty-seat" aria-hidden="true"><Plus size={18} strokeWidth={1.75} /></span>
-                {t("cloud.share.agent.empty")}
-              </p>
+              ? <AgentFirstInvite invite={invite} seatRef={seatRef} />
               : <ul className="desktop-cloud-agents-roster" data-po-scrollbar="menu">
                 {requests.map(request => <AgentAskingTile key={request.id} request={request} control={control}
                   renderAgentMark={renderAgentMark} onDeciding={() => setFailed(false)} onFailed={() => setFailed(true)} />)}
@@ -100,11 +100,12 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
                 {[...agents].sort((left, right) => Number(right.active) - Number(left.active)).map(agent =>
                   <AgentTile key={agent.id} agent={agent} renderAgentMark={renderAgentMark}
                     onRemove={() => change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))} />)}
+                <AgentInviteSeat invite={invite} seatRef={seatRef} />
               </ul>}
+            {invite.status === "copied" && <AgentInviteSteps stepsRef={stepsRef} arrowX={arrowX} />}
+            <AgentInviteStatus invite={invite} />
             {failed && <p className="desktop-cloud-agents-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
           </section>
-          <CloudWorkspaceAgentInvite session={session} apiBaseUrl={apiBaseUrl} projectId={projectId}
-            projectName={projectName} initialFocus={nobody} onInvited={control.onInvited} />
         </div>
         <AgentLinks links={inventory.links} anyone={!nobody || inventory.links.length > 0}
           onRemoveAll={() => change(() => stopSharingWithAgents(session, projectId, apiBaseUrl))} />
@@ -244,6 +245,40 @@ function AgentLinks({ links, anyone, onRemoveAll }: {
         </p>)}
     </div>}
   </footer>;
+}
+
+/**
+ * The three steps under the seat that was pressed. They point at it, fold away
+ * on a press anywhere else, and give way as soon as an Agent turns up in the row.
+ */
+function useInviteSteps(invite: ReturnType<typeof useAgentInvite>, present: number) {
+  const seatRef = useRef<HTMLButtonElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const [arrowX, setArrowX] = useState<number | null>(null);
+  const shown = invite.status === "copied";
+  const { dismiss } = invite;
+  useLayoutEffect(() => {
+    const seat = seatRef.current?.getBoundingClientRect();
+    const section = sectionRef.current?.getBoundingClientRect();
+    setArrowX(shown && seat && section ? seat.left + seat.width / 2 - section.left : null);
+  }, [shown]);
+  useEffect(() => {
+    if (!shown) return undefined;
+    const elsewhere = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && (seatRef.current?.contains(target) || stepsRef.current?.contains(target))) return;
+      dismiss();
+    };
+    document.addEventListener("pointerdown", elsewhere, true);
+    return () => document.removeEventListener("pointerdown", elsewhere, true);
+  }, [dismiss, shown]);
+  const seen = useRef(present);
+  useEffect(() => {
+    if (present > seen.current) dismiss();
+    seen.current = present;
+  }, [dismiss, present]);
+  return { seatRef, stepsRef, sectionRef, arrowX };
 }
 
 /**

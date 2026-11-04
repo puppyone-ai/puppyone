@@ -32,7 +32,7 @@ const control = (): AgentsControl => ({ session, apiBaseUrl: API, projectId: "pr
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
 const select = <T extends HTMLElement = HTMLButtonElement>(selector: string) => document.querySelector<T>(selector)!;
 const tiles = () => [...document.querySelectorAll<HTMLElement>(".desktop-cloud-agent-tile")]
-  .map(tile => tile.dataset.cloudAgentRow ?? tile.dataset.cloudAgentRequest);
+  .map(tile => tile.dataset.cloudAgentRow ?? tile.dataset.cloudAgentRequest ?? (tile.classList.contains("desktop-cloud-agent-invite-seat") ? "seat" : null));
 const render = async (agents: readonly WorkspaceAgent[] = [], requests: readonly AgentRequest[] = []) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceAgentsDialog control={control()} agents={agents}
     requests={requests} onClose={onClose} />)));
@@ -59,29 +59,27 @@ describe("The Agents dialog", () => {
     expect(dialog().getAttribute("aria-label")).toBe("Agents");
     expect(select<HTMLElement>("h2").textContent).toBe("Agents");
     expect(select<HTMLElement>(".desktop-cloud-agents-dialog-project").textContent).toBe("Launch plan");
-    expect(tiles()).toEqual(["c2", "c1"]);
+    expect(tiles()).toEqual(["c2", "c1", "seat"]);
     const state = (id: string) => select<HTMLElement>(`[data-cloud-agent-row="${id}"] .desktop-cloud-agent-state`);
     expect(state("c2").textContent).toBe("Working now");
     expect(state("c2").dataset.live).toBe("true");
     expect(state("c1").textContent).toBe("2 hours ago");
-    // Inviting is right under them, as a sentence and the prompt it names.
-    expect(select<HTMLElement>(".desktop-cloud-agent-invite h3").textContent)
-      .toBe("Copy this prompt and paste it into your agent’s chat to invite it.");
-    expect(select(".desktop-cloud-agent-share-copy").textContent).toBe("Copy prompt");
+    // Inviting the next one is the seat at the end of the same row.
+    expect(select(".desktop-cloud-agent-seat-button").textContent).toBe("Invite agent");
   });
 
-  it("says nobody is here yet and puts copying the prompt first", async () => {
+  it("is only the first invite while nobody is here, and the row once someone is", async () => {
     await render();
     expect(document.querySelector(".desktop-cloud-agents-roster")).toBeNull();
-    expect(select<HTMLElement>(".desktop-cloud-agents-empty").textContent).toBe("No agents in this project yet.");
-    expect(select(".desktop-cloud-agent-share-copy").dataset.desktopDialogInitialFocus).toBe("true");
+    expect(select<HTMLElement>(".desktop-cloud-agents-first h3").textContent).toBe("Invite your first agent");
     await render([agent("c1", "Codex")]);
-    expect(select(".desktop-cloud-agent-share-copy").dataset.desktopDialogInitialFocus).toBeUndefined();
+    expect(document.querySelector(".desktop-cloud-agents-first")).toBeNull();
+    expect(document.querySelector("[data-desktop-dialog-initial-focus]")).toBeNull();
   });
 
   it("puts an Agent asking to join at the front of the row, and lets it in from its tile", async () => {
     await render([agent("c1", "Codex")], [request("r1", "Claude Code")]);
-    expect(tiles()).toEqual(["r1", "c1"]);
+    expect(tiles()).toEqual(["r1", "c1", "seat"]);
     const asking = select<HTMLElement>('[data-cloud-agent-request="r1"]');
     expect(asking.dataset.asking).toBe("");
     expect(asking.querySelector(".desktop-cloud-agent-state")?.textContent).toBe("Wants to join");
@@ -127,7 +125,7 @@ describe("The Agents dialog", () => {
     await act(async () => select('[data-cloud-agent-remove="c1"]').click());
     await act(async () => select(".desktop-cloud-agent-tile-confirm").click());
     expect(select<HTMLElement>('[role="alert"]').textContent).toBe("That didn’t work. Try again.");
-    expect(tiles()).toEqual(["c1"]);
+    expect(tiles()).toEqual(["c1", "seat"]);
     expect(select<HTMLElement>('[data-cloud-agent-row="c1"]').dataset.confirming).toBeUndefined();
     expect(onChanged).not.toHaveBeenCalled();
   });

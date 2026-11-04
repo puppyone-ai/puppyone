@@ -606,17 +606,30 @@ app.whenReady().then(async () => {
   // Pressing it opens the Agents dialog straight away, with no menu in between.
   await evaluate(`${agentMark}.click()`);
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-tile[data-cloud-agent-row]'))");
-  assert(await evaluate("!document.querySelector('[data-cloud-agent-card], .desktop-cloud-agents-panel') && Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-share-copy'))"),
-    'The Agents dialog must replace the card and offer the prompt, with no menu in between');
+  assert(await evaluate("!document.querySelector('[data-cloud-agent-card], .desktop-cloud-agents-panel') && document.querySelector('.desktop-cloud-agents-roster > :last-child')?.classList.contains('desktop-cloud-agent-invite-seat')"),
+    'The Agents dialog must replace the card and end its row with the seat that invites, with no menu in between');
   assert((await workspaceRequests()).length === beforeAgents, 'Meeting the Agents must not issue workspace requests');
   await captureSettledDialog('cloud-agents', '.desktop-cloud-agents-dialog');
-  // Copying the prompt says so on its own button and nothing else waits for the Agent.
+  // Pressing the seat copies an invite, and three steps under it say what happens next.
   await evaluate("navigator.clipboard.writeText = async () => {}; true");
-  await evaluate("document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-share-copy').click()");
-  await waitFor("document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-share-copy')?.dataset.copied === 'true'");
-  // The Agent that follows it asks to join among the others and is let in from its tile.
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-seat-button').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 3 && document.querySelector('.desktop-cloud-agent-seat-button').textContent === 'Copied'");
+  const invited = JSON.parse(await evaluate(`JSON.stringify((() => {
+    const seat = document.querySelector('.desktop-cloud-agent-seat-button').getBoundingClientRect();
+    const steps = document.querySelector('.desktop-cloud-agent-invite-steps').getBoundingClientRect();
+    const arrow = parseFloat(getComputedStyle(document.querySelector('.desktop-cloud-agent-invite-steps')).getPropertyValue('--invite-arrow-x'));
+    // A mark with light and dark pictures draws both and shows the one for the theme.
+    const shown = [...document.querySelectorAll('.desktop-cloud-agent-invite-logo')]
+      .map(logo => [...logo.querySelectorAll('img')].filter(image => getComputedStyle(image).display !== 'none'));
+    return { below: steps.top - seat.bottom, aim: steps.left + arrow - (seat.left + seat.width / 2), logos: shown.length,
+      drawn: shown.every(images => images.length === 1 && images[0].complete && images[0].naturalWidth > 0) };
+  })())`));
+  assert(invited.below >= 0 && Math.abs(invited.aim) < 2 && invited.logos === 8 && invited.drawn,
+    `The steps must hang under the seat, point at it, and show every agent mark: ${JSON.stringify(invited)}`);
+  await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
+  // The Agent that follows it asks to join in the row, the steps give way, and it is let in from its tile.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request]'))");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request]')) && !document.querySelector('.desktop-cloud-agent-invite-steps')");
   await captureSettledDialog('cloud-agents-asking', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request] .desktop-cloud-agent-request-allow').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-row=smoke-request]')) && !document.querySelector('[data-cloud-agent-request=smoke-request]')");
@@ -628,13 +641,13 @@ app.whenReady().then(async () => {
   await captureSettledDialog('cloud-agents-links', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
-  // With nobody here yet, the empty seat opens the same dialog, and copying the prompt comes first.
+  // With nobody here yet, the empty seat opens the same dialog, and inviting the first agent is all of it.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [], pending: [], links: [] })");
   await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
   await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agents-empty'))");
-  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-share-copy')"),
-    'With nobody here yet, copying the prompt must be the first thing in reach');
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agents-first'))");
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agents-first .desktop-cloud-agent-share-copy')"),
+    'With nobody here yet, Copy invite must be the first thing in reach');
   await captureSettledDialog('cloud-agents-empty', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
