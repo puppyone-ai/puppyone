@@ -1569,7 +1569,7 @@ impl Paragraph {
                 let mut highlight = mark_highlight(style, node_cx, cx);
                 if let Some(link_mark) = style.link.clone() {
                     highlight.style.color = Some(node_cx.style.link());
-                    highlight.style.underline = Some(link_underline(&node_cx.style));
+                    highlight.style.underline = link_underline(&node_cx.style);
                     links.push((inner_range.clone(), link_mark));
                 }
                 node_highlights.push((inner_range, highlight));
@@ -2683,6 +2683,10 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
         style: highlight,
         font_family,
         font_size_scale: mark.code.then_some(0.875),
+        code_padding: mark
+            .code
+            .then(|| node_cx.style.inline_code_padding())
+            .flatten(),
     }
 }
 
@@ -2861,7 +2865,7 @@ impl Paragraph {
 
                     if let Some(mut link_mark) = style.link.clone() {
                         highlight.style.color = Some(node_cx.style.link());
-                        highlight.style.underline = Some(link_underline(&node_cx.style));
+                        highlight.style.underline = link_underline(&node_cx.style);
 
                         // convert link references, replace link
                         if let Some(identifier) = link_mark.identifier.as_ref() {
@@ -2988,7 +2992,7 @@ impl Paragraph {
                                 .clone(),
                         );
                         object_style.color = Some(node_cx.style.link());
-                        object_style.underline = Some(link_underline(&node_cx.style));
+                        object_style.underline = link_underline(&node_cx.style);
                     }
                 }
                 let rendered_node = node.clone();
@@ -3054,7 +3058,7 @@ impl Paragraph {
 
                     if let Some(mut link_mark) = style.link.clone() {
                         highlight.style.color = Some(node_cx.style.link());
-                        highlight.style.underline = Some(link_underline(&node_cx.style));
+                        highlight.style.underline = link_underline(&node_cx.style);
 
                         if let Some(identifier) = link_mark.identifier.as_ref()
                             && let Some(mark) = node_cx.link_refs.get(identifier)
@@ -3115,12 +3119,13 @@ fn leaf_element_id(fade_key: Option<TextLeafKey>) -> ElementId {
 
 /// A link's underline: a hairline in a translucent link color, so a run of
 /// links reads as text first and as links second.
-fn link_underline(style: &TextViewStyle) -> gpui::UnderlineStyle {
-    gpui::UnderlineStyle {
+fn link_underline(style: &TextViewStyle) -> Option<gpui::UnderlineStyle> {
+    // PuppyOne patch: a style can draw its links without an underline.
+    style.link_underline().then(|| gpui::UnderlineStyle {
         thickness: px(1.),
         color: Some(style.link().opacity(0.4)),
         ..Default::default()
-    }
+    })
 }
 
 /// The font size the blocks inherit, which heading sizes and the spacing of
@@ -3362,8 +3367,10 @@ fn measure_table_text_columns(
                         range.end,
                         |range, highlight| (range, highlight.clone()),
                     );
-                    if highlights.iter().any(|(_, h)| h.font_size_scale.is_some()) {
-                        line_w += px(crate::text::inline_flow::INLINE_CODE_PADDING * 2.);
+                    if let Some(padding) =
+                        super::inline::code_padding(highlights.iter().map(|(_, h)| h))
+                    {
+                        line_w += px(padding * 2.);
                     }
                     let runs = text_runs(range.len(), text_style, &highlights);
                     line_w += window

@@ -90,7 +90,8 @@ const doc={path:f.file,name:f.file,type:getFileSemanticKind(f.file,'file'),versi
 const {viewer,format,resolvedExtension}=resolveEditorViewer(doc);
 window.__viewerId=viewer.id;
 const raw=documents[f.file]??'';const content=viewer.normalizeContent?.(raw,doc)??raw;
-const context={document:doc,format,resolvedExtension,content,resourcePolicy:viewer.resourcePolicy,canEdit:true,hideSourceView:false,loading:false,fileUrl:fileUrls[f.file]??null,fileUrlLoading:false,fileUrlError:null,onRetryInput:noop,fileIconTheme:'default',
+// The source view follows the provider policy, as EditorPaneDocumentRuntime does.
+const context={document:doc,format,resolvedExtension,content,resourcePolicy:viewer.resourcePolicy,canEdit:true,hideSourceView:!viewer.providerPolicy?.sourceToggle,loading:false,fileUrl:fileUrls[f.file]??null,fileUrlLoading:false,fileUrlError:null,onRetryInput:noop,fileIconTheme:'default',
  editorInteractionPreferences:{showSaveStatus:false,markdownBlockDragEnabled:false,markdownHeadingOutlineEnabled:false},htmlTrustMode:'safe',workspaceId:'reference',workspaceRoot:'/reference',markdownEnvironment:null,documentNavigation:null,contextMapEnvironment:null,appPreview:null,aiEditFile:null};
 const pane={kind:'leaf',id:'pane-1',documentPath:doc.path};
 const drop={dropIntent:null,over:noop,leave:noop,drop:noop};

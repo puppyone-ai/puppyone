@@ -636,12 +636,8 @@ impl Element for InlineFlow {
                         state.set_text(text.clone());
                     }
 
-                    let is_code = highlights.iter().any(|(_, h)| h.font_size_scale.is_some());
-                    let padding = if is_code {
-                        px(INLINE_CODE_PADDING)
-                    } else {
-                        Pixels::ZERO
-                    };
+                    let padding = super::inline::code_padding(highlights.iter().map(|(_, h)| h))
+                        .map_or(Pixels::ZERO, px);
                     let background = code_background.map(|(background, color)| {
                         (
                             Bounds::new(bounds.origin + background.origin, background.size),
@@ -1067,11 +1063,9 @@ fn layout_measured_flow(
                         let shaped_line =
                             shape_line(subtext.clone(), segment_font_size, &runs, window);
                         let is_code = highlights.iter().any(|(_, h)| h.font_size_scale.is_some());
-                        let padding = if is_code {
-                            px(INLINE_CODE_PADDING * 2.)
-                        } else {
-                            Pixels::ZERO
-                        };
+                        let padding =
+                            super::inline::code_padding(highlights.iter().map(|(_, h)| h))
+                                .map_or(Pixels::ZERO, |p| px(p * 2.));
                         let width = shaped_line.width() + padding;
                         // Measure the run by its glyph box. The body strut already
                         // carries the line's leading, so a run only has to fit its
@@ -1501,12 +1495,9 @@ fn shaped_spans(
                             &runs,
                             window,
                         ));
-                        let padding = if highlights.iter().any(|(_, h)| h.font_size_scale.is_some())
-                        {
-                            px(INLINE_CODE_PADDING * 2.)
-                        } else {
-                            Pixels::ZERO
-                        };
+                        let padding =
+                            super::inline::code_padding(highlights.iter().map(|(_, h)| h))
+                                .map_or(Pixels::ZERO, |p| px(p * 2.));
                         spans.push(ShapedSpan::Text {
                             range: item_start + start..item_start + end,
                             line,
@@ -1612,11 +1603,8 @@ fn push_text_wrap_fragments<'a>(
                 )
                 .width
         };
-        let padding = if highlight.font_size_scale.is_some() {
-            px(INLINE_CODE_PADDING * 2.)
-        } else {
-            Pixels::ZERO
-        };
+        let padding = super::inline::code_padding([highlight])
+            .map_or(Pixels::ZERO, |p| px(p * 2.));
         let width = measure(span) + padding;
         if width <= wrap_width {
             fragments.push(WrapLineFragment::element(width, span.len()));
@@ -1994,6 +1982,7 @@ mod tests {
             style: HighlightStyle::default(),
             font_family: Some(SharedString::from(MONO)),
             font_size_scale: None,
+            code_padding: None,
         };
         let items = vec![
             MeasureItem::Text {

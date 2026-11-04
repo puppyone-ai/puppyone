@@ -38,6 +38,20 @@ pub(super) struct InlineHighlight {
     pub(super) style: HighlightStyle,
     pub(super) font_family: Option<SharedString>,
     pub(super) font_size_scale: Option<f32>,
+    /// PuppyOne patch: an inline code span's side padding (`None`: the
+    /// default [`super::inline_flow::INLINE_CODE_PADDING`]).
+    pub(super) code_padding: Option<f32>,
+}
+
+/// PuppyOne patch: the side padding of the inline code among `highlights`,
+/// `None` when none of them is code.
+pub(super) fn code_padding<'a>(
+    highlights: impl IntoIterator<Item = &'a InlineHighlight>,
+) -> Option<f32> {
+    highlights
+        .into_iter()
+        .find(|h| h.font_size_scale.is_some())
+        .map(|h| h.code_padding.unwrap_or(super::inline_flow::INLINE_CODE_PADDING))
 }
 
 impl InlineHighlight {
@@ -50,6 +64,9 @@ impl InlineHighlight {
         if other.font_size_scale.is_some() {
             self.font_size_scale = other.font_size_scale;
         }
+        if other.code_padding.is_some() {
+            self.code_padding = other.code_padding;
+        }
         self
     }
 }
@@ -60,6 +77,7 @@ impl From<HighlightStyle> for InlineHighlight {
             style,
             font_family: None,
             font_size_scale: None,
+            code_padding: None,
         }
     }
 }
@@ -2157,6 +2175,7 @@ mod tests {
             style,
             font_family: Some(SharedString::from("Mono")),
             font_size_scale: None,
+            code_padding: None,
         }
     }
 

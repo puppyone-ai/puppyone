@@ -359,17 +359,25 @@ impl EditorView {
             return kit.clone();
         }
         let transparent: Hsla = transparent_black();
-        let style = TextViewStyle::default()
+        let mut style = TextViewStyle::default()
             .with_dark(self.dark)
             .with_link(surface.link.into())
+            .with_link_underline(!surface.link_plain)
             .with_code_background(transparent)
             .with_inline_code(HighlightStyle {
                 color: surface.inline_code.map(Into::into),
-                background_color: Some(transparent),
+                background_color: Some(
+                    surface
+                        .inline_code_background
+                        .map_or(transparent, Into::into),
+                ),
                 ..Default::default()
             })
             .with_selection(surface.selection.into())
             .with_paragraph_gap(rems(0.));
+        if let Some(padding) = surface.inline_code_padding {
+            style = style.with_inline_code_padding(padding);
+        }
         let kit = Rc::new(RenderContext::new(style));
         self.kit = Some((surface.clone(), kit.clone()));
         kit

@@ -2,14 +2,17 @@
 //! strikethrough, underline, inline code, links, a highlight background and
 //! (patched, `vendor/gpui-base`) a colour, but no weight other than its
 //! bold; this maps the product's inline classes onto that.
+//!
+//! Role colours follow `color: var(--po-md-inline-foreground,
+//! var(--po-md-<role>-color))`: a quote's or callout's inline foreground
+//! wins over the role's own; a link's colour (Kit's) wins over both.
 use super::{MarkdownTheme, cascade::LineContext};
 use crate::editor::{markdown::core::classes::Class, view::decoration::MarkStyle};
 use gpui::SharedString;
 
 /// The Kit marks of a span whose elements carry `classes`, on a line with
 /// context `line`. Kit expresses weight only as "bold" (the family's Bold
-/// slot = `--po-md-strong-weight`); colours other than link and inline code
-/// are not expressible and stay the line's colour.
+/// slot = `--po-md-strong-weight`).
 pub fn marks(
     theme: &MarkdownTheme,
     classes: Class,
@@ -62,7 +65,21 @@ pub fn marks(
         } else if has(Class::LINK_DEFINITION) || has(Class::FOOTNOTE) {
             Some(packed(theme.inline.link_color))
         } else {
-            None
+            // The innermost role usually wins: code, then struck, emphasised
+            // and strong text (`**bold *both***` reads as emphasis).
+            let i = &theme.inline;
+            let role = if has(Class::SYNTAX_MONOSPACE) {
+                i.code_color
+            } else if has(Class::SYNTAX_STRIKE) {
+                Some(i.strike_color)
+            } else if has(Class::SYNTAX_EMPHASIS) {
+                Some(i.emphasis_color)
+            } else if has(Class::SYNTAX_STRONG) {
+                Some(i.strong_color)
+            } else {
+                None
+            };
+            role.map(|role| packed(line.foreground.unwrap_or(role)))
         },
     }
 }

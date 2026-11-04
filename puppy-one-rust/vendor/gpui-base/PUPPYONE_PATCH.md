@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with five additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with six additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -146,6 +146,20 @@ reference's digits, which the editor paints as a superscript over them).
 +        }
 +    }
 ```
+
+## The patch: inline code padding and plain links
+
+The product's Markdown sets inline code in the code font with the theme's
+padding (`--po-md-inline-code-padding`, `0` in the built-in themes) and
+draws links in the link colour without an underline (`.cm-md-syntax-link`
+has no text decoration). Kit pads every inline code run by a fixed 4px on
+each side and underlines every link. `TextViewStyle::with_inline_code_padding`
+sets the side padding: `InlineHighlight::code_padding` carries it with the
+code run, and every place that adds `INLINE_CODE_PADDING` asks
+`inline::code_padding(highlights)` instead (the default stays 4px).
+`TextViewStyle::with_link_underline(false)` leaves links without the
+underline (`link_underline` returns `None`). Unset, nothing changes. The
+Markdown editor sets both from its theme (`src/editor/view/editor.rs`).
 
 ## Upgrading
 

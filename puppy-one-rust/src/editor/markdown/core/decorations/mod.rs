@@ -59,6 +59,10 @@ pub fn surface(theme: &MarkdownTheme) -> Surface {
         caret_width: 1.,
         link: theme.inline.link_color,
         inline_code: theme.inline.code_color,
+        inline_code_background: Some(theme.inline.code_background),
+        inline_code_padding: Some(theme.inline.code_padding.left),
+        // `.cm-md-syntax-link` has no text decoration.
+        link_plain: true,
     }
 }
 

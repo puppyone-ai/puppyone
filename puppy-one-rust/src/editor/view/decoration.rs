@@ -79,6 +79,12 @@ pub struct Surface {
     /// Kit inline-code colour (`--po-md-inline-code-color`); `None` inherits
     /// the enclosing text's colour, just like CSS `currentColor`.
     pub inline_code: Option<Rgba>,
+    /// `--po-md-inline-code-background` / `-padding` (one side); `None`
+    /// keeps Kit's (no background, 4px).
+    pub inline_code_background: Option<Rgba>,
+    pub inline_code_padding: Option<f32>,
+    /// Kit underlines links unless told not to.
+    pub link_plain: bool,
 }
 
 #[derive(Clone, Default)]

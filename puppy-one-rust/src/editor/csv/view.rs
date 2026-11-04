@@ -93,6 +93,10 @@ pub struct CsvEditor {
     pub read_only: bool,
     /// Live table, or the source editor.
     live: bool,
+    /// `!hideSourceView`: the table viewer declares no source toggle
+    /// (`providerPolicy.sourceToggle` is false), so its source view, the
+    /// toggle and the shortcut are off unless a host turns them on.
+    pub source_view: bool,
     source: Option<(Entity<EditorView>, Subscription)>,
     focus: FocusHandle,
     port: Viewport,
@@ -150,6 +154,7 @@ impl CsvEditor {
             row_numbers: stored.show_row_numbers.unwrap_or(true),
             read_only: false,
             live: true,
+            source_view: false,
             source: None,
             focus: cx.focus_handle(),
             port: Viewport::default(),
@@ -243,6 +248,9 @@ impl CsvEditor {
 
     /// The pane's "source" command flips live / source like the toggle.
     pub fn toggle_mode(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.source_view {
+            return;
+        }
         let live = !self.live;
         self.set_live(live, window, cx);
     }
@@ -442,6 +450,7 @@ impl CsvEditor {
             caret_width: 1.,
             link: self.theme.link,
             inline_code: Some(self.theme.body.color),
+            ..Default::default()
         }
     }
 
@@ -1255,16 +1264,18 @@ impl Render for CsvEditor {
         }
         let weak = cx.entity().downgrade();
         let (w_live, w_source) = (weak.clone(), weak.clone());
-        let toggle = frame::mode_toggle(
-            &self.frame,
-            self.live,
-            move |window, cx| {
-                let _ = w_live.update(cx, |this, cx| this.set_live(true, window, cx));
-            },
-            move |window, cx| {
-                let _ = w_source.update(cx, |this, cx| this.set_live(false, window, cx));
-            },
-        );
+        let toggle = self.source_view.then(|| {
+            frame::mode_toggle(
+                &self.frame,
+                self.live,
+                move |window, cx| {
+                    let _ = w_live.update(cx, |this, cx| this.set_live(true, window, cx));
+                },
+                move |window, cx| {
+                    let _ = w_source.update(cx, |this, cx| this.set_live(false, window, cx));
+                },
+            )
+        });
         let body = if self.live {
             self.render_live(window, cx)
         } else {
@@ -1390,7 +1401,7 @@ impl Render for CsvEditor {
             .child(measure)
             .child(body)
             .children(self.expand_status())
-            .child(toggle)
+            .children(toggle)
             .children(self.menu.as_ref().map(|m| {
                 deferred(
                     anchored()

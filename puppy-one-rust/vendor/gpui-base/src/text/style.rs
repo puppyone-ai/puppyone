@@ -30,6 +30,10 @@ pub struct TextViewStyle {
     /// show that surface.
     table_background: Option<Hsla>,
     is_dark: bool,
+    /// PuppyOne patch: the side padding of inline code (`None`: 4px) and
+    /// whether links are underlined.
+    inline_code_padding: Option<f32>,
+    link_underline: bool,
 }
 
 impl PartialEq for TextViewStyle {
@@ -50,6 +54,8 @@ impl PartialEq for TextViewStyle {
             && self.inline_code == other.inline_code
             && self.table_background == other.table_background
             && self.is_dark == other.is_dark
+            && self.inline_code_padding == other.inline_code_padding
+            && self.link_underline == other.link_underline
     }
 }
 
@@ -93,6 +99,8 @@ impl TextViewStyle {
             },
             table_background: None,
             is_dark,
+            inline_code_padding: None,
+            link_underline: true,
         }
     }
 
@@ -168,6 +176,26 @@ impl TextViewStyle {
     pub fn with_inline_code(mut self, style: HighlightStyle) -> Self {
         self.inline_code = style;
         self
+    }
+
+    /// PuppyOne patch: inline code's padding on each side, in pixels.
+    pub fn with_inline_code_padding(mut self, padding: f32) -> Self {
+        self.inline_code_padding = Some(padding);
+        self
+    }
+
+    /// PuppyOne patch: whether links are underlined (they are by default).
+    pub fn with_link_underline(mut self, underline: bool) -> Self {
+        self.link_underline = underline;
+        self
+    }
+
+    pub(crate) fn inline_code_padding(&self) -> Option<f32> {
+        self.inline_code_padding
+    }
+
+    pub(crate) fn link_underline(&self) -> bool {
+        self.link_underline
     }
 
     /// Sets the style refinement for the table container (the bordered wrapper

@@ -119,6 +119,11 @@ fn rails_append_a_record_or_a_field_and_focus_its_first_cell(cx: &mut TestAppCon
 #[gpui::test]
 fn source_mode_edits_the_raw_text_and_returns_it_to_the_table(cx: &mut TestAppContext) {
     let (view, _, cx) = setup(cx, "a,b\n");
+    // The table viewer has no source view (`hideSourceView`): the command
+    // does nothing until a host offers one.
+    view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
+    view.update(cx, |v, _| assert!(v.live && v.source.is_none()));
+    view.update(cx, |v, _| v.source_view = true);
     view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
     cx.run_until_parked();
     view.update(cx, |v, _| assert!(!v.live && v.source.is_some()));

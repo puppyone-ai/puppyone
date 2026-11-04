@@ -34,6 +34,7 @@ fn plain() -> Box<PlainText> {
                 background: rgba(0x161616ff),
                 link: rgba(0x60a5faff),
                 inline_code: Some(rgba(0xb7b7bcff)),
+                ..Default::default()
             },
             ..Default::default()
         },
