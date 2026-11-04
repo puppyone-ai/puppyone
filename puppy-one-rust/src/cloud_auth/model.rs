@@ -212,17 +212,47 @@ impl Credential {
 fn valid_identity(value: &str, max: usize) -> bool {
     !value.trim().is_empty() && value.len() <= max && !value.chars().any(char::is_control)
 }
+/// `buildSessionFromAuth`: every field but the access token may be missing
+/// from a reply, and falls back as the product's does.
 #[derive(Deserialize)]
 pub(super) struct AuthReply {
     pub access_token: Secret,
-    pub refresh_token: Secret,
-    pub expires_in: u64,
-    pub user: AuthUser,
+    #[serde(default)]
+    pub refresh_token: Option<Secret>,
+    #[serde(default)]
+    pub expires_in: Option<f64>,
+    #[serde(default)]
+    pub user: Option<AuthUser>,
+    #[serde(default)]
+    pub user_id: Option<String>,
+    #[serde(default)]
+    pub user_email: Option<String>,
 }
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 pub(super) struct AuthUser {
-    pub id: String,
-    pub email: String,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+}
+/// The JWT's `sub`, read without trusting it for anything but a name.
+fn jwt_subject(token: &str) -> Option<String> {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let mut parts = token.split('.');
+    let (_, payload, _) = (parts.next()?, parts.next()?, parts.next()?);
+    let bytes = URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    value["sub"]
+        .as_str()
+        .map(str::to_owned)
+        .filter(|s| !s.trim().is_empty())
+}
+/// `createLegacyUserId`: an account known only by its email on this API.
+fn legacy_user(api: &str, email: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(format!("{api}\n{email}").as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    format!("legacy:{}", &hex[..32])
 }
 #[derive(Clone)]
 pub(super) struct Session {
@@ -231,25 +261,55 @@ pub(super) struct Session {
     pub until: Instant,
 }
 impl Session {
+    /// A sign-in's session: the reply alone must name the account.
     pub fn from_reply(environment: Environment, value: AuthReply) -> Result<Self> {
+        Self::from_reply_or(environment, value, None)
+    }
+    /// A refresh's session: what the reply leaves out comes from the
+    /// credential it renewed (`fallbackEmail`, `fallbackRefreshToken`,
+    /// `fallbackUserId`). No `expires_in` means no expiry.
+    pub fn from_reply_or(
+        environment: Environment,
+        value: AuthReply,
+        fallback: Option<&Credential>,
+    ) -> Result<Self> {
+        let text = |s: Option<String>| s.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+        let user = value.user.unwrap_or_default();
+        let email = text(value.user_email)
+            .or_else(|| text(user.email))
+            .or_else(|| fallback.map(|c| c.email.clone()))
+            .map(|e| e.to_lowercase())
+            .ok_or(Error::InvalidResponse)?;
+        let id = text(value.user_id)
+            .or_else(|| text(user.id))
+            .or_else(|| jwt_subject(&value.access_token.0))
+            .or_else(|| fallback.map(|c| c.user.clone()))
+            .unwrap_or_else(|| legacy_user(&environment.api, &email));
+        let refresh = value
+            .refresh_token
+            .or_else(|| fallback.map(|c| c.refresh.clone()))
+            .ok_or(Error::InvalidResponse)?;
         let credential = Credential {
             version: 1,
             environment,
-            user: value.user.id,
-            email: value.user.email,
-            refresh: value.refresh_token,
+            user: id,
+            email,
+            refresh,
         };
-        if !credential.valid()
-            || !value.access_token.valid()
-            || value.expires_in == 0
-            || value.expires_in > 604800
-        {
+        if !credential.valid() || !value.access_token.valid() {
             return Err(Error::InvalidResponse);
         }
+        let lifetime = value
+            .expires_in
+            .filter(|s| s.is_finite() && *s > 0.)
+            .map_or(
+                Duration::from_secs(10 * 365 * 24 * 3600),
+                Duration::from_secs_f64,
+            );
         Ok(Self {
             credential,
             access: value.access_token,
-            until: Instant::now() + Duration::from_secs(value.expires_in),
+            until: Instant::now() + lifetime,
         })
     }
     pub fn fresh(&self) -> bool {
@@ -357,6 +417,38 @@ impl ApiRequest {
             .strip_prefix("/projects/")
             .and_then(|p| p.split_once('/'))
             .is_some_and(|(project, tail)| !project.is_empty() && tail == endpoint)
+    }
+    /// `isSafeSessionRetry`: what may be sent once more under a newer
+    /// session of the same account. Reads and the read-only context lookup;
+    /// and the publication's own creations, which carry a UUIDv4
+    /// idempotency key and a body fixed before the first attempt.
+    pub fn safe_session_retry(&self) -> bool {
+        use reqwest::Method;
+        if matches!(self.method, Method::GET | Method::HEAD | Method::OPTIONS) {
+            return true;
+        }
+        if self.method == Method::POST && self.project_endpoint("repository-context") {
+            return true;
+        }
+        let keyed = self
+            .idempotency_key
+            .as_deref()
+            .and_then(|k| uuid::Uuid::parse_str(k.trim()).ok())
+            .is_some_and(|k| k.get_version_num() == 4);
+        if !keyed {
+            return false;
+        }
+        let segments: Vec<&str> = self.path.trim_end_matches('/').split('/').collect();
+        let project = |i: usize| segments.get(i).is_some_and(|s| !s.is_empty());
+        match (&self.method, segments.as_slice()) {
+            (&Method::POST, _) if self.path == "/projects/" => true,
+            (&Method::POST, ["", "projects", _, "git-credentials"]) => project(2),
+            (&Method::POST, ["", "projects", _, "initialization", "abandon"]) => project(2),
+            (&Method::DELETE, ["", "projects", _, "git-credentials", credential]) => {
+                project(2) && !credential.is_empty()
+            }
+            _ => false,
+        }
     }
     pub fn read_only(&self) -> bool {
         self.method == reqwest::Method::GET
@@ -498,5 +590,123 @@ mod configuration_tests {
         assert!(Environment::from_packaged(b"{}").is_err());
         // The hosted Git mapping is only for a loopback API.
         assert_eq!(environment.hosted_git_origin(), None);
+    }
+}
+
+#[cfg(test)]
+mod reply_tests {
+    use super::*;
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+
+    fn environment() -> Environment {
+        Environment::new("http://127.0.0.1:9/api/v1", "http://127.0.0.1:9").unwrap()
+    }
+    fn reply(value: serde_json::Value) -> AuthReply {
+        serde_json::from_value(value).unwrap()
+    }
+    /// N-18: `buildSessionFromAuth`'s fallbacks.
+    #[test]
+    fn a_refresh_reply_falls_back_field_by_field() {
+        let previous = Credential {
+            version: 1,
+            environment: environment(),
+            user: "user-1".into(),
+            email: "ada@example.test".into(),
+            refresh: Secret("refresh-1".into()),
+        };
+        // Only an access token: everything else is the renewed credential's,
+        // and there is no expiry.
+        let session = Session::from_reply_or(
+            environment(),
+            reply(serde_json::json!({"access_token": "access-2"})),
+            Some(&previous),
+        )
+        .unwrap();
+        assert_eq!(session.credential.user, "user-1");
+        assert_eq!(session.credential.email, "ada@example.test");
+        assert_eq!(session.credential.refresh.0, "refresh-1");
+        assert!(session.until > Instant::now() + Duration::from_secs(365 * 24 * 3600));
+        // The token's subject names the account before the fallback does.
+        let payload = URL_SAFE_NO_PAD.encode(br#"{"sub":"user-from-jwt"}"#);
+        let token = format!("h.{payload}.s");
+        let session = Session::from_reply_or(
+            environment(),
+            reply(
+                serde_json::json!({"access_token": token, "user_email": "ADA@example.test",
+                "expires_in": 120}),
+            ),
+            Some(&previous),
+        )
+        .unwrap();
+        assert_eq!(session.credential.user, "user-from-jwt");
+        assert_eq!(session.credential.email, "ada@example.test");
+        // Without any of them a sign-in names the account by its email.
+        let session = Session::from_reply(
+            environment(),
+            reply(
+                serde_json::json!({"access_token": "opaque", "refresh_token": "r",
+                "user": {"email": "ada@example.test"}}),
+            ),
+        )
+        .unwrap();
+        assert!(session.credential.user.starts_with("legacy:"));
+        assert_eq!(session.credential.user.len(), "legacy:".len() + 32);
+        // A sign-in still needs an email.
+        assert!(
+            Session::from_reply(
+                environment(),
+                reply(serde_json::json!({"access_token": "a", "refresh_token": "r"}))
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod session_retry_tests {
+    use super::ApiRequest;
+    use reqwest::Method;
+
+    /// N-16: `isSafeSessionRetry`.
+    #[test]
+    fn only_reads_and_keyed_publication_creations_survive_a_new_session() {
+        let key = "3f1c2b6e-4d5a-4b7c-8e9f-0a1b2c3d4e5f";
+        let check = |method: Method, path: &str, key: Option<&str>| {
+            ApiRequest {
+                method,
+                path: path.into(),
+                query: vec![],
+                body: None,
+                idempotency_key: key.map(str::to_owned),
+            }
+            .safe_session_retry()
+        };
+        assert!(check(Method::GET, "/projects/p/workbench", None));
+        assert!(check(Method::POST, "/projects/p/repository-context", None));
+        assert!(check(Method::POST, "/projects/", Some(key)));
+        assert!(check(
+            Method::POST,
+            "/projects/p/git-credentials",
+            Some(key)
+        ));
+        assert!(check(
+            Method::POST,
+            "/projects/p/initialization/abandon",
+            Some(key)
+        ));
+        assert!(check(
+            Method::DELETE,
+            "/projects/p/git-credentials/c",
+            Some(key)
+        ));
+        // Unkeyed, a non-v4 key, or another mutation never resend.
+        assert!(!check(Method::POST, "/projects/", None));
+        assert!(!check(
+            Method::POST,
+            "/projects/",
+            Some("3f1c2b6e-4d5a-1b7c-8e9f-0a1b2c3d4e5f")
+        ));
+        assert!(!check(Method::PUT, "/projects/p", Some(key)));
+        assert!(!check(Method::POST, "/projects/p/agent-links", Some(key)));
     }
 }

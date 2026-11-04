@@ -495,12 +495,20 @@ impl Broker {
                 .refresh(&credential, &fence)
                 .and_then(|session| {
                     fence.check()?;
-                    if session.credential.user != credential.user
-                        || session.credential.environment != credential.environment
-                    {
+                    if session.credential.environment != credential.environment {
                         return Err(Error::InvalidCredentials);
                     }
+                    // `rotateGeneration`: the server renewed another account.
+                    // It is adopted, and every lease of the old one ends.
+                    let rotated = session.credential.user != credential.user;
                     self.adopt(&session, &fence)?;
+                    if rotated {
+                        let mut state = self.state.lock().unwrap();
+                        state.epoch = self.control.advance();
+                        state.flight = None;
+                        state.initialized = false;
+                        self.publish(&state);
+                    }
                     Ok(session)
                 });
             // Only this generation may clear credentials. A late 401 cannot
@@ -557,9 +565,31 @@ impl Broker {
                 }
                 (state.credential.take(), state.session.take())
             };
+            // `signOut`: the server revokes the session first (bounded), then
+            // the local copy goes; a revocation that cannot be reached does
+            // not keep the account signed in here.
+            let revoked = credential.as_ref().map(|credential| {
+                let control = Control::new();
+                let mut remote_fence = control.fence();
+                remote_fence.deadline = Some(Instant::now() + Duration::from_secs(4));
+                broker
+                    .remote
+                    .logout(credential, session.as_ref(), &remote_fence)
+                    .is_ok()
+            });
             let cleared = {
                 let mut mutation = broker.mutations.lock().unwrap();
                 if fence.check().is_err() {
+                    // A sign-in began meanwhile: remove only the credential
+                    // this sign-out was for, never its replacement.
+                    let ours = broker.store.load().ok().flatten().is_some_and(|stored| {
+                        credential.as_ref().is_some_and(|c| {
+                            c.user == stored.user && c.refresh.0 == stored.refresh.0
+                        })
+                    });
+                    if ours {
+                        let _ = broker.reconcile_store(&mut mutation, true);
+                    }
                     return;
                 }
                 broker.reconcile_store(&mut mutation, true)
@@ -571,26 +601,18 @@ impl Broker {
                 } else {
                     Status::StorageBlocked
                 };
-                s.error = cleared.err();
+                s.error = match (cleared, revoked) {
+                    (Err(error), _) => Some(error),
+                    (Ok(()), Some(false)) => Some(Error::RemoteLogoutUnavailable),
+                    _ => None,
+                };
             });
-            if let Some(credential) = credential {
-                let control = Control::new();
-                let mut remote_fence = control.fence();
-                remote_fence.deadline = Some(Instant::now() + Duration::from_secs(4));
-                if broker
-                    .remote
-                    .logout(&credential, session.as_ref(), &remote_fence)
-                    .is_err()
-                    && cleared.is_ok()
-                {
-                    let _ =
-                        broker.update(&fence, |s| s.error = Some(Error::RemoteLogoutUnavailable));
-                }
-            }
         });
     }
-    /// Internal native consumer API: no caller receives an access token. Non-read
-    /// requests are never automatically replayed, including after a 401.
+    /// Internal native consumer API: no caller receives an access token. A
+    /// 401 refreshes the session and replays the request once, whatever its
+    /// method (`requestSessionApi`): the server refused it before acting.
+    /// Nothing else is replayed.
     pub fn request(&self, binding: &Binding, request: &ApiRequest) -> Result<serde_json::Value> {
         self.request_scoped(binding, request, &super::Cancellation::default())
     }
@@ -611,7 +633,7 @@ impl Broker {
         let _ = self.initialize(&session, &fence);
         fence.check()?;
         let mut result = self.remote.request(&session, request, &fence);
-        if result.as_ref().err() == Some(&Error::InvalidCredentials) && request.read_only() {
+        if result.as_ref().err() == Some(&Error::InvalidCredentials) {
             let session = self.session_for(binding, Some(&session.access))?;
             result = self.remote.request(&session, request, &fence);
         }

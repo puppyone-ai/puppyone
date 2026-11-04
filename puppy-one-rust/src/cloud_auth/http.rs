@@ -1,7 +1,7 @@
 //! Bounded, redirect-free transport. All diagnostics are fixed codes; never log bodies/URLs.
 use super::{
     model::*,
-    transport::{StreamEvent, StreamSink, response_error},
+    transport::{StreamEvent, StreamSink, refresh_error, response_error},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt;
@@ -105,6 +105,16 @@ impl Http {
         fence: &Fence,
         timeout: Duration,
     ) -> Result<Value> {
+        self.send_mapped(request, limit, fence, timeout, response_error)
+    }
+    fn send_mapped(
+        &self,
+        request: reqwest::RequestBuilder,
+        limit: usize,
+        fence: &Fence,
+        timeout: Duration,
+        refused: fn(u16, &Value) -> Error,
+    ) -> Result<Value> {
         runtime().block_on(async {
             let mut cancelled = fence.control.changes.subscribe();
             fence.check()?;
@@ -123,7 +133,7 @@ impl Http {
                 fence.check()?;
                 let value: Value = if status == 204 { Value::Null } else { serde_json::from_slice(&body).unwrap_or(Value::Null) };
                 if !(200..300).contains(&status) {
-                    return Err(response_error(status, &value));
+                    return Err(refused(status, &value));
                 }
                 if status != 204 && value.is_null() { return Err(Error::InvalidResponse); }
                 Ok(value)
@@ -182,6 +192,17 @@ impl Http {
         token: Option<&Secret>,
         fence: &Fence,
     ) -> Result<Value> {
+        let request = self.auth_request(env, path, body, token, fence)?;
+        self.send(request, 64 * 1024, fence)
+    }
+    fn auth_request(
+        &self,
+        env: &Environment,
+        path: &str,
+        body: Option<Value>,
+        token: Option<&Secret>,
+        fence: &Fence,
+    ) -> Result<reqwest::RequestBuilder> {
         let config = self.configuration(env, fence)?;
         let method = if body.is_some() || token.is_some() {
             reqwest::Method::POST
@@ -200,13 +221,19 @@ impl Http {
         if let Some(token) = token {
             request = request.bearer_auth(&token.0);
         }
-        self.send(request, 64 * 1024, fence)
+        Ok(request)
     }
     fn session(env: &Environment, mut value: Value) -> Result<Session> {
         // Move token strings into the redacted, zeroizing owner rather than copying them.
         let reply = serde_json::from_value::<AuthReply>(value.take())
             .map_err(|_| Error::InvalidResponse)?;
         Session::from_reply(env.clone(), reply)
+    }
+    /// A refresh's reply, completed from the credential it renewed.
+    fn refreshed(credential: &Credential, mut value: Value) -> Result<Session> {
+        let reply = serde_json::from_value::<AuthReply>(value.take())
+            .map_err(|_| Error::InvalidResponse)?;
+        Session::from_reply_or(credential.environment.clone(), reply, Some(credential))
     }
 }
 impl Remote for Http {
@@ -240,16 +267,21 @@ impl Remote for Http {
         )
     }
     fn refresh(&self, credential: &Credential, fence: &Fence) -> Result<Session> {
-        Self::session(
+        let request = self.auth_request(
             &credential.environment,
-            self.auth(
-                &credential.environment,
-                "/token?grant_type=refresh_token",
-                Some(json!({"refresh_token": credential.refresh.0})),
-                None,
-                fence,
-            )?,
-        )
+            "/token?grant_type=refresh_token",
+            Some(json!({"refresh_token": credential.refresh.0})),
+            None,
+            fence,
+        )?;
+        let value = self.send_mapped(
+            request,
+            64 * 1024,
+            fence,
+            Duration::from_secs(15),
+            refresh_error,
+        )?;
+        Self::refreshed(credential, value)
     }
     fn logout(
         &self,

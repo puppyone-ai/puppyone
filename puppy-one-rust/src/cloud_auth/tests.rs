@@ -46,6 +46,7 @@ pub(super) struct FakeRemote {
     expires: AtomicU64,
     refresh_hook: Mutex<Option<Hook>>,
     request_hook: Mutex<Option<Hook>>,
+    logout_hook: Mutex<Option<Hook>>,
     refresh_error: Mutex<Option<Error>>,
     request_error: Mutex<Option<Error>>,
     reject_access: Mutex<Option<String>>,
@@ -72,6 +73,7 @@ impl Default for FakeRemote {
             wrong_user: AtomicBool::new(false),
             fail_initialize: AtomicBool::new(false),
             fail_logout: AtomicBool::new(false),
+            logout_hook: Mutex::default(),
             responder: Mutex::default(),
         }
     }
@@ -81,13 +83,15 @@ impl FakeRemote {
         Session::from_reply(
             env.clone(),
             AuthReply {
-                user: AuthUser {
-                    id: user.into(),
-                    email: format!("{user}@example.test"),
-                },
+                user: Some(AuthUser {
+                    id: Some(user.into()),
+                    email: Some(format!("{user}@example.test")),
+                }),
                 access_token: Secret(format!("private-access-{n}")),
-                refresh_token: Secret(format!("private-refresh-{n}")),
-                expires_in: self.expires.load(Ordering::SeqCst),
+                refresh_token: Some(Secret(format!("private-refresh-{n}"))),
+                expires_in: Some(self.expires.load(Ordering::SeqCst) as f64),
+                user_id: None,
+                user_email: None,
             },
         )
         .unwrap()
@@ -121,6 +125,10 @@ impl Remote for FakeRemote {
         ))
     }
     fn logout(&self, _: &Credential, _: Option<&Session>, _: &Fence) -> Result<()> {
+        let hook = self.logout_hook.lock().unwrap().clone();
+        if let Some(hook) = hook {
+            hook();
+        }
         if self.fail_logout.load(Ordering::SeqCst) {
             Err(Error::Unavailable)
         } else {
@@ -390,6 +398,11 @@ fn offline_restore_keeps_identity_and_invalid_refresh_revokes_it() {
     wait(|| snapshot(&restored).status == Status::Offline);
     assert_eq!(binding(&restored).user, "alice");
     assert!(store.load().unwrap().is_some());
+    // N-17: a refused refresh that is not a 401 keeps the credential.
+    *remote.refresh_error.lock().unwrap() = Some(Error::Http(400));
+    restored.restore();
+    wait(|| snapshot(&restored).error == Some(Error::Http(400)));
+    assert!(store.load().unwrap().is_some());
     *remote.refresh_error.lock().unwrap() = Some(Error::InvalidCredentials);
     restored.restore();
     wait(|| {
@@ -483,12 +496,15 @@ fn wrong_account_refresh_and_changed_environment_never_retarget_a_lease() {
     login(&broker, "alice").unwrap();
     remote.wrong_user.store(true, Ordering::SeqCst);
     let old = binding(&broker);
-    assert!(
-        broker
-            .request(&old, &request(reqwest::Method::GET))
-            .is_err()
+    // N-18: a renewal for another account is adopted (`rotateGeneration`),
+    // and the old account's lease ends instead of being retargeted.
+    assert_eq!(
+        broker.request(&old, &request(reqwest::Method::GET)).err(),
+        Some(Error::SessionChanged)
     );
-    assert!(store.load().unwrap().is_none());
+    assert_eq!(store.load().unwrap().map(|c| c.user), Some("other".into()));
+    assert_ne!(binding(&broker), old);
+    remote.wrong_user.store(false, Ordering::SeqCst);
     remote.expires.store(3600, Ordering::SeqCst);
     login(&broker, "alice").unwrap();
     let old = binding(&broker);
@@ -502,7 +518,7 @@ fn wrong_account_refresh_and_changed_environment_never_retarget_a_lease() {
     assert!(snapshot(&broker).account.is_none());
 }
 #[test]
-fn mutation_transport_errors_are_unknown_and_never_replayed() {
+fn mutation_transport_errors_are_unknown_and_a_refused_one_is_replayed_once() {
     let (broker, remote, _) = setup();
     login(&broker, "alice").unwrap();
     let binding = binding(&broker);
@@ -514,6 +530,8 @@ fn mutation_transport_errors_are_unknown_and_never_replayed() {
         Some(Error::OutcomeUnknown)
     );
     assert_eq!(remote.requests.load(Ordering::SeqCst), 1);
+    // N-15: a 401 was refused before anything happened, so any method is
+    // refreshed and sent once more (and only once).
     *remote.request_error.lock().unwrap() = Some(Error::InvalidCredentials);
     assert_eq!(
         broker
@@ -521,8 +539,8 @@ fn mutation_transport_errors_are_unknown_and_never_replayed() {
             .err(),
         Some(Error::InvalidCredentials)
     );
-    assert_eq!(remote.requests.load(Ordering::SeqCst), 2);
-    assert_eq!(remote.refreshes.load(Ordering::SeqCst), 0);
+    assert_eq!(remote.requests.load(Ordering::SeqCst), 3);
+    assert_eq!(remote.refreshes.load(Ordering::SeqCst), 1);
 }
 #[test]
 fn uncertain_response_is_not_replayed_and_success_recovers_offline_projection() {
@@ -561,6 +579,23 @@ fn failed_remote_logout_does_not_keep_local_credentials_or_pretend_remote_revoca
     wait(|| snapshot(&broker).error == Some(Error::RemoteLogoutUnavailable));
     assert_eq!(snapshot(&broker).status, Status::SignedOut);
     assert!(store.load().unwrap().is_none());
+}
+
+/// N-19: the server revokes the session before the local copy goes.
+#[test]
+fn sign_out_revokes_remotely_before_clearing_the_saved_sign_in() {
+    let (broker, remote, store) = setup();
+    login(&broker, "alice").unwrap();
+    let saw = Arc::new(Mutex::new(None));
+    let (seen, kept) = (saw.clone(), store.clone());
+    *remote.logout_hook.lock().unwrap() = Some(Arc::new(move || {
+        *seen.lock().unwrap() = Some(kept.saved.lock().unwrap().is_some());
+    }));
+    broker.sign_out();
+    wait(|| snapshot(&broker).status == Status::SignedOut);
+    assert_eq!(*saw.lock().unwrap(), Some(true));
+    assert!(store.load().unwrap().is_none());
+    assert_eq!(snapshot(&broker).error, None);
 }
 
 #[test]

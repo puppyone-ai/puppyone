@@ -40,16 +40,34 @@ impl Store for Keychain {
                 Err(e) if e.code() == -25300 => return Ok(None), // errSecItemNotFound only
                 Err(_) => return Err(Error::SecureStorage),
             };
-        let result = if bytes.len() <= 24 * 1024 {
-            serde_json::from_slice::<Credential>(&bytes)
-                .ok()
-                .filter(Credential::valid)
-                .ok_or(Error::SecureStorage)
-        } else {
-            Err(Error::SecureStorage)
-        };
+        let credential = (bytes.len() <= 24 * 1024)
+            .then(|| serde_json::from_slice::<Credential>(&bytes).ok())
+            .flatten()
+            .filter(Credential::valid);
+        if credential.is_none() {
+            // `quarantineCorruptFile`: an unreadable record is set aside, not
+            // fatal, and the account reads as signed out.
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or_default();
+            let aside = format!("{}.corrupt.{stamp}", self.account);
+            let moved =
+                security_framework::passwords::set_generic_password(SERVICE, &aside, &bytes)
+                    .and_then(|_| {
+                        security_framework::passwords::delete_generic_password(
+                            SERVICE,
+                            &self.account,
+                        )
+                    });
+            bytes.zeroize();
+            return match moved {
+                Ok(()) => Ok(None),
+                Err(_) => Err(Error::SecureStorage),
+            };
+        }
         bytes.zeroize();
-        result.map(Some)
+        Ok(credential)
     }
     fn save(&self, credential: &Credential) -> Result<()> {
         let mut bytes = serde_json::to_vec(credential).map_err(|_| Error::SecureStorage)?;

@@ -554,13 +554,15 @@ fn managed_inference_posts_once_with_its_key_and_streams_the_reply() {
     let session = Session::from_reply(
         env.clone(),
         AuthReply {
-            user: AuthUser {
-                id: "u".into(),
-                email: "u@example.test".into(),
-            },
+            user: Some(AuthUser {
+                id: Some("u".into()),
+                email: Some("u@example.test".into()),
+            }),
             access_token: Secret("synthetic-access".into()),
-            refresh_token: Secret("synthetic-refresh".into()),
-            expires_in: 3600,
+            refresh_token: Some(Secret("synthetic-refresh".into())),
+            expires_in: Some(3600.),
+            user_id: None,
+            user_email: None,
         },
     )
     .unwrap();
@@ -608,13 +610,15 @@ fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
     let session = Session::from_reply(
         env.clone(),
         AuthReply {
-            user: AuthUser {
-                id: "u".into(),
-                email: "u@example.test".into(),
-            },
+            user: Some(AuthUser {
+                id: Some("u".into()),
+                email: Some("u@example.test".into()),
+            }),
             access_token: Secret("synthetic-access".into()),
-            refresh_token: Secret("synthetic-refresh".into()),
-            expires_in: 3600,
+            refresh_token: Some(Secret("synthetic-refresh".into())),
+            expires_in: Some(3600.),
+            user_id: None,
+            user_email: None,
         },
     )
     .unwrap();

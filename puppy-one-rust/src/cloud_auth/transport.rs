@@ -74,12 +74,22 @@ pub enum ServiceCode {
     OperationRejected,
 }
 pub(super) fn response_error(status: u16, value: &serde_json::Value) -> Error {
+    grant_error(status, value, true)
+}
+/// A refresh's refusal (`isRefreshCredentialInvalid`): only a 401 means the
+/// credential is gone; a 400 leaves it in place, and the account offline.
+pub(super) fn refresh_error(status: u16, value: &serde_json::Value) -> Error {
+    grant_error(status, value, false)
+}
+fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
     let code = value
         .get("error_code")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default();
+    // A rejected sign-in grant (PKCE exchange) is a refused credential too.
     if status == 401
-        || (status == 400
+        || (grants
+            && status == 400
             && matches!(
                 code,
                 "refresh_token_not_found"
@@ -122,4 +132,19 @@ pub(super) fn response_error(status: u16, value: &serde_json::Value) -> Error {
         _ => return Error::Http(status),
     };
     Error::Service(status, code)
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::*;
+
+    /// N-17: a rejected grant ends a sign-in, but a refresh's credential is
+    /// gone only on a 401.
+    #[test]
+    fn only_a_401_invalidates_a_refresh() {
+        let grant = serde_json::json!({"error_code": "invalid_grant"});
+        assert_eq!(response_error(400, &grant), Error::InvalidCredentials);
+        assert_eq!(refresh_error(400, &grant), Error::Http(400));
+        assert_eq!(refresh_error(401, &grant), Error::InvalidCredentials);
+    }
 }
