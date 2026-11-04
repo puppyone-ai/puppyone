@@ -331,6 +331,28 @@ pub struct LineStyle {
     pub hotspots: Vec<(Rect, super::command::Command)>,
     /// A control just after the text (a callout's fold toggle).
     pub trailing: Option<Trailing>,
+    /// Content standing in for the line's (hidden) text.
+    pub embed: Option<Embed>,
+}
+
+/// Content that stands in for a line's text inside its line box (an image
+/// alone on its line): the line keeps its padding, borders and rhythm, and
+/// the embed's height replaces the text's.
+#[derive(Clone)]
+pub struct Embed {
+    /// Identity of what it shows (equal keys draw the same).
+    pub key: u64,
+    pub content: std::rc::Rc<dyn super::widget::LineEmbed>,
+}
+impl PartialEq for Embed {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+impl std::fmt::Debug for Embed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Embed").field("key", &self.key).finish()
+    }
 }
 
 /// An icon button `gap` past the end of a line's text, centred on its last
@@ -360,6 +382,7 @@ impl LineStyle {
             overlays: Vec::new(),
             hotspots: Vec::new(),
             trailing: None,
+            embed: None,
         }
     }
 }

@@ -69,6 +69,8 @@ pub struct MarkdownExtension {
     parsed: Option<Parsed>,
     preview: PreviewState,
     pub references: Option<crate::editor::navigation::ReferenceContext>,
+    /// Where the document's media resolve and load from.
+    pub assets: Option<crate::editor::registry::DocumentAssets>,
 }
 
 impl MarkdownExtension {
@@ -82,6 +84,7 @@ impl MarkdownExtension {
             parsed: None,
             preview: PreviewState::default(),
             references: None,
+            assets: None,
         }
     }
 
@@ -132,6 +135,17 @@ impl EditorExtension for MarkdownExtension {
     ) -> Option<crate::editor::view::extension::LinkActivation> {
         self.link_activation(state, offset, release)
     }
+    fn link_target(
+        &mut self,
+        state: &EditorState,
+        href: &str,
+    ) -> Option<crate::editor::view::extension::LinkAction> {
+        if !self.live {
+            return None;
+        }
+        self.parse(state);
+        self.link_action(href.trim(), false)
+    }
     fn decorate(&mut self, input: &DecorateInput) -> Decorations {
         if input.dark != self.theme.dark {
             self.theme = MarkdownTheme::resolve(input.dark, self.scale);
@@ -154,6 +168,8 @@ impl EditorExtension for MarkdownExtension {
             preview: &self.preview,
             live: self.live,
             features: FEATURES,
+            assets: self.assets.as_ref(),
+            references: self.references.as_ref(),
         })
     }
 

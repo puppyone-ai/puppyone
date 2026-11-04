@@ -179,6 +179,44 @@ pub fn document_source(id: &str) -> Option<crate::platform::webview::Source> {
 pub fn document_folder(id: &str) -> Option<std::path::PathBuf> {
     FOLDERS.with(|f| f.borrow().get(id).cloned())
 }
+
+/// What a Markdown document's media resolve against: its own
+/// workspace-relative path, and a reader of workspace files (local or
+/// hosted) by workspace-relative path, which refuses paths outside it.
+/// Reads a workspace file by its workspace-relative path.
+pub type AssetReader = std::sync::Arc<dyn Fn(&std::path::Path) -> Option<Vec<u8>> + Send + Sync>;
+#[derive(Clone)]
+pub struct DocumentAssets {
+    /// The workspace's identity (its root's resource key).
+    pub workspace: String,
+    pub document: std::path::PathBuf,
+    pub read: AssetReader,
+}
+impl std::fmt::Debug for DocumentAssets {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DocumentAssets")
+            .field("workspace", &self.workspace)
+            .field("document", &self.document)
+            .finish_non_exhaustive()
+    }
+}
+thread_local! {
+    static ASSETS: std::cell::RefCell<std::collections::HashMap<String, DocumentAssets>> =
+        std::cell::RefCell::new(Default::default());
+}
+pub fn set_document_assets(id: &str, assets: Option<DocumentAssets>) {
+    ASSETS.with(|f| match assets {
+        Some(assets) => {
+            f.borrow_mut().insert(id.to_owned(), assets);
+        }
+        None => {
+            f.borrow_mut().remove(id);
+        }
+    });
+}
+pub fn document_assets(id: &str) -> Option<DocumentAssets> {
+    ASSETS.with(|f| f.borrow().get(id).cloned())
+}
 /// The resolved viewer's `resourcePolicy.maxSourceBytes` for `path`.
 pub fn source_budget(path: &str) -> u64 {
     resolve(&EditorDocument::local(path))

@@ -691,6 +691,7 @@ impl RenderCx<'_> {
     /// A `.cm-line` box at document `top`: background, inset rule, border,
     /// its text leaf and absolutely positioned decorations. Returns the
     /// element and its CSS height.
+    #[allow(clippy::too_many_arguments)]
     pub fn line(
         &mut self,
         source: Range<usize>,
@@ -699,11 +700,31 @@ impl RenderCx<'_> {
         top: f32,
         left: f32,
         width: f32,
+        state: super::widget::WidgetState,
     ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
         let (lift, drop) = self.shifted_growth(&source, &style.text);
         let y = b.top + p.top + lift;
+        let embed = style.embed.as_ref().map(|embed| {
+            let inner = (width - x - p.right - b.right).max(0.);
+            let (element, height) = embed.content.render(&mut super::widget::WidgetCx {
+                source: source.clone(),
+                top: top + y,
+                left: 0.,
+                width: inner,
+                state,
+                render: self,
+            });
+            let placed = div()
+                .absolute()
+                .left(px(x))
+                .top(px(y))
+                .w(px(inner))
+                .h(px(height))
+                .child(element);
+            (placed, height)
+        });
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
         let (text, text_height) = self.text(
             source.clone(),
@@ -715,7 +736,8 @@ impl RenderCx<'_> {
             x,
             y,
         );
-        let height = y + text_height + drop + p.bottom + b.bottom;
+        let content_height = embed.as_ref().map_or(text_height, |(_, h)| *h);
+        let height = y + content_height + drop + p.bottom + b.bottom;
         let mut line = self.block_box(top, left, width, height);
         if let Some(bg) = style.background {
             let [tl, tr, br, bl] = style.background_radii;
@@ -750,6 +772,9 @@ impl RenderCx<'_> {
             }
         }
         line = line.child(text);
+        if let Some((placed, _)) = embed {
+            line = line.child(placed);
+        }
         for sup in self.superscripts(&source, &style.text, wrap, (x, y), top) {
             line = line.child(sup);
         }

@@ -224,3 +224,46 @@ fn inline_html_tags_hide_and_style_their_content(cx: &mut TestAppContext) {
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(7), cx));
     assert!(hidden(&view, cx).is_empty());
 }
+
+#[gpui::test]
+fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext) {
+    use super::features::image::{ID, ShowSource};
+    use crate::editor::view::{command::Command, decoration::Block};
+    let text = "![a](x.png) [![b](y.png)](https://x.test)\n\nbeside ![c](z.png) text";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    let embeds = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        view.update(cx, |v, _| {
+            v.decorations()
+                .blocks
+                .iter()
+                .map(|b| matches!(b, Block::Line { style, .. } if style.embed.is_some()))
+                .collect::<Vec<_>>()
+        })
+    };
+    // Images (and a linked one) fill the first line; beside text they stay source.
+    assert_eq!(embeds(&view, cx), vec![true, false, false]);
+    assert!(hidden(&view, cx).contains(&(0..41)));
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                ID,
+                ShowSource {
+                    line: 0..41,
+                    caret: 2,
+                },
+            ),
+            w,
+            cx,
+        )
+    });
+    assert_eq!(embeds(&view, cx), vec![false, false, false]);
+    view.update(cx, |v, _| {
+        assert_eq!(v.state().selection, Selection::cursor(2))
+    });
+}

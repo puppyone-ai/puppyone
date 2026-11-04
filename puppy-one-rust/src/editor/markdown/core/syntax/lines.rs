@@ -149,11 +149,24 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
         let text = doc.line(line);
         let bytes = text.as_bytes();
         for token in links::find_wiki_links(text) {
-            // `![[…]]` is an embed envelope, not a wiki link label.
+            // `![[…]]` is an embed envelope, not a wiki link label; an
+            // image's embeds it (`obsidianMediaEmbed.ts`), its alias the
+            // alt text or size.
             if token.range.start > 0
                 && bytes[token.range.start - 1] == b'!'
                 && !links::is_escaped(bytes, token.range.start - 1)
             {
+                if is_image_path(&token.target) {
+                    let from = range.start + token.range.start - 1;
+                    let to = range.start + token.range.end;
+                    let mut e = Element::new(Kind::ImageEmbed, from..to, vec![from..to], None);
+                    e.href = Some(token.target.clone());
+                    let inner = &text[token.range.start + 2..token.range.end - 2];
+                    e.text = inner
+                        .split_once('|')
+                        .map(|(_, alias)| alias.trim().to_owned());
+                    elements.push(e);
+                }
                 continue;
             }
             let base = range.start;
@@ -204,6 +217,17 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
             ));
         }
     }
+}
+
+/// An image file by its extension (`OBSIDIAN_IMAGE_EXTENSIONS`).
+pub fn is_image_path(target: &str) -> bool {
+    let path = target.split(['#', '?']).next().unwrap_or(target);
+    path.rsplit_once('.').is_some_and(|(_, ext)| {
+        matches!(
+            ext.to_ascii_lowercase().as_str(),
+            "avif" | "bmp" | "gif" | "jpeg" | "jpg" | "png" | "svg" | "webp"
+        )
+    })
 }
 
 /// `/(~~)(\S(?:.*?\S)?)(~~)/g` over one line: (opening, closing) indices.

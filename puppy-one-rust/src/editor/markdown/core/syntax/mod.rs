@@ -54,6 +54,11 @@ pub enum Kind {
     FootnoteDefinition,
     /// `<tag>content</tag>` of the inline-editable HTML profile.
     InlineHtml,
+    /// `![alt](src)`, a reference image, or an Obsidian `![[image]]` embed
+    /// (`href` its source, `text` its title).
+    Image,
+    /// The `!` of an Obsidian image embed: its target resolves by name.
+    ImageEmbed,
 }
 
 impl Kind {

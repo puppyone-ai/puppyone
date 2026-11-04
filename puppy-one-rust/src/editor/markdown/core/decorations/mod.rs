@@ -40,6 +40,10 @@ pub struct DecorateCx<'a> {
     pub preview: &'a PreviewState,
     pub live: bool,
     pub features: Features,
+    /// Where the document's media resolve and load from.
+    pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
+    /// The workspace's link graph (Obsidian embeds resolve by name).
+    pub references: Option<&'a crate::editor::navigation::ReferenceContext>,
 }
 
 /// The surface of `.markdown-codemirror-editor` / `.cm-content`.

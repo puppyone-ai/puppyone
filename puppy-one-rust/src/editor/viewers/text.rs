@@ -67,11 +67,9 @@ pub fn open_markdown(
     _: &mut Window,
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
-    open(
-        request,
-        Box::new(MarkdownExtension::new(request.dark, request.scale)),
-        cx,
-    )
+    let mut markdown = MarkdownExtension::new(request.dark, request.scale);
+    markdown.assets = crate::editor::registry::document_assets(request.id);
+    open(request, Box::new(markdown), cx)
 }
 /// Source text.
 pub fn open_source(

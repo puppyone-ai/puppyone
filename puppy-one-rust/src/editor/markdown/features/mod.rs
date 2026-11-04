@@ -6,6 +6,7 @@
 pub mod callout;
 pub mod code_block;
 pub mod front_matter;
+pub mod image;
 pub mod math;
 pub mod rule;
 pub mod table;

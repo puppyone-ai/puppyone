@@ -69,6 +69,16 @@ impl MarkdownExtension {
         };
         let target = target.trim();
         let key = format!("{}:{target}", if wiki { "wiki" } else { "href" });
+        Some(LinkActivation {
+            key,
+            action: self.link_action(target, wiki)?,
+            label: element.content.clone()?,
+        })
+    }
+
+    /// Where an authored link target leads (a wiki target, or an href
+    /// through the URL policy).
+    pub(super) fn link_action(&mut self, target: &str, wiki: bool) -> Option<LinkAction> {
         let href = if wiki {
             target.to_owned()
         } else {
@@ -98,11 +108,7 @@ impl MarkdownExtension {
                 LinkAction::Workspace(resolved.candidates)
             }
         };
-        Some(LinkActivation {
-            key,
-            action,
-            label: element.content.clone()?,
-        })
+        Some(action)
     }
 }
 

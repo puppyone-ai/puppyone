@@ -161,6 +161,19 @@ enum Completed {
     ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
 }
 /// Resources of a hosted document through its workspace provider.
+/// A Markdown image's bytes, at most `MARKDOWN_ASSET_MAX_BYTES`.
+const MARKDOWN_ASSET_MAX_BYTES: u64 = 32 * 1024 * 1024;
+fn read_bounded(file: &std::path::Path) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(file)
+        .ok()?
+        .take(MARKDOWN_ASSET_MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    (bytes.len() as u64 <= MARKDOWN_ASSET_MAX_BYTES).then_some(bytes)
+}
+
 struct WorkspaceAssets {
     workspace: Arc<Workspace>,
     base: PathBuf,
@@ -548,6 +561,27 @@ impl Documents {
                 }))
             });
         crate::editor::registry::set_document_source(&doc.id, source);
+        // Markdown media (`resolveMarkdownMediaReference`) read workspace
+        // files by workspace-relative path, local or hosted.
+        let assets = self
+            .workspace
+            .as_ref()
+            .filter(|ws| ws.capabilities().preview)
+            .and_then(|ws| {
+                let root = ws.resource_id(std::path::Path::new("")).ok()?;
+                let ws = ws.clone();
+                Some(crate::editor::registry::DocumentAssets {
+                    workspace: crate::editor::workbench::catalog::resource_key(&root),
+                    document: doc.relative.clone(),
+                    read: Arc::new(move |path: &std::path::Path| {
+                        match ws.resource(path).ok()?.data().ok()? {
+                            workspace::PreviewData::Bytes { bytes, .. } => Some(bytes.to_vec()),
+                            workspace::PreviewData::LocalFile(file) => read_bounded(file),
+                        }
+                    }),
+                })
+            });
+        crate::editor::registry::set_document_assets(&doc.id, assets);
         HostMessage::Open {
             id: doc.id.clone(),
             name: doc.relative.to_string_lossy().into_owned(),

@@ -427,6 +427,18 @@ impl<'a> Walker<'a> {
                         .or(reference);
                     self.syntax.elements.push(e);
                 }
+                // `![alt](src "title")` and reference images: the source is
+                // the destination, the title its own.
+                if let Tag::Image { ref title, .. } = tag
+                    && marks.len() >= 2
+                {
+                    let content = marks[0].end..marks[1].start.max(marks[0].end);
+                    let mut e =
+                        Element::new(Kind::Image, range.clone(), marks.clone(), Some(content));
+                    e.href = Some(dest_url.to_string());
+                    e.text = (!title.is_empty()).then(|| title.to_string());
+                    self.syntax.elements.push(e);
+                }
                 self.push(Frame::Link, node);
             }
             Tag::CodeBlock(kind) => {

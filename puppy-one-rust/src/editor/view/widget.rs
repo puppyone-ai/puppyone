@@ -92,6 +92,13 @@ impl WidgetCx<'_, '_> {
     }
 }
 
+/// A line's content in place of its text (`LineStyle::embed`). `cx.top`
+/// is the content box's document top, `cx.left` 0 and `cx.width` its
+/// width; the element is placed at the content box's origin.
+pub trait LineEmbed {
+    fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32);
+}
+
 pub trait BlockWidget {
     /// The widget's box (at `cx.top` in a column of `cx.width`), with text
     /// leaves registered through `cx.render`. Returns the element and its

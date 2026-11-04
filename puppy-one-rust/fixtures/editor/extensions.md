@@ -38,3 +38,11 @@ Moss grows on the north side[^moss] and lichens almost anywhere[^lichen].
 Water is H<sub>2</sub>O and E = mc<sup>2</sup>; <b>bold</b>, <i>italic</i>, <u>under</u>, <s>gone</s>, <mark>marked</mark>, <kbd>Ctrl</kbd>, <q>quoted</q>, <span style="color: #e93147">red</span> and <a href="https://example.com">a link</a>.
 
 Compare [a markdown link](https://example.com) here.
+
+## Images
+
+![A sample](sample.png)
+
+![Sized|120](sample.png) ![Missing](none.png)
+
+[![Linked](sample.png)](https://example.com)

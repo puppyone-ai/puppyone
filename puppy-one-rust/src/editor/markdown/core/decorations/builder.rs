@@ -92,12 +92,15 @@ impl<'a> Builder<'a> {
         if features && cx.live {
             let plans = self.by_line[line].clone();
             let mut decoration = LineDecoration {
+                doc: cx.doc,
                 line,
                 range: cx.doc.line_range(line),
                 plans: &plans,
                 syntax: cx.syntax,
                 theme: cx.theme,
                 preview: cx.preview,
+                assets: cx.assets,
+                references: cx.references,
                 context: &context,
                 style: &mut style,
                 hidden: &mut self.hidden,
@@ -117,6 +120,7 @@ impl<'a> Builder<'a> {
 
 /// A feature decorating the line box of one source line.
 pub struct LineDecoration<'b> {
+    pub doc: &'b crate::editor::text::buffer::Buffer,
     pub line: usize,
     pub range: Range<usize>,
     /// Plans whose source starts on this line.
@@ -124,6 +128,8 @@ pub struct LineDecoration<'b> {
     pub syntax: &'b Syntax,
     pub theme: &'b MarkdownTheme,
     pub preview: &'b crate::editor::markdown::core::state::PreviewState,
+    pub assets: Option<&'b crate::editor::registry::DocumentAssets>,
+    pub references: Option<&'b crate::editor::navigation::ReferenceContext>,
     /// The cascade's facts about the line (marker slot, text row).
     pub context: &'b LineContext,
     pub style: &'b mut LineStyle,

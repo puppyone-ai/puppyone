@@ -82,6 +82,10 @@ pub trait EditorExtension: std::any::Any {
     ) -> Option<LinkActivation> {
         None
     }
+    /// Where a link a widget carries leads (a linked image's href).
+    fn link_target(&mut self, _state: &EditorState, _href: &str) -> Option<LinkAction> {
+        None
+    }
     fn decorate(&mut self, input: &DecorateInput) -> Decorations;
     /// A cheap key; decorations are rebuilt when it changes (besides
     /// document revision, selection, focus, pointer and appearance).

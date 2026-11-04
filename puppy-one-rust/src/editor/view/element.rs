@@ -195,6 +195,7 @@ impl EditorElement {
                     y,
                     column_left,
                     column_width,
+                    WidgetState::of(&source, selection.0, selection.1, focused, read_only),
                 ),
                 Block::Widget { widget, .. } => {
                     let state =

@@ -177,29 +177,46 @@ impl EditorView {
             && let Some(release) = self.link_for(event.position, true)
             && release.key == press.activation.key
         {
-            use super::extension::LinkAction;
-            // Navigation is a selection-only action: no dirty event/history entry.
-            let position = if let LinkAction::Position(position) = release.action {
-                position
-            } else {
-                press.anchor
-            };
-            let mut transaction = Transaction::select(Selection::cursor(position));
-            transaction.scroll_into_view = matches!(release.action, LinkAction::Position(_));
-            self.dispatch(transaction, cx);
-            match release.action {
-                LinkAction::Workspace(paths) => {
-                    cx.emit(super::editor::EditorEvent::OpenPaths(paths))
-                }
-                LinkAction::External(href) => cx.open_url(&href),
-                LinkAction::Position(_) => {}
-            }
+            self.follow(release.action, press.anchor, cx);
         }
         if self.drag.take().is_some() {
             // Releasing the pointer lets formats reconcile reveal state.
             let (state, focused) = (&self.state, true);
             self.extension.selection_changed(state, focused, false);
             cx.notify();
+        }
+    }
+
+    /// Follow a link: a position in this document moves the caret there;
+    /// anything else leaves the caret at `anchor`.
+    pub(super) fn follow(
+        &mut self,
+        action: super::extension::LinkAction,
+        anchor: usize,
+        cx: &mut Context<Self>,
+    ) {
+        use super::extension::LinkAction;
+        // Navigation is a selection-only action: no dirty event/history entry.
+        let position = if let LinkAction::Position(position) = action {
+            position
+        } else {
+            anchor
+        };
+        let mut transaction = Transaction::select(Selection::cursor(position));
+        transaction.scroll_into_view = matches!(action, LinkAction::Position(_));
+        self.dispatch(transaction, cx);
+        match action {
+            LinkAction::Workspace(paths) => cx.emit(super::editor::EditorEvent::OpenPaths(paths)),
+            LinkAction::External(href) => cx.open_url(&href),
+            LinkAction::Position(_) => {}
+        }
+    }
+
+    /// Follow a link a widget carries (a linked image).
+    pub fn follow_href(&mut self, href: &str, cx: &mut Context<Self>) {
+        if let Some(action) = self.extension.link_target(&self.state, href) {
+            let anchor = self.state.selection.anchor;
+            self.follow(action, anchor, cx);
         }
     }
 
