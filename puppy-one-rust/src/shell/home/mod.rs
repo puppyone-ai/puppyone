@@ -285,12 +285,15 @@ impl Shell {
             return false;
         }
         let since = *self.homepage.first_paint.get_or_insert_with(Instant::now);
+        // `settled`: no Cloud result is still on its way that would reorder
+        // the list (a cached stand-in is not the account's own answer).
+        let catalog = self.cloud_catalog.read(cx);
         let catalog_settled = account.is_none()
-            || matches!(
-                self.cloud_catalog.read(cx).state,
+            || matches!(catalog.state, crate::features::cloud_catalog::State::Failed)
+            || (matches!(
+                catalog.state,
                 crate::features::cloud_catalog::State::Ready(_)
-                    | crate::features::cloud_catalog::State::Failed
-            );
+            ) && catalog.fresh);
         let settled = !self.homepage.reading && self.homepage.read_for.is_some() && catalog_settled;
         if settled || since.elapsed() >= FIRST_PAINT_BUDGET {
             self.homepage.released_for = Some(account);

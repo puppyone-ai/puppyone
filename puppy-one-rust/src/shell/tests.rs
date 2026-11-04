@@ -3545,3 +3545,65 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         assert!(!s.files.allow_quit);
     });
 }
+
+/// N-12: an account's last list stands in for its first answer (not as
+/// the settled order), and signing out removes it.
+#[gpui::test]
+fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mut TestAppContext) {
+    use crate::features::cloud_catalog::State;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let dir = tempfile::tempdir().unwrap();
+    let slow = std::sync::Arc::new(AtomicBool::new(false));
+    let responder = with_catalog({
+        let slow = slow.clone();
+        std::sync::Arc::new(move |request| {
+            if slow.load(Ordering::SeqCst) && request.path.ends_with("/projects/") {
+                std::thread::sleep(std::time::Duration::from_millis(400));
+            }
+            cloud_project_responder()(request)
+        })
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
+        let cache = dir.path().to_path_buf();
+        s.cloud_catalog.update(cx, |c, _| c.cache_dir = Some(cache));
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
+    settle_cloud(&view, cx, "the fresh catalog", &|s, cx| {
+        let c = s.cloud_catalog.read(cx);
+        c.fresh && matches!(c.state, State::Ready(_))
+    });
+    assert!(dir.path().join("cloud-project-catalog.v1.json").exists());
+    // The next launch: the cached list shows at once, not yet settled.
+    slow.store(true, Ordering::SeqCst);
+    view.update(cx, |s, cx| {
+        s.cloud_catalog.update(cx, |c, _| c.forget());
+        s.refresh_cloud_catalog(false, cx);
+        let c = s.cloud_catalog.read(cx);
+        assert!(!c.fresh);
+        assert!(
+            matches!(&c.state, State::Ready(entries) if entries.iter().any(|e| e.name == "Fixture Cloud"))
+        );
+    });
+    settle_cloud(&view, cx, "the fresh answer", &|s, cx| {
+        s.cloud_catalog.read(cx).fresh
+    });
+    // Signing out removes the names.
+    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        !crate::features::cloud_account::has_account(cx)
+    });
+    // The fixture account was installed after the window, so the shell
+    // does not observe it; the app's account change refreshes the catalog.
+    view.update(cx, |s, cx| s.refresh_cloud_catalog(false, cx));
+    settle_cloud(&view, cx, "the cleared cache", &|_, _| {
+        !dir.path().join("cloud-project-catalog.v1.json").exists()
+    });
+}
