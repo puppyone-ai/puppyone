@@ -322,6 +322,9 @@ impl Broker {
                 .as_ref()
                 .is_some_and(|current| current.url == event.url && current.epoch == event.epoch)
     }
+    /// The product has no way to abandon a sign-in from the app; tests
+    /// stop one here.
+    #[cfg(test)]
     pub fn cancel(&self) {
         let Ok(fence) = self.begin(Status::SignedOut) else {
             return;

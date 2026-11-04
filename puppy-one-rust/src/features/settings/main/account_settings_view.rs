@@ -74,27 +74,20 @@ impl SettingsWorkspaceSurface {
             );
         let mut sign_in = h_flex().gap(px(8.)).px(px(10.)).pt(px(2.)).pb(px(6.));
         if status == Status::SigningIn {
-            sign_in = sign_in
-                .child(
-                    Button::new("reopen-sign-in")
-                        .label(tr("cloud.auth.desktopReopen"))
-                        .disabled(closing || !snapshot.as_ref().is_some_and(|s| s.can_reopen))
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            if let Some(cloud) = &s.cloud {
-                                cloud.read(cx).reopen();
-                            }
-                        })),
-                )
-                .child(
-                    Button::new("cancel-sign-in")
-                        .label(tr("common.action.cancel"))
-                        .disabled(closing)
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            if let Some(cloud) = &s.cloud {
-                                cloud.read(cx).cancel();
-                            }
-                        })),
-                );
+            // `startWebSignIn` while the browser is out: the same button
+            // sends it to the sign-in page again, and the page says where
+            // to finish. There is no separate reopen or cancel.
+            sign_in = sign_in.child(
+                Button::new("sign-in")
+                    .variant(ButtonVariant::OutlinePrimary)
+                    .label(tr("settings.account.signInWithBrowser"))
+                    .disabled(closing || !snapshot.as_ref().is_some_and(|s| s.can_reopen))
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        if let Some(cloud) = &s.cloud {
+                            cloud.read(cx).reopen();
+                        }
+                    })),
+            );
         } else if account.is_some() || status == Status::StorageBlocked {
             sign_in = sign_in.child(
                 Button::new("sign-out")

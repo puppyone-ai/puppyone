@@ -139,11 +139,6 @@ impl CloudAccount {
             broker.sign_out();
         }
     }
-    pub fn cancel(&self) {
-        if let Some(broker) = self.admitted() {
-            broker.cancel();
-        }
-    }
     pub fn reopen(&self) {
         if let Some(broker) = self.admitted() {
             broker.reopen();

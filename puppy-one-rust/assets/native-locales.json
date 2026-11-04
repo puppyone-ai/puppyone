@@ -130,7 +130,6 @@
       "native.menu.help": "Help",
       "native.menu.closeWindow": "Close Window",
       "native.about.version": "Version {version}",
-      "cloud.auth.desktopReopen": "Open it again",
       "onboarding.template.useLink": "Use a template link"
     },
     "zh-Hans": {
@@ -262,7 +261,6 @@
       "native.menu.help": "帮助",
       "native.menu.closeWindow": "关闭窗口",
       "native.about.version": "版本 {version}",
-      "cloud.auth.desktopReopen": "重新打开",
       "onboarding.template.useLink": "使用模板链接"
     },
     "ja": {
@@ -394,7 +392,6 @@
       "native.menu.help": "ヘルプ",
       "native.menu.closeWindow": "ウインドウを閉じる",
       "native.about.version": "バージョン {version}",
-      "cloud.auth.desktopReopen": "もう一度開く",
       "onboarding.template.useLink": "テンプレートリンクを使う"
     },
     "ko": {
@@ -526,7 +523,6 @@
       "native.menu.help": "도움말",
       "native.menu.closeWindow": "윈도우 닫기",
       "native.about.version": "버전 {version}",
-      "cloud.auth.desktopReopen": "다시 열기",
       "onboarding.template.useLink": "템플릿 링크 사용"
     },
     "es": {
@@ -658,7 +654,6 @@
       "native.menu.help": "Ayuda",
       "native.menu.closeWindow": "Cerrar ventana",
       "native.about.version": "Versión {version}",
-      "cloud.auth.desktopReopen": "Abrirla de nuevo",
       "onboarding.template.useLink": "Usar un enlace de plantilla"
     },
     "pt-BR": {
@@ -790,7 +785,6 @@
       "native.menu.help": "Ajuda",
       "native.menu.closeWindow": "Fechar Janela",
       "native.about.version": "Versão {version}",
-      "cloud.auth.desktopReopen": "Abrir de novo",
       "onboarding.template.useLink": "Usar um link de modelo"
     },
     "fr": {
@@ -922,7 +916,6 @@
       "native.menu.help": "Aide",
       "native.menu.closeWindow": "Fermer la fenêtre",
       "native.about.version": "Version {version}",
-      "cloud.auth.desktopReopen": "La rouvrir",
       "onboarding.template.useLink": "Utiliser un lien de modèle"
     },
     "de": {
@@ -1054,12 +1047,10 @@
       "native.menu.help": "Hilfe",
       "native.menu.closeWindow": "Fenster schließen",
       "native.about.version": "Version {version}",
-      "cloud.auth.desktopReopen": "Erneut öffnen",
       "onboarding.template.useLink": "Vorlagenlink verwenden"
     }
   },
   "legacy": [
-    "cloud.auth.desktopReopen",
     "onboarding.template.useLink"
   ],
   "legacyNote": "Temporary: product keys deleted at 671143f2a that native code still renders. Each is removed here together with the native code that uses it."
