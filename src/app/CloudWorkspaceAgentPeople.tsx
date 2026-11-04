@@ -2,7 +2,7 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { ReachMemberMark } from "../features/app-shell/project-reach";
 import type { CloudWorkspacePeople } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
-import type { ShareAgentMark } from "../features/cloud/share/CloudWorkspaceAgentsPanel";
+import type { ShareAgentMark } from "../features/cloud/share/agentMark";
 import { workspaceAgentStatus } from "../features/cloud/share/useWorkspaceAgents";
 
 /** Enough faces to recognize the room; the rest are a count. */

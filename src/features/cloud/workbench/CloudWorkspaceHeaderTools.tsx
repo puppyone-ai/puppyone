@@ -7,7 +7,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
 import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 import type { AgentRequest } from "../share/agentLinks";
-import type { ShareAgentMark } from "../share/CloudWorkspaceAgentsPanel";
+import type { ShareAgentMark } from "../share/agentMark";
 import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAgents";
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));

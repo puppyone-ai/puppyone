@@ -6,7 +6,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { agentConnectMessage, createAgentLink, listAgentLinks, type AgentAdmission } from "./agentLinks";
 import { CloudWorkspaceAgentInviteDemo } from "./CloudWorkspaceAgentInviteDemo";
-import type { ShareAgentMark } from "./CloudWorkspaceAgentsPanel";
+import type { ShareAgentMark } from "./agentMark";
 
 /** Long enough to read, short enough that the button is ready for a second Agent. */
 const COPIED_MS = 3_000;

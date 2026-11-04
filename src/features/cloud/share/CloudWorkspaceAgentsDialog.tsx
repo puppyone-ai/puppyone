@@ -5,7 +5,7 @@ import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } fro
 import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { listAgentLinks, removeConnectedAgent, stopSharingWithAgents, type AgentLinkInventory, type ConnectedAgent } from "./agentLinks";
-import { agentMark, type ShareAgentMark } from "./CloudWorkspaceAgentsPanel";
+import { agentMark, type ShareAgentMark } from "./agentMark";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 import "./workspace-share.css";
 

@@ -4,7 +4,8 @@ import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
-import type { AgentsPanelControl, ShareAgentMark } from "./CloudWorkspaceAgentsPanel";
+import type { ShareAgentMark } from "./agentMark";
+import type { AgentsPanelControl } from "./CloudWorkspaceAgentsPanel";
 import "./workspace-share.css";
 
 /**

@@ -7,34 +7,15 @@ import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMen
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { formatRelativeTime } from "../utils";
 import { decideAgentRequest, type AgentRequest } from "./agentLinks";
+import { agentMark, type ShareAgentMark } from "./agentMark";
 import { CloudWorkspaceAgentInvite } from "./CloudWorkspaceAgentInvite";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 import "./workspace-share.css";
-
-/**
- * What the list tells the shell about an Agent, to be drawn as the Header draws
- * it. A host may ask for its own size; anywhere else the shell's size holds.
- */
-export type ShareAgentMark = Readonly<{
-  id: string;
-  name: string;
-  active: boolean;
-  /** The picture the Agent chose when it connected, if any. */
-  avatar?: string | null;
-  size?: number;
-}>;
 
 /** Larger than in the Header: the card is where the Agents are met, not glanced at. */
 const ROSTER_MARK_SIZE = 40;
 /** An Agent asking to join, big enough to be recognized in the roster once it is let in. */
 const REQUEST_MARK_SIZE = 28;
-
-/** Draws one Agent: the shell's mark, or a lamp where the shell lends none. */
-export function agentMark(agent: ShareAgentMark, renderAgentMark?: (agent: ShareAgentMark) => ReactNode) {
-  return renderAgentMark?.({ id: agent.id, name: agent.name, active: agent.active, avatar: agent.avatar,
-    size: agent.size })
-    ?? <span className="desktop-cloud-agent-lamp" data-active={agent.active || undefined} aria-hidden="true" />;
-}
 
 /** Only the owner may let an Agent in, so only they get the card's controls. */
 export type AgentsPanelControl = Readonly<{

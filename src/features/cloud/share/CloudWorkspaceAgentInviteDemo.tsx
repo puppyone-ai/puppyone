@@ -2,7 +2,7 @@ import { useState, type AnimationEvent, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { agentConnectMessage } from "./agentLinks";
-import type { ShareAgentMark } from "./CloudWorkspaceAgentsPanel";
+import type { ShareAgentMark } from "./agentMark";
 import "./agent-invite-demo.css";
 
 /** Agents a person may already use, so one of them is likely to be theirs. */
