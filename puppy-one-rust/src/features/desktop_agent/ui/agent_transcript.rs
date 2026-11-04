@@ -165,7 +165,9 @@ impl AgentChat {
                 .map_or("", String::as_str)
                 .as_bytes(),
         );
-        hasher.update(&[u8::from(self.rail_overflow.contains(&row.id))]);
+        for key in self.open_folds.iter().filter(|k| k.starts_with(&row.id)) {
+            hasher.update(key.as_bytes());
+        }
         for key in self.expanded.iter().filter(|k| k.starts_with(&row.id)) {
             hasher.update(key.as_bytes());
         }

@@ -22,6 +22,9 @@ pub struct AgentTheme {
     pub row_hover: Rgba,
     pub tool_action: Rgba,
     pub tool_active: Rgba,
+    /// One step line: the quiet glyph and the readable object.
+    pub tool_glyph: Rgba,
+    pub tool_subject: Rgba,
     pub evidence_rail: Rgba,
     pub question_surface: Rgba,
     pub edge_fade: Rgba,
@@ -74,6 +77,8 @@ impl AgentTheme {
             row_hover: alpha(t.hover, 0.86),
             tool_action: text_muted,
             tool_active: mix(text, text_muted, 0.78),
+            tool_glyph: t.subtle,
+            tool_subject: mix(text, text_muted, 0.86),
             evidence_rail: t.border_strong,
             question_surface: alpha(report_surface, 0.94),
             edge_fade: alpha(canvas, 0.78),

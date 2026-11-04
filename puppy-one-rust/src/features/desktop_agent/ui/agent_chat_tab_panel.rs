@@ -74,7 +74,7 @@ pub struct AgentChat {
     expanded: std::collections::HashSet<String>,
     /// The tool rail's single open item and open `+N` panels, per row.
     rail_selected: HashMap<String, String>,
-    rail_overflow: std::collections::HashSet<String>,
+    open_folds: std::collections::HashSet<String>,
     run_summary_open: bool,
     unread: usize,
     transcript_width: f32,
@@ -316,7 +316,7 @@ impl AgentChat {
             row_signatures: vec![],
             expanded: Default::default(),
             rail_selected: HashMap::new(),
-            rail_overflow: Default::default(),
+            open_folds: Default::default(),
             run_summary_open: false,
             unread: 0,
             transcript_width: 0.,

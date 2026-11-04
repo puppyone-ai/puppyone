@@ -1,5 +1,5 @@
 //! Port of the activity renderers: `AgentActivityShell`, `AgentToolActivityGroup`
-//! (the tool rail: one disclosure open at a time), `AgentToolGlyph`, the evidence
+//! (step lines: one detail open at a time), `AgentToolGlyph`, the evidence
 //! tree (`AgentToolEvidenceTree/Node`, `AgentToolTextEvidence`), the Command,
 //! FileChange, FileQuery and Generic tool renderers, reasoning, plan, the
 //! context divider and `AgentRunFeedback`, with `styles/activities.css`.
@@ -7,15 +7,13 @@ use super::super::super::domain::{
     agent_activity_presentation::{
         self as presentation, ActivityStatus, Glyph, Renderer, ToolName,
     },
-    agent_timeline::{
-        RAIL_GAP, RAIL_GROUP_INSET, RAIL_ITEM, RAIL_OVERFLOW, Row, rail_visible_count,
-    },
-    agent_tool_evidence,
+    agent_timeline::Row,
+    agent_tool_evidence, agent_tool_steps as steps,
 };
 use super::agent_theme::AgentTheme;
 use super::*;
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::components::{Icon, tooltip};
+use crate::ui::components::Icon;
 use crate::{
     agent::domain::agent_session_model::Message,
     localization::{t as tr, tf},
@@ -502,7 +500,8 @@ fn diff_stats(message: &Message, a: &AgentTheme) -> Option<AnyElement> {
         h_flex()
             .gap(px(5.))
             .flex_shrink_0()
-            .text_size(px(theme::ty().left.content))
+            .whitespace_nowrap()
+            .text_size(px(theme::ty().left.meta))
             .child(
                 div()
                     .text_color(a.diff_added_text)
@@ -542,13 +541,158 @@ fn prose_branch(content: AnyElement, a: &AgentTheme) -> Div {
         .child(content)
 }
 
+/// `.desktop-agent-tool-row`: the glyph, the verb, what it acted on, the
+/// facts, and the status of anything but success.
+#[allow(clippy::too_many_arguments)]
+fn step_line(
+    id: SharedString,
+    icon: AnyElement,
+    title: String,
+    subject: Option<AnyElement>,
+    metadata: Option<AnyElement>,
+    status: Option<AnyElement>,
+    has_detail: bool,
+    active: bool,
+    a: &AgentTheme,
+) -> Stateful<Div> {
+    let m = theme::ty();
+    let a = *a;
+    let group = SharedString::from(format!("{id}-group"));
+    let name = div()
+        .flex_none()
+        .whitespace_nowrap()
+        .text_color(a.tool_action)
+        .group_hover(group.clone(), move |s| s.text_color(a.text))
+        .child(title);
+    // Live work reads as light passing over the step, not a spinner.
+    let name = if active {
+        name.with_animation(
+            SharedString::from(format!("{id}-shimmer")),
+            Animation::new(std::time::Duration::from_millis(1800)).repeat(),
+            move |d, delta| {
+                let wave = (delta * std::f32::consts::TAU).cos() * 0.5 + 0.5;
+                d.opacity(0.55 + 0.45 * wave)
+            },
+        )
+        .into_any_element()
+    } else {
+        name.into_any_element()
+    };
+    h_flex()
+        .id(id)
+        .group(group)
+        .w_full()
+        .min_w_0()
+        .min_h(px(theme::control_compact()))
+        .px(px(ROW_PADDING))
+        .gap(px(8.))
+        .rounded(px(6.))
+        .text_size(px(m.left.content))
+        .line_height(px(m.left.line_height))
+        .text_color(a.tool_action)
+        .when(has_detail, |d| {
+            d.cursor(theme::clickable_cursor())
+                .hover(move |s| s.bg(a.row_hover).text_color(a.text))
+        })
+        .child(
+            div()
+                .size(px(TOOL_ICON))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(icon),
+        )
+        .child(name)
+        .child(
+            div()
+                .flex()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .text_color(a.text_subtle)
+                .children(subject),
+        )
+        .children(metadata)
+        .children(status)
+}
+/// `.desktop-agent-tool-subject`: the object most worth reading first; the
+/// context gives way when space runs out.
+fn subject_element(subject: &steps::Subject, a: &AgentTheme) -> AnyElement {
+    let line = || {
+        h_flex()
+            .min_w_0()
+            .items_baseline()
+            .gap(px(6.))
+            .overflow_hidden()
+    };
+    let context = |text: String| {
+        div()
+            .min_w_0()
+            .flex_shrink(100.)
+            .truncate()
+            .text_color(a.text_subtle)
+            .child(text)
+    };
+    match subject {
+        steps::Subject::Path { name, folder } => line()
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_shrink_0()
+                    .max_w_full()
+                    .truncate()
+                    .text_color(a.tool_subject)
+                    .child(name.clone()),
+            )
+            .when(!folder.is_empty(), |d| d.child(context(folder.clone())))
+            .into_any_element(),
+        steps::Subject::Code {
+            text,
+            context: scope,
+        } => line()
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .font_family(theme::MONO)
+                    .text_size(px(mono_size()))
+                    .text_color(a.tool_subject)
+                    .child(text.clone()),
+            )
+            .children(scope.clone().map(context))
+            .into_any_element(),
+        steps::Subject::Text(text) => subject_text(text.clone(), a),
+    }
+}
+fn subject_text(text: String, a: &AgentTheme) -> AnyElement {
+    div()
+        .min_w_0()
+        .truncate()
+        .text_color(a.text_subtle)
+        .child(text)
+        .into_any_element()
+}
+/// `.desktop-agent-tool-facts` in the metadata slot.
+fn facts(text: String, a: &AgentTheme) -> AnyElement {
+    div()
+        .flex_none()
+        .whitespace_nowrap()
+        .text_size(px(theme::ty().left.meta))
+        .text_color(a.text_subtle)
+        .child(text)
+        .into_any_element()
+}
+
 impl AgentChat {
-    /// `AgentToolActivityGroup`: a one-line rail of 28px tool items, a `+N`
-    /// overflow slot, and a single shared detail host (one item open at a time).
+    /// `AgentToolActivityGroup`: one line per step — what the Agent did, to
+    /// what, and the outcome. Long runs of settled exploration fold into one
+    /// "Explored" line; a step's detail opens under its own line, one at a
+    /// time in the group.
     pub(super) fn render_tool_group(
         &mut self,
         timeline_row: &Row,
-        width: f32,
+        _width: f32,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let row_id = timeline_row.id.clone();
@@ -560,174 +704,250 @@ impl AgentChat {
             .iter()
             .filter_map(|&i| messages.get(i).cloned())
             .collect();
-        let visible_count = rail_visible_count(parts.len(), width);
-        let selected = self.rail_selected.get(&row_id).cloned();
-        let overflow_open = self.rail_overflow.contains(&row_id);
-        let mut rail = h_flex()
-            .w_full()
-            .min_w_0()
-            .gap(px(RAIL_GAP))
-            .overflow_hidden();
-        for (index, part) in parts.iter().take(visible_count).enumerate() {
-            let is_selected = selected.as_deref() == Some(part.id.as_str());
-            let has_detail = tool_evidence(part, &a).is_some();
-            let title = tool_title(part);
-            let active = running(&part.status);
-            let click_row = row_id.clone();
-            let part_id = part.id.clone();
-            let group = SharedString::from(format!("rail-{}-{index}", row_id));
-            let color = if active { a.tool_active } else { a.tool_action };
-            let item = div()
-                .id(SharedString::from(format!(
-                    "rail-item-{}-{}",
-                    row_id, part.id
-                )))
-                .group(group.clone())
-                .relative()
-                .size(px(RAIL_ITEM))
-                .flex_shrink_0()
-                .rounded(px(6.))
-                .when(is_selected, |d| d.bg(a.row_hover))
-                .when(has_detail, |d| {
-                    d.cursor(theme::clickable_cursor())
-                        .hover(move |s| s.bg(a.row_hover))
-                        .on_click(cx.listener(move |s, _, _, cx| {
-                            s.rail_overflow.remove(&click_row);
-                            if s.rail_selected.get(&click_row) == Some(&part_id) {
-                                s.rail_selected.remove(&click_row);
-                            } else {
-                                s.rail_selected.insert(click_row.clone(), part_id.clone());
-                            }
-                            s.splice_row(&click_row);
-                            cx.notify();
-                        }))
-                })
-                .tooltip(tooltip(title))
-                .child(
-                    div()
-                        .absolute()
-                        .left(px(ROW_PADDING))
-                        .top(px((RAIL_ITEM - TOOL_ICON) / 2.))
-                        .size(px(TOOL_ICON))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(color)
-                        .child(tool_glyph(
-                            format!("{}-{}", row_id, part.id),
-                            &presentation::presented_tool(part),
-                            active,
-                            color,
-                        )),
-                )
-                .children(
-                    status_icon(&part.status, &a, &t)
-                        .map(|icon| div().absolute().right_0().bottom_0().child(icon)),
-                );
-            rail = rail.child(item);
-        }
-        let hidden: Vec<Message> = parts.iter().skip(visible_count).cloned().collect();
-        if !hidden.is_empty() {
-            let row_id = row_id.clone();
-            let label: SharedString = tf(
-                "agent.activity.moreTools",
-                &[
-                    ("count", (hidden.len() as i64).into()),
-                    ("value", (hidden.len() as i64).into()),
-                ],
-            )
-            .into();
-            rail = rail.child(
-                gpui_kit::base::Button::new(SharedString::from(format!(
-                    "rail-overflow-{}",
-                    row_id
-                )))
-                .accessibility_label(label)
-                .w(px(RAIL_OVERFLOW))
-                .h(px(RAIL_ITEM))
-                .flex_shrink_0()
-                .rounded(px(6.))
-                .text_size(px(theme::ty().left.meta))
-                .text_color(if overflow_open { a.text } else { a.text_subtle })
-                .when(overflow_open, |b| b.bg(a.row_hover))
-                .cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(a.row_hover).text_color(a.text))
-                .child(format!("+{}", hidden.len()))
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    s.rail_selected.remove(&row_id);
-                    if !s.rail_overflow.remove(&row_id) {
-                        s.rail_overflow.insert(row_id.clone());
+        // `margin: 0 4px`: the group's own width, not 100% plus margins.
+        let mut group = v_flex().min_w_0().mx(px(4.)).mb(px(8.));
+        for segment in steps::segments(&parts) {
+            match segment {
+                steps::Segment::Step(index) => {
+                    group = group.child(self.render_step(&parts[index], &row_id, cx));
+                }
+                steps::Segment::Explored {
+                    id,
+                    parts: folded,
+                    files,
+                    searches,
+                } => {
+                    let key = format!("{row_id}:{id}");
+                    let open = self.open_folds.contains(&key);
+                    let summary = crate::localization::and_list(
+                        &[
+                            (files > 0).then(|| {
+                                tf(
+                                    "agent.toolStep.files",
+                                    &[
+                                        ("count", (files as i64).into()),
+                                        ("value", (files as i64).into()),
+                                    ],
+                                )
+                            }),
+                            (searches > 0).then(|| {
+                                tf(
+                                    "agent.toolStep.searches",
+                                    &[
+                                        ("count", (searches as i64).into()),
+                                        ("value", (searches as i64).into()),
+                                    ],
+                                )
+                            }),
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>(),
+                    );
+                    let chevron = Icon::new("chevron-right")
+                        .with_size(px(13.))
+                        .stroke(2.)
+                        .color(a.tool_glyph)
+                        .when(open, |i| i.rotate(std::f32::consts::FRAC_PI_2));
+                    let toggle_key = key.clone();
+                    let splice = row_id.clone();
+                    let line = step_line(
+                        SharedString::from(format!("tool-fold-{key}")),
+                        chevron.into_any_element(),
+                        tr("agent.toolStep.explored").into(),
+                        Some(subject_text(summary, &a)),
+                        None,
+                        None,
+                        true,
+                        false,
+                        &a,
+                    )
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        if !s.open_folds.remove(&toggle_key) {
+                            s.open_folds.insert(toggle_key.clone());
+                        }
+                        s.splice_row(&splice);
+                        cx.notify();
+                    }));
+                    let mut fold = v_flex().min_w_0().child(line);
+                    if open {
+                        // Folded steps hang from the chevron's centre.
+                        let mut body = v_flex()
+                            .min_w_0()
+                            .ml(px(EVIDENCE_RAIL_INLINE))
+                            .pl(px(6.))
+                            .border_l_1()
+                            .border_color(a.border_subtle);
+                        for index in folded {
+                            body = body.child(self.render_step(&parts[index], &row_id, cx));
+                        }
+                        fold = fold.child(body);
                     }
-                    s.splice_row(&row_id);
-                    cx.notify();
-                })),
-            );
-        }
-        let mut group = v_flex()
-            .w_full()
-            .min_w_0()
-            .mx(px(RAIL_GROUP_INSET / 2.))
-            .mb(px(8.))
-            .child(rail);
-        if overflow_open && !hidden.is_empty() {
-            let mut panel = v_flex()
-                .mt(px(2.))
-                .mr(px(4.))
-                .mb(px(4.))
-                .ml(px(11.))
-                .py(px(3.))
-                .pl(px(10.))
-                .border_l_1()
-                .border_color(a.border_subtle);
-            for part in &hidden {
-                panel = panel.child(self.render_tool_shell(part, &row_id, cx));
+                    group = group.child(fold);
+                }
             }
-            group = group.child(panel);
-        }
-        if let Some(part) =
-            selected.and_then(|id| parts.iter().take(visible_count).find(|p| p.id == id))
-            && let Some(evidence) = tool_evidence(part, &a)
-        {
-            group = group.child(evidence_branch(evidence));
         }
         group.into_any_element()
     }
 
-    /// Standalone `AgentActivityShell` row for a tool (the overflow panel).
-    fn render_tool_shell(
-        &mut self,
-        part: &Message,
-        row_id: &str,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+    /// One step: `AgentActivityShell` with the verb, the object and the
+    /// outcome; its evidence opens beneath it.
+    fn render_step(&mut self, part: &Message, row_id: &str, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let a = AgentTheme::new(&t);
-        let key = format!("{row_id}:{}", part.id);
-        let expanded = self.expanded.contains(&key);
         let evidence = tool_evidence(part, &a);
-        let active = running(&part.status);
-        let color = if active { a.tool_active } else { a.tool_action };
-        let shell = self.shell_header(
-            SharedString::from(format!("shell-{key}")),
-            Some(tool_glyph(
-                format!("shell-{key}"),
+        let active = steps::active(&part.status);
+        let failed = matches!(
+            presentation::activity_status(&part.status),
+            ActivityStatus::Failed
+        );
+        let kind = steps::step_kind(part);
+        let verb = |kind: steps::StepKind| -> String {
+            tr(&format!(
+                "agent.toolStep.{}.{}",
+                kind.key(),
+                if active { "active" } else { "done" }
+            ))
+            .to_string()
+        };
+        let (title, subject, metadata): (String, Option<AnyElement>, Option<AnyElement>) =
+            match presentation::renderer(part) {
+                Renderer::Command => {
+                    let command = steps::visible_command(part);
+                    (
+                        verb(kind),
+                        (!command.is_empty())
+                            .then(|| subject_element(&steps::code_subject(&command, None), &a)),
+                        None,
+                    )
+                }
+                Renderer::FileChange => {
+                    let changes = presentation::file_changes(part);
+                    let subject = match changes.len() {
+                        0 => Some(steps::path_for(part))
+                            .filter(|p| !p.is_empty())
+                            .map(|p| subject_element(&steps::path_subject(&p), &a)),
+                        1 => Some(subject_element(&steps::path_subject(&changes[0].path), &a)),
+                        n => Some(subject_text(
+                            tf("agent.activity.fileCount", &[("count", (n as i64).into())]),
+                            &a,
+                        )),
+                    };
+                    (verb(kind), subject, diff_stats(part, &a))
+                }
+                Renderer::FileQuery => {
+                    let kind = if kind == steps::StepKind::Generic {
+                        steps::StepKind::Search
+                    } else {
+                        kind
+                    };
+                    let subject = steps::file_query_subject(part).map(|(subject, scope)| {
+                        let subject = match (subject, scope) {
+                            (steps::Subject::Code { text, .. }, Some(scope)) => {
+                                steps::Subject::Code {
+                                    text,
+                                    context: Some(tf(
+                                        "agent.toolStep.searchScope",
+                                        &[("path", scope.into())],
+                                    )),
+                                }
+                            }
+                            (subject, _) => subject,
+                        };
+                        subject_element(&subject, &a)
+                    });
+                    // Line counts only for local match listings.
+                    let tool = presentation::tool_id(&part.role);
+                    let output = part.text.trim();
+                    let count = (matches!(tool.as_str(), "grep" | "glob")
+                        && !active
+                        && !output.is_empty())
+                    .then(|| {
+                        let lower = output.to_lowercase();
+                        let none = ["no matches", "no files", "no results"]
+                            .iter()
+                            .any(|p| lower.trim_end_matches('.').trim_end_matches(" found") == *p);
+                        if none {
+                            0
+                        } else {
+                            let (lines, omitted) = agent_tool_evidence::result_lines(output, 80);
+                            lines.len() + omitted
+                        }
+                    });
+                    let metadata = count.map(|count| {
+                        facts(
+                            if count == 0 {
+                                tr("agent.activity.noResults").to_string()
+                            } else {
+                                tf(
+                                    "agent.toolStep.results",
+                                    &[
+                                        ("count", (count as i64).into()),
+                                        ("value", (count as i64).into()),
+                                    ],
+                                )
+                            },
+                            &a,
+                        )
+                    });
+                    (verb(kind), subject, metadata)
+                }
+                Renderer::Generic => {
+                    let title = if matches!(kind, steps::StepKind::Fetch | steps::StepKind::Search)
+                    {
+                        verb(kind)
+                    } else {
+                        tool_title(part)
+                    };
+                    (
+                        title,
+                        steps::generic_subject(part).map(|s| subject_element(&s, &a)),
+                        None,
+                    )
+                }
+            };
+        let glyph_color = if failed {
+            t.danger
+        } else if active {
+            a.tool_active
+        } else {
+            a.tool_glyph
+        };
+        let key = format!("{row_id}:{}", part.id);
+        let expanded = self.rail_selected.get(row_id) == Some(&part.id);
+        let line = step_line(
+            SharedString::from(format!("tool-step-{key}")),
+            tool_glyph(
+                format!("step-{key}"),
                 &presentation::presented_tool(part),
                 active,
-                color,
-            )),
-            tool_title(part),
-            FontWeight::NORMAL,
-            diff_stats(part, &a),
+                glyph_color,
+            ),
+            title,
+            subject,
+            metadata,
             status_icon(&part.status, &a, &t),
             evidence.is_some(),
-            key.clone(),
-            row_id.to_owned(),
-            false,
-            cx,
+            active,
+            &a,
         );
+        let line = if evidence.is_some() {
+            let (row, id) = (row_id.to_owned(), part.id.clone());
+            line.on_click(cx.listener(move |s, _, _, cx| {
+                if s.rail_selected.get(&row) == Some(&id) {
+                    s.rail_selected.remove(&row);
+                } else {
+                    s.rail_selected.insert(row.clone(), id.clone());
+                }
+                s.splice_row(&row);
+                cx.notify();
+            }))
+        } else {
+            line
+        };
         v_flex()
             .min_w_0()
-            .child(shell)
+            .child(line)
             .when_some(evidence.filter(|_| expanded), |d, e| {
                 d.child(evidence_branch(e))
             })

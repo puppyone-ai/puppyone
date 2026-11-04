@@ -446,6 +446,33 @@ pub fn relative_now() -> &'static str {
         _ => "now",
     }
 }
+/// `Intl.ListFormat(locale, { type: "conjunction" })` of one or two items
+/// ("3 files and 2 searches", "3 个文件和 2 次搜索").
+pub fn and_list(items: &[String]) -> String {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [a, b] => {
+            let and = match code.as_str() {
+                "zh-Hans" => "和",
+                "ja" => "、",
+                "ko" => " 및 ",
+                "de" => " und ",
+                "fr" => " et ",
+                "es" => " y ",
+                "pt-BR" => " e ",
+                _ => " and ",
+            };
+            format!("{a}{and}{b}")
+        }
+        [rest @ .., last] => format!(
+            "{}, {}",
+            rest.join(", "),
+            and_list(&[String::new(), last.clone()]).trim_start()
+        ),
+    }
+}
 /// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
 /// for today (0) and yesterday (-1).
 pub fn relative_day(offset: i64) -> String {

@@ -1,6 +1,6 @@
 //! Port of `transcript-rows.ts` (`buildAgentTimeline`, visibility),
-//! `agent-tool-group-presentation.ts` (`groupAgentToolRows`,
-//! `agentToolRailVisibleCount`), the turn summaries of `display-control.mjs`
+//! `agent-tool-group-presentation.ts` (`groupAgentToolRows`), the turn
+//! summaries of `display-control.mjs`
 //! and the vertical rhythm of `transcript-layout.ts`. Pure; no GPUI.
 use super::agent_activity_presentation::{PartKind, part_kind};
 use crate::agent::domain::agent_session_model::Message;
@@ -12,14 +12,8 @@ pub const GAP_COMPACT: f32 = 0.;
 pub const GAP_DEFAULT: f32 = 2.;
 pub const GAP_WORK_HANDOFF: f32 = 8.;
 pub const GAP_TURN_HANDOFF: f32 = 24.;
-/// `AGENT_TOOL_GROUP_LIMIT` and the rail geometry (`agent-tool-group-presentation.ts`).
+/// `AGENT_TOOL_GROUP_LIMIT` (`agent-tool-group-presentation.ts`).
 pub const TOOL_GROUP_LIMIT: usize = 64;
-pub const RAIL_ITEM: f32 = 28.;
-pub const RAIL_GAP: f32 = 4.;
-pub const RAIL_OVERFLOW: f32 = 36.;
-pub const RAIL_GROUP_INSET: f32 = 8.;
-const RAIL_FALLBACK_VISIBLE: usize = 12;
-const RAIL_MAX_VISIBLE: usize = 24;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RowKind {
@@ -159,27 +153,6 @@ fn gap_after(row: &Row, next: Option<&Row>) -> f32 {
     }
 }
 
-/// `agentToolRailVisibleCount`: one line of 28px items; a +N slot when needed.
-pub fn rail_visible_count(total: usize, width: f32) -> usize {
-    if total == 0 {
-        return 0;
-    }
-    let width = width - RAIL_GROUP_INSET;
-    if !width.is_finite() || width <= 0. {
-        return total.min(RAIL_FALLBACK_VISIBLE);
-    }
-    let full = ((width + RAIL_GAP) / (RAIL_ITEM + RAIL_GAP))
-        .floor()
-        .max(0.) as usize;
-    if total <= full && total <= RAIL_MAX_VISIBLE {
-        return total;
-    }
-    let with_overflow = ((width - RAIL_OVERFLOW) / (RAIL_ITEM + RAIL_GAP))
-        .floor()
-        .max(0.) as usize;
-    (total - 1).min(RAIL_MAX_VISIBLE).min(with_overflow)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,18 +203,11 @@ mod tests {
         assert!(matches!(kinds[1], (RowKind::Assistant, 1, 8.)));
         assert!(matches!(kinds[2], (RowKind::TurnSummary(_), 0, 24.)));
         assert!(matches!(kinds[3], (RowKind::User, 1, 24.)));
-        // Running empty reasoning is hidden; two tools share one rail.
+        // Running empty reasoning is hidden; two tools share one group.
         assert!(matches!(kinds[4], (RowKind::ToolGroup, 2, 0.)));
         assert!(matches!(kinds[5], (RowKind::Assistant, 1, 8.)));
         assert!(matches!(kinds[6], (RowKind::ToolGroup, 1, 0.)));
         assert!(matches!(kinds[7], (RowKind::TurnSummary(_), 0, 8.)));
         assert_eq!(rows.len(), 8);
-    }
-    #[test]
-    fn rail_reserves_one_slot_for_overflow() {
-        assert_eq!(rail_visible_count(4, 388.), 4);
-        // 388 − 8 = 380: 12 full items; 30 tools → (380 − 36) / 32 = 10 + "+20".
-        assert_eq!(rail_visible_count(30, 388.), 10);
-        assert_eq!(rail_visible_count(5, 0.), 5);
     }
 }
