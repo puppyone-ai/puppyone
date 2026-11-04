@@ -490,6 +490,13 @@ impl<'a> Walker<'a> {
                 }
                 self.push(Frame::TableHead, node);
             }
+            Tag::HtmlBlock => {
+                // Lezer `HTMLBlock` children of the document.
+                if self.stack.len() == 1 {
+                    self.syntax.html_blocks.push(trim(self.doc, range.clone()));
+                }
+                self.push(Frame::Other, HlNode::new(range, Hl::NONE, false));
+            }
             _ => self.push(Frame::Other, HlNode::new(range, Hl::NONE, false)),
         }
     }

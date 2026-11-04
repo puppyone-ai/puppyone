@@ -46,3 +46,27 @@ Compare [a markdown link](https://example.com) here.
 ![Sized|120](sample.png) ![Missing](none.png)
 
 [![Linked](sample.png)](https://example.com)
+
+## HTML
+
+<div align="center">
+  <h3>Centered title</h3>
+  <p>Some <b>bold</b> and <i>italic</i> text.</p>
+</div>
+
+<details>
+<summary>More notes</summary>
+
+Markdown **inside** HTML, with a [link](https://example.com).
+
+- one
+- two
+
+</details>
+
+<table>
+  <tr><th>Plant</th><th>Light</th></tr>
+  <tr><td>Moss</td><td>Shade</td></tr>
+</table>
+
+After the HTML.

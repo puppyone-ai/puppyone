@@ -267,3 +267,19 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
         assert_eq!(v.state().selection, Selection::cursor(2))
     });
 }
+
+#[gpui::test]
+fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
+    use super::features::html::{ID, ShowSource};
+    use crate::editor::view::command::Command;
+    let text = "<div align=\"center\">\n<b>hi</b>\n</div>\n\nafter";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..3, 3..4, 4..5]);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&Command::new(ID, ShowSource(0..35)), w, cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
+}

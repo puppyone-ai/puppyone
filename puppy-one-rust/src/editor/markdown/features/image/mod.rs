@@ -6,7 +6,7 @@
 //! `alt|300x200` (an embed's alias) sets the size. A double click reveals
 //! the source; a linked image follows its link. Images beside text stay
 //! source: one shaped text run has no room for a picture.
-mod cache;
+pub mod cache;
 mod embed;
 pub mod source;
 

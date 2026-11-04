@@ -46,6 +46,8 @@ pub struct WidgetFactoryCx<'a> {
     )]
     pub syntax: &'a Syntax,
     pub theme: &'a MarkdownTheme,
+    /// Where the document's media resolve and load from.
+    pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
 }
 
 /// What a command sees.

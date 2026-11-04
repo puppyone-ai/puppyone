@@ -379,6 +379,8 @@ pub struct Syntax {
     pub note_definitions: Vec<usize>,
     /// The parser's inline HTML (tags), in document order.
     pub inline_tags: Vec<Span>,
+    /// Top-level HTML blocks (Lezer `HTMLBlock` children of the document).
+    pub html_blocks: Vec<Span>,
     pub footnotes: Footnotes,
 }
 
