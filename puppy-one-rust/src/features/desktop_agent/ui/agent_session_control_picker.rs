@@ -62,11 +62,13 @@ impl AgentChat {
         // `searchable`: the search field takes focus (`autoFocus`).
         let searchable = choices.len() > 6;
         // `.desktop-agent-composer-picker .desktop-agent-picker-trigger`:
-        // quiet 14px label, no indicator, bounded width, row hover.
+        // quiet 14px label, no indicator, bounded width, row hover; the
+        // composer control height, its label on the prompt's text edge
+        // (12px inset less the toolbar's 6px).
         let trigger = div()
             .id(id)
-            .h(px(crate::theme::control()))
-            .px(px(8.))
+            .h(px(crate::theme::control_compact()))
+            .px(px(6.))
             .flex()
             .items_center()
             .min_w_0()

@@ -126,15 +126,25 @@ function Coachmark({ feature }: { feature: "agent" | "changes" }) {
   </SurfaceAppearanceProvider>;
 }
 
+// The window owns the entry flow (`ProjectEntryFlowController`); the
+// Homepage only starts it.
+const projectEntry = {
+  step: null,
+  openLauncher: noop,
+  openCreate: noop,
+  openTemplate: noop,
+  templateUrl: null,
+  openImport: noop,
+  close: noop,
+} as const;
+
 function Home() {
   const appearance = useFixtureAppearance();
   return <SurfaceAppearanceProvider value={appearance}>
     <MinimalOnboarding appearance={appearance} projectItems={[]}
+      projectEntryController={projectEntry}
+      canCreateProject
       onChooseWorkspace={async () => {}}
-      onChooseProjectLocation={async () => null}
-      onDefaultProjectLocation={async () => null}
-      onCreateProject={async () => { throw new Error("fixture"); }}
-      onImportSource={async () => false}
       onOpenWorkspacePath={async () => {}}
       onOpenDroppedWorkspace={async () => {}} />
   </SurfaceAppearanceProvider>;

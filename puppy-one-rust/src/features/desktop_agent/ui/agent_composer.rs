@@ -280,11 +280,12 @@ impl AgentChat {
                     }),
             )
             .child(
-                // `.desktop-agent-composer-trailing`.
+                // `.desktop-agent-composer-trailing`: the control height plus
+                // the 6px toolbar inset, inset 6px below and at both ends.
                 h_flex()
-                    .min_h(px(38.))
-                    .pb(px(8.))
-                    .px(px(8.))
+                    .min_h(px(theme::control_compact() + 6.))
+                    .pb(px(6.))
+                    .px(px(6.))
                     .gap(px(8.))
                     .child(controls)
                     .child(

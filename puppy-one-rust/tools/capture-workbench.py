@@ -74,6 +74,8 @@ if not args.compare_only:
             )
             # A real shell in the lab follows its own preferences; pin the mode.
             env["PUPPYONE_THEME"] = case["mode"]
+            # Render the frame off screen: no window appears on the desktop.
+            env["PUPPYONE_SCREENSHOT_OFFSCREEN"] = "1"
             # A held motion: the same instant of the 1100ms intro.
             if case.get("intro") is not None:
                 env["PUPPYONE_MOTION_AT"] = str(case["intro"] / 1100)
