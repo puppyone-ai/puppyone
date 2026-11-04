@@ -87,29 +87,35 @@ impl Environment {
             web: web.origin().ascii_serialization(),
         })
     }
-    /// `loadDesktopCloudConfiguration`: the development environment
-    /// (`VITE_DESKTOP_CLOUD_API_URL` / `VITE_DESKTOP_CLOUD_WEB_URL`, the
-    /// names the TS build uses; `PUPPYONE_CLOUD_*` stays accepted), else the
-    /// packaged public `desktop-cloud.json` (`schemaVersion: 1`). Missing or
-    /// invalid configuration fails closed — there is no production fallback.
+    /// `loadDesktopCloudConfiguration`: a packaged app reads only its public
+    /// `desktop-cloud.json` (`schemaVersion: 1`) beside the executable; a
+    /// development build reads only `VITE_DESKTOP_CLOUD_API_URL` /
+    /// `VITE_DESKTOP_CLOUD_WEB_URL`. Missing or invalid configuration fails
+    /// closed — there is no production fallback.
     pub fn configured() -> Result<Self> {
-        let var = |names: [&str; 2]| names.iter().find_map(|n| std::env::var(n).ok());
-        if let (Some(api), Some(web)) = (
-            var(["VITE_DESKTOP_CLOUD_API_URL", "PUPPYONE_CLOUD_API_URL"]),
-            var(["VITE_DESKTOP_CLOUD_WEB_URL", "PUPPYONE_CLOUD_WEB_URL"]),
-        ) {
-            return Self::new(&api, &web);
-        }
         let exe = std::env::current_exe().map_err(|_| Error::Configuration)?;
         let dir = exe.parent().ok_or(Error::Configuration)?;
-        [
+        let packaged = [
             dir.join("../Resources/desktop-cloud.json"),
             dir.join("desktop-cloud.json"),
         ]
-        .iter()
-        .find_map(|path| std::fs::read(path).ok())
-        .ok_or(Error::Configuration)
-        .and_then(|bytes| Self::from_packaged(&bytes))
+        .into_iter()
+        .find(|path| path.is_file());
+        Self::from_sources(packaged.as_deref(), |name| std::env::var(name).ok())
+    }
+    fn from_sources(
+        packaged: Option<&std::path::Path>,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self> {
+        match packaged {
+            Some(path) => std::fs::read(path)
+                .map_err(|_| Error::Configuration)
+                .and_then(|bytes| Self::from_packaged(&bytes)),
+            None => Self::new(
+                &env("VITE_DESKTOP_CLOUD_API_URL").ok_or(Error::Configuration)?,
+                &env("VITE_DESKTOP_CLOUD_WEB_URL").ok_or(Error::Configuration)?,
+            ),
+        }
     }
     /// `dist/desktop-cloud.json`: `{schemaVersion: 1, apiBase, webOrigin}`.
     pub fn from_packaged(bytes: &[u8]) -> Result<Self> {
@@ -708,5 +714,39 @@ mod session_retry_tests {
         ));
         assert!(!check(Method::PUT, "/projects/p", Some(key)));
         assert!(!check(Method::POST, "/projects/p/agent-links", Some(key)));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::Environment;
+
+    /// N-22: a packaged app never takes its endpoints from the environment,
+    /// and the old `PUPPYONE_CLOUD_*` names are not read.
+    #[test]
+    fn a_packaged_app_reads_only_its_file_and_a_development_build_only_vite_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop-cloud.json");
+        std::fs::write(
+            &file,
+            r#"{"schemaVersion":1,"apiBase":"https://api.puppyone.ai/api/v1","webOrigin":"https://www.puppyone.ai"}"#,
+        )
+        .unwrap();
+        let env = |name: &str| match name {
+            "VITE_DESKTOP_CLOUD_API_URL" => Some("http://localhost:9000/api/v1".to_owned()),
+            "VITE_DESKTOP_CLOUD_WEB_URL" => Some("http://localhost:3000".to_owned()),
+            "PUPPYONE_CLOUD_API_URL" => Some("http://127.0.0.1:1/api/v1".to_owned()),
+            _ => None,
+        };
+        let packaged = Environment::from_sources(Some(&file), env).unwrap();
+        assert_eq!(packaged.api(), "https://api.puppyone.ai/api/v1");
+        let development = Environment::from_sources(None, env).unwrap();
+        assert_eq!(development.api(), "http://localhost:9000/api/v1");
+        let legacy = |name: &str| match name {
+            "PUPPYONE_CLOUD_API_URL" => Some("http://localhost:9000/api/v1".to_owned()),
+            "PUPPYONE_CLOUD_WEB_URL" => Some("http://localhost:3000".to_owned()),
+            _ => None,
+        };
+        assert!(Environment::from_sources(None, legacy).is_err());
     }
 }
