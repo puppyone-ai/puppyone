@@ -75,7 +75,10 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
   };
   const nobody = agents.length === 0 && requests.length === 0;
   const title = t("cloud.share.agent.title");
-  const invite = useAgentInvite({ session, apiBaseUrl, projectId, projectName, onInvited: control.onInvited });
+  // Nobody here yet: the dialog opens on how to invite, with Copy as the first thing to press.
+  const [openedEmpty] = useState(nobody);
+  const invite = useAgentInvite({ session, apiBaseUrl, projectId, projectName, openFirst: openedEmpty,
+    onInvited: control.onInvited });
   const { seatRef, stepsRef, sectionRef, arrowX } = useInviteSteps(invite, agents.length + requests.length);
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={onClose}>
@@ -102,8 +105,7 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
                     onRemove={() => change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))} />)}
                 <AgentInviteSeat invite={invite} seatRef={seatRef} />
               </ul>}
-            {invite.status === "copied" && <AgentInviteSteps stepsRef={stepsRef} arrowX={arrowX} prompt={invite.prompt}
-              projectName={projectName} renderAgentMark={renderAgentMark} />}
+            {invite.open && <AgentInviteSteps invite={invite} stepsRef={stepsRef} arrowX={arrowX} firstFocus={openedEmpty} />}
             <AgentInviteStatus invite={invite} />
             {failed && <p className="desktop-cloud-agents-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
           </section>
@@ -249,20 +251,23 @@ function AgentLinks({ links, anyone, onRemoveAll }: {
 }
 
 /**
- * The three steps under the seat that was pressed. They point at it, fold away
- * on a press anywhere else, and give way as soon as an Agent turns up in the row.
+ * The steps under the seat that was pressed. They point at it, fold away on a
+ * press anywhere else, and give way as soon as an Agent turns up in the row.
  */
 function useInviteSteps(invite: ReturnType<typeof useAgentInvite>, present: number) {
   const seatRef = useRef<HTMLButtonElement>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [arrowX, setArrowX] = useState<number | null>(null);
-  const shown = invite.status === "copied";
-  const { dismiss } = invite;
+  const shown = invite.open;
+  const { close: dismiss } = invite;
   useLayoutEffect(() => {
     const seat = seatRef.current?.getBoundingClientRect();
-    const section = sectionRef.current?.getBoundingClientRect();
-    setArrowX(shown && seat && section ? seat.left + seat.width / 2 - section.left : null);
+    const section = sectionRef.current;
+    const box = section?.getBoundingClientRect();
+    // Measured in the section's own pixels, so a dialog still scaling in as it opens does not skew it.
+    const scale = box && section?.offsetWidth ? box.width / section.offsetWidth : 1;
+    setArrowX(shown && seat && box ? (seat.left + seat.width / 2 - box.left) / (scale || 1) : null);
   }, [shown]);
   useEffect(() => {
     if (!shown) return undefined;

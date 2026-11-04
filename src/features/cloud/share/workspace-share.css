@@ -55,11 +55,10 @@
   }
   .desktop-cloud-agent-invite-seat .desktop-cloud-agent-name { color: var(--po-accent-text, var(--po-accent)); }
   .desktop-cloud-agent-invite-seat:hover { background: color-mix(in srgb, var(--po-accent) 8%, transparent); }
-  .desktop-cloud-agent-invite-seat[data-copied] .desktop-cloud-agent-seat,
-  .desktop-cloud-agents-first[data-copied] .desktop-cloud-agent-seat {
-    border-style: solid; border-color: var(--po-success); background: color-mix(in srgb, var(--po-success) 10%, transparent); color: var(--po-success);
-  }
-  .desktop-cloud-agent-invite-seat[data-copied] .desktop-cloud-agent-name { color: var(--po-success); }
+  /* Pressed, the seat holds the steps open under it. */
+  .desktop-cloud-agent-invite-seat[data-open] { background: color-mix(in srgb, var(--po-accent) 8%, transparent); }
+  .desktop-cloud-agent-invite-seat[data-open] .desktop-cloud-agent-seat,
+  .desktop-cloud-agent-seat-large[aria-expanded="true"] { border-style: solid; background: color-mix(in srgb, var(--po-accent) 14%, transparent); }
 
   /* Nobody yet: the seat is the whole page, with one line on what it does. */
   .desktop-cloud-agents-first { display: flex; align-items: center; gap: 18px; padding: 6px 2px 2px; }
@@ -68,7 +67,6 @@
   .desktop-cloud-agents-first-text :is(h3, p) { margin: 0; }
   .desktop-cloud-agents-first-text h3 { color: var(--po-text); font-size: var(--po-type-ui-control, 14px); font-weight: var(--po-text-weight-semibold, 600); line-height: 20px; }
   .desktop-cloud-agents-first-text p { color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); line-height: 18px; text-wrap: pretty; }
-  .desktop-cloud-agents-first-text .desktop-cloud-agent-share-copy { margin-top: 10px; }
   .desktop-cloud-agent-share-copy { gap: 5px; height: var(--po-control-size-compact); padding: 0 12px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; transition: background .15s ease; }
   .desktop-cloud-agent-share-copy[data-copied],
   .desktop-cloud-agent-share-copy[data-copied]:hover:not(:disabled) { background: var(--po-success); color: var(--po-text-inverse); }
@@ -92,8 +90,9 @@
     background: color-mix(in srgb, var(--po-text) 10%, transparent); color: var(--po-text-muted);
     font-size: var(--po-type-ui-micro, 11px); font-weight: var(--po-text-weight-semibold, 600);
   }
-  .desktop-cloud-agent-invite-steps li[data-invite-step="1"] .desktop-cloud-agent-invite-step-number { background: color-mix(in srgb, var(--po-success) 16%, transparent); color: var(--po-success); }
-  .desktop-cloud-agent-invite-steps li[data-invite-step="2"] .desktop-cloud-agent-invite-step-number { background: var(--po-accent); color: var(--po-text-inverse); }
+  /* The step to do now is blue; a step done is a green tick. */
+  .desktop-cloud-agent-invite-steps li .desktop-cloud-agent-invite-step-number { background: var(--po-accent); color: var(--po-text-inverse); }
+  .desktop-cloud-agent-invite-steps li[data-done] .desktop-cloud-agent-invite-step-number { background: color-mix(in srgb, var(--po-success) 16%, transparent); color: var(--po-success); }
   .desktop-cloud-agent-invite-step-text { display: grid; gap: 8px; min-width: 0; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); line-height: 20px; }
   .desktop-cloud-agent-invite-logos { display: flex; flex-wrap: wrap; gap: 6px; }
   .desktop-cloud-agent-invite-logo {
@@ -103,66 +102,87 @@
   .desktop-cloud-agent-invite-logo .po-agent-brand-image { width: 64%; height: 64%; object-fit: contain; }
   .desktop-cloud-agents-roster-section [role="alert"] { margin: 0; }
 
-  /* What was copied, as it reads: the invite's secret is masked past its start. */
+  /* Step one: the prompt as it will be copied, and the button that copies it. */
+  .desktop-cloud-agent-invite-prompt-box {
+    display: flex; align-items: flex-end; gap: 12px; padding: 10px 10px 10px 12px; border-radius: 8px; background: var(--po-menu-bg);
+  }
   .desktop-cloud-agent-invite-prompt {
-    display: block; padding: 8px 10px; border-radius: 8px; background: var(--po-menu-bg);
-    color: var(--po-text-muted); font-family: var(--po-font-mono); font-size: var(--po-type-ui-micro, 11px); line-height: 17px;
-    overflow-wrap: anywhere;
+    flex: 1; min-width: 0; color: var(--po-text-muted); font-family: var(--po-font-mono);
+    font-size: var(--po-type-ui-micro, 11px); line-height: 17px; overflow-wrap: anywhere;
   }
+  .desktop-cloud-agent-invite-prompt-box .desktop-cloud-agent-share-copy { flex: none; }
 
-  /* Pasting, as a short scene in an agent's chat. Each part's own style is the
-     scene's last frame, so it rests there and anyone who asked for less motion
-     sees only that frame; the animations lead into it once. */
-  .desktop-cloud-agent-paste-scene {
-    --paste-duration: 2.6s;
-    --paste-delay: .3s;
-    position: relative; display: block; height: 104px; overflow: hidden;
-    border: 1px solid var(--po-shell-divider); border-radius: 10px; background: var(--po-menu-bg);
+  /* Step two: what to do in one sentence, and beside it the drawing of doing it. */
+  .desktop-cloud-agent-invite-step-paste { display: grid; grid-template-columns: minmax(0, 1fr) 168px; gap: 16px; align-items: start; min-width: 0; }
+
+  /* The drawing, a square picture that plays like a GIF. Nothing in it is a
+     control or a word, and it takes no pointer, so it reads as an illustration.
+     Each part's own style is its resting frame: the chat answered with a tick. */
+  .desktop-cloud-agent-paste-art {
+    --paste-loop: 5s;
+    position: relative; display: block; width: 168px; height: 168px; overflow: hidden; border-radius: 14px;
+    background:
+      radial-gradient(circle at 80% 12%, color-mix(in srgb, var(--po-accent) 22%, transparent), transparent 55%),
+      color-mix(in srgb, var(--po-accent) 8%, var(--po-menu-bg));
+    pointer-events: none; user-select: none;
+    animation: desktop-cloud-agent-paste-clock var(--paste-loop) linear infinite;
   }
-  .desktop-cloud-agent-paste-thread { position: absolute; inset: 8px 10px 40px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
-  .desktop-cloud-agent-paste-sent {
-    align-self: flex-end; max-width: 86%; overflow: hidden; padding: 4px 9px; border-radius: 10px 10px 3px 10px;
-    background: color-mix(in srgb, var(--po-accent) 22%, transparent); color: var(--po-text);
-    font-size: var(--po-type-ui-micro, 11px); line-height: 15px; text-overflow: ellipsis; white-space: nowrap;
+  .desktop-cloud-agent-paste-card {
+    position: absolute; inset: 44px 16px 16px; display: flex; flex-direction: column; gap: 8px; padding: 10px;
+    border-radius: 10px; background: var(--po-menu-bg);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow) 30%, transparent), 0 6px 16px -6px color-mix(in srgb, var(--po-shadow) 45%, transparent);
   }
-  .desktop-cloud-agent-paste-reply { display: flex; align-items: center; gap: 6px; }
-  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); flex: none; animation: none; }
-  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark::before,
-  .desktop-cloud-agent-paste-reply .desktop-project-reach-mark::after { display: none; }
-  .desktop-cloud-agent-paste-bubble {
-    display: grid; padding: 4px 9px; border-radius: 10px 10px 10px 3px; background: color-mix(in srgb, var(--po-text) 8%, transparent);
-    color: var(--po-text-muted); font-size: var(--po-type-ui-micro, 11px); line-height: 15px;
+  .desktop-cloud-agent-paste-head { display: flex; align-items: center; gap: 6px; }
+  .desktop-cloud-agent-paste-avatar {
+    display: grid; flex: none; place-items: center; width: 18px; height: 18px; overflow: hidden; border-radius: 50%;
+    background: color-mix(in srgb, var(--po-text) 8%, transparent);
   }
-  .desktop-cloud-agent-paste-bubble > span { display: flex; grid-area: 1 / 1; align-items: center; gap: 4px; }
-  .desktop-cloud-agent-paste-dots { opacity: 0; }
-  .desktop-cloud-agent-paste-dots > i { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .7; }
-  .desktop-cloud-agent-paste-asked { color: var(--po-success); }
-  .desktop-cloud-agent-paste-input {
-    position: absolute; inset-inline: 10px; inset-block-end: 8px; display: flex; align-items: center; height: 26px; overflow: hidden;
-    padding: 0 9px; border: 1px solid var(--po-shell-divider); border-radius: 8px; background: var(--invite-steps-bg);
-    color: var(--po-text-subtle); font-size: var(--po-type-ui-micro, 11px);
+  .desktop-cloud-agent-paste-avatar .po-agent-brand-image { width: 70%; height: 70%; object-fit: contain; }
+  .desktop-cloud-agent-paste-line { display: block; width: 100%; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--po-text) 18%, transparent); }
+  .desktop-cloud-agent-paste-line[data-length="short"] { width: 55%; }
+  .desktop-cloud-agent-paste-head .desktop-cloud-agent-paste-line { width: 40%; }
+  .desktop-cloud-agent-paste-out {
+    display: grid; justify-items: end; gap: 4px; align-self: flex-end; width: 64%; padding: 7px 8px; border-radius: 8px 8px 2px 8px;
+    background: color-mix(in srgb, var(--po-accent) 30%, transparent);
   }
-  .desktop-cloud-agent-paste-typed { position: absolute; inset-inline: 9px 64px; overflow: hidden; color: var(--po-text); text-overflow: ellipsis; white-space: nowrap; opacity: 0; }
+  .desktop-cloud-agent-paste-out .desktop-cloud-agent-paste-line { background: color-mix(in srgb, var(--po-accent) 70%, var(--po-menu-bg)); }
+  .desktop-cloud-agent-paste-in {
+    display: grid; align-self: flex-start; place-items: center; min-width: 30px; height: 20px; padding: 0 8px; border-radius: 8px 8px 8px 2px;
+    background: color-mix(in srgb, var(--po-success) 18%, transparent); color: var(--po-success);
+  }
+  .desktop-cloud-agent-paste-in > span { grid-area: 1 / 1; display: flex; align-items: center; gap: 3px; }
+  .desktop-cloud-agent-paste-dots { opacity: 0; color: var(--po-text-muted); }
+  .desktop-cloud-agent-paste-dots > i { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+  .desktop-cloud-agent-paste-sheet {
+    position: absolute; inset-block-start: 12px; inset-inline-end: 14px; display: grid; gap: 4px; width: 70px; padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--po-accent) 45%, transparent); border-radius: 7px; background: var(--po-menu-bg);
+    box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--po-shadow) 50%, transparent); rotate: -6deg; opacity: 0;
+  }
+  .desktop-cloud-agent-paste-sheet .desktop-cloud-agent-paste-line { height: 4px; background: color-mix(in srgb, var(--po-accent) 55%, var(--po-menu-bg)); }
   .desktop-cloud-agent-paste-key {
-    position: absolute; inset-inline-end: 6px; padding: 1px 6px; border-radius: 4px;
-    background: color-mix(in srgb, var(--po-text) 12%, transparent); color: var(--po-text); font: inherit; font-size: var(--po-type-ui-micro, 11px); line-height: 16px; opacity: 0;
+    position: absolute; inset-block-start: 50px; inset-inline-end: 10px; padding: 2px 6px; border-radius: 5px;
+    background: var(--po-text); color: var(--po-menu-bg); font: inherit; font-size: var(--po-type-ui-micro, 11px); font-weight: var(--po-text-weight-semibold, 600);
+    line-height: 16px; opacity: 0;
   }
-  .desktop-cloud-agent-paste-key { animation: desktop-cloud-agent-paste-key var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-placeholder { animation: desktop-cloud-agent-paste-placeholder var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-typed { animation: desktop-cloud-agent-paste-typed var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-sent { animation: desktop-cloud-agent-paste-sent var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-reply { animation: desktop-cloud-agent-paste-reply var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-dots { animation: desktop-cloud-agent-paste-dots var(--paste-duration) ease var(--paste-delay) both; }
-  .desktop-cloud-agent-paste-asked { animation: desktop-cloud-agent-paste-asked var(--paste-duration) ease var(--paste-delay) both; }
-  @keyframes desktop-cloud-agent-paste-key { 0%, 10% { opacity: 0; scale: .8; } 16%, 34% { opacity: 1; scale: 1; } 40%, 100% { opacity: 0; } }
-  @keyframes desktop-cloud-agent-paste-placeholder { 0%, 18% { opacity: 1; } 22%, 44% { opacity: 0; } 50%, 100% { opacity: 1; } }
-  @keyframes desktop-cloud-agent-paste-typed { 0%, 18% { opacity: 0; } 24%, 40% { opacity: 1; } 44%, 100% { opacity: 0; } }
-  @keyframes desktop-cloud-agent-paste-sent { 0%, 42% { opacity: 0; translate: 0 14px; } 50%, 100% { opacity: 1; translate: 0 0; } }
-  @keyframes desktop-cloud-agent-paste-reply { 0%, 56% { opacity: 0; translate: 0 6px; } 62%, 100% { opacity: 1; translate: 0 0; } }
-  @keyframes desktop-cloud-agent-paste-dots { 0%, 56% { opacity: 0; } 60%, 76% { opacity: 1; } 80%, 100% { opacity: 0; } }
-  @keyframes desktop-cloud-agent-paste-asked { 0%, 78% { opacity: 0; } 84%, 100% { opacity: 1; } }
+  .desktop-cloud-agent-paste-sheet { animation: desktop-cloud-agent-paste-sheet var(--paste-loop) ease infinite; }
+  .desktop-cloud-agent-paste-key { animation: desktop-cloud-agent-paste-key var(--paste-loop) ease infinite; }
+  .desktop-cloud-agent-paste-out { animation: desktop-cloud-agent-paste-out var(--paste-loop) ease infinite; }
+  .desktop-cloud-agent-paste-in { animation: desktop-cloud-agent-paste-in var(--paste-loop) ease infinite; }
+  .desktop-cloud-agent-paste-dots { animation: desktop-cloud-agent-paste-dots var(--paste-loop) ease infinite; }
+  .desktop-cloud-agent-paste-tick { animation: desktop-cloud-agent-paste-tick var(--paste-loop) ease infinite; }
+  @keyframes desktop-cloud-agent-paste-clock { from { opacity: 1; } to { opacity: 1; } }
+  @keyframes desktop-cloud-agent-paste-sheet {
+    0% { opacity: 0; translate: 12px -10px; scale: 1; }
+    8%, 26% { opacity: 1; translate: 0 0; scale: 1; }
+    36%, 100% { opacity: 0; translate: -36px 70px; scale: .55; }
+  }
+  @keyframes desktop-cloud-agent-paste-key { 0%, 12% { opacity: 0; scale: .7; } 16%, 28% { opacity: 1; scale: 1; } 33%, 100% { opacity: 0; scale: 1; } }
+  @keyframes desktop-cloud-agent-paste-out { 0%, 32% { opacity: 0; scale: .85; } 38%, 90% { opacity: 1; scale: 1; } 97%, 100% { opacity: 0; scale: 1; } }
+  @keyframes desktop-cloud-agent-paste-in { 0%, 44% { opacity: 0; translate: 0 4px; } 50%, 90% { opacity: 1; translate: 0 0; } 97%, 100% { opacity: 0; translate: 0 0; } }
+  @keyframes desktop-cloud-agent-paste-dots { 0%, 46% { opacity: 1; } 58%, 100% { opacity: 0; } }
+  @keyframes desktop-cloud-agent-paste-tick { 0%, 58% { opacity: 0; scale: .5; } 64%, 100% { opacity: 1; scale: 1; } }
   @media (prefers-reduced-motion: reduce) {
-    .desktop-cloud-agent-paste-scene * { animation: none; }
+    .desktop-cloud-agent-paste-art, .desktop-cloud-agent-paste-art * { animation: none; }
   }
 
 

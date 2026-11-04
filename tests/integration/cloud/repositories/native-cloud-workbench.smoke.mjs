@@ -610,32 +610,41 @@ app.whenReady().then(async () => {
     'The Agents dialog must replace the card and end its row with the seat that invites, with no menu in between');
   assert((await workspaceRequests()).length === beforeAgents, 'Meeting the Agents must not issue workspace requests');
   await captureSettledDialog('cloud-agents', '.desktop-cloud-agents-dialog');
-  // Pressing the seat copies an invite, and three steps under it say what happens next.
+  // Pressing the seat shows only the first step: the prompt to copy and Copy, with nothing made yet.
   await evaluate("navigator.clipboard.writeText = async () => {}; true");
-  await evaluate("document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agent-seat-button').click()");
-  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 3 && document.querySelector('.desktop-cloud-agent-seat-button').textContent === 'Copied'");
+  await evaluate("document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 1");
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy') && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('/agent/••••••') && !document.querySelector('.desktop-cloud-agent-paste-art')"),
+    'The seat must show the prompt to copy, with Copy focused and no invite made yet');
+  await captureSettledDialog('cloud-agents-invite-copy', '.desktop-cloud-agents-dialog');
+  // Copy makes the invite; then the one thing left, beside a drawing of it that takes no pointer.
+  await evaluate("document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy').click()");
+  await waitFor("document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 2 && Boolean(document.querySelector('.desktop-cloud-agent-paste-art'))");
+  // The marks are pictures that load as the step appears.
+  await waitFor("[...document.querySelectorAll('.desktop-cloud-agent-invite-steps img')].every(image => image.complete)");
   const invited = JSON.parse(await evaluate(`JSON.stringify((() => {
-    const seat = document.querySelector('.desktop-cloud-agent-seat-button').getBoundingClientRect();
+    const seat = document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-invite-seat]').getBoundingClientRect();
     const steps = document.querySelector('.desktop-cloud-agent-invite-steps').getBoundingClientRect();
     const arrow = parseFloat(getComputedStyle(document.querySelector('.desktop-cloud-agent-invite-steps')).getPropertyValue('--invite-arrow-x'));
+    const art = document.querySelector('.desktop-cloud-agent-paste-art');
+    const square = art.getBoundingClientRect();
     // A mark with light and dark pictures draws both and shows the one for the theme.
     const shown = [...document.querySelectorAll('.desktop-cloud-agent-invite-logo')]
       .map(logo => [...logo.querySelectorAll('img')].filter(image => getComputedStyle(image).display !== 'none'));
     return { below: steps.top - seat.bottom, aim: steps.left + arrow - (seat.left + seat.width / 2), logos: shown.length,
-      drawn: shown.every(images => images.length === 1 && images[0].complete && images[0].naturalWidth > 0) };
+      drawn: shown.every(images => images.length === 1 && images[0].complete && images[0].naturalWidth > 0),
+      square: [square.width, square.height], inert: getComputedStyle(art).pointerEvents,
+      looping: art.getAnimations({ subtree: true }).some(animation => animation.effect.getComputedTiming().iterations === Infinity),
+      masked: document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('••••••')
+        && !document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('/agent/••••••') };
   })())`));
-  assert(invited.below >= 0 && Math.abs(invited.aim) < 2 && invited.logos === 8 && invited.drawn,
-    `The steps must hang under the seat, point at it, and show every agent mark: ${JSON.stringify(invited)}`);
-  // The paste scene plays once and rests on its last frame: the prompt sent, and the agent asking to join.
-  await evaluate("Promise.all(document.querySelector('.desktop-cloud-agent-paste-scene').getAnimations({ subtree: true }).map(animation => animation.finished))");
-  assert(await evaluate(`(() => {
-    const opacity = selector => Number(getComputedStyle(document.querySelector(selector)).opacity);
-    return opacity('.desktop-cloud-agent-paste-sent') === 1 && opacity('.desktop-cloud-agent-paste-asked') === 1
-      && opacity('.desktop-cloud-agent-paste-typed') === 0 && opacity('.desktop-cloud-agent-paste-key') === 0
-      && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.includes('/agent/')
-      && document.querySelector('.desktop-cloud-agent-invite-prompt').textContent.endsWith('••••••');
-  })()`), 'The paste scene must rest on the prompt sent and the agent asking to join, under the masked prompt');
+  assert(invited.below >= 0 && Math.abs(invited.aim) < 2 && invited.logos === 8 && invited.drawn
+    && invited.square[0] === invited.square[1] && invited.inert === 'none' && invited.looping && invited.masked,
+    `After Copy, the steps must point at the seat, show the masked prompt, every agent mark and a square looping drawing that takes no pointer: ${JSON.stringify(invited)}`);
+  // Shown at the drawing's resting beat: the prompt pasted and the agent answering with a tick.
+  await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = 3600; } return true; })()");
   await captureSettledDialog('cloud-agents-invited', '.desktop-cloud-agents-dialog');
+  await evaluate("(() => { for (const animation of document.querySelector('.desktop-cloud-agent-paste-art').getAnimations({ subtree: true })) animation.play(); return true; })()");
   // The Agent that follows it asks to join in the row, the steps give way, and it is let in from its tile.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ pending: [{ id: 'smoke-request', name: 'Codex', admission: 'sign_in', requested_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00Z' }] })");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog [data-cloud-agent-request=smoke-request]')) && !document.querySelector('.desktop-cloud-agent-invite-steps')");
@@ -655,8 +664,8 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool=invite-agent]:not(:disabled)'))");
   await evaluate("document.querySelector('[data-cloud-workspace-tool=invite-agent]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agents-dialog .desktop-cloud-agents-first'))");
-  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agents-first .desktop-cloud-agent-share-copy')"),
-    'With nobody here yet, Copy invite must be the first thing in reach');
+  assert(await evaluate("document.activeElement === document.querySelector('.desktop-cloud-agent-invite-steps .desktop-cloud-agent-share-copy') && document.querySelectorAll('.desktop-cloud-agent-invite-steps li').length === 1"),
+    'With nobody here yet, Copy must be the first thing in reach');
   await captureSettledDialog('cloud-agents-empty', '.desktop-cloud-agents-dialog');
   await evaluate("document.querySelector('.desktop-cloud-agents-dialog button[aria-label=Close]').click()");
   await waitFor("!document.querySelector('.desktop-cloud-agents-dialog')");
