@@ -292,6 +292,22 @@
         "src/agent/runtimes/claude/claude_adapter.rs"
       ],
       "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read."
+    },
+    {
+      "name": "Tool activity step lines",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentToolActivityGroup.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolStepText.tsx",
+        "src/features/desktop-agent/ui/activity/agent-tool-steps.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/domain/agent_tool_steps.rs",
+        "src/features/desktop_agent/ui/agent_activity.rs",
+        "src/features/desktop_agent/ui/agent_theme.rs"
+      ],
+      "remaining": "Tool groups are step lines with their glyph, verb and subject, and three or more file reads fold into an Explored line, as the product; the evidence trees (AgentToolEvidenceTree, AgentToolTextEvidence) and the native model's missing durations remain."
     }
   ]
 }

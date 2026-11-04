@@ -590,13 +590,15 @@
       "targets": [
         "src/shell/header.rs",
         "src/shell.rs",
-        "src/theme.rs"
+        "src/theme.rs",
+        "src/shell/cloud_agents_ui.rs",
+        "src/shell/share_panel.rs"
       ],
       "evidence": [
         "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench",
         "test:pane_widths_follow_the_product_policy"
       ],
-      "remaining": "Project button, Agent entry (bubble icon with show/hide tooltip), Changes status icons and Header elements are native. Header coachmarks, Reach/Share and cloud location states are not ported."
+      "remaining": "Project button, place menu, Agents marks, Share, Changes status icons and Header coachmarks are native. Reach and the update button (out of scope, PARITY_TODO §10) are not ported."
     },
     {
       "name": "Project menu, location switcher and project rail",
@@ -618,15 +620,17 @@
         "src/ui/components/menu.rs",
         "src/shell.rs",
         "src/features/settings/preference_types.rs",
-        "src/ui/components/popover.rs"
+        "src/ui/components/popover.rs",
+        "src/shell/project_place.rs",
+        "src/shell/project_actions.rs"
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
-        "test:choosing_local_closes_popup_and_restores_trigger",
-        "test:project_history_is_most_recent_first_and_bounded",
+        "test:the_place_menu_states_the_place_and_escape_closes_it",
+        "test:the_rail_offers_rename_and_unlink_for_a_remembered_project",
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
       ],
-      "remaining": "Recent-project list, open folder, Home and remove-from-recents are native; the rail lists recent projects. Per-project row actions (rename/unlink, ProjectRowActions) and cloud locations are not ported."
+      "remaining": "The recent-project list, Open a folder, Home, the place menu (Put in the Cloud, History, Open in Cloud) and per-project row actions are native; the menus have not been pixel-compared at qubits@671143f2a."
     },
     {
       "name": "Home page",
@@ -642,25 +646,35 @@
         "src/lib/workspaceHomeModel.ts",
         "src/styles/onboarding.css",
         "src/components/OnboardingProjectEntryDialog.tsx",
-        "src/styles/onboarding-entry-dialog.css"
+        "src/styles/onboarding-entry-dialog.css",
+        "src/features/automation/styles/template-card.css"
       ],
       "targets": [
         "src/shell/home/mod.rs",
         "src/shell/home/create_project.rs",
         "src/platform/project_activity.rs",
         "assets/brand",
-        "assets/integrations"
+        "assets/integrations",
+        "src/shell/home/projects.rs",
+        "src/shell/home/folder.rs",
+        "src/shell/home/template_import.rs",
+        "src/platform/templates/mod.rs",
+        "src/platform/drag_out.rs"
       ],
       "evidence": [
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor",
         "test:project_names_and_folders_display_like_the_product",
         "test:modification_times_round_down_to_minutes_hours_and_days",
         "test:project_names_follow_the_product_rules",
-        "test:a_blank_project_is_a_new_empty_folder",
+        "test:a_new_project_starts_with_its_guide",
         "test:a_repository_counts_its_commit_and_its_changes",
-        "test:relative_past_follows_intl_relative_time_format"
+        "test:relative_past_follows_intl_relative_time_format",
+        "test:a_template_link_gets_a_copy",
+        "test:the_view_narrows_to_places_and_orders_like_the_product",
+        "test:keys_walk_rows_and_cells_like_the_product",
+        "test:a_homepage_project_drags_out_as_its_path"
       ],
-      "remaining": "Brand lockup, recent projects (sorted by last change, with folder, time and unlink), New empty project with its create dialog, Open a folder and Sign in are native. Import (Git clone, cloud sources) and template links are shown disabled; the onboarding telemetry disclosure is not ported."
+      "remaining": "The Grid folder wall and List with their remembered switch, filters and sort, row actions, the New project split button, template links (pasted or opened) and dragging a project out as its path are native. The homepage has not been pixel-compared at qubits@671143f2a."
     },
     {
       "name": "Explorer tree and file actions",
@@ -699,7 +713,8 @@
         "src/ui/components/popover.rs",
         "src/shell/explorer/file_ops.rs",
         "src/editor/workbench/resource_operations.rs",
-        "src/editor/workbench/runtime/operations.rs"
+        "src/editor/workbench/runtime/operations.rs",
+        "src/shell/explorer/pins.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
@@ -959,7 +974,7 @@
         "test:the_rails_and_menu_operations_rewrite_the_table",
         "test:supported_languages_highlight_and_others_stay_plain"
       ],
-      "remaining": "Native live preview and source mode: headings, emphasis, links and wiki links, lists, tasks, quotes, rules, highlighted code blocks and editable tables (PARITY_TODO §7). Not native: KaTeX math, Mermaid, images, HTML and MDX blocks, markdownEnvironment (workspace link graph, wiki-link commands, asset resolver), AI edit review, document navigation, block drag, heading outline, table column resize and viewport virtualisation. The WebView island that ran the product viewer was removed."
+      "remaining": "Native live preview and source mode: headings, emphasis, links and wiki links, lists, tasks, quotes, rules, highlighted code blocks, editable tables, front matter, callouts (with folding), footnotes, math (as Unicode text, not KaTeX), images in image lines, inline HTML of the inline-editable profile, HTML blocks with Markdown inside, and the block-drag experiment (PARITY_TODO §7). Not native: Mermaid, MDX, images beside text, media in inline HTML runs, AI edit review, document navigation, heading outline, table column resize."
     },
     {
       "name": "Text, JSON and code viewers and shared editor infrastructure",
@@ -1158,14 +1173,14 @@
         "src/features/settings/preference_types.rs"
       ],
       "evidence": [
-        "test:a_trusted_root_locator_merges_and_the_newest_checkout_wins",
-        "test:openings_default_to_this_computer_and_follow_the_last_successful_one",
-        "test:the_open_history_is_bounded_and_stored_like_the_product",
-        "test:the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened",
+        "test:one_flat_list_ordered_by_actual_modification",
+        "test:a_folder_and_its_cloud_project_are_two_entries",
+        "test:a_cloud_entry_offers_only_what_the_account_may_do",
+        "test:the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out",
         "test:the_project_envelope_parses_into_catalog_entries",
         "test:remotes_are_read_from_a_checkout_and_a_plain_folder_has_none"
       ],
-      "remaining": "One flat Homepage/Header list, trusted-locator merge, location icons, the Open menu and the per-account opening history are native. The linked badge has no silhouette backplate; the card layout (asset library home) is not ported; no pixel comparison against the TS Homepage with Cloud rows yet."
+      "remaining": "A local folder and its Cloud project are two entries in one list (no merged rows, Open menu or opening history, as the product at qubits@671143f2a); the last catalog stands in until the fresh one. No pixel comparison with Cloud rows yet."
     },
     {
       "name": "Cloud repository association and Header switch",
@@ -1181,17 +1196,17 @@
         "src/workspace/cloud/recovery.rs",
         "src/workspace/cloud/locator.rs",
         "src/features/repository_cloud.rs",
-        "src/shell/cloud_switch.rs"
+        "src/shell/project_place.rs"
       ],
       "evidence": [
         "test:remotes_decide_before_any_request",
         "test:refusals_are_told_apart_and_mapped_to_location_states",
         "test:two_jittered_retries_then_throttled_probes",
         "test:only_the_configured_origin_or_explicit_hosted_mapping_is_trusted",
-        "test:the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts",
-        "test:a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it"
+        "test:a_linked_folder_opens_its_cloud_project_in_the_same_window",
+        "test:notices_follow_the_association"
       ],
-      "remaining": "MissingCloudProjectRecovery (404 replace-connection flow), the value page and publish hand-off, and pixel comparison of the switch dialog are not ported."
+      "remaining": "The product no longer has a Local/Cloud Header switch: the place menu puts a folder in the Cloud or opens its Cloud project, and a vanished project offers Replace Cloud connection. The place menu and LocalFolderCloudNotice have not been pixel-compared."
     },
     {
       "name": "Cloud explicit opening and failures",
@@ -1287,7 +1302,7 @@
       ],
       "targets": [
         "src/shell.rs",
-        "src/shell/cloud_switch.rs",
+        "src/shell/project_opening.rs",
         "src/editor/workbench/runtime.rs",
         "src/documents.rs",
         "src/workspace.rs",
@@ -1339,7 +1354,7 @@
         "test:an_uncertain_push_is_never_replayed_blindly_and_a_landed_one_reconciles",
         "test:cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything",
         "test:the_managed_helper_round_trips_the_secret_and_restores_the_previous_config",
-        "test:an_unlinked_checkout_publishes_from_the_header_switch",
+        "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu",
         "test:a_vanished_cloud_project_is_replaced_only_after_a_second_404"
       ],
       "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending."
@@ -1568,13 +1583,14 @@
         "src/workspace/cloud/share.rs",
         "src/features/cloud_services.rs",
         "src/shell/tasks.rs",
-        "src/features/cloud_services/share_status.rs"
+        "src/features/cloud_services/share_status.rs",
+        "src/shell/share_panel.rs"
       ],
       "evidence": [
         "test:a_share_issues_one_key_and_the_same_share_is_reused_without_another",
         "test:a_link_target_never_creates_a_key",
         "test:stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing",
-        "test:the_share_preview_uses_cached_entries_and_keeps_the_open_file"
+        "test:the_share_card_hangs_under_its_button_and_escape_closes_it"
       ],
       "remaining": "The preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer. A checkout with no Cloud Project goes through the value page instead of signing in and publishing inside the wizard, so a folder chosen there is not carried across. Resuming a stopped first push from the wizard states the run in words, without CloudPublishProgressIndicator. The status dot does not pulse; no pixel comparison."
     },
@@ -1753,10 +1769,10 @@
       ],
       "targets": [
         "src/features/cloud_account.rs",
-        "src/shell/cloud_switch.rs"
+        "src/shell/project_place.rs"
       ],
       "evidence": [
-        "test:a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it",
+        "test:put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it",
         "test:signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project"
       ],
       "remaining": "Browser OAuth, social sign-in, Keychain and several processes need real-environment acceptance (C-2.6)."
@@ -1789,12 +1805,12 @@
       ],
       "targets": [
         "src/workspace/cloud/mod.rs",
-        "src/shell/cloud_switch.rs",
+        "src/shell/project_opening.rs",
         "src/shell/cloud_publish.rs",
         "src/features/repository_cloud.rs"
       ],
       "evidence": [
-        "test:a_failed_header_switch_stays_local_with_its_recovery_in_place",
+        "test:a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery",
         "test:an_opening_stays_open_until_its_result_is_applied",
         "test:a_reopened_lease_rebinds_a_document_baseline_and_saves"
       ],
@@ -1873,6 +1889,79 @@
         "electron/main/ipc/cloud-publish-ipc.mjs"
       ],
       "reason": "Electron's process boundary. The native app is one process (D-1), so these calls go directly to the models."
+    },
+    {
+      "name": "Project place menu and local Cloud notice",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/project-place/**",
+        "src/features/cloud/project/LocalFolderCloudNotice.tsx",
+        "src/features/cloud/project/localFolderCloudNoticeState.ts",
+        "src/features/cloud/project/MissingCloudProjectReplacement.tsx"
+      ],
+      "targets": [
+        "src/shell/project_place.rs",
+        "src/shell/header.rs"
+      ],
+      "evidence": [
+        "test:the_place_menu_offers_the_one_action_that_applies",
+        "test:notices_follow_the_association",
+        "test:the_place_menu_states_the_place_and_escape_closes_it",
+        "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+      ],
+      "remaining": "The place menu (Put in the Cloud, History, Open in Cloud), LocalFolderCloudNotice and Replace Cloud connection are native; they have not been pixel-compared at qubits@671143f2a."
+    },
+    {
+      "name": "Cloud workspace Agents (agent links)",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/share/CloudWorkspaceAgentInvite.tsx",
+        "src/features/cloud/share/CloudWorkspaceAgentsDialog.tsx",
+        "src/features/cloud/share/CloudWorkspaceAgentsPanel.tsx",
+        "src/features/cloud/share/agentLinks.ts",
+        "src/features/cloud/share/useWorkspaceAgents.ts",
+        "src/app/CloudWorkspaceAgentPeople.tsx"
+      ],
+      "targets": [
+        "src/workspace/cloud/agents.rs",
+        "src/features/cloud_agents.rs",
+        "src/shell/cloud_agents_ui.rs"
+      ],
+      "evidence": [
+        "test:a_link_is_made_for_the_running_workspace_and_its_prompt_names_the_project",
+        "test:owner_changes_use_the_products_requests",
+        "test:an_open_card_or_a_waiting_invite_asks_every_three_seconds",
+        "test:manage_removes_an_agent_and_tells_the_header",
+        "test:the_agents_stand_beside_share_and_open_their_card",
+        "test:requests_lead_then_whoever_is_at_work"
+      ],
+      "remaining": "The Header marks, the Agents card (requests, connected agents, invite, Manage) and the agentLinks requests are native over scripted services; hosted acceptance against a real backend and a pixel comparison remain."
+    },
+    {
+      "name": "Window project, opening surface and file mode",
+      "status": "partial",
+      "sources": [
+        "src/app/FileModeApp.tsx",
+        "src/app/file-mode.css",
+        "src/app/ProjectOpeningSurface.tsx",
+        "src/app/useProjectOpeningSurfaces.tsx",
+        "src/app/ProjectWindow.tsx",
+        "src/app/useWindowProjectNavigation.ts",
+        "src/features/app-shell/window-project/**"
+      ],
+      "targets": [
+        "src/shell/file_mode.rs",
+        "src/shell/project_opening.rs",
+        "src/shell/windows.rs",
+        "src/shell.rs"
+      ],
+      "evidence": [
+        "test:markdown_csv_and_html_pages_open_on_their_own",
+        "test:a_file_window_shows_one_file_and_asks_before_losing_edits",
+        "test:a_cloud_project_is_entered_at_once_and_escape_abandons_it",
+        "test:a_newer_choice_replaces_a_project_still_opening"
+      ],
+      "remaining": "File mode windows, the opening surface and newer-choice replacement are native; the window's project state is held by the Shell's fields rather than one store (windowProjectStore), with the same visible behaviour."
     }
   ],
   "retired_sources": {
