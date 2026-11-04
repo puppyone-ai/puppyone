@@ -254,9 +254,64 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     view.update(cx, |s, _| assert!(s.panes.shows(RightContent::Workbench)));
     command(&view, cx, Command::Changes);
     command(&view, cx, Command::Changes);
+    // Closing keeps Changes on screen while the frame closes, and stored.
+    view.update(cx, |s, cx| {
+        assert!(!s.panes.right().open && s.panes.content() == RightContent::Changes);
+        assert_eq!(
+            s.preferences.read(cx).state.right_sidebar_surface,
+            crate::features::settings::preference_types::RightSidebarSurface::Changes
+        );
+    });
+}
+#[gpui::test]
+fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
+    use crate::features::settings::preference_types::RightSidebarSurface;
+    let (view, cx) = setup(cx);
+    let dir = tempfile::tempdir().unwrap();
+    view.update(cx, |s, _| {
+        s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
+    });
+    // History is the surface while the sidebar is closed: pulling it out
+    // reopens on History, the Header entry reveals the Changes list.
+    command(&view, cx, Command::Changes);
+    view.update(cx, |s, cx| {
+        s.source_control.update(cx, |c, cx| c.open_history(cx))
+    });
+    cx.run_until_parked();
+    let stored = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.preferences.read(cx).state.right_sidebar_surface
+        })
+    };
+    assert_eq!(stored(&view, cx), RightSidebarSurface::History);
+    command(&view, cx, Command::Changes);
+    view.update(cx, |s, cx| {
+        assert!(!s.panes.right().open && s.panes.content() == RightContent::Changes);
+        assert!(s.source_control.read(cx).history_open());
+    });
+    assert_eq!(stored(&view, cx), RightSidebarSurface::History);
+    command(&view, cx, Command::Changes);
+    view.update(cx, |s, cx| {
+        assert!(s.panes.shows(RightContent::Changes));
+        assert!(!s.source_control.read(cx).history_open());
+    });
+    assert_eq!(stored(&view, cx), RightSidebarSurface::Changes);
+    // The Agent is Chat; closing it keeps Chat.
+    command(&view, cx, Command::ToggleRightSidebar);
+    command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, _| {
         assert!(!s.panes.right().open && s.panes.content() == RightContent::Workbench)
     });
+    assert_eq!(stored(&view, cx), RightSidebarSurface::Chat);
+    // A new window starts closed on the stored surface.
+    let mut panes = panes::Panes::new(false, RightContent::Workbench);
+    assert_eq!(
+        panes.restore_surface(RightSidebarSurface::History),
+        Some(true)
+    );
+    assert_eq!(panes.content(), RightContent::Changes);
+    assert!(!panes.right().open);
+    assert_eq!(panes.restore_surface(RightSidebarSurface::Chat), None);
 }
 #[gpui::test]
 fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppContext) {
@@ -1544,9 +1599,9 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert!(!s.panes.right().open);
-        assert_eq!(s.panes.content(), panes::RightContent::Workbench);
+        assert!(!s.cloud_history.read(cx).is_open());
     });
 }
 

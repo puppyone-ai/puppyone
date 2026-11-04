@@ -581,11 +581,17 @@ impl Shell {
         cx.observe(&s.source_control, |_, _, cx| cx.notify())
             .detach();
         // Changes "Open file" (`onOpenFile`): the file in the editor.
+        // History and Back store the surface (`rightSidebarSurface`).
         cx.subscribe_in(&s.source_control, window, |s, _, event, window, cx| {
-            let crate::features::source_control::SourceControlEvent::OpenFile(path) = event;
-            s.files
-                .begin(Intent::OpenFile(PathBuf::from(path)), &s.wake);
-            s.receive(window, cx);
+            use crate::features::source_control::SourceControlEvent;
+            match event {
+                SourceControlEvent::OpenFile(path) => {
+                    s.files
+                        .begin(Intent::OpenFile(PathBuf::from(path)), &s.wake);
+                    s.receive(window, cx);
+                }
+                SourceControlEvent::Surface => s.persist_surface(cx),
+            }
             cx.notify();
         })
         .detach();
@@ -781,6 +787,13 @@ impl Shell {
             explorer_width: p.explorer_width,
             right_width: p.right_sidebar_width,
         });
+        // The surface the closed sidebar opens on (`rightSidebarSurface`).
+        if self.preferences.read(cx).loaded
+            && let Some(history) = self.panes.restore_surface(p.right_sidebar_surface)
+        {
+            self.source_control
+                .update(cx, |s, cx| s.restore_history(history, cx));
+        }
         let code = crate::localization::resolve_preference(
             &p.locale,
             crate::platform::environment::system_languages(),
@@ -1138,7 +1151,10 @@ impl Shell {
                 self.panes.toggle_explorer();
                 self.persist_panes(cx);
             }
-            Command::ToggleRightSidebar => self.panes.toggle_workbench(),
+            Command::ToggleRightSidebar => {
+                self.panes.toggle_workbench();
+                self.persist_surface(cx);
+            }
             Command::Settings => {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
@@ -1263,9 +1279,14 @@ impl Shell {
                 if self.files.workspace.is_none() {
                     return;
                 }
+                // `reveal("changes")`: opening shows the Changes list.
                 if self.panes.toggle_changes() {
-                    self.source_control.update(cx, |s, cx| s.refresh(cx));
+                    self.source_control.update(cx, |s, cx| {
+                        s.show_changes(cx);
+                        s.refresh(cx)
+                    });
                 }
+                self.persist_surface(cx);
                 self.focus.focus(window, cx);
             }
             _ => {}
@@ -1606,7 +1627,10 @@ impl Shell {
     /// in (Project, account, session generation, API) and only while the
     /// sidebar is open; anything else closes it and drops its reads.
     fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
-        if self.panes.content() != RightContent::CloudHistory {
+        // Already closed: the sidebar only keeps History as what it showed.
+        if self.panes.content() != RightContent::CloudHistory
+            || !(self.panes.right().open || self.cloud_history.read(cx).is_open())
+        {
             return;
         }
         let project = self.hosted_project();
@@ -2074,6 +2098,16 @@ impl Shell {
                 },
                 cx,
             )
+        });
+    }
+    /// Store what the right sidebar shows (`setRightSidebarSurface`).
+    fn persist_surface(&mut self, cx: &mut Context<Self>) {
+        let history = self.source_control.read(cx).history_open();
+        let Some(surface) = self.panes.surface(history) else {
+            return;
+        };
+        self.preferences.update(cx, |store, cx| {
+            store.change(|p| p.right_sidebar_surface = surface, cx)
         });
     }
 }

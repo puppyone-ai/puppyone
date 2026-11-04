@@ -5,7 +5,7 @@
 //! keeps the native default. Credentials are never part of it.
 use super::preference_types::{
     Experimental, GitSidebarLayout, HomepageLayout, HomepageSort, Preferences, RecentProject,
-    ThemeMode,
+    RightSidebarSurface, ThemeMode,
 };
 use crate::platform::electron_import::ElectronData;
 use serde_json::Value;
@@ -24,6 +24,7 @@ mod keys {
     pub const EXPLORER_WIDTH: &str = "puppyone.desktop.explorerWidth";
     pub const SIDEBAR_COLLAPSED: &str = "puppyone.desktop.sidebarCollapsed";
     pub const RIGHT_SIDEBAR_WIDTH: &str = "puppyone.desktop.rightSidebarWidth";
+    pub const RIGHT_SIDEBAR_SURFACE: &str = "puppyone.desktop.rightSidebarSurface";
     pub const EXPERIMENTAL: &str = "puppyone.desktop.experimental";
     pub const FILES: &str = "puppyone.desktop.filesVisibility";
     pub const LOCAL_AGENTS: &str = "puppyone.desktop.localAgents";
@@ -89,6 +90,12 @@ pub fn import(data: &ElectronData) -> Preferences {
         p.right_sidebar_width = width;
     }
     p.sidebar_collapsed = get(keys::SIDEBAR_COLLAPSED) == Some("true");
+    // `readInitialRightSidebarSurface`: `history` or `changes`, else Chat.
+    p.right_sidebar_surface = match get(keys::RIGHT_SIDEBAR_SURFACE) {
+        Some("history") => RightSidebarSurface::History,
+        Some("changes") => RightSidebarSurface::Changes,
+        _ => RightSidebarSurface::Chat,
+    };
 
     if let Some(experimental) = object(keys::EXPERIMENTAL) {
         (p.experimental, p.project_switcher_rail) = experimental_settings(&experimental);

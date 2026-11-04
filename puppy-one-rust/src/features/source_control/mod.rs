@@ -126,6 +126,9 @@ impl Detail {
 pub enum SourceControlEvent {
     /// `onOpenFile`: open a workspace-relative file in the editor.
     OpenFile(String),
+    /// `onOpenHistory` / `onBack`: the sidebar now shows History or the
+    /// Changes list (`rightSidebarSurface`).
+    Surface,
 }
 /// `GitSidebarPanelId` of the local status panels, in display order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -358,7 +361,8 @@ impl SourceControl {
         self.busy = false;
         self.mutating = false;
         self.queued_operation = None;
-        self.history_open = false;
+        // History stays the surface across projects (`rightSidebarSurface`);
+        // it reloads with the new repository's first snapshot.
         self.detail = None;
         self.history = History::default();
         self.history_loaded = false;
@@ -633,6 +637,38 @@ impl SourceControl {
         self.detail = None;
         self.history_open = true;
         self.load_history();
+        cx.emit(SourceControlEvent::Surface);
+        cx.notify();
+    }
+    /// `reveal("changes")`: the Header entry and Back show the Changes list.
+    pub fn show_changes(&mut self, cx: &mut Context<Self>) {
+        if !self.history_open {
+            return;
+        }
+        self.history_open = false;
+        if matches!(
+            self.detail.as_ref().map(|d| &d.kind),
+            Some(DetailKind::Commit(_))
+        ) {
+            self.detail = None;
+        }
+        self.selection += 1;
+        cx.emit(SourceControlEvent::Surface);
+        cx.notify();
+    }
+    /// History is the surface (`rightSidebarSurface === "history"`).
+    pub fn history_open(&self) -> bool {
+        self.history_open
+    }
+    /// The stored surface arriving: History (read once the repository is).
+    pub fn restore_history(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.history_open == open {
+            return;
+        }
+        self.history_open = open;
+        if open && self.snapshot.is_some() {
+            self.load_history();
+        }
         cx.notify();
     }
     /// Open the `index`th History commit (capture scenarios).
@@ -1478,7 +1514,7 @@ impl Render for SourceControl {
                 )
                 .on_click(cx.listener(|s, _, _, cx| {
                     if s.detail.take().is_none() {
-                        s.history_open = false;
+                        s.show_changes(cx);
                     }
                     s.selection += 1;
                     cx.notify();

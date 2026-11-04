@@ -15,7 +15,9 @@ mod gesture;
 pub(super) mod layout;
 mod motion;
 
-use crate::{geometry::Rect, theme::pane};
+use crate::{
+    features::settings::preference_types::RightSidebarSurface, geometry::Rect, theme::pane,
+};
 use gesture::{Commit, Config, Gesture, Phase};
 use gpui::{Pixels, Point};
 
@@ -70,6 +72,8 @@ pub(super) struct Panes {
     explorer: SidePane,
     right: SidePane,
     content: RightContent,
+    /// The stored surface has been applied (once, when preferences load).
+    surface_restored: bool,
     drag: Option<Drag>,
     motion: motion::PaneMotion,
     /// The native window minimum last handed out.
@@ -90,6 +94,7 @@ impl Panes {
                 width: pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
             },
             content,
+            surface_restored: false,
             drag: None,
             motion: Default::default(),
             window_minimum: 0.,
@@ -137,41 +142,59 @@ impl Panes {
     /// Agent), or close it when it already shows. Returns whether History
     /// shows now.
     pub fn toggle_cloud_history(&mut self) -> bool {
-        let show = !self.shows(RightContent::CloudHistory);
-        self.right.open = show;
-        self.content = if show {
-            RightContent::CloudHistory
-        } else {
-            RightContent::Workbench
-        };
-        show
+        self.toggle(RightContent::CloudHistory)
     }
-    /// Switching location (`closeWorkspaceSidebars`): the sidebar closes and
-    /// reopens on the workbench only when the person opens it.
+    /// `closeWorkspaceSidebars`: the sidebar closes. What it shows stays (the
+    /// closing frame keeps its content, `rightSidebarSurface` is kept).
     pub fn close_right(&mut self) {
         self.right.open = false;
-        self.content = RightContent::Workbench;
     }
-    /// History closed itself (Close, Back, or its scope ended): the sidebar
-    /// closes and reopens on the workbench.
+    /// History closed itself (Close, Back, or its scope ended).
     pub fn close_cloud_history(&mut self) {
         if self.content == RightContent::CloudHistory {
             self.right.open = false;
-            self.content = RightContent::Workbench;
         }
     }
-    /// The Header's Changes: open the sidebar on Changes, or close it when it
-    /// already shows them (it then reopens on the workbench). Returns whether
-    /// Changes show now.
+    /// The Header's Changes (`useGitPresentation.toggle`): open the sidebar
+    /// on Changes, or close it when it shows them. Returns whether Changes
+    /// show now.
     pub fn toggle_changes(&mut self) -> bool {
-        let show = !self.shows(RightContent::Changes);
-        self.right.open = show;
-        self.content = if show {
-            RightContent::Changes
-        } else {
-            RightContent::Workbench
+        self.toggle(RightContent::Changes)
+    }
+    /// Closing leaves `content` as it is: the frame closes on what it
+    /// showed, and the sidebar reopens on it when pulled out.
+    fn toggle(&mut self, content: RightContent) -> bool {
+        if self.shows(content) {
+            self.right.open = false;
+            return false;
+        }
+        self.content = content;
+        self.right.open = true;
+        true
+    }
+    /// `rightSidebarSurface` as stored: the Agent is Chat, Changes is History
+    /// while `history` shows. A hosted Project's History is not a stored
+    /// surface (`useCloudWorkspaceSidebar` keeps its own).
+    pub fn surface(&self, history: bool) -> Option<RightSidebarSurface> {
+        match self.content {
+            RightContent::Workbench => Some(RightSidebarSurface::Chat),
+            RightContent::Changes if history => Some(RightSidebarSurface::History),
+            RightContent::Changes => Some(RightSidebarSurface::Changes),
+            RightContent::CloudHistory => None,
+        }
+    }
+    /// The stored surface arriving (`readInitialRightSidebarSurface`): once,
+    /// and only onto the closed sidebar; later loads are this window's own
+    /// writes. Returns whether History is the surface when it applies.
+    pub fn restore_surface(&mut self, stored: RightSidebarSurface) -> Option<bool> {
+        if std::mem::replace(&mut self.surface_restored, true) || self.right.open {
+            return None;
+        }
+        self.content = match stored {
+            RightSidebarSurface::Chat => RightContent::Workbench,
+            RightSidebarSurface::Changes | RightSidebarSurface::History => RightContent::Changes,
         };
-        show
+        Some(stored == RightSidebarSurface::History)
     }
     /// Dev-capture surfaces open the right sidebar directly.
     #[cfg(feature = "dev-capture")]
@@ -256,6 +279,14 @@ impl Panes {
             }
             Some(Commit::Resize { width }) => pane.width = width,
             None => {}
+        }
+        // Pulled out, the sidebar opens on its surface; a hosted Project's
+        // History only opens from its Header entry.
+        if matches!(result, Some(Commit::Expand { .. }))
+            && drag.config.side == Side::End
+            && self.content == RightContent::CloudHistory
+        {
+            self.content = RightContent::Workbench;
         }
         Some(result.is_some())
     }
@@ -348,14 +379,15 @@ mod tests {
         assert!(panes.shows(RightContent::Workbench));
         panes.toggle_workbench();
         assert!(!panes.right().open);
-        // Changes twice: open on Changes, then closed, reopening on the
-        // workbench.
+        // Changes twice: open on Changes, then closed — still on Changes,
+        // so the closing frame does not flash the workbench and the sidebar
+        // reopens on Changes (`rightSidebarSurface` is kept).
         assert!(panes.toggle_changes());
         assert!(!panes.toggle_changes());
         assert!(!panes.right().open);
-        assert_eq!(panes.content(), RightContent::Workbench);
+        assert_eq!(panes.content(), RightContent::Changes);
         // History and the Agent replace each other; closing History leaves
-        // the sidebar closed on the workbench.
+        // the sidebar closed on History.
         assert!(panes.toggle_cloud_history());
         panes.toggle_workbench();
         assert!(panes.shows(RightContent::Workbench));
@@ -363,7 +395,9 @@ mod tests {
         assert!(panes.shows(RightContent::CloudHistory));
         panes.close_cloud_history();
         assert!(!panes.right().open);
-        assert_eq!(panes.content(), RightContent::Workbench);
+        assert_eq!(panes.content(), RightContent::CloudHistory);
+        panes.close_right();
+        assert_eq!(panes.content(), RightContent::CloudHistory);
         assert!(panes.toggle_cloud_history());
         assert!(!panes.toggle_cloud_history());
     }

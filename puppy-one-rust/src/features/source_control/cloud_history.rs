@@ -373,7 +373,7 @@ impl CloudHistory {
             _ => false,
         }
     }
-    #[cfg(test)]
+    /// History holds a scope (it opened and has not closed).
     pub fn is_open(&self) -> bool {
         self.scope.is_some()
     }

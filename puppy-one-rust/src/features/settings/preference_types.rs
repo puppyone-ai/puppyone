@@ -246,6 +246,16 @@ pub enum HomepageLayout {
     #[default]
     Grid,
 }
+/// `RightSidebarSurface`: what the right sidebar shows, kept while it is
+/// closed and across launches (whether it is open is not stored).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RightSidebarSurface {
+    #[default]
+    Chat,
+    Changes,
+    History,
+}
 /// `HOMEPAGE_PROJECT_SORTS`: how the Homepage orders its projects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -288,6 +298,8 @@ pub struct Preferences {
     pub explorer_width: f32,
     pub sidebar_collapsed: bool,
     pub right_sidebar_width: f32,
+    /// `puppyone.desktop.rightSidebarSurface`.
+    pub right_sidebar_surface: RightSidebarSurface,
     pub create_new: MenuSettings,
     pub files: FilesVisibility,
     pub local_agents: LocalAgents,
@@ -403,6 +415,7 @@ impl Default for Preferences {
             explorer_width: crate::theme::pane::DEFAULT_EXPLORER_WIDTH,
             sidebar_collapsed: false,
             right_sidebar_width: crate::theme::pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
+            right_sidebar_surface: RightSidebarSurface::Chat,
             create_new: MenuSettings::default(),
             files: FilesVisibility::default(),
             local_agents: LocalAgents::default(),
