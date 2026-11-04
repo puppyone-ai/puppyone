@@ -140,7 +140,8 @@ impl AgentChat {
         let a = super::agent_theme::AgentTheme::new(&cx.palette());
         let visual = self.render_visual_attachments(cx);
         let mentions = self.render_mentions(cx);
-        // `AgentAttachmentButton`: 32px quiet trigger (Paperclip 16 / 1.7).
+        // `AgentAttachmentButton`: the composer control (28px, the Header's),
+        // Paperclip 15 / 1.6 stood upright (`rotate(-45deg)`).
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
         let attach_disabled = self.session.busy() && !running;
@@ -148,11 +149,17 @@ impl AgentChat {
         let attach = PopoverMenu::new("attach-agent-menu")
             .anchor(Anchor::BottomLeft)
             .trigger(
-                IconButton::new("attach-agent", Icon::new("paperclip").large().stroke(1.7))
-                    .label(tr("agent.reference.add"))
-                    .with_size(px(theme::control()))
-                    .color(a.text_subtle)
-                    .disabled(attach_disabled),
+                IconButton::new(
+                    "attach-agent",
+                    Icon::new("paperclip")
+                        .with_size(px(15.))
+                        .stroke(1.6)
+                        .rotate(-std::f32::consts::FRAC_PI_4),
+                )
+                .label(tr("agent.reference.add"))
+                .with_size(px(theme::control_compact()))
+                .color(a.text_subtle)
+                .disabled(attach_disabled),
             )
             .menu(move |menu, _, _| {
                 menu.item(
@@ -175,7 +182,8 @@ impl AgentChat {
         } else {
             tr("agent.composer.send").to_owned()
         };
-        // `.desktop-agent-composer-action`: a 28px disc inside a 32px target.
+        // `.desktop-agent-composer-action`: the composer control, a square
+        // with the toolbar action's 5px radius.
         let enabled = running || ready;
         let (surface, glyph_color, opacity) = if running || stopping {
             (a.text, a.canvas, if stopping { 0.52 } else { 1. })
@@ -186,31 +194,33 @@ impl AgentChat {
         };
         let glyph: AnyElement = if stopping {
             Icon::new("loader-circle")
+                .with_size(px(15.))
                 .color(glyph_color)
                 .into_any_element()
         } else if running {
+            // `Square size={10} fill`: lucide's square is inset 3/24 with r2.
             div()
-                .size(px(11.))
-                .rounded(px(2.))
+                .size(px(10. * 18. / 24.))
+                .rounded(px(10. * 2. / 24.))
                 .bg(glyph_color)
                 .into_any_element()
         } else {
             Icon::new("arrow-up")
-                .with_size(px(17.))
-                .stroke(1.6)
+                .with_size(px(15.))
+                .stroke(2.1)
                 .color(glyph_color)
                 .into_any_element()
         };
         let primary = gpui_kit::base::Button::new("send-agent")
             .accessibility_label(action_label.clone())
             .disabled(!enabled || stopping)
-            .size(px(theme::control()))
+            .size(px(theme::control_compact()))
             .ml(px(4.))
             .opacity(opacity)
             .child(
                 div()
-                    .size(px(28.))
-                    .rounded_full()
+                    .size(px(theme::control_compact()))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
                     .bg(surface)
                     .flex()
                     .items_center()
