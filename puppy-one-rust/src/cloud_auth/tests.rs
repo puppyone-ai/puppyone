@@ -124,6 +124,19 @@ impl Remote for FakeRemote {
             n,
         ))
     }
+    fn public(&self, _: &Environment, path: &str, _: &Fence) -> Result<serde_json::Value> {
+        let responder = self.responder.lock().unwrap().clone();
+        match responder {
+            Some(responder) => responder(&ApiRequest {
+                idempotency_key: None,
+                method: reqwest::Method::GET,
+                path: path.into(),
+                query: vec![],
+                body: None,
+            }),
+            None => Ok(serde_json::json!({})),
+        }
+    }
     fn logout(&self, _: &Credential, _: Option<&Session>, _: &Fence) -> Result<()> {
         let hook = self.logout_hook.lock().unwrap().clone();
         if let Some(hook) = hook {
@@ -872,4 +885,27 @@ fn callback_parser_rejects_host_origin_duplicates_framing_and_token_urls() {
         &format!("state=s&refresh_token={}", "a".repeat(17000)),
     );
     assert_eq!(callback::parse(&raw, host, origin, "s").err(), Some(413));
+}
+
+/// N-14: managed inference reads the wallet first, so a refused account
+/// fails before anything is sent for inference.
+#[test]
+fn managed_inference_reads_the_wallet_first() {
+    let (broker, remote, _) = setup();
+    login(&broker, "alice").unwrap();
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+    let record = seen.clone();
+    *remote.responder.lock().unwrap() = Some(Arc::new(move |request: &ApiRequest| {
+        record.lock().unwrap().push(request.path.clone());
+        Err(Error::Http(402))
+    }));
+    let result = broker.completion(
+        &binding(&broker),
+        &serde_json::json!({"model": "m", "messages": []}),
+        "11111111-1111-4111-8111-111111111111",
+        &crate::cloud_auth::Cancellation::default(),
+        &mut |_| Ok(()),
+    );
+    assert_eq!(result.err(), Some(Error::Http(402)));
+    assert_eq!(*seen.lock().unwrap(), vec!["/ai/balance".to_owned()]);
 }

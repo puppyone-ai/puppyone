@@ -29,6 +29,10 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<()>;
     fn initialize(&self, session: &Session, fence: &Fence) -> Result<()>;
     fn request(&self, session: &Session, request: &ApiRequest, fence: &Fence) -> Result<Value>;
+    /// `requestPublic`: a GET the service answers without an account.
+    fn public(&self, _env: &Environment, _path: &str, _fence: &Fence) -> Result<Value> {
+        Err(Error::Unsupported)
+    }
     fn stream(
         &self,
         _session: &Session,
@@ -237,6 +241,11 @@ impl Http {
     }
 }
 impl Remote for Http {
+    fn public(&self, env: &Environment, path: &str, fence: &Fence) -> Result<Value> {
+        let url = env.api_url(path, &[])?;
+        let request = self.client(&url).get(url);
+        self.send(request, 1024 * 1024, fence)
+    }
     fn providers(&self, env: &Environment, fence: &Fence) -> Result<()> {
         let value = self.auth(env, "/settings", None, None, fence)?;
         if ["email", "google", "github"]

@@ -218,8 +218,11 @@ impl ManagedCompute {
                     )
                     .map(data)
             };
-            let catalog = get("/ai/catalog")
+            // Public prices need no account (`requestPublic`).
+            let catalog = broker
+                .public("/ai/catalog")
                 .ok()
+                .map(data)
                 .as_ref()
                 .and_then(parse_catalog)
                 .ok_or(())?;

@@ -706,9 +706,18 @@ impl Broker {
             }
         }
     }
+    /// `requestPublic`: a read of the paired Cloud that needs no account
+    /// (the managed compute price list).
+    pub fn public(&self, path: &str) -> Result<serde_json::Value> {
+        let environment = self.state.lock().unwrap().environment.clone();
+        let control = Control::new();
+        self.remote.public(&environment, path, &control.fence())
+    }
     /// Managed inference (`openAgentStream`): a single POST of the Chat
     /// Completions `body`, its stream delivered to `sink`. Never retried —
-    /// a lost response may still have been charged.
+    /// a lost response may still have been charged. The wallet is read
+    /// first (`/ai/balance`), so a refused account fails before anything
+    /// is sent for inference.
     pub fn completion(
         &self,
         binding: &Binding,
@@ -717,6 +726,17 @@ impl Broker {
         cancel: &super::Cancellation,
         sink: &mut super::transport::StreamSink<'_>,
     ) -> Result<()> {
+        self.request_scoped(
+            binding,
+            &ApiRequest {
+                idempotency_key: None,
+                method: reqwest::Method::GET,
+                path: "/ai/balance".into(),
+                query: vec![],
+                body: None,
+            },
+            cancel,
+        )?;
         let mut fence = self.authorized(binding)?;
         fence.cancel = Some(cancel.clone());
         fence.check()?;
