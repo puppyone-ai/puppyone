@@ -123,6 +123,10 @@ impl AbortSignal {
             .borrow_mut()
             .retain(|(listener, _)| *listener != id);
     }
+    /// `signal === other`.
+    pub fn same(&self, other: &AbortSignal) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 /// `Promise.race([operation, abort])`: the operation, unless the signal

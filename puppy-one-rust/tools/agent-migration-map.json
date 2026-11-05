@@ -191,7 +191,7 @@
       "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product Pi RPC client, event-normalizer and prompt-input tests (scripted process). The app still runs legacy_pi_rpc_adapter.rs until the host switches to AgentService."
     },
     {
-      "name": "Claude native adapter",
+      "name": "Claude Agent SDK runtime",
       "status": "partial",
       "sources": [
         "electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs",
@@ -209,10 +209,29 @@
         "electron/main/agent/runtimes/claude/claude-spawn.mjs"
       ],
       "targets": [
-        "src/agent/runtimes/claude/claude_adapter.rs",
-        "src/agent/runtimes/claude/history.rs"
+        "src/agent/runtimes/claude/claude_agent_sdk/mod.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/process_transport.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/query.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/sessions.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/tests.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk_adapter.rs",
+        "src/agent/runtimes/claude/claude_discovery.rs",
+        "src/agent/runtimes/claude/claude_events.rs",
+        "src/agent/runtimes/claude/claude_history_discovery.rs",
+        "src/agent/runtimes/claude/claude_history_reader.rs",
+        "src/agent/runtimes/claude/claude_history_source.rs",
+        "src/agent/runtimes/claude/claude_identity.rs",
+        "src/agent/runtimes/claude/claude_interactions.rs",
+        "src/agent/runtimes/claude/claude_message_channel.rs",
+        "src/agent/runtimes/claude/claude_native_values.rs",
+        "src/agent/runtimes/claude/claude_prompt_input.rs",
+        "src/agent/runtimes/claude/claude_runtime_definition.rs",
+        "src/agent/runtimes/claude/claude_spawn.rs",
+        "src/agent/runtimes/claude/tests.rs",
+        "src/agent/runtimes/claude/legacy_claude_adapter.rs",
+        "src/agent/runtimes/claude/legacy_history.rs"
       ],
-      "remaining": "Direct native CLI control protocol replaces SDK bridge. Stream/tools, exact approvals/questions/MCP forms, modes/models, native history, rename/fork/stop are implemented. Full SDK control surface and live inference/resume are not yet verified; configured upstream returned HTTP 522."
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter, events, spawn and prompt-input tests. claude_agent_sdk/ is the Rust equivalent of @anthropic-ai/claude-agent-sdk@0.3.159 (stream-json control protocol, listSessions/getSessionInfo/getSessionMessages/forkSession); its session helpers match the official SDK on real transcripts, and the initialization handshake is verified against Claude Code 2.1.291. The app still runs legacy_claude_adapter.rs until the host switches to AgentService."
     },
     {
       "name": "Product-owned PuppyOne runtime",
@@ -308,7 +327,7 @@
         "src/features/desktop_agent/ui/agent_provider_activities.rs",
         "src/agent/domain/legacy_session_model.rs",
         "src/agent/protocols/pi_rpc/legacy_pi_rpc_adapter.rs",
-        "src/agent/runtimes/claude/claude_adapter.rs"
+        "src/agent/runtimes/claude/legacy_claude_adapter.rs"
       ],
       "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read."
     },

@@ -153,8 +153,8 @@ impl Session {
         let wake = self.wake.clone();
         std::thread::spawn(move || {
             let result = match id {
-                Some(id) => History::Messages(super::history::load(&root, &id)),
-                None => History::List(super::history::list(&root)),
+                Some(id) => History::Messages(super::legacy_history::load(&root, &id)),
+                None => History::List(super::legacy_history::list(&root)),
             };
             let _ = tx.send(result);
             wake.notify();

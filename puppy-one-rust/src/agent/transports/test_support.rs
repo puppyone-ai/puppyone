@@ -47,6 +47,11 @@ impl FakeChild {
             .collect()
     }
 
+    /// `child.stdout.end()`: the reader sees EOF.
+    pub fn end_stdout(&self) {
+        self.stdout.borrow_mut().take();
+    }
+
     /// The process exits.
     pub fn exit(&self, code: Option<i32>, signal: Option<&str>) {
         if let Some(exit) = self.exit.borrow_mut().take() {
