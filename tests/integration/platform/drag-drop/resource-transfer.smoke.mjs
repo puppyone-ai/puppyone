@@ -30,6 +30,7 @@ app.whenReady().then(async () => {
   await fs.mkdir(path.join(temporaryRoot, "assets"));
   await fs.writeFile(path.join(temporaryRoot, "assets", "photo #1%.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGOwaT4KRAAJkQMJDwNCIAAAAABJRU5ErkJggg==", "base64"));
   await fs.writeFile(path.join(temporaryRoot, "docs", "中文 file.md"), "native drag fixture\n");
+  await fs.writeFile(path.join(temporaryRoot, "docs", "left.md"), "left split fixture\n");
   await fs.writeFile(path.join(temporaryRoot, "existing.md"), "# Existing document\n\nDrag the Explorer file into this pane to split it.\n");
   const workspacePath = await fs.realpath(temporaryRoot);
   const folders = [{ path: workspacePath, workspace: { id: "smoke-root", workspaceInstanceId: "smoke-root", name: "Smoke project" } }];

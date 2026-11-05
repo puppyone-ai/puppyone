@@ -23,7 +23,8 @@ const file: DocumentDataNode = { id: `${rootUri}/docs/%E4%B8%AD%E6%96%87%20file.
 const existing: DocumentDataNode = { id: `${rootUri}/existing.md`, path: `${rootUri}/existing.md`, name: "existing.md", type: "markdown", source: "local" };
 const image: DocumentDataNode = { id: `${rootUri}/assets/photo%20%231%25.png`, path: `${rootUri}/assets/photo%20%231%25.png`, name: "photo #1%.png", type: "image", source: "local" };
 const imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGOwaT4KRAAJkQMJDwNCIAAAAABJRU5ErkJggg==";
-const nodes = [file, existing, image];
+const left: DocumentDataNode = { id: `${rootUri}/docs/left.md`, path: `${rootUri}/docs/left.md`, name: "left.md", type: "markdown", source: "local" };
+const nodes = [file, existing, image, left];
 const resolveEditorResource = (resource: string) => ({ rootUri, resourcePath: parseWorkspaceResourceReference(resource).relativePath, hostPath: resource });
 const port: DataPort = { listChildren: async () => nodes, readFile: (resource) => window.resourceSmoke.read(resource),
   getFileUrl: async () => imageUrl,
