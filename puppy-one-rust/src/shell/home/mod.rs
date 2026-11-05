@@ -208,7 +208,7 @@ impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
     pub(super) fn home_visible(&self) -> bool {
         // A project on its way in takes the window from the Homepage.
-        !self.fixture
+        !self.window.fixture
             && !self.file_mode()
             && !self.opening()
             && (self.home || self.files.workspace.is_none())
@@ -402,7 +402,7 @@ impl Shell {
     /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
     #[cfg(feature = "dev-capture")]
     pub fn lab_home(&mut self, played: bool) {
-        self.fixture = false;
+        self.window.fixture = false;
         self.captured = true;
         if played {
             self.homepage.intro_empty = Some(true);

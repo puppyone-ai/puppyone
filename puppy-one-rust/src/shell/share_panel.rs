@@ -115,7 +115,7 @@ impl Shell {
             Some(share_targets(
                 binding.environment.web(),
                 &project,
-                &self.project,
+                &self.window.name,
                 None,
                 resource.as_ref().map(|(p, d)| (p.as_str(), *d)),
             ))

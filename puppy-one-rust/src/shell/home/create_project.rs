@@ -227,7 +227,7 @@ impl Shell {
         }
         self.open_project(path, window, cx);
         if self.files.busy() {
-            self.startup_file = open;
+            self.window.open_first = open;
         }
     }
     /// "Paste template link": the clipboard is read only now, when asked,

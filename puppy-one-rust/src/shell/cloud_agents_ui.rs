@@ -339,7 +339,7 @@ impl Shell {
             .hosted_project()
             .filter(|_| !self.opening() && !self.file_mode() && self.cloud_enabled(cx));
         let open = self.popover == Some(Popover::Agents);
-        let name = self.project.clone();
+        let name = self.window.name.clone();
         self.cloud_agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });

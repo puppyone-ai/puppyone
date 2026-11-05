@@ -174,7 +174,7 @@ impl Shell {
             || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
         let workspace_ready = file_settled
             || self.files.workspace.is_some()
-                && !self.fixture
+                && !self.window.fixture
                 && (file || !self.explorer.read(cx).tree().rows.is_empty())
                 && (!file || self.files.opened().is_some())
                 && !self.files.busy()
@@ -361,7 +361,7 @@ impl Shell {
             Step::AgentsFixture(open_links) => {
                 self.capture_hosted = true;
                 let client = crate::features::cloud_agents::lab_client(*open_links);
-                let name = self.project.clone();
+                let name = self.window.name.clone();
                 self.cloud_agents.update(cx, |a, cx| {
                     a.attach_client("lab-project", &name, client, cx)
                 });

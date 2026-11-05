@@ -39,6 +39,7 @@ mod rename;
 mod right_sidebar;
 mod share_panel;
 pub(crate) mod tasks;
+mod window_project;
 pub mod windows;
 use command::on_shell_actions;
 pub use command::{
@@ -74,26 +75,14 @@ pub struct Shell {
     window_key: String,
     /// The shared Cloud account catalog (Homepage / Header rows).
     pub(super) cloud_catalog: Entity<crate::features::cloud_catalog::CloudCatalog>,
-    /// The hosted Project this window opened (links, Share, History).
-    cloud_project: Option<String>,
-    /// The account (user, session generation, API) the Cloud this window
-    /// opened, prepares or keeps alive belongs to.
-    cloud_authority: Option<String>,
-    /// `workspaceSurfaceError`: the workspace's change subscription failed.
-    workspace_notice: Option<String>,
-    /// A Cloud recovery's Details disclosure is open.
-    recovery_details: bool,
+    /// The project this window shows and how it came to show it.
+    window: window_project::WindowProject,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
     project_actions: Option<project_actions::ActionsMenu>,
     /// The first publication of this window's checkout.
     cloud_publish: Entity<crate::features::cloud_publish::CloudPublish>,
     /// The published Project the association was last refreshed for.
     publish_reported: Option<String>,
-    /// Launch without a project: open the last active one once preferences load.
-    restore_last: bool,
-    /// The launch's last Project is opening (`RestoringWorkspaceScreen`).
-    restoring_open: bool,
-    project: String,
     dark: bool,
     locale: Locale,
     /// The Explorer and the right sidebar.
@@ -134,10 +123,8 @@ pub struct Shell {
     /// The Homepage project list's scroller.
     home_scroll: ScrollHandle,
     weak: WeakEntity<Shell>,
-    /// Header introductions (`useHeaderCoachmarks`), and how many projects
-    /// this window has entered (`workspaceEntryIntent`).
+    /// Header introductions (`useHeaderCoachmarks`).
     coachmarks: coachmarks::Coachmarks,
-    workspace_entries: u64,
     /// The workspace tree on the left.
     explorer: Entity<Explorer>,
     homepage: home::Homepage,
@@ -157,8 +144,6 @@ pub struct Shell {
     /// Re-renders once a transient "Saved" status lapses.
     saved_refresh: Option<gpui::Task<()>>,
     editor_tab_focus: std::collections::BTreeMap<u64, FocusHandle>,
-    fixture: bool,
-    startup_file: Option<PathBuf>,
     wake: Wake,
     focus: FocusHandle,
     project_focus: FocusHandle,
@@ -237,13 +222,13 @@ impl Shell {
                         let before = (
                             s.files.presentation_key(),
                             s.files.generation,
-                            s.project.clone(),
+                            s.window.name.clone(),
                         );
                         s.receive(w, cx);
                         let after = (
                             s.files.presentation_key(),
                             s.files.generation,
-                            s.project.clone(),
+                            s.window.name.clone(),
                         );
                         if before != after {
                             cx.notify();
@@ -262,20 +247,23 @@ impl Shell {
         let mut s = Self {
             window_key: crate::features::agent_presence::owner(window),
             cloud_catalog: crate::features::cloud_catalog::global(cx),
-            cloud_project: None,
-            cloud_authority: None,
-            workspace_notice: None,
-            recovery_details: false,
+            window: window_project::WindowProject {
+                name: if fixture {
+                    "puppyone".into()
+                } else {
+                    String::new()
+                },
+                open_first: if cfg!(test) {
+                    None
+                } else {
+                    std::env::var_os("PUPPYONE_FILE").map(PathBuf::from)
+                },
+                fixture,
+                ..Default::default()
+            },
             project_actions: None,
             cloud_publish: Self::new_cloud_publish(cx),
             publish_reported: None,
-            restore_last: false,
-            restoring_open: false,
-            project: if fixture {
-                "puppyone".into()
-            } else {
-                String::new()
-            },
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
             panes: Panes::new(std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1")),
@@ -307,7 +295,6 @@ impl Shell {
             home_scroll: ScrollHandle::new(),
             weak: cx.weak_entity(),
             coachmarks: Default::default(),
-            workspace_entries: 0,
             explorer: {
                 let owner = crate::features::agent_presence::owner(window);
                 cx.new(|cx| {
@@ -333,12 +320,6 @@ impl Shell {
             dismissed_save_error: None,
             saved_refresh: None,
             editor_tab_focus: Default::default(),
-            fixture,
-            startup_file: if cfg!(test) {
-                None
-            } else {
-                std::env::var_os("PUPPYONE_FILE").map(PathBuf::from)
-            },
             wake,
             focus,
             project_focus: cx.focus_handle(),
@@ -372,15 +353,15 @@ impl Shell {
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
                 s.apply_preferences(w, cx);
                 s.refresh_cloud_catalog(false, cx);
-                if s.restore_last && s.preferences.read(cx).loaded {
-                    s.restore_last = false;
+                if s.window.restore_last && s.preferences.read(cx).loaded {
+                    s.window.restore_last = false;
                     if let Some(path) = windows::last_active_project(cx)
                         && s.files.workspace.is_none()
                     {
                         s.open_project(path, w, cx);
                         // Only an opening that started holds the screen (the
                         // Project may already show in another window).
-                        s.restoring_open = s.files.opening_root();
+                        s.window.restoring_open = s.files.opening_root();
                     }
                 }
             },
@@ -412,8 +393,8 @@ impl Shell {
                     s.begin_rename(path.clone(), *change_type, window, cx)
                 }
                 ExplorerEvent::Error(error) => s.show_error(error.clone()),
-                ExplorerEvent::WatchFailed(error) => s.workspace_notice = Some(error.clone()),
-                ExplorerEvent::WatchRecovered => s.workspace_notice = None,
+                ExplorerEvent::WatchFailed(error) => s.window.notice = Some(error.clone()),
+                ExplorerEvent::WatchRecovered => s.window.notice = None,
                 // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
                 ExplorerEvent::ContentChanged => {
                     s.sidebar
@@ -668,7 +649,7 @@ impl Shell {
         if !cfg!(test) && launch.from_args {
             let cwd = std::env::current_dir().unwrap_or_default();
             let parsed = windows::parse_launch_args(std::env::args_os().skip(1), &cwd);
-            s.startup_file = parsed.open;
+            s.window.open_first = parsed.open;
             if let Some(path) = parsed.target.filter(|p| p.is_dir()) {
                 workspace = Some(path);
             }
@@ -710,19 +691,19 @@ impl Shell {
             #[cfg(not(feature = "dev-capture"))]
             let hold = false;
             if file.admission == file_mode::Admission::Readable && !hold {
-                s.startup_file = Some(PathBuf::from(&file.name));
+                s.window.open_first = Some(PathBuf::from(&file.name));
                 s.files
                     .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
             }
             s.file = Some(file_mode::FileWindow::new(file));
         } else if let Some(path) = workspace {
             if launch.open.is_some() {
-                s.startup_file = launch.open.clone();
+                s.window.open_first = launch.open.clone();
             }
             s.files.begin(Intent::OpenFolder(path), &s.wake);
         } else if launch.from_args && !fixture && !cfg!(test) {
             // `readLastActiveWorkspaceComposition`: the last active project.
-            s.restore_last = true;
+            s.window.restore_last = true;
         }
         windows::register(window.window_handle(), cx.weak_entity(), cx);
         cx.observe(&s.cloud_catalog, |_, _, cx| cx.notify())
@@ -1325,21 +1306,21 @@ impl Shell {
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
         if let Some((path, message)) = self.files.root_failure.take() {
-            self.restoring_open = false;
+            self.window.restoring_open = false;
             self.modals
                 .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
             self.modals.open(Modal::ProjectFailure { path, message });
         }
-        if self.restoring_open && self.files.workspace.is_some() {
-            self.restoring_open = false;
+        if self.window.restoring_open && self.files.workspace.is_some() {
+            self.window.restoring_open = false;
         }
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
         if let Some(failure) = self.files.take_cloud_failure() {
-            self.recovery_details = false;
+            self.window.recovery_details = false;
             self.modals
                 .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
             self.modals.open(Modal::CloudRecovery {
-                project: self.cloud_project.clone().unwrap_or_default(),
+                project: self.window.cloud.clone().unwrap_or_default(),
                 failure,
             });
         }
@@ -1377,9 +1358,9 @@ impl Shell {
                     .workbench
                     .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
             }
-            self.project = ws.name().to_owned();
-            self.workspace_entries += 1;
-            self.fixture = false;
+            self.window.name = ws.name().to_owned();
+            self.window.entries += 1;
+            self.window.fixture = false;
             self.modals.remove(|m| matches!(m, Modal::Error(_)));
             self.home = false;
             let opened = ws.local_root().map(PathBuf::from);
@@ -1409,7 +1390,7 @@ impl Shell {
         }
         if self.files.workspace.is_some()
             && !self.files.busy()
-            && let Some(path) = self.startup_file.take()
+            && let Some(path) = self.window.open_first.take()
         {
             self.files.begin(Intent::OpenFile(path), &self.wake);
         }
@@ -1600,7 +1581,7 @@ impl Shell {
             .workspace
             .as_ref()
             .filter(|ws| ws.local_root().is_none())
-            .and(self.cloud_project.clone())
+            .and(self.window.cloud.clone())
     }
     /// `openShareWizard`: the open Project's Share section, starting from
     /// `path` (empty is the whole Project). A hosted Project is its own;
@@ -1671,7 +1652,7 @@ impl Shell {
     /// document, else the authorized root.
     fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
         let link = crate::features::cloud_account::broker_and_binding(cx)
-            .zip(self.cloud_project.clone())
+            .zip(self.window.cloud.clone())
             .ok_or("Cloud link unavailable")
             .and_then(|((_, binding), project)| {
                 crate::workspace::cloud::locator::resource_url(
@@ -1694,14 +1675,14 @@ impl Shell {
         // joins that opening; another one replaces it.
         let account = cloud_authority::account_key(cx);
         if self.files.cloud_opening().is_some()
-            && self.cloud_project.as_deref() == Some(project.as_str())
-            && self.cloud_authority == account
+            && self.window.cloud.as_deref() == Some(project.as_str())
+            && self.window.authority == account
             && account.is_some()
         {
             return;
         }
-        self.cloud_project = Some(project.clone());
-        self.cloud_authority = account;
+        self.window.cloud = Some(project.clone());
+        self.window.authority = account;
         let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
             self.show_error(crate::localization::t(
                 "cloud.message.project-sign-in-required",
@@ -1929,7 +1910,7 @@ impl Shell {
     /// name it (`projectOpening.projectName`).
     pub(super) fn opening_project_name(&self, cx: &App) -> Option<String> {
         if self.files.cloud_opening().is_some() {
-            let project = self.cloud_project.as_deref()?;
+            let project = self.window.cloud.as_deref()?;
             return Some(
                 self.project_items(cx)
                     .into_iter()
@@ -1956,8 +1937,8 @@ impl Shell {
             Some(file) => (file.name.clone(), Some(file.path.clone()), self.files.dirty),
             None => {
                 let root = self.workspace_root();
-                let title = if root.is_some() && !self.project.is_empty() {
-                    format!("{} - {}", windows::APP_NAME, self.project)
+                let title = if root.is_some() && !self.window.name.is_empty() {
+                    format!("{} - {}", windows::APP_NAME, self.window.name)
                 } else {
                     windows::APP_NAME.to_owned()
                 };
@@ -2023,7 +2004,8 @@ impl Shell {
                 p.experimental.editor_tabs_in_header,
             )
         };
-        let project = !self.rail && (self.files.workspace.is_some() || self.fixture || opening);
+        let project =
+            !self.rail && (self.files.workspace.is_some() || self.window.fixture || opening);
         let mut bar = header::TitleBar::new().cloud(hosted);
         if !self.panes.explorer().open {
             bar = bar.leading(
@@ -2336,7 +2318,7 @@ impl Shell {
         // `.desktop-workspace-notice-stack`: the local folder's Cloud notice
         // leads the workspace's own warning.
         let mut folder_notice = self.local_folder_notice_view(cx);
-        if folder_notice.is_some() && self.workspace_notice.is_none() {
+        if folder_notice.is_some() && self.window.notice.is_none() {
             layers.push(
                 NoticeStack::new(
                     NoticePlacement::TopEnd,
@@ -2348,7 +2330,7 @@ impl Shell {
                 .into_any_element(),
             );
         }
-        if let Some(message) = &self.workspace_notice {
+        if let Some(message) = &self.window.notice {
             let host = self.weak.clone();
             let dismiss = self.weak.clone();
             layers.push(
@@ -2371,7 +2353,7 @@ impl Shell {
                         ))
                         .on_dismiss(move |_, cx| {
                             let _ = dismiss.update(cx, |s, cx| {
-                                s.workspace_notice = None;
+                                s.window.notice = None;
                                 cx.notify();
                             });
                         }),
@@ -2451,7 +2433,7 @@ impl Shell {
     /// retained documents rebind to the new lease); a local folder
     /// subscribes again. Both reread what the Explorer has loaded.
     fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
-        self.workspace_notice = None;
+        self.window.notice = None;
         match self.hosted_project() {
             Some(project) => self.open_cloud(project, cx),
             None => self.explorer.update(cx, |e, cx| e.resubscribe(cx)),

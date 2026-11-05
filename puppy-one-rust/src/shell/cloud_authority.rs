@@ -56,10 +56,10 @@ impl Shell {
         } else {
             None
         };
-        if self.cloud_authority.is_none() || self.cloud_authority == current {
+        if self.window.authority.is_none() || self.window.authority == current {
             return;
         }
-        self.cloud_authority = None;
+        self.window.authority = None;
         self.files.cancel_cloud();
         if self.popover == Some(Popover::Share) {
             self.popover = None;
@@ -70,7 +70,7 @@ impl Shell {
             self.home = true;
             self.receive(window, cx);
         }
-        self.cloud_project = None;
+        self.window.cloud = None;
         cx.notify();
     }
     /// `ProjectNavigationFailure` for a Cloud opening: why, Close, and Retry

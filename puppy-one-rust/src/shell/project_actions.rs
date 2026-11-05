@@ -335,7 +335,7 @@ impl Shell {
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.rename_project(&path, &name), cx));
                 if self.workspace_root().as_deref() == Some(path.as_path()) {
-                    self.project = name;
+                    self.window.name = name;
                 }
                 self.focus.focus(window, cx);
             }

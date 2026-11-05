@@ -626,7 +626,7 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible());
     });
-    view.update(cx, |s, _| s.fixture = false);
+    view.update(cx, |s, _| s.window.fixture = false);
     view.update(cx, |s, _| assert!(s.home_visible()));
 }
 #[gpui::test]
@@ -1690,7 +1690,7 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         s.hosted_project().as_deref() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.project, "Fixture Cloud");
+        assert_eq!(s.window.name, "Fixture Cloud");
         assert_ne!(s.files.workspace_key(), Some(local_key.as_str()));
         assert_eq!(s.place_menu(cx).unwrap().place, Place::Cloud);
     });
@@ -1894,11 +1894,11 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     // nothing is left to reuse under another session.
     cx.update(|_, cx| account.update(cx, |a, _| a.sign_out()));
     settle(&view, cx, "the revocation", &|s, _| {
-        s.hosted_project().is_none() && s.cloud_project.is_none()
+        s.hosted_project().is_none() && s.window.cloud.is_none()
     });
     view.read_with(cx, |s, _| {
         assert!(s.home);
-        assert!(s.cloud_authority.is_none());
+        assert!(s.window.authority.is_none());
     });
 }
 
@@ -1935,7 +1935,7 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
     draw(cx);
     view.read_with(cx, |s, _| {
         assert!(s.files.cloud_opening().is_none());
-        assert!(s.cloud_authority.is_none());
+        assert!(s.window.authority.is_none());
     });
     // The late root never commits.
     std::thread::sleep(std::time::Duration::from_millis(600));
@@ -2030,7 +2030,7 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         s.hosted_project().as_deref() == Some("project-a")
     });
     settle(&view, cx, "the workspace notice", &|s, _| {
-        s.workspace_notice.is_some()
+        s.window.notice.is_some()
     });
     // A notice floats; it is not a dialog.
     view.read_with(cx, |s, _| assert!(!s.modal()));
@@ -2118,7 +2118,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
             failure.recovery,
             crate::workspace::cloud::opening::Recovery::Retry
         ));
-        s.recovery_details = true;
+        s.window.recovery_details = true;
         cx.notify();
     });
     draw(cx);
@@ -2652,7 +2652,7 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.fixture = false;
+        s.window.fixture = false;
         s.begin_create_project(w, cx);
         let create = s.modals.create_project().unwrap();
         create.destination.location = Some(parent.clone());
@@ -2692,7 +2692,7 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     std::fs::create_dir(parent.join("Weekly plan")).unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.fixture = false);
+    view.update(cx, |s, _| s.window.fixture = false);
     command(&view, cx, Command::Home);
     cx.update(|_, cx| {
         cx.write_to_clipboard(ClipboardItem::new_string(format!(
@@ -2774,7 +2774,7 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
     std::fs::create_dir(&folder).unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.fixture = false;
+        s.window.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
         s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
@@ -2823,7 +2823,7 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
         telemetry::install_fixture(Some(telemetry::fixture(Level::Basic, true, true)), cx)
     });
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.fixture = false);
+    view.update(cx, |s, _| s.window.fixture = false);
     command(&view, cx, Command::Home);
     // Home holds the list until its dates are read.
     cx.run_until_parked();
@@ -2861,9 +2861,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     state.update(cx, |t, _| {
         t.snapshot = Some(telemetry::fixture(Level::Basic, true, false))
     });
-    view.update(cx, |s, _| s.fixture = true);
+    view.update(cx, |s, _| s.window.fixture = true);
     draw(cx);
-    view.update(cx, |s, _| s.fixture = false);
+    view.update(cx, |s, _| s.window.fixture = false);
     draw(cx);
     view.update(cx, |s, _| {
         assert!(s.homepage.intro.is_some() && !s.homepage.disclosure_shown);
@@ -2879,9 +2879,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
 
     // Reduced motion: no intro at all.
     cx.update(|_, cx| cx.set_reduce_motion(true));
-    view.update(cx, |s, _| s.fixture = true);
+    view.update(cx, |s, _| s.window.fixture = true);
     draw(cx);
-    view.update(cx, |s, _| s.fixture = false);
+    view.update(cx, |s, _| s.window.fixture = false);
     draw(cx);
     view.update(cx, |s, _| assert!(s.homepage.intro.is_none()));
 }
@@ -3798,7 +3798,7 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     let (broker, browser) = crate::cloud_auth::responding_account_fixture(with_catalog(responder));
     cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.fixture = false;
+        s.window.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
@@ -3858,9 +3858,9 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
-        s.fixture = false;
+        s.window.fixture = false;
         s.files.file_window = true;
-        s.startup_file = Some(PathBuf::from(&file.name));
+        s.window.open_first = Some(PathBuf::from(&file.name));
         s.files
             .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
         s.file = Some(file_mode::FileWindow::new(file));

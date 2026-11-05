@@ -167,7 +167,7 @@ impl Shell {
             .map(|r| r.to_string_lossy().into_owned());
         let entry = scope
             .as_ref()
-            .map(|s| format!("{s}#{}", self.workspace_entries));
+            .map(|s| format!("{s}#{}", self.window.entries));
         let inputs = Inputs {
             agent_open: self.right_shows(Surface::Agent),
             changes_open: self.right_shows(Surface::Git),
