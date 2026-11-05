@@ -1,6 +1,8 @@
 //! `transports/jsonl-rpc-connection.mjs`: a JSON-RPC 2.0 connection over a
 //! native Agent's stdio, one JSON object per line.
 use super::jsonl_stream::{Framed, JsonlFramer};
+#[cfg(unix)]
+use super::managed_agent_process::signal_name;
 use super::managed_agent_process::{create_managed_agent_process, terminate_managed_agent_process};
 use super::native_request_ledger::{LateResponse, NativeRequestLedger, Taken};
 use crate::agent::agent_error::{AgentError, AgentResult};
@@ -698,16 +700,4 @@ fn tail_bytes(text: &str, limit: usize) -> &str {
         start += 1;
     }
     &text[start..]
-}
-
-#[cfg(unix)]
-fn signal_name(signal: i32) -> String {
-    match signal {
-        libc::SIGTERM => "SIGTERM".into(),
-        libc::SIGKILL => "SIGKILL".into(),
-        libc::SIGINT => "SIGINT".into(),
-        libc::SIGHUP => "SIGHUP".into(),
-        libc::SIGPIPE => "SIGPIPE".into(),
-        other => format!("SIG{other}"),
-    }
 }

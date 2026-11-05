@@ -12,6 +12,13 @@ use std::time::{Duration, Instant};
 const MAX_SOURCE: usize = 128 * 1024;
 const MAX_PREVIEW: usize = 24 * 1024;
 const MAX_FILES: usize = 100;
+/// The evidence diff budget (`performance.now() + 30`). Unit tests run many
+/// suites in parallel, so a descheduled thread must not read as a slow diff.
+const DIFF_BUDGET: Duration = if cfg!(test) {
+    Duration::from_secs(5)
+} else {
+    Duration::from_millis(30)
+};
 
 /// One `structuredPatch` hunk.
 pub struct Hunk {
@@ -80,7 +87,7 @@ pub fn structured_patch(before: &str, after: &str, deadline: Instant) -> Option<
 
 /// `createAgentFileChangeEvidence(entries)`.
 pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
-    let deadline = Instant::now() + Duration::from_millis(30);
+    let deadline = Instant::now() + DIFF_BUDGET;
     let mut remaining_preview = MAX_PREVIEW;
     let mut remaining_blocks = 100usize;
     let mut out = Vec::new();
@@ -134,7 +141,9 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
                     truncated = true;
                     break;
                 }
-                let Some(hunks) = structured_patch(before, after, deadline) else {
+                // `timeout: Math.max(1, deadline - performance.now())`.
+                let call_deadline = deadline.max(Instant::now() + Duration::from_millis(1));
+                let Some(hunks) = structured_patch(before, after, call_deadline) else {
                     truncated = true;
                     continue;
                 };

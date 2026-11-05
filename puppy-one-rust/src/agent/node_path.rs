@@ -101,6 +101,68 @@ pub fn homedir() -> PathBuf {
     std::env::home_dir().unwrap_or_default()
 }
 
+/// Node's `path.posix` and `path.win32` on strings, whatever the host.
+pub mod flavor {
+    /// `path.posix.isAbsolute(value)`.
+    pub fn posix_is_absolute(value: &str) -> bool {
+        value.starts_with('/')
+    }
+
+    /// `path.posix.basename(value)`.
+    pub fn posix_basename(value: &str) -> &str {
+        value.trim_end_matches('/').rsplit('/').next().unwrap_or("")
+    }
+
+    /// `path.win32.isAbsolute(value)`: a drive root, a UNC path or a rooted
+    /// path.
+    pub fn win32_is_absolute(value: &str) -> bool {
+        let bytes = value.as_bytes();
+        matches!(bytes.first(), Some(b'\\' | b'/'))
+            || (bytes.len() >= 3
+                && bytes[0].is_ascii_alphabetic()
+                && bytes[1] == b':'
+                && matches!(bytes[2], b'\\' | b'/'))
+    }
+
+    /// `path.win32.basename(value)`.
+    pub fn win32_basename(value: &str) -> &str {
+        value
+            .trim_end_matches(['\\', '/'])
+            .rsplit(['\\', '/'])
+            .next()
+            .unwrap_or("")
+    }
+
+    /// `path.win32.dirname(value)`.
+    pub fn win32_dirname(value: &str) -> &str {
+        let trimmed = value.trim_end_matches(['\\', '/']);
+        match trimmed.rfind(['\\', '/']) {
+            Some(0) => &trimmed[..1],
+            Some(index) if index == 2 && trimmed.as_bytes()[1] == b':' => &trimmed[..3],
+            Some(index) => &trimmed[..index],
+            None => ".",
+        }
+    }
+
+    /// `path.win32.join(...segments)` for an absolute first segment.
+    pub fn win32_join(segments: &[&str]) -> String {
+        let mut joined = String::new();
+        for segment in segments.iter().filter(|s| !s.is_empty()) {
+            let first = joined.is_empty();
+            if !first && !joined.ends_with(['\\', '/']) {
+                joined.push('\\');
+            }
+            let segment = if first {
+                segment
+            } else {
+                segment.trim_start_matches(['\\', '/'])
+            };
+            joined.push_str(segment);
+        }
+        joined.replace('/', "\\")
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

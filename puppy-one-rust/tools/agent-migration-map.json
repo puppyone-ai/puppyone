@@ -601,6 +601,37 @@
         "src/agent/node_path.rs"
       ],
       "remaining": "Ported 1:1 over Node path semantics (node_path.rs) with the product ACP workspace-file cases and the cross-root grant. The fsModule injection is replaced by the real file system; Windows identity falls back to size and mtime as in the product."
+    },
+    {
+      "name": "Runtime executable discovery",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/transports/executable-discovery.mjs",
+        "electron/main/agent/transports/bounded-process-probe.mjs",
+        "electron/main/agent/connections/runtime-discovery-cache.mjs",
+        "electron/main/agent/runtimes/codex/codex-discovery.mjs",
+        "electron/main/agent/runtimes/codex/codex-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/transports/executable_discovery.rs",
+        "src/agent/transports/bounded_process_probe.rs",
+        "src/agent/connections/runtime_discovery_cache.rs",
+        "src/agent/runtimes/codex/codex_discovery.rs",
+        "src/agent/runtimes/codex/codex_runtime_definition.rs",
+        "src/platform/common/bounded_process_probe.rs",
+        "src/platform/common/command_environment.rs",
+        "src/platform/common/discovery_io_budget.rs",
+        "src/platform/common/executable_discovery_port.rs",
+        "src/platform/local_agent_installation/executable_resolver.rs",
+        "src/platform/local_agent_installation/candidate_identity.rs",
+        "src/platform/local_agent_installation/installation_definition.rs",
+        "src/platform/local_agent_installation/installation_registry.rs",
+        "src/platform/local_agent_installation/definitions/mod.rs",
+        "src/platform/windows/registered_applications.rs",
+        "src/platform/windows/command_environment.rs",
+        "src/platform/windows/process_invocation.rs"
+      ],
+      "remaining": "Ported 1:1 with the platform half (login-shell environment, bounded probes, discovery I/O budget, installation definitions, candidate identity and the executable resolver) on the real file system; the product's fsModule/spawn fakes are replaced by temporary executables and an injectable probe runner. Verified live against the installed Codex (login shell, version probe, app-server inspection). Native process ownership reporting for probes is pending."
     }
   ]
 }

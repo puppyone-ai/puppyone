@@ -1244,3 +1244,180 @@ fn keeps_the_newest_whole_turns_when_a_long_thread_exceeds_the_event_budget() {
         assert!(projected <= limits::MAX_PROJECTED_EVENTS);
     });
 }
+
+// ------------------------------------------------------------- discovery
+// `tests/unit/agent/runtimes/discovery/electron.agent-discovery.test.mjs`,
+// with real executables in a temporary directory.
+
+mod discovery {
+    use super::super::codex_discovery::{
+        CodexDiscoveryOptions, MIN_SUPPORTED_CODEX_VERSION, compare_versions,
+        discover_codex_executable, parse_codex_version,
+    };
+    use crate::agent::application::tests_support::run_local;
+    use crate::platform::common::bounded_process_probe::{ProbeRunner, default_probe_runner};
+    use crate::platform::common::command_environment::{EnvMap, EnvironmentSnapshot};
+    use core::prelude::v1::test;
+    use std::cell::RefCell;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::rc::Rc;
+
+    fn codex(directory: &Path, version: &str) -> String {
+        std::fs::create_dir_all(directory).unwrap();
+        let path = directory.join("codex");
+        std::fs::write(&path, format!("#!/bin/sh\necho 'codex-cli {version}'\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    fn options(
+        path: &str,
+        home: &Path,
+        probes: Rc<RefCell<Vec<Vec<String>>>>,
+    ) -> CodexDiscoveryOptions {
+        let real = default_probe_runner();
+        let recording: ProbeRunner = Rc::new(move |file, args, options| {
+            probes.borrow_mut().push(args.clone());
+            real(file, args, options)
+        });
+        CodexDiscoveryOptions {
+            env: Some(EnvMap::from([
+                ("SHELL".to_string(), "/bin/zsh".to_string()),
+                ("PATH".to_string(), path.to_string()),
+            ])),
+            platform: Some("darwin".into()),
+            homedir: Some(home.to_path_buf()),
+            read_environment: Some(Rc::new(|env, _, _, _| {
+                Box::pin(async move {
+                    Ok(EnvironmentSnapshot {
+                        environment: env,
+                        complete: true,
+                        source: "provided".into(),
+                        reason_code: None,
+                    })
+                })
+            })),
+            run_probe: Some(recording),
+        }
+    }
+
+    #[test]
+    fn parses_and_classifies_semantic_versions() {
+        assert_eq!(
+            parse_codex_version("codex-cli 0.144.1").as_deref(),
+            Some("0.144.1")
+        );
+        assert_eq!(parse_codex_version("unexpected"), None);
+        assert_eq!(compare_versions("0.144.1", "0.100.0"), 1);
+        assert_eq!(compare_versions("0.99.0", "0.100.0"), -1);
+        assert_eq!(compare_versions("0.100.0", "0.100.0"), 0);
+        assert_eq!(MIN_SUPPORTED_CODEX_VERSION, "0.144.1");
+    }
+
+    #[test]
+    fn uses_the_supplied_environment_for_both_selection_and_the_version_probe() {
+        run_local(async {
+            let directory = tempfile::tempdir().unwrap();
+            let bin = directory.path().join("bin");
+            let executable = codex(&bin, "0.144.1");
+            let path = format!("{}:/usr/bin", bin.to_string_lossy());
+            let probes: Rc<RefCell<Vec<Vec<String>>>> = Rc::default();
+            let readiness = discover_codex_executable(
+                options(&path, &directory.path().join("home"), probes.clone()),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(readiness["status"], "ready");
+            assert_eq!(readiness["version"], "0.144.1");
+            assert_eq!(readiness["executablePath"], executable.as_str());
+            assert_eq!(readiness["provider"], "codex");
+            assert_eq!(*probes.borrow(), [vec!["--version".to_string()]]);
+            assert_eq!(readiness["environment"]["PATH"], path.as_str());
+            assert_eq!(readiness["environment"]["TERM"], "dumb");
+        });
+    }
+
+    #[test]
+    fn classifies_missing_and_older_installations() {
+        run_local(async {
+            let directory = tempfile::tempdir().unwrap();
+            let home = directory.path().join("home");
+            let missing =
+                discover_codex_executable(options("/nonexistent", &home, Rc::default()), None)
+                    .await
+                    .unwrap();
+            assert_eq!(missing["status"], "not-installed");
+            assert_eq!(missing["code"], "RUNTIME_NOT_INSTALLED");
+            let bin = directory.path().join("bin");
+            codex(&bin, "0.90.0");
+            let older = discover_codex_executable(
+                options(&bin.to_string_lossy(), &home, Rc::default()),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(older["status"], "unsupported-version");
+            assert_eq!(older["version"], "0.90.0");
+            assert_eq!(older["code"], "RUNTIME_VERSION_UNSUPPORTED");
+        });
+    }
+}
+
+/// The real login shell and installation on this machine.
+#[test]
+#[ignore = "reads the developer's login shell and Codex installation"]
+fn live_codex_discovery_reads_the_login_shell() {
+    use super::codex_discovery::{CodexDiscoveryOptions, discover_codex_executable};
+    run_local(async {
+        let readiness = discover_codex_executable(CodexDiscoveryOptions::default(), None)
+            .await
+            .unwrap();
+        let mut shown = readiness.clone();
+        crate::agent::contract::js::delete(&mut shown, "environment");
+        eprintln!("{shown:#}");
+        assert!(readiness["status"].is_string());
+    });
+}
+
+/// Discovery, launch and inspection of the real app-server (no turn).
+#[test]
+#[ignore = "launches the developer's Codex app-server"]
+fn live_codex_app_server_inspection() {
+    use super::codex_discovery::{CodexDiscoveryOptions, discover_codex_executable};
+    run_local(async {
+        let readiness = discover_codex_executable(CodexDiscoveryOptions::default(), None)
+            .await
+            .unwrap();
+        assert_eq!(readiness["status"], "ready", "{readiness}");
+        let exits: Events = Rc::default();
+        let sink = exits.clone();
+        let adapter = CodexAppServerAdapter::new(CodexAdapterOptions {
+            executable_path: readiness["executablePath"].as_str().unwrap().into(),
+            environment: Some(readiness["environment"].clone()),
+            workspace_root: std::env::temp_dir().to_string_lossy().into_owned(),
+            app_version: "test".into(),
+            spawner: None,
+            connection_factory: None,
+            on_event: Rc::new(|_| {}),
+            on_exit: Rc::new(move |info| sink.borrow_mut().push(info)),
+            on_session_persisted: None,
+        });
+        let inspection = adapter.inspect().await.unwrap();
+        crate::agent::runtime::agent_runtime_port::assert_agent_runtime_inspection(
+            &adapter,
+            &inspection,
+            "codex",
+        )
+        .unwrap();
+        eprintln!(
+            "account type={} models={}",
+            inspection["account"]["account"]["type"],
+            inspection["models"].as_array().map_or(0, Vec::len)
+        );
+        adapter.dispose().await.unwrap();
+        assert_eq!(exits.borrow().len(), 1);
+        assert_eq!(exits.borrow()[0]["expected"], true);
+    });
+}

@@ -2,6 +2,8 @@
 #[allow(dead_code)]
 pub mod codex_app_server_adapter;
 #[allow(dead_code)]
+pub mod codex_discovery;
+#[allow(dead_code)]
 pub mod codex_events;
 #[allow(dead_code)]
 pub mod codex_history_discovery;
@@ -19,6 +21,8 @@ pub mod codex_interactions;
 pub mod codex_native_values;
 #[allow(dead_code)]
 pub mod codex_reference_input;
+#[allow(dead_code)]
+pub mod codex_runtime_definition;
 pub mod legacy_codex_app_server_adapter;
 #[cfg(test)]
 mod tests;

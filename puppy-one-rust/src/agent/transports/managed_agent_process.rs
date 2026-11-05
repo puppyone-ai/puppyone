@@ -62,3 +62,16 @@ pub fn terminate_managed_agent_process(pid: Option<u32>, grouped: bool, force: b
         false
     }
 }
+
+/// The Node name of a terminating signal (`"SIGTERM"`).
+#[cfg(unix)]
+pub fn signal_name(signal: i32) -> String {
+    match signal {
+        libc::SIGTERM => "SIGTERM".into(),
+        libc::SIGKILL => "SIGKILL".into(),
+        libc::SIGINT => "SIGINT".into(),
+        libc::SIGHUP => "SIGHUP".into(),
+        libc::SIGPIPE => "SIGPIPE".into(),
+        other => format!("SIG{other}"),
+    }
+}
