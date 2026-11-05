@@ -25,7 +25,7 @@ const paneMove: PaneMoveDragController = {
   prepare: vi.fn(),
   start: vi.fn(),
   move: vi.fn(),
-  end: vi.fn(() => ({ kind: "cancelled" as const })) as unknown as PaneMoveDragController["end"],
+  end: vi.fn<PaneMoveDragController["end"]>(() => "ignored"),
   cancel: vi.fn(),
   lostCapture: vi.fn(),
 };
@@ -34,7 +34,7 @@ function dropController(overrides: Partial<EditorFileDropController> = {}): Edit
   return {
     dropIntent: null,
     dropFailure: null,
-    insertIntent: false,
+    insertTargetPaneId: null,
     dismissDropFailure: vi.fn(),
     over: vi.fn(),
     leave: vi.fn(),
@@ -85,18 +85,22 @@ async function render(fileDrop: EditorFileDropController) {
 
 describe("editor pane insert affordance", () => {
   it("marks the pane as an insert target and hides the split preview", async () => {
-    const shell = await render(dropController({ insertIntent: true }));
+    const shell = await render(dropController({ insertTargetPaneId: pane.id }));
     expect(shell.getAttribute("data-drop-kind")).toBe("insert");
     expect(shell.querySelector(".desktop-editor-drop-preview")).toBeNull();
   });
 
   it("keeps the split preview when the drop would split the pane", async () => {
     const shell = await render(dropController({
-      insertIntent: false,
+      insertTargetPaneId: null,
       dropIntent: { targetPaneId: pane.id, edge: "left" },
     }));
     expect(shell.getAttribute("data-drop-kind")).toBe("file");
     expect(shell.getAttribute("data-drop-target")).toBe("left");
     expect(shell.querySelector(".desktop-editor-drop-preview")).not.toBeNull();
+  });
+  it("does not show insertion feedback on a different pane", async () => {
+    const shell = await render(dropController({ insertTargetPaneId: "another-pane" }));
+    expect(shell.getAttribute("data-drop-kind")).toBeNull();
   });
 });

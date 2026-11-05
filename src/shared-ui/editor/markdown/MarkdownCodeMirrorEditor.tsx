@@ -170,9 +170,14 @@ export function MarkdownCodeMirrorEditor({
   const initialLocalizationRef = useRef(localization);
   const findAdapter = useMemo(() => new CodeMirrorFindAdapter(), []);
   const assets = useDocumentAssetImport();
-  // Drop payloads are asynchronous (native import awaits Main), so the last
-  // pointer position is the only correct insertion coordinate.
-  const dropPointRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingImageDropsRef = useRef(new Set<{ view: EditorView; position: number }>());
+  const dropLifetimeRef = useRef({ active: false });
+  useLayoutEffect(() => {
+    const lifetime = { active: true };
+    dropLifetimeRef.current = lifetime;
+    const pending = pendingImageDropsRef.current;
+    return () => { lifetime.active = false; pending.clear(); };
+  }, [assets, documentPath, readOnly, workspaceId, workspaceRoot]);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const modelOwner = useDocumentModelOwner();
   const modelRef = useRef<CodeMirrorDocumentModel | null>(null);
@@ -287,6 +292,11 @@ export function MarkdownCodeMirrorEditor({
       parent: host,
       dispatchTransactions: (transactions, targetView) => {
         const startedAt = performance.now();
+        for (const transaction of transactions) {
+          for (const drop of pendingImageDropsRef.current) {
+            if (drop.view === targetView) drop.position = transaction.changes.mapPos(drop.position, 1);
+          }
+        }
         model.acceptTransactions(transactions, targetView);
         if (transactions.some((transaction) => (
           transaction.docChanged
@@ -299,12 +309,6 @@ export function MarkdownCodeMirrorEditor({
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
           taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
-          EditorView.domEventHandlers({
-            dragover: (event) => {
-              dropPointRef.current = { x: event.clientX, y: event.clientY };
-              return false;
-            },
-          }),
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),
           ),
@@ -676,30 +680,40 @@ export function MarkdownCodeMirrorEditor({
         return clientX >= rect.left && clientX <= rect.right
           && clientY >= rect.top && clientY <= rect.bottom;
       },
-      async insert(payload: DocumentDropPayload) {
+      prepareInsert(point) {
         const view = viewRef.current;
-        if (!view) return false;
-        const target = await resolveDropTarget(payload, documentPath, assets);
-        if (!target) return false;
-        const destination = relativeMarkdownDestination(documentPath, target.path);
-        if (!destination) {
-          // A drop the pane routed to the document that cannot become a
-          // document-relative path is a real anomaly, not a silent fallback.
-          console.warn("[markdown] image drop could not resolve a document-relative path", {
-            documentPath,
-            targetPath: target.path,
-          });
-          return false;
-        }
-        const snippet = buildMarkdownImageSnippet(
-          escapeMarkdownDestination(destination),
-          target.name.replace(/\.[^.]+$/, ""),
-        );
-        insertMarkdownImageAt(view, resolveDropInsertPosition(view, dropPointRef.current), snippet);
-        return true;
+        if (!view) return async () => false;
+        const lifetime = dropLifetimeRef.current;
+        const focusAtRelease = view.dom.ownerDocument.activeElement;
+        const anchor = { view, position: resolveDropInsertPosition(view, point) };
+        const pending = pendingImageDropsRef.current;
+        pending.add(anchor);
+        const isCurrent = () => lifetime.active && viewRef.current === view && !view.state.readOnly;
+        return async (payload) => {
+          try {
+            if (!payload || !isCurrent()) return true;
+            const target = await resolveDropTarget(payload, documentPath, assets);
+            if (!isCurrent()) return true;
+            if (!target) return false;
+            const destination = relativeMarkdownDestination(documentPath, target.path, workspaceRoot);
+            if (!destination) return false;
+            const snippet = buildMarkdownImageSnippet(
+              escapeMarkdownDestination(destination),
+              target.name.replace(/\.[^.]+$/, ""),
+            );
+            insertMarkdownImageAt(view, anchor.position, snippet);
+            if (view.dom.ownerDocument.activeElement === focusAtRelease) view.focus();
+            return true;
+          } catch (error) {
+            if (!isCurrent()) return true;
+            throw error;
+          } finally {
+            pending.delete(anchor);
+          }
+        };
       },
     };
-  }, [assets, documentPath, readOnly]);
+  }, [assets, documentPath, readOnly, workspaceRoot]);
   useRegisterDocumentDropTarget(dropRegistration);
 
   const previewMessage = previewState === "error"

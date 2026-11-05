@@ -106,7 +106,7 @@ export function EditorPaneShell({
       data-pane-menu-open={actionsOpen ? "true" : undefined}
       data-drop-target={dropEdge ?? undefined}
       data-drop-kind={resolveDropKind(
-        fileDrop.insertIntent,
+        fileDrop.insertTargetPaneId === pane.id,
         fileDropEdge,
         paneMoveEdge,
       )}

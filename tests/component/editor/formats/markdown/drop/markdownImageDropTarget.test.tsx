@@ -3,7 +3,8 @@
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EditorView } from "@codemirror/view";
 import { DocumentDropTargetProvider, createDocumentDropRegistry } from "@puppyone/shared-ui";
 import { withTestLocalization } from "../../../../../support/react/localization";
 import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
@@ -23,6 +24,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  vi.restoreAllMocks();
 });
 
 async function mount(readOnly: boolean) {
@@ -39,6 +41,7 @@ async function mount(readOnly: boolean) {
   )));
   const scroller = host.querySelector<HTMLElement>(".cm-scroller");
   scroller!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 400);
+  vi.spyOn(EditorView.prototype, "posAtCoords").mockReturnValue(0);
   return { registry, scroller: scroller! };
 }
 
@@ -51,7 +54,7 @@ describe("Markdown editor document drop target", () => {
 
     let claimed = false;
     await act(async () => {
-      claimed = await target!.insert({
+      claimed = await target!.prepareInsert({ x: 300, y: 200 })({
         kind: "workspace-entry",
         path: "assets/p.png",
         name: "p.png",
@@ -66,7 +69,7 @@ describe("Markdown editor document drop target", () => {
     const target = registry.find(300, 200)!;
     let claimed = true;
     await act(async () => {
-      claimed = await target.insert({
+      claimed = await target.prepareInsert({ x: 300, y: 200 })({
         kind: "workspace-entry",
         path: "assets/data.pdf",
         name: "data.pdf",

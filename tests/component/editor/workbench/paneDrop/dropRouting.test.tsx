@@ -53,7 +53,7 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
   const registry = createDocumentDropRegistry();
   registry.install({
     containsPoint: (x, y) => x > 200 && x < 600 && y > 100 && y < 500,
-    insert: vi.fn(async () => true),
+    prepareInsert: () => vi.fn(async () => true),
     ...target,
   });
   const open = vi.fn();
@@ -67,7 +67,7 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
         <section
           data-pane="pane-1"
           data-edge={drop.dropIntent?.edge ?? ""}
-          data-kind={drop.insertIntent ? "insert" : ""}
+          data-kind={drop.insertTargetPaneId === "pane-1" ? "insert" : ""}
           onDragOver={(event) => drop.over(event, "pane-1")}
           onDrop={(event) => drop.drop(event, "pane-1")}
         />
@@ -89,8 +89,8 @@ describe("image drops into the reading area", () => {
   it("hands the workspace image to the document target without splitting", async () => {
     const inserted: DocumentDropPayload[] = [];
     const f = harness({
-      insert: async (payload) => {
-        inserted.push(payload);
+      prepareInsert: () => async (payload) => {
+        if (payload) inserted.push(payload);
         return true;
       },
     });
@@ -113,13 +113,13 @@ describe("image drops into the reading area", () => {
   });
 
   it("falls back to a split when the target declines the payload", async () => {
-    const f = harness({ insert: async () => false });
+    const f = harness({ prepareInsert: () => async () => false });
     await act(async () => { f.pane.dispatchEvent(drag("drop", transfer(), 400, 300)); });
     expect(f.open).toHaveBeenCalledTimes(1);
   });
 
   it("reports an image insertion failure instead of opening a preview", async () => {
-    const f = harness({ insert: async () => { throw new Error("invalid-image"); } });
+    const f = harness({ prepareInsert: () => async () => { throw new Error("invalid-image"); } });
     await act(async () => { f.pane.dispatchEvent(drag("drop", transfer(), 400, 300)); });
     expect(f.open).not.toHaveBeenCalled();
     expect(f.output()).toBe("image");

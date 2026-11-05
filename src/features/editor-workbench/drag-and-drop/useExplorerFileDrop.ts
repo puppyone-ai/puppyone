@@ -35,7 +35,8 @@ import {
 } from "./paneDropGeometry";
 import { resolvePaneDropRegion, type PaneDropRegion } from "./paneDropRegion";
 import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
-import { claimEditorDropDocument, editorDropDocument } from "./editorResourceDrop";
+import { editorDropDocument } from "./editorResourceDrop";
+import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
 
 export type EditorFileDropHandler = (
   node: DocumentDataNode,
@@ -52,7 +53,7 @@ export type EditorFileDropController = Readonly<{
    * `export` is the pane's own open/export failure. */
   dropFailure: EditorDropFailure | null;
   /** The pointer is over a document drop target: releasing inserts, not splits. */
-  insertIntent: boolean;
+  insertTargetPaneId: string | null;
   dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -94,7 +95,7 @@ export function useExplorerFileDrop(
 ): EditorFileDropController {
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
   const [dropFailure, setDropFailure] = useState<EditorDropFailure | null>(null);
-  const [insertIntent, setInsertIntent] = useState(false);
+  const [insertTargetPaneId, setInsertTargetPaneId] = useState<string | null>(null);
   const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
   // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
@@ -136,7 +137,7 @@ export function useExplorerFileDrop(
     session.releaseOcclusion();
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
-      setInsertIntent(false);
+      setInsertTargetPaneId(null);
     }
     return true;
   }, []);
@@ -184,19 +185,23 @@ export function useExplorerFileDrop(
     const session = beginFileDrag();
     const rect = event.currentTarget.getBoundingClientRect();
     const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
-    const candidate = dropCandidate(event.dataTransfer, workspaceId);
+    // Native Files are protected during dragover. Session names are presentation
+    // only; the drop still obtains an independent Main receipt below.
+    const candidateName = hasNativeFiles(event.dataTransfer)
+      ? native?.entries[0]?.name
+      : dropCandidate(classifyReferenceDataTransfer(event.dataTransfer), workspaceId)?.name;
     const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
-    if (candidate && target && shouldRouteToDocumentDrop({
+    if (candidateName && target && shouldRouteToDocumentDrop({
       region,
-      payloadName: candidate.name,
+      payloadName: candidateName,
       hasTarget: true,
     })) {
       // No split preview: the release will edit the document.
       setPreview(null);
-      setInsertIntent(true);
+      setInsertTargetPaneId(paneId);
       return;
     }
-    setInsertIntent(false);
+    setInsertTargetPaneId(null);
     setPreview({
       sessionId: session.id,
       intent: {
@@ -208,7 +213,7 @@ export function useExplorerFileDrop(
 
   const leave = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    setInsertIntent(false);
+    setInsertTargetPaneId((current) => current === paneId ? null : current);
     setPreview((current) => current?.intent.targetPaneId === paneId ? null : current);
   }, []);
 
@@ -225,50 +230,50 @@ export function useExplorerFileDrop(
     const edge = closestPaneDropEdge(rect, event.clientX, event.clientY);
     finishFileDrag("drop");
     setDropFailure(null);
-    setInsertIntent(false);
+    setInsertTargetPaneId(null);
 
     const lifetime = targetsRef.current.get(paneId);
+    const isCurrent = () => Boolean(lifetime && targetsRef.current.get(paneId) === lifetime);
+    if (source.kind === "files" && source.files.length !== 1) return;
     const deliver = (node: DocumentDataNode | null) => {
-      if (node && lifetime && targetsRef.current.get(paneId) === lifetime) {
+      if (node && isCurrent()) {
         const { direction, placement } = paneSplitDefinition(edge);
         openRef.current(node, paneId, direction, placement);
       }
     };
-    const split = () => {
-      if (source.kind === "files") {
-        void claimEditorDropDocument(source).then(deliver).catch(() => {
-          if (targetsRef.current.get(paneId) === lifetime) setDropFailure("export");
-        });
-      } else {
-        deliver(editorDropDocument(source, workspaceId));
-      }
-    };
-
     const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
-    const candidate = dropCandidate(event.dataTransfer, workspaceId);
+    const candidate = dropCandidate(source, workspaceId);
     const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
-    if (!candidate || !target || !shouldRouteToDocumentDrop({
-      region,
-      payloadName: candidate.name,
-      hasTarget: true,
-    })) {
-      split();
-      return;
-    }
-    void target.insert(candidate.payload).then((claimed) => {
-      // A target that cannot express the path (another root, an unsupported
-      // asset) hands the drop back to the pane instead of swallowing it.
-      if (!claimed) split();
-    }).catch(() => {
-      setDropFailure("image");
-    });
+    const complete = candidate && target && isDropImageName(candidate.name)
+      ? target.prepareInsert({ x: event.clientX, y: event.clientY }) : null;
+    void (async () => {
+      let admitted: ReferenceDataTransferSource;
+      try {
+        admitted = await resolveResourceDropSource(source, "editor-open");
+      } catch {
+        await complete?.(null);
+        if (isCurrent()) setDropFailure("export");
+        return;
+      }
+      const node = editorDropDocument(admitted, workspaceId);
+      if (!isCurrent()) { await complete?.(null); return; }
+      if (!complete) { deliver(node); return; }
+      // A receipt supplies canonical identity. Only a genuine external file
+      // (no receipt) reaches the document's existing asset import port.
+      const payload = dropCandidate(admitted, workspaceId)?.payload ?? null;
+      try {
+        if (!await complete(payload)) deliver(node);
+      } catch {
+        if (isCurrent()) setDropFailure("image");
+      }
+    })();
   }, [finishFileDrag, registry, workspaceId]);
 
   const dismissDropFailure = useCallback(() => setDropFailure(null), [])
   const dropIntent = preview?.intent ?? null;
   return useMemo(
-    () => ({ dropIntent, dropFailure, insertIntent, dismissDropFailure, over, leave, drop }),
-    [dismissDropFailure, drop, dropFailure, dropIntent, insertIntent, leave, over],
+    () => ({ dropIntent, dropFailure, insertTargetPaneId, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailure, dropIntent, insertTargetPaneId, leave, over],
   );
 }
 
@@ -276,23 +281,19 @@ export function useExplorerFileDrop(
  * drops keep the original `File` handle: Electron's user-selected path grant
  * does not survive reconstruction. */
 function dropCandidate(
-  dataTransfer: DataTransfer,
+  source: ReferenceDataTransferSource,
   workspaceId: string,
 ): { payload: DocumentDropPayload; name: string } | null {
-  const source: ReferenceDataTransferSource = hasNativeFiles(dataTransfer)
-    ? { kind: "files", files: Array.from(dataTransfer.files) }
-    : classifyReferenceDataTransfer(dataTransfer);
   if (source.kind === "files") {
+    if (source.files.length !== 1) return null;
     const file = source.files[0];
     return file ? { payload: { kind: "file", file }, name: file.name } : null;
   }
-  if (source.kind !== "workspace-entries" || !source.typed || source.entries.length !== 1) return null;
-  const entry = source.entries[0]!;
-  if (entry.entryType !== "file") return null;
-  if (source.workspaceId !== null && source.workspaceId !== workspaceId) return null;
+  const node = editorDropDocument(source, workspaceId);
+  if (!node) return null;
   return {
-    payload: { kind: "workspace-entry", path: entry.path, name: entry.name },
-    name: entry.name,
+    payload: { kind: "workspace-entry", path: node.path, name: node.name },
+    name: node.name,
   };
 }
 

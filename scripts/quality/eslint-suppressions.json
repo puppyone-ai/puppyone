@@ -929,11 +929,6 @@
       "count": 1
     }
   },
-  "src/features/editor-workbench/layout/EditorPaneShell.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/plugins/PluginsSidebar.tsx": {
     "no-nested-ternary": {
       "count": 1

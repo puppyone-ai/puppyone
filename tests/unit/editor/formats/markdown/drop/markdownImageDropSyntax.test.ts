@@ -19,6 +19,25 @@ describe("relativeMarkdownDestination", () => {
   it("returns null for a path outside the root", () => {
     expect(relativeMarkdownDestination("a.md", "../escape.png")).toBeNull();
   });
+  it("resolves local resource identities within the same attached root", () => {
+    expect(relativeMarkdownDestination(
+      "puppyone-local://workspace/root/notes/a.md",
+      "puppyone-local://workspace/root/assets/my%20photo%2523.png",
+    )).toBe("../assets/my photo%23.png");
+  });
+  it("resolves Cloud paths within the full provider root", () => {
+    const root = "puppyone-cloud://cloud.example/https/api/v1/owner/project/scope";
+    expect(relativeMarkdownDestination(`${root}/notes/a.md`, `${root}/assets/p.png`, root))
+      .toBe("../assets/p.png");
+    expect(relativeMarkdownDestination(`${root}/a.md`, `${root}-other/p.png`, root)).toBeNull();
+    expect(relativeMarkdownDestination(`${root}/a.md`, `${root}/p.png`)).toBeNull();
+  });
+  it("rejects references from another root or a mixed path namespace", () => {
+    const document = "puppyone-local://workspace/root-a/a.md";
+    expect(relativeMarkdownDestination(document, "puppyone-local://workspace/root-b/p.png")).toBeNull();
+    expect(relativeMarkdownDestination(document, "assets/p.png")).toBeNull();
+    expect(relativeMarkdownDestination("a.md", "file:///outside/p.png")).toBeNull();
+  });
 });
 
 describe("escapeMarkdownDestination", () => {
@@ -31,6 +50,11 @@ describe("escapeMarkdownDestination", () => {
   it("percent-encodes fragment and query characters", () => {
     expect(escapeMarkdownDestination("a#b.png")).toBe("a%23b.png");
     expect(escapeMarkdownDestination("a?b.png")).toBe("a%3Fb.png");
+  });
+  it("preserves literal percent escapes and angle brackets in filenames", () => {
+    expect(escapeMarkdownDestination("a%23.png")).toBe("a%2523.png");
+    expect(escapeMarkdownDestination("a%ZZ.png")).toBe("a%25ZZ.png");
+    expect(escapeMarkdownDestination("a<b>.png")).toBe("a%3Cb%3E.png");
   });
 });
 

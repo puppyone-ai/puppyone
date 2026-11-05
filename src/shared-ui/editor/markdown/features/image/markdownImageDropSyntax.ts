@@ -1,3 +1,6 @@
+import { isDataResourceUri, resolveDataResourceWorkspaceRoot } from "../../../../core/dataResourcePath";
+import { getWorkspaceResourcePath } from "../../../../core/resourceUri";
+
 const DROP_IMAGE_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp",
 ]);
@@ -17,7 +20,19 @@ export function isDropImageName(name: string): boolean {
 export function relativeMarkdownDestination(
   documentPath: string,
   targetPath: string,
+  workspaceRoot?: string | null,
 ): string | null {
+  if (isDataResourceUri(documentPath) || isDataResourceUri(targetPath)) {
+    if (!isDataResourceUri(documentPath) || !isDataResourceUri(targetPath)) return null;
+    const root = resolveDataResourceWorkspaceRoot(documentPath, workspaceRoot);
+    if (!root) return null;
+    try {
+      return relativeMarkdownDestination(
+        getWorkspaceResourcePath(root, documentPath),
+        getWorkspaceResourcePath(root, targetPath),
+      );
+    } catch { return null; }
+  }
   const documentSegments = splitWorkspacePath(documentPath);
   const targetSegments = splitWorkspacePath(targetPath);
   if (!documentSegments || !targetSegments) return null;
@@ -40,6 +55,9 @@ export function relativeMarkdownDestination(
  * percent-encoding protects the last two. */
 export function escapeMarkdownDestination(destination: string): string {
   const normalized = destination.replace(/\\/g, "/")
+    .replace(/%/g, "%25")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E")
     .replace(/#/g, "%23")
     .replace(/\?/g, "%3F");
   if (/[\s()]/.test(normalized)) return `<${normalized}>`;

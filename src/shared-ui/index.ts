@@ -697,6 +697,8 @@ export {
 } from "./editor/resource/DocumentDropTarget";
 export type {
   DocumentDropPayload,
+  DocumentDropPoint,
+  DocumentDropInsertion,
   DocumentDropRegistry,
   DocumentDropTargetRegistration,
 } from "./editor/resource/DocumentDropTarget";
