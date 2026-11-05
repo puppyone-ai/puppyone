@@ -18,6 +18,10 @@ import { markdownLivePreviewContextExtension } from "./core/editor/markdownLiveP
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./addons/block-drag";
 import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
+import {
+  createMarkdownOutlineStateTracker,
+  type MarkdownOutlineSnapshot,
+} from "./core/interaction/markdownOutlineState";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
@@ -75,6 +79,8 @@ export type MarkdownCodeMirrorEditorProps = {
   onChange?: (value: string) => void;
   onSourceRevisionChange?: (revision: EditorSourceRevision) => void;
   onSnapshotPortChange?: (port: EditorSourceSnapshotPort | null) => void;
+  /** Publishes the document outline without exposing the CodeMirror view. */
+  onOutlineChange?: (snapshot: MarkdownOutlineSnapshot) => void;
   onEditorBaseReady?: (revision: string) => void;
   onPreviewReady?: (revision: string) => void;
   onPreviewError?: (error: Error) => void;
@@ -104,6 +110,7 @@ export function MarkdownCodeMirrorEditor({
   onChange,
   onSourceRevisionChange,
   onSnapshotPortChange,
+  onOutlineChange,
   onEditorBaseReady,
   onPreviewReady,
   onPreviewError,
@@ -157,6 +164,7 @@ export function MarkdownCodeMirrorEditor({
     onChange,
     onSourceRevisionChange,
     onSnapshotPortChange,
+    onOutlineChange,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -165,6 +173,7 @@ export function MarkdownCodeMirrorEditor({
     onChange,
     onSourceRevisionChange,
     onSnapshotPortChange,
+    onOutlineChange,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -329,9 +338,17 @@ export function MarkdownCodeMirrorEditor({
     if (documentPathRef.current) {
       rendererPerformance.markActiveDocument(documentPathRef.current, "editor_base_ready");
     }
+    // The outline tracker is independent of the live-preview compartment, so
+    // the host keeps an outline in source mode as well.
+    const outlineTracker = callbacksRef.current.onOutlineChange
+      ? createMarkdownOutlineStateTracker(view, (snapshot) => {
+        callbacksRef.current.onOutlineChange?.(snapshot);
+      })
+      : null;
 
     return () => {
       previewGenerationRef.current += 1;
+      outlineTracker?.destroy();
       unbindFormatHotkeys();
       unsubscribeTypography();
       // Detaching the port synchronously lets the host capture the final
