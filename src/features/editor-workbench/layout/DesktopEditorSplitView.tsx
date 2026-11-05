@@ -96,6 +96,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
     direction: EditorSplitDirection,
     placement: NonNullable<EditorPaneSplitOptions["placement"]>,
   ) => void;
+  onOpenInPane?: (node: DocumentDataNode, targetPaneId: string) => void;
   onSplitPane: (
     paneId: string,
     direction: EditorSplitDirection,
@@ -124,6 +125,7 @@ export function DesktopEditorSplitView({
   onFocusPane,
   onMovePane,
   onOpenAtPaneEdge,
+  onOpenInPane,
   onResizeSplit,
   onSplitPane,
 }: DesktopEditorSplitViewProps) {
@@ -157,7 +159,7 @@ export function DesktopEditorSplitView({
   const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge, {
     workspacePath: workspace.path,
     paneIds: panes.map((pane) => pane.id),
-  }, { registry: dropRegistry });
+  }, { registry: dropRegistry, onOpenInPane });
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {

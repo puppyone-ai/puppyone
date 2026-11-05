@@ -228,7 +228,7 @@ describe("DesktopEditorSplitView", () => {
       .toHaveLength(3);
   });
 
-  it("opens one Explorer file at the nearest pane edge on drop", () => {
+  it("opens one Explorer file on an explicit split card", async () => {
     const onOpenAtPaneEdge = vi.fn();
     const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
     const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
@@ -250,10 +250,12 @@ describe("DesktopEditorSplitView", () => {
     );
 
     act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
     expect(pane.dataset.dropTarget).toBe("right");
     expect(pane.dataset.dropKind).toBe("file");
 
-    act(() => pane.dispatchEvent(dragEvent("drop", transfer, 790, 300)));
+    await act(async () => { pane.dispatchEvent(dragEvent("drop", transfer, 790, 300)); });
     expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
       {
         id: "b.md",
@@ -285,6 +287,8 @@ describe("DesktopEditorSplitView", () => {
       }]),
     );
 
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
     act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
     expect(pane.dataset.dropTarget).toBe("right");
 

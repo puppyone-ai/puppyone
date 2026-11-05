@@ -46,11 +46,15 @@ function fixture() {
     const drop = useExplorerFileDrop(workspace, (...args) => {
       open(...args);
       workbench.openDocumentAtPaneEdge(...args);
-    }, { paneIds: panes, workspacePath: `/${workspace}` });
+    }, { paneIds: panes, workspacePath: `/${workspace}` }, {
+      onOpenInPane: (node, paneId) => { workbench.focusPane(paneId); workbench.openDocument(node); },
+    });
     const exportNodes = useResourceDragExport(resolve);
     return <><div draggable data-source onDragStart={(event) => exportNodes([{ id: uri, path: uri, name: entry.name, type: "file" }], event)} />
       {panes.map((id) => <section key={id} data-pane={id} data-edge={drop.dropIntent?.edge}
-        onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)} />)}
+        onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)}>
+        {drop.splitTargetPaneId === id && <div data-file-split-targets><div data-file-split-edge="left" /><div data-file-split-edge="right" /></div>}
+      </section>)}
       <output>{drop.dropFailure ?? "ok"}</output></>;
   }
   const render = (workspace?: string, panes?: string[]) => act(() => root.render(<Harness workspace={workspace} panes={panes} />));
@@ -66,6 +70,11 @@ function nativeFiles() {
   Object.defineProperty(transfer, "types", { value: ["Files"] });
   return transfer;
 }
+function exposeCards(pane: HTMLElement, transfer: DataTransfer) {
+  act(() => pane.dispatchEvent(drag("dragover", transfer)));
+  pane.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(0, 120, 120, 360);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
+}
 function drag(type: string, transfer: DataTransfer) {
   const event = new DragEvent(type, { bubbles: true, cancelable: true, clientX: 790, clientY: 300 });
   Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: 790 }, clientY: { value: 300 } });
@@ -80,6 +89,7 @@ it("connects the ordinary native source to Editor using Files and the canonical 
   expect(f.start).toHaveBeenCalledWith({ resources: [uri] });
   expect(f.pointer).toHaveBeenLastCalledWith({ active: true });
   const transfer = nativeFiles();
+  exposeCards(f.pane, transfer);
   act(() => f.pane.dispatchEvent(drag("dragover", transfer)));
   expect(f.pane.dataset.edge).toBe("right");
   await act(async () => { f.pane.dispatchEvent(drag("drop", transfer)); });
@@ -93,7 +103,9 @@ it("claims without relying on a preview that window drop capture has already cle
   const f = fixture();
   let complete!: (value: { entries: typeof entry[] }) => void;
   f.claim.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
-  act(() => { f.publish({ id: "native-1", entries: [entry] }); f.pane.dispatchEvent(drag("drop", nativeFiles())); });
+  act(() => f.publish({ id: "native-1", entries: [entry] }));
+  exposeCards(f.pane, nativeFiles());
+  act(() => { f.pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(f.open).not.toHaveBeenCalled();
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
   // Native end and HTML dragend retire presentation, not a valid pending receipt.
@@ -152,11 +164,15 @@ it("opens an empty pane, splits distinct same-named resources, then focuses an a
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(1);
   expect(f.workbench.activeEditorId).toBe(uri);
+  act(() => f.publish({ id: "native-1", entries: [entry] }));
+  exposeCards(pane, nativeFiles());
   const other = { ...entry, path: uri.replace("root-b", "root-a") };
   f.claim.mockResolvedValueOnce({ entries: [other] });
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(2);
   expect(f.workbench.state.editors.map((editor) => editor.id).sort()).toEqual([other.path, uri]);
+  act(() => f.publish({ id: "native-2", entries: [entry] }));
+  exposeCards(pane, nativeFiles());
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(2);
   expect(f.workbench.activeEditorId).toBe(uri);

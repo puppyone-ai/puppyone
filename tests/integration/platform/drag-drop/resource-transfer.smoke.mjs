@@ -11,14 +11,16 @@ import { createSenderWorkspaceAuthorization } from "../../../../electron/main/wo
 import { loadMacosResourceDrag } from "../../../../electron/main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "../../../../electron/main/ipc/resource-transfer-ipc.mjs";
 
+import { runExplicitSplitDomAcceptance } from "../../../support/electron/explicit-split-dom-acceptance.mjs";
 import { runNativeResourceAcceptance } from "../../../support/electron/native-resource-acceptance.mjs";
 
 // Manual OS smoke: drag the three source rows to the other native window, Finder
 // or Terminal. The separate receiver records genuine native File objects.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "puppyone-resource-smoke-"));
-const automated = process.argv.includes("--automated");
-const editorMode = process.argv.includes("--editor");
+const domMode = process.argv.includes("--dom");
+const automated = process.argv.includes("--automated") || domMode;
+const editorMode = process.argv.includes("--editor") || domMode;
 const imageMode = process.argv.includes("--images");
 app.setPath("userData", path.join(temporaryRoot, "user-data"));
 if (automated) app.on("window-all-closed", () => {});
@@ -35,7 +37,7 @@ app.whenReady().then(async () => {
   const entries = [];
   const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: () => [workspacePath] });
   const resolver = createWorkspaceResourceResolver({ getFoldersForSender: () => folders, authorizeWorkspaceRoot });
-  const nativeApi = loadMacosResourceDrag();
+  const nativeApi = domMode ? null : loadMacosResourceDrag();
   const nativeDrag = Object.fromEntries(["captureGesture", "start", "inspect", "windowNumber"].map((name) => [name, (...args) => {
     const result = nativeApi[name](...args);
     if (editorMode && ["captureGesture", "start"].includes(name)) console.log(JSON.stringify({ nativeStep: name, result }));
@@ -67,7 +69,8 @@ app.whenReady().then(async () => {
   for (const [index, mode] of (editorMode ? ["editor"] : ["source", "receiver"]).entries()) {
     const window = new BrowserWindow({
       title: `Resource transfer smoke — ${mode}`,
-      alwaysOnTop: true,
+      show: !domMode,
+      alwaysOnTop: !domMode,
       x: 80 + index * 500, y: 100, width: editorMode ? 1120 : 460, height: editorMode ? 700 : 520,
       webPreferences: { preload: path.join(repoRoot, "tests/fixtures/platform/drag-drop/resource-transfer-preload.cjs"), contextIsolation: true, sandbox: true },
     });
@@ -75,12 +78,13 @@ app.whenReady().then(async () => {
     window.webContents.on("console-message", (_event, _level, message) => { console.log(message); });
     await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/platform/drag-drop/${editorMode ? "editor-resource-drop" : "resource-transfer"}.html?mode=${mode}`);
   }
-  app.focus({ steal: true });
+  if (!domMode) app.focus({ steal: true });
   console.log(`RESOURCE_SMOKE_READY ${temporaryRoot}`);
   if (automated) {
     let failed = false;
     try {
-      await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, imageMode });
+      if (domMode) await runExplicitSplitDomAcceptance({ window: windows[0], entries, temporaryRoot, repoRoot });
+      else await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, imageMode });
     } catch (error) { console.error(error); failed = true; }
     finally {
       transfer.dispose();

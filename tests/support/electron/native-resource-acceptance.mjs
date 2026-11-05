@@ -101,7 +101,7 @@ export async function runNativeResourceAcceptance({ windows, entries, temporaryR
         await until(() => window.webContents.executeJavaScript(`Boolean(document.querySelector('.cm-md-image-widget img[data-preview-state="ready"]'))`), "rendered image preview");
         await fs.writeFile(path.join(directory, "inline-image.png"), (await window.webContents.capturePage()).toPNG());
         steps.push({ name: "inline-image", received, saved });
-        await drag(point(window, imageSource), point(window, await bounds(window, "[data-editor-pane-id]"), 0.99, 0.6));
+        await drag(point(window, imageSource), point(window, await bounds(window, "[data-editor-pane-id]"), 0.9, 0.6));
         expectedPaneCount += 1;
         await until(() => entries.findLast(entry => entry.panes).panes.length === expectedPaneCount, "image edge split");
         steps.push({ name: "image-edge-split", paneCount: expectedPaneCount });

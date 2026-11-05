@@ -460,6 +460,10 @@ export function DesktopDataWorkspaceSurface({
                   onFocusPane={editorWorkbench.focusPane}
                   onMovePane={editorWorkbench.movePane}
                   onOpenAtPaneEdge={editorWorkbench.openDocumentAtPaneEdge}
+                  onOpenInPane={(node, paneId) => {
+                    editorWorkbench.focusPane(paneId);
+                    editorWorkbench.openDocument(node);
+                  }}
                   onResizeSplit={editorWorkbench.resizeSplit}
                   onSplitPane={editorWorkbench.splitPane}
                 />

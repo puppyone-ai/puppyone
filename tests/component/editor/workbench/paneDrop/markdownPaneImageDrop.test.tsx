@@ -70,6 +70,10 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
           onDropCapture={(event) => controller.drop(event, "pane")}>
           <MarkdownCodeMirrorEditor value={"alpha\nbeta\n"} readOnly={readOnly} livePreview={false}
             documentPath={path} workspaceRoot={resourceRoot} workspaceId="workspace" />
+          <div data-file-split-targets>
+            <div data-file-split-edge="left" />
+            <div data-file-split-edge="right" />
+          </div>
         </section>
         <output>{controller.dropFailure ?? "ok"}</output>
       </DocumentAssetImportBoundary>
@@ -79,6 +83,8 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
     await act(async () => root.render(withTestLocalization(<Harness path={path} readOnly={readOnly} />)));
     host.querySelector<HTMLElement>("[data-pane]")!.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
     host.querySelector<HTMLElement>(".cm-scroller")!.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    host.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(12, 160, 120, 280);
+    host.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(668, 160, 120, 280);
   };
   await render();
   const view = EditorView.findFromDOM(host.querySelector(".cm-content")!)!;
@@ -103,9 +109,9 @@ describe("Markdown image insertion through the pane capture handler", () => {
     expect(f.open).not.toHaveBeenCalled();
     expect(f.view.hasFocus).toBe(true);
   });
-  it("keeps edge drops as splits", async () => {
+  it("splits only on an explicit card", async () => {
     const f = await fixture();
-    await f.drop(imageTransfer(), 5);
+    await f.drop(imageTransfer(), 50);
     expect(f.open).toHaveBeenCalledOnce();
     expect(f.view.state.doc.toString()).toBe("alpha\nbeta\n");
   });

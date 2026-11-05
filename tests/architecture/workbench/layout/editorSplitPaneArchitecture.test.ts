@@ -161,7 +161,7 @@ describe("editor split-pane architecture", () => {
     expect(paneShellSource).toContain('className="desktop-editor-drop-preview"');
     expect(dropGeometrySource).toContain("closestPaneDropEdge");
     expect(fileDropSource).toContain("classifyReferenceDataTransfer");
-    expect(fileDropSource).toContain("claimEditorDropDocument");
+    expect(fileDropSource).toContain("resolveResourceDropSource");
     expect(fileDropSource).toContain("onOpenAtPaneEdge");
     expect(paneMoveSource).toContain("onMovePane");
   });

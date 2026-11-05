@@ -29,11 +29,10 @@ import {
   type InteractionTerminationReason,
 } from "../interactions/useInteractionTermination";
 import {
-  closestPaneDropEdge,
   paneSplitDefinition,
   type PaneDropIntent,
 } from "./paneDropGeometry";
-import { resolvePaneDropRegion, type PaneDropRegion } from "./paneDropRegion";
+import { fileSplitDropEdge, type FileSplitDropEdge } from "./fileSplitDropTarget";
 import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
 import { editorDropDocument } from "./editorResourceDrop";
 import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
@@ -54,6 +53,8 @@ export type EditorFileDropController = Readonly<{
   dropFailure: EditorDropFailure | null;
   /** The pointer is over a document drop target: releasing inserts, not splits. */
   insertTargetPaneId: string | null;
+  /** The hovered file-drop pane exposes both explicit split cards. */
+  splitTargetPaneId: string | null;
   dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -72,19 +73,18 @@ type ExplorerFileDropPreview = Readonly<{
 }>;
 
 export type ExplorerFileDropOptions = Readonly<{
-  /** Document targets are registered below the pane tree; `null` keeps the
-   * pre-insert behaviour everywhere. */
+  /** Document targets registered below the pane tree handle image insertion. */
   registry?: DocumentDropRegistry | null;
+  onOpenInPane?: (node: DocumentDataNode, paneId: string) => void;
 }>;
 
-/** An image released in the reading area belongs to the document; an image
- * released near an edge still splits the pane. */
+/** Only a visible split card takes precedence over a document image drop. */
 export function shouldRouteToDocumentDrop(input: Readonly<{
-  region: PaneDropRegion;
+  splitEdge: FileSplitDropEdge | null;
   payloadName: string;
   hasTarget: boolean;
 }>): boolean {
-  return input.region === "center" && input.hasTarget && isDropImageName(input.payloadName);
+  return input.splitEdge === null && input.hasTarget && isDropImageName(input.payloadName);
 }
 
 export function useExplorerFileDrop(
@@ -96,12 +96,16 @@ export function useExplorerFileDrop(
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
   const [dropFailure, setDropFailure] = useState<EditorDropFailure | null>(null);
   const [insertTargetPaneId, setInsertTargetPaneId] = useState<string | null>(null);
+  const [splitTargetPaneId, setSplitTargetPaneId] = useState<string | null>(null);
+  const clearCardsFrame = useRef<number | null>(null);
   const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
   // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
   const targetsRef = useRef(new Map<string, object>());
   const openRef = useRef(onOpenAtPaneEdge);
+  const openInPaneRef = useRef(options.onOpenInPane);
   useLayoutEffect(() => { openRef.current = onOpenAtPaneEdge; });
+  useLayoutEffect(() => { openInPaneRef.current = options.onOpenInPane; });
   useLayoutEffect(() => {
     const targets = targetsRef.current;
     setDropFailure(null);
@@ -114,6 +118,8 @@ export function useExplorerFileDrop(
   });
 
   const beginFileDrag = useCallback((): ExplorerFileDropSession => {
+    if (clearCardsFrame.current !== null) window.cancelAnimationFrame(clearCardsFrame.current);
+    clearCardsFrame.current = null;
     const current = sessionRef.current;
     if (current) return current;
     const id = createNativeSurfacePointerSessionId("explorer-file-drop");
@@ -130,6 +136,7 @@ export function useExplorerFileDrop(
   }, []);
 
   const finishFileDrag = useCallback((reason: InteractionTerminationReason): boolean => {
+    if (reason === "unmount" && clearCardsFrame.current !== null) window.cancelAnimationFrame(clearCardsFrame.current);
     const session = sessionRef.current;
     if (!session) return false;
     sessionRef.current = null;
@@ -138,6 +145,12 @@ export function useExplorerFileDrop(
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
       setInsertTargetPaneId(null);
+      // Window capture retires native preview before the pane's drop capture.
+      // Keep card geometry until that event has snapshotted its actual hit.
+      clearCardsFrame.current = window.requestAnimationFrame(() => {
+        clearCardsFrame.current = null;
+        if (!sessionRef.current) setSplitTargetPaneId(null);
+      });
     }
     return true;
   }, []);
@@ -183,16 +196,16 @@ export function useExplorerFileDrop(
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
     const session = beginFileDrag();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
+    setSplitTargetPaneId(paneId);
+    const edge = fileSplitDropEdge(event.currentTarget, event.clientX, event.clientY);
     // Native Files are protected during dragover. Session names are presentation
     // only; the drop still obtains an independent Main receipt below.
     const candidateName = hasNativeFiles(event.dataTransfer)
       ? native?.entries[0]?.name
       : dropCandidate(classifyReferenceDataTransfer(event.dataTransfer), workspaceId)?.name;
-    const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    const target = edge === null ? registry?.find(event.clientX, event.clientY) ?? null : null;
     if (candidateName && target && shouldRouteToDocumentDrop({
-      region,
+      splitEdge: edge,
       payloadName: candidateName,
       hasTarget: true,
     })) {
@@ -202,18 +215,19 @@ export function useExplorerFileDrop(
       return;
     }
     setInsertTargetPaneId(null);
-    setPreview({
+    setPreview(edge ? {
       sessionId: session.id,
       intent: {
         targetPaneId: paneId,
-        edge: closestPaneDropEdge(rect, event.clientX, event.clientY),
+        edge,
       },
-    });
+    } : null);
   }, [beginFileDrag, registry, workspaceId]);
 
   const leave = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
     setInsertTargetPaneId((current) => current === paneId ? null : current);
+    setSplitTargetPaneId((current) => current === paneId ? null : current);
     setPreview((current) => current?.intent.targetPaneId === paneId ? null : current);
   }, []);
 
@@ -226,24 +240,27 @@ export function useExplorerFileDrop(
     const source = hasNativeFiles(event.dataTransfer)
       ? { kind: "files" as const, files: Array.from(event.dataTransfer.files) }
       : classifyReferenceDataTransfer(event.dataTransfer);
-    const rect = event.currentTarget.getBoundingClientRect();
-    const edge = closestPaneDropEdge(rect, event.clientX, event.clientY);
+    const edge = fileSplitDropEdge(event.currentTarget, event.clientX, event.clientY);
     finishFileDrag("drop");
     setDropFailure(null);
     setInsertTargetPaneId(null);
+    setSplitTargetPaneId(null);
 
     const lifetime = targetsRef.current.get(paneId);
     const isCurrent = () => Boolean(lifetime && targetsRef.current.get(paneId) === lifetime);
     if (source.kind === "files" && source.files.length !== 1) return;
     const deliver = (node: DocumentDataNode | null) => {
       if (node && isCurrent()) {
-        const { direction, placement } = paneSplitDefinition(edge);
-        openRef.current(node, paneId, direction, placement);
+        if (edge) {
+          const { direction, placement } = paneSplitDefinition(edge);
+          openRef.current(node, paneId, direction, placement);
+        } else {
+          openInPaneRef.current?.(node, paneId);
+        }
       }
     };
-    const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
     const candidate = dropCandidate(source, workspaceId);
-    const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    const target = edge === null ? registry?.find(event.clientX, event.clientY) ?? null : null;
     const complete = candidate && target && isDropImageName(candidate.name)
       ? target.prepareInsert({ x: event.clientX, y: event.clientY }) : null;
     void (async () => {
@@ -262,7 +279,7 @@ export function useExplorerFileDrop(
       // (no receipt) reaches the document's existing asset import port.
       const payload = dropCandidate(admitted, workspaceId)?.payload ?? null;
       try {
-        if (!await complete(payload)) deliver(node);
+        if (!await complete(payload) && isCurrent()) setDropFailure("image");
       } catch {
         if (isCurrent()) setDropFailure("image");
       }
@@ -272,8 +289,8 @@ export function useExplorerFileDrop(
   const dismissDropFailure = useCallback(() => setDropFailure(null), [])
   const dropIntent = preview?.intent ?? null;
   return useMemo(
-    () => ({ dropIntent, dropFailure, insertTargetPaneId, dismissDropFailure, over, leave, drop }),
-    [dismissDropFailure, drop, dropFailure, dropIntent, insertTargetPaneId, leave, over],
+    () => ({ dropIntent, dropFailure, insertTargetPaneId, splitTargetPaneId, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailure, dropIntent, insertTargetPaneId, splitTargetPaneId, leave, over],
   );
 }
 

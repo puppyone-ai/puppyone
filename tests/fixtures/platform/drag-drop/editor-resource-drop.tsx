@@ -63,13 +63,14 @@ function Harness() {
   return <main style={{ display: "grid", gridTemplateColumns: "230px 1fr", width: "100vw", height: "100vh", background: "white", color: "#222" }}>
     <aside style={{ padding: 16 }}><h2>Explorer</h2><ExplorerTree nodes={nodes} activePath={selected} expandedPaths={new Set()} dragWorkspaceId={workspace.id}
       onSelectNode={(node) => setSelected(node?.path ?? null)} onExportNodes={exportNodes} />
-      <p>Drag 中文 file.md into the editor. Repeat to verify no duplicate pane.</p></aside>
+      <p>Drag onto a left or right card to split. Drop an image into the text to insert it.</p></aside>
     <section style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
       <DesktopEditorSplitView aiEditRequest={null} dataPort={port} editorGroup={editor.state} layout={editor.paneLayout}
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}  editorTree={nodes}
         markdownEnvironment={environment} documentNavigation={unavailableDocumentNavigation} workspace={workspace}
         onClosePane={editor.closePane} onFocusPane={editor.focusPane} onResizeSplit={editor.resizeSplit} onMovePane={editor.movePane}
-        onOpenAtPaneEdge={editor.openDocumentAtPaneEdge} onSplitPane={editor.splitPane} />
+        onOpenAtPaneEdge={editor.openDocumentAtPaneEdge}
+        onOpenInPane={(node, paneId) => { editor.focusPane(paneId); editor.openDocument(node); }} onSplitPane={editor.splitPane} />
     </section>
   </main>;
 }

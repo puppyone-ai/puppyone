@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from "react";
+import { PanelLeft, PanelRight } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type {
   EditorFindCommand,
@@ -146,6 +147,17 @@ export function EditorPaneShell({
       <div className="desktop-editor-pane-content">
         {contentState === "document" ? children : emptyContent}
       </div>
+      {fileDrop.splitTargetPaneId === pane.id && (
+        <div className="desktop-editor-file-split-targets" data-file-split-targets aria-hidden="true">
+          {(["left", "right"] as const).map((edge) => (
+            <div key={edge} className="desktop-editor-file-split-card" data-file-split-edge={edge}
+              data-active={fileDropEdge === edge ? "true" : undefined}>
+              {edge === "left" ? <PanelLeft size={20} /> : <PanelRight size={20} />}
+              <span>{t(edge === "left" ? "editor.panes.splitLeft" : "editor.panes.splitRight")}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {dropEdge && <div className="desktop-editor-drop-preview" data-edge={dropEdge} />}
       <div className="desktop-editor-pane-interaction-frame" aria-hidden="true" />
     </section>

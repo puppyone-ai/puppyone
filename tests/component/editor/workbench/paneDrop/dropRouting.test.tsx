@@ -57,11 +57,12 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
     ...target,
   });
   const open = vi.fn();
+  const openInPane = vi.fn();
   function Harness() {
     const drop = useExplorerFileDrop("workspace", open, {
       workspacePath: "/workspace",
       paneIds: ["pane-1"],
-    }, { registry });
+    }, { registry, onOpenInPane: openInPane });
     return (
       <>
         <section
@@ -70,7 +71,12 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
           data-kind={drop.insertTargetPaneId === "pane-1" ? "insert" : ""}
           onDragOver={(event) => drop.over(event, "pane-1")}
           onDrop={(event) => drop.drop(event, "pane-1")}
-        />
+        >
+          <div data-file-split-targets>
+            <div data-file-split-edge="left" />
+            <div data-file-split-edge="right" />
+          </div>
+        </section>
         <output>{drop.dropFailure ?? "ok"}</output>
       </>
     );
@@ -78,9 +84,12 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
   act(() => root.render(<Harness />));
   const pane = host.querySelector("section")!;
   pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(8, 120, 120, 360);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(672, 120, 120, 360);
   return {
     pane,
     open,
+    openInPane,
     output: () => host.querySelector("output")!.textContent,
   };
 }
@@ -103,7 +112,7 @@ describe("image drops into the reading area", () => {
     expect(f.output()).toBe("ok");
   });
 
-  it("still splits the pane when the pointer is near an edge", async () => {
+  it("splits when the pointer is inside an explicit card", async () => {
     const f = harness();
     act(() => f.pane.dispatchEvent(drag("dragover", transfer(), 10, 300)));
     expect(f.pane.dataset.kind).toBe("");
@@ -112,10 +121,23 @@ describe("image drops into the reading area", () => {
     expect(f.open).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to a split when the target declines the payload", async () => {
+  it("reports an unsupported image insertion without an unexpected split", async () => {
     const f = harness({ prepareInsert: () => async () => false });
     await act(async () => { f.pane.dispatchEvent(drag("drop", transfer(), 400, 300)); });
-    expect(f.open).toHaveBeenCalledTimes(1);
+    expect(f.open).not.toHaveBeenCalled();
+    expect(f.output()).toBe("image");
+  });
+  it("opens non-image body drops in the existing pane", async () => {
+    const f = harness();
+    await act(async () => { f.pane.dispatchEvent(drag("drop", transfer("notes/b.md", "b.md"), 400, 300)); });
+    expect(f.open).not.toHaveBeenCalled();
+    expect(f.openInPane).toHaveBeenCalledWith(expect.objectContaining({ path: "notes/b.md" }), "pane-1");
+  });
+  it("does not split at an invisible edge above the cards", async () => {
+    const f = harness();
+    await act(async () => { f.pane.dispatchEvent(drag("drop", transfer(), 10, 30)); });
+    expect(f.open).not.toHaveBeenCalled();
+    expect(f.openInPane).toHaveBeenCalledOnce();
   });
 
   it("reports an image insertion failure instead of opening a preview", async () => {
