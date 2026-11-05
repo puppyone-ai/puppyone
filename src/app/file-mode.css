@@ -64,6 +64,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: opacity 0.16s ease-out;
+  }
+
+  /*
+   * While reading further down, the bar steps back entirely: the name fades
+   * out and comes back with the controls when the pointer nears the top, or
+   * once the document is back at its top.
+   */
+  .file-mode-window:has(> .file-mode-window__document[data-scrolled]):not([data-controls-revealed])
+    .file-mode-window__name {
+    opacity: 0;
   }
 
   /*
@@ -172,7 +183,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .file-mode-window__document,
-    .file-mode-window__controls {
+    .file-mode-window__controls,
+    .file-mode-window__name {
       transition: none;
     }
   }
