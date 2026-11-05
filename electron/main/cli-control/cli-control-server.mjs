@@ -26,7 +26,9 @@ export function createCliControlServer({
     await fs.unlink(endpoint).catch((error) => {
       if (error?.code !== "ENOENT") throw error;
     });
-    const nextServer = net.createServer(accept);
+    // A client may stop sending once its request is out, as `printf … | nc -U`
+    // does; the reply still goes back on the half that is open.
+    const nextServer = net.createServer({ allowHalfOpen: true }, accept);
     nextServer.on("error", (error) => logger.warn("Command-line control server error:", error));
     await new Promise((resolve, reject) => {
       nextServer.once("error", reject);
@@ -69,6 +71,10 @@ export function createCliControlServer({
       const line = buffer.slice(0, newline);
       buffer = "";
       void respond(socket, line);
+    });
+    socket.on("end", () => {
+      // Stopped sending before a whole request: there is nothing to answer.
+      if (!received) socket.destroy();
     });
     socket.on("error", () => undefined);
     socket.on("close", () => sockets.delete(socket));
