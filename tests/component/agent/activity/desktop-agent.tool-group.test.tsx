@@ -99,8 +99,8 @@ describe("Desktop Agent tool step lists", () => {
     expect(agentToolStepSegments(explored.slice(0, 1)).map((segment) => segment.type)).toEqual(["step"]);
 
     // Running and failed work is never hidden inside a fold.
-    const running = { ...explored[2], status: "running" } as AgentPart;
-    const failed = { ...explored[3], status: "failed" } as AgentPart;
+    const running = { ...explored[2], status: "running" } as unknown as AgentPart;
+    const failed = { ...explored[3], status: "failed" } as unknown as AgentPart;
     expect(agentToolStepSegments([explored[0], explored[1], running, failed, explored[4]])
       .map((segment) => segment.type)).toEqual(["settled", "step", "step", "step"]);
   });
@@ -268,7 +268,7 @@ describe("Desktop Agent tool step lists", () => {
       toolPart("tool:grep", "turn:fold", "tool", 2, "grep", "src", "src/a.ts:1:match"),
       toolPart("tool:test", "turn:fold", "command", 3, "bash", "npm test", "passed"),
     ];
-    const running = { ...toolPart("tool:edit", "turn:fold", "tool", 4, "edit", "src/a.ts", ""), status: "running" as const };
+    const running = { ...toolPart("tool:edit", "turn:fold", "tool", 4, "edit", "src/a.ts", ""), status: "running" } as unknown as AgentPart;
     const container = render(
       <AgentToolActivityGroup
         parts={[...parts, running]}

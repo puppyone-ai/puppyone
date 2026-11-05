@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditorPaneLayoutLeaf } from "@puppyone/shared-ui";
 import { EditorPaneShell } from "../../../../../src/features/editor-workbench/layout/EditorPaneShell";
 import type { EditorFileDropController } from "../../../../../src/features/editor-workbench/drag-and-drop/useExplorerFileDrop";
-import type { PaneMoveDragController } from "../../../../src/features/editor-workbench/drag-and-drop/usePaneMoveDrag";
+import type { PaneMoveDragController } from "../../../../../src/features/editor-workbench/drag-and-drop/usePaneMoveDrag";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -17,7 +17,6 @@ const pane: EditorPaneLayoutLeaf = {
   id: "pane-1",
   kind: "pane",
   editorId: "editor-1",
-  size: 1,
 };
 
 const paneMove: PaneMoveDragController = {
@@ -26,7 +25,7 @@ const paneMove: PaneMoveDragController = {
   prepare: vi.fn(),
   start: vi.fn(),
   move: vi.fn(),
-  end: vi.fn(() => ({ kind: "cancelled" as const })),
+  end: vi.fn(() => ({ kind: "cancelled" as const })) as unknown as PaneMoveDragController["end"],
   cancel: vi.fn(),
   lostCapture: vi.fn(),
 };

@@ -1,4 +1,5 @@
 import { BlockType, Direction, type EditorView } from "@codemirror/view";
+import type { MarkdownMovableBlockRef } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownBlockBoundaries";
 import { describe, expect, it } from "vitest";
 import {
   getEdgeScrollVelocity,
@@ -66,7 +67,7 @@ describe("readHandlePoint", () => {
     scaleX: 1,
     scaleY: 1,
   };
-  const block = { from: 10, to: 12, kind: "paragraph", parentFrom: 0, parentTo: 20, parentName: "doc", depth: 1 } as const;
+  const block = { from: 10, to: 12, kind: "root", parentFrom: 0, parentTo: 20, parentName: "doc", depth: 1 } as MarkdownMovableBlockRef;
 
   function viewWith(type: BlockType, line: { top: number; height: number }, coords: { top: number; bottom: number; left: number }) {
     return {
@@ -89,7 +90,7 @@ describe("readHandlePoint", () => {
   it("aligns a widget block to the visible surface, skipping the line's block gap", () => {
     // The line box starts at 100 (padding), the widget itself at 132.
     const point = readHandlePoint(
-      viewWith(BlockType.Widget, { top: 100, height: 420 }, { top: 132, bottom: 500, left: 300 }),
+      viewWith(BlockType.WidgetBefore, { top: 100, height: 420 }, { top: 132, bottom: 500, left: 300 }),
       surface,
       block,
     );
@@ -98,7 +99,7 @@ describe("readHandlePoint", () => {
 
   it("falls back to the line box when no coordinates are available", () => {
     const view = {
-      lineBlockAt: () => ({ top: 100, height: 400, type: BlockType.Widget, from: 10, to: 12 }),
+      lineBlockAt: () => ({ top: 100, height: 400, type: BlockType.WidgetBefore, from: 10, to: 12 }),
       coordsAtPos: () => null,
       defaultLineHeight: 20,
       textDirection: Direction.LTR,
