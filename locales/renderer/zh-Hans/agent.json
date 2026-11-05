@@ -307,6 +307,7 @@
   "toolStep.fetch.done": "获取",
   "toolStep.fetch.active": "正在获取",
   "toolStep.explored": "已探索",
+  "toolStep.settled": "{count, plural, other {{value} 步已完成}}",
   "toolStep.files": "{count, plural, other {{value} 个文件}}",
   "toolStep.searches": "{count, plural, other {{value} 次搜索}}",
   "toolStep.results": "{count, plural, other {{value} 条结果}}",

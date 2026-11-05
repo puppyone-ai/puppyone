@@ -15,9 +15,9 @@ type AgentToolActivityGroupProps = Readonly<{
 }>;
 
 /**
- * One line per step: what the Agent did, to what, and the outcome. Long runs
- * of settled exploration fold into a single "Explored" line; details open
- * inline under their own line, one at a time.
+ * One line per current step: what the Agent did, to what, and the outcome.
+ * Every settled step folds into one "Explored" or "N steps done" line, so a
+ * finished run leaves a single line behind; details open inline, one at a time.
  */
 function AgentToolActivityGroupView({
   parts,
@@ -81,12 +81,20 @@ function AgentToolActivityGroupView({
               <span className="desktop-agent-tool-icon" aria-hidden="true">
                 <ChevronRight className="desktop-agent-tool-fold-chevron" size={13} strokeWidth={2} />
               </span>
-              <strong className="desktop-agent-tool-name">{t("agent.toolStep.explored")}</strong>
-              <span className="desktop-agent-tool-summary">
-                <span className="desktop-agent-tool-subject">
-                  <span className="desktop-agent-tool-subject-context">{explorationSummary(segment)}</span>
-                </span>
-              </span>
+              {segment.type === "explored" ? (
+                <>
+                  <strong className="desktop-agent-tool-name">{t("agent.toolStep.explored")}</strong>
+                  <span className="desktop-agent-tool-summary">
+                    <span className="desktop-agent-tool-subject">
+                      <span className="desktop-agent-tool-subject-context">{explorationSummary(segment)}</span>
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <strong className="desktop-agent-tool-name">
+                  {t("agent.toolStep.settled", { count: segment.steps, value: formatNumber(segment.steps) })}
+                </strong>
+              )}
             </button>
             {open && <div className="desktop-agent-tool-fold-body">{segment.parts.map(renderStep)}</div>}
           </div>
