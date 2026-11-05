@@ -22,6 +22,8 @@ pub mod infrastructure;
 #[cfg(test)]
 mod integration_tests;
 #[allow(dead_code)]
+pub mod ipc;
+#[allow(dead_code)]
 pub mod migrations;
 #[allow(dead_code)]
 pub mod node_path;

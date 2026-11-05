@@ -4,7 +4,12 @@
   "source_roots": [
     "src/features/desktop-agent",
     "electron/main/agent",
-    "shared/agent-contract"
+    "shared/agent-contract",
+    "electron/main/ipc/agent-ipc.mjs",
+    "electron/main/ipc/agent-activity-ipc.mjs",
+    "electron/main/item-hosts/agent-process-service.mjs",
+    "electron/main/item-hosts/agent-host-authority.mjs",
+    "electron/utility/agent"
   ],
   "policy": "Preserve business ownership and public behavior while replacing platform mechanisms. These mappings identify implemented native coverage and explicit remaining gaps; they are not a file-count completion percentage. No source file is declared fully equivalent.",
   "groups": [
@@ -870,6 +875,19 @@
         "src/agent/bootstrap/mod.rs"
       ],
       "remaining": "Ported 1:1 with the product production-composition test: the nine runtime definitions (Built-in Agent, Codex, Claude, OpenCode, Cursor, Hermes, Pi and both WorkBuddy channels) in one registry with Codex as the default and per-runtime discovery isolation. The app still composes sessions through legacy_create_agent_runtime_host.rs until the host switches to AgentService."
+    },
+    {
+      "name": "Agent IPC bridge",
+      "status": "partial",
+      "sources": [
+        "electron/main/ipc/agent-ipc.mjs"
+      ],
+      "targets": [
+        "src/agent/ipc/agent_ipc.rs",
+        "src/agent/ipc/mod.rs",
+        "src/agent/ipc/tests.rs"
+      ],
+      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the GPUI client still talks to the legacy runtimes until the host switches to AgentService."
     }
   ]
 }
