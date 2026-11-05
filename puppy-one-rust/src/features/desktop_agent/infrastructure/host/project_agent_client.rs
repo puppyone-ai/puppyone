@@ -65,13 +65,15 @@ impl AgentClientPort for ProjectAgentClient {
     }
 }
 
+/// The wrapped client of one source client.
+type Cached = (Rc<dyn AgentClientPort>, Rc<dyn AgentClientPort>);
+
 /// `createProjectAgentClientProvider(context, getClient)`.
 pub fn create_project_agent_client_provider(
     context: Value,
     get_client: AgentClientProvider,
 ) -> AgentClientProvider {
-    let cache: RefCell<Option<(Rc<dyn AgentClientPort>, Rc<dyn AgentClientPort>)>> =
-        RefCell::default();
+    let cache: RefCell<Option<Cached>> = RefCell::default();
     let instances: Rc<RefCell<HashMap<String, String>>> = Rc::default();
     Rc::new(move || {
         let current = get_client()?;
