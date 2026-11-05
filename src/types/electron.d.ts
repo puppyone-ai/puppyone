@@ -1127,6 +1127,16 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      listHostDevices: (expectedSession: { userId: string; generation: string }) => Promise<{ devices: Array<{ id: string; name: string; state: string;
+        online: boolean; folders: Array<{ id: string; name: string; state: string;
+          capabilities: string[] }> }> }>;
+      registerHostFolder: (request: { rootPath: string; writable?: boolean }) => Promise<
+        { deviceId: string; folderId: string } | { cancelled: true }>;
+      connectHostDevice: (expectedSession: { userId: string; generation: string }) => Promise<{ deviceId: string | null }>;
+      disconnectHostDevice: () => Promise<{ disconnected: true }>;
+      removeHostFolder: (request: { deviceId: string; folderId: string;
+        expectedSession: { userId: string; generation: string } }) => Promise<
+          { removed: boolean } | { cancelled: true }>;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;

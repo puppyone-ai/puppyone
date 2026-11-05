@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "Annuler",
+  "native.host.allow": "Autoriser",
+  "native.host.remove": "Retirer",
+  "native.host.share.title": "Ouvrir ce dossier depuis vos autres ordinateurs ?",
+  "native.host.share.read": "Vos ordinateurs connectés pourront lire « {name} » tant que cet ordinateur sera en ligne.",
+  "native.host.share.write": "Vos ordinateurs connectés pourront lire et modifier « {name} » tant que cet ordinateur sera en ligne.",
+  "native.host.remove.title": "Arrêter l’accès à ce dossier ?",
+  "native.host.remove.message": "Vos autres ordinateurs connectés à ce compte ne pourront plus l’ouvrir.",
   "native.execution.title": "Gérer les instances en cours…",
   "native.execution.inventory": "Sélectionnez une instance d’Agent ou de Terminal. Cette liste reste accessible après la fermeture de son onglet.",
   "native.execution.empty": "Aucune instance en cours ou en attente de nettoyage.",

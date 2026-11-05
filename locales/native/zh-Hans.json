@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "取消",
+  "native.host.allow": "允许",
+  "native.host.remove": "移除",
+  "native.host.share.title": "要从其他电脑打开此文件夹吗？",
+  "native.host.share.read": "此电脑在线时，登录同一账号的电脑可以读取“{name}”。",
+  "native.host.share.write": "此电脑在线时，登录同一账号的电脑可以读取和编辑“{name}”。",
+  "native.host.remove.title": "停止共享此文件夹？",
+  "native.host.remove.message": "登录同一账号的其他电脑将无法再打开此文件夹。",
   "native.execution.title": "管理运行实例…",
   "native.execution.inventory": "选择 Agent 或终端实例。标签关闭后，仍可在这里查看与处理剩余清理。",
   "native.execution.empty": "没有运行中或待清理的实例。",

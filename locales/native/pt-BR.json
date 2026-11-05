@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "Cancelar",
+  "native.host.allow": "Permitir",
+  "native.host.remove": "Remover",
+  "native.host.share.title": "Abrir esta pasta nos seus outros computadores?",
+  "native.host.share.read": "Seus computadores conectados poderão ler “{name}” enquanto este computador estiver online.",
+  "native.host.share.write": "Seus computadores conectados poderão ler e editar “{name}” enquanto este computador estiver online.",
+  "native.host.remove.title": "Interromper o acesso a esta pasta?",
+  "native.host.remove.message": "Outros computadores conectados à sua conta não poderão mais abri-la.",
   "native.execution.title": "Gerenciar instâncias em execução…",
   "native.execution.inventory": "Selecione uma instância de Agent ou Terminal. Esta lista permanece disponível após fechar a aba.",
   "native.execution.empty": "Nenhuma instância em execução ou com limpeza pendente.",

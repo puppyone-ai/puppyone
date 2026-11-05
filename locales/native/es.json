@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "Cancelar",
+  "native.host.allow": "Permitir",
+  "native.host.remove": "Quitar",
+  "native.host.share.title": "¿Abrir esta carpeta desde tus otros ordenadores?",
+  "native.host.share.read": "Tus ordenadores con la sesión iniciada podrán leer “{name}” mientras este esté en línea.",
+  "native.host.share.write": "Tus ordenadores con la sesión iniciada podrán leer y editar “{name}” mientras este esté en línea.",
+  "native.host.remove.title": "¿Dejar de compartir esta carpeta?",
+  "native.host.remove.message": "Los otros ordenadores con tu cuenta ya no podrán abrirla.",
   "native.execution.title": "Administrar instancias en ejecución…",
   "native.execution.inventory": "Selecciona una instancia de Agent o Terminal. Esta lista sigue disponible al cerrar su pestaña.",
   "native.execution.empty": "No hay instancias en ejecución ni con limpieza pendiente.",

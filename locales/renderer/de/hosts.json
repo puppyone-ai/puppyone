@@ -1,0 +1,18 @@
+{
+  "register.action": "Auf meinen anderen Computern öffnen",
+  "register.pending": "Ordner wird registriert…",
+  "register.success": "Ordner verfügbar, solange dieser Computer online ist.",
+  "register.failure": "Ordner konnte nicht registriert werden.",
+  "catalog.title": "Ordner auf deinen Computern",
+  "catalog.refresh": "Aktualisieren",
+  "catalog.empty": "Noch keine Ordner registriert. Öffne einen lokalen Ordner, um ihn hier hinzuzufügen.",
+  "catalog.unavailable": "Geräteliste nicht verfügbar.",
+  "catalog.online": "Online",
+  "catalog.offline": "Offline",
+  "catalog.remove": "Entfernen",
+  "catalog.removeFailure": "Ordner konnte nicht entfernt werden.",
+  "folder.home": "Projekte",
+  "folder.editing": "Entfernter Ordner · Bearbeiten erlaubt",
+  "folder.readOnly": "Entfernter Ordner · schreibgeschützt",
+  "folder.closeFailure": "Änderungen vor dem Verlassen speichern."
+}

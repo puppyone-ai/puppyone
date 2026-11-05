@@ -53,6 +53,7 @@ import {
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
 import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
+import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
 import {
   createApplicationQuitIntent,
   createDocumentSessionCloseCoordinator,
@@ -1361,6 +1362,11 @@ function registerIpcHandlers() {
     detachWorkspaceFromCurrentWindow,
   });
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  const hostIpc = registerHostIpcHandlers({ ipcMain: trustedIpcMain, app, auth: cloudAuthService,
+    secureStorage: safeStorage, apiBase: desktopCloudConfiguration?.apiBase,
+    authorizeWorkspaceRoot, dialog, BrowserWindow,
+    t: (id, values) => localeService.t(id, values) });
+  app.once("will-quit", () => hostIpc.dispose());
   trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
   trustedIpcMain.handle("template:read-intent", (event) => {
     if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;

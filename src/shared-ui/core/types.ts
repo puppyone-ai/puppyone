@@ -11,6 +11,7 @@ export type DataNodeStatus = "clean" | "modified" | "created" | "deleted" | "mov
 export type DataSourceKind =
   | "local"
   | "cloud"
+  | "device"
   | "github"
   | "notion"
   | "google_drive"

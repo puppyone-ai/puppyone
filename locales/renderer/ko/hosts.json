@@ -1,0 +1,18 @@
+{
+  "register.action": "다른 컴퓨터에서 열기",
+  "register.pending": "폴더 등록 중…",
+  "register.success": "이 컴퓨터가 온라인일 때 폴더를 사용할 수 있습니다.",
+  "register.failure": "폴더를 등록할 수 없습니다.",
+  "catalog.title": "내 컴퓨터의 폴더",
+  "catalog.refresh": "새로고침",
+  "catalog.empty": "등록된 폴더가 없습니다. 로컬 폴더를 열어 여기에 추가하세요.",
+  "catalog.unavailable": "기기 목록을 불러올 수 없습니다.",
+  "catalog.online": "온라인",
+  "catalog.offline": "오프라인",
+  "catalog.remove": "제거",
+  "catalog.removeFailure": "폴더를 제거할 수 없습니다.",
+  "folder.home": "프로젝트",
+  "folder.editing": "원격 폴더 · 편집 가능",
+  "folder.readOnly": "원격 폴더 · 읽기 전용",
+  "folder.closeFailure": "나가기 전에 변경 사항을 저장하세요."
+}

@@ -54,6 +54,7 @@ export type MinimalOnboardingProps = {
   /** The page is here but its list is not settled, so the mark stands in for it. */
   listHeld?: boolean;
   cloudAccountStatus?: ReactNode;
+  remoteFoldersSlot?: ReactNode;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -89,6 +90,7 @@ export function MinimalOnboarding({
   projectItems,
   listHeld = false,
   cloudAccountStatus,
+  remoteFoldersSlot,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
@@ -253,6 +255,7 @@ export function MinimalOnboarding({
           )}
           actions={entry.actions}
         />
+        {remoteFoldersSlot}
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>

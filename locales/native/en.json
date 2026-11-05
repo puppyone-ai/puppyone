@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "Cancel",
+  "native.host.allow": "Allow",
+  "native.host.remove": "Remove",
+  "native.host.share.title": "Open this folder from your other computers?",
+  "native.host.share.read": "Your signed-in computers can read “{name}” while this computer is online.",
+  "native.host.share.write": "Your signed-in computers can read and edit “{name}” while this computer is online.",
+  "native.host.remove.title": "Stop access to this folder?",
+  "native.host.remove.message": "Other computers signed into your account will no longer be able to open it.",
   "native.execution.title": "Manage Running Sessions…",
   "native.execution.inventory": "Select an Agent or Terminal instance. This list remains available after its tab closes.",
   "native.execution.empty": "No running or cleanup-pending instances.",

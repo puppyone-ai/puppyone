@@ -1,0 +1,18 @@
+{
+  "register.action": "ほかのパソコンで開く",
+  "register.pending": "フォルダーを登録しています…",
+  "register.success": "このパソコンがオンラインの間、フォルダーを利用できます。",
+  "register.failure": "フォルダーを登録できませんでした。",
+  "catalog.title": "自分のパソコンのフォルダー",
+  "catalog.refresh": "更新",
+  "catalog.empty": "登録されたフォルダーはありません。ローカルフォルダーを開いて追加してください。",
+  "catalog.unavailable": "デバイス一覧を取得できません。",
+  "catalog.online": "オンライン",
+  "catalog.offline": "オフライン",
+  "catalog.remove": "削除",
+  "catalog.removeFailure": "フォルダーを削除できませんでした。",
+  "folder.home": "プロジェクト",
+  "folder.editing": "リモートフォルダー · 編集可能",
+  "folder.readOnly": "リモートフォルダー · 読み取り専用",
+  "folder.closeFailure": "移動する前に変更を保存してください。"
+}

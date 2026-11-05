@@ -1,0 +1,18 @@
+{
+  "register.action": "Abrir en mis otros ordenadores",
+  "register.pending": "Registrando carpeta…",
+  "register.success": "Carpeta disponible mientras este ordenador esté conectado.",
+  "register.failure": "No se pudo registrar la carpeta.",
+  "catalog.title": "Carpetas de tus ordenadores",
+  "catalog.refresh": "Actualizar",
+  "catalog.empty": "Aún no hay carpetas registradas. Abre una carpeta de este ordenador para añadirla aquí.",
+  "catalog.unavailable": "No se pudo cargar la lista de dispositivos.",
+  "catalog.online": "En línea",
+  "catalog.offline": "Sin conexión",
+  "catalog.remove": "Quitar",
+  "catalog.removeFailure": "No se pudo quitar la carpeta.",
+  "folder.home": "Proyectos",
+  "folder.editing": "Carpeta remota · edición activada",
+  "folder.readOnly": "Carpeta remota · solo lectura",
+  "folder.closeFailure": "Guarda los cambios antes de salir."
+}

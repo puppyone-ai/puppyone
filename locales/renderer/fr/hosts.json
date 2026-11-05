@@ -1,0 +1,18 @@
+{
+  "register.action": "Ouvrir sur mes autres ordinateurs",
+  "register.pending": "Enregistrement du dossier…",
+  "register.success": "Dossier accessible tant que cet ordinateur est en ligne.",
+  "register.failure": "Impossible d’enregistrer le dossier.",
+  "catalog.title": "Dossiers sur vos ordinateurs",
+  "catalog.refresh": "Actualiser",
+  "catalog.empty": "Aucun dossier enregistré. Ouvrez un dossier de cet ordinateur pour l’ajouter ici.",
+  "catalog.unavailable": "Liste des appareils indisponible.",
+  "catalog.online": "En ligne",
+  "catalog.offline": "Hors ligne",
+  "catalog.remove": "Retirer",
+  "catalog.removeFailure": "Impossible de retirer le dossier.",
+  "folder.home": "Projets",
+  "folder.editing": "Dossier distant · modification autorisée",
+  "folder.readOnly": "Dossier distant · lecture seule",
+  "folder.closeFailure": "Enregistrez les modifications avant de partir."
+}

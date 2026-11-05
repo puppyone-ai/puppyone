@@ -1,0 +1,18 @@
+{
+  "register.action": "Abrir nos meus outros computadores",
+  "register.pending": "Registrando pasta…",
+  "register.success": "Pasta disponível enquanto este computador estiver online.",
+  "register.failure": "Não foi possível registrar a pasta.",
+  "catalog.title": "Pastas nos seus computadores",
+  "catalog.refresh": "Atualizar",
+  "catalog.empty": "Nenhuma pasta registrada. Abra uma pasta deste computador para adicioná-la aqui.",
+  "catalog.unavailable": "Lista de dispositivos indisponível.",
+  "catalog.online": "Online",
+  "catalog.offline": "Offline",
+  "catalog.remove": "Remover",
+  "catalog.removeFailure": "Não foi possível remover a pasta.",
+  "folder.home": "Projetos",
+  "folder.editing": "Pasta remota · edição permitida",
+  "folder.readOnly": "Pasta remota · somente leitura",
+  "folder.closeFailure": "Salve as alterações antes de sair."
+}

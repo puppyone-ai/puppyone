@@ -1,4 +1,12 @@
 {
+  "native.host.cancel": "Abbrechen",
+  "native.host.allow": "Erlauben",
+  "native.host.remove": "Entfernen",
+  "native.host.share.title": "Diesen Ordner auf deinen anderen Computern öffnen?",
+  "native.host.share.read": "Deine angemeldeten Computer können „{name}“ lesen, solange dieser Computer online ist.",
+  "native.host.share.write": "Deine angemeldeten Computer können „{name}“ lesen und bearbeiten, solange dieser Computer online ist.",
+  "native.host.remove.title": "Zugriff auf diesen Ordner beenden?",
+  "native.host.remove.message": "Andere Computer mit deinem Konto können ihn dann nicht mehr öffnen.",
   "native.execution.title": "Laufende Instanzen verwalten…",
   "native.execution.inventory": "Wähle eine Agent- oder Terminal-Instanz. Diese Liste bleibt nach dem Schließen des Tabs verfügbar.",
   "native.execution.empty": "Keine laufenden Instanzen oder ausstehende Bereinigung.",

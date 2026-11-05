@@ -1,0 +1,18 @@
+{
+  "register.action": "Open on my other computers",
+  "register.pending": "Registering folder…",
+  "register.success": "Folder available while this computer is online.",
+  "register.failure": "Unable to register folder.",
+  "catalog.title": "Folders on your computers",
+  "catalog.refresh": "Refresh",
+  "catalog.empty": "No folders are registered yet. Open a folder on this computer to make it available here.",
+  "catalog.unavailable": "Device catalog unavailable.",
+  "catalog.online": "Online",
+  "catalog.offline": "Offline",
+  "catalog.remove": "Remove",
+  "catalog.removeFailure": "Unable to remove folder.",
+  "folder.home": "Projects",
+  "folder.editing": "Remote folder · editing enabled",
+  "folder.readOnly": "Remote folder · read only",
+  "folder.closeFailure": "Save changes before leaving."
+}
