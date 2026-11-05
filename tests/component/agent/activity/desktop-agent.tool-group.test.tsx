@@ -65,16 +65,17 @@ describe("Desktop Agent tool step lists", () => {
     expect(rows[2].partIds).toEqual(["tool:grep"]);
   });
 
-  it("estimates one application control row per visible step line", () => {
+  it("estimates one application control row per visible line", () => {
     const projection = fixtureProjection();
     const timeline = buildAgentTimeline(projection, 34);
     const rows = groupAgentToolRows(timeline.rows, timeline.parts, 34);
 
-    expect(rows[0].estimatedHeight).toBe(68);
+    // Both settled steps of the first group read as one fold line.
+    expect(rows[0].estimatedHeight).toBe(34);
     expect(rows[2].estimatedHeight).toBe(34);
   });
 
-  it("folds only long runs of settled, successful exploration", () => {
+  it("folds every settled step and keeps running or failed work on its own line", () => {
     const explored = [
       toolPart("tool:read-a", "turn:fold", "tool", 1, "read", "src/a.ts", "a"),
       toolPart("tool:read-a-again", "turn:fold", "tool", 2, "read", "src/a.ts", "a"),
@@ -83,20 +84,25 @@ describe("Desktop Agent tool step lists", () => {
       toolPart("tool:rg", "turn:fold", "command", 5, "bash", "rg -n match src", "src/a.ts:1:match"),
     ];
     const edit = toolPart("tool:edit", "turn:fold", "tool", 6, "edit", "src/a.ts", "");
-    const segments = agentToolStepSegments([...explored, edit]);
 
+    // A long, purely exploratory run keeps its richer "Explored" summary.
     expect(AGENT_TOOL_EXPLORATION_FOLD_MIN).toBe(4);
-    expect(segments.map((segment) => segment.type)).toEqual(["explored", "step"]);
-    expect(segments[0]).toMatchObject({ files: 2, searches: 2 });
-    expect(segments[0].type === "explored" && segments[0].parts.map((part) => part.id))
-      .toEqual(explored.map((part) => part.id));
+    expect(agentToolStepSegments(explored.slice(0, 4)).map((segment) => segment.type)).toEqual(["explored"]);
+    const settledRun = agentToolStepSegments([...explored, edit]);
+    expect(settledRun.map((segment) => segment.type)).toEqual(["settled"]);
+    expect(settledRun[0]).toMatchObject({ steps: 6 });
+    expect(settledRun[0].type === "settled" && settledRun[0].parts.map((part) => part.id))
+      .toEqual([...explored, edit].map((part) => part.id));
 
-    // Three steps stay visible; running and failed work is never hidden in a fold.
-    expect(agentToolStepSegments(explored.slice(0, 3)).map((segment) => segment.type)).toEqual(["step", "step", "step"]);
+    // Two settled steps already read as one line; a single one stays visible.
+    expect(agentToolStepSegments(explored.slice(0, 2)).map((segment) => segment.type)).toEqual(["settled"]);
+    expect(agentToolStepSegments(explored.slice(0, 1)).map((segment) => segment.type)).toEqual(["step"]);
+
+    // Running and failed work is never hidden inside a fold.
     const running = { ...explored[2], status: "running" } as AgentPart;
     const failed = { ...explored[3], status: "failed" } as AgentPart;
     expect(agentToolStepSegments([explored[0], explored[1], running, failed, explored[4]])
-      .map((segment) => segment.type)).toEqual(["step", "step", "step", "step", "step"]);
+      .map((segment) => segment.type)).toEqual(["settled", "step", "step", "step"]);
   });
 
   it("removes resolved approval rows and rejoins the surrounding tool flow", () => {
@@ -133,6 +139,9 @@ describe("Desktop Agent tool step lists", () => {
 
     const container = render(<AgentTranscript projection={projection} loading={false} />);
     expect(container.textContent).not.toContain("Permission resolved");
+    const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(fold.textContent).toBe("2 steps done");
+    act(() => fold.click());
     expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(2);
   });
 
@@ -192,13 +201,19 @@ describe("Desktop Agent tool step lists", () => {
     const container = render(<AgentTranscript projection={fixtureProjection()} loading={false} />);
     const groups = container.querySelectorAll(".desktop-agent-tool-group");
     const firstGroup = groups[0];
-    const items = firstGroup.querySelectorAll<HTMLElement>(".desktop-agent-tool-group-item");
-    const buttons = firstGroup.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-row");
 
     expect(groups).toHaveLength(2);
+    // Both settled steps of the first group fold into one line until opened.
+    const fold = firstGroup.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(fold.textContent).toBe("2 steps done");
+    expect(firstGroup.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(0);
+    act(() => fold.click());
+
+    const items = firstGroup.querySelectorAll<HTMLElement>(".desktop-agent-tool-group-item");
+    const buttons = [...items].map((item) => item.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!);
     expect(items).toHaveLength(2);
     expect(buttons).toHaveLength(2);
-    expect([...buttons].map((button) => button.querySelector(".desktop-agent-tool-name")?.textContent))
+    expect(buttons.map((button) => button.querySelector(".desktop-agent-tool-name")?.textContent))
       .toEqual(["Ran", "Read"]);
     expect(buttons[1].querySelector(".desktop-agent-tool-subject-name")?.textContent).toBe("package.json");
     expect(firstGroup.querySelector(".desktop-agent-tool-branch")).toBeNull();
@@ -222,7 +237,6 @@ describe("Desktop Agent tool step lists", () => {
         toolPart(`tool:read-${index}`, "turn:fold", "tool", index + 1, "read", `src/file-${index}.ts`, "contents")
       )),
       toolPart("tool:grep", "turn:fold", "tool", 4, "grep", "src", "src/file-0.ts:1:match"),
-      toolPart("tool:test", "turn:fold", "command", 5, "bash", "npm test", "passed"),
     ];
     const container = render(
       <AgentToolActivityGroup
@@ -236,17 +250,43 @@ describe("Desktop Agent tool step lists", () => {
     const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
     expect(fold.textContent).toBe("Explored3 files and 1 search");
     expect(fold.getAttribute("aria-expanded")).toBe("false");
-    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(1);
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(0);
 
     act(() => fold.click());
     expect(fold.getAttribute("aria-expanded")).toBe("true");
     const folded = container.querySelectorAll(".desktop-agent-tool-fold-body > .desktop-agent-tool-group-item");
     expect(folded).toHaveLength(4);
-    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(5);
 
     const firstRead = folded[0].querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!;
     act(() => firstRead.click());
     expect(folded[0].querySelector(".desktop-agent-tool-branch")?.textContent).toContain("contents");
+  });
+
+  it("collapses a finished mixed run to one settled line while the current step stays visible", () => {
+    const parts = [
+      toolPart("tool:read-a", "turn:fold", "tool", 1, "read", "src/a.ts", "a"),
+      toolPart("tool:grep", "turn:fold", "tool", 2, "grep", "src", "src/a.ts:1:match"),
+      toolPart("tool:test", "turn:fold", "command", 3, "bash", "npm test", "passed"),
+    ];
+    const running = { ...toolPart("tool:edit", "turn:fold", "tool", 4, "edit", "src/a.ts", ""), status: "running" as const };
+    const container = render(
+      <AgentToolActivityGroup
+        parts={[...parts, running]}
+        rowId="row:mixed"
+        runtimeLabel="Cursor"
+        onRowHeightChange={() => undefined}
+      />,
+    );
+
+    const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(fold.textContent).toBe("3 steps done");
+    // Only the running step keeps its own line.
+    const visibleItems = container.querySelectorAll(".desktop-agent-tool-group-item");
+    expect(visibleItems).toHaveLength(1);
+    expect(visibleItems[0].querySelector(".desktop-agent-tool-name")?.textContent).toBe("Editing");
+
+    act(() => fold.click());
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(4);
   });
 });
 

@@ -25,10 +25,14 @@ type AgentToolActivity = Extract<AgentPart, { kind: "tool" | "command" | "file-c
 
 export type AgentToolStepSegment =
   | Readonly<{ type: "step"; id: string; part: AgentPart }>
-  | Readonly<{ type: "explored"; id: string; parts: readonly AgentToolActivity[]; files: number; searches: number }>;
+  | Readonly<{ type: "explored"; id: string; parts: readonly AgentToolActivity[]; files: number; searches: number }>
+  | Readonly<{ type: "settled"; id: string; parts: readonly AgentToolActivity[]; steps: number }>;
 
 /** Settled exploration runs longer than three steps read as one "Explored" line. */
 export const AGENT_TOOL_EXPLORATION_FOLD_MIN = 4;
+
+/** Two settled steps already read better as one count than as two lines. */
+export const AGENT_TOOL_SETTLED_FOLD_MIN = 2;
 
 const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "pending", "in-progress"]);
 const FAILED_STATUSES = new Set<AgentActivityStatus>(["failed", "warning", "blocked"]);
@@ -56,23 +60,27 @@ export function isExplorationStep(kind: AgentToolStepKind) {
 }
 
 /**
- * Splits one tool group into visible lines. Only settled, successful
- * exploration is folded; running work and failures always stay on their own
+ * Splits one tool group into visible lines. Every settled, successful step is
+ * folded once it stops being current: a finished run reads as one "Explored"
+ * or "N steps done" line. Running work and failures always stay on their own
  * line so the user never has to open a fold to find what needs attention.
  */
 export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolStepSegment[] {
   const segments: AgentToolStepSegment[] = [];
   let run: AgentToolActivity[] = [];
   const flush = () => {
-    if (run.length >= AGENT_TOOL_EXPLORATION_FOLD_MIN) {
+    if (run.length === 0) return;
+    if (run.length >= AGENT_TOOL_EXPLORATION_FOLD_MIN && run.every(isExploration)) {
       segments.push({ type: "explored", id: `explored:${run[0].id}`, parts: run, ...explorationCounts(run) });
+    } else if (run.length >= AGENT_TOOL_SETTLED_FOLD_MIN) {
+      segments.push({ type: "settled", id: `settled:${run[0].id}`, parts: run, steps: run.length });
     } else {
       for (const part of run) segments.push({ type: "step", id: part.id, part });
     }
     run = [];
   };
   for (const part of parts) {
-    if (isFoldableExploration(part)) {
+    if (isSettledStep(part)) {
       run.push(part);
       continue;
     }
@@ -83,11 +91,14 @@ export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolSte
   return segments;
 }
 
-function isFoldableExploration(part: AgentPart): part is AgentToolActivity {
+function isSettledStep(part: AgentPart): part is AgentToolActivity {
   return isAgentToolActivity(part)
     && !ACTIVE_STATUSES.has(part.status)
-    && !FAILED_STATUSES.has(part.status)
-    && isExplorationStep(agentToolStepKind(part));
+    && !FAILED_STATUSES.has(part.status);
+}
+
+function isExploration(part: AgentToolActivity) {
+  return isExplorationStep(agentToolStepKind(part));
 }
 
 function explorationCounts(parts: readonly AgentToolActivity[]) {

@@ -35,7 +35,11 @@ describe("Pi tools in the right-side transcript", () => {
     const actor = new AgentSessionActor();
     for (const event of events) actor.appendEvent({ sessionId: "session-tools", runtimeId: "puppyone-agent", providerSessionId: "native-tools", event });
     const container = render(<AgentTranscript projection={actor.display} loading={false} />);
-    const tools = [...container.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-row")];
+    // The finished run is one line until the reader opens it.
+    const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(fold.textContent).toBe("3 steps done");
+    act(() => fold.click());
+    const tools = [...container.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-group-item .desktop-agent-tool-row")];
     expect(tools).toHaveLength(3);
     for (let index = 0; index < tools.length; index++) {
       act(() => tools[index].click());
