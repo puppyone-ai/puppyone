@@ -81,9 +81,12 @@
         "src/features/desktop_agent/application/conversation_history_controller.rs",
         "src/features/desktop_agent/application/tests/controller_registry.rs",
         "src/features/desktop_agent/application/tests/history_controller.rs",
-        "src/features/desktop_agent/application/tests/session_ui_state.rs"
+        "src/features/desktop_agent/application/tests/session_ui_state.rs",
+        "src/features/desktop_agent/application/tests/submission_lifecycle.rs",
+        "src/features/desktop_agent/application/tests/reference_drafts.rs",
+        "src/features/desktop_agent/domain/tests.rs"
       ],
-      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent\u2192reconnecting\u2192degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. Remaining: the submission-lifecycle and reference-draft suites, the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
+      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent\u2192reconnecting\u2192degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
     },
     {
       "name": "Native platform client",

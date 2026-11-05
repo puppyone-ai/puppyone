@@ -21,3 +21,5 @@ pub mod agent_tool_steps;
 pub mod agent_ui_state;
 #[allow(dead_code)]
 pub mod agent_workspace_path;
+#[cfg(test)]
+mod tests;

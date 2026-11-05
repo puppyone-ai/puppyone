@@ -23,6 +23,9 @@ pub struct FakeClient {
     frame_subscriptions: RefCell<Vec<Listener>>,
     listens: Cell<bool>,
     interceptor: RefCell<Option<Interceptor>>,
+    /// Methods the bridge defines (`vi.fn()` exists even once its queued
+    /// implementations are spent).
+    defined: RefCell<std::collections::HashSet<String>>,
 }
 
 impl FakeClient {
@@ -34,6 +37,7 @@ impl FakeClient {
 
     /// `bridge.method = vi.fn(handler)` / `mockImplementation(handler)`.
     pub fn handle(&self, method: &str, handler: impl Fn(Value) -> ClientFuture + 'static) {
+        self.defined.borrow_mut().insert(method.into());
         self.methods
             .borrow_mut()
             .insert(method.into(), Rc::new(handler));
@@ -41,6 +45,7 @@ impl FakeClient {
 
     /// `mockImplementationOnce(handler)`.
     pub fn handle_once(&self, method: &str, handler: impl Fn(Value) -> ClientFuture + 'static) {
+        self.defined.borrow_mut().insert(method.into());
         self.once
             .borrow_mut()
             .entry(method.into())
@@ -105,6 +110,7 @@ impl FakeClient {
 
     /// `delete bridge.method`.
     pub fn remove(&self, method: &str) {
+        self.defined.borrow_mut().remove(method);
         self.methods.borrow_mut().remove(method);
     }
 
@@ -173,7 +179,7 @@ impl AgentClientPort for FakeClient {
     fn implements(&self, method: &str) -> bool {
         match method {
             "onAgentSessionFrame" | "onAgentSessionFailure" => self.listens.get(),
-            method => self.methods.borrow().contains_key(method),
+            method => self.defined.borrow().contains(method),
         }
     }
 

@@ -14,7 +14,7 @@ use super::agent_reference_preview_store::{
     release,
 };
 use super::agent_session_controller::AgentControllerStore;
-use super::ui_runtime::{UiRuntime, detach, random_uuid};
+use super::ui_runtime::{Task, UiRuntime, detach, random_uuid, start};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
 use crate::agent::contract::reference_input::{
@@ -108,7 +108,7 @@ impl AgentReferenceDraftManager {
         self.0.previews.borrow().get_url(id)
     }
 
-    pub fn add_workspace_paths(
+    fn add_workspace_paths_future(
         &self,
         paths: Vec<String>,
         visual_previews: Vec<(String, AgentReferenceVisualPreview)>,
@@ -205,7 +205,7 @@ impl AgentReferenceDraftManager {
         })
     }
 
-    pub fn pick_workspace_references(&self) -> Count {
+    fn pick_workspace_references_future(&self) -> Count {
         let inner = self.0.clone();
         let bridge = match require_bridge(
             &inner.options.bridge_provider,
@@ -246,7 +246,10 @@ impl AgentReferenceDraftManager {
         })
     }
 
-    pub fn add_path_text_or_draft(&self, text: &str) -> LocalBoxFuture<'static, AgentResult<bool>> {
+    fn add_path_text_or_draft_future(
+        &self,
+        text: &str,
+    ) -> LocalBoxFuture<'static, AgentResult<bool>> {
         let inner = self.0.clone();
         let value = js::trim(text).to_string();
         if value.is_empty() {
@@ -294,7 +297,7 @@ impl AgentReferenceDraftManager {
         })
     }
 
-    pub fn stage_external_files(&self, files: Vec<AgentFile>) -> Count {
+    fn stage_external_files_future(&self, files: Vec<AgentFile>) -> Count {
         self.0.stage_external_files(files)
     }
 
@@ -347,15 +350,15 @@ impl AgentReferenceDraftManager {
         self.0.merge_and_validate(current, incoming)
     }
 
-    pub fn revoke(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
+    fn revoke_future(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
         self.0.revoke(references)
     }
 
-    pub fn rotate(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
+    fn rotate_future(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
         self.0.rotate(references)
     }
 
-    pub fn reset(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
+    fn reset_future(&self, references: Vec<Value>) -> LocalBoxFuture<'static, ()> {
         let rotate = self.0.rotate(references);
         let inner = self.0.clone();
         Box::pin(async move {
@@ -381,6 +384,50 @@ impl AgentReferenceDraftManager {
         inner.retry_files.borrow_mut().clear();
         inner.retry_workspace_paths.borrow_mut().clear();
         inner.previews.borrow_mut().clear();
+    }
+
+    pub fn add_workspace_paths(
+        &self,
+        paths: Vec<String>,
+        visual_previews: Vec<(String, AgentReferenceVisualPreview)>,
+    ) -> Task<AgentResult<usize>> {
+        start(
+            &self.0.options.runtime,
+            self.add_workspace_paths_future(paths, visual_previews),
+        )
+    }
+
+    pub fn pick_workspace_references(&self) -> Task<AgentResult<usize>> {
+        start(
+            &self.0.options.runtime,
+            self.pick_workspace_references_future(),
+        )
+    }
+
+    pub fn add_path_text_or_draft(&self, text: &str) -> Task<AgentResult<bool>> {
+        start(
+            &self.0.options.runtime,
+            self.add_path_text_or_draft_future(text),
+        )
+    }
+
+    pub fn stage_external_files(&self, files: Vec<AgentFile>) -> Task<AgentResult<usize>> {
+        start(
+            &self.0.options.runtime,
+            self.stage_external_files_future(files),
+        )
+    }
+
+    pub fn revoke(&self, references: Vec<Value>) -> Task<()> {
+        start(&self.0.options.runtime, self.revoke_future(references))
+    }
+
+    pub fn rotate(&self, references: Vec<Value>) -> Task<()> {
+        start(&self.0.options.runtime, self.rotate_future(references))
+    }
+
+    pub fn reset(&self, references: Vec<Value>) -> Task<()> {
+        start(&self.0.options.runtime, self.reset_future(references))
     }
 }
 

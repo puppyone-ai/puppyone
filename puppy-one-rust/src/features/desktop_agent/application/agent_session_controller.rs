@@ -66,9 +66,23 @@ pub struct AgentControllerStore {
     session_model_ids: RefCell<HashSet<String>>,
     listeners: RefCell<Vec<(u64, Listener)>>,
     next_listener: Cell<u64>,
+    /// A test double's plain `{ ...state, ...patch }` (no phase graph or
+    /// derived control state).
+    plain: bool,
 }
 
 impl AgentControllerStore {
+    /// A store whose patches merge plainly, as the product's collaborator
+    /// suites patch a bare state object.
+    #[cfg(test)]
+    pub fn plain(state: AgentControllerState) -> Self {
+        Self {
+            state: RefCell::new(state),
+            plain: true,
+            ..Default::default()
+        }
+    }
+
     /// Reads the current state (`getSnapshot()`); the borrow ends with `read`.
     pub fn read<R>(&self, read: impl FnOnce(&AgentControllerState) -> R) -> R {
         read(&self.state.borrow())
@@ -115,6 +129,12 @@ impl AgentControllerStore {
     /// the patch is rejected (the product throws from `patch`).
     pub fn patch(&self, patch: StatePatch) {
         if self.disposed.get() {
+            return;
+        }
+        if self.plain {
+            patch.apply_to(&mut self.state.borrow_mut());
+            self.revision.set(self.revision.get() + 1);
+            self.emit();
             return;
         }
         {
@@ -575,12 +595,9 @@ impl AgentSessionController {
         paths: Vec<String>,
         visual_previews: Vec<(String, AgentReferenceVisualPreview)>,
     ) -> Task<AgentResult<usize>> {
-        start(
-            &self.0.runtime,
-            self.0
-                .reference_drafts
-                .add_workspace_paths(paths, visual_previews),
-        )
+        self.0
+            .reference_drafts
+            .add_workspace_paths(paths, visual_previews)
     }
 
     pub fn get_reference_preview_url(&self, id: &str) -> Option<String> {
@@ -592,24 +609,15 @@ impl AgentSessionController {
     }
 
     pub fn pick_workspace_references(&self) -> Task<AgentResult<usize>> {
-        start(
-            &self.0.runtime,
-            self.0.reference_drafts.pick_workspace_references(),
-        )
+        self.0.reference_drafts.pick_workspace_references()
     }
 
     pub fn add_path_text_or_draft(&self, text: &str) -> Task<AgentResult<bool>> {
-        start(
-            &self.0.runtime,
-            self.0.reference_drafts.add_path_text_or_draft(text),
-        )
+        self.0.reference_drafts.add_path_text_or_draft(text)
     }
 
     pub fn stage_external_files(&self, files: Vec<AgentFile>) -> Task<AgentResult<usize>> {
-        start(
-            &self.0.runtime,
-            self.0.reference_drafts.stage_external_files(files),
-        )
+        self.0.reference_drafts.stage_external_files(files)
     }
 
     pub fn remove_reference(&self, id: &str) {
