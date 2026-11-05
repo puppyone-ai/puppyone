@@ -692,6 +692,8 @@ async function createWindow(options = {}) {
   if (fileTarget) {
     workspaceWindows.add(fileTarget.rootPath, window);
     window.setRepresentedFilename?.(fileTarget.path);
+    // The file's title bar floats over the document, so scrolling over it scrolls the document.
+    desktopPlatformHost.windowChrome.passTitleBarScrollToPage?.(window);
     window.setTitle(fileTarget.name);
     // The page's own <title> would otherwise replace the file name on load.
     window.on("page-title-updated", (event) => event.preventDefault());

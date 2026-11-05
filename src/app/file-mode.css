@@ -45,6 +45,14 @@
     font-size: var(--po-type-header-content);
     font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
     line-height: var(--po-type-header-line-height, 20px);
+    /*
+     * Scrolling over the bar scrolls the document under it, as anywhere else
+     * in the window: only the file's controls take the pointer. Pressing the
+     * bar still drags the window, since it stays a native drag region; on
+     * macOS, main hands the page the scrolling that region would swallow
+     * (platform/macos/title-bar-scroll.mjs).
+     */
+    pointer-events: none;
   }
 
   /* Mirrors the project titlebar's traffic-light inset. */
@@ -95,6 +103,7 @@
     align-items: center;
     gap: 3px;
     margin-inline-end: var(--file-mode-titlebar-safe-end);
+    pointer-events: auto;
     opacity: 0;
     transition: opacity 90ms ease;
   }

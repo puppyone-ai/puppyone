@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, Menu } from "electron";
 import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
+import { loadMacosTitleBarScroll } from "../../../../electron/main/platform/macos/title-bar-scroll.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
 
@@ -284,6 +285,22 @@ const scrollEdgeOf = (window) => evaluate(window, `(() => {
   return { scrolled: surface.hasAttribute("data-scrolled"), masked: getComputedStyle(surface).maskImage !== "none" };
 })()`);
 
+/**
+ * One native scroll wheel event, down, at `top` pixels into the window's middle: the title bar's
+ * empty middle by default, where the file name is. Reports whether main handed it past the
+ * window frame to the page, and whether `position` moved. macOS only.
+ */
+async function nativeScroll(window, position, top = 16) {
+  const before = await position();
+  const passedToPage = loadMacosTitleBarScroll().scrollForTesting(window.getNativeWindowHandle(), Math.round(window.getContentSize()[0] / 2), top, -6);
+  let moved = false;
+  for (let attempt = 0; attempt < 20 && !moved; attempt += 1) {
+    await wait(100);
+    moved = (await position()) > before;
+  }
+  return { passedToPage, moved };
+}
+
 /** Scrollers in the window that overflow but are left to the platform's native scrollbar. */
 const nativeScrollers = (window) => evaluate(window, `[...document.querySelectorAll("*")].filter((element) => {
   const { overflowX, overflowY } = getComputedStyle(element);
@@ -317,6 +334,13 @@ async function scrollEdge() {
   const scrollTo = (top) => evaluate(window, `document.querySelector(".cm-scroller").scrollTop = ${top}`);
   check("title bar draws no divider", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar"), "::after").content`), "none");
   check("nothing fades at the top of the document", await edge(), { scrolled: false, masked: false });
+  if (process.platform === "darwin") {
+    const top = () => evaluate(window, `document.querySelector(".cm-scroller").scrollTop`);
+    check("Markdown: scrolling over the title bar scrolls the document", await nativeScroll(window, top), { passedToPage: true, moved: true });
+    check("Markdown: scrolling over the document is left to the page", await nativeScroll(window, top, 300), { passedToPage: false, moved: true });
+    await scrollTo(0);
+    await until(async () => !(await edge()).scrolled, "the edge to clear");
+  }
   // Leaves a line half under the bar, where the fade shows.
   await scrollTo(430);
   await until(async () => (await edge()).masked, "the edge to fade");
@@ -402,6 +426,9 @@ async function csv() {
     ["plain-rows.csv", ".csv-table-editor__table tbody", true, "rows without a header fade under the title bar"],
   ]) {
     const rows = await openAndWait(inDocs(file), selector);
+    if (process.platform === "darwin") {
+      check(`${file}: scrolling over the title bar scrolls the table`, await nativeScroll(rows, () => evaluate(rows, `document.querySelector(".csv-table-editor__scroll").scrollTop`)), { passedToPage: true, moved: true });
+    }
     await evaluate(rows, `document.querySelector(".csv-table-editor__scroll").scrollTop = 400`);
     await until(async () => (await scrollEdgeOf(rows)).scrolled, `${file} to scroll under the title bar`);
     check(name, await scrollEdgeOf(rows), { scrolled: true, masked });
@@ -493,6 +520,11 @@ async function htmlEdges() {
     await frame.executeJavaScript(`scrollTo(0, 0)`);
     await until(async () => !(await scrollEdgeOf(page)).scrolled, `the ${view} edge to clear`);
     check(`${view}: back at the top of the page, nothing fades`, await scrollEdgeOf(page), { scrolled: false, masked: false });
+    if (process.platform === "darwin") {
+      check(`${view}: scrolling over the title bar scrolls the page`, await nativeScroll(page, () => frame.executeJavaScript("scrollY")), { passedToPage: true, moved: true });
+      await frame.executeJavaScript(`scrollTo(0, 0)`);
+      await until(async () => !(await scrollEdgeOf(page)).scrolled, `the ${view} edge to clear again`);
+    }
     if (view === "preview") {
       await chooseView(page, 1);
       frame = await pageFrame(page, "[data-puppyone-html-target]", frame);
