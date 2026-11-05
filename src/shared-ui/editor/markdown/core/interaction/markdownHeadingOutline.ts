@@ -148,7 +148,7 @@ class MarkdownHeadingOutlineController {
   private jumpToHeading(index: number) {
     const heading = this.headings[index];
     if (!heading) return;
-    scrollCodeMirrorIntoView(this.view, heading.from, { y: "start", yMargin: 16 });
+    scrollMarkdownViewToHeading(this.view, heading);
     this.view.focus();
     this.scheduleMeasure();
   }
@@ -177,10 +177,10 @@ class MarkdownHeadingOutlineController {
         }));
         return {
           ticks,
-          activeIndex: resolveActiveHeadingIndex(
+          activeIndex: resolveActiveOutlineIndex(
             headings,
             view.scrollDOM.scrollTop,
-            view,
+            (from) => view.lineBlockAt(from).top,
           ),
           rail,
         };
@@ -507,20 +507,30 @@ function shouldShowOutline(view: EditorView, headings: readonly MarkdownOutlineH
   return view.scrollDOM.scrollHeight > view.scrollDOM.clientHeight + SCROLL_HEIGHT_PADDING_PX;
 }
 
-function resolveActiveHeadingIndex(
+/** Activates the last heading whose block top has crossed the reading marker.
+ * Kept free of `EditorView` so lists and tests can resolve it from geometry. */
+export function resolveActiveOutlineIndex(
   headings: readonly MarkdownOutlineHeading[],
   scrollTop: number,
-  view: EditorView,
+  blockTop: (from: number) => number,
 ): number {
   if (headings.length === 0) return -1;
   let active = 0;
   const marker = scrollTop + ACTIVE_SCROLL_OFFSET_PX;
   for (let index = 0; index < headings.length; index += 1) {
-    const block = view.lineBlockAt(headings[index].from);
-    if (block.top <= marker) active = index;
+    if (blockTop(headings[index]!.from) <= marker) active = index;
     else break;
   }
   return active;
+}
+
+/** Scrolls a heading to the top of the reading area without stealing focus:
+ * panel clicks must leave the caret and the editor's own focus alone. */
+export function scrollMarkdownViewToHeading(
+  view: EditorView,
+  heading: MarkdownOutlineHeading,
+): void {
+  scrollCodeMirrorIntoView(view, heading.from, { y: "start", yMargin: 16 });
 }
 
 function resolveRailLayout(view: EditorView, headingCount: number): RailMeasurement {
