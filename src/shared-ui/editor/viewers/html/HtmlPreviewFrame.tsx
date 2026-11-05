@@ -7,7 +7,7 @@ import { useEditorPreviewServices } from "../../preview-services/EditorPreviewSe
 import { resolveFileFormat } from "../../../core/fileFormats";
 import { htmlOpenDocumentScript, htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
 import { decodeHtmlOpenDocumentMessage } from "./htmlBridgeProtocol";
-import { parseHtmlDocumentOpenTarget, type HtmlDocumentOpenIntent } from "./htmlOpenDocumentIntent";
+import { isOpenableDocumentTarget, parseHtmlDocumentOpenTarget, type HtmlDocumentOpenIntent } from "./htmlOpenDocumentIntent";
 
 export function HtmlPreviewFrame({
   path,
@@ -183,6 +183,35 @@ export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, inter
   };
 }
 
+/**
+ * Tags document links with their authored href before the page runs. The
+ * injected click bridge prefers this attribute over `href`, so a `<base>`
+ * element can never turn a workspace path into an absolute URL.
+ */
+export function markPreviewDocumentLinks(html: string): string {
+  const tree = parse(html);
+  const pending: Tree.ParentNode[] = [tree];
+  while (pending.length) {
+    const parent = pending.pop()!;
+    markOpenableDocumentLinks(parent);
+    for (let index = parent.childNodes.length - 1; index >= 0; index--) {
+      const node = parent.childNodes[index]!;
+      if ("childNodes" in node) pending.push(node);
+    }
+  }
+  return serialize(tree);
+}
+
+function markOpenableDocumentLinks(parent: Tree.ParentNode): void {
+  for (const node of parent.childNodes) {
+    if (!("tagName" in node) || node.tagName !== "a") continue;
+    if (node.attrs.some((attribute) => attribute.name === "data-puppyone-open")) continue;
+    const href = node.attrs.find((attribute) => attribute.name === "href")?.value;
+    if (!href || !isOpenableDocumentTarget(href)) continue;
+    node.attrs.push({ name: "data-puppyone-open", value: href, namespace: undefined, prefix: undefined });
+  }
+}
+
 export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy, viewportChannel?: string, documentChannel?: string): string {
   const tree = parse(rawHtml);
   const html = tree.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "html")!;
@@ -191,6 +220,7 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   const pending: Tree.ParentNode[] = [tree];
   while (pending.length) {
     const parent = pending.pop()!;
+    markOpenableDocumentLinks(parent);
     parent.childNodes = parent.childNodes.filter((node) => {
       if (policy.csp && "tagName" in node && node.tagName === "meta"
         && node.attrs.some((attr) => attr.name === "http-equiv" && attr.value.toLowerCase() === "refresh")) return false;
