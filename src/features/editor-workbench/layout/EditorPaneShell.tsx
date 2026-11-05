@@ -10,12 +10,24 @@ import type {
 import { ProjectOpeningLoading } from "../../../components/loading";
 import type { EditorFileDropController } from "../drag-and-drop/useExplorerFileDrop";
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
+import type { PaneDropEdge } from "../drag-and-drop/paneDropGeometry";
 import { EditorPaneChrome } from "./EditorPaneChrome";
 import { useEditorPaneChromeReveal } from "./useEditorPaneChromeReveal";
 import {
   AgentFilePresence,
   desktopAgentActivityStore,
 } from "../../desktop-agent-presence";
+
+function resolveDropKind(
+  insertIntent: boolean,
+  fileEdge: PaneDropEdge | null,
+  paneEdge: PaneDropEdge | null,
+): "insert" | "file" | "pane" | undefined {
+  if (insertIntent) return "insert";
+  if (fileEdge) return "file";
+  if (paneEdge) return "pane";
+  return undefined;
+}
 
 export type EditorPaneShellProps = Readonly<{
   active: boolean;
@@ -93,11 +105,11 @@ export function EditorPaneShell({
       data-handle-hot={chromeReveal.revealed ? "true" : undefined}
       data-pane-menu-open={actionsOpen ? "true" : undefined}
       data-drop-target={dropEdge ?? undefined}
-      data-drop-kind={fileDrop.insertIntent
-        ? "insert"
-        : fileDropEdge
-          ? "file"
-          : paneMoveEdge ? "pane" : undefined}
+      data-drop-kind={resolveDropKind(
+        fileDrop.insertIntent,
+        fileDropEdge,
+        paneMoveEdge,
+      )}
       aria-label={editorLabel
         ? t("editor.panes.label", { name: editorLabel })
         : t("editor.panes.empty")}
