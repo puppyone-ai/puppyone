@@ -47,3 +47,21 @@ parent.postMessage({type:'puppyone-html-viewport',channel,x:scrollX,y:scrollY},'
 addEventListener('message',event=>{if(event.source!==parent||event.data?.type!=='puppyone-html-restore'||event.data.channel!==channel)return;
 const {x,y}=event.data;if(Number.isFinite(x)&&Number.isFinite(y))scrollTo(x,y)})})();</script>`;
 }
+
+/**
+ * Fixed bridge script for "open this workspace document". The page cannot
+ * inject code into it and cannot name an absolute path, a URL scheme, or a
+ * fragment; anything but a relative path is left to the browser's own policy.
+ */
+export function htmlOpenDocumentScript(channel: string): string {
+  return `<script>(()=>{const channel=${JSON.stringify(channel)};
+const targetOf=node=>{while(node&&node.nodeType!==1)node=node.parentNode;
+while(node&&node.getAttribute){const explicit=node.getAttribute('data-puppyone-open');
+if(explicit)return explicit;if(node.tagName==='A'){const href=node.getAttribute('href');if(href)return href;}
+node=node.parentElement}return null};
+addEventListener('click',event=>{try{if(event.defaultPrevented||event.button!==0)return;
+const found=targetOf(event.target);if(!found)return;const target=found.trim();
+if(!target||target[0]==='#'||target.slice(0,2)==='//'||/^[a-z][a-z0-9+.-]*:/i.test(target))return;
+event.preventDefault();event.stopPropagation();
+parent.postMessage({type:'puppyone-html-open-document',channel,target},'*')}catch{}},true)})();</script>`;
+}
