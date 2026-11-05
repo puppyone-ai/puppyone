@@ -63,6 +63,7 @@ import {
 } from "./main/desktop-launch-intent.mjs";
 import { registerAgentIpcHandlers } from "./main/ipc/agent-ipc.mjs";
 import { createWorkspaceResourceResolver } from "./main/workspace-resource-resolver.mjs";
+import { createMacosPreparedUpdate } from "./main/platform/macos/prepared-update.mjs";
 import { loadMacosResourceDrag } from "./main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "./main/ipc/resource-transfer-ipc.mjs";
 import { registerAgentActivityIpcHandlers } from "./main/ipc/agent-activity-ipc.mjs";
@@ -375,7 +376,8 @@ const nativeMenuService = createDesktopNativeMenuService({
   },
   onOpenThemesDirectory: () => themeService.openDirectory(),
 });
-const applicationQuitIntent = createApplicationQuitIntent({ app });
+// A quit something kept from finishing also leaves a pending update restart unfinished.
+const applicationQuitIntent = createApplicationQuitIntent({ app, onCancel: () => updateService?.handleQuitCancelled() });
 const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
@@ -1069,6 +1071,14 @@ app.whenReady().then(async () => {
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
   });
   const updatePreferences = await updatePreferenceStore.read();
+  // A packaged macOS app restarts to update by swapping in an app prepared in
+  // the background, not by waiting on Squirrel.Mac after it has quit.
+  const preparedUpdate = app.isPackaged && desktopPlatformHost.platform === "macos"
+    ? await createMacosPreparedUpdate({
+      appBundlePath: path.resolve(app.getPath("exe"), "../../.."),
+      stagingRoot: path.join(app.getPath("cache"), `${path.basename(app.getPath("userData"))}.prepared-update`),
+    })
+    : null;
   updateService = createUpdateService({
     app,
     buildInfo: desktopBuildInfo,
@@ -1080,6 +1090,7 @@ app.whenReady().then(async () => {
     persistAutomaticallyDownloadUpdates: (enabled) => updatePreferenceStore.write({
       automaticallyDownloadUpdates: enabled,
     }),
+    preparedUpdate,
   });
   telemetryHost = createDesktopTelemetryHost({
     app,
@@ -1218,6 +1229,8 @@ app.on("will-quit", () => {
   stopLocaleNativeRefresh?.();
   localeService.dispose();
   cloudAuthService.dispose();
+  // Last moment before exit: a prepared update is swapped in once the process ends.
+  updateService?.installOnQuit();
   updateService?.dispose();
   telemetryHost?.dispose();
   viewerPackHost?.destroyAllSessions();
