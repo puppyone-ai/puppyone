@@ -15,6 +15,7 @@ export {
   type MarkdownWikiLinkToken,
 } from "./core/links/wikiLinkModel";
 export { resolveMarkdownAssetPath } from "./features/media/markdownMediaReference";
+export { isDropImageName } from "./features/image/markdownImageDropSyntax";
 export {
   getMarkdownConformanceSnapshot,
   projectMarkdownConformanceSurface,

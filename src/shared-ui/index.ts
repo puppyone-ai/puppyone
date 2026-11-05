@@ -146,7 +146,7 @@ export type { DataWorkspaceExplorerFrame, DataWorkspaceFrameProps } from "./data
 export { resolveMarkdownAssetPath } from "./editor/markdown";
 // Drops in the reading area edit the document; the pane and the editor share
 // one name test instead of two extension lists.
-export { isDropImageName } from "./editor/markdown/features/image/markdownImageDropSyntax";
+export { isDropImageName } from "./editor/markdown";
 export { createDataPortMarkdownAssetResolver } from "./editor/markdown/dataPortAssetResolver";
 export {
   createDocumentNavigationPort,
