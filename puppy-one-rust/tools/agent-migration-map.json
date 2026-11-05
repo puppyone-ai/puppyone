@@ -307,7 +307,7 @@
       "targets": [
         "src/features/desktop_agent/ui/agent_provider_activities.rs",
         "src/agent/domain/legacy_session_model.rs",
-        "src/agent/protocols/pi_rpc/pi_rpc_adapter.rs",
+        "src/agent/protocols/pi_rpc/legacy_pi_rpc_adapter.rs",
         "src/agent/runtimes/claude/claude_adapter.rs"
       ],
       "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read."
