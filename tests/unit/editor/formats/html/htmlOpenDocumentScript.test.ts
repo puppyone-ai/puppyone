@@ -44,6 +44,18 @@ describe("htmlOpenDocumentScript", () => {
     expect(posted).toEqual([]);
   });
 
+  it("posts a distinct target for each button in the same page", () => {
+    const channel = "chan-5";
+    const posted = runScript(channel, `
+      <a id="first" href="topics/foo.md">foo</a>
+      <a id="second" href="topics/bar.md">bar</a>
+    `);
+    document.getElementById("first")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    document.getElementById("second")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(posted.map((message) => (message as { target: string }).target))
+      .toEqual(["topics/foo.md", "topics/bar.md"]);
+  });
+
   it("is inert when the click lands outside any link", () => {
     const channel = "chan-4";
     const posted = runScript(channel, `<p id="text">plain</p>`);
