@@ -36,6 +36,7 @@ mod project_menu;
 mod project_opening;
 mod project_place;
 mod rename;
+mod right_sidebar;
 mod share_panel;
 pub(crate) mod tasks;
 pub mod windows;
@@ -46,7 +47,8 @@ pub use command::{
 use explorer::{Explorer, ExplorerEvent, Host};
 use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
-use panes::{Layout, Panes, RightContent, Side, StoredPanes};
+use panes::{Layout, Panes, Side, StoredPanes};
+use right_sidebar::Surface;
 use tasks::TaskUi;
 /// The layout of a pane embedded as a cached view: it fills the frame the
 /// shell places it in. A cached pane renders again only when its entity is
@@ -101,10 +103,9 @@ pub struct Shell {
     rail: bool,
     /// Window dialogs, bottom to top.
     modals: Modals,
-    workbench: Entity<crate::features::workbench::Workbench>,
-    source_control: Entity<crate::features::source_control::SourceControl>,
-    /// The hosted Project's History sidebar (Cloud Header).
-    cloud_history: Entity<crate::features::source_control::CloudHistory>,
+    /// What the right sidebar shows: the Agent workbench, Changes / History
+    /// and a hosted Project's History.
+    sidebar: right_sidebar::RightSidebar,
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     cloud_agents: Entity<crate::features::cloud_agents::CloudAgents>,
     agents_anchor: cloud_agents_ui::AgentsAnchor,
@@ -277,20 +278,18 @@ impl Shell {
             },
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
-            panes: Panes::new(
-                std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1"),
-                if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
-                    RightContent::Changes
-                } else {
-                    RightContent::Workbench
-                },
-            ),
+            panes: Panes::new(std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1")),
             rail: false,
             modals: Default::default(),
-            workbench: cx.new(|cx| crate::features::workbench::Workbench::new(window, cx)),
-            source_control: cx
-                .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
-            cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
+            sidebar: right_sidebar::RightSidebar::new(
+                if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
+                    right_sidebar::Surface::Git
+                } else {
+                    right_sidebar::Surface::Agent
+                },
+                window,
+                cx,
+            ),
             cloud_agents: cx.new(|_| crate::features::cloud_agents::CloudAgents::new()),
             agents_anchor: Default::default(),
             #[cfg(feature = "dev-capture")]
@@ -417,7 +416,9 @@ impl Shell {
                 ExplorerEvent::WatchRecovered => s.workspace_notice = None,
                 // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
                 ExplorerEvent::ContentChanged => {
-                    s.source_control.update(cx, |sc, cx| sc.invalidate(cx));
+                    s.sidebar
+                        .source_control
+                        .update(cx, |sc, cx| sc.invalidate(cx));
                 }
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
                 ExplorerEvent::Share { path } => s.share_folder(path, window, cx),
@@ -436,6 +437,7 @@ impl Shell {
             match event {
                 SettingsEvent::Close => s.close_tasks(w, cx),
                 SettingsEvent::ModelConfigurationChanged => s
+                    .sidebar
                     .workbench
                     .update(cx, |s, cx| s.reload_agent_configuration(cx)),
                 SettingsEvent::ForgetProject(path) => {
@@ -456,11 +458,11 @@ impl Shell {
         })
         .detach();
         let preferences = s.preferences.clone();
-        s.workbench.update(cx, |workbench, _| {
+        s.sidebar.workbench.update(cx, |workbench, _| {
             workbench.set_preference_store(preferences)
         });
         cx.subscribe_in(
-            &s.workbench,
+            &s.sidebar.workbench,
             window,
             |s, _, event: &crate::features::workbench::WorkbenchEvent, w, cx| match event {
                 crate::features::workbench::WorkbenchEvent::OpenModelConnections => {
@@ -493,7 +495,8 @@ impl Shell {
         // Leaving the window abandons a pane drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
             let active = window.is_window_active();
-            s.source_control
+            s.sidebar
+                .source_control
                 .update(cx, |sc, cx| sc.set_focused(active, cx));
             if !active {
                 s.editor_drop = None;
@@ -582,30 +585,38 @@ impl Shell {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
         }
         // The Header's Changes status follows the Git snapshot.
-        cx.observe(&s.source_control, |_, _, cx| cx.notify())
+        cx.observe(&s.sidebar.source_control, |_, _, cx| cx.notify())
             .detach();
         // Changes "Open file" (`onOpenFile`): the file in the editor.
         // History and Back store the surface (`rightSidebarSurface`).
-        cx.subscribe_in(&s.source_control, window, |s, _, event, window, cx| {
-            use crate::features::source_control::SourceControlEvent;
-            match event {
-                SourceControlEvent::OpenFile(path) => {
-                    s.files
-                        .begin(Intent::OpenFile(PathBuf::from(path)), &s.wake);
-                    s.receive(window, cx);
+        cx.subscribe_in(
+            &s.sidebar.source_control,
+            window,
+            |s, _, event, window, cx| {
+                use crate::features::source_control::SourceControlEvent;
+                match event {
+                    SourceControlEvent::OpenFile(path) => {
+                        s.files
+                            .begin(Intent::OpenFile(PathBuf::from(path)), &s.wake);
+                        s.receive(window, cx);
+                    }
+                    SourceControlEvent::Surface => s.sidebar.store(&s.preferences, cx),
                 }
-                SourceControlEvent::Surface => s.persist_surface(cx),
-            }
-            cx.notify();
-        })
+                cx.notify();
+            },
+        )
         .detach();
         // History's Close and Back leave the sidebar closed on the workbench.
-        cx.subscribe_in(&s.cloud_history, window, |s, _, event, window, cx| {
-            let crate::features::source_control::CloudHistoryEvent::Close = event;
-            s.close_cloud_history(cx);
-            s.focus.focus(window, cx);
-            cx.notify();
-        })
+        cx.subscribe_in(
+            &s.sidebar.cloud_history,
+            window,
+            |s, _, event, window, cx| {
+                let crate::features::source_control::CloudHistoryEvent::Close = event;
+                s.close_cloud_history(cx);
+                s.focus.focus(window, cx);
+                cx.notify();
+            },
+        )
         .detach();
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
@@ -666,14 +677,14 @@ impl Shell {
         if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
             if surface == "changes" {
-                s.panes.open_right();
+                s.panes.set_right_open(true);
             }
             if surface == "agent-empty"
                 || surface == "agent-transcript"
                 || surface == "agent-failed"
             {
-                s.panes.open_right();
-                s.workbench.update(cx, |workbench, cx| {
+                s.panes.set_right_open(true);
+                s.sidebar.workbench.update(cx, |workbench, cx| {
                     workbench.visual_fixture(surface == "agent-transcript", window, cx)
                 });
             }
@@ -778,13 +789,16 @@ impl Shell {
             .apply(Some(window), cx);
         self.recent_projects = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
-        self.workbench
+        self.sidebar
+            .workbench
             .update(cx, |w, cx| w.set_preferences(hidden, cx));
         let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
         let history_icons = icons.clone();
-        self.cloud_history
+        self.sidebar
+            .cloud_history
             .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
-        self.source_control
+        self.sidebar
+            .source_control
             .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
         self.rail = p.project_switcher_rail;
         // The pane layout (`useDesktopExplorerFrame`).
@@ -794,11 +808,9 @@ impl Shell {
             right_width: p.right_sidebar_width,
         });
         // The surface the closed sidebar opens on (`rightSidebarSurface`).
-        if self.preferences.read(cx).loaded
-            && let Some(history) = self.panes.restore_surface(p.right_sidebar_surface)
-        {
-            self.source_control
-                .update(cx, |s, cx| s.restore_history(history, cx));
+        if self.preferences.read(cx).loaded {
+            let open = self.panes.right().open;
+            self.sidebar.restore(p.right_sidebar_surface, open, cx);
         }
         let code = crate::localization::resolve_preference(
             &p.locale,
@@ -1037,7 +1049,7 @@ impl Shell {
                 cx.notify();
                 return;
             }
-            Command::Quit if self.workbench.read(cx).has_running(cx) => {
+            Command::Quit if self.sidebar.workbench.read(cx).has_running(cx) => {
                 self.modals.open(Modal::ConfirmQuit);
                 self.focus.focus(window, cx);
                 cx.notify();
@@ -1164,8 +1176,10 @@ impl Shell {
                 self.persist_panes(cx);
             }
             Command::ToggleRightSidebar => {
-                self.panes.toggle_workbench();
-                self.persist_surface(cx);
+                let open =
+                    self.sidebar
+                        .toggle_agent(self.panes.right().open, &self.preferences, cx);
+                self.panes.set_right_open(open);
             }
             Command::Settings => {
                 self.popover = None;
@@ -1210,14 +1224,15 @@ impl Shell {
             }
             // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
             Command::Escape
-                if self.panes.shows(RightContent::CloudHistory)
+                if self.right_shows(Surface::CloudHistory)
                     && self
+                        .sidebar
                         .cloud_history
                         .read(cx)
                         .focus_handle()
                         .contains_focused(window, cx) =>
             {
-                self.cloud_history.update(cx, |h, cx| h.back(cx));
+                self.sidebar.cloud_history.update(cx, |h, cx| h.back(cx));
             }
             Command::Escape => {
                 let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
@@ -1257,19 +1272,14 @@ impl Shell {
                     return;
                 };
                 self.popover = None;
-                if self.panes.toggle_cloud_history() {
-                    let opened = self.cloud_history.update(cx, |h, cx| h.open(&project, cx));
-                    if opened {
-                        self.cloud_history
-                            .read(cx)
-                            .focus_handle()
-                            .clone()
-                            .focus(window, cx);
-                    } else {
-                        self.close_cloud_history(cx);
-                    }
+                let open = self
+                    .sidebar
+                    .toggle_cloud_history(self.panes.right().open, &project, cx);
+                self.panes.set_right_open(open);
+                if open {
+                    let history = self.sidebar.cloud_history.read(cx).focus_handle().clone();
+                    history.focus(window, cx);
                 } else {
-                    self.cloud_history.update(cx, |h, cx| h.close(cx));
                     self.focus.focus(window, cx);
                 }
             }
@@ -1291,14 +1301,10 @@ impl Shell {
                 if self.files.workspace.is_none() {
                     return;
                 }
-                // `reveal("changes")`: opening shows the Changes list.
-                if self.panes.toggle_changes() {
-                    self.source_control.update(cx, |s, cx| {
-                        s.show_changes(cx);
-                        s.refresh(cx)
-                    });
-                }
-                self.persist_surface(cx);
+                let open = self
+                    .sidebar
+                    .toggle_git(self.panes.right().open, &self.preferences, cx);
+                self.panes.set_right_open(open);
                 self.focus.focus(window, cx);
             }
             _ => {}
@@ -1359,13 +1365,16 @@ impl Shell {
             if self.file_mode() {
                 // A lone file has no Agent, Git or Terminal.
             } else if let Some(root) = ws.local_root() {
-                self.workbench
+                self.sidebar
+                    .workbench
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
-                self.source_control
+                self.sidebar
+                    .source_control
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
             } else if let Some(target) = ws.agent_target() {
                 // `CloudAgentSidebar`: the hosted Agent, not this machine's.
-                self.workbench
+                self.sidebar
+                    .workbench
                     .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
             }
             self.project = ws.name().to_owned();
@@ -1439,7 +1448,7 @@ impl Shell {
                     }
                 }
             }
-            self.workbench.update(cx, |s, cx| s.shutdown(cx));
+            self.sidebar.workbench.update(cx, |s, cx| s.shutdown(cx));
             // Window retirement blocks new editor allocations and waits for
             // this window's admitted tasks to confirm their exit.
             let scheduler = crate::platform::tasks::Scheduler::global();
@@ -1531,7 +1540,7 @@ impl Shell {
         if let Some(editor) = self.native_hosts.get(&active) {
             self.native = editor.clone();
         }
-        let modal = self.modal() || self.workbench.read(cx).dialog_open();
+        let modal = self.modal() || self.sidebar.workbench.read(cx).dialog_open();
         let home = self.home_visible();
         let visible = self.files.visible_slots();
         let read_only = self.file_read_only();
@@ -1635,25 +1644,26 @@ impl Shell {
             .collect();
         self.open_cloud_share(path.join("/"), window, cx);
     }
+    /// History closed itself (Close, Back): the sidebar closes on it.
     fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
-        self.panes.close_cloud_history();
-        self.cloud_history.update(cx, |h, cx| h.close(cx));
-    }
-    /// `useCloudWorkspaceSidebar`: History lives only in the scope it opened
-    /// in (Project, account, session generation, API) and only while the
-    /// sidebar is open; anything else closes it and drops its reads.
-    fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
-        // Already closed: the sidebar only keeps History as what it showed.
-        if self.panes.content() != RightContent::CloudHistory
-            || !(self.panes.right().open || self.cloud_history.read(cx).is_open())
-        {
-            return;
+        if self.sidebar.is(Surface::CloudHistory) {
+            self.panes.set_right_open(false);
         }
+        self.sidebar.close_cloud_history(cx);
+    }
+    /// The right sidebar is open on `surface`.
+    fn right_shows(&self, surface: Surface) -> bool {
+        self.panes.right().open && self.sidebar.is(surface)
+    }
+    /// History out of its scope closes (`useCloudWorkspaceSidebar`).
+    fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
         let project = self.hosted_project();
-        let valid =
-            self.panes.right().open && self.cloud_history.read(cx).matches(project.as_deref(), cx);
-        if !valid {
-            self.close_cloud_history(cx);
+        let open = self.panes.right().open;
+        if self
+            .sidebar
+            .guard_cloud_history(open, project.as_deref(), cx)
+        {
+            self.panes.set_right_open(false);
         }
     }
     /// Explicit Cloud opening of a hosted Project root in this window.
@@ -2054,10 +2064,10 @@ impl Shell {
             }
             if changes {
                 use gpui_kit::base::Selectable as _;
-                let status = header::GitTitlebarStatus::of(self.source_control.read(cx));
+                let status = header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
                 let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
                 let button = header::ChangesButton::new(status)
-                    .selected(self.panes.shows(RightContent::Changes))
+                    .selected(self.right_shows(Surface::Git))
                     .coachmark(introduced)
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
                     .into_any_element();
@@ -2069,7 +2079,7 @@ impl Shell {
         }
         if agent {
             let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Agent);
-            let button = header::agent_entry(self.panes.shows(RightContent::Workbench))
+            let button = header::agent_entry(self.right_shows(Surface::Agent))
                 .when(introduced, |b| b.variant(ButtonVariant::TitlebarCoachmark))
                 .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
                 .into_any_element();
@@ -2093,9 +2103,13 @@ impl Shell {
     /// Release commits the gesture once; Escape (or losing the window)
     /// rolls the preview back.
     fn end_pane_drag(&mut self, commit: bool, cx: &mut Context<Self>) {
+        let was_open = self.panes.right().open;
         let Some(changed) = self.panes.end_drag(commit) else {
             return;
         };
+        if !was_open && self.panes.right().open {
+            self.sidebar.pulled_out();
+        }
         if changed {
             self.persist_panes(cx);
         }
@@ -2114,16 +2128,6 @@ impl Shell {
                 },
                 cx,
             )
-        });
-    }
-    /// Store what the right sidebar shows (`setRightSidebarSurface`).
-    fn persist_surface(&mut self, cx: &mut Context<Self>) {
-        let history = self.source_control.read(cx).history_open();
-        let Some(surface) = self.panes.surface(history) else {
-            return;
-        };
-        self.preferences.update(cx, |store, cx| {
-            store.change(|p| p.right_sidebar_surface = surface, cx)
         });
     }
 }
@@ -2272,22 +2276,9 @@ impl Render for Shell {
         if (self.panes.right().open || panes.right_clip.is_some()) && !home && !file {
             // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
             // content starts at the divider like the product's.
-            let auxiliary =
-                at(self.layout.auxiliary)
-                    .bg(t.auxiliary())
-                    .child(match self.panes.content() {
-                        RightContent::Changes => self
-                            .source_control
-                            .clone()
-                            .cached(fill())
-                            .into_any_element(),
-                        RightContent::CloudHistory => {
-                            self.cloud_history.clone().cached(fill()).into_any_element()
-                        }
-                        RightContent::Workbench => {
-                            self.workbench.clone().cached(fill()).into_any_element()
-                        }
-                    });
+            let auxiliary = at(self.layout.auxiliary)
+                .bg(t.auxiliary())
+                .child(self.sidebar.content());
             root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
         if self.rail && !home && !file {

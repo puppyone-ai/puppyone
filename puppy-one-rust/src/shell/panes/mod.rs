@@ -2,9 +2,9 @@
 //! sidebar at the end (`useDesktopExplorerFrame`, `useCollapsiblePaneResize`,
 //! `CollapsiblePaneFrame`).
 //!
-//! [`Panes`] owns which pane is open, how wide each is, what the right
-//! sidebar shows, an edge drag in progress and the frames' open / close
-//! motion. The shell sends it commands and pointer events, stores what it
+//! [`Panes`] owns which pane is open, how wide each is, an edge drag in
+//! progress and the frames' open / close motion (what the right sidebar
+//! shows is [`super::right_sidebar`]'s). The shell sends it commands and pointer events, stores what it
 //! commits, and paints the [`PaneFrame`] it hands out each frame; nothing
 //! else touches pane widths.
 //!
@@ -15,9 +15,7 @@ mod gesture;
 pub(super) mod layout;
 mod motion;
 
-use crate::{
-    features::settings::preference_types::RightSidebarSurface, geometry::Rect, theme::pane,
-};
+use crate::{geometry::Rect, theme::pane};
 use gesture::{Commit, Config, Gesture, Phase};
 use gpui::{Pixels, Point};
 
@@ -39,19 +37,6 @@ impl SidePane {
     }
 }
 
-/// What the right sidebar shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum RightContent {
-    /// The auxiliary workbench: Agent chats and terminals.
-    #[default]
-    Workbench,
-    /// Changes (source control), opened from the Header.
-    Changes,
-    /// A hosted Project's History, opened from the Cloud Header
-    /// (`CloudWorkspaceHistorySidebar`). It and the Agent replace each other.
-    CloudHistory,
-}
-
 /// The pane layout as stored (`sidebarCollapsed`, `explorerWidth`,
 /// `rightSidebarWidth`): one preference for every window.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,9 +56,6 @@ struct Drag {
 pub(super) struct Panes {
     explorer: SidePane,
     right: SidePane,
-    content: RightContent,
-    /// The stored surface has been applied (once, when preferences load).
-    surface_restored: bool,
     drag: Option<Drag>,
     motion: motion::PaneMotion,
     /// The native window minimum last handed out.
@@ -82,8 +64,8 @@ pub(super) struct Panes {
 
 impl Panes {
     /// Both panes at their default widths: the Explorer open, the right
-    /// sidebar open on `content` when `right_open`.
-    pub fn new(right_open: bool, content: RightContent) -> Self {
+    /// sidebar open when `right_open`.
+    pub fn new(right_open: bool) -> Self {
         Self {
             explorer: SidePane {
                 open: true,
@@ -93,8 +75,6 @@ impl Panes {
                 open: right_open,
                 width: pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
             },
-            content,
-            surface_restored: false,
             drag: None,
             motion: Default::default(),
             window_minimum: 0.,
@@ -118,88 +98,15 @@ impl Panes {
             Side::End => &mut self.right,
         }
     }
-    /// What the right sidebar shows (or shows when it reopens).
-    pub fn content(&self) -> RightContent {
-        self.content
-    }
-    /// The right sidebar is open on `content`.
-    pub fn shows(&self, content: RightContent) -> bool {
-        self.right.open && self.content == content
-    }
-
     // ------------------------------------------------------------ commands
     /// ⌘B and the Header's expand button.
     pub fn toggle_explorer(&mut self) {
         self.explorer.open = !self.explorer.open;
     }
-    /// ⌘J and the Header's Agent entry: from Changes or History, switch to
-    /// the workbench; otherwise open or close the sidebar on it.
-    pub fn toggle_workbench(&mut self) {
-        self.right.open = self.content != RightContent::Workbench || !self.right.open;
-        self.content = RightContent::Workbench;
-    }
-    /// The Cloud Header's History: open the sidebar on it (closing the
-    /// Agent), or close it when it already shows. Returns whether History
-    /// shows now.
-    pub fn toggle_cloud_history(&mut self) -> bool {
-        self.toggle(RightContent::CloudHistory)
-    }
-    /// `closeWorkspaceSidebars`: the sidebar closes. What it shows stays (the
-    /// closing frame keeps its content, `rightSidebarSurface` is kept).
-    pub fn close_right(&mut self) {
-        self.right.open = false;
-    }
-    /// History closed itself (Close, Back, or its scope ended).
-    pub fn close_cloud_history(&mut self) {
-        if self.content == RightContent::CloudHistory {
-            self.right.open = false;
-        }
-    }
-    /// The Header's Changes (`useGitPresentation.toggle`): open the sidebar
-    /// on Changes, or close it when it shows them. Returns whether Changes
-    /// show now.
-    pub fn toggle_changes(&mut self) -> bool {
-        self.toggle(RightContent::Changes)
-    }
-    /// Closing leaves `content` as it is: the frame closes on what it
-    /// showed, and the sidebar reopens on it when pulled out.
-    fn toggle(&mut self, content: RightContent) -> bool {
-        if self.shows(content) {
-            self.right.open = false;
-            return false;
-        }
-        self.content = content;
-        self.right.open = true;
-        true
-    }
-    /// `rightSidebarSurface` as stored: the Agent is Chat, Changes is History
-    /// while `history` shows. A hosted Project's History is not a stored
-    /// surface (`useCloudWorkspaceSidebar` keeps its own).
-    pub fn surface(&self, history: bool) -> Option<RightSidebarSurface> {
-        match self.content {
-            RightContent::Workbench => Some(RightSidebarSurface::Chat),
-            RightContent::Changes if history => Some(RightSidebarSurface::History),
-            RightContent::Changes => Some(RightSidebarSurface::Changes),
-            RightContent::CloudHistory => None,
-        }
-    }
-    /// The stored surface arriving (`readInitialRightSidebarSurface`): once,
-    /// and only onto the closed sidebar; later loads are this window's own
-    /// writes. Returns whether History is the surface when it applies.
-    pub fn restore_surface(&mut self, stored: RightSidebarSurface) -> Option<bool> {
-        if std::mem::replace(&mut self.surface_restored, true) || self.right.open {
-            return None;
-        }
-        self.content = match stored {
-            RightSidebarSurface::Chat => RightContent::Workbench,
-            RightSidebarSurface::Changes | RightSidebarSurface::History => RightContent::Changes,
-        };
-        Some(stored == RightSidebarSurface::History)
-    }
-    /// Dev-capture surfaces open the right sidebar directly.
-    #[cfg(feature = "dev-capture")]
-    pub fn open_right(&mut self) {
-        self.right.open = true;
+    /// Open or close the right sidebar; what it shows stays (the closing
+    /// frame keeps its content).
+    pub fn set_right_open(&mut self, open: bool) {
+        self.right.open = open;
     }
 
     // ------------------------------------------------------- stored layout
@@ -279,14 +186,6 @@ impl Panes {
             }
             Some(Commit::Resize { width }) => pane.width = width,
             None => {}
-        }
-        // Pulled out, the sidebar opens on its surface; a hosted Project's
-        // History only opens from its Header entry.
-        if matches!(result, Some(Commit::Expand { .. }))
-            && drag.config.side == Side::End
-            && self.content == RightContent::CloudHistory
-        {
-            self.content = RightContent::Workbench;
         }
         Some(result.is_some())
     }
@@ -369,42 +268,8 @@ mod tests {
     use gpui::{point, px};
 
     #[test]
-    fn the_header_entries_switch_and_close_the_right_sidebar() {
-        let mut panes = Panes::new(false, RightContent::Workbench);
-        // Changes opens on Changes; the Agent entry then switches to the
-        // workbench without closing; the Agent entry again closes.
-        assert!(panes.toggle_changes());
-        assert!(panes.shows(RightContent::Changes));
-        panes.toggle_workbench();
-        assert!(panes.shows(RightContent::Workbench));
-        panes.toggle_workbench();
-        assert!(!panes.right().open);
-        // Changes twice: open on Changes, then closed — still on Changes,
-        // so the closing frame does not flash the workbench and the sidebar
-        // reopens on Changes (`rightSidebarSurface` is kept).
-        assert!(panes.toggle_changes());
-        assert!(!panes.toggle_changes());
-        assert!(!panes.right().open);
-        assert_eq!(panes.content(), RightContent::Changes);
-        // History and the Agent replace each other; closing History leaves
-        // the sidebar closed on History.
-        assert!(panes.toggle_cloud_history());
-        panes.toggle_workbench();
-        assert!(panes.shows(RightContent::Workbench));
-        assert!(panes.toggle_cloud_history());
-        assert!(panes.shows(RightContent::CloudHistory));
-        panes.close_cloud_history();
-        assert!(!panes.right().open);
-        assert_eq!(panes.content(), RightContent::CloudHistory);
-        panes.close_right();
-        assert_eq!(panes.content(), RightContent::CloudHistory);
-        assert!(panes.toggle_cloud_history());
-        assert!(!panes.toggle_cloud_history());
-    }
-
-    #[test]
     fn a_drag_commits_on_release_and_rolls_back_on_cancel() {
-        let mut panes = Panes::new(false, RightContent::Workbench);
+        let mut panes = Panes::new(false);
         let at = |x: f32| point(px(x), px(400.));
         panes.begin_drag(Side::Start, at(320.), 1280.);
         assert!(panes.move_drag(at(280.)));
@@ -436,7 +301,7 @@ mod tests {
 
     #[test]
     fn the_stored_layout_round_trips_and_arrives_without_motion() {
-        let mut panes = Panes::new(false, RightContent::Workbench);
+        let mut panes = Panes::new(false);
         panes.frame(1280., 800., 0., false);
         let stored = StoredPanes {
             explorer_collapsed: true,
@@ -455,10 +320,10 @@ mod tests {
 
     #[test]
     fn the_window_minimum_is_handed_out_once_per_change() {
-        let mut panes = Panes::new(false, RightContent::Workbench);
+        let mut panes = Panes::new(false);
         assert_eq!(panes.take_window_minimum(0.), Some(720.));
         assert_eq!(panes.take_window_minimum(0.), None);
-        panes.toggle_workbench();
+        panes.set_right_open(true);
         assert_eq!(panes.take_window_minimum(0.), Some(868.));
     }
 }

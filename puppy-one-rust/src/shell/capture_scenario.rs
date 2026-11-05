@@ -179,7 +179,7 @@ impl Shell {
                 && (!file || self.files.opened().is_some())
                 && !self.files.busy()
                 && !self.files.folder_busy;
-        let git_ready = file || self.source_control.read(cx).snapshot.is_some();
+        let git_ready = file || self.sidebar.source_control.read(cx).snapshot.is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
         }
@@ -188,7 +188,8 @@ impl Shell {
             return false;
         }
         let Some(step) = scenario.steps.front().cloned() else {
-            let reading = self.homepage.reading || self.source_control.read(cx).reading_detail();
+            let reading =
+                self.homepage.reading || self.sidebar.source_control.read(cx).reading_detail();
             return !reading || timed_out;
         };
         if let Step::Wait(ms) = step {
@@ -241,13 +242,17 @@ impl Shell {
             Step::GitDiff(path, staged) => {
                 let (path, staged) = (path.clone(), *staged);
                 if !self
+                    .sidebar
                     .source_control
                     .update(cx, |s, cx| s.select_path(&path, staged, cx))
                 {
                     return false;
                 }
             }
-            Step::GitHistory => self.source_control.update(cx, |s, cx| s.open_history(cx)),
+            Step::GitHistory => self
+                .sidebar
+                .source_control
+                .update(cx, |s, cx| s.open_history(cx)),
             Step::ProjectEntry => self.open_project_entry(cx),
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
@@ -258,6 +263,7 @@ impl Shell {
             Step::GitCommit(index) => {
                 let index = *index;
                 if !self
+                    .sidebar
                     .source_control
                     .update(cx, |s, cx| s.select_commit(index, cx))
                 {

@@ -247,20 +247,46 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     });
     command(&view, cx, Command::Changes);
     view.update(cx, |s, _| {
-        assert!(s.panes.shows(RightContent::Changes));
+        assert!(s.right_shows(Surface::Git));
         assert!(!s.modal());
     });
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| assert!(s.panes.shows(RightContent::Workbench)));
+    view.update(cx, |s, _| assert!(s.right_shows(Surface::Agent)));
     command(&view, cx, Command::Changes);
     command(&view, cx, Command::Changes);
     // Closing keeps Changes on screen while the frame closes, and stored.
     view.update(cx, |s, cx| {
-        assert!(!s.panes.right().open && s.panes.content() == RightContent::Changes);
+        assert!(!s.panes.right().open && s.sidebar.is(Surface::Git));
         assert_eq!(
             s.preferences.read(cx).state.right_sidebar_surface,
             crate::features::settings::preference_types::RightSidebarSurface::Changes
         );
+    });
+}
+/// `useGitPresentation` / `handleToggleAgentWorkbench`: an entry closes the
+/// sidebar only when it shows its own surface, else switches to it; what
+/// shows stays while closed, and a pulled-out sidebar never opens on a
+/// hosted Project's History.
+#[gpui::test]
+fn the_header_entries_switch_and_close_the_right_sidebar(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        let preferences = s.preferences.clone();
+        let mut sidebar = right_sidebar::RightSidebar::new(Surface::Agent, w, cx);
+        assert!(sidebar.toggle_git(false, &preferences, cx));
+        assert!(sidebar.is(Surface::Git));
+        assert!(sidebar.toggle_agent(true, &preferences, cx));
+        assert!(!sidebar.toggle_agent(true, &preferences, cx));
+        assert!(sidebar.is(Surface::Agent));
+        assert!(sidebar.toggle_git(false, &preferences, cx));
+        assert!(!sidebar.toggle_git(true, &preferences, cx));
+        assert!(sidebar.is(Surface::Git));
+        // No hosted Project to read: History cannot open, and it is the
+        // surface only until the sidebar is pulled out.
+        assert!(!sidebar.toggle_cloud_history(false, "project", cx));
+        assert!(sidebar.is(Surface::CloudHistory));
+        sidebar.pulled_out();
+        assert!(sidebar.is(Surface::Agent));
     });
 }
 #[gpui::test]
@@ -275,7 +301,9 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     // reopens on History, the Header entry reveals the Changes list.
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
-        s.source_control.update(cx, |c, cx| c.open_history(cx))
+        s.sidebar
+            .source_control
+            .update(cx, |c, cx| c.open_history(cx))
     });
     cx.run_until_parked();
     let stored = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
@@ -286,32 +314,32 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     assert_eq!(stored(&view, cx), RightSidebarSurface::History);
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
-        assert!(!s.panes.right().open && s.panes.content() == RightContent::Changes);
-        assert!(s.source_control.read(cx).history_open());
+        assert!(!s.panes.right().open && s.sidebar.is(Surface::Git));
+        assert!(s.sidebar.source_control.read(cx).history_open());
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::History);
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
-        assert!(s.panes.shows(RightContent::Changes));
-        assert!(!s.source_control.read(cx).history_open());
+        assert!(s.right_shows(Surface::Git));
+        assert!(!s.sidebar.source_control.read(cx).history_open());
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::Changes);
     // The Agent is Chat; closing it keeps Chat.
     command(&view, cx, Command::ToggleRightSidebar);
     command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, _| {
-        assert!(!s.panes.right().open && s.panes.content() == RightContent::Workbench)
+        assert!(!s.panes.right().open && s.sidebar.is(Surface::Agent))
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::Chat);
-    // A new window starts closed on the stored surface.
-    let mut panes = panes::Panes::new(false, RightContent::Workbench);
-    assert_eq!(
-        panes.restore_surface(RightSidebarSurface::History),
-        Some(true)
-    );
-    assert_eq!(panes.content(), RightContent::Changes);
-    assert!(!panes.right().open);
-    assert_eq!(panes.restore_surface(RightSidebarSurface::Chat), None);
+    // A new window starts closed on the stored surface, once.
+    view.update_in(cx, |_, w, cx| {
+        let mut sidebar = right_sidebar::RightSidebar::new(Surface::Agent, w, cx);
+        sidebar.restore(RightSidebarSurface::History, false, cx);
+        assert!(sidebar.is(Surface::Git));
+        assert!(sidebar.source_control.read(cx).history_open());
+        sidebar.restore(RightSidebarSurface::Chat, false, cx);
+        assert!(sidebar.is(Surface::Git));
+    });
 }
 #[gpui::test]
 fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppContext) {
@@ -945,7 +973,7 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
         s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
     });
     view.update(cx, |s, cx| {
-        s.source_control.update(cx, |_, cx| {
+        s.sidebar.source_control.update(cx, |_, cx| {
             cx.emit(
                 crate::features::source_control::SourceControlEvent::OpenFile("notes.md".into()),
             )
@@ -1593,19 +1621,18 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // No hosted Project: the Header command does nothing.
     command(&view, cx, Command::CloudHistory);
-    view.read_with(cx, |s, _| {
-        assert!(!s.panes.shows(panes::RightContent::CloudHistory))
-    });
+    view.read_with(cx, |s, _| assert!(!s.right_shows(Surface::CloudHistory)));
     // A History sidebar left without its scope closes on the next frame.
-    view.update(cx, |s, _| {
-        assert!(s.panes.toggle_cloud_history());
+    view.update(cx, |s, cx| {
+        assert!(!s.sidebar.toggle_cloud_history(false, "project", cx));
+        s.panes.set_right_open(true);
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.panes.right().open);
-        assert!(!s.cloud_history.read(cx).is_open());
+        assert!(!s.sidebar.cloud_history.read(cx).is_open());
     });
 }
 
@@ -3195,13 +3222,16 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
-    view.read_with(cx, |s, cx| assert!(!s.workbench.read(cx).cloud_location()));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.sidebar.workbench.read(cx).cloud_location())
+    });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the hosted Agent", &|s, cx| {
-        s.hosted_project().as_deref() == Some("project-a") && s.workbench.read(cx).cloud_location()
+        s.hosted_project().as_deref() == Some("project-a")
+            && s.sidebar.workbench.read(cx).cloud_location()
     });
     view.read_with(cx, |s, cx| {
-        let offered = s.workbench.read(cx).visible_installations();
+        let offered = s.sidebar.workbench.read(cx).visible_installations();
         assert_eq!(offered.len(), 1);
         assert_eq!(
             offered[0].label,
@@ -3209,7 +3239,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         );
     });
     // Opening the Agent sidebar sends nothing.
-    view.update(cx, |s, _| s.panes.toggle_workbench());
+    view.update_in(cx, |s, w, cx| s.command(Command::ToggleRightSidebar, w, cx));
     draw(cx);
     std::thread::sleep(std::time::Duration::from_millis(200));
     draw(cx);
@@ -3217,7 +3247,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
     settle_cloud(&view, cx, "the local workbench", &|s, cx| {
         s.workspace_root().as_deref() == Some(root.as_path())
-            && !s.workbench.read(cx).cloud_location()
+            && !s.sidebar.workbench.read(cx).cloud_location()
     });
 }
 

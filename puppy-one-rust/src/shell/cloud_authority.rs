@@ -40,10 +40,10 @@ impl Shell {
     /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
     /// focus it held; drafts, widths and sessions stay.
     fn close_workspace_sidebars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.panes.content() == RightContent::CloudHistory {
-            self.close_cloud_history(cx);
+        if self.sidebar.is(Surface::CloudHistory) {
+            self.sidebar.close_cloud_history(cx);
         }
-        self.panes.close_right();
+        self.panes.set_right_open(false);
         self.popover = None;
         self.focus.focus(window, cx);
     }

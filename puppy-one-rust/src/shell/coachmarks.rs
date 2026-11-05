@@ -157,8 +157,8 @@ impl Shell {
     /// Feeds this frame's Header state to the introductions.
     pub(super) fn sync_coachmarks(&mut self, cx: &mut Context<Self>) {
         let prefs = self.preferences.read(cx).state.clone();
-        let status = super::header::GitTitlebarStatus::of(self.source_control.read(cx));
-        let repository = self.source_control.read(cx).snapshot.is_some();
+        let status = super::header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
+        let repository = self.sidebar.source_control.read(cx).snapshot.is_some();
         let scope = self
             .files
             .workspace
@@ -169,8 +169,8 @@ impl Shell {
             .as_ref()
             .map(|s| format!("{s}#{}", self.workspace_entries));
         let inputs = Inputs {
-            agent_open: self.panes.shows(RightContent::Workbench),
-            changes_open: self.panes.shows(RightContent::Changes),
+            agent_open: self.right_shows(Surface::Agent),
+            changes_open: self.right_shows(Surface::Git),
             local: repository.then_some(status.local),
             entry: entry.as_deref().filter(|_| !self.home),
             scope: scope.as_deref().filter(|_| !self.home),
@@ -262,10 +262,10 @@ impl Shell {
         let primary = cx.listener(move |s, _, w, cx| {
             s.acknowledge_coachmark(id, cx);
             match id {
-                Coachmark::Agent if !s.panes.shows(RightContent::Workbench) => {
+                Coachmark::Agent if !s.right_shows(Surface::Agent) => {
                     s.command(Command::ToggleRightSidebar, w, cx)
                 }
-                Coachmark::Changes if !s.panes.shows(RightContent::Changes) => {
+                Coachmark::Changes if !s.right_shows(Surface::Git) => {
                     s.command(Command::Changes, w, cx)
                 }
                 _ => {}
