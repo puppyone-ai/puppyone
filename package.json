@@ -12,7 +12,7 @@
     "url": "https://github.com/puppyone-ai/puppyone/issues"
   },
   "type": "module",
-  "main": "electron/main.mjs",
+  "main": "electron/app-entry.mjs",
   "puppyoneCapabilities": {
     "externalViewerPacks": false,
     "gitAutoCommit": false

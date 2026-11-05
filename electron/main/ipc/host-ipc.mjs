@@ -1,21 +1,15 @@
-import crypto from "node:crypto";
-import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createDeviceIdentityService } from "../hosts/device-identity.mjs";
-import { createHostFolderRegistry } from "../hosts/host-folder-registry.mjs";
-import { createHostFileService } from "../hosts/host-file-service.mjs";
-import { createHostFileProcess } from "../hosts/host-file-process.mjs";
-import { createHostConnector } from "../hosts/host-connector.mjs";
 import { createRemoteHostClient } from "../hosts/remote-host-client.mjs";
 import { createHostRecents } from "../hosts/host-recents.mjs";
-import { createHostExecService } from "../hosts/host-exec-service.mjs";
-import { createHostGitService } from "../hosts/host-git-service.mjs";
 import { createRemoteExecClient } from "../hosts/remote-exec-client.mjs";
-import { createUtilityTerminals } from "../hosts/host-exec-process.mjs";
+import { isHostServiceRoute } from "../../host-service/service.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_WATCHES_PER_WINDOW = 32;
+const API_METHODS = new Set(["GET", "POST", "PATCH", "DELETE"]);
+const OFF = Object.freeze({ state: "off", deviceId: null, activeRequests: 0, watching: 0, lastAccessAt: null,
+  running: [], paused: false, active: null });
 
 function requireSession(expectedSession) {
   if (!expectedSession || typeof expectedSession.userId !== "string" ||
@@ -24,20 +18,17 @@ function requireSession(expectedSession) {
 }
 
 /**
- * Main owns device keys, local roots and Cloud credentials. Renderers receive
- * only public IDs, folder names and status; file bytes cross IPC only for the
- * folder a renderer explicitly opened.
+ * Desktop's half of hosts. Sharing this computer's folders is done by the
+ * Puppyone Host service (device key, local roots, connection), reached over its
+ * local control channel; Desktop asks the person here for approval, keeps their
+ * Cloud credential and runs the few host Cloud calls that need it. Opening
+ * another computer's folder stays here. Renderers receive only public IDs,
+ * folder names and status; file bytes cross IPC only for a folder a renderer
+ * explicitly opened.
  */
-export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, apiBase,
-  authorizeWorkspaceRoot, dialog, BrowserWindow, t, utilityProcess = null, powerMonitor = null,
-  fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console,
-  hostExecModulePath = null, createTerminals = null,
-  // Transports for the device connection; tests replace them.
-  WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch }) {
-  let services = null;
+export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorizeWorkspaceRoot, dialog,
+  BrowserWindow, t, hostService = null, markWorkspaceShared = async () => {}, logger = console }) {
   let recents = null;
-  // One per App launch: lets the Cloud tell a restarted host from a reconnect.
-  const bootId = crypto.randomUUID();
   const recentFolders = () => {
     recents ??= createHostRecents({ filePath: path.join(app.getPath("userData"), "host-recent-folders.json") });
     return recents;
@@ -48,10 +39,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
         session?.session_generation !== expectedSession.generation) throw new Error("Account changed.");
     return { deployment: apiBase, accountId: session.user_id };
   }
-  let active = null;
-  let paused = null;
   const folderWatches = new Map();
-  const statePath = () => path.join(app.getPath("userData"), "host-sharing.json");
 
   function broadcast(status) {
     for (const window of BrowserWindow.getAllWindows?.() ?? []) {
@@ -59,106 +47,90 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     }
   }
 
-  async function isPaused() {
-    if (paused !== null) return paused;
-    try { paused = JSON.parse(await fs.readFile(statePath(), "utf8"))?.paused === true; }
-    catch { paused = false; }
-    return paused;
+  // What the host service may ask of Desktop: who is signed in (never a
+  // credential), and the host routes that need that person, run here.
+  const desktopHandlers = Object.freeze({
+    async session() {
+      const session = await auth.readSession();
+      return session ? { user_id: session.user_id, session_generation: session.session_generation,
+        api_base_url: session.api_base_url } : null;
+    },
+    async api({ base, route, init, expectedSession }) {
+      if (base !== apiBase || !isHostServiceRoute(route) || !API_METHODS.has(init?.method)) {
+        throw new Error("This request is not available to the host service.");
+      }
+      return auth.requestSessionApi(apiBase, route, { method: init.method,
+        ...(init.headers ? { headers: init.headers } : {}), ...(init.body != null ? { body: init.body } : {}) },
+      expectedSession ?? null);
+    },
+  });
+
+  function onHostEvent(event, data) {
+    if (event === "status") broadcast(data);
+    else if (event === "revoked") {
+      for (const root of data?.roots ?? []) void markWorkspaceShared(root, null).catch(() => {});
+    }
   }
 
-  async function setPaused(value) {
-    paused = value === true;
-    const file = statePath();
-    const temp = `${file}.${crypto.randomUUID()}.tmp`;
-    await fs.writeFile(temp, JSON.stringify({ paused }), { mode: 0o600, flag: "wx" });
-    await fs.rename(temp, file);
+  let peer = null;
+  let connecting = null;
+  async function open(start) {
+    if (!apiBase || !hostService) return null;
+    const holder = {};
+    const options = { handlers: desktopHandlers, onEvent: onHostEvent,
+      onClose: () => { if (peer === holder.peer) peer = null; } };
+    const next = start ? await hostService.ensure(options) : await hostService.tryConnect(options);
+    if (!next) return null;
+    holder.peer = next;
+    await next.call("configure", { apiBase });
+    peer = next;
+    return next;
   }
-
-  function ensureServices() {
-    if (!apiBase) throw new Error("Cloud is not configured.");
-    if (services) return services;
-    const base = app.getPath("userData");
-    const identity = createDeviceIdentityService({ filePath: path.join(base, "host-device-identity.json"),
-      secureStorage, auth, apiBase });
-    const registry = createHostFolderRegistry({ filePath: path.join(base, "host-folder-registry.json"),
-      auth, apiBase });
-    const resolveFolder = (folderId) => active
-      ? registry.resolve(folderId, active.accountId, active.deviceId) : null;
-    // File work runs in a utility process when available; tests use the same service inline.
-    const fileService = utilityProcess && fileServiceModulePath
-      ? createHostFileProcess({ utilityProcess, modulePath: fileServiceModulePath, resolveFolder, logger })
-      : createHostFileService({ resolveFolder });
-    // Remote terminals and Agents run on this computer's own terminal service.
-    // PTYs live in their own utility process; Main only relays.
-    const terminalFactory = createTerminals ?? (utilityProcess && hostExecModulePath
-      ? (options) => createUtilityTerminals({ utilityProcess, modulePath: hostExecModulePath,
-        appVersion: app.getVersion?.() ?? "unknown", logger, ...options }) : null);
-    const execService = terminalFactory ? createHostExecService({ resolveFolder, logger,
-      createTerminalService: terminalFactory,
-      onChange: () => broadcast({ ...(services?.connector.status() ?? {}), paused: paused === true }) }) : null;
-    const gitService = createHostGitService({ resolveFolder });
-    const connector = createHostConnector({ apiBase, identity, registry, fileService, logger,
-      WebSocketImpl, fetchImpl,
-      gitService, execService,
-      appVersion: app.getVersion?.() ?? "unknown", bootId,
-      onStatus: (status) => broadcast({ ...status, paused: paused === true }),
-      onRevoked: (lost) => {
-        if (active?.deviceId === lost.deviceId && active?.accountId === lost.accountId) active = null;
-        // Deny locally first, then drop the key; a later share registers a new device.
-        void (async () => {
-          const shared = await registry.list(lost.accountId, lost.deviceId);
-          await registry.forgetDevice(lost);
-          for (const row of shared) await markWorkspaceShared(row.rootPath, null).catch(() => {});
-          await identity.forget(lost);
-        })().catch((error) => logger.warn("Revoked device cleanup failed", error?.message));
-      } });
-    services = { identity, registry, connector, fileService, execService };
-    return services;
+  /** The host service; started only when asked to (`start`), never just to show status. */
+  async function host({ start = true } = {}) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (peer && !peer.isClosed()) return peer;
+      connecting ??= open(start).finally(() => { connecting = null; });
+      const result = await connecting;
+      if (result || !start) return result;
+    }
+    throw new Error("PuppyOne Host is unavailable.");
   }
-
-  // Opening another computer's folder needs no device key: it works even where
-  // this computer cannot store one (and so cannot share its own folders).
-  let remote = null;
-  function remoteClient() {
-    if (!apiBase) throw new Error("Cloud is not configured.");
-    remote ??= createRemoteHostClient({ auth, apiBase });
-    return remote;
+  async function hostStatus({ start = false } = {}) {
+    const running = await host({ start }).catch(() => null);
+    return running ? running.call("status") : null;
   }
+  const sharesHere = async () => Boolean(hostService && await hostService.hasState());
 
   async function connectIfShared(expectedSession) {
-    const { identity, registry, connector } = ensureServices();
-    const existing = await identity.existingForCurrentAccount();
+    if (!await sharesHere()) return { deviceId: null };
+    const running = await host();
+    const existing = await running.call("identityExisting", { accountId: expectedSession.userId });
     const latest = await auth.readSession();
     if (latest?.user_id !== expectedSession.userId || latest?.session_generation !== expectedSession.generation) {
       throw new Error("Account changed during connection.");
     }
-    if (!existing || existing.accountId !== expectedSession.userId ||
-        !await registry.hasActive(existing.accountId, existing.deviceId)) return { deviceId: null };
-    const { deviceId, accountId } = existing;
-    active = { deviceId, accountId };
-    if (await isPaused()) return { deviceId, paused: true };
-    if (!connector.isActive()) await connector.connect(deviceId, accountId);
-    return { deviceId };
+    if (!existing || !await running.call("registryHasActive", existing)) return { deviceId: null };
+    return running.call("connect", existing);
   }
 
-  // The connection itself needs only the device key. While this App runs it, sharing
-  // follows the person signed in here: signing out or switching accounts stops it,
-  // and signing back in to the same account resumes it through host:connect.
+  // The host service keeps sharing after Desktop quits. While Desktop runs,
+  // sharing follows the person signed in here: signing out or switching
+  // accounts stops it; a new session for the same person does not.
+  let lastUser;
+  void auth.readSession().then((session) => { lastUser ??= session?.user_id ?? null; }).catch(() => {});
   async function followSignedInAccount() {
-    if (!active) return;
     let session = null;
-    try { session = await auth.readSession(); } catch { session = null; }
-    if (session?.user_id === active.accountId && session?.api_base_url === apiBase) return;
-    services?.connector.stop();
-    active = null;
+    try { session = await auth.readSession(); } catch { return; }
+    const user = session?.api_base_url === apiBase ? session?.user_id ?? null : null;
+    const previous = lastUser;
+    lastUser = user;
+    if (previous === undefined || previous === user) return;
+    const running = await host({ start: false }).catch(() => null);
+    const status = await running?.call("status").catch(() => null);
+    if (status?.active && status.active.accountId !== user) await running.call("stopSharing").catch(() => {});
   }
   const unsubscribeAuth = auth.subscribe?.(() => { void followSignedInAccount(); }) ?? null;
-
-  const onSuspend = () => services?.connector.suspend();
-  const onResume = () => services?.connector.wake();
-  powerMonitor?.on("suspend", onSuspend);
-  powerMonitor?.on("resume", onResume);
-  powerMonitor?.on("unlock-screen", onResume);
 
   ipcMain.handle("host:catalog", async (_event, expectedSession) => {
     if (!apiBase) return { devices: [] };
@@ -179,21 +151,20 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       buttons: [t("native.host.cancel"), t("native.host.allow")],
       defaultId: 0, cancelId: 0, title: t("native.host.share.title"),
       message: t(writable ? "native.host.share.write" : "native.host.share.read", { name }),
-      detail: t("native.host.share.detail") });
+      detail: `${t("native.host.share.detail")}\n\n${t("native.host.share.background")}` });
     if (answer.response !== 1) return { cancelled: true };
     const currentSession = await auth.readSession();
     if (currentSession?.user_id !== expectedSession.userId ||
         currentSession?.session_generation !== expectedSession.generation) throw new Error("Account changed during approval.");
-    const { identity, registry, connector } = ensureServices();
-    const { deviceId, accountId } = await identity.register(os.hostname().slice(0, 120), process.platform, expectedSession);
-    const registered = await registry.register({ deviceId, rootPath, name, writable, expectedSession });
+    const running = await host();
+    const { deviceId, accountId } = await running.call("identityRegister",
+      { name: os.hostname().slice(0, 120), platform: process.platform, expectedSession });
+    const registered = await running.call("registryRegister", { deviceId, rootPath, name, writable, expectedSession });
     await markWorkspaceShared(rootPath, registered.folderId)
       .catch((error) => logger.warn("Unable to mark the folder as shared", error?.message));
-    active = { deviceId, accountId };
-    if (!await isPaused() && !connector.isActive()) {
-      // A transport failure retries in the connector; keep this folder binding.
-      await connector.connect(deviceId, accountId).catch((error) => logger.warn("Device connection deferred", error?.message));
-    }
+    // A transport failure retries inside the host service; keep this folder binding.
+    await running.call("connect", { accountId, deviceId })
+      .catch((error) => logger.warn("Device connection deferred", error?.message));
     return { deviceId, folderId: registered.folderId };
   });
 
@@ -207,20 +178,18 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
   });
 
   ipcMain.handle("host:status", async () => {
-    const connector = services?.connector;
-    const folders = active && services ? await services.registry.list(active.accountId, active.deviceId) : [];
-    return { ...(connector?.status() ?? { state: "off", deviceId: null, activeRequests: 0, watching: 0, lastAccessAt: null }),
-      paused: await isPaused(), folders: folders.map(({ folderId, name, writable }) => ({ folderId, name, writable })) };
+    // A computer that shares something restarts its host service when the App opens.
+    const status = await hostStatus({ start: await sharesHere() });
+    if (!status) return { ...OFF, folders: [] };
+    return { ...status, folders: (status.folders ?? []).map(({ folderId, name, writable }) => ({ folderId, name, writable })) };
   });
 
   ipcMain.handle("host:set-sharing-paused", async (_event, request) => {
     const session = requireSession(request?.expectedSession);
-    await setPaused(request?.paused === true);
-    if (paused) services?.connector.stop();
-    else await connectIfShared(session).catch((error) => logger.warn("Device connection deferred", error?.message));
-    const status = services?.connector.status() ?? { state: "off" };
-    broadcast({ ...status, paused });
-    return { paused };
+    const running = await host();
+    const result = await running.call("setPaused", { paused: request?.paused === true });
+    if (!result.paused) await connectIfShared(session).catch((error) => logger.warn("Device connection deferred", error?.message));
+    return { paused: result.paused };
   });
 
   ipcMain.handle("host:update-folder", async (event, request) => {
@@ -236,19 +205,19 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
         title: t("native.host.share.title"), message: t("native.host.share.write", { name: name.trim() }) });
       if (answer.response !== 1) return { cancelled: true };
     }
-    const local = active?.deviceId === deviceId && active?.accountId === session.userId ? services?.registry : null;
+    const status = await hostStatus();
+    const local = status?.active?.deviceId === deviceId && status?.active?.accountId === session.userId;
+    const running = local ? await host({ start: false }) : null;
     // Keep what this computer allows to run; view-only ends all of it.
-    const current = local ? (await local.list(session.userId, deviceId)).find((row) => row.folderId === folderId) : null;
+    const current = local ? status.folders.find((row) => row.folderId === folderId) : null;
     const execution = writable && current ? current.execution : { terminal: false, git: false, agent: false };
     // Narrow locally before asking the backend; widen locally only after it agreed.
-    if (local && !writable) {
-      await local.setAccess({ accountId: session.userId, deviceId, folderId, name, writable });
-      await services.execService?.enforce(folderId);
-    }
+    const access = { accountId: session.userId, deviceId, folderId, name, writable };
+    if (running && !writable) await running.call("registrySetAccess", access);
     const result = await auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}/folders/${folderId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim(), writable, expected_revision: expectedRevision, ...execution }) }, session);
-    if (local && writable) await local.setAccess({ accountId: session.userId, deviceId, folderId, name, writable });
+    if (running && writable) await running.call("registrySetAccess", access);
     return result;
   });
 
@@ -261,11 +230,13 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     if (!UUID.test(deviceId) || !UUID.test(folderId) || !Number.isSafeInteger(expectedRevision)) {
       throw new Error("Invalid execution setting.");
     }
-    if (active?.deviceId !== deviceId || active?.accountId !== session.userId || !services) {
+    const status = await hostStatus();
+    if (status?.active?.deviceId !== deviceId || status?.active?.accountId !== session.userId) {
       throw new Error("Change this on the computer that shares the folder.");
     }
-    const row = (await services.registry.list(session.userId, deviceId)).find((item) => item.folderId === folderId);
-    if (!row) throw new Error("This folder is not shared from this computer.");
+    const running = await host({ start: false });
+    const row = status.folders.find((item) => item.folderId === folderId);
+    if (!row || !running) throw new Error("This folder is not shared from this computer.");
     const widening = (wanted.terminal && !row.execution.terminal) || (wanted.git && !row.execution.git) ||
       (wanted.agent && !row.execution.agent);
     if (widening) {
@@ -282,19 +253,20 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: row.name, writable: row.writable, expected_revision: expectedRevision, ...body }) },
       session);
+    const local = { accountId: session.userId, deviceId, folderId, ...wanted };
     if (widening) {
       // The Cloud grant first: if it is refused, nothing was allowed here either.
       const result = await update(wanted);
-      await services.registry.setExecution({ accountId: session.userId, deviceId, folderId, ...wanted });
+      await running.call("registrySetExecution", local);
       return result;
     }
-    await services.registry.setExecution({ accountId: session.userId, deviceId, folderId, ...wanted });
-    await services.execService?.enforce(folderId);
+    await running.call("registrySetExecution", local);
     return update(wanted);
   });
 
   ipcMain.handle("host:stop-remote-sessions", async () => {
-    await services?.execService?.stopAll();
+    const running = await host({ start: false }).catch(() => null);
+    await running?.call("execStopAll");
     return { stopped: true };
   });
 
@@ -313,12 +285,12 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       defaultId: 0, cancelId: 0, title: t("native.host.remove.title"),
       message: t("native.host.remove.message") });
     if (answer.response !== 1) return { cancelled: true };
-    if (active?.deviceId === deviceId && active?.accountId === session.userId && services) {
-      services.fileService.forget?.(folderId);
-      const local = (await services.registry.list(session.userId, deviceId)).find((row) => row.folderId === folderId);
-      const removed = await services.registry.remove(deviceId, folderId);
+    const status = await hostStatus();
+    if (status?.active?.deviceId === deviceId && status?.active?.accountId === session.userId) {
+      const running = await host({ start: false });
+      const local = status.folders.find((row) => row.folderId === folderId);
+      const removed = await running.call("registryRemove", { deviceId, folderId });
       if (local) await markWorkspaceShared(local.rootPath, null).catch(() => {});
-      if (!await services.registry.hasActive(session.userId, deviceId)) services.connector.stop();
       return { removed };
     }
     return auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}/folders/${folderId}`,
@@ -338,10 +310,20 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     return auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}`, { method: "DELETE" }, session);
   });
 
-  ipcMain.handle("host:disconnect", () => {
-    services?.connector.stop(); active = null;
+  ipcMain.handle("host:disconnect", async () => {
+    const running = await host({ start: false }).catch(() => null);
+    await running?.call("stopSharing");
     return { disconnected: true };
   });
+
+  // Opening another computer's folder needs no device key: it works even where
+  // this computer cannot store one (and so cannot share its own folders).
+  let remote = null;
+  function remoteClient() {
+    if (!apiBase) throw new Error("Cloud is not configured.");
+    remote ??= createRemoteHostClient({ auth, apiBase });
+    return remote;
+  }
 
   // Access side: this window opened another computer's folder.
   ipcMain.handle("host:folder-request", async (_event, request) => {
@@ -445,17 +427,13 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
   });
 
   return {
+    /** Desktop quitting leaves the host service sharing; only this App's ties end. */
     dispose() {
       unsubscribeAuth?.();
       remoteExec?.closeAll();
-      void services?.execService?.stopAll().catch(() => {});
-      powerMonitor?.removeListener("suspend", onSuspend);
-      powerMonitor?.removeListener("resume", onResume);
-      powerMonitor?.removeListener("unlock-screen", onResume);
       for (const close of [...folderWatches.values()]) close();
-      services?.connector.stop();
-      services?.fileService.dispose?.();
-      active = null;
+      peer?.close();
+      peer = null;
     },
   };
 }

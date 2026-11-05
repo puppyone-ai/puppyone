@@ -54,6 +54,8 @@ import { createTemplateMarketplaceService } from "./main/template-marketplace-se
 import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
+import { createHostServiceLauncher } from "./host-service/launcher.mjs";
+import { hostServiceStateDir } from "./host-service/paths.mjs";
 import {
   createApplicationQuitIntent,
   createDocumentSessionCloseCoordinator,
@@ -1362,11 +1364,13 @@ function registerIpcHandlers() {
     detachWorkspaceFromCurrentWindow,
   });
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  // Sharing this computer's folders runs in the Puppyone Host service, which
+  // keeps sharing after this App quits; Desktop reaches it over a local channel.
+  const hostService = createHostServiceLauncher({ stateDir: hostServiceStateDir(app.getPath("userData")),
+    execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged });
   const hostIpc = registerHostIpcHandlers({ ipcMain: trustedIpcMain, app, auth: cloudAuthService,
-    secureStorage: safeStorage, apiBase: desktopCloudConfiguration?.apiBase,
-    authorizeWorkspaceRoot, dialog, BrowserWindow, utilityProcess, powerMonitor,
-    fileServiceModulePath: path.join(__dirname, "utility", "host-file-service", "main.mjs"),
-    hostExecModulePath: path.join(__dirname, "utility", "host-exec", "main.mjs"),
+    apiBase: desktopCloudConfiguration?.apiBase, hostService,
+    authorizeWorkspaceRoot, dialog, BrowserWindow,
     markWorkspaceShared: (rootPath, hostFolderId) =>
       workspaceStateStore.setRecentWorkspaceHostFolder(rootPath, hostFolderId),
     t: (id, values) => localeService.t(id, values) });

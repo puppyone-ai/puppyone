@@ -8,6 +8,7 @@
   "native.host.remove.title": "Zugriff auf diesen Ordner beenden?",
   "native.host.remove.message": "Andere Computer mit deinem Konto können ihn dann nicht mehr öffnen.",
   "native.host.share.detail": "Dateien laufen nur beim Öffnen über PuppyOne Cloud und werden dort nicht gespeichert. Du kannst das jederzeit beenden.",
+  "native.host.share.background": "Die Freigabe läuft weiter, wenn PuppyOne geschlossen ist, solange dieser Computer eingeschaltet ist. Du kannst sie hier jederzeit pausieren.",
   "native.host.revoke.title": "Diesen Computer entfernen?",
   "native.host.revoke.message": "Seine Ordner lassen sich auf deinen anderen Computern nicht mehr öffnen. Erneutes Freigeben richtet ihn als neuen Computer ein.",
   "native.host.execution.title": "Von deinen anderen Computern in diesem Ordner etwas ausführen?",

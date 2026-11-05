@@ -8,6 +8,7 @@
   "native.host.remove.title": "このフォルダーへのアクセスを停止しますか？",
   "native.host.remove.message": "同じアカウントのほかのパソコンからは開けなくなります。",
   "native.host.share.detail": "ファイルは開いている間だけ PuppyOne Cloud を経由し、そこには保存されません。いつでも停止できます。",
+  "native.host.share.background": "このコンピュータの電源が入っている間は、PuppyOne を閉じても共有は続きます。ここでいつでも一時停止できます。",
   "native.host.revoke.title": "このパソコンを削除しますか？",
   "native.host.revoke.message": "ほかのパソコンからこのパソコンのフォルダーを開けなくなります。再度開くと新しいパソコンとして設定されます。",
   "native.host.execution.title": "ほかのパソコンからこのフォルダーで実行を許可しますか？",

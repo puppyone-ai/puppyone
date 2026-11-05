@@ -8,6 +8,7 @@
   "native.host.remove.title": "停止共享此文件夹？",
   "native.host.remove.message": "登录同一账号的其他电脑将无法再打开此文件夹。",
   "native.host.share.detail": "文件只在被打开时经由 PuppyOne Cloud 传输，不会保存在那里。你可以随时停止。",
+  "native.host.share.background": "只要这台电脑开着，关闭 PuppyOne 后仍会继续共享。你可以随时在这里暂停。",
   "native.host.revoke.title": "移除这台电脑？",
   "native.host.revoke.message": "你的其他电脑将无法再打开它的文件夹。再次开放时会作为一台新电脑重新设置。",
   "native.host.execution.title": "允许从你的其他电脑在此文件夹中运行程序？",

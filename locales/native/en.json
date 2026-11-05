@@ -8,6 +8,7 @@
   "native.host.remove.title": "Stop access to this folder?",
   "native.host.remove.message": "Other computers signed into your account will no longer be able to open it.",
   "native.host.share.detail": "Files pass through PuppyOne Cloud only while they are opened and are not stored there. You can stop this at any time.",
+  "native.host.share.background": "Sharing continues while PuppyOne is closed, as long as this computer is on. Pause it here at any time.",
   "native.host.revoke.title": "Remove this computer?",
   "native.host.revoke.message": "Its folders will no longer open from your other computers. Opening them again sets it up as a new computer.",
   "native.host.execution.title": "Run things in this folder from your other computers?",

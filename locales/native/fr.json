@@ -8,6 +8,7 @@
   "native.host.remove.title": "Arrêter l’accès à ce dossier ?",
   "native.host.remove.message": "Vos autres ordinateurs connectés à ce compte ne pourront plus l’ouvrir.",
   "native.host.share.detail": "Les fichiers transitent par PuppyOne Cloud uniquement pendant leur ouverture et n’y sont pas conservés. Vous pouvez arrêter à tout moment.",
+  "native.host.share.background": "Le partage continue lorsque PuppyOne est fermé, tant que cet ordinateur est allumé. Vous pouvez le mettre en pause ici à tout moment.",
   "native.host.revoke.title": "Retirer cet ordinateur ?",
   "native.host.revoke.message": "Ses dossiers ne pourront plus être ouverts depuis vos autres ordinateurs. Un nouveau partage le configurera comme un nouvel ordinateur.",
   "native.host.execution.title": "Exécuter des choses dans ce dossier depuis vos autres ordinateurs ?",

@@ -95,6 +95,13 @@ export function createDeviceIdentityService({ filePath, secureStorage, auth, api
         item.accountId === session.user_id && UUID.test(item.deviceId));
       return record ? { deviceId: record.deviceId, accountId: session.user_id } : null;
     },
+    /** This account's registered identity here, with nobody signed in. */
+    async existingFor(accountId) {
+      if (!UUID.test(accountId)) return null;
+      const record = (await load()).find((item) => item.deployment === deployment &&
+        item.accountId === accountId && UUID.test(item.deviceId));
+      return record ? { deviceId: record.deviceId, accountId } : null;
+    },
     register(name, platform, expectedSession = null) {
       const result = pending.catch(() => {}).then(() => registerUnserialized(name, platform, expectedSession));
       pending = result;
