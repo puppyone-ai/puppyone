@@ -54,7 +54,8 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
   const ordered = [...devices].sort((left, right) => Number(right.id === thisComputer) - Number(left.id === thisComputer));
   const open = (device: HostCatalogDevice, folder: HostCatalogDevice["folders"][number]) => onOpen({
     ref: { deployment: apiBase, accountId: session.user_id, deviceId: device.id, folderId: folder.id },
-    name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write") });
+    name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write"),
+    capabilities: folder.capabilities });
   const act = (operation: Promise<unknown> | undefined, failure: string) => {
     void operation?.then(() => refresh()).catch((cause) => setError(cause instanceof Error ? cause.message : t(failure)));
   };
@@ -85,6 +86,11 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
           {mine && sharingLabel && <span role="status">· {sharingLabel}</span>}
           {mine && sharing && sharing.activeRequests + sharing.watching > 0 &&
             <span role="status">· {t("hosts.sharing.inUse")}</span>}
+          {mine && (sharing?.running?.length ?? 0) > 0 && <>
+            <span role="status">· {t("hosts.execution.running", { count: sharing?.running?.length ?? 0 })}</span>
+            <button type="button" onClick={() => act(window.puppyoneDesktop?.stopRemoteHostSessions?.(),
+              "hosts.catalog.updateFailure")}>{t("hosts.execution.stopAll")}</button>
+          </>}
           {mine && <button type="button" onClick={() => act(window.puppyoneDesktop?.setHostSharingPaused?.({
             paused: !sharing?.paused, expectedSession }), "hosts.catalog.updateFailure")}>
             {sharing?.paused ? t("hosts.sharing.resume") : t("hosts.sharing.pause")}</button>}
@@ -103,6 +109,20 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
               deviceId: device.id, folderId: folder.id, name: folder.name, writable: !writable,
               expectedRevision: folder.revision, expectedSession }), "hosts.catalog.updateFailure")}>
               {writable ? t("hosts.catalog.makeReadOnly") : t("hosts.catalog.allowEditing")}</button>}
+            {mine && writable && <span className="desktop-host-execution" style={{ display: "inline-flex", gap: 8 }}>
+              {(["terminal", "git", "agent"] as const).map((kind) => {
+                const capability = { terminal: "folder.shell", git: "folder.git", agent: "folder.agent" }[kind];
+                const allowed = folder.capabilities.includes(capability as HostCatalogDevice["folders"][number]["capabilities"][number]);
+                const next = { terminal: folder.capabilities.includes("folder.shell"), git: folder.capabilities.includes("folder.git"),
+                  agent: folder.capabilities.includes("folder.agent"), [kind]: !allowed };
+                return <label key={kind} style={{ display: "inline-flex", gap: 4 }}>
+                  <input type="checkbox" checked={allowed} onChange={() => act(window.puppyoneDesktop?.setHostExecution?.({
+                    deviceId: device.id, folderId: folder.id, ...next, expectedRevision: folder.revision, expectedSession }),
+                    "hosts.catalog.updateFailure")} />
+                  {t(`hosts.execution.${kind}`)}
+                </label>;
+              })}
+            </span>}
             <button type="button" onClick={() => act(window.puppyoneDesktop?.removeHostFolder({
               deviceId: device.id, folderId: folder.id, expectedSession }), "hosts.catalog.removeFailure")}>
               {t("hosts.catalog.remove")}</button>

@@ -113,7 +113,7 @@ describe("device DataPort", () => {
     const source = service();
     const changes: Array<string[] | null> = [];
     const states: string[] = [];
-    const stop = source.watch((paths) => changes.push(paths), (state) => states.push(state));
+    const stop = source.watchFolder((paths) => changes.push(paths), (state) => states.push(state));
     const id = watchHostFolder.mock.calls.at(-1)![0].id;
     eventListener?.({ id, type: "change", paths: [], reset: true });
     eventListener?.({ id, type: "change", paths: ["a.md"], reset: false });

@@ -59,7 +59,9 @@ export type HostFileOperation =
   | Readonly<{ action: "read"; path: string }>
   | Readonly<{ action: "write"; path: string; content_base64: string; expected_revision: string | null }>
   | Readonly<{ action: "mkdir" | "remove"; path: string }>
-  | Readonly<{ action: "move"; path: string; destination: string }>;
+  | Readonly<{ action: "move"; path: string; destination: string }>
+  | Readonly<{ action: "git"; op: string; paths?: string[]; path?: string; scope?: "staged" | "unstaged";
+      commit?: string; message?: string }>;
 
 /** IPC result: Electron drops custom Error fields, so failures are values. */
 export type HostFolderResult<T> =

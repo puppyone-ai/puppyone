@@ -31,10 +31,15 @@ export type DeviceDataService = Readonly<{
   workspace: Workspace;
   folder: WorkspaceFolder;
   dataPort: DataPort;
+  writable: boolean;
   invalidateReads: () => void;
   dispose: () => void;
+  getPathForCopy: (resource: string) => string;
   /** Coalesced changes made on the other computer; `status` reports reachability. */
-  watch: (changed: (paths: string[] | null) => void, status: (availability: DeviceFolderAvailability) => void) => () => void;
+  watchFolder: (changed: (paths: string[] | null) => void, status: (availability: DeviceFolderAvailability) => void) => () => void;
+  /** The shared remote workbench's shape: a change rescans; losing the computer is a failure it can retry. */
+  watch: (changed: () => void, failed: (error: Error) => void) => () => void;
+  resume: () => void;
   resolveResource: (resource: string | null) => { folder: WorkspaceFolder; providerPath: string | null; resourceUri: ResourceUri } | null;
 }>;
 
@@ -43,9 +48,12 @@ export type DeviceDataService = Readonly<{
  * Requests go through Main, which holds the Cloud credential; no local checkout,
  * Shell, Git, external app or implicit Cloud publication exists for it.
  */
-export function createDeviceDataService({ ref, name, writable, session, apiBase, isCurrent = () => true }: {
+export function createDeviceDataService({ ref, name, writable, session, apiBase, isCurrent = () => true,
+  describeAvailability = (availability) => availability }: {
   ref: DeviceFolderRef; name: string; writable: boolean; session: DesktopCloudSession;
   apiBase: string; isCurrent?: () => boolean;
+  /** User-facing words for an unreachable folder, shown by the shared workbench. */
+  describeAvailability?: (availability: DeviceFolderAvailability) => string;
 }): DeviceDataService {
   if (session.user_id !== ref.accountId || resolveCloudApiBaseUrl(apiBase) !== resolveCloudApiBaseUrl(ref.deployment)
       || session.api_base_url !== resolveCloudApiBaseUrl(apiBase)) {
@@ -216,7 +224,7 @@ export function createDeviceDataService({ ref, name, writable, session, apiBase,
       },
     } : {}),
   };
-  const watch: DeviceDataService["watch"] = (changed, status) => {
+  const watchFolder: DeviceDataService["watchFolder"] = (changed, status) => {
     if (!bridge.watchHostFolder || !bridge.onHostFolderEvent) return () => {};
     const id = crypto.randomUUID();
     let closed = false;
@@ -241,7 +249,13 @@ export function createDeviceDataService({ ref, name, writable, session, apiBase,
       void bridge.stopHostFolderWatch?.({ id }).catch(() => {});
     };
   };
-  return { workspace, folder, dataPort, watch,
+  const watch: DeviceDataService["watch"] = (changed, failed) => watchFolder(() => changed(), (availability) => {
+    if (availability !== "online") failed(new Error(describeAvailability(availability)));
+  });
+  return { workspace, folder, dataPort, watch, watchFolder, writable,
+    // The workbench re-arms its watch when it resumes; nothing else to wake.
+    resume: () => { listing.clear(); },
+    getPathForCopy: (resource) => pathOf(resource) || ".",
     invalidateReads: () => { assertCurrent(); listing.clear(); },
     dispose: () => { for (const url of urls) URL.revokeObjectURL(url); urls.clear(); listing.clear(); },
     resolveResource: (value) => {

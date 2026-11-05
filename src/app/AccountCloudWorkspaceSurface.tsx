@@ -11,6 +11,7 @@ import { AuxiliaryWorkbenchPanel } from "../features/app-shell/auxiliary-workben
 import { EditorHeaderTabs } from "../features/editor-workbench/header/EditorHeaderTabs";
 import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "../features/cloud/workbench/DesktopCloudFileWorkspace";
 import type { NativeCloudWorkbench } from "../features/cloud/workbench/useNativeCloudWorkbench";
+import type { RemoteFolderWorkbench } from "../features/remote-workbench/useRemoteFolderWorkbench";
 import type { DesktopCloudSession } from "../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
@@ -29,9 +30,9 @@ export type AccountCloudWorkspacePresentation = Readonly<{
   titlebarTabs: ReactNode;
 }>;
 
-/** Build the provider-specific body while leaving window chrome to its caller. */
+/** Build a remote folder's body (Cloud or another computer) while leaving window chrome to its caller. */
 export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings, settingsOpen = false, showWorkspaceNavigation = true, sidebarUtility }: {
-  workbench: NativeCloudWorkbench;
+  workbench: RemoteFolderWorkbench;
   onOpenSettings: () => void;
   settingsOpen?: boolean;
   showWorkspaceNavigation?: boolean;

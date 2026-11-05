@@ -33,7 +33,7 @@ import {
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { HomepageDeviceFolders } from "./features/hosts/ui/HomepageDeviceFolders";
-import { DeviceFolderSurface } from "./features/hosts/ui/DeviceFolderSurface";
+import { DeviceFolderWorkbenchSurface } from "./features/hosts/ui/DeviceFolderWorkbenchSurface";
 import { ShareFolderControl } from "./features/hosts/ui/ShareFolderControl";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
@@ -1595,8 +1595,8 @@ function AppContent() {
   // open behind it and return when it closes.
   if (hostDevicesEnabled && shownHostFolder && activeCloudSession && desktopCloudApiBaseUrl
     && shownHostFolder.ref.accountId === activeCloudSession.user_id) return themeRuntime(
-    <DeviceFolderSurface selection={shownHostFolder} session={activeCloudSession}
-      apiBase={desktopCloudApiBaseUrl} onClose={() => {
+    <DeviceFolderWorkbenchSurface key={shownHostFolder.ref.folderId} selection={shownHostFolder} session={activeCloudSession}
+      apiBase={desktopCloudApiBaseUrl} appearance={surfaceAppearance} onOpenSettings={() => openSettingsDialog()} onClose={() => {
         closeHostFolder();
         if (!workspace) void goToHomepage();
       }} />,

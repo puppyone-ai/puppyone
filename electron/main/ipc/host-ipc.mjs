@@ -12,6 +12,7 @@ import { createHostRecents } from "../hosts/host-recents.mjs";
 import { createHostExecService } from "../hosts/host-exec-service.mjs";
 import { createHostGitService } from "../hosts/host-git-service.mjs";
 import { createRemoteExecClient } from "../hosts/remote-exec-client.mjs";
+import { createUtilityTerminals } from "../hosts/host-exec-process.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_WATCHES_PER_WINDOW = 32;
@@ -30,7 +31,7 @@ function requireSession(expectedSession) {
 export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, apiBase,
   authorizeWorkspaceRoot, dialog, BrowserWindow, t, utilityProcess = null, powerMonitor = null,
   fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console,
-  createTerminalService = null }) {
+  hostExecModulePath = null, createTerminals = null }) {
   let services = null;
   let recents = null;
   // One per App launch: lets the Cloud tell a restarted host from a reconnect.
@@ -86,9 +87,12 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       ? createHostFileProcess({ utilityProcess, modulePath: fileServiceModulePath, resolveFolder, logger })
       : createHostFileService({ resolveFolder });
     // Remote terminals and Agents run on this computer's own terminal service.
-    const execService = createTerminalService ? createHostExecService({ resolveFolder, logger,
-      createTerminalService: (options) => createTerminalService({ appVersion: app.getVersion?.() ?? "unknown",
-        initializeWorkspaceEditReview: async () => {}, logger, ...options }),
+    // PTYs live in their own utility process; Main only relays.
+    const terminalFactory = createTerminals ?? (utilityProcess && hostExecModulePath
+      ? (options) => createUtilityTerminals({ utilityProcess, modulePath: hostExecModulePath,
+        appVersion: app.getVersion?.() ?? "unknown", logger, ...options }) : null);
+    const execService = terminalFactory ? createHostExecService({ resolveFolder, logger,
+      createTerminalService: terminalFactory,
       onChange: () => broadcast({ ...(services?.connector.status() ?? {}), paused: paused === true }) }) : null;
     const gitService = createHostGitService({ resolveFolder });
     const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, logger,
