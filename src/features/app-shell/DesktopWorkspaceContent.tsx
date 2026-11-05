@@ -75,6 +75,7 @@ type DesktopWorkspaceContentProps = {
   onOpenImport: () => void;
   onOpenPlugins: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
+  onDeleteNodes?: (nodes: DataNode[], anchorRect: DOMRect) => void | Promise<void>;
   onOpenSettings: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
@@ -135,6 +136,7 @@ export function DesktopWorkspaceContent({
   onOpenImport,
   onOpenPlugins,
   onNodeActionMenu,
+  onDeleteNodes,
   onOpenSettings,
   onPuppyoneConfigChange,
   onSelectSettingsSection,
@@ -223,6 +225,7 @@ export function DesktopWorkspaceContent({
     onCreateEntryMenu,
     onDismissCreateEntryMenu,
     onNodeActionMenu,
+    onDeleteNodes,
       resolvedSurface,
     sidebarCompanion,
     sidebarUtility,

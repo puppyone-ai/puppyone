@@ -214,6 +214,10 @@ export type DataWorkspaceProps = {
   onResolveFileDrop?: import("./ExplorerTree").ExplorerTreeProps["onResolveFileDrop"];
   onExportNodes?: import("./ExplorerTree").ExplorerTreeProps["onExportNodes"];
   onCutNodes?: (nodes: DataNode[]) => void | Promise<void>;
+  /** Host-owned deletion entry for the tree's keyboard shortcut. */
+  onDeleteNodes?: (nodes: DataNode[], anchorRect: DOMRect) => void | Promise<void>;
+  /** macOS reports Backspace for the keycap printed Delete. */
+  deleteWithMetaBackspace?: boolean;
   onPasteNodes?: (targetFolderPath: string | null) => void | Promise<void>;
   onDuplicateNodes?: (nodes: DataNode[]) => void | Promise<void>;
   onOpenExternalUrl?: (href: string) => void | Promise<void>;
@@ -304,6 +308,8 @@ export function DataWorkspace({
   resourceDragEntries,
   onResolveFileDrop,
   onCutNodes,
+  onDeleteNodes,
+  deleteWithMetaBackspace = false,
   onPasteNodes,
   onDuplicateNodes,
   onOpenExternalUrl,
@@ -1317,6 +1323,8 @@ export function DataWorkspace({
                   onMoveNodes={moveNodes}
                   onCopyNodes={resolvedCapabilities.copy && dataPort.copyNode ? onCopyNodes : undefined}
                   onCutNodes={resolvedCapabilities.move && dataPort.moveNode ? onCutNodes : undefined}
+                  onDeleteNodes={resolvedCapabilities.delete && dataPort.deleteNode ? onDeleteNodes : undefined}
+                  deleteWithMetaBackspace={deleteWithMetaBackspace}
                   onPasteNodes={(resolvedCapabilities.copy && dataPort.copyNode) || (resolvedCapabilities.move && dataPort.moveNode)
                     ? onPasteNodes
                     : undefined}

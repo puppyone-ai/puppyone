@@ -38,6 +38,7 @@ import {
 import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
+import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/ProjectShell";
@@ -104,6 +105,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
+  /** Direct deletion entry for the file tree shortcut; absent keeps it off. */
+  onDeleteNodes?: (nodes: DataNode[], anchorRect: DOMRect) => void | Promise<void>;
   resolvedSurface: ResolvedWorkspaceSurface;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
@@ -144,6 +147,7 @@ export function DesktopDataWorkspaceSurface({
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onNodeActionMenu,
+  onDeleteNodes,
   resolvedSurface,
   sidebarCompanion,
   sidebarUtility,
@@ -158,6 +162,7 @@ export function DesktopDataWorkspaceSurface({
   cloudProjectNotice,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const platformCapabilities = useDesktopPlatformCapabilities();
   const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
   const markdownHeadingOutlineEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownHeadingOutline);
   const editorInteractionPreferences = useMemo(() => ({ showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled }),
@@ -309,6 +314,8 @@ export function DesktopDataWorkspaceSurface({
         onCutNodes={fileClipboardController.canCut ? fileClipboardController.cutNodes : undefined}
         onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
+        onDeleteNodes={onDeleteNodes}
+        deleteWithMetaBackspace={platformCapabilities?.platform === "macos"}
         explorerLoadingPresentation="skeleton"
         explorerTreeCollapsed={hasPins && pins.filesCollapsed}
         explorerPinnedSlot={hasPins

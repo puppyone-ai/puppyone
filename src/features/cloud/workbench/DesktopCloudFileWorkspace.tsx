@@ -17,7 +17,8 @@ const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
     cloud: () => ({ sidebar: null, main: null }), settings: () => ({ sidebar: null, main: null }) } });
 
 export type CloudFileSurfaceProps = Pick<DesktopDataWorkspaceSurfaceProps,
-  "showSaveStatus" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation">;
+  "showSaveStatus" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation"
+  | "onDeleteNodes">;
 
 /** Bind Cloud data/actions to the existing workbench; no alternate file UI. */
 export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerStateContent }: {
@@ -81,6 +82,7 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       onCreateEntryMenu={(parent, anchor) => { if (surfaceService.writable) actions.openCreateEntryMenu(parent ?? surfaceService.folder.uri, anchor); }}
       onDismissCreateEntryMenu={() => actions.setCreateEntryDraft(null)}
       onNodeActionMenu={actions.openNodeActionMenu}
+      onDeleteNodes={surfaceService.writable ? actions.requestDeleteNodes : undefined}
       openCreateEntryParentPath={createEntryDraft
         && createEntryDraft.anchor.placement !== "auto-end" ? createEntryDraft.parentPath : undefined}
       openNodeActionPath={nodeActionMenu?.mode === "actions"
