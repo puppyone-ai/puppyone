@@ -93,7 +93,11 @@ export function EditorPaneShell({
       data-handle-hot={chromeReveal.revealed ? "true" : undefined}
       data-pane-menu-open={actionsOpen ? "true" : undefined}
       data-drop-target={dropEdge ?? undefined}
-      data-drop-kind={fileDropEdge ? "file" : paneMoveEdge ? "pane" : undefined}
+      data-drop-kind={fileDrop.insertIntent
+        ? "insert"
+        : fileDropEdge
+          ? "file"
+          : paneMoveEdge ? "pane" : undefined}
       aria-label={editorLabel
         ? t("editor.panes.label", { name: editorLabel })
         : t("editor.panes.empty")}

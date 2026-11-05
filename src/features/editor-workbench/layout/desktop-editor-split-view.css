@@ -481,3 +481,10 @@
   }
 
 }
+
+/* Insert intent: the release edits the document instead of splitting the pane.
+ * The reading area gets the accent ring; the split preview never appears. */
+.desktop-editor-pane[data-drop-kind="insert"] .desktop-editor-pane-content {
+  box-shadow: inset 0 0 0 2px var(--po-accent);
+  border-radius: 6px;
+}

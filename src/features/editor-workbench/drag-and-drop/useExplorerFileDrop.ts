@@ -132,6 +132,7 @@ export function useExplorerFileDrop(
     session.releaseOcclusion();
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
+      setInsertIntent(false);
     }
     return true;
   }, []);
