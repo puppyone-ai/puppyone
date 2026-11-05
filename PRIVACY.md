@@ -47,8 +47,9 @@ folder use does not enable it. When enabled, the host makes an outbound TLS
 connection; file bytes travel through the Puppyone API/gateway, which can see
 them in transit. The planned relay must not persist file bodies or the host's absolute
 path. Its current prototype stores device and folder identifiers, display names,
-permissions and connection metadata; bounded audit recording remains to be
-implemented before rollout. It is **not end-to-end
+permissions and connection metadata. It records operation type and outcome,
+not file paths or bodies; audit retention and privacy review remain rollout
+gates. It is **not end-to-end
 encrypted**, not an automatic Cloud publish, and not product analytics.
 
 This experiment remains off until privacy review, retention policy, security
