@@ -132,13 +132,30 @@
       "name": "Native installation inventory",
       "status": "partial",
       "sources": [
-        "electron/main/agent/connections/local-agent-inventory.mjs"
+        "electron/main/agent/connections/local-agent-inventory.mjs",
+        "electron/main/agent/connections/local-agent-connection-policy.mjs",
+        "electron/main/agent/connections/probes/codex-local-probe.mjs",
+        "electron/main/agent/connections/tools/claude-tool.mjs",
+        "electron/main/agent/connections/tools/codex-tool.mjs",
+        "electron/main/agent/connections/tools/cursor-tool.mjs",
+        "electron/main/agent/connections/tools/local-agent-tool-registry.mjs",
+        "electron/main/agent/connections/tools/opencode-tool.mjs"
       ],
       "targets": [
         "src/agent/connections/local_agent_inventory.rs",
-        "src/platform/environment.rs"
+        "src/agent/connections/local_agent_connection_policy.rs",
+        "src/agent/connections/probes/codex_local_probe.rs",
+        "src/agent/connections/tools/claude_tool.rs",
+        "src/agent/connections/tools/codex_tool.rs",
+        "src/agent/connections/tools/cursor_tool.rs",
+        "src/agent/connections/tools/local_agent_tool_registry.rs",
+        "src/agent/connections/tools/opencode_tool.rs",
+        "src/agent/connections/tools/mod.rs",
+        "src/agent/connections/tests.rs",
+        "fixtures/agent/connections/local-connection-policy.json",
+        "src/agent/connections/legacy_local_agent_inventory.rs"
       ],
-      "remaining": "Installed native Chat runtimes are discovered; startup negotiates provider capabilities. Formal cached readiness/version compatibility, installation/setup and global accounts remain pending. OpenCode user-profile plugin failure is recorded separately from isolated handshake verification."
+      "remaining": "Ported 1:1 with the product inventory tests (deduplicated scans, five-minute cache, sanitized 24-hour persisted snapshot, Refresh superseding an in-flight scan, per-tool failure isolation) and the connection-policy characterization regenerated from the product (26 cases). The executable-candidate and process-budget cases run with platform/local_agent_installation. The app's Settings and setup still read legacy_local_agent_inventory.rs until the host switches to AgentService."
     },
     {
       "name": "ACP protocol core",
@@ -704,7 +721,7 @@
         "src/agent/connections/probes/executable_candidates.rs",
         "src/agent/connections/probes/versioned_local_agent_probe.rs"
       ],
-      "remaining": "Ported 1:1; codex-local-probe and the local inventory tools move with the local-agent inventory."
+      "remaining": "Ported 1:1; codex-local-probe and the local inventory tools are ported with the local-agent inventory."
     },
     {
       "name": "Hermes runtime",

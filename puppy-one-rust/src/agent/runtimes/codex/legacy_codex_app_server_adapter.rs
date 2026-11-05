@@ -1115,7 +1115,7 @@ mod tests {
     #[test]
     #[ignore = "live Agent inference; run explicitly with --ignored"]
     fn live_codex_roundtrip_resume_and_stop() {
-        let executable = crate::agent::connections::local_agent_inventory::discover()
+        let executable = crate::agent::connections::legacy_local_agent_inventory::discover()
             .into_iter()
             .find(|i| i.runtime == crate::agent::runtime::legacy_runtime_registry::Runtime::Codex)
             .expect("Codex must be installed")

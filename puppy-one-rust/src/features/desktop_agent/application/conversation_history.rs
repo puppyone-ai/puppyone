@@ -3,7 +3,7 @@
 //! Listings never create or resume a conversation; opening one belongs to
 //! the workbench, which starts a real chat for the chosen locator.
 use crate::agent::{
-    connections::local_agent_inventory::Installation,
+    connections::legacy_local_agent_inventory::Installation,
     domain::legacy_session_model::{HistoryEntry, State},
     runtime::legacy_runtime_port::AgentRuntimePort,
 };

@@ -18,7 +18,7 @@ use crate::ui::{
 };
 use crate::{
     agent::{
-        connections::local_agent_inventory::{self as agents, Installation},
+        connections::legacy_local_agent_inventory::{self as agents, Installation},
         runtime::legacy_runtime_registry::Runtime,
     },
     theme::Theme,

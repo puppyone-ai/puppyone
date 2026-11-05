@@ -1,5 +1,6 @@
 use super::{
-    bootstrap::create_agent_runtime_host, connections::local_agent_inventory,
+    bootstrap::create_agent_runtime_host,
+    connections::legacy_local_agent_inventory as local_agent_inventory,
     domain::legacy_session_model::State, runtime::legacy_runtime_registry::Runtime,
 };
 use crate::wake::Wake;

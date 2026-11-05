@@ -1,7 +1,7 @@
 //! Platform seam consumed by the application composition; no Electron preload is required.
 use crate::{
     agent::{
-        connections::local_agent_inventory::Installation,
+        connections::legacy_local_agent_inventory::Installation,
         runtime::legacy_runtime_port::AgentRuntimePort,
     },
     wake::Wake,

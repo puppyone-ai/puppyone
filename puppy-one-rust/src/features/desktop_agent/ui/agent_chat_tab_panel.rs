@@ -31,7 +31,7 @@ use super::super::{
 };
 use crate::{
     agent::{
-        connections::local_agent_inventory::Installation,
+        connections::legacy_local_agent_inventory::Installation,
         domain::legacy_session_model::{Decision, InteractionKind, Resolution, State},
     },
     theme::Theme,

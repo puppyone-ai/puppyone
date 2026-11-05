@@ -3,7 +3,9 @@
 //! (`LocalAgentHooksSettingsView.tsx`), whose checkboxes install or remove
 //! PuppyOne's Hook in each Agent's configuration.
 use crate::{
-    agent::connections::local_agent_inventory::{self, Installation},
+    agent::connections::legacy_local_agent_inventory::{
+        self as local_agent_inventory, Installation,
+    },
     features::{
         local_agent_setup::{self, InstallationsChanged, Presentation, SetupSection},
         settings::preferences_store::PreferencesStore,

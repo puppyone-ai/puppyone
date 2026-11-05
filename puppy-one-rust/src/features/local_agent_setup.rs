@@ -9,7 +9,7 @@
 //! workbench launcher (suggested and running activations only);
 //! [`ActivationDialog`] asks for consent, then follows the operation.
 use crate::{
-    agent::connections::local_agent_inventory,
+    agent::connections::legacy_local_agent_inventory as local_agent_inventory,
     features::{
         desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
         settings::preferences_store::PreferencesStore,

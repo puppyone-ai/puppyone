@@ -1,7 +1,7 @@
 //! Native composition root. Provider adapters never leak into GPUI or application commands.
 use crate::{
     agent::{
-        connections::local_agent_inventory::Installation,
+        connections::legacy_local_agent_inventory::Installation,
         protocols::{acp::legacy_acp_runtime_adapter, pi_rpc::legacy_pi_rpc_adapter},
         runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
         runtimes::{claude::legacy_claude_adapter, codex::legacy_codex_app_server_adapter},

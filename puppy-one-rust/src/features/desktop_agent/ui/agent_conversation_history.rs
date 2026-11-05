@@ -7,7 +7,7 @@ use super::agent_theme::AgentTheme;
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, tooltip};
 use crate::{
-    agent::connections::local_agent_inventory::Installation,
+    agent::connections::legacy_local_agent_inventory::Installation,
     features::desktop_agent::application::conversation_history::{
         ConversationHistory, HistorySession, SourceStatus,
     },
