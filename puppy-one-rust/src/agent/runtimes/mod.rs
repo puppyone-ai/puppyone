@@ -8,6 +8,8 @@ pub mod hermes;
 pub mod opencode_native;
 #[allow(dead_code)]
 pub mod opencode_protocol;
+#[allow(dead_code)]
+pub mod pi;
 pub mod puppyone_agent;
 #[allow(dead_code)]
 pub mod workbuddy;

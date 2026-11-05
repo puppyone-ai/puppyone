@@ -2,7 +2,7 @@
 use crate::{
     agent::{
         connections::local_agent_inventory::Installation,
-        protocols::{acp::legacy_acp_runtime_adapter, pi_rpc::pi_rpc_adapter},
+        protocols::{acp::legacy_acp_runtime_adapter, pi_rpc::legacy_pi_rpc_adapter},
         runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
         runtimes::{claude::claude_adapter, codex::legacy_codex_app_server_adapter},
     },
@@ -58,7 +58,7 @@ fn create_inner(
         Runtime::Claude => Box::new(claude_adapter::Session::new(
             executable, root, history, wake,
         )),
-        Runtime::Pi => Box::new(pi_rpc_adapter::Session::new(
+        Runtime::Pi => Box::new(legacy_pi_rpc_adapter::Session::new(
             executable, root, history, wake,
         )),
         runtime => {

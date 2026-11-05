@@ -182,9 +182,13 @@
         "electron/main/agent/protocols/pi-rpc/pi-rpc-runtime-adapter.mjs"
       ],
       "targets": [
-        "src/agent/protocols/pi_rpc/pi_rpc_adapter.rs"
+        "src/agent/protocols/pi_rpc/pi_event_normalizer.rs",
+        "src/agent/protocols/pi_rpc/pi_prompt_input.rs",
+        "src/agent/protocols/pi_rpc/pi_rpc_client.rs",
+        "src/agent/protocols/pi_rpc/pi_rpc_runtime_adapter.rs",
+        "src/agent/protocols/pi_rpc/tests.rs"
       ],
-      "remaining": "Pi JSONL commands/events, exact native identity/history hydration, agent_settled/retry outcome handling, tools, extension interactions, effort/model selection, steering/abort/compact/rename are implemented. Live replies and second-turn context pass, but the installed pi-with-claude/opus provider loses model context after process restart; reproduced with the native CLI alone. Broad history discovery and full upstream event/schema parity remain pending."
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product Pi RPC client, event-normalizer and prompt-input tests (scripted process). The app still runs legacy_pi_rpc_adapter.rs until the host switches to AgentService."
     },
     {
       "name": "Claude native adapter",
@@ -759,6 +763,30 @@
         "src/agent/runtimes/workbuddy/tests.rs"
       ],
       "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "Pi runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/pi/pi-discovery.mjs",
+        "electron/main/agent/runtimes/pi/pi-event-normalizer.mjs",
+        "electron/main/agent/runtimes/pi/pi-history-source.mjs",
+        "electron/main/agent/runtimes/pi/pi-identity.mjs",
+        "electron/main/agent/runtimes/pi/pi-prompt-input.mjs",
+        "electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs",
+        "electron/main/agent/runtimes/pi/pi-rpc-client.mjs",
+        "electron/main/agent/runtimes/pi/pi-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/pi/pi_discovery.rs",
+        "src/agent/runtimes/pi/pi_history_source.rs",
+        "src/agent/runtimes/pi/pi_identity.rs",
+        "src/agent/runtimes/pi/pi_rpc_adapter.rs",
+        "src/agent/runtimes/pi/pi_runtime_definition.rs",
+        "src/agent/runtimes/pi/tests.rs",
+        "src/agent/protocols/pi_rpc/mod.rs"
+      ],
+      "remaining": "Ported 1:1 (the re-export modules map to protocols/pi_rpc) with the product Pi adapter and discovery tests on a scripted client and real temporary executables. Live wiring follows the runtime switch."
     }
   ]
 }
