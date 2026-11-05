@@ -144,6 +144,9 @@ export { DataWorkspace } from "./data/DataWorkspace";
 export { DataWorkspaceFrame } from "./data/DataWorkspaceFrame";
 export type { DataWorkspaceExplorerFrame, DataWorkspaceFrameProps } from "./data/DataWorkspaceFrame";
 export { resolveMarkdownAssetPath } from "./editor/markdown";
+// Drops in the reading area edit the document; the pane and the editor share
+// one name test instead of two extension lists.
+export { isDropImageName } from "./editor/markdown/features/image/markdownImageDropSyntax";
 export { createDataPortMarkdownAssetResolver } from "./editor/markdown/dataPortAssetResolver";
 export {
   createDocumentNavigationPort,

@@ -34,6 +34,8 @@ import {
   type ViewerExtensionHostAdapter,
   type Workspace,
   type WorkspaceContentChange,
+  createDocumentDropRegistry,
+  DocumentDropTargetProvider,
 } from "@puppyone/shared-ui";
 import {
   useExplorerFileDrop,
@@ -151,10 +153,11 @@ export function DesktopEditorSplitView({
       ?.focus({ preventScroll: true });
   }, [layout.activePaneId, paneHosts, panes]);
   const paneMove = usePaneMoveDrag(onMovePane);
+  const dropRegistry = useMemo(() => createDocumentDropRegistry(), []);
   const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge, {
     workspacePath: workspace.path,
     paneIds: panes.map((pane) => pane.id),
-  });
+  }, { registry: dropRegistry });
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {
@@ -175,14 +178,15 @@ export function DesktopEditorSplitView({
           </FloatingNotice>
         )}
       </FloatingNoticePortal>
-      <EditorLayoutNode
-        node={layout.root}
-        touchesBlockEnd
-        touchesInlineStart
-        paneHosts={paneHosts}
-        onResizeSplit={onResizeSplit}
-      />
-      {panes.map((pane) => createPortal(
+      <DocumentDropTargetProvider registry={dropRegistry}>
+        <EditorLayoutNode
+          node={layout.root}
+          touchesBlockEnd
+          touchesInlineStart
+          paneHosts={paneHosts}
+          onResizeSplit={onResizeSplit}
+        />
+        {panes.map((pane) => createPortal(
         <EditorPane
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
@@ -209,9 +213,10 @@ export function DesktopEditorSplitView({
           onOpenActionsPaneChange={setOpenActionsPaneId}
           onSplitPane={onSplitPane}
         />,
-        paneHosts.get(pane.id)!,
-        pane.id,
-      ))}
+          paneHosts.get(pane.id)!,
+          pane.id,
+        ))}
+      </DocumentDropTargetProvider>
     </div>
   );
 }

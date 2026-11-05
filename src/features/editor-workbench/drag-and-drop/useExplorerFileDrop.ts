@@ -11,8 +11,12 @@ import {
   EXPLORER_REFERENCE_DRAG_TYPE,
   classifyReferenceDataTransfer,
   type DocumentDataNode,
+  type DocumentDropPayload,
+  type DocumentDropRegistry,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
+  type ReferenceDataTransferSource,
+  isDropImageName,
 } from "@puppyone/shared-ui";
 import {
   acquireNativeSurfacePointerPassthroughLease,
@@ -29,6 +33,7 @@ import {
   paneSplitDefinition,
   type PaneDropIntent,
 } from "./paneDropGeometry";
+import { resolvePaneDropRegion, type PaneDropRegion } from "./paneDropRegion";
 import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
 import { claimEditorDropDocument, editorDropDocument } from "./editorResourceDrop";
 
@@ -42,6 +47,8 @@ export type EditorFileDropHandler = (
 export type EditorFileDropController = Readonly<{
   dropIntent: PaneDropIntent | null;
   dropFailed: boolean;
+  /** The pointer is over a document drop target: releasing inserts, not splits. */
+  insertIntent: boolean;
   dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -59,13 +66,32 @@ type ExplorerFileDropPreview = Readonly<{
   sessionId: string;
 }>;
 
+export type ExplorerFileDropOptions = Readonly<{
+  /** Document targets are registered below the pane tree; `null` keeps the
+   * pre-insert behaviour everywhere. */
+  registry?: DocumentDropRegistry | null;
+}>;
+
+/** An image released in the reading area belongs to the document; an image
+ * released near an edge still splits the pane. */
+export function shouldRouteToDocumentDrop(input: Readonly<{
+  region: PaneDropRegion;
+  payloadName: string;
+  hasTarget: boolean;
+}>): boolean {
+  return input.region === "center" && input.hasTarget && isDropImageName(input.payloadName);
+}
+
 export function useExplorerFileDrop(
   workspaceId: string,
   onOpenAtPaneEdge: EditorFileDropHandler,
   target: Readonly<{ workspacePath: string; paneIds: readonly string[] }>,
+  options: ExplorerFileDropOptions = {},
 ): EditorFileDropController {
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
   const [dropFailed, setDropFailed] = useState(false);
+  const [insertIntent, setInsertIntent] = useState(false);
+  const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
   // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
   const targetsRef = useRef(new Map<string, object>());
@@ -151,21 +177,33 @@ export function useExplorerFileDrop(
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
     const session = beginFileDrag();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
+    const candidate = dropCandidate(event.dataTransfer, workspaceId);
+    const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    if (candidate && target && shouldRouteToDocumentDrop({
+      region,
+      payloadName: candidate.name,
+      hasTarget: true,
+    })) {
+      // No split preview: the release will edit the document.
+      setPreview(null);
+      setInsertIntent(true);
+      return;
+    }
+    setInsertIntent(false);
     setPreview({
       sessionId: session.id,
       intent: {
         targetPaneId: paneId,
-        edge: closestPaneDropEdge(
-          event.currentTarget.getBoundingClientRect(),
-          event.clientX,
-          event.clientY,
-        ),
+        edge: closestPaneDropEdge(rect, event.clientX, event.clientY),
       },
     });
-  }, [beginFileDrag]);
+  }, [beginFileDrag, registry, workspaceId]);
 
   const leave = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    setInsertIntent(false);
     setPreview((current) => current?.intent.targetPaneId === paneId ? null : current);
   }, []);
 
@@ -178,36 +216,79 @@ export function useExplorerFileDrop(
     const source = hasNativeFiles(event.dataTransfer)
       ? { kind: "files" as const, files: Array.from(event.dataTransfer.files) }
       : classifyReferenceDataTransfer(event.dataTransfer);
-    const edge = closestPaneDropEdge(
-      event.currentTarget.getBoundingClientRect(),
-      event.clientX,
-      event.clientY,
-    );
+    const rect = event.currentTarget.getBoundingClientRect();
+    const edge = closestPaneDropEdge(rect, event.clientX, event.clientY);
     finishFileDrag("drop");
     setDropFailed(false);
+    setInsertIntent(false);
+
     const lifetime = targetsRef.current.get(paneId);
-    if (!lifetime) return;
-    const { direction, placement } = paneSplitDefinition(edge);
     const deliver = (node: DocumentDataNode | null) => {
-      if (node && targetsRef.current.get(paneId) === lifetime) {
+      if (node && lifetime && targetsRef.current.get(paneId) === lifetime) {
+        const { direction, placement } = paneSplitDefinition(edge);
         openRef.current(node, paneId, direction, placement);
       }
     };
-    if (source.kind === "files") {
-      void claimEditorDropDocument(source).then(deliver).catch(() => {
-        if (targetsRef.current.get(paneId) === lifetime) setDropFailed(true);
-      });
-    } else {
-      deliver(editorDropDocument(source, workspaceId));
+    const split = () => {
+      if (source.kind === "files") {
+        void claimEditorDropDocument(source).then(deliver).catch(() => {
+          if (targetsRef.current.get(paneId) === lifetime) setDropFailed(true);
+        });
+      } else {
+        deliver(editorDropDocument(source, workspaceId));
+      }
+    };
+
+    const region = resolvePaneDropRegion(rect, event.clientX, event.clientY);
+    const candidate = dropCandidate(event.dataTransfer, workspaceId);
+    const target = region === "center" ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    if (!candidate || !target || !shouldRouteToDocumentDrop({
+      region,
+      payloadName: candidate.name,
+      hasTarget: true,
+    })) {
+      split();
+      return;
     }
-  }, [finishFileDrag, workspaceId]);
+    void target.insert(candidate.payload).then((claimed) => {
+      // A target that cannot express the path (another root, an unsupported
+      // asset) hands the drop back to the pane instead of swallowing it.
+      if (!claimed) split();
+    }).catch(() => {
+      setDropFailed(true);
+    });
+  }, [finishFileDrag, registry, workspaceId]);
 
   const dismissDropFailure = useCallback(() => setDropFailed(false), []);
   const dropIntent = preview?.intent ?? null;
   return useMemo(
-    () => ({ dropIntent, dropFailed, dismissDropFailure, over, leave, drop }),
-    [dismissDropFailure, drop, dropFailed, dropIntent, leave, over],
+    () => ({ dropIntent, dropFailed, insertIntent, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailed, dropIntent, insertIntent, leave, over],
   );
+}
+
+/** Only a single file from this workspace may become a document edit. Native
+ * drops keep the original `File` handle: Electron's user-selected path grant
+ * does not survive reconstruction. */
+function dropCandidate(
+  dataTransfer: DataTransfer,
+  workspaceId: string,
+): { payload: DocumentDropPayload; name: string } | null {
+  const source: ReferenceDataTransferSource = hasNativeFiles(dataTransfer)
+    ? { kind: "files", files: Array.from(dataTransfer.files) }
+    : classifyReferenceDataTransfer(dataTransfer);
+  if (source.kind === "files") {
+    const file = source.files[0];
+    return file ? { payload: { kind: "file", file }, name: file.name } : null;
+  }
+  if (source.kind !== "workspace-entries" || !source.typed || source.entries.length !== 1) return null;
+  const entry = source.entries[0]!;
+  if (entry.entryType !== "file") return null;
+  if (source.workspaceId !== null && source.workspaceId !== workspaceId) return null;
+  return {
+    payload: { kind: "workspace-entry", path: entry.path, name: entry.name },
+    name: entry.name,
+  };
 }
 
 function hasNativeFiles(dataTransfer: DataTransfer): boolean {
