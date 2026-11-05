@@ -124,8 +124,7 @@
       "status": "partial",
       "sources": [
         "electron/main/agent/runtime/agent-runtime-port.mjs",
-        "electron/main/agent/domain/agent-session-model.mjs",
-        "shared/agent-contract/types.ts"
+        "electron/main/agent/domain/agent-session-model.mjs"
       ],
       "targets": [
         "src/agent/runtime/agent_runtime_port.rs",
@@ -282,8 +281,7 @@
       "status": "partial",
       "sources": [
         "src/features/desktop-agent/ui/AgentProviderActivities.tsx",
-        "src/features/desktop-agent/ui/styles/provider-activities.css",
-        "electron/main/agent/domain/transcript/provider-activity-policy.mjs"
+        "src/features/desktop-agent/ui/styles/provider-activities.css"
       ],
       "targets": [
         "src/features/desktop_agent/ui/agent_provider_activities.rs",
@@ -308,6 +306,150 @@
         "src/features/desktop_agent/ui/agent_theme.rs"
       ],
       "remaining": "Tool groups are step lines with their glyph, verb and subject, and three or more file reads fold into an Explored line, as the product; the evidence trees (AgentToolEvidenceTree, AgentToolTextEvidence) and the native model's missing durations remain."
+    },
+    {
+      "name": "Shared Agent contract",
+      "status": "partial",
+      "sources": [
+        "shared/agent-contract/activity-semantics.mjs",
+        "shared/agent-contract/activity-semantics.mjs.d.ts",
+        "shared/agent-contract/constants.d.mts",
+        "shared/agent-contract/constants.mjs",
+        "shared/agent-contract/display-schema.mjs",
+        "shared/agent-contract/display-schema.mjs.d.ts",
+        "shared/agent-contract/display-state.mjs",
+        "shared/agent-contract/display-state.mjs.d.ts",
+        "shared/agent-contract/display-types.ts",
+        "shared/agent-contract/event-content-update.mjs",
+        "shared/agent-contract/event-content-update.mjs.d.ts",
+        "shared/agent-contract/event-schema.mjs",
+        "shared/agent-contract/history-schema.mjs",
+        "shared/agent-contract/local-connection-schema.mjs",
+        "shared/agent-contract/native-session-id.mjs",
+        "shared/agent-contract/operation-error.mjs",
+        "shared/agent-contract/operation-error.mjs.d.ts",
+        "shared/agent-contract/reference-identity.mjs",
+        "shared/agent-contract/reference-identity.mjs.d.ts",
+        "shared/agent-contract/reference-input.mjs",
+        "shared/agent-contract/reference-input.mjs.d.ts",
+        "shared/agent-contract/runtime-schema.mjs",
+        "shared/agent-contract/schema.mjs",
+        "shared/agent-contract/schema.mjs.d.ts",
+        "shared/agent-contract/types.ts",
+        "shared/agent-contract/user-message-types.ts",
+        "shared/agent-contract/validation.mjs"
+      ],
+      "targets": [
+        "src/agent/contract/mod.rs",
+        "src/agent/contract/js.rs",
+        "src/agent/contract/validation.rs",
+        "src/agent/contract/constants.rs",
+        "src/agent/contract/activity_semantics.rs",
+        "src/agent/contract/native_session_id.rs",
+        "src/agent/contract/operation_error.rs",
+        "src/agent/contract/event_content_update.rs",
+        "src/agent/contract/event_schema.rs",
+        "src/agent/contract/history_schema.rs",
+        "src/agent/contract/reference_identity.rs",
+        "src/agent/contract/reference_input.rs",
+        "src/agent/contract/workspace_resource_reference.rs",
+        "src/agent/contract/local_connection_schema.rs",
+        "src/agent/contract/runtime_schema.rs",
+        "src/agent/contract/display_types.rs",
+        "src/agent/contract/display_state.rs",
+        "src/agent/contract/display_metrics.rs",
+        "src/agent/contract/display_schema.rs",
+        "src/agent/contract/schema.rs",
+        "src/agent/contract/types.rs",
+        "src/agent/contract/tests.rs"
+      ],
+      "remaining": "Every module is ported file by file over JSON values with JavaScript string/number/date semantics (src/agent/contract/js.rs). In-process requests carry Uint8Array bytes tagged as base64; dates without an offset parse as UTC instead of local time; display entries are shared Arc values with a weak per-entry size cache in place of the product's WeakMap. The TypeScript-only type files have no runtime counterpart beyond the accessors in types.rs."
+    },
+    {
+      "name": "Main transcript projection",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/transcript/content-readers.mjs",
+        "electron/main/agent/domain/transcript/content-readers.mjs.d.ts",
+        "electron/main/agent/domain/transcript/display-control.mjs",
+        "electron/main/agent/domain/transcript/display-projection.mjs",
+        "electron/main/agent/domain/transcript/display-projection.mjs.d.ts",
+        "electron/main/agent/domain/transcript/display-window.mjs",
+        "electron/main/agent/domain/transcript/file-change.mjs",
+        "electron/main/agent/domain/transcript/file-change.mjs.d.ts",
+        "electron/main/agent/domain/transcript/message-identity.mjs",
+        "electron/main/agent/domain/transcript/provider-activity-policy.mjs",
+        "electron/main/agent/domain/transcript/provider-notice-policy.mjs",
+        "electron/main/agent/domain/transcript/provider-notice-policy.mjs.d.ts",
+        "electron/main/agent/domain/transcript/transcript-indexes.mjs",
+        "electron/main/agent/domain/transcript/transcript-indexes.mjs.d.ts",
+        "electron/main/agent/domain/transcript/transcript-reducer.mjs",
+        "electron/main/agent/domain/transcript/transcript-reducer.mjs.d.ts",
+        "electron/main/agent/domain/transcript/turn-lifecycle.mjs",
+        "electron/main/agent/domain/transcript/turn-lifecycle.mjs.d.ts",
+        "electron/main/agent/domain/transcript/turn-timing.mjs",
+        "electron/main/agent/domain/transcript/turn-timing.mjs.d.ts"
+      ],
+      "targets": [
+        "src/agent/domain/transcript/mod.rs",
+        "src/agent/domain/transcript/transcript_indexes.rs",
+        "src/agent/domain/transcript/content_readers.rs",
+        "src/agent/domain/transcript/message_identity.rs",
+        "src/agent/domain/transcript/file_change.rs",
+        "src/agent/domain/transcript/turn_timing.rs",
+        "src/agent/domain/transcript/provider_activity_policy.rs",
+        "src/agent/domain/transcript/provider_notice_policy.rs",
+        "src/agent/domain/transcript/turn_lifecycle.rs",
+        "src/agent/domain/transcript/display_projection.rs",
+        "src/agent/domain/transcript/display_control.rs",
+        "src/agent/domain/transcript/display_window.rs",
+        "src/agent/domain/transcript/transcript_reducer.rs",
+        "src/agent/domain/transcript/tests.rs"
+      ],
+      "remaining": "Ported with the product's projection tests (desktop-agent.projection.test.ts). Test timelines read Main rows directly until the Renderer's transcript-rows builder is ported; object key order inside display entries can differ where the product spreads undefined values."
+    },
+    {
+      "name": "Main session control and actor",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/agent-control-view.mjs",
+        "electron/main/agent/domain/agent-conversation-metadata.mjs",
+        "electron/main/agent/domain/agent-event-checkpoint.mjs",
+        "electron/main/agent/domain/agent-event-workspace-paths.mjs",
+        "electron/main/agent/domain/agent-recovery.mjs",
+        "electron/main/agent/domain/agent-reference-error.mjs",
+        "electron/main/agent/domain/agent-session-actor.mjs",
+        "electron/main/agent/domain/agent-session-control.mjs"
+      ],
+      "targets": [
+        "src/agent/domain/agent_session_control.rs",
+        "src/agent/domain/agent_recovery.rs",
+        "src/agent/domain/agent_control_view.rs",
+        "src/agent/domain/agent_event_checkpoint.rs",
+        "src/agent/domain/agent_event_workspace_paths.rs",
+        "src/agent/domain/agent_session_actor.rs",
+        "src/agent/domain/agent_conversation_metadata.rs",
+        "src/agent/domain/agent_reference_error.rs",
+        "src/agent/domain/tests.rs"
+      ],
+      "remaining": "Control reducer, recovery, checkpointing, workspace paths and the SessionActor (single-threaded Rc handle with ordered re-entrant publication) are ported with the actor-level product tests. Windows path containment is not exercised on macOS; the service-level control tests arrive with the application layer."
+    },
+    {
+      "name": "Event envelope and edit evidence",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/agent-events.mjs",
+        "electron/main/agent/migrations/legacy-file-change-evidence.mjs",
+        "electron/main/agent/runtime/agent-file-change-blocks.mjs",
+        "electron/main/agent/runtime/agent-file-change-evidence.mjs"
+      ],
+      "targets": [
+        "src/agent/agent_events.rs",
+        "src/agent/runtime/agent_file_change_blocks.rs",
+        "src/agent/runtime/agent_file_change_evidence.rs",
+        "src/agent/migrations/legacy_file_change_evidence.rs"
+      ],
+      "remaining": "Envelope creation, redaction and renderer bounds are ported; jsdiff structuredPatch is replaced by the similar crate (Myers line diff), whose hunk boundaries can differ from jsdiff on ambiguous edits. Cyclic payloads cannot occur in JSON values."
     }
   ]
 }
