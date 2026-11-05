@@ -306,11 +306,14 @@
         "electron/main/agent/persistence/agent-session-repository.mjs"
       ],
       "targets": [
+        "src/agent/persistence/agent_conversation_catalog.rs",
+        "src/agent/persistence/agent_session_repository.rs",
+        "src/agent/persistence/tests.rs",
         "src/agent/persistence/legacy_session_catalog.rs",
         "src/agent/runtime/session_lease.rs",
         "src/agent/bootstrap/create_agent_runtime_host.rs"
       ],
-      "remaining": "Native identities and metadata are stored separately from provider transcripts; a lease limits sessions to eight per workspace and 32 per application. Complete catalog migrations, cross-product durable identity and external crash supervision remain pending."
+      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The session lease still limits sessions to eight per workspace and 32 per application; the app keeps legacy_session_catalog.rs until the host switches to AgentService."
     },
     {
       "name": "Native rich transcript and composer",
@@ -535,7 +538,8 @@
         "electron/main/agent/application/turn/agent-command-policy.mjs",
         "electron/main/agent/application/turn/agent-start-transaction.mjs",
         "electron/main/agent/application/turn/agent-turn-coordinator.mjs",
-        "electron/main/agent/application/turn/agent-turn-queue.mjs"
+        "electron/main/agent/application/turn/agent-turn-queue.mjs",
+        "electron/main/agent/agent-service.mjs"
       ],
       "targets": [
         "src/agent/application/agent_event_journal.rs",
@@ -823,6 +827,22 @@
         "src/agent/protocols/pi_rpc/mod.rs"
       ],
       "remaining": "Ported 1:1 (the re-export modules map to protocols/pi_rpc) with the product Pi adapter and discovery tests on a scripted client and real temporary executables. Live wiring follows the runtime switch."
+    },
+    {
+      "name": "Process-local cache and quit coordination",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/cache/ephemeral-agent-session-cache.mjs",
+        "electron/main/agent/agent-persistence.mjs",
+        "electron/main/agent/agent-shutdown.mjs"
+      ],
+      "targets": [
+        "src/agent/cache/ephemeral_agent_session_cache.rs",
+        "src/agent/cache/mod.rs",
+        "src/agent/cache/tests.rs",
+        "src/agent/agent_shutdown.rs"
+      ],
+      "remaining": "Ported 1:1 with the product persistence and shutdown tests: bounded, redacted, process-local recovery events (the legacy durable journal is removed once and never recreated), and quit held until Agent sessions and runtime resources drain. agent-persistence.mjs is a deprecated re-export of the cache. Wiring follows the host switch to AgentService."
     }
   ]
 }

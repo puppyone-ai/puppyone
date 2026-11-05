@@ -343,6 +343,17 @@ pub fn now_iso() -> String {
     iso_string(now_ms())
 }
 
+/// `left.localeCompare(right)`: ICU root collation, as V8 compares
+/// strings without a locale.
+pub fn locale_compare(left: &str, right: &str) -> std::cmp::Ordering {
+    thread_local! {
+        static COLLATOR: icu_collator::CollatorBorrowed<'static> =
+            icu_collator::Collator::try_new(Default::default(), Default::default())
+                .expect("compiled ICU collation data");
+    }
+    COLLATOR.with(|collator| collator.compare(left, right))
+}
+
 /// `Date.now()`.
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()

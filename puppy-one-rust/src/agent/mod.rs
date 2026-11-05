@@ -3,8 +3,12 @@ pub mod agent_error;
 #[allow(dead_code)]
 pub mod agent_events;
 #[allow(dead_code)]
+pub mod agent_shutdown;
+#[allow(dead_code)]
 pub mod application;
 pub mod bootstrap;
+#[allow(dead_code)]
+pub mod cache;
 pub mod connections;
 // The migration lands bottom-up; consumers arrive with the layers above.
 #[allow(dead_code)]
