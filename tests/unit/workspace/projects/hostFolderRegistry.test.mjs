@@ -71,6 +71,24 @@ describe("host folder registry", () => {
     expect(requests).toHaveLength(before);
   });
 
+  it("keeps running things off until this computer allows it, and only for an editable folder", async () => {
+    const { registry, folderPath } = await setup();
+    await expect(registry.register({ deviceId, rootPath: folderPath, name: "Notes" })).rejects.toThrow();
+    const { folderId } = await registry.register({ deviceId, rootPath: folderPath, name: "Notes" });
+    expect((await registry.resolve(folderId, accountId, deviceId)).capabilities).toEqual(["folder.read"]);
+    await expect(registry.setExecution({ accountId, deviceId, folderId, terminal: true, git: false, agent: false }))
+      .rejects.toThrow("Allow editing");
+    await registry.setAccess({ accountId, deviceId, folderId, name: "Notes", writable: true });
+    expect(await registry.setExecution({ accountId, deviceId, folderId, terminal: true, git: true, agent: false }))
+      .toEqual(["folder.read", "folder.write", "folder.shell", "folder.git"]);
+    expect((await registry.list(accountId, deviceId))[0].execution).toEqual({ terminal: true, git: true, agent: false });
+    // Narrowing to view-only ends every permission to run things.
+    await registry.setAccess({ accountId, deviceId, folderId, name: "Notes", writable: false });
+    expect((await registry.resolve(folderId, accountId, deviceId)).capabilities).toEqual(["folder.read"]);
+    await registry.setAccess({ accountId, deviceId, folderId, name: "Notes", writable: true });
+    expect((await registry.resolve(folderId, accountId, deviceId)).capabilities).toEqual(["folder.read", "folder.write"]);
+  });
+
   it("rejects a symlink root and changed registration settings", async () => {
     const { registry, folderPath, root } = await setup();
     const link = path.join(root, "link");

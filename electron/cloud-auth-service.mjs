@@ -299,6 +299,26 @@ export function createCloudAuthService({
     } catch (error) { close(); throw error; }
   }
 
+  /**
+   * Main-only: a WebSocket to a terminal on the owner's other computer. The
+   * address must be in the PuppyOne host family and match the API path; the
+   * access token travels as a subprotocol and never reaches a renderer.
+   */
+  async function openHostExecSocket(apiBase, socketUrl, expectedSession, WebSocketImpl = globalThis.WebSocket) {
+    const normalized = normalizeCloudApiBaseUrl(apiBase);
+    // A session request first: refreshes an expiring token and checks the account.
+    await requestSessionApi(normalized, "/hosts", { method: "GET" }, expectedSession);
+    const captured = runtimeSession;
+    if (!captured || !isSessionForApiBase(captured, normalized)) throw createSignedOutError(normalized);
+    if (expectedSession && (expectedSession.userId !== captured.user_id
+      || expectedSession.generation !== sessionGeneration)) throw createSessionChangedError();
+    const url = new URL(socketUrl);
+    const origin = normalizeCloudApiBaseUrl(`${url.protocol === "wss:" ? "https:" : "http:"}//${url.host}`);
+    if (!origin || !/^wss?:$/.test(url.protocol) || !/^\/api\/v1\/hosts\/folders\/[0-9a-f-]{36}\/exec$/.test(url.pathname)
+      || url.search || url.hash || url.username || url.password) throw new Error("Invalid terminal address.");
+    return new WebSocketImpl(url.toString(), [`version.bearer.${captured.access_token}`]);
+  }
+
   // Main-only, fixed-origin template authorization. No renderer can supply a
   // destination or receive an access token through this method.
   async function requestTemplateDownload({ id, releaseId }) {
@@ -734,6 +754,7 @@ export function createCloudAuthService({
     requestSessionApi,
     requestTemplateDownload,
     openAgentStream,
+    openHostExecSocket,
     subscribe(listener) { stateSubscribers.add(listener); return () => stateSubscribers.delete(listener); },
     clearSession,
     dispose,

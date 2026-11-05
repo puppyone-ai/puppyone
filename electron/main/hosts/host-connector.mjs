@@ -42,7 +42,7 @@ export function deviceSocketUrl(deployment, deviceId, connectUrl) {
  */
 export function createHostConnector({ apiBase, auth, identity, registry, fileService,
   WebSocketImpl = globalThis.WebSocket, logger = console, onRevoked = () => {}, onStatus = () => {},
-  appVersion = "unknown", bootId = randomUUID() }) {
+  appVersion = "unknown", bootId = randomUUID(), gitService = null, execService = null }) {
   // Sent with every proof; an unexpected App version string never blocks connecting.
   const hello = { protocol: HOST_PROTOCOL_VERSION, boot_id: bootId,
     app_version: APP_VERSION.test(String(appVersion)) ? String(appVersion) : "unknown" };
@@ -73,7 +73,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
   }
 
   function status() {
-    return { state, deviceId, activeRequests, watching: watches.size, lastAccessAt };
+    return { state, deviceId, activeRequests, watching: watches.size, lastAccessAt,
+      running: execService?.list() ?? [] };
   }
 
   function stopWatches() {
@@ -87,6 +88,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
     stopWatches();
+    // Remote terminals end with the connection that carried them.
+    void execService?.stopAll().catch(() => {});
     const previous = socket;
     socket = null;
     if (previous && previous.readyState < 2) previous.close();
@@ -147,7 +150,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     if (!folder) { send(ws, { type: "reply", id: message.id, error: "folder_unavailable" }); return; }
     activeRequests++; lastAccessAt = new Date().toISOString(); notify();
     try {
-      const result = await fileService.run(message);
+      if (message.action === "git" && !gitService) throw Object.assign(new Error("git"), { code: "folder_unavailable" });
+      const result = message.action === "git" ? await gitService.run(message) : await fileService.run(message);
       if (await current()) send(ws, { type: "reply", id: message.id, result });
     } catch (error) {
       if (await current()) send(ws, { type: "reply", id: message.id,
@@ -233,6 +237,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
           void handleWatch(message, ws).catch(() => close());
         } else if (message?.type === "unwatch") {
           handleUnwatch(message);
+        } else if (execService?.receive(message, (frame) => send(ws, frame))) {
+          lastAccessAt = new Date().toISOString(); notify();
         }
       });
       ws.addEventListener("close", (event) => {

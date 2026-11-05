@@ -9,8 +9,9 @@
 
 export type HostKind = "this-computer" | "my-computer" | "hosted-workspace";
 
-/** Folder capabilities granted by the Cloud. Execution never crosses computers in phase 1. */
-export type HostFolderCapability = "folder.read" | "folder.write";
+/** Folder capabilities granted by the Cloud. Execution crosses computers only with the host's per-folder consent. */
+/** Running things (shell, git, agent) also needs folder.write and the host's own consent. */
+export type HostFolderCapability = "folder.read" | "folder.write" | "folder.shell" | "folder.git" | "folder.agent";
 
 export type HostRef = Readonly<{
   kind: HostKind;
@@ -78,8 +79,23 @@ export type HostSharingStatus = Readonly<{
   activeRequests: number;
   watching: number;
   lastAccessAt: string | null;
-  folders?: ReadonlyArray<Readonly<{ folderId: string; name: string; writable: boolean }>>;
+  folders?: ReadonlyArray<Readonly<{ folderId: string; name: string; writable: boolean;
+    execution?: HostExecutionSetting }>>;
+  /** Terminals and Agents other computers are running here right now. */
+  running?: ReadonlyArray<Readonly<{ session: string; folderId: string; kind: "shell" | "agent"; launcher: string;
+    startedAt: string }>>;
 }>;
+
+export type HostExecutionSetting = Readonly<{ terminal: boolean; git: boolean; agent: boolean }>;
+
+export type HostLauncher = "shell" | "codex" | "claude" | "cursor" | "opencode" | "pi" | "hermes";
+
+export type HostTerminalEvent =
+  | Readonly<{ id: string; type: "started" }>
+  | Readonly<{ id: string; type: "output"; data: string }>
+  | Readonly<{ id: string; type: "exit"; status: number | null }>
+  | Readonly<{ id: string; type: "error"; code: string }>
+  | Readonly<{ id: string; type: "closed" }>;
 
 export type RecentHostFolder = Readonly<{
   deployment: string;

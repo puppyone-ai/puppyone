@@ -9,6 +9,9 @@ import { createHostFileProcess } from "../hosts/host-file-process.mjs";
 import { createHostConnector } from "../hosts/host-connector.mjs";
 import { createRemoteHostClient } from "../hosts/remote-host-client.mjs";
 import { createHostRecents } from "../hosts/host-recents.mjs";
+import { createHostExecService } from "../hosts/host-exec-service.mjs";
+import { createHostGitService } from "../hosts/host-git-service.mjs";
+import { createRemoteExecClient } from "../hosts/remote-exec-client.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_WATCHES_PER_WINDOW = 32;
@@ -26,7 +29,8 @@ function requireSession(expectedSession) {
  */
 export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, apiBase,
   authorizeWorkspaceRoot, dialog, BrowserWindow, t, utilityProcess = null, powerMonitor = null,
-  fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console }) {
+  fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console,
+  createTerminalService = null }) {
   let services = null;
   let recents = null;
   // One per App launch: lets the Cloud tell a restarted host from a reconnect.
@@ -81,7 +85,14 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     const fileService = utilityProcess && fileServiceModulePath
       ? createHostFileProcess({ utilityProcess, modulePath: fileServiceModulePath, resolveFolder, logger })
       : createHostFileService({ resolveFolder });
+    // Remote terminals and Agents run on this computer's own terminal service.
+    const execService = createTerminalService ? createHostExecService({ resolveFolder, logger,
+      createTerminalService: (options) => createTerminalService({ appVersion: app.getVersion?.() ?? "unknown",
+        initializeWorkspaceEditReview: async () => {}, logger, ...options }),
+      onChange: () => broadcast({ ...(services?.connector.status() ?? {}), paused: paused === true }) }) : null;
+    const gitService = createHostGitService({ resolveFolder });
     const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, logger,
+      gitService, execService,
       appVersion: app.getVersion?.() ?? "unknown", bootId,
       onStatus: (status) => broadcast({ ...status, paused: paused === true }),
       onRevoked: (lost) => {
@@ -94,7 +105,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
           await identity.forget(lost);
         })().catch((error) => logger.warn("Revoked device cleanup failed", error?.message));
       } });
-    services = { identity, registry, connector, fileService };
+    services = { identity, registry, connector, fileService, execService };
     return services;
   }
 
@@ -206,13 +217,65 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       if (answer.response !== 1) return { cancelled: true };
     }
     const local = active?.deviceId === deviceId && active?.accountId === session.userId ? services?.registry : null;
+    // Keep what this computer allows to run; view-only ends all of it.
+    const current = local ? (await local.list(session.userId, deviceId)).find((row) => row.folderId === folderId) : null;
+    const execution = writable && current ? current.execution : { terminal: false, git: false, agent: false };
     // Narrow locally before asking the backend; widen locally only after it agreed.
-    if (local && !writable) await local.setAccess({ accountId: session.userId, deviceId, folderId, name, writable });
+    if (local && !writable) {
+      await local.setAccess({ accountId: session.userId, deviceId, folderId, name, writable });
+      await services.execService?.enforce(folderId);
+    }
     const result = await auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}/folders/${folderId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), writable, expected_revision: expectedRevision }) }, session);
+      body: JSON.stringify({ name: name.trim(), writable, expected_revision: expectedRevision, ...execution }) }, session);
     if (local && writable) await local.setAccess({ accountId: session.userId, deviceId, folderId, name, writable });
     return result;
+  });
+
+  // Running things in a shared folder: only from this computer, per folder,
+  // with an explicit confirmation to turn anything on.
+  ipcMain.handle("host:set-execution", async (event, request) => {
+    const { deviceId, folderId, expectedRevision } = request ?? {};
+    const session = requireSession(request?.expectedSession);
+    const wanted = { terminal: request?.terminal === true, git: request?.git === true, agent: request?.agent === true };
+    if (!UUID.test(deviceId) || !UUID.test(folderId) || !Number.isSafeInteger(expectedRevision)) {
+      throw new Error("Invalid execution setting.");
+    }
+    if (active?.deviceId !== deviceId || active?.accountId !== session.userId || !services) {
+      throw new Error("Change this on the computer that shares the folder.");
+    }
+    const row = (await services.registry.list(session.userId, deviceId)).find((item) => item.folderId === folderId);
+    if (!row) throw new Error("This folder is not shared from this computer.");
+    const widening = (wanted.terminal && !row.execution.terminal) || (wanted.git && !row.execution.git) ||
+      (wanted.agent && !row.execution.agent);
+    if (widening) {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) throw new Error("This change requires a current window.");
+      const answer = await dialog.showMessageBox(window, { type: "warning",
+        buttons: [t("native.host.cancel"), t("native.host.allow")], defaultId: 0, cancelId: 0,
+        title: t("native.host.execution.title"),
+        message: t("native.host.execution.message", { name: row.name }),
+        detail: t("native.host.execution.detail") });
+      if (answer.response !== 1) return { cancelled: true };
+    }
+    const update = (body) => auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}/folders/${folderId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: row.name, writable: row.writable, expected_revision: expectedRevision, ...body }) },
+      session);
+    if (widening) {
+      // The Cloud grant first: if it is refused, nothing was allowed here either.
+      const result = await update(wanted);
+      await services.registry.setExecution({ accountId: session.userId, deviceId, folderId, ...wanted });
+      return result;
+    }
+    await services.registry.setExecution({ accountId: session.userId, deviceId, folderId, ...wanted });
+    await services.execService?.enforce(folderId);
+    return update(wanted);
+  });
+
+  ipcMain.handle("host:stop-remote-sessions", async () => {
+    await services?.execService?.stopAll();
+    return { stopped: true };
   });
 
   ipcMain.handle("host:remove-folder", async (event, request) => {
@@ -297,6 +360,48 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     folderWatches.get(`${event.sender.id}:${request?.id}`)?.();
   });
 
+  // Access side: a terminal, an Agent or Git in another computer's folder.
+  let remoteExec = null;
+  const remoteTerminals = new Map();
+  function remoteExecClient() {
+    if (!apiBase) throw new Error("Cloud is not configured.");
+    remoteExec ??= createRemoteExecClient({ auth, apiBase });
+    return remoteExec;
+  }
+  ipcMain.handle("host:exec-open", async (event, request) => {
+    const session = requireSession(request?.expectedSession);
+    const owner = event.sender;
+    const id = request?.id;
+    const key = `${owner.id}:${id}`;
+    const forget = () => { remoteTerminals.delete(key); owner.removeListener?.("destroyed", closeOnDestroy); };
+    const closeOnDestroy = () => { remoteExec?.close(id); forget(); };
+    await remoteExecClient().open({ id, folderId: request?.folderId, kind: request?.kind, launcher: request?.launcher,
+      cols: request?.cols, rows: request?.rows, expectedSession: session }, (frame) => {
+      if (!owner.isDestroyed()) owner.send("host:exec-event", { ...frame, id });
+      if (["exit", "error", "closed"].includes(frame.type)) forget();
+    });
+    remoteTerminals.set(key, id);
+    owner.once?.("destroyed", closeOnDestroy);
+    return { id };
+  });
+  const ownedTerminal = (event, request) => remoteTerminals.get(`${event.sender.id}:${request?.id}`) ?? null;
+  ipcMain.handle("host:exec-input", (event, request) => {
+    const id = ownedTerminal(event, request);
+    return id ? remoteExec.input(id, request?.data) : false;
+  });
+  ipcMain.handle("host:exec-resize", (event, request) => {
+    const id = ownedTerminal(event, request);
+    return id ? remoteExec.resize(id, request?.cols, request?.rows) : false;
+  });
+  ipcMain.handle("host:exec-interrupt", (event, request) => {
+    const id = ownedTerminal(event, request);
+    return id ? remoteExec.interrupt(id) : false;
+  });
+  ipcMain.handle("host:exec-close", (event, request) => {
+    const id = ownedTerminal(event, request);
+    return id ? remoteExec.close(id) : false;
+  });
+
   // Recently opened folders on the owner's other computers, and window restore.
   ipcMain.handle("host:recent-folders", async (_event, expectedSession) => {
     if (!apiBase) return { folders: [], lastActive: null };
@@ -321,6 +426,8 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
 
   return {
     dispose() {
+      remoteExec?.closeAll();
+      void services?.execService?.stopAll().catch(() => {});
       powerMonitor?.removeListener("suspend", onSuspend);
       powerMonitor?.removeListener("resume", onResume);
       powerMonitor?.removeListener("unlock-screen", onResume);

@@ -3,7 +3,9 @@ import { resolveCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const READ_ACTIONS = new Set(["list", "read"]);
-const ACTIONS = new Set(["list", "read", "write", "mkdir", "move", "remove"]);
+const ACTIONS = new Set(["list", "read", "write", "mkdir", "move", "remove", "git"]);
+const GIT_READS = new Set(["status", "graph", "commit_detail", "file_diff"]);
+const GIT_FIELDS = ["op", "paths", "path", "scope", "commit", "message"];
 const MAX_EVENT_BUFFER = 64 * 1024;
 
 /** Structured failure that survives Electron IPC (custom Error fields do not). */
@@ -28,6 +30,10 @@ function route(folderId, request) {
       expected_revision: request.expected_revision ?? null });
   }
   if (request.action === "move") return json("POST", "/files", { action: "move", path, destination: request.destination });
+  if (request.action === "git") {
+    return json("POST", "/git", Object.fromEntries(GIT_FIELDS.filter((key) => request[key] !== undefined)
+      .map((key) => [key, request[key]])));
+  }
   return json("POST", "/files", { action: request.action, path });
 }
 
@@ -87,7 +93,8 @@ export function createRemoteHostClient({ auth, apiBase, retryDelays = [250, 1000
   async function request(folderId, input, expectedSession) {
     if (!UUID.test(folderId) || !ACTIONS.has(input?.action)) return { ok: false, status: 400, code: "invalid_request" };
     const { path, init } = route(folderId, input);
-    const attempts = READ_ACTIONS.has(input.action) ? retryDelays.length + 1 : 1;
+    const reading = READ_ACTIONS.has(input.action) || (input.action === "git" && GIT_READS.has(input.op));
+    const attempts = reading ? retryDelays.length + 1 : 1;
     let last;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
@@ -99,7 +106,7 @@ export function createRemoteHostClient({ auth, apiBase, retryDelays = [250, 1000
         await wait(retryDelays[attempt]);
       }
     }
-    if (!READ_ACTIONS.has(input.action) && last.status === 0) last.outcomeUnknown = true;
+    if (!reading && last.status === 0) last.outcomeUnknown = true;
     return last;
   }
 

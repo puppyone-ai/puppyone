@@ -54,6 +54,7 @@ import { createTemplateMarketplaceService } from "./main/template-marketplace-se
 import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
+import { createTerminalService } from "./main/terminal-service.mjs";
 import {
   createApplicationQuitIntent,
   createDocumentSessionCloseCoordinator,
@@ -1366,6 +1367,7 @@ function registerIpcHandlers() {
     secureStorage: safeStorage, apiBase: desktopCloudConfiguration?.apiBase,
     authorizeWorkspaceRoot, dialog, BrowserWindow, utilityProcess, powerMonitor,
     fileServiceModulePath: path.join(__dirname, "utility", "host-file-service", "main.mjs"),
+    createTerminalService,
     markWorkspaceShared: (rootPath, hostFolderId) =>
       workspaceStateStore.setRecentWorkspaceHostFolder(rootPath, hostFolderId),
     t: (id, values) => localeService.t(id, values) });

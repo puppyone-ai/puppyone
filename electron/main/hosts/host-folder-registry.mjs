@@ -5,6 +5,15 @@ import { resolveCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Capabilities this computer itself grants for one registered folder. */
+export function capabilitiesOf(row) {
+  const capabilities = row.writable ? ["folder.read", "folder.write"] : ["folder.read"];
+  if (row.writable && row.execution?.terminal === true) capabilities.push("folder.shell");
+  if (row.writable && row.execution?.git === true) capabilities.push("folder.git");
+  if (row.writable && row.execution?.agent === true) capabilities.push("folder.agent");
+  return capabilities;
+}
+
 /** Local-only mapping; the backend never receives the host filesystem path. */
 export function createHostFolderRegistry({ filePath, auth, apiBase }) {
   const deployment = resolveCloudApiBaseUrl(apiBase);
@@ -92,14 +101,35 @@ export function createHostFolderRegistry({ filePath, auth, apiBase }) {
       const row = (await load()).find((item) => item.folderId === folderId && item.deviceId === deviceId &&
         item.accountId === accountId && item.deployment === deployment && item.state === "active");
       if (!row) return null;
-      return { rootPath: row.rootPath, state: row.state,
-        capabilities: row.writable ? ["folder.read", "folder.write"] : ["folder.read"] };
+      return { rootPath: row.rootPath, state: row.state, capabilities: capabilitiesOf(row) };
+    },
+    /**
+     * Running things in this folder for the owner's other computers. Off by
+     * default, per folder, only changeable on this computer, and only for a
+     * folder that may be edited (a terminal or Agent can always write).
+     */
+    setExecution({ accountId, deviceId, folderId, terminal, git, agent }) {
+      const result = pending.catch(() => {}).then(async () => {
+        if (![terminal, git, agent].every((value) => typeof value === "boolean")) throw new Error("Invalid execution setting.");
+        const rows = await load();
+        const row = rows.find((item) => item.deployment === deployment && item.accountId === accountId &&
+          item.deviceId === deviceId && item.folderId === folderId && item.state === "active");
+        if (!row) return null;
+        if ((terminal || git || agent) && !row.writable) throw new Error("Allow editing before running anything in this folder.");
+        row.execution = { terminal, git, agent };
+        await save(rows);
+        return capabilitiesOf(row);
+      });
+      pending = result;
+      return result;
     },
     /** This computer's own shared folders, for its status surface. No paths leave Main. */
     async list(accountId, deviceId) {
       return (await load()).filter((row) => row.deployment === deployment && row.accountId === accountId &&
         row.deviceId === deviceId && row.state === "active")
-        .map(({ folderId, name, writable, rootPath }) => ({ folderId, name, writable, rootPath }));
+        .map((row) => ({ folderId: row.folderId, name: row.name, writable: row.writable, rootPath: row.rootPath,
+          execution: { terminal: row.execution?.terminal === true, git: row.execution?.git === true,
+            agent: row.execution?.agent === true } }));
     },
     /** Local enforcement follows the narrower of the old and new access at every step. */
     setAccess({ accountId, deviceId, folderId, name, writable }) {
@@ -110,6 +140,8 @@ export function createHostFolderRegistry({ filePath, auth, apiBase }) {
           item.deviceId === deviceId && item.folderId === folderId && item.state === "active");
         if (!row) return false;
         row.name = name.trim(); row.writable = writable;
+        // Narrowing to view-only also ends every permission to run things here.
+        if (!writable) row.execution = { terminal: false, git: false, agent: false };
         await save(rows);
         return true;
       });

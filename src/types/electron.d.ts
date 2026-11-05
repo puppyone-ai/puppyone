@@ -7,8 +7,8 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
-import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostSession,
-  HostSharingStatus, RecentHostFolder } from "../../shared/host-contract/types";
+import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
+  HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
@@ -1154,6 +1154,16 @@ declare global {
         writable: boolean; expectedSession: HostSession }) => Promise<RecentHostFolder>;
       closeRecentHostFolder: (request: { expectedSession: HostSession }) => Promise<boolean>;
       forgetRecentHostFolder: (request: { folderId: string; expectedSession: HostSession }) => Promise<boolean>;
+      setHostExecution: (request: { deviceId: string; folderId: string; terminal: boolean; git: boolean; agent: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      stopRemoteHostSessions: () => Promise<{ stopped: true }>;
+      openHostTerminal: (request: { id: string; folderId: string; kind: "shell" | "agent"; launcher: HostLauncher;
+        cols: number; rows: number; expectedSession: HostSession }) => Promise<{ id: string }>;
+      writeHostTerminal: (request: { id: string; data: string }) => Promise<boolean>;
+      resizeHostTerminal: (request: { id: string; cols: number; rows: number }) => Promise<boolean>;
+      interruptHostTerminal: (request: { id: string }) => Promise<boolean>;
+      closeHostTerminal: (request: { id: string }) => Promise<boolean>;
+      onHostTerminalEvent: (callback: (event: HostTerminalEvent) => void) => () => void;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;

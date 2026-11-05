@@ -231,6 +231,18 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("host:status-changed", listener);
   },
   requestHostFolder: (request) => ipcRenderer.invoke("host:folder-request", request),
+  setHostExecution: (request) => ipcRenderer.invoke("host:set-execution", request),
+  stopRemoteHostSessions: () => ipcRenderer.invoke("host:stop-remote-sessions"),
+  openHostTerminal: (request) => ipcRenderer.invoke("host:exec-open", request),
+  writeHostTerminal: (request) => ipcRenderer.invoke("host:exec-input", request),
+  resizeHostTerminal: (request) => ipcRenderer.invoke("host:exec-resize", request),
+  interruptHostTerminal: (request) => ipcRenderer.invoke("host:exec-interrupt", request),
+  closeHostTerminal: (request) => ipcRenderer.invoke("host:exec-close", request),
+  onHostTerminalEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:exec-event", listener);
+    return () => ipcRenderer.removeListener("host:exec-event", listener);
+  },
   watchHostFolder: (request) => ipcRenderer.invoke("host:folder-watch", request),
   stopHostFolderWatch: (request) => ipcRenderer.invoke("host:folder-watch-stop", request),
   onHostFolderEvent: (callback) => {
