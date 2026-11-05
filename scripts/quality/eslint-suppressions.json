@@ -789,11 +789,6 @@
       "count": 3
     }
   },
-  "src/features/data-workspace/useDataNodeActions.ts": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/desktop-agent/domain/agent-workspace-path.ts": {
     "no-nested-ternary": {
       "count": 2
