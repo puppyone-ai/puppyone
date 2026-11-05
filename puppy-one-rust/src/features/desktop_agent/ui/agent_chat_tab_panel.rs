@@ -25,7 +25,7 @@ mod agent_transcript;
 #[path = "visual_fixture.rs"]
 mod visual_fixture;
 use super::super::{
-    application::agent_session_controller::AgentSessionController,
+    application::legacy_agent_session_controller::AgentSessionController,
     domain::agent_chat_presentation::message_preview,
     infrastructure::native::{native_agent_client, native_attachment_client},
 };

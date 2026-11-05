@@ -13,6 +13,7 @@ pub mod local_agent_setup;
 pub mod managed_compute;
 pub mod model_connections;
 pub mod repository_cloud;
+pub mod session_transport;
 pub mod settings;
 pub mod source_control;
 pub mod sub_theme_catalog;

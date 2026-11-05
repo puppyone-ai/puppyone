@@ -12,7 +12,7 @@ use super::*;
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use crate::{
-    features::desktop_agent::application::agent_session_controller::now_ms,
+    features::desktop_agent::application::legacy_agent_session_controller::now_ms,
     localization::{t as tr, tf},
     theme,
 };

@@ -279,7 +279,7 @@ impl AgentChat {
             cx,
             move |_, _, _, _| Box::new(Unavailable { snapshot }),
         );
-        use crate::features::desktop_agent::application::agent_session_controller::{
+        use crate::features::desktop_agent::application::legacy_agent_session_controller::{
             RunningTurn, TurnOutcome, TurnTiming, now_ms,
         };
         if !empty {

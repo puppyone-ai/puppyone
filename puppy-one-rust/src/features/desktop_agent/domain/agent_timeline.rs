@@ -4,7 +4,7 @@
 //! and the vertical rhythm of `transcript-layout.ts`. Pure; no GPUI.
 use super::agent_activity_presentation::{PartKind, part_kind};
 use crate::agent::domain::legacy_session_model::Message;
-use crate::features::desktop_agent::application::agent_session_controller::TurnTiming;
+use crate::features::desktop_agent::application::legacy_agent_session_controller::TurnTiming;
 use std::collections::HashMap;
 
 /// `agentTimelineSpacing`.
@@ -156,7 +156,7 @@ fn gap_after(row: &Row, next: Option<&Row>) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::features::desktop_agent::application::agent_session_controller::TurnOutcome;
+    use crate::features::desktop_agent::application::legacy_agent_session_controller::TurnOutcome;
     fn m(id: &str, role: &str, text: &str, status: &str) -> Message {
         Message {
             id: id.into(),

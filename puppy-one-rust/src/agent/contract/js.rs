@@ -50,6 +50,16 @@ pub fn trim(value: &str) -> &str {
     value.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
 }
 
+/// `String.prototype.trimStart`.
+pub fn trim_start(value: &str) -> &str {
+    value.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+}
+
+/// `String.prototype.trimEnd`.
+pub fn trim_end(value: &str) -> &str {
+    value.trim_end_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+}
+
 /// `Number.isSafeInteger(value)`.
 pub fn is_safe_integer(value: &Value) -> bool {
     safe_integer(value).is_some()
