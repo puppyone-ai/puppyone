@@ -28,17 +28,18 @@ vi.mock("../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEdito
     onViewReady?: (view: unknown) => void;
   }) => {
     editorProps.push(props);
+    const { onOutlineChange, onViewReady } = props;
     useEffect(() => {
-      props.onViewReady?.(hoisted.view);
-      props.onOutlineChange?.({
+      onViewReady?.(hoisted.view);
+      onOutlineChange?.({
         headings: [
           { from: 0, level: 1, title: "A", plainTitle: "A" },
           { from: 10, level: 2, title: "B", plainTitle: "B" },
         ],
         activeIndex: 0,
       });
-      return () => props.onViewReady?.(null);
-    }, []);
+      return () => onViewReady?.(null);
+    }, [onOutlineChange, onViewReady]);
     return <div data-testid="fake-editor" data-live={String(props.livePreview)} />;
   },
 }));
