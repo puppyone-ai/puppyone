@@ -321,9 +321,9 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownBlockDrag: true })).enableMarkdownBlockDrag).toBe(true);
   });
 
-  it("keeps the Markdown heading outline hidden unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableMarkdownHeadingOutline).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableMarkdownHeadingOutline).toBe(false);
+  it("defaults the Markdown heading rail on and honours an explicit opt-out", () => {
+    expect(parseExperimentalSettings(null).enableMarkdownHeadingOutline).toBe(true);
+    expect(parseExperimentalSettings("not-json").enableMarkdownHeadingOutline).toBe(true);
     expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: false })).enableMarkdownHeadingOutline)
       .toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: true })).enableMarkdownHeadingOutline)

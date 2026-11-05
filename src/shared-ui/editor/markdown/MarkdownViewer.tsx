@@ -54,7 +54,7 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
         ? context.editorInteractionPreferences.markdownBlockDragEnabled
         : false}
       headingOutlineEnabled={livePreview
-        && context.editorInteractionPreferences.markdownHeadingOutlineEnabled === true}
+        && context.editorInteractionPreferences.markdownHeadingOutlineEnabled !== false}
       aiEditFile={context.aiEditFile}
       htmlTrustMode={context.htmlTrustMode}
       documentPath={context.document.path}

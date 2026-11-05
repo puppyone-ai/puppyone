@@ -199,7 +199,8 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
-  enableMarkdownHeadingOutline: false,
+  /** The rail is quiet and opt-out. The outline panel itself is always on. */
+  enableMarkdownHeadingOutline: true,
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,
   /**
@@ -449,7 +450,9 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
-      enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline === true,
+      // On unless the user switched the rail off; older records never stored
+      // this key and must not silently lose the rail.
+      enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline !== false,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
       enableOtherAppImports: parsed.enableOtherAppImports === true
         || parsed.enableNotionImport === true
