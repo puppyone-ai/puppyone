@@ -5,7 +5,9 @@ import { useVisibleFrameReadiness } from "../shared/useVisibleFrameReadiness";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { resolveFileFormat } from "../../../core/fileFormats";
-import { htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
+import { htmlOpenDocumentScript, htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
+import { decodeHtmlOpenDocumentMessage } from "./htmlBridgeProtocol";
+import { parseHtmlDocumentOpenTarget, type HtmlDocumentOpenIntent } from "./htmlOpenDocumentIntent";
 
 export function HtmlPreviewFrame({
   path,
@@ -15,6 +17,7 @@ export function HtmlPreviewFrame({
   htmlTrustMode,
   interactive = false,
   viewportState,
+  onOpenDocument,
 }: {
   path: string;
   title: string;
@@ -23,10 +26,13 @@ export function HtmlPreviewFrame({
   htmlTrustMode: MarkdownHtmlTrustMode;
   interactive?: boolean;
   viewportState?: HtmlPageViewport;
+  /** Called with a validated workspace document intent from the frame. */
+  onOpenDocument?: (intent: HtmlDocumentOpenIntent) => void;
 }) {
   const policy = getHtmlPreviewPolicy(htmlTrustMode, interactive);
   const frame = useRef<HTMLIFrameElement>(null);
   const [viewportChannel] = useState(() => crypto.randomUUID());
+  const [documentChannel] = useState(() => crypto.randomUUID());
   const hasContentSnapshot = content !== null && content !== undefined;
   const frameKey = [
     path,
@@ -36,9 +42,11 @@ export function HtmlPreviewFrame({
     hasContentSnapshot ? `${content.length}:${hashString(content)}` : "",
   ].join("|");
   const projectionPort = useEditorPreviewServices().services?.documentProjection;
+  const documentLinkChannel = interactive ? documentChannel : undefined;
   const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl,
-    getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined) : null,
-    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel]);
+    getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined,
+    documentLinkChannel) : null,
+    [content, documentLinkChannel, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel]);
   const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
   const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024
     && resolveFileFormat({ name: path }).defaultViewer === "html-artifact";
@@ -61,6 +69,15 @@ export function HtmlPreviewFrame({
   const frameReadiness = useVisibleFrameReadiness(visibleFrameKey);
   const onFrameLoad = useHtmlPageViewport({ frame, viewportState, channel: viewportChannel,
     enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });
+  useEffect(() => {
+    if (!onOpenDocument || !documentLinkChannel) return undefined;
+    const receive = (event: MessageEvent) => {
+      const intent = readHtmlOpenDocumentIntent(event, frame.current, documentLinkChannel);
+      if (intent) onOpenDocument(intent);
+    };
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, [documentLinkChannel, onOpenDocument]);
   const frameSource = resolveFrameSource({ fileUrl, hasContentSnapshot, projection,
     projectionUrl, waiting: waitingForProjection });
 
@@ -124,6 +141,22 @@ const SAFE_HTML_PREVIEW_CSP = [
   "form-action 'none'",
 ].join("; ");
 
+/**
+ * One frame message, validated twice: the sender must be this frame's window and
+ * the payload must carry the channel this host injected. Anything else is
+ * dropped silently.
+ */
+export function readHtmlOpenDocumentIntent(
+  event: Pick<MessageEvent, "source" | "data">,
+  frame: HTMLIFrameElement | null,
+  documentChannel: string,
+): HtmlDocumentOpenIntent | null {
+  if (!frame || event.source !== frame.contentWindow) return null;
+  const message = decodeHtmlOpenDocumentMessage(event.data, documentChannel);
+  if (!message) return null;
+  return parseHtmlDocumentOpenTarget(message.target);
+}
+
 export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, interactive = false): HtmlPreviewPolicy {
   if (interactive) {
     return {
@@ -150,7 +183,7 @@ export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, inter
   };
 }
 
-export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy, viewportChannel?: string): string {
+export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy, viewportChannel?: string, documentChannel?: string): string {
   const tree = parse(rawHtml);
   const html = tree.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "html")!;
   const head = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "head")!;
@@ -192,9 +225,10 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   const interactionStyle = `<style id="puppyone-html-preview-interaction">${getHtmlPreviewInteractionCss("body")}</style>`;
 
   head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}`).childNodes);
-  if (viewportChannel) {
+  if (viewportChannel || documentChannel) {
     const body = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "body")!;
-    body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);
+    if (viewportChannel) body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);
+    if (documentChannel) body.childNodes.push(...parseFragment(htmlOpenDocumentScript(documentChannel)).childNodes);
   }
   return serialize(tree);
 }
