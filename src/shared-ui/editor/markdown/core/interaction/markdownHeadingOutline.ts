@@ -11,9 +11,9 @@ const RAIL_WIDTH_PX = 14;
 const RAIL_LEFT_OFFSET_PX = 28;
 const RAIL_READING_GAP_PX = 8;
 const RAIL_VERTICAL_MARGIN_PX = 16;
-const RAIL_TOP_RATIO = 0.18;
 const RAIL_TICK_SPACING_PX = 19;
 const RAIL_TICK_TARGET_PX = 14;
+const POPOVER_RAIL_GAP_PX = 22;
 const SCROLL_HEIGHT_PADDING_PX = 8;
 const ACTIVE_SCROLL_OFFSET_PX = 24;
 const POPOVER_CLOSE_DELAY_MS = 140;
@@ -94,8 +94,10 @@ class MarkdownHeadingOutlineController {
     this.popover.addEventListener("focusout", this.scheduleClose);
     this.popover.addEventListener("keydown", this.onPopoverKeyDown);
 
-    this.rail.append(this.ticks, this.popover);
-    this.layer.append(this.rail);
+    this.rail.append(this.ticks);
+    // The popover is centered in the editor rather than hanging from the rail:
+    // a document map should read as one centered object, not a corner badge.
+    this.layer.append(this.rail, this.popover);
     view.dom.append(this.layer);
     view.dom.classList.add("cm-md-heading-outline-enabled");
 
@@ -199,6 +201,7 @@ class MarkdownHeadingOutlineController {
         this.rail.style.left = `${rail.left}px`;
         this.rail.style.top = `${rail.top}px`;
         this.rail.style.height = `${rail.height}px`;
+        this.popover.style.left = `${rail.left + POPOVER_RAIL_GAP_PX}px`;
         this.popover.style.maxHeight = `${rail.popoverMaxHeight}px`;
 
         this.activeIndex = activeIndex;
@@ -557,12 +560,14 @@ function resolveRailLayout(view: EditorView, headingCount: number): RailMeasurem
     (headingCount - 1) * RAIL_TICK_SPACING_PX + RAIL_TICK_TARGET_PX,
   );
   const height = Math.min(availableHeight, desiredHeight);
-  const maximumTop = Math.max(0, viewportHeight - height - RAIL_VERTICAL_MARGIN_PX);
-  const preferredTop = Math.max(
+  const maximumTop = Math.max(
     RAIL_VERTICAL_MARGIN_PX,
-    Math.round(viewportHeight * RAIL_TOP_RATIO),
+    viewportHeight - height - RAIL_VERTICAL_MARGIN_PX,
   );
-  const top = Math.min(preferredTop, maximumTop);
+  const top = Math.min(
+    maximumTop,
+    Math.max(RAIL_VERTICAL_MARGIN_PX, Math.round((viewportHeight - height) / 2)),
+  );
   return {
     left,
     top,

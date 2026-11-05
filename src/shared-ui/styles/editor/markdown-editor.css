@@ -623,7 +623,8 @@
 
 .markdown-codemirror-editor .cm-md-heading-outline-popover {
   position: absolute;
-  top: 0;
+  /* Centered against the editor box; the rail keeps the same vertical center. */
+  top: 50%;
   right: auto;
   left: 22px;
   box-sizing: border-box;
@@ -639,7 +640,7 @@
   font-family: var(--po-font-ui, var(--po-font-sans));
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-3px);
+  transform: translate(-3px, -50%);
   transition:
     opacity 120ms ease,
     transform 120ms ease,
@@ -650,7 +651,7 @@
 .markdown-codemirror-editor .cm-md-heading-outline-layer.is-popover-open .cm-md-heading-outline-popover {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0);
+  transform: translate(0, -50%);
   transition-delay: 0s;
   visibility: visible;
 }
