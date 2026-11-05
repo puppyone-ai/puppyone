@@ -54,4 +54,23 @@ describe("host connector", () => {
     connector.stop();
     expect(socket.readyState).toBe(3);
   });
+
+  it("reconnects with a fresh challenge after an unexpected socket close", async () => {
+    let challenges = 0;
+    const auth = {
+      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
+      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
+      subscribe: () => () => {},
+    };
+    const connector = createHostConnector({ apiBase, auth,
+      identity: { signForCurrentAccount: async () => "signature" },
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
+    await connector.connect(device);
+    const first = FakeWebSocket.last;
+    first.close();
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    expect(challenges).toBe(2);
+    expect(FakeWebSocket.last).not.toBe(first);
+    connector.stop();
+  });
 });

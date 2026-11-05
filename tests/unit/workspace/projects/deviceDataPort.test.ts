@@ -52,6 +52,20 @@ describe("device DataPort", () => {
       session: { ...session, user_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }, apiBase: ref.deployment })).toThrow();
   });
 
+  it("returns a fresh conflict snapshot without replaying the rejected write", async () => {
+    cloudApiRequest.mockReset();
+    cloudApiRequest.mockRejectedValueOnce(Object.assign(new Error("Conflict"), { status: 409 }));
+    cloudApiRequest.mockResolvedValueOnce({ content_base64: "ZXh0ZXJuYWw=", revision: "b".repeat(64) });
+    const source = service();
+    const result = await source.dataPort.documentPersistence!.persist({
+      path: "note.md", content: "draft", revision: "draft", baseVersion: revision, reason: "manual",
+    });
+    expect(result).toMatchObject({ ok: false, kind: "conflict", content: "external", version: "b".repeat(64) });
+    expect(cloudApiRequest).toHaveBeenCalledTimes(2);
+    expect(cloudApiRequest.mock.calls[0][0]).toContain("/file");
+    expect(cloudApiRequest.mock.calls[1][0]).toContain("/file?path=note.md");
+  });
+
   it("invalidates old admission on session change", async () => {
     let valid = true;
     const source = service(false, () => valid);
