@@ -48,7 +48,7 @@ export function createUtilityTerminals({ utilityProcess, modulePath, appVersion,
         await new Promise((resolve, reject) => {
           starting.set(request.id, { resolve, reject });
           process.postMessage({ type: "open", session: request.id, launcher: request.launcherId, cols: request.cols,
-            rows: request.rows, root, appVersion });
+            rows: request.rows, root, appVersion, policy: request.policy ?? null });
         });
       } catch (error) {
         transports.delete(request.id);

@@ -85,7 +85,11 @@ export type HostSharingStatus = Readonly<{
     execution?: HostExecutionSetting }>>;
   /** Terminals and Agents other computers are running here right now. */
   running?: ReadonlyArray<Readonly<{ session: string; folderId: string; kind: "shell" | "agent"; launcher: string;
-    startedAt: string }>>;
+    tier?: "folder" | "computer"; startedAt: string }>>;
+  /** The OS sandbox for running inside a folder here, or null where this computer has none. */
+  sandbox?: "seatbelt" | "bubblewrap" | null;
+  /** Other computers may run things here as this user, outside any sandbox. */
+  wholeComputer?: boolean;
 }>;
 
 export type HostExecutionSetting = Readonly<{ terminal: boolean; git: boolean; agent: boolean }>;

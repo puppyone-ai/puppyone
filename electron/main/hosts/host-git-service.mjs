@@ -21,15 +21,18 @@ function gitPaths(values) {
 }
 
 /**
- * Named Git operations in a registered folder, with this computer's own Git and
- * credentials. Every call re-reads this computer's consent (folder.git). These
- * are the same functions the local Changes and History panes use.
+ * Named Git operations in a registered folder. Every call re-reads this
+ * computer's consent (folder.git). These are the same functions the local
+ * Changes and History panes use; under the folder tier they run sandboxed.
  */
-export function createHostGitService({ resolveFolder, git = {
+export function createHostGitService({ resolveFolder, git: defaultGit = {
   commitWorkspaceGit, discardWorkspaceGitPaths, getWorkspaceGitBranchGraph, getWorkspaceGitCommitDetail,
   getWorkspaceGitFileDiff, getWorkspaceGitStatus, pullWorkspaceGit, pushWorkspaceGit,
   stageAllWorkspaceGitChanges, stageWorkspaceGitPaths, unstageAllWorkspaceGitChanges, unstageWorkspaceGitPaths,
-} }) {
+},
+// The Git to use for this folder under this computer's execution policy (the folder sandbox
+// or this user). Hooks and repository config can run code, so Git is execution like a terminal.
+gitFor = null }) {
   const queues = new Map();
   // One Git operation at a time per folder, like the local operation coordinator.
   function serialize(folderId, operation) {
@@ -43,6 +46,7 @@ export function createHostGitService({ resolveFolder, git = {
     const folder = await resolveFolder(request?.folder_id);
     if (!folder || !folder.capabilities?.includes("folder.git")) throw new HostFileError("folder_unavailable");
     const root = folder.rootPath;
+    const git = (gitFor ? await gitFor({ folderId: request.folder_id, rootPath: root }) : null) ?? defaultGit;
     const operations = {
       status: () => git.getWorkspaceGitStatus(root),
       graph: () => git.getWorkspaceGitBranchGraph(root),

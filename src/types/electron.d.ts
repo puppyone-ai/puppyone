@@ -1157,6 +1157,8 @@ declare global {
       setHostExecution: (request: { deviceId: string; folderId: string; terminal: boolean; git: boolean; agent: boolean;
         expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
       stopRemoteHostSessions: () => Promise<{ stopped: true }>;
+      setHostWholeComputer: (request: { enabled: boolean; expectedSession: HostSession }) =>
+        Promise<{ wholeComputer: boolean } | { cancelled: true }>;
       openHostTerminal: (request: { id: string; folderId: string; kind: "shell" | "agent"; launcher: HostLauncher;
         cols: number; rows: number; expectedSession: HostSession }) => Promise<{ id: string }>;
       writeHostTerminal: (request: { id: string; data: string }) => Promise<boolean>;

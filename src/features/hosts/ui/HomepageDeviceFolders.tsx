@@ -22,6 +22,12 @@ function relativeTime(value: string | null, format: RelativeTime): string | null
  * with its sharing switch; another computer that is offline stays listed with
  * when it was last online, and its folders cannot be opened until it returns.
  */
+/** What remote runs may do on this computer, in the words of its execution tier. */
+function tierMessage(sharing: HostSharingStatus) {
+  if (sharing.wholeComputer) return "hosts.execution.wholeComputerOn";
+  return sharing.sandbox ? "hosts.execution.sandboxed" : "hosts.execution.noSandbox";
+}
+
 export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
   session: DesktopCloudSession; apiBase: string; onOpen: (selection: HostFolderSelection) => void;
 }) {
@@ -98,6 +104,16 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
             deviceId: device.id, expectedSession }), "hosts.catalog.removeFailure")}>
             {t("hosts.catalog.removeComputer")}</button>
         </h3>
+        {mine && sharing && <p className="desktop-host-tier" role="note"
+          style={{ display: "flex", gap: 8, alignItems: "center", margin: "0 0 8px" }}>
+          <span>{t(tierMessage(sharing))}</span>
+          <label style={{ display: "inline-flex", gap: 4 }}>
+            <input type="checkbox" checked={sharing.wholeComputer === true} onChange={() => act(
+              window.puppyoneDesktop?.setHostWholeComputer?.({ enabled: sharing.wholeComputer !== true, expectedSession }),
+              "hosts.catalog.updateFailure")} />
+            {t("hosts.execution.wholeComputer")}
+          </label>
+        </p>}
         {device.folders.filter((folder) => folder.state === "active").map((folder) => {
           const writable = folder.capabilities.includes("folder.write");
           return <div key={folder.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>

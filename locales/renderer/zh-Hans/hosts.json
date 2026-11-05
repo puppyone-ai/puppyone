@@ -78,5 +78,9 @@
   "execution.git": "Git",
   "execution.agent": "Agent",
   "execution.running": "正在这里运行：{count}",
-  "execution.stopAll": "全部停止"
+  "execution.stopAll": "全部停止",
+  "execution.sandboxed": "远程运行在这台电脑的沙箱中进行：只能修改共享的文件夹。",
+  "execution.noSandbox": "这台电脑没有沙箱，除非你允许整台电脑，否则这里不会运行任何东西。",
+  "execution.wholeComputerOn": "远程运行以你的身份在这里进行，不在沙箱中。",
+  "execution.wholeComputer": "允许在整台电脑上运行"
 }

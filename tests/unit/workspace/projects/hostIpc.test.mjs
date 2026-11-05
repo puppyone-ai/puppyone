@@ -54,12 +54,12 @@ function deviceChallenges() {
 }
 
 /** A launcher like Desktop's, whose "spawn" starts the host service in this process. */
-function inProcessHostService(stateDir, fetchImpl) {
+function inProcessHostService(stateDir, fetchImpl, { detect = async () => null } = {}) {
   const running = { host: null, starts: 0 };
   const start = async () => {
     running.starts++;
     running.host = await runHostService({ stateDir, secureStorage, appVersion: "0.0.0-test", logger: { warn() {} },
-      WebSocketImpl: FakeWebSocket, fetchImpl });
+      WebSocketImpl: FakeWebSocket, fetchImpl, detect });
   };
   const stop = async () => { await running.host?.close(); running.host = null; };
   cleanup.push(stop);
@@ -71,7 +71,7 @@ function inProcessHostService(stateDir, fetchImpl) {
     ensure: async (options) => (await tryConnect(options)) ?? (await start(), tryConnect(options)) } };
 }
 
-function desktop({ userData, launcher, session }) {
+function desktop({ userData, launcher, session, answers = null }) {
   const listeners = new Set();
   const apiCalls = [];
   const auth = {
@@ -86,14 +86,15 @@ function desktop({ userData, launcher, session }) {
   };
   const handlers = new Map();
   const marked = [];
+  const prompts = [];
   const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     app: { getPath: () => userData }, auth, apiBase, logger: { warn() {} }, hostService: launcher,
     authorizeWorkspaceRoot: async (_event, root) => root,
-    dialog: { showMessageBox: async () => ({ response: 1 }) },
+    dialog: { showMessageBox: async (_window, options) => { prompts.push(options); return { response: answers?.shift() ?? 1 }; } },
     BrowserWindow: { fromWebContents: () => ({}), getAllWindows: () => [] }, t: (id) => id,
     markWorkspaceShared: async (root, folderId) => { marked.push({ root, folderId }); } });
   cleanup.push(async () => ipc.dispose());
-  return { handlers, ipc, apiCalls, marked,
+  return { handlers, ipc, apiCalls, marked, prompts,
     signIn(next) { session.current = next; for (const listener of listeners) listener(); },
     status: () => handlers.get("host:status")() };
 }
@@ -224,5 +225,61 @@ describe("host IPC", () => {
     await expect(peer.call("api", { base: apiBase, route: "/hosts", init: { method: "GET" } })).rejects.toThrow("not available");
     expect(app.apiCalls).toEqual([]);
     expect((await app.status()).paused).toBe(true);
+  });
+
+  it("keeps the whole-computer tier separate, confirmed here, and refuses running where there is no sandbox", async () => {
+    const userData = await temporaryRoot();
+    const folder = path.join(userData, "Notes");
+    await fs.mkdir(folder);
+    const service = inProcessHostService(path.join(userData, "host-service"), deviceChallenges().fetchImpl);
+    const session = { current: { user_id: owner, session_generation: "one", api_base_url: apiBase } };
+    const expectedSession = { userId: owner, generation: "one" };
+    const app = desktop({ userData, launcher: service.launcher, session });
+    const { folderId } = await app.handlers.get("host:register-folder")({ sender: {} }, { rootPath: folder, writable: true });
+    expect(await app.status()).toMatchObject({ sandbox: null, wholeComputer: false });
+
+    // No sandbox here: turning on a terminal explains why it cannot run, and changes nothing.
+    app.prompts.length = 0;
+    expect(await app.handlers.get("host:set-execution")({ sender: {} }, { deviceId: device, folderId, terminal: true,
+      git: false, agent: false, expectedRevision: 1, expectedSession })).toEqual({ cancelled: true, reason: "sandbox_unavailable" });
+    expect(app.prompts.map((prompt) => prompt.message)).toEqual(["native.host.execution.unavailable"]);
+    expect(app.apiCalls.some(({ method }) => method === "PATCH")).toBe(false);
+
+    // The whole computer is its own switch, behind its own confirmation; declining keeps it off.
+    const declined = desktop({ userData, launcher: service.launcher, session, answers: [0] });
+    expect(await declined.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: true, expectedSession }))
+      .toEqual({ cancelled: true });
+    expect((await app.status()).wholeComputer).toBe(false);
+    app.prompts.length = 0;
+    expect(await app.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: true, expectedSession }))
+      .toEqual({ wholeComputer: true });
+    expect(app.prompts.map((prompt) => prompt.title)).toEqual(["native.host.whole.title"]);
+    expect((await app.status()).wholeComputer).toBe(true);
+    // It survives a restart of the host service, and turning it off needs no confirmation.
+    await service.stop();
+    await service.start();
+    expect((await app.status()).wholeComputer).toBe(true);
+    app.prompts.length = 0;
+    expect(await app.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: false, expectedSession }))
+      .toEqual({ wholeComputer: false });
+    expect(app.prompts).toEqual([]);
+  });
+
+  it("asks about the sandboxed tier, not the whole computer, where a sandbox exists", async () => {
+    const userData = await temporaryRoot();
+    const folder = path.join(userData, "Notes");
+    await fs.mkdir(folder);
+    const service = inProcessHostService(path.join(userData, "host-service"), deviceChallenges().fetchImpl,
+      { detect: async () => ({ mechanism: "seatbelt", path: "/usr/bin/sandbox-exec" }) });
+    const session = { current: { user_id: owner, session_generation: "one", api_base_url: apiBase } };
+    const app = desktop({ userData, launcher: service.launcher, session, answers: [1, 0] });
+    const { folderId } = await app.handlers.get("host:register-folder")({ sender: {} }, { rootPath: folder, writable: true });
+    expect((await app.status()).sandbox).toBe("seatbelt");
+    app.prompts.length = 0;
+    expect(await app.handlers.get("host:set-execution")({ sender: {} }, { deviceId: device, folderId, terminal: true,
+      git: false, agent: false, expectedRevision: 1, expectedSession: { userId: owner, generation: "one" } }))
+      .toEqual({ cancelled: true });
+    expect(app.prompts).toEqual([expect.objectContaining({ message: "native.host.execution.sandboxed",
+      detail: "native.host.execution.sandboxedDetail" })]);
   });
 });

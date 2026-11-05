@@ -78,5 +78,9 @@
   "execution.git": "Git",
   "execution.agent": "Agents",
   "execution.running": "En cours ici : {count}",
-  "execution.stopAll": "Tout arrêter"
+  "execution.stopAll": "Tout arrêter",
+  "execution.sandboxed": "Les exécutions à distance se font ici dans un bac à sable : elles ne peuvent modifier que le dossier partagé.",
+  "execution.noSandbox": "Cet ordinateur n’a pas de bac à sable : rien ne s’exécute ici tant que vous n’autorisez pas tout l’ordinateur.",
+  "execution.wholeComputerOn": "Les exécutions à distance se font ici en votre nom, hors de tout bac à sable.",
+  "execution.wholeComputer": "Autoriser l’exécution sur tout l’ordinateur"
 }

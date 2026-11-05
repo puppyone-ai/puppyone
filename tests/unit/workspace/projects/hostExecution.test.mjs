@@ -5,6 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { createHostExecService } from "../../../../electron/main/hosts/host-exec-service.mjs";
 import { createHostGitService } from "../../../../electron/main/hosts/host-git-service.mjs";
+import { createPolicySpawner, detectSandbox } from "../../../../electron/host-service/sandbox.mjs";
+import { createSandboxedGit } from "../../../../electron/host-service/sandboxed-git.mjs";
+
+const SEATBELT = { mechanism: "seatbelt", path: "/usr/bin/sandbox-exec" };
 import { createRemoteExecClient } from "../../../../electron/main/hosts/remote-exec-client.mjs";
 
 const folderId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -41,6 +45,7 @@ describe("host execution service", () => {
     const changes = [];
     const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
       resolveFolder: async (id) => id === folderId ? { rootPath: "/shared/Work", capabilities } : null,
+      executionPolicy: async ({ launcher, rootPath }) => ({ tier: "folder", sandbox: SEATBELT, root: rootPath, launcher }),
       onChange: (running) => changes.push(running.length) });
     const frames = [];
     const emit = (frame) => frames.push(frame);
@@ -54,9 +59,11 @@ describe("host execution service", () => {
     service.receive({ type: "exec_open", session, folder_id: folderId, kind: "shell", launcher: "shell", cols: 100, rows: 30 }, emit);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(frames.pop()).toEqual({ type: "exec_opened", session });
+    // The session carries this computer's execution policy to the PTY process.
     expect(terminals.calls[0]).toMatchObject({ type: "create", root: "/shared/Work",
-      request: { id: session, launcherId: "shell", cols: 100, rows: 30 } });
-    expect(service.list()).toMatchObject([{ session, folderId, kind: "shell", launcher: "shell" }]);
+      request: { id: session, launcherId: "shell", cols: 100, rows: 30,
+        policy: { tier: "folder", sandbox: SEATBELT, root: "/shared/Work", launcher: "shell" } } });
+    expect(service.list()).toMatchObject([{ session, folderId, kind: "shell", launcher: "shell", tier: "folder" }]);
     terminals.output(session, "héllo");
     expect(frames.pop()).toEqual({ type: "exec_output", session, data: Buffer.from("héllo").toString("base64") });
     service.receive({ type: "exec_input", session, data: Buffer.from("ls\n").toString("base64") }, emit);
@@ -74,12 +81,95 @@ describe("host execution service", () => {
   it("reports a missing Agent instead of starting something else", async () => {
     const terminals = fakeTerminals({ fail: "TERMINAL_AGENT_START_FAILED: claude not found" });
     const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
+      executionPolicy: async () => ({ tier: "computer" }),
       resolveFolder: async () => ({ rootPath: "/shared", capabilities: ["folder.read", "folder.write", "folder.agent"] }) });
     const frames = [];
     service.receive({ type: "exec_open", session, folder_id: folderId, kind: "agent", launcher: "claude" }, (frame) => frames.push(frame));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(frames).toEqual([{ type: "exec_failed", session, error: "launcher_unavailable" }]);
     expect(service.list()).toEqual([]);
+  });
+});
+
+describe("host execution policy", () => {
+  it("starts nothing without a policy, and nothing where this computer has no sandbox", async () => {
+    const resolveFolder = async () => ({ rootPath: "/shared", capabilities: ["folder.read", "folder.write", "folder.shell"] });
+    for (const executionPolicy of [null, async () => { throw Object.assign(new Error("none"), { code: "sandbox_unavailable" }); }]) {
+      const terminals = fakeTerminals();
+      const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
+        resolveFolder, executionPolicy });
+      const frames = [];
+      service.receive({ type: "exec_open", session, folder_id: folderId, kind: "shell", launcher: "shell" }, (frame) => frames.push(frame));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(frames).toEqual([{ type: "exec_failed", session, error: "sandbox_unavailable" }]);
+      expect(terminals.calls).toEqual([]);
+    }
+  });
+
+  it("ends sessions of a tier that is turned off", async () => {
+    const terminals = fakeTerminals();
+    let tier = "computer";
+    const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
+      resolveFolder: async () => ({ rootPath: "/shared", capabilities: ["folder.read", "folder.write", "folder.shell"] }),
+      executionPolicy: async () => (tier === "computer" ? { tier } : { tier, sandbox: SEATBELT, root: "/shared" }) });
+    const frames = [];
+    service.receive({ type: "exec_open", session, folder_id: folderId, kind: "shell", launcher: "shell" }, (frame) => frames.push(frame));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    tier = "folder";
+    const second = "99999999-9999-4999-8999-999999999999";
+    service.receive({ type: "exec_open", session: second, folder_id: folderId, kind: "shell", launcher: "shell" }, (frame) => frames.push(frame));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await service.enforceTier((running) => running === "folder");
+    expect(service.list().map((record) => record.session)).toEqual([second]);
+  });
+
+  it("wraps folder-tier spawns in the sandbox and passes the whole-computer tier through", () => {
+    const spawned = [];
+    const policies = [{ tier: "folder", sandbox: SEATBELT, root: "/Users/me/Notes", launcher: "codex", appDataDirs: ["/Users/me/Library/Application Support/PuppyOne"] },
+      { tier: "computer" }, null, { tier: "everything" }];
+    const spawner = createPolicySpawner({ spawn: (file, args, options) => spawned.push({ file, args, options }),
+      home: "/Users/me", tempDirs: ["/private/tmp"], takePolicy: () => policies.shift() });
+    spawner.spawn("/bin/zsh", ["-l"], { cwd: "/Users/me/Notes", env: { PATH: "/usr/bin" } });
+    expect(spawned[0].file).toBe("/usr/bin/sandbox-exec");
+    expect(spawned[0].args[0]).toBe("-p");
+    expect(spawned[0].args[1]).toContain('(subpath "/Users/me/Notes")');
+    expect(spawned[0].args[1]).toContain('(subpath "/Users/me/.codex")');
+    expect(spawned[0].args[1]).toContain('(subpath "/Users/me/Library/Application Support/PuppyOne")');
+    expect(spawned[0].args.slice(2)).toEqual(["/bin/zsh", "-l"]);
+    expect(spawned[0].options.env.HISTFILE).toMatch(/puppyone-host-\d+\.history$/);
+    spawner.spawn("/bin/zsh", ["-l"], { cwd: "/Users/me/Notes", env: {} });
+    expect(spawned[1]).toMatchObject({ file: "/bin/zsh", args: ["-l"] });
+    expect(() => spawner.spawn("/bin/zsh", [], { env: {} })).toThrow("No execution policy");
+    expect(() => spawner.spawn("/bin/zsh", [], { env: {} })).toThrow("Unknown execution tier");
+    expect(spawned).toHaveLength(2);
+  });
+
+  it.runIf(process.platform === "darwin")("runs Git and its hooks inside the folder sandbox", async () => {
+    const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-sandboxed-git-")));
+    roots.push(base);
+    const home = path.join(base, "home");
+    const root = path.join(home, "Notes");
+    await fs.mkdir(path.join(home, "Documents"), { recursive: true });
+    await fs.mkdir(root, { recursive: true });
+    const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "host@example.invalid");
+    git("config", "user.name", "Host");
+    await fs.writeFile(path.join(root, "a.md"), "a\n");
+    // A hook someone with folder access planted: it tries to write outside the folder.
+    const hook = path.join(root, ".git", "hooks", "pre-commit");
+    await fs.writeFile(hook, `#!/bin/sh\necho escaped > "${home}/Documents/escaped.txt" 2>/dev/null\necho ran > hook-ran.txt\nexit 0\n`);
+    await fs.chmod(hook, 0o755);
+    const sandbox = await detectSandbox();
+    const sandboxed = createSandboxedGit({ sandbox, root, home, nodePath: process.execPath, tempDirs: [] });
+    const service = createHostGitService({ resolveFolder: async () => ({ rootPath: root,
+      capabilities: ["folder.read", "folder.write", "folder.git"] }), gitFor: async () => sandboxed });
+    expect(await service.run({ folder_id: folderId, op: "status" })).toBeTypeOf("object");
+    await service.run({ folder_id: folderId, op: "stage_all" });
+    await service.run({ folder_id: folderId, op: "commit", message: "From another computer" });
+    expect(git("log", "--format=%s").toString().trim()).toBe("From another computer");
+    expect(await fs.readFile(path.join(root, "hook-ran.txt"), "utf8")).toBe("ran\n");
+    await expect(fs.access(path.join(home, "Documents", "escaped.txt"))).rejects.toThrow();
   });
 });
 

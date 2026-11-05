@@ -14,7 +14,9 @@ const CONTROL_C = "\u0003";
 // Never a real window: terminal sessions are owned per sender, and this one is ours.
 const HOST_SENDER = Object.freeze({ id: 2 ** 31 + 7, isDestroyed: () => false, send() {} });
 
-export function createHostExecService({ resolveFolder, createTerminalService, logger = console, onChange = () => {} }) {
+export function createHostExecService({ resolveFolder, createTerminalService, logger = console, onChange = () => {},
+  // Where and how a session may run here: the folder sandbox or the whole computer; throws if neither is allowed.
+  executionPolicy = null }) {
   const sessions = new Map();
   const terminals = createTerminalService({
     // Remote output never goes to a window; it goes back over the device socket.
@@ -37,8 +39,8 @@ export function createHostExecService({ resolveFolder, createTerminalService, lo
   }
 
   function list() {
-    return [...sessions.values()].map(({ id, folderId, kind, launcher, startedAt }) =>
-      ({ session: id, folderId, kind, launcher, startedAt }));
+    return [...sessions.values()].map(({ id, folderId, kind, launcher, tier, startedAt }) =>
+      ({ session: id, folderId, kind, launcher, tier, startedAt }));
   }
 
   async function open(message, emit) {
@@ -50,10 +52,17 @@ export function createHostExecService({ resolveFolder, createTerminalService, lo
     const folder = await resolveFolder(folderId);
     if (!folder) return fail("folder_unavailable");
     if (!folder.capabilities?.includes(kind === "shell" ? "folder.shell" : "folder.agent")) return fail("not_allowed");
-    const record = { id, folderId, kind, launcher, emit, startedAt: new Date().toISOString() };
+    let policy;
+    try {
+      if (!executionPolicy) throw Object.assign(new Error("No execution policy."), { code: "sandbox_unavailable" });
+      policy = await executionPolicy({ folderId, launcher, rootPath: folder.rootPath });
+    } catch (error) {
+      return fail(error?.code === "sandbox_unavailable" ? "sandbox_unavailable" : "not_allowed");
+    }
+    const record = { id, folderId, kind, launcher, emit, tier: policy.tier, startedAt: new Date().toISOString() };
     sessions.set(id, record);
     try {
-      await terminals.create(HOST_SENDER, { id, launcherId: launcher, cols: message.cols, rows: message.rows },
+      await terminals.create(HOST_SENDER, { id, launcherId: launcher, cols: message.cols, rows: message.rows, policy },
         folder.rootPath);
     } catch (error) {
       sessions.delete(id);
@@ -111,5 +120,10 @@ export function createHostExecService({ resolveFolder, createTerminalService, lo
       .map((record) => close(record.id)));
   }
 
-  return Object.freeze({ receive, stopAll, enforce, list, close });
+  /** End sessions that ran at a tier this computer no longer allows. */
+  async function enforceTier(allowed) {
+    await Promise.all([...sessions.values()].filter((record) => !allowed(record.tier)).map((record) => close(record.id)));
+  }
+
+  return Object.freeze({ receive, stopAll, enforce, enforceTier, list, close });
 }

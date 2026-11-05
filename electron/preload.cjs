@@ -233,6 +233,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   requestHostFolder: (request) => ipcRenderer.invoke("host:folder-request", request),
   setHostExecution: (request) => ipcRenderer.invoke("host:set-execution", request),
   stopRemoteHostSessions: () => ipcRenderer.invoke("host:stop-remote-sessions"),
+  setHostWholeComputer: (request) => ipcRenderer.invoke("host:set-whole-computer", request),
   openHostTerminal: (request) => ipcRenderer.invoke("host:exec-open", request),
   writeHostTerminal: (request) => ipcRenderer.invoke("host:exec-input", request),
   resizeHostTerminal: (request) => ipcRenderer.invoke("host:exec-resize", request),

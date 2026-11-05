@@ -78,5 +78,9 @@
   "execution.git": "Git",
   "execution.agent": "Agents",
   "execution.running": "En ejecución aquí: {count}",
-  "execution.stopAll": "Detener todo"
+  "execution.stopAll": "Detener todo",
+  "execution.sandboxed": "Las ejecuciones remotas se hacen aquí en un entorno aislado: solo pueden modificar la carpeta compartida.",
+  "execution.noSandbox": "Este ordenador no tiene un entorno aislado, así que aquí no se ejecuta nada salvo que permitas todo el ordenador.",
+  "execution.wholeComputerOn": "Las ejecuciones remotas se hacen aquí como tú, fuera de cualquier entorno aislado.",
+  "execution.wholeComputer": "Permitir ejecutar en todo el ordenador"
 }

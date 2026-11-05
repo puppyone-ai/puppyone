@@ -78,5 +78,9 @@
   "execution.git": "Git",
   "execution.agent": "Agents",
   "execution.running": "Running here: {count}",
-  "execution.stopAll": "Stop all"
+  "execution.stopAll": "Stop all",
+  "execution.sandboxed": "Remote runs happen in a sandbox here: they can change only the shared folder.",
+  "execution.noSandbox": "This computer has no sandbox, so nothing runs here unless you allow the whole computer.",
+  "execution.wholeComputerOn": "Remote runs happen here as you, outside any sandbox.",
+  "execution.wholeComputer": "Allow running on the whole computer"
 }

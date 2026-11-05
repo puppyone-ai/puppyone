@@ -21,6 +21,9 @@ import { createHostConnector } from "../main/hosts/host-connector.mjs";
 import { createHostExecService } from "../main/hosts/host-exec-service.mjs";
 import { createHostGitService } from "../main/hosts/host-git-service.mjs";
 import { createUtilityTerminals } from "../main/hosts/host-exec-process.mjs";
+import { HostFileError } from "../main/hosts/host-file-service.mjs";
+import { detectSandbox } from "./sandbox.mjs";
+import { createSandboxedGit } from "./sandboxed-git.mjs";
 import { resolveCloudApiBaseUrl } from "../../shared/cloudEndpoint.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -50,13 +53,17 @@ async function writeJson(file, value) {
 export function createHostService({ stateDir, secureStorage, desktop = () => null, utilityProcess = null,
   fileServiceModulePath = null, hostExecModulePath = null, createTerminals = null, appVersion = "unknown",
   logger = console, WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, onStatus = () => {},
-  onRevoked = () => {} }) {
+  onRevoked = () => {}, detect = detectSandbox, nodePath = process.execPath,
+  // The App's own data (its session, this service's device key): never visible to the folder tier.
+  appDataDirs = [path.dirname(stateDir)] }) {
   const sharingPath = path.join(stateDir, "host-sharing.json");
   // One per service launch: lets the Cloud tell a restarted host from a reconnect.
   const bootId = crypto.randomUUID();
   let state = null;
   let services = null;
   let queue = Promise.resolve();
+  // The OS sandbox for the folder tier, or null where this computer has none.
+  let sandbox;
 
   /** Serializes changes to sharing so a stop never races a connect. */
   function serial(work) {
@@ -71,9 +78,12 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     state = {
       deployment: typeof saved.deployment === "string" ? saved.deployment : null,
       paused: saved.paused === true,
+      // Running things as this user, outside any sandbox: off unless turned on here.
+      wholeComputer: saved.wholeComputer === true,
       active: UUID.test(saved.active?.accountId) && UUID.test(saved.active?.deviceId)
         ? { accountId: saved.active.accountId, deviceId: saved.active.deviceId } : null,
     };
+    sandbox ??= await detect().catch(() => null);
     return state;
   }
 
@@ -101,11 +111,28 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     const connection = services?.connector.status() ?? { state: "off", deviceId: null, activeRequests: 0,
       watching: 0, lastAccessAt: null, running: [] };
     return { ...connection, paused: state?.paused === true, active: state?.active ?? null,
-      deployment: state?.deployment ?? null };
+      deployment: state?.deployment ?? null, sandbox: sandbox?.mechanism ?? null,
+      wholeComputer: state?.wholeComputer === true };
   }
 
   function notify() {
     try { onStatus(status()); } catch { /* observers never control sharing */ }
+  }
+
+  /**
+   * Where a session may run: inside the folder sandbox, or as this user when
+   * the whole-computer tier is on. With neither, nothing runs.
+   */
+  function executionPolicy({ launcher, rootPath }) {
+    if (state?.wholeComputer) return { tier: "computer" };
+    if (sandbox) return { tier: "folder", sandbox, root: rootPath, appDataDirs, launcher };
+    throw Object.assign(new Error("This computer has no sandbox for running in a folder."), { code: "sandbox_unavailable" });
+  }
+
+  function gitFor({ rootPath }) {
+    if (state?.wholeComputer) return null;
+    if (!sandbox) throw new HostFileError("folder_unavailable");
+    return createSandboxedGit({ sandbox, root: rootPath, appDataDirs, nodePath });
   }
 
   function build(deployment) {
@@ -121,9 +148,9 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     const terminalFactory = createTerminals ?? (utilityProcess && hostExecModulePath
       ? (options) => createUtilityTerminals({ utilityProcess, modulePath: hostExecModulePath, appVersion, logger, ...options })
       : null);
-    const execService = terminalFactory ? createHostExecService({ resolveFolder, logger,
+    const execService = terminalFactory ? createHostExecService({ resolveFolder, logger, executionPolicy,
       createTerminalService: terminalFactory, onChange: () => notify() }) : null;
-    const gitService = createHostGitService({ resolveFolder });
+    const gitService = createHostGitService({ resolveFolder, gitFor });
     const connector = createHostConnector({ apiBase: deployment, identity, registry, fileService, logger,
       WebSocketImpl, fetchImpl, gitService, execService, appVersion, bootId,
       onStatus: () => notify(),
@@ -261,6 +288,16 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
       return { paused: state.paused };
     }),
     execEnforce: async ({ folderId }) => { await services?.execService?.enforce(folderId); return true; },
+    /** The whole-computer tier: only from this computer, after Desktop's own confirmation. */
+    setWholeComputer: ({ enabled }) => serial(async () => {
+      await loadState();
+      state.wholeComputer = enabled === true;
+      await saveState();
+      // Turning it off ends everything that ran outside the sandbox.
+      if (!state.wholeComputer) await services?.execService?.enforceTier((tier) => tier === "folder");
+      notify();
+      return status();
+    }),
     execStopAll: async () => { await services?.execService?.stopAll(); return true; },
   };
 

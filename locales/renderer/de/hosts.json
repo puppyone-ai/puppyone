@@ -78,5 +78,9 @@
   "execution.git": "Git",
   "execution.agent": "Agents",
   "execution.running": "Läuft hier: {count}",
-  "execution.stopAll": "Alle beenden"
+  "execution.stopAll": "Alle beenden",
+  "execution.sandboxed": "Entfernte Ausführungen laufen hier in einer Sandbox: Sie können nur den freigegebenen Ordner ändern.",
+  "execution.noSandbox": "Dieser Computer hat keine Sandbox. Hier läuft nichts, solange du nicht den ganzen Computer erlaubst.",
+  "execution.wholeComputerOn": "Entfernte Ausführungen laufen hier als du, außerhalb jeder Sandbox.",
+  "execution.wholeComputer": "Ausführen auf dem ganzen Computer erlauben"
 }
