@@ -265,7 +265,7 @@
   "experimental.multiRootWorkspaces.detail": "Erlaubt, über „Projekt hinzufügen…“ mehrere lokale Projekte an das aktuelle Fenster anzuhängen.",
   "experimental.markdownBlockDrag.detail": "Aktiviert das experimentelle Umordnen von Blöcken innerhalb desselben Dokuments in der Markdown-Livevorschau.",
   "experimental.markdownBlockDrag.title": "Ziehpunkte für Markdown-Blöcke",
-  "experimental.markdownHeadingOutline.detail": "Zeigt die schmale Überschriftenleiste in der Markdown-Live-Vorschau. Die Gliederungsleiste ist immer verfügbar.",
+  "experimental.markdownHeadingOutline.detail": "Zeigt die schmale Überschriftenleiste in der Markdown-Live-Vorschau.",
   "experimental.markdownHeadingOutline.title": "Überschriftenleiste",
   "experimental.viewerPlugins.title": "Viewer-Plugins",
   "experimental.viewerPlugins.detail": "Aktiviert die experimentelle, rein lokale Plugin-Seite und ihre optionale Navigationsverknüpfung.",

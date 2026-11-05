@@ -37,9 +37,6 @@
 /* Markdown editor base: layout, typography, lines, AI edit markers */
 @import "./editor/markdown-editor.css";
 
-/* Persistent document outline beside the Markdown editor */
-@import "./editor/markdown-outline-panel.css";
-
 /* Markdown semantic presentation profile shared by native Markdown and HTML */
 @import "./editor/markdown-theme-tokens.generated.css";
 @import "./editor/markdown-content.css";

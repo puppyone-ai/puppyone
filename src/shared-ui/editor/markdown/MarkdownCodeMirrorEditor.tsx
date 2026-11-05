@@ -18,6 +18,7 @@ import { markdownLivePreviewContextExtension } from "./core/editor/markdownLiveP
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./addons/block-drag";
 import {
+  collectMarkdownHeadingOutlineEntries,
   findOutlineHeadingIndexForAnchor,
   markdownHeadingOutlineExtension,
   scrollMarkdownViewToHeading,
@@ -28,11 +29,6 @@ import {
   subscribeDocumentAnchorReveal,
   type DocumentAnchorRevealRequest,
 } from "../navigation/documentAnchorReveal";
-import { collectOutlineHeadings } from "./core/interaction/markdownOutlineState";
-import {
-  createMarkdownOutlineStateTracker,
-  type MarkdownOutlineSnapshot,
-} from "./core/interaction/markdownOutlineState";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
@@ -102,10 +98,6 @@ export type MarkdownCodeMirrorEditorProps = {
   onChange?: (value: string) => void;
   onSourceRevisionChange?: (revision: EditorSourceRevision) => void;
   onSnapshotPortChange?: (port: EditorSourceSnapshotPort | null) => void;
-  /** Publishes the document outline without exposing the CodeMirror view. */
-  onOutlineChange?: (snapshot: MarkdownOutlineSnapshot) => void;
-  /** Host-side navigation handle. `null` on unmount, never a stale view. */
-  onViewReady?: (view: EditorView | null) => void;
   onEditorBaseReady?: (revision: string) => void;
   onPreviewReady?: (revision: string) => void;
   onPreviewError?: (error: Error) => void;
@@ -135,8 +127,6 @@ export function MarkdownCodeMirrorEditor({
   onChange,
   onSourceRevisionChange,
   onSnapshotPortChange,
-  onOutlineChange,
-  onViewReady,
   onEditorBaseReady,
   onPreviewReady,
   onPreviewError,
@@ -194,8 +184,6 @@ export function MarkdownCodeMirrorEditor({
     onChange,
     onSourceRevisionChange,
     onSnapshotPortChange,
-    onOutlineChange,
-    onViewReady,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -204,8 +192,6 @@ export function MarkdownCodeMirrorEditor({
     onChange,
     onSourceRevisionChange,
     onSnapshotPortChange,
-    onOutlineChange,
-    onViewReady,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -350,7 +336,6 @@ export function MarkdownCodeMirrorEditor({
     );
 
     viewRef.current = view;
-    callbacksRef.current.onViewReady?.(view);
     findAdapter.attach(view);
     const unbindFormatHotkeys = bindMarkdownFormatHotkeys(view);
     const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => {
@@ -377,17 +362,9 @@ export function MarkdownCodeMirrorEditor({
     if (documentPathRef.current) {
       rendererPerformance.markActiveDocument(documentPathRef.current, "editor_base_ready");
     }
-    // The outline tracker is independent of the live-preview compartment, so
-    // the host keeps an outline in source mode as well.
-    const outlineTracker = callbacksRef.current.onOutlineChange
-      ? createMarkdownOutlineStateTracker(view, (snapshot) => {
-        callbacksRef.current.onOutlineChange?.(snapshot);
-      })
-      : null;
 
     return () => {
       previewGenerationRef.current += 1;
-      outlineTracker?.destroy();
       unbindFormatHotkeys();
       unsubscribeTypography();
       // Detaching the port synchronously lets the host capture the final
@@ -396,7 +373,6 @@ export function MarkdownCodeMirrorEditor({
       const destroyStartedAt = performance.now();
       findAdapter.dispose();
       model.detachView(view);
-      callbacksRef.current.onViewReady?.(null);
       view.destroy();
       rendererPerformance.recordOperation(
         "editor_destroy",
@@ -421,7 +397,7 @@ export function MarkdownCodeMirrorEditor({
       const view = viewRef.current;
       clearDocumentAnchorReveal(request.id);
       if (!view) return;
-      const headings = collectOutlineHeadings(view.state);
+      const headings = collectMarkdownHeadingOutlineEntries(view.state);
       const index = findOutlineHeadingIndexForAnchor(headings, request.anchor);
       const heading = headings[index];
       if (heading) scrollMarkdownViewToHeading(view, heading);

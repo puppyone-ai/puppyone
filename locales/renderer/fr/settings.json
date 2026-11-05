@@ -265,7 +265,7 @@
   "experimental.multiRootWorkspaces.detail": "Permet à « Ajouter un projet… » d’ajouter plusieurs projets locaux à la fenêtre actuelle.",
   "experimental.markdownBlockDrag.detail": "Activez le réarrangement anticipé des blocs d’un même document dans Markdown Live Preview.",
   "experimental.markdownBlockDrag.title": "Poignées de déplacement des blocs Markdown",
-  "experimental.markdownHeadingOutline.detail": "Affiche le rail des titres dans l’aperçu Markdown. Le panneau de plan reste toujours disponible.",
+  "experimental.markdownHeadingOutline.detail": "Affiche le rail des titres dans l’aperçu Markdown.",
   "experimental.markdownHeadingOutline.title": "Rail des titres",
   "experimental.viewerPlugins.title": "Plugins de visualisation",
   "experimental.viewerPlugins.detail": "Activez la page expérimentale des plugins locaux uniquement et son raccourci de navigation facultatif.",

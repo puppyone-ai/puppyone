@@ -265,7 +265,7 @@
   "experimental.multiRootWorkspaces.detail": "‘프로젝트 추가…’를 사용해 여러 로컬 프로젝트를 현재 창에 추가할 수 있도록 합니다.",
   "experimental.markdownBlockDrag.detail": "Markdown 라이브 미리보기에서 같은 문서 안의 블록을 재배치하는 초기 기능을 사용합니다.",
   "experimental.markdownBlockDrag.title": "Markdown 블록 드래그 핸들",
-  "experimental.markdownHeadingOutline.detail": "Markdown 라이브 미리보기에서 제목 레일을 표시합니다. 개요 패널은 항상 사용할 수 있습니다.",
+  "experimental.markdownHeadingOutline.detail": "Markdown 라이브 미리보기에서 제목 레일을 표시합니다.",
   "experimental.markdownHeadingOutline.title": "제목 레일",
   "experimental.viewerPlugins.title": "뷰어 플러그인",
   "experimental.viewerPlugins.detail": "로컬 전용 실험적 플러그인 페이지와 선택적 탐색 바로가기를 활성화합니다.",

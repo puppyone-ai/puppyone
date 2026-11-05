@@ -199,7 +199,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
-  /** The rail is quiet and opt-out. The outline panel itself is always on. */
+  /** The rail is quiet and opt-out; it is the document outline of the editor. */
   enableMarkdownHeadingOutline: true,
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,

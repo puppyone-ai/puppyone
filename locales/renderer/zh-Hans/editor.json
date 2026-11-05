@@ -197,7 +197,6 @@
   "markdown.ai.removed": "由 Agent 移除",
   "markdown.ambiguousLinkedNote": "{path}（标题匹配不明确）",
   "markdown.blockDrag.handle": "拖动以移动块",
-  "markdown.outline": "文档目录",
   "markdown.code.language": "代码语言",
   "markdown.code.languagePlaceholder": "语言",
   "markdown.code.source": "来源：{source}",

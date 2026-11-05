@@ -302,7 +302,7 @@
   "experimental.multiRootWorkspaces.detail": "允许通过“添加项目…”将多个本地项目加入当前窗口。",
   "experimental.markdownBlockDrag.detail": "在 Markdown 实时预览中启用同一文档内的早期区块重排功能。",
   "experimental.markdownBlockDrag.title": "Markdown 区块拖动手柄",
-  "experimental.markdownHeadingOutline.detail": "在 Markdown 实时预览中显示细窄的标题刻度轨。目录面板始终可用。",
+  "experimental.markdownHeadingOutline.detail": "在 Markdown 实时预览中显示细窄的标题刻度轨。",
   "experimental.markdownHeadingOutline.title": "标题刻度轨",
   "experimental.viewerPlugins.title": "查看器插件",
   "experimental.viewerPlugins.detail": "启用仅限本地的实验性插件页面及其可选导航快捷方式。",
