@@ -361,7 +361,7 @@ impl Shell {
                             Ok(updated) => {
                                 s.modals.remove(|m| matches!(m, Modal::RenameProject(_)));
                                 s.homepage.actions = None;
-                                let catalog = s.cloud_catalog.clone();
+                                let catalog = s.cloud.catalog.clone();
                                 catalog.update(cx, |c, cx| {
                                     c.apply_rename(&project, &updated.name, cx)
                                 });
@@ -561,7 +561,7 @@ impl Shell {
                             Ok(()) => {
                                 s.modals.remove(|m| matches!(m, Modal::ConfirmProject(_)));
                                 s.homepage.actions = None;
-                                let catalog = s.cloud_catalog.clone();
+                                let catalog = s.cloud.catalog.clone();
                                 catalog.update(cx, |c, cx| c.apply_delete(&project, cx));
                                 s.focus.focus(w, cx);
                             }

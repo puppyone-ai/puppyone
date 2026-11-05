@@ -291,7 +291,7 @@ impl Shell {
         let since = *self.homepage.first_paint.get_or_insert_with(Instant::now);
         // `settled`: no Cloud result is still on its way that would reorder
         // the list (a cached stand-in is not the account's own answer).
-        let catalog = self.cloud_catalog.read(cx);
+        let catalog = self.cloud.catalog.read(cx);
         let catalog_settled = account.is_none()
             || matches!(catalog.state, crate::features::cloud_catalog::State::Failed)
             || (matches!(
@@ -318,7 +318,7 @@ impl Shell {
         let account = crate::features::cloud_account::broker_and_binding(cx)
             .map(|(_, binding)| binding)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx));
-        let catalog = self.cloud_catalog.read(cx);
+        let catalog = self.cloud.catalog.read(cx);
         let (cloud, activity) = match (&catalog.state, &account) {
             (State::Ready(entries), Some(_)) => (entries.as_slice(), &catalog.activity),
             _ => (&[][..], &catalog.activity),
@@ -676,7 +676,7 @@ impl Shell {
             .as_ref()
             .filter(|a| a.account.is_none())
             .and_then(|a| a.error);
-        let catalog = self.cloud_catalog.read(cx).state.clone();
+        let catalog = self.cloud.catalog.read(cx).state.clone();
         let text = |text: String, color: Rgba| {
             div()
                 .min_w_0()

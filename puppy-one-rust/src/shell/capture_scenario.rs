@@ -359,16 +359,16 @@ impl Shell {
                 cx,
             ),
             Step::AgentsFixture(open_links) => {
-                self.capture_hosted = true;
+                self.cloud.capture_hosted = true;
                 let client = crate::features::cloud_agents::lab_client(*open_links);
                 let name = self.window.name.clone();
-                self.cloud_agents.update(cx, |a, cx| {
+                self.cloud.agents.update(cx, |a, cx| {
                     a.attach_client("lab-project", &name, client, cx)
                 });
             }
             Step::Agents(opener) => {
                 use crate::features::cloud_agents::Opener;
-                if !self.cloud_agents.read(cx).manageable {
+                if !self.cloud.agents.read(cx).manageable {
                     return false;
                 }
                 let opener = match opener.as_str() {
@@ -379,7 +379,7 @@ impl Shell {
                 self.press_agents(opener, cx);
             }
             Step::ManageAgents => {
-                if !self.cloud_agents.read(cx).manageable {
+                if !self.cloud.agents.read(cx).manageable {
                     return false;
                 }
                 self.open_manage_agents(cx);

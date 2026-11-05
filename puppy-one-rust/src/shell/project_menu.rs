@@ -213,6 +213,7 @@ impl Shell {
         if let Some(path) = item.local_path.clone() {
             let copy_host = self.weak.clone();
             let copied = self
+                .cloud
                 .copied_path
                 .as_ref()
                 .is_some_and(|(p, at)| *p == path && at.elapsed() < COPIED_FOR);
@@ -236,7 +237,7 @@ impl Shell {
                     cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
                     let _ = copy_host.update(cx, |s, cx| {
-                        s.copied_path = Some((copy_path.clone(), std::time::Instant::now()));
+                        s.cloud.copied_path = Some((copy_path.clone(), std::time::Instant::now()));
                         cx.notify();
                         // The check gives way after its moment.
                         cx.spawn(async move |this, cx| {

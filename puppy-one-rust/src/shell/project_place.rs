@@ -173,14 +173,14 @@ impl Shell {
         {
             return None;
         }
-        notice_of(&self.repository_cloud.read(cx).context)
+        notice_of(&self.cloud.repository.read(cx).context)
     }
     /// `canReplaceMissingCloudProject`: signed in, the Project is gone, and
     /// the checkout has exactly the reviewed `puppyone` remote.
     fn missing_replaceable(&self, cx: &App) -> bool {
         crate::features::cloud_account::has_account(cx)
             && matches!(
-                self.repository_cloud.read(cx).context,
+                self.cloud.repository.read(cx).context,
                 Association::NotFound { .. }
             )
             && self.workspace_root().is_some()
@@ -203,11 +203,11 @@ impl Shell {
                 .and_then(|i| Some((PathBuf::from(i.local_path?), i.label)))
         });
         let unhosted = matches!(
-            self.repository_cloud.read(cx).context,
+            self.cloud.repository.read(cx).context,
             Association::LocalOnly
         );
-        let publish_pending = self.cloud_publish.read(cx).header_status().is_some()
-            && self.cloud_publish.read(cx).published.is_none();
+        let publish_pending = self.cloud.publish.read(cx).header_status().is_some()
+            && self.cloud.publish.read(cx).published.is_none();
         Some(resolve(
             place,
             unhosted,
@@ -389,7 +389,7 @@ impl Shell {
     }
     /// `setReplacingMissingCloudProject(true)`.
     pub(super) fn replace_cloud_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Association::NotFound { project } = self.repository_cloud.read(cx).context.clone()
+        let Association::NotFound { project } = self.cloud.repository.read(cx).context.clone()
         else {
             return;
         };
@@ -410,7 +410,7 @@ impl Shell {
         let notice = self.local_folder_notice(cx)?;
         let root = self.workspace_root()?;
         let key = notice_key(&root, &notice);
-        if self.dismissed_cloud_notice.as_deref() == Some(key.as_str()) {
+        if self.cloud.dismissed_notice.as_deref() == Some(key.as_str()) {
             return None;
         }
         let host = self.weak.clone();
@@ -509,7 +509,7 @@ impl Shell {
                     "local-folder-notice-retry",
                     tr("common.action.retry"),
                     |s, _, cx| {
-                        s.repository_cloud.update(cx, |r, cx| r.retry(cx));
+                        s.cloud.repository.update(cx, |r, cx| r.retry(cx));
                     },
                 )),
             ),
@@ -519,7 +519,7 @@ impl Shell {
             .tone(tone)
             .on_dismiss(move |_, cx| {
                 let _ = dismiss.update(cx, |s, cx| {
-                    s.dismissed_cloud_notice = Some(key.clone());
+                    s.cloud.dismissed_notice = Some(key.clone());
                     cx.notify();
                 });
             });
@@ -579,7 +579,7 @@ impl Shell {
                     .track_focus(&self.modal_focus)
                     .on_click(cx.listener(|s, _, _, cx| {
                         s.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
-                        s.cloud_publish.update(cx, |p, cx| {
+                        s.cloud.publish.update(cx, |p, cx| {
                             p.start(crate::cloud_publication::Action::Initialize, cx)
                         });
                         cx.notify();
@@ -645,7 +645,7 @@ impl Shell {
                 Button::new("cloud-replace-confirm")
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.replaceConfirm"))
-                    .disabled(busy || self.replace_url.is_none())
+                    .disabled(busy || self.cloud.replace_url.is_none())
                     .track_focus(&self.modal_focus)
                     .on_click(
                         cx.listener(move |s, _, _, cx| s.confirm_replace(project.clone(), cx)),

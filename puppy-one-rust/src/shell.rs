@@ -39,6 +39,7 @@ mod rename;
 mod right_sidebar;
 mod share_panel;
 pub(crate) mod tasks;
+mod window_cloud;
 mod window_project;
 pub mod windows;
 use command::on_shell_actions;
@@ -73,16 +74,12 @@ pub enum Popover {
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
     window_key: String,
-    /// The shared Cloud account catalog (Homepage / Header rows).
-    pub(super) cloud_catalog: Entity<crate::features::cloud_catalog::CloudCatalog>,
+    /// The window's Cloud: catalog, association, publication, Agents, Share.
+    cloud: window_cloud::WindowCloud,
     /// The project this window shows and how it came to show it.
     window: window_project::WindowProject,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
     project_actions: Option<project_actions::ActionsMenu>,
-    /// The first publication of this window's checkout.
-    cloud_publish: Entity<crate::features::cloud_publish::CloudPublish>,
-    /// The published Project the association was last refreshed for.
-    publish_reported: Option<String>,
     dark: bool,
     locale: Locale,
     /// The Explorer and the right sidebar.
@@ -95,27 +92,10 @@ pub struct Shell {
     /// What the right sidebar shows: the Agent workbench, Changes / History
     /// and a hosted Project's History.
     sidebar: right_sidebar::RightSidebar,
-    /// Who is in the hosted Project (`useWorkspaceAgents`).
-    cloud_agents: Entity<crate::features::cloud_agents::CloudAgents>,
-    agents_anchor: cloud_agents_ui::AgentsAnchor,
-    /// Captures: the Header shows the Cloud tools over a local folder.
-    #[cfg(feature = "dev-capture")]
-    capture_hosted: bool,
-    /// The open checkout's Cloud association (Header location).
-    repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
-    /// A project path the Header menu just copied, and when.
-    copied_path: Option<(String, std::time::Instant)>,
     /// The window title, represented file and edited mark last applied.
     window_title: Option<(String, Option<PathBuf>, bool)>,
     /// A file window's own state (File Mode); `None` for a project window.
     pub(super) file: Option<file_mode::FileWindow>,
-    /// The Share card's links, captured when it opened.
-    share_panel: share_panel::SharePanel,
-    /// `dismissedCloudNoticeKey`: the local folder notice put away.
-    dismissed_cloud_notice: Option<String>,
-    /// The `puppyone` remote as reviewed when replacing a vanished
-    /// Project's connection was chosen.
-    replace_url: Option<String>,
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
@@ -246,7 +226,12 @@ impl Shell {
         let preferences = windows::shared_preferences(fixture, cx);
         let mut s = Self {
             window_key: crate::features::agent_presence::owner(window),
-            cloud_catalog: crate::features::cloud_catalog::global(cx),
+            cloud: window_cloud::WindowCloud::new(
+                crate::features::cloud_catalog::global(cx),
+                Self::new_cloud_publish(cx),
+                Self::new_repository_cloud(cx),
+                cx.new(|_| crate::features::cloud_agents::CloudAgents::new()),
+            ),
             window: window_project::WindowProject {
                 name: if fixture {
                     "puppyone".into()
@@ -262,8 +247,6 @@ impl Shell {
                 ..Default::default()
             },
             project_actions: None,
-            cloud_publish: Self::new_cloud_publish(cx),
-            publish_reported: None,
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
             panes: Panes::new(std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1")),
@@ -278,17 +261,8 @@ impl Shell {
                 window,
                 cx,
             ),
-            cloud_agents: cx.new(|_| crate::features::cloud_agents::CloudAgents::new()),
-            agents_anchor: Default::default(),
-            #[cfg(feature = "dev-capture")]
-            capture_hosted: false,
-            repository_cloud: Self::new_repository_cloud(cx),
-            copied_path: None,
             window_title: None,
             file: None,
-            share_panel: Default::default(),
-            dismissed_cloud_notice: None,
-            replace_url: None,
             popover: None,
             home: false,
             recent_projects: vec![],
@@ -464,10 +438,10 @@ impl Shell {
             },
         )
         .detach();
-        cx.observe(&s.cloud_agents, |_, _, cx| cx.notify()).detach();
+        cx.observe(&s.cloud.agents, |_, _, cx| cx.notify()).detach();
         // A hidden window is not polled for its Agents, and catches up
         // when it returns.
-        let agents = s.cloud_agents.downgrade();
+        let agents = s.cloud.agents.downgrade();
         window
             .observe_window_visibility(move |visibility, _, cx| {
                 let _ = agents.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
@@ -490,7 +464,7 @@ impl Shell {
                 // `browser-window-focus`: bounded foreground activity.
                 crate::features::telemetry::note_foreground(cx);
                 // A returning window may probe the Cloud association once.
-                s.repository_cloud.update(cx, |r, cx| r.probe(cx));
+                s.cloud.repository.update(cx, |r, cx| r.probe(cx));
                 // A file window watches nothing: the file is read again
                 // when the window comes back (FileModeDocument's `focus`).
                 if s.file_mode() {
@@ -706,7 +680,7 @@ impl Shell {
             s.window.restore_last = true;
         }
         windows::register(window.window_handle(), cx.weak_entity(), cx);
-        cx.observe(&s.cloud_catalog, |_, _, cx| cx.notify())
+        cx.observe(&s.cloud.catalog, |_, _, cx| cx.notify())
             .detach();
         // `DesktopDialogRoot`'s focus keeper: a control disabled or removed
         // while it holds focus drops focus out of the dialog; focus returns
@@ -1565,13 +1539,14 @@ impl Shell {
     /// `useHomepageCloudProjects`: load or revalidate the account catalog.
     pub(super) fn refresh_cloud_catalog(&mut self, retry: bool, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
-        self.cloud_catalog
+        self.cloud
+            .catalog
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
     /// Captures: the Header shows the Cloud tools.
     fn capture_hosted(&self) -> bool {
         #[cfg(feature = "dev-capture")]
-        return self.capture_hosted;
+        return self.cloud.capture_hosted;
         #[cfg(not(feature = "dev-capture"))]
         false
     }
@@ -1589,7 +1564,7 @@ impl Shell {
     fn open_cloud_share(&mut self, path: String, window: &mut Window, cx: &mut Context<Self>) {
         self.popover = None;
         let project = self.hosted_project().or_else(|| {
-            let cloud = self.repository_cloud.read(cx);
+            let cloud = self.cloud.repository.read(cx);
             cloud.context.project().map(str::to_owned)
         });
         match project {

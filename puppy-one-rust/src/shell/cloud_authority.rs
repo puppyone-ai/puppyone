@@ -34,7 +34,8 @@ impl Shell {
         // A file window has no project and so no Cloud project.
         let root = self.workspace_root().filter(|_| !self.file_mode());
         let enabled = self.cloud_enabled(cx);
-        self.repository_cloud
+        self.cloud
+            .repository
             .update(cx, |r, cx| r.sync(root.as_deref(), enabled, cx));
     }
     /// `closeWorkspaceSidebars`: collapse the right sidebar and release the

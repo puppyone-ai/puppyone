@@ -121,7 +121,7 @@ impl Shell {
             ))
         })()
         .unwrap_or_default();
-        self.share_panel = SharePanel {
+        self.cloud.share_panel = SharePanel {
             targets,
             copied: None,
         };
@@ -130,7 +130,7 @@ impl Shell {
     pub(super) fn share_control(&self, cx: &mut Context<Self>) -> AnyElement {
         let open = self.popover == Some(Popover::Share);
         let host = self.weak.clone();
-        let panel = self.share_panel.clone();
+        let panel = self.cloud.share_panel.clone();
         let t = cx.palette();
         let copy_host = self.weak.clone();
         PopoverMenu::new("cloud-share-panel")
@@ -247,7 +247,7 @@ fn share_card(
                         .on_click(move |_, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
                             let _ = host.update(cx, |s, cx| {
-                                s.share_panel.copied = Some(id);
+                                s.cloud.share_panel.copied = Some(id);
                                 cx.notify();
                             });
                         }),
