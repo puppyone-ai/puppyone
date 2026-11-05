@@ -11,6 +11,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 const mocks = vi.hoisted(() => ({
   getInitialWorkspace: vi.fn(),
+  cursorPoint: vi.fn(),
   resolveNode: vi.fn(),
   retry: vi.fn(),
   preview: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
 
 vi.mock("../../../../src/lib/localFiles", () => ({
   getInitialWorkspace: mocks.getInitialWorkspace,
+  getWindowCursorPoint: mocks.cursorPoint,
   openExternalUrl: vi.fn(),
   subscribeFileModeFileChanges: (callback: () => void) => {
     mocks.fileChanged.value = callback;
@@ -126,6 +128,7 @@ describe("FileModeApp", () => {
     mocks.menuItems.value = [];
     mocks.platformCapabilities.value = { platform: "macos", windowChrome: { mode: "overlay" } };
     mocks.getInitialWorkspace.mockResolvedValue({ initialFile: target });
+    mocks.cursorPoint.mockResolvedValue(null);
     mocks.resolveNode.mockResolvedValue({ id: "plan.md", path: "plan.md", name: "plan.md", type: "markdown" });
   });
 
@@ -253,6 +256,42 @@ describe("FileModeApp", () => {
     act(() => { windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY: 20 })); });
     relay(EMBEDDED_POINTER_EVENT, null);
     expect(windowRoot.dataset.controlsRevealed).toBe("true");
+  });
+
+  it("asks where the pointer is while the title bar keeps it from the page", async () => {
+    const focused = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "live", setValue: vi.fn(),
+      options: [{ id: "live", label: "Live view", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    // The window opens under a pointer resting near its top: nothing has moved yet.
+    mocks.cursorPoint.mockResolvedValue({ x: 400, y: 20 });
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+
+    // Over the document the page sees the pointer itself and stops asking.
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY: 450 })); });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    const asked = mocks.cursorPoint.mock.calls.length;
+    await settle();
+    expect(mocks.cursorPoint.mock.calls.length).toBe(asked);
+
+    // Up onto the title bar: the page only hears the pointer leave, then asks again.
+    act(() => {
+      windowRoot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null }));
+      windowRoot.dispatchEvent(new PointerEvent("pointerleave"));
+    });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    mocks.cursorPoint.mockResolvedValue(null);
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    focused.mockRestore();
   });
 
   it("puts the editor's settings in a title bar menu instead of the editor", async () => {

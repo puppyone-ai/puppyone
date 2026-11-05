@@ -22,7 +22,7 @@ import {
 } from "@puppyone/shared-ui";
 import { EditorPaneActionsMenu } from "../components/EditorPaneActionsMenu";
 import { EditorViewModeMenu } from "../components/EditorViewModeMenu";
-import { useEditorPaneChromeReveal } from "../components/useEditorPaneChromeReveal";
+import { PANE_HANDLE_REVEAL_RATIO, useEditorPaneChromeReveal } from "../components/useEditorPaneChromeReveal";
 import { PageLoading } from "../components/loading";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../features/appearance/AppearanceRuntime";
@@ -32,6 +32,7 @@ import { useTypographyCatalog, useTypographyRuntime } from "../features/typograp
 import {
   createLocalDataPort,
   getInitialWorkspace,
+  getWindowCursorPoint,
   openExternalUrl,
   subscribeFileModeFileChanges,
 } from "../lib/localFiles";
@@ -57,7 +58,8 @@ export function FileModeApp() {
   useScrolledUnderTitlebar(documentRef);
   // The file's controls appear as a project pane's do: only near the top of the window.
   const windowRef = useRef<HTMLDivElement>(null);
-  const controlsReveal = useEditorPaneChromeReveal(windowRef, false);
+  const pointerNearTopOutsideDocument = usePointerNearTopOutsideDocument(windowRef);
+  const controlsReveal = useEditorPaneChromeReveal(windowRef, pointerNearTopOutsideDocument);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,6 +244,73 @@ function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
       replaced.disconnect();
     };
   }, [documentRef]);
+}
+
+/** How often to ask where the pointer is while the page cannot see it. */
+const CURSOR_POLL_MS = 150;
+
+/**
+ * Whether the pointer is in the window's top third while the page cannot see
+ * it. The title bar is a native drag region: moving over it sends the page no
+ * pointer events, and moving onto it from the document reads as leaving the
+ * window. So while this window is in front and the pointer is not over the
+ * document, ask the system where it is. Pointer events over the document take
+ * over again as soon as they arrive.
+ */
+function usePointerNearTopOutsideDocument(windowRef: RefObject<HTMLElement>): boolean {
+  const [nearTop, setNearTop] = useState(false);
+  useEffect(() => {
+    const root = windowRef.current;
+    if (!root) return undefined;
+    let overDocument = false;
+    let timer: number | null = null;
+    let disposed = false;
+    const stop = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    };
+    const poll = async () => {
+      timer = null;
+      if (disposed || overDocument || !document.hasFocus()) {
+        setNearTop(false);
+        return;
+      }
+      const point = await getWindowCursorPoint().catch(() => null);
+      if (disposed || overDocument) return;
+      setNearTop(!!point && point.y < root.getBoundingClientRect().height * PANE_HANDLE_REVEAL_RATIO);
+      timer = window.setTimeout(() => { void poll(); }, CURSOR_POLL_MS);
+    };
+    const watch = () => {
+      if (timer === null && !overDocument) timer = window.setTimeout(() => { void poll(); }, 0);
+    };
+    const onMove = () => {
+      overDocument = true;
+      stop();
+      setNearTop(false);
+    };
+    const onLeave = () => {
+      overDocument = false;
+      watch();
+    };
+    const onBlur = () => {
+      stop();
+      setNearTop(false);
+    };
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerleave", onLeave);
+    window.addEventListener("focus", watch);
+    window.addEventListener("blur", onBlur);
+    watch();
+    return () => {
+      disposed = true;
+      stop();
+      root.removeEventListener("pointermove", onMove);
+      root.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("focus", watch);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [windowRef]);
+  return nearTop;
 }
 
 /** The theme boundary a project window has, so sub-themes reach this window too. */

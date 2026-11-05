@@ -307,6 +307,14 @@ export async function renameRecentWorkspace(folderPath: string, name: string): P
   await getDesktopBridge().renameRecentWorkspace({ folderPath, name });
 }
 
+/**
+ * Where the pointer is over this window's content, or null elsewhere. The
+ * title bar is a native drag region that sends the page no pointer events.
+ */
+export async function getWindowCursorPoint(): Promise<{ x: number; y: number } | null> {
+  return getDesktopBridge().getWindowCursorPoint();
+}
+
 /** Calls back when a File Mode window's file changes on disk. */
 export function subscribeFileModeFileChanges(callback: () => void): () => void {
   return getDesktopBridge().onFileModeFileChanged(callback);

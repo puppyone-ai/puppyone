@@ -35,6 +35,25 @@ describe("native window layout IPC", () => {
     expect(ownerWindow.setMinimumSize).not.toHaveBeenCalled();
   });
 
+  it("tells a window where the pointer is over its content, and nothing when it is elsewhere", () => {
+    const ownerWindow = { ...createWindow(), getContentBounds: vi.fn(() => ({ x: 100, y: 50, width: 800, height: 600 })) };
+    const cursor = { x: 500, y: 60 };
+    const handlers = registerHandlers(ownerWindow, "macos", { getCursorScreenPoint: () => cursor });
+    const point = handlers.get("window-layout:get-cursor-point");
+
+    // Over the title bar, where the page itself gets no pointer events.
+    expect(point(createEvent())).toEqual({ x: 400, y: 10 });
+    Object.assign(cursor, { x: 500, y: 20 });
+    expect(point(createEvent())).toBeNull();
+    Object.assign(cursor, { x: 950, y: 300 });
+    expect(point(createEvent())).toBeNull();
+  });
+
+  it("tells a destroyed window nothing about the pointer", () => {
+    const handlers = registerHandlers(createWindow({ destroyed: true }), "macos", { getCursorScreenPoint: () => ({ x: 0, y: 0 }) });
+    expect(handlers.get("window-layout:get-cursor-point")(createEvent())).toBeNull();
+  });
+
   it("reports the native full-screen state for adaptive window chrome", () => {
     const ownerWindow = createWindow({ fullScreen: true });
     const handlers = registerHandlers(ownerWindow);
@@ -172,9 +191,10 @@ function register(ownerWindow) {
   return handler;
 }
 
-function registerHandlers(ownerWindow, platform = "macos") {
+function registerHandlers(ownerWindow, platform = "macos", screen = undefined) {
   const handlers = new Map();
   registerWindowLayoutIpcHandlers({
+    screen,
     ipcMain: {
       handle: (channel, listener) => {
         handlers.set(channel, listener);

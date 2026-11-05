@@ -22,6 +22,7 @@ const FILE_MODE_CHANNELS = new Set([
   "platform:get-capabilities",
   "system:open-external-url",
   "theme:list",
+  "window-layout:get-cursor-point",
   "window-layout:set-chrome-profile",
   "window:get-initial-workspace",
   "workspace:revoke-file-url",

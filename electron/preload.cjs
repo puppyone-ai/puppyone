@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("session:failure", listener);
   },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
+  getWindowCursorPoint: () => ipcRenderer.invoke("window-layout:get-cursor-point"),
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {
       titlebar: request?.titlebar,

@@ -1000,6 +1000,8 @@ declare global {
       connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
+      /** Where the pointer is over this window's content, or null when it is elsewhere. */
+      getWindowCursorPoint: () => Promise<{ x: number; y: number } | null>;
       setWindowChromeProfile: (request: {
         titlebar: string;
       }) => Promise<{
