@@ -197,6 +197,7 @@
   "markdown.ai.removed": "Vom Agenten entfernt",
   "markdown.ambiguousLinkedNote": "{path} (mehrdeutige Titelübereinstimmung)",
   "markdown.blockDrag.handle": "Ziehen, um den Block zu verschieben",
+  "markdown.outline": "Dokumentgliederung",
   "markdown.code.language": "Codesprache",
   "markdown.code.languagePlaceholder": "Sprache",
   "markdown.code.source": "Quelle: {source}",

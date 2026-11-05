@@ -81,6 +81,8 @@ export type MarkdownCodeMirrorEditorProps = {
   onSnapshotPortChange?: (port: EditorSourceSnapshotPort | null) => void;
   /** Publishes the document outline without exposing the CodeMirror view. */
   onOutlineChange?: (snapshot: MarkdownOutlineSnapshot) => void;
+  /** Host-side navigation handle. `null` on unmount, never a stale view. */
+  onViewReady?: (view: EditorView | null) => void;
   onEditorBaseReady?: (revision: string) => void;
   onPreviewReady?: (revision: string) => void;
   onPreviewError?: (error: Error) => void;
@@ -111,6 +113,7 @@ export function MarkdownCodeMirrorEditor({
   onSourceRevisionChange,
   onSnapshotPortChange,
   onOutlineChange,
+  onViewReady,
   onEditorBaseReady,
   onPreviewReady,
   onPreviewError,
@@ -165,6 +168,7 @@ export function MarkdownCodeMirrorEditor({
     onSourceRevisionChange,
     onSnapshotPortChange,
     onOutlineChange,
+    onViewReady,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -174,6 +178,7 @@ export function MarkdownCodeMirrorEditor({
     onSourceRevisionChange,
     onSnapshotPortChange,
     onOutlineChange,
+    onViewReady,
     onEditorBaseReady,
     onPreviewReady,
     onPreviewError,
@@ -312,6 +317,7 @@ export function MarkdownCodeMirrorEditor({
     );
 
     viewRef.current = view;
+    callbacksRef.current.onViewReady?.(view);
     findAdapter.attach(view);
     const unbindFormatHotkeys = bindMarkdownFormatHotkeys(view);
     const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => {
@@ -357,6 +363,7 @@ export function MarkdownCodeMirrorEditor({
       const destroyStartedAt = performance.now();
       findAdapter.dispose();
       model.detachView(view);
+      callbacksRef.current.onViewReady?.(null);
       view.destroy();
       rendererPerformance.recordOperation(
         "editor_destroy",
