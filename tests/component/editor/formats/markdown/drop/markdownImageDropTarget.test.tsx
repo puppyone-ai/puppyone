@@ -37,9 +37,9 @@ async function mount(readOnly: boolean) {
       />
     </DocumentDropTargetProvider>,
   )));
-  const content = host.querySelector<HTMLElement>(".cm-content");
-  content!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 400);
-  return { registry, content: content! };
+  const scroller = host.querySelector<HTMLElement>(".cm-scroller");
+  scroller!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 400);
+  return { registry, scroller: scroller! };
 }
 
 describe("Markdown editor document drop target", () => {

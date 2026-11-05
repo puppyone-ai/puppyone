@@ -670,9 +670,9 @@ export function MarkdownCodeMirrorEditor({
       containsPoint(clientX, clientY) {
         const view = viewRef.current;
         if (!view) return false;
-        // The content element, not the editor host: drops on the toolbar or a
-        // scrollbar must keep the pane's own split behaviour.
-        const rect = view.contentDOM.getBoundingClientRect();
+        // The editor viewport, not the text box: a short document leaves most
+        // of the editor empty, and that empty area still belongs to the document.
+        const rect = view.scrollDOM.getBoundingClientRect();
         return clientX >= rect.left && clientX <= rect.right
           && clientY >= rect.top && clientY <= rect.bottom;
       },
@@ -682,14 +682,20 @@ export function MarkdownCodeMirrorEditor({
         const target = await resolveDropTarget(payload, documentPath, assets);
         if (!target) return false;
         const destination = relativeMarkdownDestination(documentPath, target.path);
-        if (!destination) return false;
+        if (!destination) {
+          // A drop the pane routed to the document that cannot become a
+          // document-relative path is a real anomaly, not a silent fallback.
+          console.warn("[markdown] image drop could not resolve a document-relative path", {
+            documentPath,
+            targetPath: target.path,
+          });
+          return false;
+        }
         const snippet = buildMarkdownImageSnippet(
           escapeMarkdownDestination(destination),
           target.name.replace(/\.[^.]+$/, ""),
         );
-        const point = dropPointRef.current;
-        const position = point ? view.posAtCoords(point) : null;
-        insertMarkdownImageAt(view, position ?? view.state.selection.main.from, snippet);
+        insertMarkdownImageAt(view, resolveDropInsertPosition(view, dropPointRef.current), snippet);
         return true;
       },
     };
@@ -739,6 +745,20 @@ export function MarkdownCodeMirrorEditor({
       )}
     </>
   );
+}
+
+/** Drops below the last line land at the end of the document; drops without a
+ * recorded point keep the caret. */
+export function resolveDropInsertPosition(
+  view: EditorView,
+  point: { x: number; y: number } | null,
+): number {
+  if (!point) return view.state.selection.main.from;
+  const position = view.posAtCoords(point);
+  if (position !== null) return position;
+  return point.y > view.contentDOM.getBoundingClientRect().bottom
+    ? view.state.doc.length
+    : view.state.selection.main.from;
 }
 
 type ResolvedDropTarget = Readonly<{ path: string; name: string }>;

@@ -16,6 +16,14 @@ describe("resolvePaneDropRegion", () => {
     expect(resolvePaneDropRegion(rect, 200, 200)).toBe("center");
   });
 
+  it("keeps a real reading area in a short pane", () => {
+    const short = { left: 0, top: 0, right: 800, bottom: 360, width: 800, height: 360 };
+    // The old 30% band classified the whole text block of a short document as edge.
+    expect(resolvePaneDropRegion(short, 400, 180)).toBe("center");
+    expect(resolvePaneDropRegion(short, 400, 120)).toBe("center");
+    expect(resolvePaneDropRegion(short, 400, 20)).toBe("edge");
+  });
+
   it("keeps a usable center in a narrow pane", () => {
     const narrow = { left: 0, top: 0, right: 240, bottom: 800, width: 240, height: 800 };
     expect(resolvePaneDropRegion(narrow, 120, 400)).toBe("center");

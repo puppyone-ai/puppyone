@@ -5,9 +5,12 @@
  */
 export type PaneDropRegion = "edge" | "center";
 
-export const PANE_DROP_EDGE_RATIO = 0.3;
-export const PANE_DROP_EDGE_MIN_PX = 48;
-export const PANE_DROP_EDGE_MAX_PX = 120;
+// A proportional band alone turns a short pane into almost nothing but edge:
+// at 0.3 a 360px-tall pane had a 108px band on every side, so the reading area
+// of a small document never counted as the centre.
+export const PANE_DROP_EDGE_RATIO = 0.15;
+export const PANE_DROP_EDGE_MIN_PX = 40;
+export const PANE_DROP_EDGE_MAX_PX = 88;
 
 /** The edge band is proportional but never swallows the reading area of a
  * small pane, and never grows into the whole pane on a large display. */
