@@ -81,8 +81,9 @@ app.whenReady().then(async () => {
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only projects keep the theme Header, a product-blue Cloud mark and no outer frame");
-  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
-    'Hosted-only Cloud must expose Share and Agent');
+  // Share is retired; the Header keeps the Agent pane, with the Agents beside it.
+  assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace [data-cloud-workspace-tool=agent]:not(:disabled)')) && !document.querySelector('[data-cloud-workspace-tool=share], .desktop-cloud-workspace-share')"),
+    'Hosted-only Cloud must expose the Agent pane and no retired Share');
   assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-bar .desktop-feedback'))"), 'Hosted Cloud must retain the Feedback footer');
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-button[aria-label=Settings]').click()");
   await waitFor("window.__accountCloudSmoke.state().settingsOpened === 1");
@@ -90,8 +91,8 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.desktop-feedback-dialog'))");
   await evaluate("document.querySelector('.desktop-feedback-close').click()");
   await waitFor("!document.querySelector('.desktop-feedback-dialog')");
-  assert(await evaluate("['share','agent'].every(tool => document.querySelector('[data-cloud-workspace-tool='+tool+']')) && !document.querySelector('[data-cloud-workspace-tool=connect]')"),
-    'Cloud entry retains the current Share and Agent actions');
+  assert(await evaluate("Boolean(document.querySelector('[data-cloud-workspace-tool=agent]')) && !document.querySelector('[data-cloud-workspace-tool=share], [data-cloud-workspace-tool=connect]')"),
+    'Cloud entry retains the Agent action and no retired Share or Connect');
   assert(await evaluate("!document.querySelector('.desktop-account-cloud-workspace [data-project-location-controls], .desktop-account-cloud-workspace .desktop-titlebar-location-button')"),
     "A Cloud project's Header never switches it to a local folder");
   assert(geometry.explorer.width > 100 && geometry.editor.width > 300 && geometry.editor.height > 400, "No-local hosted shell must have a usable native layout");

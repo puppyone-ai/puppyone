@@ -13,7 +13,7 @@ export function AgentProviderActivities({ activities }: { activities: readonly A
   if (!notices.length) return null;
   const prominent = notices.filter(activity => ["running", "failed", "warning"].includes(activity.status));
   const quiet = notices.filter(activity => !prominent.includes(activity));
-  return <div className="desktop-agent-provider-activities">
+  return <div className="desktop-agent-provider-activities" data-po-scrollbar="content">
     {prominent.map(activity => <p key={activity.id} className={`is-${activity.status}`}
       role={activity.status === "failed" ? "alert" : "status"} dir="auto">{activity.label}</p>)}
     {quiet.length > 0 && <details>

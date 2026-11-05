@@ -552,23 +552,14 @@
   padding-inline-end: 6px;
 }
 
-.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-share {
-  position: absolute;
-  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
-}
-
-/* The Agents stay on the editor's side of the boundary, beside Share where it is shown. */
+/* The Agents stay on the editor's side of the boundary. */
 .desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
   position: absolute;
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
-.desktop-shell[data-header-follows-right-sidebar="true"] [data-share-people] .desktop-titlebar-cloud-agents-anchor {
-  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px + var(--desktop-chrome-control-size));
-}
-
 .desktop-shell[data-header-follows-right-sidebar="true"]
-  :is(.desktop-titlebar-share, .desktop-titlebar-cloud-agents-anchor) + .desktop-titlebar-action-divider {
+  .desktop-titlebar-cloud-agents-anchor + .desktop-titlebar-action-divider {
   position: absolute;
   inset-inline-start: 0;
   margin-inline: 0;

@@ -14,7 +14,6 @@ import type { NativeCloudWorkbench } from "../features/cloud/workbench/useNative
 import type { DesktopCloudSession } from "../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
-import { captureCloudWorkspaceShareResource } from "../features/cloud/share/cloudWorkspaceShareResource";
 import type { ProjectCloudContext } from "../features/cloud/project/context";
 import type { ProjectTarget } from "../features/app-shell/window-project/windowProjectStore";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
@@ -73,8 +72,8 @@ function hostedPlaceMenu({ projectId, organizationName, projectItems, sidebar, o
   const linkedFolder = projectItems.find((item) => item.localPath && item.linkedCloudProject?.id === projectId);
   return { menu: resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress(organizationName),
     unhosted: false, publishPending: false, notice: null,
-    missingReplaceable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
-  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
+    disconnectable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
+  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onRetryCloudLink: noop, onDisconnectCloudLink: noop,
     onOpenLocalFolder: (path: string) => onSelectProject(path),
     ...(sidebar.historyAvailable ? { onOpenHistory: sidebar.openHistory } : {}) } };
 }
@@ -133,7 +132,6 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
       "data-active-cloud-project": service.workspace.projectId ?? undefined }}
       {...projectRail}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}

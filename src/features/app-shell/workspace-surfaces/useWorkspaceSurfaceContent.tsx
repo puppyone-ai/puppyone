@@ -1,7 +1,5 @@
 import { useDesktopPreference } from "../../settings";
 import { useMemo, type ReactNode } from "react";
-import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
-import type { CloudServiceMainViewProps } from "../../cloud/types";
 import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopView } from "../../../components/ProjectShell";
 import type { DesktopUpdatesController } from "../../updates";
@@ -14,12 +12,11 @@ import type {
   GitStatusSnapshot,
 } from "../../../types/electron";
 import {
-  CloudServiceMainView,
-  CloudServiceSidebar,
-  cloudContextHasProject,
+  CloudFileWorkspaceGate,
+  CloudPublishTask,
+  type CloudProjectPreparationProps,
   resolveCloudEnvironment,
   useCloudSessionForEnvironment,
-  type CloudWorkspaceSection,
   type ProjectCloudContext,
 } from "../../cloud";
 import { getGitHostingMode, type DesktopGitController } from "../../source-control";
@@ -34,12 +31,10 @@ import type {
   ResolvedWorkspaceSurface,
   WorkspaceSurfaceCapabilities,
   WorkspaceSurfaceAdapters,
-  WorkspaceSurfaceContent,
   WorkspaceSurfaceId,
 } from "./workspaceSurfaceTypes";
 
 export type DesktopWorkspaceCloudSurfaceController = {
-  activeSection: CloudWorkspaceSection;
   projectContext?: ProjectCloudContext | null;
   backupLoading: boolean;
   backupPending: boolean;
@@ -53,16 +48,15 @@ export type DesktopWorkspaceCloudSurfaceController = {
   enabled: boolean;
   sessionRestoring: boolean;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
-  onRemoveCloudRemote?: () => Promise<void>;
   onAbandonPuppyoneBackup: () => void;
   onOpenGitSettings: () => void;
-  onSelectSection: (section: CloudWorkspaceSection) => void;
+  onOpenCloudProject: (projectId: string) => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
 };
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
-  cloudSurface: WorkspaceSurfaceContent;
+  cloudPublishTask: ReactNode;
   cloudFileState: ReactNode;
   gitEnabled: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
@@ -128,7 +122,7 @@ export function useWorkspaceSurfaceContent({
     projectContext.status === "local-only"
     || cloud.publishState !== null
     || cloud.publishStateLoading
-    || (cloud.activeSection === "initialize" && git.activeGitStatus === null)
+    || git.activeGitStatus === null
   );
   const cloudEnvironment = useMemo(
     () => resolveCloudEnvironment({
@@ -183,14 +177,13 @@ export function useWorkspaceSurfaceContent({
       setAutomaticallyDownloadUpdates: desktopUpdates.setAutomaticallyDownloadUpdates,
     },
   });
-  const cloudViewProps: CloudServiceMainViewProps = {
+  const cloudViewProps: CloudProjectPreparationProps = {
     workspace,
     status: git.activeGitStatus,
     cloudEnvironment,
     cloudAuthState,
     projectContext,
     onCloudSessionChange: cloud.onCloudSessionChange,
-    activeSection: cloud.activeSection,
     loading: git.gitStatusLoading,
     error: git.gitStatusError,
     cloudBackupLoading: cloud.backupLoading,
@@ -202,39 +195,20 @@ export function useWorkspaceSurfaceContent({
     cloudPublishStateLoading: cloud.publishStateLoading,
     onAbandonPuppyoneBackup: cloud.onAbandonPuppyoneBackup,
     onStartPuppyoneBackup: cloud.onStartPuppyoneBackup,
-    onRemoveCloudRemote: cloud.onRemoveCloudRemote,
-    onSelectSection: cloud.onSelectSection,
     onRefresh: git.refreshGitStatus,
     onOpenGitSettings: cloud.onOpenGitSettings,
-    onOpenSourceControl: onOpenGitChanges,
-  };
-  const cloudServiceSurface = {
-    sidebar: (
-      <CloudServiceSidebar
-        cloudAuthState={cloudAuthState}
-        activeSection={cloud.activeSection}
-        projectAvailable={cloudContextHasProject(projectContext)}
-        projectCapabilities={projectContext.status === "resolved"
-          ? projectContext.capabilities ?? []
-          : []}
-        onSelectSection={cloud.onSelectSection}
-      />
-    ),
-    main: (
-      <CloudServiceMainView {...cloudViewProps} />
-    ),
   };
   const adapters: WorkspaceSurfaceAdapters = {
     data: () => ({ sidebar: null, main: null }),
     // "git" is retained only as a migration-safe legacy route. All active
     // source-control work now lives in the Changes right sidebar.
     git: () => ({ sidebar: null, main: null }),
-    cloud: () => cloudServiceSurface,
+    cloud: () => ({ sidebar: null, main: null }),
     settings: () => settingsSurface,
   };
   return {
     availableSurfaceIds,
-    cloudSurface: cloudServiceSurface,
+    cloudPublishTask: <CloudPublishTask {...cloudViewProps} onOpenCloudProject={cloud.onOpenCloudProject} />,
     cloudFileState: <CloudFileWorkspaceGate {...cloudViewProps} />,
     gitEnabled,
     resolvedActiveView,

@@ -25,6 +25,8 @@ abstract class MathWidget extends WidgetType {
     wrapper.className = this.presentation === "block"
       ? "cm-md-math-block-widget"
       : "cm-md-math-inline-widget";
+    // A wide formula scrolls sideways on the product scrollbar, as the document does.
+    if (this.presentation === "block") wrapper.dataset.poScrollbar = "horizontal";
     wrapper.tabIndex = 0;
     wrapper.setAttribute("role", "math");
     wrapper.setAttribute("aria-label", this.source);

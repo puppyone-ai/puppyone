@@ -114,10 +114,6 @@ const actions = {
   clearGitSelection: vi.fn(),
   isGitRepositoryContextCurrent: vi.fn(() => true),
   refreshWorkspaceContent: vi.fn(),
-  setActiveCloudSection: vi.fn(),
-  setActiveView: vi.fn(),
-  setSidebarCollapsed: vi.fn(),
-  setSwitcherOpen: vi.fn(),
 };
 
 function InitializationHarness({ activeSession }: { activeSession: DesktopCloudSession | null }) {
@@ -130,10 +126,6 @@ function InitializationHarness({ activeSession }: { activeSession: DesktopCloudS
     desktopCloudApiBaseUrl: "https://cloud.example/api/v1",
     isGitRepositoryContextCurrent: actions.isGitRepositoryContextCurrent,
     refreshWorkspaceContent: actions.refreshWorkspaceContent,
-    setActiveCloudSection: actions.setActiveCloudSection,
-    setActiveView: actions.setActiveView,
-    setSidebarCollapsed: actions.setSidebarCollapsed,
-    setSwitcherOpen: actions.setSwitcherOpen,
     workspace: {
       status: "recording",
       id: "local-notes",
@@ -233,8 +225,6 @@ describe("durable Puppyone Cloud initialization renderer flow", () => {
       expect.objectContaining({ detail: "cloud-initialization", source: "mutation" }),
     );
     expect(actions.clearGitSelection).toHaveBeenCalledOnce();
-    expect(actions.setActiveCloudSection).toHaveBeenCalledWith("contents");
-    expect(actions.setActiveView).toHaveBeenCalledWith("cloud");
     expect(readOutput().dataset.push).toBe("");
     expect(readOutput().dataset.error).toBe("");
   });
@@ -403,7 +393,6 @@ describe("durable Puppyone Cloud initialization renderer flow", () => {
       repositoryContext,
       expect.objectContaining({ detail: "cloud-initialization", source: "mutation" }),
     );
-    expect(actions.setActiveCloudSection).toHaveBeenCalledWith("initialize");
     expect(readOutput().dataset.projectState).toBe("");
     expect(readOutput().dataset.notice).toBe("cleanup-completed");
   });

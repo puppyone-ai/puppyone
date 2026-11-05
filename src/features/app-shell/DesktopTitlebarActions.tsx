@@ -1,5 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { Forward } from "lucide-react";
 import { useDesktopPreference } from "../../preferencesStore";
 import { Fragment, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -26,9 +24,6 @@ type DesktopTitlebarActionsProps = {
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
-  cloudEnabled?: boolean;
-  shareEnabled?: boolean;
-  onShare?: () => void;
   activeCoachmark?: HeaderCoachmarkId | null;
   onAcknowledgeCoachmark?: (id: HeaderCoachmarkId) => void;
   placement?: "titlebar" | "toolbar";
@@ -47,9 +42,6 @@ export function DesktopTitlebarActions({
   onUpdateNow = () => {},
   onToggleTerminal,
   onToggleGitChanges = () => {},
-  cloudEnabled = false,
-  shareEnabled = false,
-  onShare = () => {},
   activeCoachmark = null,
   onAcknowledgeCoachmark = () => {},
   placement = "titlebar",
@@ -98,26 +90,6 @@ export function DesktopTitlebarActions({
     });
   }
 
-  if (cloudEnabled && shareEnabled && placement === "titlebar") {
-    const shareLabel = t("shell.titlebar.share");
-    titlebarActionItems.push({
-      group: "header",
-      id: "share",
-      node: (
-        <Tooltip content={shareLabel}>
-          <button
-            type="button"
-            className="desktop-titlebar-action desktop-titlebar-share"
-            aria-label={shareLabel}
-            onClick={onShare}
-          >
-            <Forward size={15} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-        </Tooltip>
-      ),
-    });
-  }
-
   for (const definition of getOrderedHeaderElementDefinitions(titlebarActionsSettings.order)) {
     if (
       !titlebarActionsSettings.enabled[definition.id]
@@ -152,7 +124,7 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          ? previousItem.group !== item.group || previousItem.id === "share"
+          ? previousItem.group !== item.group
           : false;
         return (
           <Fragment key={item.id}>

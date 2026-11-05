@@ -10,7 +10,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const label = "Who can reach this project";
+const label = "Review incoming changes";
 
 let root: Root | null = null;
 
@@ -44,8 +44,7 @@ describe("project reach experiment", () => {
     expect(group?.querySelector("h3")?.textContent).toBe("Header & layout");
     expect(toggle.checked).toBe(false);
     expect(toggle.getAttribute("aria-description")).toBe(
-      "Show who and which Agents can reach the current project in the Header, invite a person or connect"
-      + " an Agent from one screen, and keep changes made elsewhere waiting for your review.",
+      "Keep Git changes made elsewhere waiting for your review before applying them. This does not enable sharing or invitations.",
     );
 
     act(() => toggle.click());

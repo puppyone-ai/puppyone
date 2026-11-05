@@ -13,9 +13,9 @@ const lineBudgets = new Map([
   ["src/features/cloud/files/cloudFileClient.ts", 230],
   ["src/features/cloud/files/cloudFileReads.ts", 100],
   ["src/features/cloud/files/contracts.ts", 150],
-  ["src/features/cloud/CloudServiceMainView.tsx", 260],
-  ["src/features/cloud/routes/CloudRouter.tsx", 160],
-  ["src/features/cloud/routes/CloudProjectRouteOutlet.tsx", 240],
+  ["src/features/cloud/initialization/CloudPublishTask.tsx", 80],
+  ["src/features/cloud/initialization/CloudPublishDialog.tsx", 60],
+  ["src/features/cloud/initialization/CloudInitializationRoute.tsx", 130],
   ["src/features/cloud/project/context/useCurrentRepositoryCloudContext.ts", 300],
   ["src/features/cloud/data/useDesktopCloudData.ts", 300],
   ["src/features/cloud/initialization/CloudInitializationView.tsx", 450],
@@ -67,6 +67,17 @@ for (const { filePath, source } of productionCode) {
   const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   for (const token of [
     "CloudProjectBrowser",
+    "CloudServiceSidebar",
+    "CloudServiceMainView",
+    "CloudShareProvider",
+    "ShareWizardDialog",
+    "ProjectReachDialog",
+    "ProjectReachControl",
+    "ProjectReachPeople",
+    "useProjectShareActivity",
+    "enableShareOnboarding",
+    "CLOUD_HUB_ENTRY_SECTION",
+    "CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES",
     "CloudTemplateStore",
     "CloudProjectCreateDialog",
     "useCloudProjectCatalog",
@@ -111,7 +122,6 @@ for (const requiredRouteContract of [
   "resources: readonly CloudProjectDetailResource[]",
   "getCloudProjectDetailResources",
   "getCloudRouteSurface",
-  "CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES",
 ]) {
   if (!routeDefinitions.includes(requiredRouteContract)) {
     errors.push(`Cloud route descriptors are missing ${requiredRouteContract}`);
@@ -131,17 +141,12 @@ for (const stableSection of [
   }
 }
 
-const sidebar = read("src/features/cloud/CloudServiceSidebar.tsx");
-if (!sidebar.includes("CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES") || sidebar.includes("onBackToProjects")) {
-  errors.push("Cloud sidebar must be stable current-Project + Organization navigation");
+const publishDialog = read("src/features/cloud/initialization/CloudPublishDialog.tsx");
+if (publishDialog.includes("sidebar") || publishDialog.includes("<aside") || publishDialog.includes("<nav")) {
+  errors.push("Cloud publish must remain a single task without services navigation");
 }
-
-const cloudRouter = read("src/features/cloud/routes/CloudRouter.tsx");
-for (const outlet of ["CloudOrganizationRouteOutlet", "CloudProjectRouteOutlet"]) {
-  if (!cloudRouter.includes(outlet)) errors.push(`CloudRouter must delegate through ${outlet}`);
-}
-if (cloudRouter.includes("../sections/") || cloudRouter.includes("ProjectBrowser")) {
-  errors.push("CloudRouter must remain an orchestration boundary");
+for (const retiredFile of ["CloudDialog.tsx", "CloudServiceSidebar.tsx", "CloudServiceMainView.tsx", "routes/CloudRouter.tsx", "routes/CloudProjectRouteOutlet.tsx", "organization/CloudOrganizationRouteOutlet.tsx"]) {
+  if (existsSync(resolve(`src/features/cloud/${retiredFile}`))) errors.push(`retired Cloud Hub returned: ${retiredFile}`);
 }
 
 const accessPointDomainFiles = [
@@ -173,24 +178,6 @@ for (const obsoleteAccessFile of [
   }
 }
 
-const accessPointRouteOutlet = read("src/features/cloud/routes/CloudProjectRouteOutlet.tsx");
-for (const obsoleteRouteToken of [
-  "catalogFilterLocked",
-  "catalogTitle",
-  "catalogDescription",
-  "focusedFilter",
-  'activeSection === "mcp"',
-  'activeSection === "cli"',
-  'activeSection === "git-sync"',
-]) {
-  if (accessPointRouteOutlet.includes(obsoleteRouteToken)) {
-    errors.push(`Cloud Project route must delegate Access Point intent instead of branching on ${obsoleteRouteToken}`);
-  }
-}
-if (!accessPointRouteOutlet.includes("getAccessPointCatalogKindForSection") || !accessPointRouteOutlet.includes("AccessPointRoutePage")) {
-  errors.push("Cloud Project route must delegate Connections through the Access Point route registry");
-}
-
 const accessPointUi = [
   ...walkFiles(resolve("src/features/cloud/access-points/components")),
   ...walkFiles(resolve("src/features/cloud/access-points/pages")),
@@ -217,9 +204,9 @@ for (const uiDependency of ["react", "lucide-react", "@puppyone/shared-ui"]) {
   }
 }
 
-const mainView = read("src/features/cloud/CloudServiceMainView.tsx");
-if (!mainView.includes("getCloudProjectDetailResources") || !mainView.includes("projectId:")) {
-  errors.push("CloudServiceMainView must load only the Project resolved from the current repository");
+const publishTask = read("src/features/cloud/initialization/CloudPublishTask.tsx");
+if (!publishTask.includes("cloudPublishState") || !publishTask.includes("CloudFileWorkspaceGate") || publishTask.includes("useDesktopCloudData")) {
+  errors.push("Cloud publish must reuse preparation/recovery without loading the retired Hub's service inventory");
 }
 
 const cloudData = read("src/features/cloud/data/useDesktopCloudData.ts");

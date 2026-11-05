@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LocalizationProvider, useLocalization } from '@puppyone/localization/react';
 import english from '../../../../src/localization/catalog-loaders/en';
-import { CloudDialog } from '../../../../src/features/cloud/CloudDialog';
+import { CloudPublishDialog } from '../../../../src/features/cloud/initialization/CloudPublishDialog';
 import { CloudSignedOutRoute } from '../../../../src/features/cloud/auth/CloudSignedOutRoute';
 import { LocalFolderCloudNotice } from '../../../../src/features/cloud/project/LocalFolderCloudNotice';
 import type { DesktopCloudAuthState } from '../../../../src/lib/cloudSession';
@@ -32,13 +32,6 @@ import { CloudProjectRecoveryState } from '../../../../src/features/cloud/states
 import { VersionControlSetupState } from '../../../../src/features/source-control/VersionControlSetupState';
 import { GitOperationErrorDialog } from '../../../../src/features/source-control/operationDialogs';
 import { OnboardingImportDialog } from '../../../../src/components/OnboardingImportDialog';
-import { ShareWizardDialog } from '../../../../src/features/cloud/share/ShareWizardDialog';
-import { ProjectReachDialog } from '../../../../src/features/cloud/share/project-reach/ProjectReachDialog';
-import { buildProjectShares } from '../../../../src/features/cloud/share/useProjectShares';
-import { CloudShareStatusCard } from '../../../../src/features/cloud/share/CloudShareStatusCard';
-import { CloudShareProvider } from '../../../../src/features/cloud/share/CloudShareContext';
-import { CloudServiceSidebar } from '../../../../src/features/cloud/CloudServiceSidebar';
-import { FeatureFlagsProvider } from '../../../../src/features/flags';
 import { CloudPublishProgressIndicator } from '../../../../src/features/cloud/initialization/CloudPublishProgressIndicator';
 import { AppPreviewSetupView } from '../../../../src/shared-ui/editor/viewers/app/AppPreviewSetupView';
 import type { DesktopCloudAutomationProviderSpec, DesktopBillingOperation } from '../../../../src/lib/cloudApi';
@@ -65,8 +58,6 @@ const fieldProvider: DesktopCloudAutomationProviderSpec = { ...provider, provide
   { key: 'branch', label: 'Branch', type: 'text', required: false, default: null, options: [], placeholder: null, hint: 'Leave empty to use the default branch.' },
 ] };
 const project = { id: 'project-fixture', name: 'Project', org_id: orgA.id, visibility: 'private', capabilities: ['project.settings.manage'] };
-const reachEndpoint = { id: 'ep-fixture', project_id: project.id, path: 'docs', name: 'Claude', api_key_hint: 'mcp_…cdef',
-  status: 'active', accesses: [{ path: 'docs', json_path: '', readonly: true }], created_at: '2026-10-01T10:00:00Z' };
 const oauthStatus = (connected = false) => ({ connected, workspace_name: connected ? 'Fixture account' : null, access_token: null, refresh_token: null });
 async function request({ path, method }: { path: string; method: string }): Promise<unknown> {
   calls.push(`${method} ${path}`);
@@ -106,8 +97,7 @@ window.puppyoneDesktop = {
   openExternalUrl: async () => { calls.push('open-authorize'); },
   submitFeedback: () => defer('feedback'),
   getDesktopPlatformCapabilities: async () => ({ nativeSurfaceOcclusion: false }),
-  // A folder that already has version history, so the project-reach screen has
-  // nothing local left to do and the account becomes its current step.
+  // Disposable version history for the publish and Git fixtures.
   getGitStatus: async () => ({ isRepo: true, branch: 'main', headCommitId: 'fixture-head', totalCommits: 1, branches: [] }),
   getPublishScope: async () => ({ files: 12, bytes: 2048, truncated: false }),
 } as unknown as Window['puppyoneDesktop'];
@@ -130,7 +120,7 @@ function AuthenticationSwitch() {
   useEffect(() => { const listener = (state: DesktopCloudAuthState) => setSignedIn(state.status === 'authenticated'); authListeners.add(listener); return () => { authListeners.delete(listener); }; }, []);
   return <><button onClick={() => setOpen(true)}>Open Cloud</button><input aria-label="Local draft" defaultValue="Unsaved fixture draft" />
     <output data-current-provider="local">Local project</output>
-    {open && !signedIn && <CloudDialog sidebar={null} main={signedOut} onClose={() => setOpen(false)} />}</>;
+    {open && !signedIn && <CloudPublishDialog onClose={() => setOpen(false)}>{signedOut}</CloudPublishDialog>}</>;
 }
 function Destination() {
   const [path, setPath] = useState('imports/github');
@@ -186,22 +176,8 @@ function surface() {
       onRetry={noop} onDismiss={noop} /><CloudProjectRecoveryState message="Access was denied." remoteLabel="https://fixture.example/git/project" onRetry={noop} onUseAnotherAccount={noop} onOpenGitDetails={noop} /><CloudServiceUnavailable title="Connect" onRetry={noop} /></>;
     case 'git': return variant === 'error' ? <GitOperationErrorDialog error={{ operation: 'push', workspacePath: '/fixture', code: 'push', detail: 'Push rejected', raw: 'fixture: permission denied' }} onClose={noop} /> : <VersionControlSetupState enabling={variant === 'pending'} operationError={null} onEnable={noop} />;
     case 'import': return <OnboardingImportDialog onClose={noop} onImportSource={async () => false} onConnectSource={async () => ({ connectionId: 'fixture' })} onListResources={async () => ({ items: [], nextCursor: null })} onCancelImport={async () => ({ cancelled: true })} onImportProgress={() => noop} />;
-    case 'share': return <ShareWizardDialog workspaceName="Project" initialTargetId={null} initialPath="" session={null} apiBaseUrl={session.api_base_url} projectContext={{ status: 'local-only', projectId: null }}
-      publish={{ loading: false, progress: null, error: null, start: noop }} shares={{ shares: [], loading: false, loaded: true, error: false, reload: refresh }} listTopLevelFolders={async () => []} onSessionChange={noop} onIssued={noop} onOpenCloud={noop} onClose={noop} />;
-    case 'reach': return <ProjectReachDialog workspaceName="Project" workspacePath="/fixture/Project" initialTargetId={null} initialPath="docs"
-      session={variant === 'readers' ? session : null} apiBaseUrl={session.api_base_url} projectContext={{ status: 'local-only', projectId: null }}
-      publish={{ loading: false, progress: null, error: null, start: noop }}
-      shares={{ shares: variant === 'readers' ? buildProjectShares([reachEndpoint], null) : [], loading: false, loaded: true, error: false, reload: refresh }}
-      listTopLevelFolders={async () => [{ name: 'docs', path: 'docs' }, { name: 'media', path: 'media' }]}
-      onSessionChange={noop} onIssued={noop} onOpenCloud={noop} onClose={noop} />;
-    case 'share-status': return <CloudShareStatusCard status={{ kind: 'shared', readers: [], pending: null, message: null }} surface="page" onPrimary={noop} />;
-    case 'share-navigation': return <FeatureFlagsProvider value={{ cloudWorkspace: true, cloudBilling: false }}>
-      <CloudShareProvider value={variant === 'off' ? null : { signedIn: true, pending: null, openShare: noop,
-        shares: { shares: [], loading: false, loaded: true, error: false, reload: refresh } }}>
-        <CloudServiceSidebar cloudAuthState={{ status: 'signed-in', apiBaseUrl: session.api_base_url, session }}
-          activeSection="contents" projectAvailable onSelectSection={noop} />
-      </CloudShareProvider>
-    </FeatureFlagsProvider>;
+    case 'publish': return <CloudPublishDialog onClose={noop}><CloudSignedOutRoute activeSection="initialize"
+      authState={{ status: 'signed-out', apiBaseUrl: session.api_base_url }} apiBaseUrl={session.api_base_url} loadingLabel="Restoring…" /></CloudPublishDialog>;
     case 'progress': return <Progress />;
     case 'preview': return <AppPreviewSetupView appName="Preview" appPath="preview.puppyoneapp" content="{}" onConfigured={noop} controller={{
       detect: async () => {

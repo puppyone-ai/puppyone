@@ -23,7 +23,6 @@ export function ExperimentalSettingsView() {
         { messageKey: "projectReach", settingKey: "enableProjectReach" },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
           choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
-        { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
         { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail",
           choices: [{ messageKey: "menu", value: false }, { messageKey: "sidebar", value: true }] },
         { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },

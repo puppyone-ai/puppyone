@@ -32,7 +32,7 @@ import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } fr
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
-import { CloudDialog } from "../cloud/CloudDialog";
+import { CloudPublishDialog } from "../cloud";
 import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
 import { DesktopCloudFileWorkspace } from "../cloud/workbench/DesktopCloudFileWorkspace";
 import type { NativeCloudWorkbench } from "../cloud/workbench/useNativeCloudWorkbench";
@@ -176,7 +176,7 @@ export function DesktopWorkspaceContent({
   });
   const {
     availableSurfaceIds,
-    cloudSurface,
+    cloudPublishTask,
     cloudFileState,
     gitEnabled,
     resolvedActiveView,
@@ -268,11 +268,7 @@ export function DesktopWorkspaceContent({
           : null}
       />
       {cloudOpen && (
-        <CloudDialog
-          sidebar={cloudSurface.sidebar}
-          main={cloudSurface.main}
-          onClose={onCloseCloud}
-        />
+        <CloudPublishDialog onClose={onCloseCloud}>{cloudPublishTask}</CloudPublishDialog>
       )}
       {pluginsOpen && viewerPluginsEnabled && (
         <PluginsDialog

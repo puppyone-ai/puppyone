@@ -20,7 +20,6 @@ import type {
   CloudInitializationState,
   GitStatusSnapshot,
 } from "../../../types/electron";
-import type { CloudWorkspaceSection } from "../types";
 import { createRepositoryRefreshReason } from "../../source-control/repositoryRefreshPolicy";
 import type { GitRefreshReason, GitRepositoryContext } from "../../source-control/gitRefreshScheduler";
 
@@ -42,11 +41,6 @@ export type CloudInitializationOutcome = Readonly<{
   kind: "published" | "attention" | "failed";
 }>;
 
-export type CloudInitializationStartOptions = {
-  /** Set to false to stay on the current surface after a successful publish. */
-  navigateToCloud?: boolean;
-};
-
 export function useCloudInitialization({
   activeCloudSession,
   applyGitStatus,
@@ -56,10 +50,6 @@ export function useCloudInitialization({
   desktopCloudApiBaseUrl,
   isGitRepositoryContextCurrent,
   refreshWorkspaceContent,
-  setActiveCloudSection,
-  setActiveView,
-  setSidebarCollapsed,
-  setSwitcherOpen,
   workspace,
 }: {
   activeCloudSession: DesktopCloudSession | null;
@@ -74,11 +64,6 @@ export function useCloudInitialization({
   desktopCloudApiBaseUrl: string | null;
   isGitRepositoryContextCurrent: (context: GitRepositoryContext) => boolean;
   refreshWorkspaceContent: () => void;
-  setActiveCloudSection: (section: CloudWorkspaceSection) => void;
-  /** Initialization only ever moves the window to the Cloud view. */
-  setActiveView: (view: "cloud") => void;
-  setSidebarCollapsed: (collapsed: boolean) => void;
-  setSwitcherOpen: (open: boolean) => void;
   workspace: Workspace | null;
 }) {
   const [state, setState] = useState<CloudInitializationState | null>(null);
@@ -123,7 +108,6 @@ export function useCloudInitialization({
   const finishPublished = useCallback((
     result: Extract<CloudInitializationResult, { ok: true }>,
     context: GitRepositoryContext,
-    options: CloudInitializationStartOptions,
   ) => {
     if (result.gitStatus && !reconcileGitStatus(result.gitStatus, context)) return false;
     const published = isPublished(result.state);
@@ -133,15 +117,10 @@ export function useCloudInitialization({
     setNotice(null);
     if (!published) return true;
     clearGitSelection();
-    // Inline callers (for example the Share wizard) own their own follow-up
-    // surface; only the Cloud hub entry navigates into the Cloud panel.
-    if (options.navigateToCloud === false) return true;
-    setActiveCloudSection("contents");
-    setActiveView("cloud");
-    setSidebarCollapsed(false);
-    setSwitcherOpen(false);
+    // The task reports its result; only an explicit user action opens a Cloud project.
+    // A background upload must not reopen a dismissed dialog when it finishes.
     return true;
-  }, [clearGitSelection, reconcileGitStatus, setActiveCloudSection, setActiveView, setSidebarCollapsed, setSwitcherOpen]);
+  }, [clearGitSelection, reconcileGitStatus]);
 
   useEffect(() => {
     stateRequestRef.current = null;
@@ -173,10 +152,7 @@ export function useCloudInitialization({
         }
         setError(null);
         if (context && result.gitStatus) reconcileGitStatus(result.gitStatus, context);
-        if (published) {
-          clearGitSelection();
-          setActiveCloudSection("contents");
-        }
+        if (published) clearGitSelection();
       })
       .catch(() => {
         if (stateRequestRef.current === request) setError({ code: "UNKNOWN", retryable: true });
@@ -208,7 +184,6 @@ export function useCloudInitialization({
 
   const start = useCallback(async (
     organizationId?: string,
-    options: CloudInitializationStartOptions = {},
   ) => {
     if (!cloudEnabled || !workspace || actionRef.current) return;
     if (!activeCloudSession) {
@@ -307,7 +282,7 @@ export function useCloudInitialization({
         setError(toPublicFailure(result));
         return;
       }
-      const finished = finishPublished(result, context, options);
+      const finished = finishPublished(result, context);
       if (!finished) ending = null;
       else ending = isPublished(result.state) ? "published" : "attention";
     } catch {
@@ -360,8 +335,6 @@ export function useCloudInitialization({
       reconcileGitStatus(result.gitStatus, context);
       setState(null);
       setNotice("cleanup-completed");
-      setActiveCloudSection("initialize");
-      setActiveView("cloud");
     } catch {
       if (actionRef.current === request) setError({ code: "UNKNOWN", retryable: true });
     } finally {
@@ -375,8 +348,6 @@ export function useCloudInitialization({
     identity,
     isGitRepositoryContextCurrent,
     reconcileGitStatus,
-    setActiveCloudSection,
-    setActiveView,
     state,
   ]);
 

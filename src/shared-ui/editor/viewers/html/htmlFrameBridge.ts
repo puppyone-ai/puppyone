@@ -79,6 +79,16 @@ export const HTML_FRAME_BRIDGE = String.raw`
     if (!enabled || !port || !selected) return;
     send({ type: 'pointer', x: event.clientX, y: event.clientY });
   }, true);
+  // Where the pointer is, at most once a frame, for the host's own chrome; the page cannot see it otherwise.
+  let hover = null, hoverFrame = 0;
+  document.addEventListener('pointermove', (event) => {
+    hover = [event.clientX, event.clientY];
+    if (!hoverFrame) hoverFrame = requestAnimationFrame(() => { hoverFrame = 0; if (hover) send({ type: 'hover', x: hover[0], y: hover[1] }); });
+  }, true);
+  document.addEventListener('pointerout', (event) => {
+    if (event.relatedTarget) return;
+    hover = null; send({ type: 'hover-end' });
+  }, true);
   document.addEventListener('submit', (event) => event.preventDefault(), true);
   document.addEventListener('dragstart', (event) => event.preventDefault(), true);
   document.addEventListener('keydown', (event) => {
@@ -104,6 +114,11 @@ export const HTML_FRAME_BRIDGE = String.raw`
       if (data.type === 'active' && nodes.has(data.id)) { active = data.id; selected = active; measure(); return; }
       if (data.type === 'clear') { selected = null; active = null; setTyping(null); return; }
       if (data.type === 'enabled') { enabled = data.value === true; return; }
+      if (data.type === 'inset') {
+        // Room for chrome the host draws over the page's top.
+        if (Number.isFinite(data.value) && data.value > 0 && data.value <= 400) document.documentElement.style.setProperty('padding-top', data.value + 'px', 'important');
+        schedule(); return;
+      }
       if (data.type === 'base') {
         let base = document.querySelector('base');
         if (!data.value) { base?.remove(); return; }

@@ -8,7 +8,7 @@ import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
 import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
@@ -63,6 +63,7 @@ import {
 } from "./main/desktop-launch-intent.mjs";
 import { registerAgentIpcHandlers } from "./main/ipc/agent-ipc.mjs";
 import { createWorkspaceResourceResolver } from "./main/workspace-resource-resolver.mjs";
+import { createMacosPreparedUpdate } from "./main/platform/macos/prepared-update.mjs";
 import { loadMacosResourceDrag } from "./main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "./main/ipc/resource-transfer-ipc.mjs";
 import { registerAgentActivityIpcHandlers } from "./main/ipc/agent-activity-ipc.mjs";
@@ -138,13 +139,12 @@ import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
-import { askToSaveFile, createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
+import { createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
 import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
 import { createCliControlServer } from "./main/cli-control/cli-control-server.mjs";
 import { createCliControlRequests } from "./main/cli-control/cli-control-requests.mjs";
 import { resolveCliControlEndpoint } from "./main/cli-control/endpoint.mjs";
 import { CLI_CONTROL_LIMITS, CLI_LAUNCH_ARGUMENT } from "../shared/cli-control-contract/protocol.mjs";
-import { registerFileModeIpcHandlers } from "./main/ipc/file-mode-ipc.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
@@ -376,23 +376,14 @@ const nativeMenuService = createDesktopNativeMenuService({
   },
   onOpenThemesDirectory: () => themeService.openDirectory(),
 });
-const applicationQuitIntent = createApplicationQuitIntent({ app });
+// A quit something kept from finishing also leaves a pending update restart unfinished.
+const applicationQuitIntent = createApplicationQuitIntent({ app, onCancel: () => updateService?.handleQuitCancelled() });
 const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
   onCloseCancelled: applicationQuitIntent.cancel,
   closeResources: async (window) => {
     return (await projectSessions.closeWindow(window.webContents.id)).closed;
-  },
-  resolveCloseChoice: (window) => {
-    const state = windowStateById.get(window.webContents.id);
-    if (!state?.fileTarget || !state.fileEdited) return "save";
-    return askToSaveFile({
-      dialog,
-      window,
-      name: state.fileTarget.name,
-      t: (messageId, values) => localeService.t(messageId, values),
-    });
   },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
@@ -703,6 +694,8 @@ async function createWindow(options = {}) {
   if (fileTarget) {
     workspaceWindows.add(fileTarget.rootPath, window);
     window.setRepresentedFilename?.(fileTarget.path);
+    // The file's title bar floats over the document, so scrolling over it scrolls the document.
+    desktopPlatformHost.windowChrome.passTitleBarScrollToPage?.(window);
     window.setTitle(fileTarget.name);
     // The page's own <title> would otherwise replace the file name on load.
     window.on("page-title-updated", (event) => event.preventDefault());
@@ -1078,6 +1071,14 @@ app.whenReady().then(async () => {
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
   });
   const updatePreferences = await updatePreferenceStore.read();
+  // A packaged macOS app restarts to update by swapping in an app prepared in
+  // the background, not by waiting on Squirrel.Mac after it has quit.
+  const preparedUpdate = app.isPackaged && desktopPlatformHost.platform === "macos"
+    ? await createMacosPreparedUpdate({
+      appBundlePath: path.resolve(app.getPath("exe"), "../../.."),
+      stagingRoot: path.join(app.getPath("cache"), `${path.basename(app.getPath("userData"))}.prepared-update`),
+    })
+    : null;
   updateService = createUpdateService({
     app,
     buildInfo: desktopBuildInfo,
@@ -1089,6 +1090,7 @@ app.whenReady().then(async () => {
     persistAutomaticallyDownloadUpdates: (enabled) => updatePreferenceStore.write({
       automaticallyDownloadUpdates: enabled,
     }),
+    preparedUpdate,
   });
   telemetryHost = createDesktopTelemetryHost({
     app,
@@ -1227,6 +1229,8 @@ app.on("will-quit", () => {
   stopLocaleNativeRefresh?.();
   localeService.dispose();
   cloudAuthService.dispose();
+  // Last moment before exit: a prepared update is swapped in once the process ends.
+  updateService?.installOnQuit();
   updateService?.dispose();
   telemetryHost?.dispose();
   viewerPackHost?.destroyAllSessions();
@@ -1266,14 +1270,6 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
-  registerFileModeIpcHandlers({
-    ipcMain: trustedIpcMain,
-    getFileWindow: (sender) => {
-      const state = windowStateById.get(sender.id);
-      const window = windowsById.get(sender.id);
-      return state?.fileTarget && window ? { state, window } : null;
-    },
-  });
   registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });
@@ -1307,6 +1303,7 @@ function registerIpcHandlers() {
   registerWindowLayoutIpcHandlers({
     ipcMain: trustedIpcMain,
     BrowserWindow,
+    screen,
     platform: desktopPlatformHost.platform,
   });
   registerNativeSurfaceOcclusionIpcHandlers({

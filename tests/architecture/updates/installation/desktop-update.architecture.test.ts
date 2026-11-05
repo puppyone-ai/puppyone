@@ -40,7 +40,14 @@ describe("Desktop update interaction boundaries", () => {
     expect(service).toContain("BACKGROUND_UPDATE_INTERVAL_MS");
     expect(service).toContain("scheduleBackgroundCheck");
     expect(service).toContain("autoUpdater.autoDownload = false");
-    expect(service).toContain("autoUpdater.autoInstallOnAppQuit = true");
+    // macOS restarts into an update prepared in the background; Squirrel.Mac
+    // stages and installs only where that cannot work.
+    expect(service).toContain("autoUpdater.autoInstallOnAppQuit = !preparedUpdate");
+    expect(service).toContain("preparedUpdate.prepare(");
+    expect(service).toContain("preparedUpdate.installOnExit(");
+    expect(main).toContain("createMacosPreparedUpdate");
+    expect(main).toMatch(/updateService\?\.installOnQuit\(\);\s*updateService\?\.dispose\(\);/);
+    expect(main).toContain("createApplicationQuitIntent({ app, onCancel: () => updateService?.handleQuitCancelled() })");
     expect(service).toContain("await downloadAvailableUpdateInternal()");
     expect(service).toContain("if (ACTIONABLE_UPDATE_STATES.has(state.status)) return state");
     expect(service).toContain("updates:set-automatically-download");

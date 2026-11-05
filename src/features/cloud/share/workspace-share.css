@@ -1,8 +1,4 @@
-/* The share illustration, in the feature layer like every other feature
-   stylesheet. Left unlayered it outranked every layered rule in the app by
-   the cascade's own rule about unlayered declarations, which is how the
-   reach dialog's overrides of this window — its height, and its frame —
-   were being quietly discarded. */
+/* Cloud Agent invitations, approvals and the wrapping roster share one feature-owned surface. */
 @layer features {
   /* The Agent's own name card, kept below the Header until its request is answered. */
   .desktop-cloud-agent-card.desktop-cloud-agent-request-card { pointer-events: auto; overflow-y: auto; }
@@ -13,42 +9,6 @@
   .desktop-cloud-agent-request-error { color: var(--po-danger); }
   .desktop-cloud-agent-request-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 14px 14px; }
   .desktop-cloud-agent-request-actions .po-button { min-height: var(--po-control-size-compact); font-size: var(--po-type-ui-caption, 12px); }
-
-  /* Two cards under the Header, on the project menu's own surface: Share says
-     how to send something to a person, the Agents card lets Agents in and says
-     who is in here. */
-  .desktop-cloud-workspace-share {
-    --share-inset: 16px;
-    --po-menu-padding: var(--share-inset);
-    --po-menu-bg: var(--po-header);
-    --po-menu-border: var(--po-shell-divider);
-    --interface-menu-background: var(--po-header);
-    --po-menu-shadow-compact:
-      0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
-      0 12px 28px -8px color-mix(in srgb, var(--po-shadow) 70%, transparent);
-    display: grid;
-    gap: 14px;
-    max-height: min(560px, calc(100vh - 58px));
-    overflow-y: auto;
-    outline: none;
-  }
-  .desktop-cloud-workspace-share :is(h3, h4, p) { margin: 0; }
-  .desktop-cloud-workspace-share [role="alert"] { color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
-  .desktop-cloud-workspace-share h3 { color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
-
-  /* What each link opens, so the row says what it copies before it is pressed. */
-  .desktop-cloud-share-people { position: relative; display: grid; gap: 10px; min-width: 0; }
-  .desktop-cloud-share-targets { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-  .desktop-cloud-share-targets li { display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; min-height: 36px; color: var(--po-text-muted); }
-  .desktop-cloud-share-target-text { display: grid; min-width: 0; }
-  .desktop-cloud-share-target-name { overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
-  .desktop-cloud-share-target-caption { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
-
-  .desktop-cloud-share-heading { display: grid; gap: 2px; min-width: 0; }
-  .desktop-cloud-share-heading h3 { overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
-  .desktop-cloud-share-heading p { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
-
-  .desktop-cloud-share-targets .desktop-dialog-button { gap: 5px; height: var(--po-control-size-compact); min-width: 76px; padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
 
   /* Inviting an Agent: an empty seat with a + at the end of the row; pressing
      it copies an invite, and three lines under it say what happens next. */
@@ -262,14 +222,8 @@
   .desktop-cloud-agent-lamp[data-active] { background: var(--po-success); }
   .desktop-cloud-agent-name { flex: 1; min-width: 0; overflow: hidden; color: var(--po-text); font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px)); text-overflow: ellipsis; white-space: nowrap; }
 
-  .desktop-cloud-share-copy:focus-visible, .desktop-cloud-agent-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
-  .desktop-cloud-share-address { box-sizing: border-box; width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--po-border); border-radius: 7px; outline: none; background: transparent; color: var(--po-text-muted); font-family: inherit; font-size: var(--po-type-ui-caption, 12px); }
-  .desktop-cloud-share-address:focus-visible { border-color: var(--po-accent); color: var(--po-text); }
-  :is(.desktop-cloud-agent-invite, .desktop-cloud-share-people) > .desktop-cloud-share-status { margin: -1px; }
+  .desktop-cloud-agent-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+  .desktop-cloud-agent-invite > .desktop-cloud-share-status { margin: -1px; }
   .desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-  .desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
-  .desktop-cloud-share-preview-canvas { width: 200%; height: 200%; transform: scale(.5); transform-origin: top left; pointer-events: none; }
-  .desktop-cloud-share-preview-files { flex-shrink: 0; }
-  .desktop-cloud-share-preview-document { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 }

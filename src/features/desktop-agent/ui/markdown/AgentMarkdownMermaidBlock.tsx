@@ -85,7 +85,7 @@ export function AgentMarkdownMermaidBlock({ source }: AgentMarkdownRichBlockProp
   return (
     <figure className={`desktop-agent-mermaid is-${state}`}>
       <figcaption>{t("agent.markdown.diagram")}</figcaption>
-      <div className="desktop-agent-mermaid-stage">
+      <div className="desktop-agent-mermaid-stage" data-po-scrollbar="content">
         {state === "loading" && (
           <InlineLoading
             label={null}

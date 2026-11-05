@@ -5,7 +5,7 @@ import { useVisibleFrameReadiness } from "../shared/useVisibleFrameReadiness";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { resolveFileFormat } from "../../../core/fileFormats";
-import { htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
+import { HTML_PAGE_SCROLLBAR_STYLE, htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
 
 export function HtmlPreviewFrame({
   path,
@@ -191,7 +191,7 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
     : `<base target="${target}">`;
   const interactionStyle = `<style id="puppyone-html-preview-interaction">${getHtmlPreviewInteractionCss("body")}</style>`;
 
-  head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}`).childNodes);
+  head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}${HTML_PAGE_SCROLLBAR_STYLE}`).childNodes);
   if (viewportChannel) {
     const body = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "body")!;
     body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);

@@ -597,6 +597,99 @@ describe("Desktop updater restart safety", () => {
   });
 });
 
+describe("Desktop updater prepared restart (macOS)", () => {
+  function createPreparedFixture({ prepare } = {}) {
+    let finishPreparing;
+    const preparedUpdate = {
+      prepare: vi.fn(prepare ?? (() => new Promise((resolve) => { finishPreparing = resolve; }))),
+      installOnExit: vi.fn(() => true),
+    };
+    const quit = vi.fn();
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+      preparedUpdate,
+      quit,
+    });
+    fixture.service.start();
+    return { ...fixture, preparedUpdate, quit, finishPreparing: () => finishPreparing({ version: "1.4.1" }) };
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("offers the update only once the new app is prepared, then restarts by quitting and swapping it in", async () => {
+    const fixture = createPreparedFixture();
+    expect(fixture.autoUpdater.autoInstallOnAppQuit).toBe(false);
+
+    expect((await fixture.service.updateNow()).status).toBe("downloading");
+    expect(fixture.preparedUpdate.prepare).toHaveBeenCalledWith({ archivePath: "/cache/pending/puppyone-1.4.1.zip", version: "1.4.1" });
+    expect(fixture.service.installOnQuit()).toBe(false);
+
+    fixture.finishPreparing();
+    await settle();
+    expect(fixture.service.getState().status).toBe("downloaded");
+
+    expect((await fixture.service.updateNow()).status).toBe("installing");
+    expect(fixture.quit).toHaveBeenCalledOnce();
+    expect(fixture.quitAndInstall).not.toHaveBeenCalled();
+    expect(fixture.service.installOnQuit()).toBe(true);
+    expect(fixture.preparedUpdate.installOnExit).toHaveBeenCalledWith({ relaunch: true });
+    fixture.service.dispose();
+  });
+
+  it("swaps a prepared update in on an ordinary quit without reopening the app", async () => {
+    const fixture = createPreparedFixture({ prepare: async () => ({ version: "1.4.1" }) });
+    await fixture.service.updateNow();
+    await settle();
+    expect(fixture.service.getState().status).toBe("downloaded");
+
+    expect(fixture.service.installOnQuit()).toBe(true);
+    expect(fixture.preparedUpdate.installOnExit).toHaveBeenCalledWith({ relaunch: false });
+    expect(fixture.quit).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("offers the restart again when a window keeps the app open", async () => {
+    const fixture = createPreparedFixture({ prepare: async () => ({ version: "1.4.1" }) });
+    await fixture.service.updateNow();
+    await settle();
+    await fixture.service.updateNow();
+    expect(fixture.service.getState().status).toBe("installing");
+
+    fixture.service.handleQuitCancelled();
+    expect(fixture.service.getState().status).toBe("downloaded");
+    // Quitting later on its own still installs it, without reopening.
+    expect(fixture.service.installOnQuit()).toBe(true);
+    expect(fixture.preparedUpdate.installOnExit).toHaveBeenCalledWith({ relaunch: false });
+
+    await fixture.service.updateNow();
+    expect(fixture.quit).toHaveBeenCalledTimes(2);
+    fixture.service.dispose();
+  });
+
+  it("leaves the install to Squirrel.Mac when the update cannot be prepared", async () => {
+    const fixture = createPreparedFixture({ prepare: async () => { throw new Error("The update is not signed as this app is."); } });
+    await fixture.service.updateNow();
+    await settle();
+    expect(fixture.service.getState().status).toBe("downloaded");
+
+    expect(fixture.service.installOnQuit()).toBe(false);
+    await fixture.service.updateNow();
+    expect(fixture.quitAndInstall).toHaveBeenCalledOnce();
+    expect(fixture.quit).not.toHaveBeenCalled();
+    expect(fixture.preparedUpdate.installOnExit).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("keeps Squirrel.Mac installing on quit where no prepared update is available", () => {
+    const fixture = createUpdaterFixture({ channel: "stable", currentVersion: "1.4.0", candidateVersion: "1.4.1" });
+    fixture.service.start();
+    expect(fixture.autoUpdater.autoInstallOnAppQuit).toBe(true);
+    expect(fixture.service.installOnQuit()).toBe(false);
+    fixture.service.dispose();
+  });
+});
+
 describe("Desktop updater platform routing", () => {
   const targets = [
     { platform: "win32", arch: "x64", path: "windows/x64/nsis/latest" },
@@ -651,6 +744,8 @@ function createUpdaterFixture({
   candidateVersion,
   emitAvailableEvent = true,
   automaticallyDownloadUpdates = true,
+  preparedUpdate = null,
+  quit = vi.fn(),
 }) {
   const internalBuild = /-internal\.([1-9]\d*)$/.exec(currentVersion)?.[1];
   const buildNumber = channel === "internal" ? internalBuild : 80;
@@ -676,7 +771,7 @@ function createUpdaterFixture({
     return { updateInfo };
   });
   const downloadUpdate = vi.fn(async () => {
-    autoUpdater.emit("update-downloaded", updateInfo);
+    autoUpdater.emit("update-downloaded", { ...updateInfo, downloadedFile: `/cache/pending/puppyone-${candidateVersion}.zip` });
     return [];
   });
   const quitAndInstall = vi.fn();
@@ -697,6 +792,8 @@ function createUpdaterFixture({
     platform: "linux",
     automaticallyDownloadUpdates,
     persistAutomaticallyDownloadUpdates,
+    preparedUpdate,
+    quit,
   });
   return {
     autoUpdater,

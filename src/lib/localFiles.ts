@@ -307,9 +307,12 @@ export async function renameRecentWorkspace(folderPath: string, name: string): P
   await getDesktopBridge().renameRecentWorkspace({ folderPath, name });
 }
 
-/** Lets a File Mode window's close button and quit know about unsaved edits. */
-export function setFileEdited(edited: boolean): void {
-  getDesktopBridge().setFileEdited(edited);
+/**
+ * Where the pointer is over this window's content, or null elsewhere. The
+ * title bar is a native drag region that sends the page no pointer events.
+ */
+export async function getWindowCursorPoint(): Promise<{ x: number; y: number } | null> {
+  return getDesktopBridge().getWindowCursorPoint();
 }
 
 /** Calls back when a File Mode window's file changes on disk. */

@@ -125,7 +125,10 @@
   max-width: none;
   min-height: 100%;
   margin: 0;
-  padding-block: var(--po-markdown-editor-gutter-min);
+  /* A host drawing chrome over the document's top (--po-editor-chrome-inset-block-start) adds to the resting padding. */
+  padding-block:
+    calc(var(--po-markdown-editor-gutter-min) + var(--po-editor-chrome-inset-block-start, 0px))
+    var(--po-markdown-editor-gutter-min);
   padding-inline: var(--po-markdown-editor-content-gutter-inline);
   caret-color: var(--po-text);
   color: var(--po-md-content-color);

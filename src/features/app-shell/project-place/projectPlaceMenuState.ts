@@ -4,17 +4,25 @@ import { compactDisplayPath, getWorkspacePathForDisplay } from "../../../lib/wor
 /**
  * What the Header's place menu offers. A local folder and its Cloud project are
  * two projects (puppy-issues ADR-001): the menu states where the open project
- * is, and its one action either starts putting a folder in the Cloud or opens
- * the other project. It never moves one project between this computer and the
- * Cloud.
+ * is, then either starts putting a folder in the Cloud, shows the folder's link
+ * to its Cloud project, or opens the other project of a linked pair. It never
+ * moves one project between this computer and the Cloud.
  */
 export type ProjectPlaceAction =
   /** A folder without a Cloud project; the conversion entry. */
   | { kind: "put-in-cloud"; continuing: boolean }
-  | { kind: "open-cloud-project"; projectId: string; projectName: string | null }
-  | { kind: "sign-in" }
-  | { kind: "put-in-cloud-again" }
   | { kind: "open-local-folder"; path: string; name: string };
+
+/**
+ * A local folder's link to its Cloud project. The link is only the folder's Git
+ * connection to that project, so the Header is where it is seen and where it
+ * ends; ending it never touches the Cloud project.
+ */
+export type ProjectPlaceCloudLink = Readonly<{
+  notice: LocalFolderCloudNotice;
+  /** This app can end the link by itself: exactly one Cloud connection. */
+  disconnectable: boolean;
+}>;
 
 /**
  * Where exactly the open project is. The icon already says which kind of place it
@@ -28,7 +36,14 @@ export type ProjectPlaceMenu = Readonly<{
   /** Absent while it is unknown; the Header then names the kind of place instead. */
   address?: ProjectPlaceAddress | null;
   action: ProjectPlaceAction | null;
+  /** The open local folder's Cloud link, when it has one. */
+  link?: ProjectPlaceCloudLink | null;
 }>;
+
+/** The link exists but cannot be used from this app as it is. */
+export function cloudLinkHasProblem(link: ProjectPlaceCloudLink | null | undefined): boolean {
+  return Boolean(link && link.notice.kind !== "linked" && link.notice.kind !== "sign-in");
+}
 
 /** A local project's address: the folder that holds it, from the home folder, shortened. */
 export function localProjectAddress(path: string | null | undefined): ProjectPlaceAddress | null {
@@ -53,39 +68,25 @@ export function cloudProjectAddress(organizationName: string | null | undefined)
   return name ? { short: name, full: name } : null;
 }
 
-export function resolveProjectPlaceMenu({ place, address = null, unhosted, publishPending, notice, missingReplaceable, linkedFolder }: {
+export function resolveProjectPlaceMenu({ place, address = null, unhosted, publishPending, notice, disconnectable, linkedFolder }: {
   place: "local" | "cloud";
   address?: ProjectPlaceAddress | null;
   /** The open local folder has no Cloud association at all. */
   unhosted: boolean;
   /** A first publish is running or saved for the open local folder. */
   publishPending: boolean;
-  /** The open local folder's notice, which already explains any other state. */
+  /** What the open local folder's Cloud link means, when it has one. */
   notice: LocalFolderCloudNotice | null;
-  missingReplaceable: boolean;
+  /** This app can end the open local folder's Cloud link. */
+  disconnectable: boolean;
   /** For an open Cloud project: the local folder linked to it, if any. */
   linkedFolder?: Readonly<{ path: string; name: string }> | null;
 }): ProjectPlaceMenu {
-  return { place, address, action: resolveProjectPlaceAction({ place, unhosted, publishPending, notice, missingReplaceable, linkedFolder }) };
-}
-
-function resolveProjectPlaceAction({ place, unhosted, publishPending, notice, missingReplaceable, linkedFolder }: {
-  place: "local" | "cloud";
-  unhosted: boolean;
-  publishPending: boolean;
-  notice: LocalFolderCloudNotice | null;
-  missingReplaceable: boolean;
-  linkedFolder?: Readonly<{ path: string; name: string }> | null;
-}): ProjectPlaceAction | null {
-  if (place === "cloud") return linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null;
-  if (publishPending) return { kind: "put-in-cloud", continuing: true };
-  if (unhosted) return { kind: "put-in-cloud", continuing: false };
-  if (notice?.kind === "linked" && notice.openable) {
-    return { kind: "open-cloud-project", projectId: notice.projectId, projectName: notice.projectName };
+  if (place === "cloud") {
+    return { place, address, action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
   }
-  if (notice?.kind === "sign-in") return { kind: "sign-in" };
-  if (notice?.kind === "missing" && missingReplaceable) return { kind: "put-in-cloud-again" };
-  // Another environment, no access, an ambiguous or unreachable link: the
-  // folder's own notice explains it; the menu offers nothing that cannot work.
-  return null;
+  // A running or saved first publish owns the folder's link until it ends.
+  if (publishPending) return { place, address, action: { kind: "put-in-cloud", continuing: true } };
+  if (unhosted) return { place, address, action: { kind: "put-in-cloud", continuing: false } };
+  return { place, address, action: null, link: notice ? { notice, disconnectable } : null };
 }

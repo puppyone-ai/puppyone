@@ -11,7 +11,7 @@ import { ProjectOpeningLoading } from "../../../components/loading";
 import type { EditorFileDropController } from "../drag-and-drop/useExplorerFileDrop";
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
 import { EditorPaneChrome } from "./EditorPaneChrome";
-import { useEditorPaneChromeReveal } from "./useEditorPaneChromeReveal";
+import { useEditorPaneChromeReveal } from "../../../components/useEditorPaneChromeReveal";
 import {
   AgentFilePresence,
   desktopAgentActivityStore,

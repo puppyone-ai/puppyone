@@ -75,26 +75,24 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
     expect(context?.querySelector(".desktop-titlebar-share")).toBeNull();
     expect(context?.querySelector(".desktop-titlebar-terminal")).toBeNull();
-    expect(trailing?.querySelector(".desktop-titlebar-share")).not.toBeNull();
+    expect(trailing?.querySelector(".desktop-titlebar-share")).toBeNull();
     expect(trailing?.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
     expect(context?.querySelector(".desktop-titlebar-action-divider")).toBeNull();
     expect(Array.from(trailing?.querySelectorAll(".desktop-titlebar-action") ?? []).map((button) =>
       button.className,
     )).toEqual([
-      "desktop-titlebar-action desktop-titlebar-share",
       "desktop-titlebar-action desktop-titlebar-changes",
       "desktop-titlebar-action desktop-titlebar-terminal",
     ]);
 
     act(() => {
       changes?.click();
-      trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-share")?.click();
       trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-terminal")?.click();
       context?.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")?.click();
     });
     expect(onToggleGitChanges).toHaveBeenCalledOnce();
     expect(onToggleTerminal).toHaveBeenCalledOnce();
-    expect(onShare).toHaveBeenCalledOnce();
+    expect(onShare).not.toHaveBeenCalled();
     expect(onToggleWorkspaceSwitcher).toHaveBeenCalledOnce();
 
     render();

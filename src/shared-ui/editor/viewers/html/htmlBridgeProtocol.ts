@@ -6,6 +6,7 @@ export type HtmlSelectionMessage = { type: "selection"; id: string; edit: boolea
   styles: Record<string, string | boolean> };
 export type HtmlBridgeMessage = { type: "viewport"; x: number; y: number } | HtmlSelectionMessage | { type: "ready"; ids: string[] }
   | { type: "pointer"; x: number; y: number }
+  | { type: "hover"; x: number; y: number } | { type: "hover-end" }
   | { type: "style-check"; request: string; supported: boolean }
   | { type: "clear" } | { type: "history"; direction: "undo" | "redo" };
 
@@ -15,7 +16,8 @@ export function decodeHtmlBridgeMessage(value: unknown): HtmlBridgeMessage | nul
   const message = value as Record<string, unknown>;
   if (message.type === "style-check" && typeof message.request === "string" && message.request.length < 80
     && typeof message.supported === "boolean") return { type: "style-check", request: message.request, supported: message.supported };
-  if ((message.type === "viewport" || message.type === "pointer") && [message.x, message.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 1e7)) return { type: message.type, x: message.x as number, y: message.y as number };
+  if ((message.type === "viewport" || message.type === "pointer" || message.type === "hover") && [message.x, message.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 1e7)) return { type: message.type, x: message.x as number, y: message.y as number };
+  if (message.type === "hover-end") return { type: "hover-end" };
   if (message.type === "clear") return { type: "clear" };
   if (message.type === "history" && (message.direction === "undo" || message.direction === "redo")) return { type: "history", direction: message.direction };
   if (message.type === "ready" && Array.isArray(message.ids) && message.ids.length <= 12000

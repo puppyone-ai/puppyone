@@ -544,7 +544,7 @@ function PresentationTextPreview({
   const selectedSlide = slides[Math.min(activeSlide, slides.length - 1)];
 
   return (
-    <div className="office-presentation-preview office-presentation-preview--text">
+    <div className="office-presentation-preview office-presentation-preview--text" data-po-scrollbar="content">
       {truncatedSlideCount > 0 && (
         <div className="office-preview__note">
           {t("editor.office.omittedSlidesSafety", { count: truncatedSlideCount })}
@@ -587,7 +587,7 @@ function PresentationTextPreview({
             setActiveSlide,
           )}
         >
-          <article className="office-pptx-text-slide">
+          <article className="office-pptx-text-slide" data-po-scrollbar="content">
             <h2 dir="auto">
               {selectedSlide.title ?? t("editor.office.slideNumber", { number: selectedSlide.index })}
             </h2>

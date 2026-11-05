@@ -7,12 +7,15 @@ import type { LocalFolderCloudNotice as LocalFolderCloudNoticeState } from "./lo
  * The local folder stays fully usable; this notice only says what its Cloud
  * project means and offers the one action that can help.
  */
-export function LocalFolderCloudNotice({ notice, onOpenCloudProject, onSignIn, onPutInCloud, onRetry, onDismiss }: {
+export function LocalFolderCloudNotice({ notice, onOpenCloudProject, onSignIn, onDisconnect, onRetry, onDismiss }: {
   notice: LocalFolderCloudNoticeState;
   onOpenCloudProject: (projectId: string) => void;
   onSignIn: () => void;
-  /** Offered only when this app can retire the missing project's old link. */
-  onPutInCloud?: () => void;
+  /**
+   * Ends a link that cannot be used from here. Offered only when this app can
+   * end it by itself.
+   */
+  onDisconnect?: () => void;
   onRetry: () => void;
   onDismiss: () => void;
 }) {
@@ -38,15 +41,17 @@ export function LocalFolderCloudNotice({ notice, onOpenCloudProject, onSignIn, o
       message = notice.origin
         ? t("cloud.localFolderNotice.otherEnvironment", { origin: notice.origin })
         : t("cloud.localFolderNotice.otherEnvironmentUnknown");
+      if (onDisconnect) actions = action(t("cloud.localFolderNotice.disconnect"), onDisconnect);
       break;
     case "missing":
       tone = "warning";
-      message = t(onPutInCloud ? "cloud.localFolderNotice.missing" : "cloud.localFolderNotice.missingNoAction");
-      if (onPutInCloud) actions = action(t("cloud.localFolderNotice.putInCloud"), onPutInCloud);
+      message = t("cloud.localFolderNotice.missing");
+      if (onDisconnect) actions = action(t("cloud.localFolderNotice.disconnect"), onDisconnect);
       break;
     case "no-access":
       tone = "warning";
       message = t("cloud.localFolderNotice.noAccess");
+      if (onDisconnect) actions = action(t("cloud.localFolderNotice.disconnect"), onDisconnect);
       break;
     case "ambiguous":
       tone = "warning";

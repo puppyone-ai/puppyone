@@ -43,6 +43,18 @@ describe("reviewed missing-Cloud connection detach", () => {
     expect(await readFile(path.join(root, "notes.md"), "utf8")).toBe("Local project content\n");
     expect(detach).toHaveBeenCalledWith(root, OLD);
   });
+  it("ends a link to another environment, and the branch tracking that went with it", async () => {
+    const otherEnvironment = "http://localhost:9090/git/01a0e7da-6575-7771-af76-48b47dde4ba6.git";
+    await git("remote", "set-url", "puppyone", otherEnvironment);
+    await git("config", "branch.main.remote", "puppyone");
+    await git("config", "branch.main.merge", "refs/heads/main");
+    const before = await getWorkspaceGitStatus(root);
+    const result = await handler({ sender: { id: 1 } }, { rootPath: root, remoteName: "puppyone", expectedRemotes: before.remotes });
+    expect(result.remotes.map((remote) => remote.name)).toEqual(["origin"]);
+    await expect(git("config", "--get", "branch.main.remote")).rejects.toThrow();
+    expect(result.headCommitId).toBe(before.headCommitId);
+    expect(detach).toHaveBeenCalledWith(root, otherEnvironment);
+  });
   it.each(["fetch", "push", "another remote"])("rejects a changed %s before touching credentials or Git config", async change => {
     const reviewed = await getWorkspaceGitStatus(root);
     if (change === "fetch") await git("remote", "set-url", "puppyone", "https://api.puppyone.ai/git/new-project.git");

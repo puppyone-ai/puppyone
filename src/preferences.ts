@@ -98,7 +98,6 @@ export type ExperimentalSettings = {
   enableCloudWorkspace: boolean;
   enableEditorTabsInHeader: boolean;
   enableProjectReach: boolean;
-  enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;
@@ -187,15 +186,12 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableCloudWorkspace: false,
   enableEditorTabsInHeader: false,
   /**
-   * Second path for "who can reach this project": the Header reach entry, the
-   * single-screen invite/connect form and review-first incoming changes. Off by
-   * default while the existing path stays byte-identical for comparison. Read it
+   * The remaining review-first incoming Git changes comparison. Sharing and
+   * Header reach are retired; this stored key cannot restore them. Read it
    * only through `useProjectReachExperience()`; the retirement plan lives in
    * puppy-issues `document/puppyone-desktop/platform/experimental-path-forks.md`.
    */
   enableProjectReach: false,
-  /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
-  enableShareOnboarding: true,
   enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
@@ -443,7 +439,6 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
       enableProjectReach: parsed.enableProjectReach === true,
-      enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored
       // from renderer localStorage. The Electron capability bridge hydrates it.
