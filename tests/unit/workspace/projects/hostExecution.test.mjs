@@ -81,7 +81,7 @@ describe("host execution service", () => {
   it("reports a missing Agent instead of starting something else", async () => {
     const terminals = fakeTerminals({ fail: "TERMINAL_AGENT_START_FAILED: claude not found" });
     const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
-      executionPolicy: async () => ({ tier: "computer" }),
+      executionPolicy: async ({ rootPath }) => ({ tier: "folder", sandbox: SEATBELT, root: rootPath }),
       resolveFolder: async () => ({ rootPath: "/shared", capabilities: ["folder.read", "folder.write", "folder.agent"] }) });
     const frames = [];
     service.receive({ type: "exec_open", session, folder_id: folderId, kind: "agent", launcher: "claude" }, (frame) => frames.push(frame));
@@ -106,24 +106,7 @@ describe("host execution policy", () => {
     }
   });
 
-  it("ends sessions of a tier that is turned off", async () => {
-    const terminals = fakeTerminals();
-    let tier = "computer";
-    const service = createHostExecService({ createTerminalService: terminals.factory, logger: { warn() {} },
-      resolveFolder: async () => ({ rootPath: "/shared", capabilities: ["folder.read", "folder.write", "folder.shell"] }),
-      executionPolicy: async () => (tier === "computer" ? { tier } : { tier, sandbox: SEATBELT, root: "/shared" }) });
-    const frames = [];
-    service.receive({ type: "exec_open", session, folder_id: folderId, kind: "shell", launcher: "shell" }, (frame) => frames.push(frame));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    tier = "folder";
-    const second = "99999999-9999-4999-8999-999999999999";
-    service.receive({ type: "exec_open", session: second, folder_id: folderId, kind: "shell", launcher: "shell" }, (frame) => frames.push(frame));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await service.enforceTier((running) => running === "folder");
-    expect(service.list().map((record) => record.session)).toEqual([second]);
-  });
-
-  it("wraps folder-tier spawns in the sandbox and passes the whole-computer tier through", () => {
+  it("wraps every spawn in the folder sandbox and runs nothing else", () => {
     const spawned = [];
     const policies = [{ tier: "folder", sandbox: SEATBELT, root: "/Users/me/Notes", launcher: "codex", appDataDirs: ["/Users/me/Library/Application Support/PuppyOne"] },
       { tier: "computer" }, null, { tier: "everything" }];
@@ -137,11 +120,11 @@ describe("host execution policy", () => {
     expect(spawned[0].args[1]).toContain('(subpath "/Users/me/Library/Application Support/PuppyOne")');
     expect(spawned[0].args.slice(2)).toEqual(["/bin/zsh", "-l"]);
     expect(spawned[0].options.env.HISTFILE).toMatch(/puppyone-host-\d+\.history$/);
-    spawner.spawn("/bin/zsh", ["-l"], { cwd: "/Users/me/Notes", env: {} });
-    expect(spawned[1]).toMatchObject({ file: "/bin/zsh", args: ["-l"] });
+    // There is no unsandboxed tier: anything else is refused before a process starts.
+    expect(() => spawner.spawn("/bin/zsh", ["-l"], { cwd: "/Users/me/Notes", env: {} })).toThrow("Unknown execution tier");
     expect(() => spawner.spawn("/bin/zsh", [], { env: {} })).toThrow("No execution policy");
     expect(() => spawner.spawn("/bin/zsh", [], { env: {} })).toThrow("Unknown execution tier");
-    expect(spawned).toHaveLength(2);
+    expect(spawned).toHaveLength(1);
   });
 
   it.runIf(process.platform === "darwin")("runs Git and its hooks inside the folder sandbox", async () => {

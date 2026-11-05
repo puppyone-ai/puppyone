@@ -80,7 +80,5 @@
   "execution.running": "ここで実行中：{count}",
   "execution.stopAll": "すべて停止",
   "execution.sandboxed": "リモートでの実行はこのコンピュータのサンドボックス内で行われ、共有フォルダだけを変更できます。",
-  "execution.noSandbox": "このコンピュータにはサンドボックスがないため、コンピュータ全体を許可しない限りここでは何も実行されません。",
-  "execution.wholeComputerOn": "リモートでの実行は、サンドボックスの外であなたとしてここで行われます。",
-  "execution.wholeComputer": "コンピュータ全体での実行を許可"
+  "execution.noSandbox": "このコンピュータにはサンドボックスがないため、他のコンピュータはここで何も実行できません。ファイルを開いて編集することはできます。"
 }

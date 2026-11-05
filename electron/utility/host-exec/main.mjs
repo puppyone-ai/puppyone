@@ -2,8 +2,8 @@
  * Utility process for terminals and Agents that the owner's other computers run
  * in a shared folder. The PTYs live here, never in Main. Main sends the folder
  * root it resolved from this computer's own consent, and the execution policy:
- * the folder tier runs inside the OS sandbox, the whole-computer tier as this
- * user. A session without a policy never starts. Output goes back to Main,
+ * everything runs inside the OS sandbox for that folder. A session without a
+ * policy never starts. Output goes back to Main,
  * which relays it to the computer that asked.
  */
 import pty from "node-pty";

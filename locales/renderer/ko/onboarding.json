@@ -122,5 +122,7 @@
   "template.getCopy": "사본 받기",
   "template.loading": "불러오는 중…",
   "template.signIn": "로그인 후 템플릿 사용",
-  "template.signingIn": "로그인 중…"
+  "template.signingIn": "로그인 중…",
+  "projects.groups.thisComputer": "이 컴퓨터",
+  "projects.groups.cloud": "클라우드"
 }

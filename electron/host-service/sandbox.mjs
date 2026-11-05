@@ -11,9 +11,8 @@
  * sandbox, including Git hooks and package-manager scripts.
  *
  * macOS uses Seatbelt (sandbox-exec), Linux uses bubblewrap. Where neither is
- * available (Windows, or Linux without bubblewrap or user namespaces), there
- * is no folder tier: running anything is the whole-computer tier, which the
- * owner must turn on separately on this computer.
+ * available (Windows, or Linux without bubblewrap or user namespaces), nothing
+ * can be run there by the owner's other computers: there is no unsandboxed tier.
  */
 import { execFile } from "node:child_process";
 import fs from "node:fs";
@@ -147,7 +146,6 @@ export function createPolicySpawner({ spawn, home = os.homedir(), tempDirs = [os
     spawn(file, args, options) {
       const policy = takePolicy();
       if (!policy) throw new Error("No execution policy for this session.");
-      if (policy.tier === "computer") return spawn(file, args, options);
       if (policy.tier !== "folder") throw new Error("Unknown execution tier.");
       const wrapped = wrapInSandbox({ sandbox: policy.sandbox, file, args, root: policy.root, home,
         appDataDirs: policy.appDataDirs ?? [], writable: agentStatePaths(policy.launcher, home), tempDirs });

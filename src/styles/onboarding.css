@@ -1094,3 +1094,17 @@ span.homepage-cloud-feedback {
 .project-cloud-link-button svg {
   color: var(--po-brand-blue);
 }
+
+/* Folders grouped by the machine they are on (this computer, other computers, Cloud). */
+.onboarding-host-groups {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.onboarding-host-group-title {
+  margin: 8px 0 0;
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--po-text-weight-medium, 500);
+  color: var(--po-text-muted);
+}

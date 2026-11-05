@@ -316,7 +316,8 @@ export function createCloudAuthService({
     const origin = normalizeCloudApiBaseUrl(`${url.protocol === "wss:" ? "https:" : "http:"}//${url.host}`);
     if (!origin || !/^wss?:$/.test(url.protocol) || !/^\/api\/v1\/hosts\/folders\/[0-9a-f-]{36}\/exec$/.test(url.pathname)
       || url.search || url.hash || url.username || url.password) throw new Error("Invalid terminal address.");
-    return new WebSocketImpl(url.toString(), [`version.bearer.${captured.access_token}`]);
+    // version.v1 is what the server answers with; the token is offered but never echoed back.
+    return new WebSocketImpl(url.toString(), ["version.v1", `version.bearer.${captured.access_token}`]);
   }
 
   // Main-only, fixed-origin template authorization. No renderer can supply a

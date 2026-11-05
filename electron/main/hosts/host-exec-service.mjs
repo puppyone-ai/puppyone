@@ -120,10 +120,5 @@ export function createHostExecService({ resolveFolder, createTerminalService, lo
       .map((record) => close(record.id)));
   }
 
-  /** End sessions that ran at a tier this computer no longer allows. */
-  async function enforceTier(allowed) {
-    await Promise.all([...sessions.values()].filter((record) => !allowed(record.tier)).map((record) => close(record.id)));
-  }
-
-  return Object.freeze({ receive, stopAll, enforce, enforceTier, list, close });
+  return Object.freeze({ receive, stopAll, enforce, list, close });
 }

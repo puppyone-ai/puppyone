@@ -122,5 +122,7 @@
   "template.getCopy": "Obtenir une copie",
   "template.loading": "Chargement…",
   "template.signIn": "Se connecter pour utiliser ce modèle",
-  "template.signingIn": "Connexion…"
+  "template.signingIn": "Connexion…",
+  "projects.groups.thisComputer": "Cet ordinateur",
+  "projects.groups.cloud": "Cloud"
 }

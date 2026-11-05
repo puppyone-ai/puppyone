@@ -122,5 +122,7 @@
   "template.getCopy": "Kopie holen",
   "template.loading": "Wird geladen…",
   "template.signIn": "Anmelden, um die Vorlage zu verwenden",
-  "template.signingIn": "Anmeldung läuft…"
+  "template.signingIn": "Anmeldung läuft…",
+  "projects.groups.thisComputer": "Dieser Computer",
+  "projects.groups.cloud": "Cloud"
 }

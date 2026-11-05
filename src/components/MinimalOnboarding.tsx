@@ -12,7 +12,7 @@ import {
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
-import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
+import { projectHomeItemLocation, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
@@ -191,6 +191,41 @@ export function MinimalOnboarding({
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const projectView = useHomepageProjectView(items, listHeld);
+  // Folders on the owner's other computers exist: group the homepage by machine.
+  const grouped = Boolean(remoteFoldersSlot);
+  const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
+  const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
+  const projectList = (listItems: ProjectHomeItem[]) => (
+    <OnboardingProjectList
+      held={listHeld}
+      items={listItems}
+      layout={projectLayout}
+      onOpenCloudProject={onOpenCloudProject}
+      busy={busy}
+      openingPath={openingPath}
+      draggingPath={draggingPath}
+      onOpen={(path) => void openPath(path)}
+      onRename={onRenameProject}
+      onRemove={onRemoveProject}
+      onRenameCloudProject={onRenameCloudProject}
+      onDeleteCloudProject={onDeleteCloudProject}
+      onDragStart={startProjectDrag}
+      onDragEnd={() => setDraggingPath(null)}
+    />
+  );
+  // Grouped by the machine each folder is on: this computer, each of the owner's
+  // other computers, then the Cloud as one group. There is no machine switcher.
+  const projects = grouped ? (
+    <div className="onboarding-host-groups">
+      <h2 className="onboarding-host-group-title">{t("onboarding.projects.groups.thisComputer")}</h2>
+      {projectList(localItems)}
+      {remoteFoldersSlot}
+      {cloudItems.length > 0 && <>
+        <h2 className="onboarding-host-group-title">{t("onboarding.projects.groups.cloud")}</h2>
+        {projectList(cloudItems)}
+      </>}
+    </div>
+  ) : projectList(projectView.visibleItems);
   const entry = onboardingEntrySlots(hasProjects, {
     busy,
     openingFolder: openingPath === "__new__",
@@ -228,24 +263,7 @@ export function MinimalOnboarding({
             </OnboardingProjectToolbar>
           )} trailing={entry.trailing} />}
           primaryKind={hasProjects ? "projects" : "create"}
-          primary={hasProjects ? (
-            <OnboardingProjectList
-              held={listHeld}
-              items={projectView.visibleItems}
-              layout={projectLayout}
-              onOpenCloudProject={onOpenCloudProject}
-              busy={busy}
-              openingPath={openingPath}
-              draggingPath={draggingPath}
-              onOpen={(path) => void openPath(path)}
-              onRename={onRenameProject}
-              onRemove={onRemoveProject}
-              onRenameCloudProject={onRenameCloudProject}
-              onDeleteCloudProject={onDeleteCloudProject}
-              onDragStart={startProjectDrag}
-              onDragEnd={() => setDraggingPath(null)}
-            />
-          ) : (
+          primary={hasProjects ? projects : (
             <OnboardingCreateProjectAction
               busy={busy}
               canCreateProject={canCreateProject}
@@ -255,7 +273,7 @@ export function MinimalOnboarding({
           )}
           actions={entry.actions}
         />
-        {remoteFoldersSlot}
+        {!(grouped && hasProjects) && remoteFoldersSlot}
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>

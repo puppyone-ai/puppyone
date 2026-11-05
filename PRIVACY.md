@@ -49,17 +49,21 @@ them in transit. The planned relay must not persist file bodies or the host's ab
 path. Its current prototype stores device and folder identifiers, display names
 (the computer's host name and the folder's name), permissions and connection
 metadata including when the computer was last online, the PuppyOne version it
-runs and a random identifier that changes on every launch. It records operation
-type (including starting to watch a folder for changes) and outcome, not file
-paths or bodies. Change notifications carry folder-relative names of changed
-files through the relay without storing them. Audit retention and privacy
+runs and a random identifier that changes on every launch. File operations on
+your computers are not recorded one by one. Connections are: which of your
+computers and which shared folder was opened, when, and how it ended (opening a
+folder, a relayed connection, a terminal or Agent session), without file names,
+paths or content, kept 30 days. Change notifications carry folder-relative names
+of changed files through the relay without storing them. Only your own sign-in
+reaches your computers; PuppyOne's cloud Agents and other runtime credentials
+cannot. Audit retention and privacy
 review remain rollout gates. It is **not end-to-end
 encrypted**, not an automatic Cloud publish, and not product analytics.
 
 On the computer that shares a folder, a separate PuppyOne Host process (the
 same program, without windows) keeps the folder's location, the device key
-(encrypted with the operating system's credential storage), the "paused" and
-"run on the whole computer" choices in its own application data. It keeps
+(encrypted with the operating system's credential storage) and the "paused"
+choice in its own application data. It keeps
 sharing after PuppyOne quits, until you pause, remove the folder or the
 computer, or sign out of PuppyOne on that computer. Your PuppyOne sign-in stays
 with the App; the Host process never receives it. On the computer that opens a
@@ -68,13 +72,10 @@ display name. Removing a computer deletes its key; pausing stops serving until
 resumed.
 
 If you allow terminals, Git or Agents in a shared folder, what your other
-computers start there runs on the sharing computer. By default it runs in an
+computers start there runs on the sharing computer, always inside an
 operating-system sandbox (macOS and Linux) that can change only that folder and
-cannot read SSH keys, the keychain, browser data or PuppyOne's own data; where
-no sandbox is available nothing runs unless you separately allow running on the
-whole computer, which acts as you with access to all your files and sign-ins.
-The relay records only that such a session or connection started and how it
-ended.
+cannot read SSH keys, the keychain, browser data or PuppyOne's own data. Where no
+sandbox is available (for example Windows), nothing can be run there remotely.
 
 For a planned end-to-end encrypted transport, the Cloud can also sign
 five-minute SSH certificates for your own computers and relay connection bytes

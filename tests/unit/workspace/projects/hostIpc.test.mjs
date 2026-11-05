@@ -227,45 +227,25 @@ describe("host IPC", () => {
     expect((await app.status()).paused).toBe(true);
   });
 
-  it("keeps the whole-computer tier separate, confirmed here, and refuses running where there is no sandbox", async () => {
+  it("refuses running where there is no sandbox, and offers no unsandboxed way", async () => {
     const userData = await temporaryRoot();
     const folder = path.join(userData, "Notes");
     await fs.mkdir(folder);
     const service = inProcessHostService(path.join(userData, "host-service"), deviceChallenges().fetchImpl);
     const session = { current: { user_id: owner, session_generation: "one", api_base_url: apiBase } };
-    const expectedSession = { userId: owner, generation: "one" };
     const app = desktop({ userData, launcher: service.launcher, session });
     const { folderId } = await app.handlers.get("host:register-folder")({ sender: {} }, { rootPath: folder, writable: true });
-    expect(await app.status()).toMatchObject({ sandbox: null, wholeComputer: false });
-
-    // No sandbox here: turning on a terminal explains why it cannot run, and changes nothing.
+    expect((await app.status()).sandbox).toBeNull();
+    expect(app.handlers.has("host:set-whole-computer")).toBe(false);
     app.prompts.length = 0;
     expect(await app.handlers.get("host:set-execution")({ sender: {} }, { deviceId: device, folderId, terminal: true,
-      git: false, agent: false, expectedRevision: 1, expectedSession })).toEqual({ cancelled: true, reason: "sandbox_unavailable" });
+      git: false, agent: false, expectedRevision: 1, expectedSession: { userId: owner, generation: "one" } }))
+      .toEqual({ cancelled: true, reason: "sandbox_unavailable" });
     expect(app.prompts.map((prompt) => prompt.message)).toEqual(["native.host.execution.unavailable"]);
     expect(app.apiCalls.some(({ method }) => method === "PATCH")).toBe(false);
-
-    // The whole computer is its own switch, behind its own confirmation; declining keeps it off.
-    const declined = desktop({ userData, launcher: service.launcher, session, answers: [0] });
-    expect(await declined.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: true, expectedSession }))
-      .toEqual({ cancelled: true });
-    expect((await app.status()).wholeComputer).toBe(false);
-    app.prompts.length = 0;
-    expect(await app.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: true, expectedSession }))
-      .toEqual({ wholeComputer: true });
-    expect(app.prompts.map((prompt) => prompt.title)).toEqual(["native.host.whole.title"]);
-    expect((await app.status()).wholeComputer).toBe(true);
-    // It survives a restart of the host service, and turning it off needs no confirmation.
-    await service.stop();
-    await service.start();
-    expect((await app.status()).wholeComputer).toBe(true);
-    app.prompts.length = 0;
-    expect(await app.handlers.get("host:set-whole-computer")({ sender: {} }, { enabled: false, expectedSession }))
-      .toEqual({ wholeComputer: false });
-    expect(app.prompts).toEqual([]);
   });
 
-  it("asks about the sandboxed tier, not the whole computer, where a sandbox exists", async () => {
+  it("asks about running in the folder sandbox where a sandbox exists", async () => {
     const userData = await temporaryRoot();
     const folder = path.join(userData, "Notes");
     await fs.mkdir(folder);

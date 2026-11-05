@@ -242,8 +242,8 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     if (widening) {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (!window) throw new Error("This change requires a current window.");
-      // Without a sandbox, running anything is the whole-computer tier, which is turned on separately.
-      if (!status.sandbox && !status.wholeComputer) {
+      // Without a sandbox nothing can run here for other computers.
+      if (!status.sandbox) {
         await dialog.showMessageBox(window, { type: "info", buttons: [t("native.host.ok")], defaultId: 0,
           title: t("native.host.execution.title"), message: t("native.host.execution.unavailable", { name: row.name }) });
         return { cancelled: true, reason: "sandbox_unavailable" };
@@ -251,9 +251,8 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
       const answer = await dialog.showMessageBox(window, { type: "warning",
         buttons: [t("native.host.cancel"), t("native.host.allow")], defaultId: 0, cancelId: 0,
         title: t("native.host.execution.title"),
-        message: t(status.wholeComputer ? "native.host.execution.message" : "native.host.execution.sandboxed",
-          { name: row.name }),
-        detail: t(status.wholeComputer ? "native.host.execution.detail" : "native.host.execution.sandboxedDetail") });
+        message: t("native.host.execution.sandboxed", { name: row.name }),
+        detail: t("native.host.execution.sandboxedDetail") });
       if (answer.response !== 1) return { cancelled: true };
     }
     const update = (body) => auth.requestSessionApi(apiBase, `/hosts/devices/${deviceId}/folders/${folderId}`, {
@@ -269,24 +268,6 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     }
     await running.call("registrySetExecution", local);
     return update(wanted);
-  });
-
-  // The whole-computer tier: other computers run things as this user, outside any sandbox.
-  ipcMain.handle("host:set-whole-computer", async (event, request) => {
-    requireSession(request?.expectedSession);
-    const enabled = request?.enabled === true;
-    const running = await host({ start: false }).catch(() => null);
-    if (!running) throw new Error("Share a folder from this computer first.");
-    if (enabled) {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (!window) throw new Error("This change requires a current window.");
-      const answer = await dialog.showMessageBox(window, { type: "warning",
-        buttons: [t("native.host.cancel"), t("native.host.allow")], defaultId: 0, cancelId: 0,
-        title: t("native.host.whole.title"), message: t("native.host.whole.message"), detail: t("native.host.whole.detail") });
-      if (answer.response !== 1) return { cancelled: true };
-    }
-    const status = await running.call("setWholeComputer", { enabled });
-    return { wholeComputer: status.wholeComputer };
   });
 
   ipcMain.handle("host:stop-remote-sessions", async () => {

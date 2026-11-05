@@ -78,8 +78,6 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     state = {
       deployment: typeof saved.deployment === "string" ? saved.deployment : null,
       paused: saved.paused === true,
-      // Running things as this user, outside any sandbox: off unless turned on here.
-      wholeComputer: saved.wholeComputer === true,
       active: UUID.test(saved.active?.accountId) && UUID.test(saved.active?.deviceId)
         ? { accountId: saved.active.accountId, deviceId: saved.active.deviceId } : null,
     };
@@ -111,26 +109,20 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     const connection = services?.connector.status() ?? { state: "off", deviceId: null, activeRequests: 0,
       watching: 0, lastAccessAt: null, running: [] };
     return { ...connection, paused: state?.paused === true, active: state?.active ?? null,
-      deployment: state?.deployment ?? null, sandbox: sandbox?.mechanism ?? null,
-      wholeComputer: state?.wholeComputer === true };
+      deployment: state?.deployment ?? null, sandbox: sandbox?.mechanism ?? null };
   }
 
   function notify() {
     try { onStatus(status()); } catch { /* observers never control sharing */ }
   }
 
-  /**
-   * Where a session may run: inside the folder sandbox, or as this user when
-   * the whole-computer tier is on. With neither, nothing runs.
-   */
+  /** Where a session may run: inside the folder sandbox. Without a sandbox, nothing runs. */
   function executionPolicy({ launcher, rootPath }) {
-    if (state?.wholeComputer) return { tier: "computer" };
     if (sandbox) return { tier: "folder", sandbox, root: rootPath, appDataDirs, launcher };
     throw Object.assign(new Error("This computer has no sandbox for running in a folder."), { code: "sandbox_unavailable" });
   }
 
   function gitFor({ rootPath }) {
-    if (state?.wholeComputer) return null;
     if (!sandbox) throw new HostFileError("folder_unavailable");
     return createSandboxedGit({ sandbox, root: rootPath, appDataDirs, nodePath });
   }
@@ -288,16 +280,6 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
       return { paused: state.paused };
     }),
     execEnforce: async ({ folderId }) => { await services?.execService?.enforce(folderId); return true; },
-    /** The whole-computer tier: only from this computer, after Desktop's own confirmation. */
-    setWholeComputer: ({ enabled }) => serial(async () => {
-      await loadState();
-      state.wholeComputer = enabled === true;
-      await saveState();
-      // Turning it off ends everything that ran outside the sandbox.
-      if (!state.wholeComputer) await services?.execService?.enforceTier((tier) => tier === "folder");
-      notify();
-      return status();
-    }),
     execStopAll: async () => { await services?.execService?.stopAll(); return true; },
   };
 
