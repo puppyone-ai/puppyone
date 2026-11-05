@@ -49,6 +49,9 @@ describe("host folder registry", () => {
     const link = path.join(root, "link");
     await fs.symlink(folderPath, link);
     await expect(registry.register({ deviceId, rootPath: link, name: "Notes" })).rejects.toThrow("Select a real directory");
+    const gitMetadata = path.join(root, ".git", "objects");
+    await fs.mkdir(gitMetadata, { recursive: true });
+    await expect(registry.register({ deviceId, rootPath: gitMetadata, name: "objects" })).rejects.toThrow("Git metadata");
     await expect(registry.register({ deviceId, rootPath: folderPath, name: "Notes" })).rejects.toThrow("lost response");
     await expect(registry.register({ deviceId, rootPath: folderPath, name: "Notes", writable: true })).rejects.toThrow("different settings");
   });

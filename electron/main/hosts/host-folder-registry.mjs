@@ -47,6 +47,9 @@ export function createHostFolderRegistry({ filePath, auth, apiBase }) {
     const info = await fs.lstat(rootPath);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Select a real directory.");
     const canonicalRoot = await fs.realpath(rootPath);
+    if (canonicalRoot.split(path.sep).some((part) => part.toLowerCase() === ".git")) {
+      throw new Error("Git metadata cannot be shared as a folder.");
+    }
     const rows = await load();
     let row = rows.find((item) => item.deployment === deployment && item.accountId === current.user_id &&
       item.deviceId === deviceId && item.rootPath === canonicalRoot && item.state !== "removed");
