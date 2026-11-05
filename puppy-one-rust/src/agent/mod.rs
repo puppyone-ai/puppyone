@@ -17,11 +17,15 @@ pub mod infrastructure;
 mod integration_tests;
 #[allow(dead_code)]
 pub mod migrations;
+#[allow(dead_code)]
+pub mod node_path;
 pub mod persistence;
 pub mod protocols;
 #[allow(dead_code)]
 pub mod runtime;
 pub mod runtimes;
+#[allow(dead_code)]
+pub mod security;
 #[allow(dead_code)]
 pub mod sender;
 pub mod transports;

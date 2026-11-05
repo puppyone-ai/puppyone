@@ -1,1229 +1,978 @@
-//! Provider session state; GUI visibility never controls execution or identity.
-use crate::agent::domain::reference_input::{Prompt, ReferenceContent};
-use crate::{
-    agent::{
-        domain::legacy_session_model::*,
-        runtime::legacy_runtime_port::AgentRuntimePort,
-        transports::legacy_jsonl_rpc_connection::{Connection, Event},
-    },
-    wake::Wake,
+//! `runtimes/codex/codex-app-server-adapter.mjs`: Codex's native
+//! app-server (`codex app-server --listen stdio://`) behind the runtime
+//! port.
+use super::codex_events::normalize_codex_notification;
+use super::codex_history_discovery::discover_codex_history;
+use super::codex_history_projection::normalize_historical_thread;
+use super::codex_history_reader::{
+    CodexRequest, read_codex_history, request_codex_metadata_only_thread,
 };
+use super::codex_history_source::codex_history_source;
+use super::codex_identity::CODEX_RUNTIME_DESCRIPTOR;
+use super::codex_interactions::{
+    PendingApproval, PendingQuestion, codex_clear_pending_approvals,
+    codex_clear_pending_approvals_for_turn, codex_clear_pending_questions,
+    codex_clear_pending_questions_for_turn, codex_handle_server_request,
+    codex_handle_server_request_resolved, codex_resolve_approval, codex_resolve_question,
+};
+use super::codex_native_values::{
+    compatible_reasoning_effort, normalize_account, normalize_models, normalize_provider_session,
+    require_string,
+};
+use super::codex_reference_input::{CODEX_NATIVE_IMAGE_MIME_TYPES, build_codex_turn_input};
+use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::agent_events::redact_secret_text;
+use crate::agent::contract::js::{self, Obj};
+use crate::agent::event_loop::{AbortSignal, spawn};
+use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
+use crate::agent::runtime::agent_runtime_port::{
+    AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
+};
+use crate::agent::runtime::agent_session_history_port::SessionHistoryPort;
+use crate::agent::runtime::native_persistence_reporter::NativePersistenceReporter;
+use crate::agent::transports::jsonl_rpc_connection::{
+    ConnectionEvent, ConnectionOptions, RequestOptions, Spawner,
+};
+use crate::agent::transports::rpc_connection::{
+    ConnectionFactory, RpcConnection, jsonl_rpc_connection_factory,
+};
+use regex::Regex;
 use serde_json::{Value, json};
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::{Rc, Weak};
+use std::sync::LazyLock;
+use tokio::sync::oneshot;
 
-pub struct Session {
-    connection: Connection,
-    root: PathBuf,
-    next: u64,
-    pending: HashMap<u64, (String, Instant)>,
-    completed: HashSet<String>,
-    special: HashMap<String, (String, Value)>,
-    reconcile_stop: bool,
-    stop_retries: usize,
-    snapshot: SessionSnapshot,
+/// `CODEX_CAPABILITIES`.
+pub static CODEX_CAPABILITIES: LazyLock<Value> = LazyLock::new(|| {
+    json!({
+        "streamingText": true,
+        "structuredToolEvents": true,
+        "commandOutputStreaming": true,
+        "fileChangeEvents": true,
+        "manualApprovals": true,
+        "structuredQuestions": true,
+        "resume": true,
+        "fork": true,
+        "steer": true,
+        "queue": false,
+        "attachments": true,
+        "contextReferences": true,
+        "modelSelection": true,
+        "modeSelection": false,
+        "slashCommands": false,
+        "sessionHistory": true,
+        "history": { "discovery": "paged", "exactOpen": "supported", "hydration": "paged" },
+        "recovery": {
+            "strategy": "object-reconciliation",
+            "activeExecution": "outcome-unknown",
+            "atomicHandoff": false,
+        },
+        "usage": true,
+        "accountState": true,
+        "mcp": true,
+        "skills": true,
+        "compaction": true,
+        "revision": "codex-app-server:1",
+        "protocol": { "name": "codex-app-server", "version": 1 },
+        "constraints": {
+            "modelSwitch": "turn-boundary",
+            "modeSwitch": "unsupported",
+            "forkRequiresIdle": true,
+            "compactionRequiresIdle": true,
+        },
+        "referenceInputs": {
+            "schemaVersion": 1,
+            "workspace": { "files": true, "directories": true, "crossRoots": true },
+            "attachments": {
+                "image": { "accepted": true, "mimeTypes": CODEX_NATIVE_IMAGE_MIME_TYPES },
+                "text": { "accepted": true },
+                "audio": { "accepted": false },
+                "video": { "accepted": false },
+                "binary": { "accepted": true },
+            },
+            "limits": {
+                "maxCount": 32,
+                "maxBytesPerReference": 25 * 1024 * 1024,
+                "maxTotalBytes": 25 * 1024 * 1024,
+            },
+            "steer": false,
+            "attachmentOnly": false,
+        },
+    })
+});
+
+static NO_ROLLOUT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bno rollout found for thread id\b").expect("pattern"));
+
+/// `new CodexAppServerAdapter({ … })`.
+pub struct CodexAdapterOptions {
+    pub executable_path: String,
+    /// The readiness environment (`{ NAME: value }`); `None` inherits ours.
+    pub environment: Option<Value>,
+    pub workspace_root: String,
+    pub app_version: String,
+    pub spawner: Option<Spawner>,
+    pub connection_factory: Option<ConnectionFactory>,
+    pub on_event: Rc<dyn Fn(Value)>,
+    pub on_exit: Rc<dyn Fn(Value)>,
+    pub on_session_persisted: Option<Rc<dyn Fn(Value)>>,
 }
-impl Session {
-    pub fn new(executable: PathBuf, root: PathBuf, history: bool, wake: Wake) -> Self {
-        Self::from_connection(
-            Connection::spawn(
-                executable,
-                vec!["app-server".into(), "--listen".into(), "stdio://".into()],
-                root.clone(),
-                wake,
+
+/// One `turn/start` awaiting its native correlation.
+struct PendingTurnStart {
+    resolve: RefCell<Option<oneshot::Sender<String>>>,
+    uncertain: Cell<bool>,
+    client_user_message_id: String,
+}
+
+/// The adapter's state, shared with its interaction handlers.
+pub struct Inner {
+    executable_path: String,
+    environment: Option<Value>,
+    source_scope_id: String,
+    workspace_root: String,
+    app_version: String,
+    spawner: Option<Spawner>,
+    connection_factory: ConnectionFactory,
+    on_event: Rc<dyn Fn(Value)>,
+    on_exit: Rc<dyn Fn(Value)>,
+    persistence_reporter: NativePersistenceReporter,
+    connection: RefCell<Option<Rc<dyn RpcConnection>>>,
+    pub(super) thread_id: RefCell<Option<String>>,
+    active_turn_id: RefCell<Option<String>>,
+    terminal_turn_ids: RefCell<Vec<String>>,
+    pending_turn_start: RefCell<Option<Rc<PendingTurnStart>>>,
+    pub(super) pending_approvals: RefCell<Vec<PendingApproval>>,
+    pub(super) pending_questions: RefCell<Vec<PendingQuestion>>,
+    model_profiles: RefCell<HashMap<String, Value>>,
+    session_lifecycle_type: Cell<Option<&'static str>>,
+    disposed: Cell<bool>,
+    last_connection_error: RefCell<Option<String>>,
+}
+
+impl Inner {
+    pub(super) fn connection(&self) -> Option<Rc<dyn RpcConnection>> {
+        self.connection.borrow().clone()
+    }
+
+    pub(super) fn require_connection(&self) -> AgentResult<Rc<dyn RpcConnection>> {
+        self.connection()
+            .ok_or_else(|| AgentError::new("The Codex app-server is not connected."))
+    }
+
+    /// `this.onEvent(event)`.
+    pub(super) fn emit(&self, event: Value) {
+        (self.on_event)(event);
+    }
+
+    /// `(method, params) => this.connection.request(method, params)`.
+    fn history_request(&self) -> AgentResult<Rc<CodexRequest>> {
+        let connection = self.require_connection()?;
+        Ok(Rc::new(move |method: &str, params: Value| {
+            connection.request(method, params, RequestOptions::default())
+        }))
+    }
+
+    fn require_thread(&self) -> AgentResult<String> {
+        self.thread_id
+            .borrow()
+            .clone()
+            .ok_or_else(|| AgentError::new("No Codex thread is active."))
+    }
+
+    /// `#handleNotification(message)`.
+    fn handle_notification(&self, message: &Value) {
+        if message.get("method").and_then(Value::as_str) == Some("serverRequest/resolved") {
+            let empty = json!({});
+            let params = message
+                .get("params")
+                .filter(|p| !p.is_null())
+                .unwrap_or(&empty);
+            codex_handle_server_request_resolved(self, params);
+            return;
+        }
+        for mut event in normalize_codex_notification(message) {
+            if event["type"] == "session.started"
+                && self.session_lifecycle_type.get() == Some("session.resumed")
+            {
+                event["type"] = Value::from("session.resumed");
+            }
+            let kind = js::str_or_empty(event.get("type")).to_string();
+            let turn_id = event["turnId"]
+                .as_str()
+                .filter(|t| !t.is_empty())
+                .map(str::to_string);
+            if let Some(turn_id) = turn_id.filter(|_| kind.starts_with("turn.")) {
+                let terminal = self.terminal_turn_ids.borrow().contains(&turn_id);
+                if kind == "turn.started" && !terminal {
+                    *self.active_turn_id.borrow_mut() = Some(turn_id.clone());
+                    let pending = self.pending_turn_start.borrow_mut().take();
+                    if let Some(pending) = pending {
+                        event["payload"] = js::with(
+                            &event["payload"],
+                            "clientUserMessageId",
+                            pending.client_user_message_id.as_str(),
+                        );
+                        if let Some(resolve) = pending.resolve.borrow_mut().take() {
+                            let _ = resolve.send(turn_id.clone());
+                        }
+                    }
+                }
+                if matches!(
+                    kind.as_str(),
+                    "turn.completed" | "turn.failed" | "turn.interrupted"
+                ) {
+                    drop(self.persistence_reporter.confirm());
+                    {
+                        let mut terminal = self.terminal_turn_ids.borrow_mut();
+                        if !terminal.contains(&turn_id) {
+                            terminal.push(turn_id.clone());
+                        }
+                        while terminal.len() > 128 {
+                            terminal.remove(0);
+                        }
+                    }
+                    if self.active_turn_id.borrow().as_deref() == Some(turn_id.as_str()) {
+                        *self.active_turn_id.borrow_mut() = None;
+                    }
+                    codex_clear_pending_approvals_for_turn(
+                        self,
+                        Some(&turn_id),
+                        "turn-ended",
+                        false,
+                    );
+                    codex_clear_pending_questions_for_turn(self, &turn_id, false);
+                }
+            }
+            self.emit(event);
+        }
+    }
+}
+
+/// `CodexAppServerAdapter`.
+#[derive(Clone)]
+pub struct CodexAppServerAdapter(Rc<Inner>);
+
+impl CodexAppServerAdapter {
+    pub fn new(options: CodexAdapterOptions) -> Self {
+        let environment = options.environment.clone();
+        let read_env = |key: &str| match environment.as_ref() {
+            Some(environment) => environment
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            None => std::env::var(key).ok(),
+        };
+        let (source_scope_id, _root): (String, PathBuf) = codex_history_source(&read_env);
+        let report = options
+            .on_session_persisted
+            .clone()
+            .unwrap_or_else(|| Rc::new(|_| {}));
+        Self(Rc::new_cyclic(|weak: &Weak<Inner>| {
+            let verifier = weak.clone();
+            let closed = weak.clone();
+            let reporter = NativePersistenceReporter::new(
+                Rc::new(move || {
+                    let weak = verifier.clone();
+                    Box::pin(async move {
+                        let Some(inner) = weak.upgrade() else {
+                            return Ok(None);
+                        };
+                        let Some(id) = inner.thread_id.borrow().clone() else {
+                            return Ok(None);
+                        };
+                        let request = inner.history_request()?;
+                        let page = discover_codex_history(
+                            &*request,
+                            &inner.workspace_root,
+                            None,
+                            Some(&json!(100)),
+                            None,
+                        )
+                        .await?;
+                        let verified = page["sessions"].as_array().is_some_and(|sessions| {
+                            sessions
+                                .iter()
+                                .any(|entry| entry["providerSessionId"] == id)
+                        });
+                        let current = inner.thread_id.borrow().as_deref() == Some(id.as_str());
+                        Ok((verified && current).then(|| {
+                            json!({ "providerSessionId": id, "sourceScopeId": inner.source_scope_id })
+                        }))
+                    })
+                }),
+                report,
+                Rc::new(move || closed.upgrade().is_none_or(|inner| inner.disposed.get())),
+            );
+            Inner {
+                executable_path: options.executable_path,
+                environment: options.environment,
+                source_scope_id,
+                workspace_root: options.workspace_root,
+                app_version: options.app_version,
+                spawner: options.spawner,
+                connection_factory: options
+                    .connection_factory
+                    .unwrap_or_else(jsonl_rpc_connection_factory),
+                on_event: options.on_event,
+                on_exit: options.on_exit,
+                persistence_reporter: reporter,
+                connection: RefCell::default(),
+                thread_id: RefCell::default(),
+                active_turn_id: RefCell::default(),
+                terminal_turn_ids: RefCell::default(),
+                pending_turn_start: RefCell::default(),
+                pending_approvals: RefCell::default(),
+                pending_questions: RefCell::default(),
+                model_profiles: RefCell::default(),
+                session_lifecycle_type: Cell::new(None),
+                disposed: Cell::new(false),
+                last_connection_error: RefCell::default(),
+            }
+        }))
+    }
+
+    /// `adapter.threadId`.
+    pub fn thread_id(&self) -> Option<String> {
+        self.0.thread_id.borrow().clone()
+    }
+
+    /// `adapter.activeTurnId`.
+    pub fn active_turn_id(&self) -> Option<String> {
+        self.0.active_turn_id.borrow().clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_thread_id(&self, id: Option<&str>) {
+        *self.0.thread_id.borrow_mut() = id.map(str::to_string);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_active_turn_id(&self, id: Option<&str>) {
+        *self.0.active_turn_id.borrow_mut() = id.map(str::to_string);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_pending_turn_start(&self) -> bool {
+        self.0.pending_turn_start.borrow().is_some()
+    }
+
+    /// `adapter.connect()`.
+    pub async fn connect(&self) -> AgentResult<()> {
+        let inner = &self.0;
+        if inner.connection.borrow().is_some() {
+            return Ok(());
+        }
+        let env = inner
+            .environment
+            .as_ref()
+            .and_then(Value::as_object)
+            .map(|map| {
+                map.iter()
+                    .filter_map(|(key, value)| {
+                        value.as_str().map(|value| (key.clone(), value.to_string()))
+                    })
+                    .collect()
+            });
+        let connection = (inner.connection_factory)(ConnectionOptions {
+            executable_path: PathBuf::from(&inner.executable_path),
+            args: vec!["app-server".into(), "--listen".into(), "stdio://".into()],
+            cwd: PathBuf::from(&inner.workspace_root),
+            env,
+            spawner: inner.spawner.clone(),
+            ..Default::default()
+        })?;
+        *inner.connection.borrow_mut() = Some(connection.clone());
+        let weak = Rc::downgrade(inner);
+        connection.on(Rc::new(move |event| {
+            let Some(inner) = weak.upgrade() else { return };
+            match event {
+                ConnectionEvent::Notification(message) => inner.handle_notification(&message),
+                ConnectionEvent::Request(message) => codex_handle_server_request(&inner, &message),
+                ConnectionEvent::ProtocolError(error) => {
+                    *inner.last_connection_error.borrow_mut() =
+                        Some(redact_secret_text(&error.message));
+                }
+                ConnectionEvent::Exit(info) => {
+                    codex_clear_pending_approvals(&inner, "cancel", false);
+                    (inner.on_exit)(info);
+                }
+            }
+        }));
+        let initialized = connection
+            .request(
+                "initialize",
+                json!({
+                    "clientInfo": {
+                        "name": "puppyone_desktop",
+                        "title": "PuppyOne Desktop",
+                        "version": inner.app_version,
+                    },
+                    "capabilities": { "experimentalApi": false, "requestAttestation": false },
+                }),
+                RequestOptions::default(),
+            )
+            .await
+            .and_then(|_| connection.notify("initialized", None));
+        if let Err(error) = initialized {
+            let diagnostic = connection.diagnostics();
+            connection.dispose("JSONL-RPC connection closed.");
+            let message = [error.message, diagnostic]
+                .into_iter()
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            return Err(AgentError::new(redact_secret_text(&message)));
+        }
+        Ok(())
+    }
+
+    async fn inspect_inner(&self) -> AgentResult<Value> {
+        self.connect().await?;
+        let connection = self.0.require_connection()?;
+        let (account_result, model_result) = futures_util::future::join(
+            connection.request(
+                "account/read",
+                json!({ "refreshToken": false }),
+                RequestOptions::default(),
             ),
-            root,
-            history,
+            connection.request(
+                "model/list",
+                json!({ "includeHidden": false, "limit": 100 }),
+                RequestOptions::default(),
+            ),
+        )
+        .await;
+        let reason = |error: &AgentError| {
+            if error.message.is_empty() {
+                "Error".to_string()
+            } else {
+                error.message.clone()
+            }
+        };
+        if let (Err(account_error), Err(model_error)) = (&account_result, &model_result) {
+            let message = [&account_error.message, &model_error.message]
+                .into_iter()
+                .find(|m| !m.is_empty())
+                .cloned()
+                .unwrap_or_else(|| "Codex account and model inspection failed.".into());
+            return Err(AgentError::new(redact_secret_text(&message)));
+        }
+        let account = match &account_result {
+            Ok(value) => normalize_account(value),
+            Err(error) => json!({
+                "account": null,
+                "requiresOpenaiAuth": false,
+                "error": redact_secret_text(&reason(error)),
+            }),
+        };
+        let models = match &model_result {
+            Ok(value) => normalize_models(value),
+            Err(_) => Vec::new(),
+        };
+        *self.0.model_profiles.borrow_mut() = models
+            .iter()
+            .map(|model| (js::to_js_string(model.get("model")), model.clone()))
+            .collect();
+        let mut warnings: Vec<Value> = Vec::new();
+        if account_result.is_err() {
+            warnings.push(account["error"].clone());
+        }
+        if let Err(error) = &model_result {
+            warnings.push(Value::from(redact_secret_text(&reason(error))));
+        }
+        warnings.retain(js::truthy);
+        let descriptor = &*CODEX_RUNTIME_DESCRIPTOR;
+        Ok(json!({
+            "account": account,
+            "models": models,
+            "modes": [],
+            "commands": [],
+            "capabilities": *CODEX_CAPABILITIES,
+            "runtime": {
+                "id": descriptor["id"],
+                "displayName": descriptor["displayName"],
+                "description": "Codex's native app-server runtime.",
+                "kind": "native-cli",
+                "iconKey": descriptor["iconKey"],
+                "version": null,
+                "source": "external",
+                "compatibility": "versioned-app-server",
+            },
+            "warnings": warnings,
+        }))
+    }
+
+    /// `adapter.discoverSessions({ cursor, limit, signal })`.
+    pub async fn discover_sessions(
+        &self,
+        cursor: Option<String>,
+        limit: Option<Value>,
+        signal: Option<AbortSignal>,
+    ) -> AgentResult<Value> {
+        if let Some(signal) = signal.as_ref() {
+            signal.throw_if_aborted()?;
+        }
+        self.connect().await?;
+        let request = self.0.history_request()?;
+        discover_codex_history(
+            &*request,
+            &self.0.workspace_root,
+            cursor.as_deref(),
+            limit.as_ref(),
+            signal.as_ref(),
+        )
+        .await
+    }
+
+    async fn create_session_inner(&self, selection: Value) -> AgentResult<Value> {
+        self.connect().await?;
+        let model = selection.get("model").filter(|m| js::truthy(m)).cloned();
+        let effort = selection.get("effort").cloned().unwrap_or(Value::Null);
+        self.0.session_lifecycle_type.set(Some("session.started"));
+        let result = self
+            .0
+            .require_connection()?
+            .request(
+                "thread/start",
+                Obj::new()
+                    .set("cwd", self.0.workspace_root.as_str())
+                    .set("approvalPolicy", "on-request")
+                    .set("sandbox", "workspace-write")
+                    .set("ephemeral", false)
+                    .set("threadSource", "puppyone-desktop")
+                    .opt("model", model)
+                    .build(),
+                RequestOptions::default(),
+            )
+            .await;
+        self.0.session_lifecycle_type.set(None);
+        let result = result?;
+        let thread_id = require_string(
+            result.get("thread").and_then(|t| t.get("id")),
+            "Codex thread/start did not return a thread id.",
+        )?;
+        *self.0.thread_id.borrow_mut() = Some(thread_id);
+        Ok(js::with(
+            &normalize_provider_session(&result),
+            "effort",
+            effort,
+        ))
+    }
+
+    async fn resume_session_inner(&self, request: Value) -> AgentResult<Value> {
+        self.connect().await?;
+        let model = request.get("model").filter(|m| js::truthy(m)).cloned();
+        let effort = request.get("effort").cloned().unwrap_or(Value::Null);
+        self.0.session_lifecycle_type.set(Some("session.resumed"));
+        let result = async {
+            let history = self.0.history_request()?;
+            request_codex_metadata_only_thread(
+                &*history,
+                "thread/resume",
+                Obj::new()
+                    .opt("threadId", request.get("threadId").cloned())
+                    .set("cwd", self.0.workspace_root.as_str())
+                    .set("approvalPolicy", "on-request")
+                    .set("sandbox", "workspace-write")
+                    .opt("model", model)
+                    .build(),
+            )
+            .await
+        }
+        .await;
+        self.0.session_lifecycle_type.set(None);
+        let result = result.map_err(|error| {
+            if NO_ROLLOUT.is_match(&error.message) {
+                agent_provider_session_unavailable_error(Some(
+                    "The saved Codex thread is no longer available.",
+                ))
+            } else {
+                error
+            }
+        })?;
+        let thread_id = require_string(
+            result.get("thread").and_then(|t| t.get("id")),
+            "Codex thread/resume did not return a thread id.",
+        )?;
+        *self.0.thread_id.borrow_mut() = Some(thread_id);
+        Ok(js::with(
+            &normalize_provider_session(&result),
+            "effort",
+            effort,
+        ))
+    }
+
+    /// `adapter.readHistory()`.
+    pub async fn read_history(&self) -> AgentResult<Vec<Value>> {
+        let result = self.read_history_result().await?;
+        Ok(result["events"].as_array().cloned().unwrap_or_default())
+    }
+
+    /// `adapter.readHistoryResult()`.
+    pub async fn read_history_result(&self) -> AgentResult<Value> {
+        let thread_id = self.0.require_thread()?;
+        let request = self.0.history_request()?;
+        let thread = read_codex_history(&*request, &thread_id).await?;
+        let coverage = thread
+            .get("coverage")
+            .filter(|c| !c.is_null())
+            .cloned()
+            .unwrap_or_else(|| Value::from("unknown"));
+        let reason = if coverage == "partial" {
+            Value::from("read-limit")
+        } else {
+            Value::Null
+        };
+        agent_history_read_result(&json!({
+            "providerSessionId": thread_id,
+            "events": normalize_historical_thread(&thread),
+            "coverage": coverage,
+            "reason": reason,
+        }))
+    }
+
+    async fn start_turn_inner(&self, request: Value) -> AgentResult<Value> {
+        let inner = &self.0;
+        let thread_id = inner.require_thread()?;
+        if inner.pending_turn_start.borrow().is_some() {
+            return Err(AgentError::new("A Codex turn is already starting."));
+        }
+        let client_user_message_id = match request.get("clientUserMessageId") {
+            None => uuid::Uuid::new_v4().to_string(),
+            Some(id) => js::to_js_string(Some(id)),
+        };
+        let model = request.get("model").filter(|m| !m.is_null()).cloned();
+        let profile = model.as_ref().and_then(|model| {
+            inner
+                .model_profiles
+                .borrow()
+                .get(&js::to_js_string(Some(model)))
+                .cloned()
+        });
+        let effort = compatible_reasoning_effort(profile.as_ref(), request.get("effort"))?;
+        let list = |key: &str| {
+            request
+                .get(key)
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let references = list("references");
+        let references = if references.is_empty() {
+            [list("contextReferences"), list("attachments")].concat()
+        } else {
+            references
+        };
+        let input = build_codex_turn_input(
+            js::str_or_empty(request.get("prompt")),
+            &references,
+            Some(&inner.workspace_root),
+        )?;
+        let (resolve, mut native_start) = oneshot::channel::<String>();
+        // Codex does not support a local prompt queue, so one pending start can
+        // be correlated safely with the next native turn/started notification.
+        let pending = Rc::new(PendingTurnStart {
+            resolve: RefCell::new(Some(resolve)),
+            uncertain: Cell::new(false),
+            client_user_message_id: client_user_message_id.clone(),
+        });
+        *inner.pending_turn_start.borrow_mut() = Some(pending.clone());
+        let late = {
+            let weak = Rc::downgrade(inner);
+            let pending = pending.clone();
+            Rc::new(move |result: AgentResult<Value>| {
+                let Some(inner) = weak.upgrade() else { return };
+                let current = inner
+                    .pending_turn_start
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|p| Rc::ptr_eq(p, &pending));
+                if inner.disposed.get() || !current {
+                    return;
+                }
+                if let Ok(value) = result
+                    && js::truthy_opt(value.get("turn").and_then(|t| t.get("id")))
+                {
+                    let thread_id = inner.thread_id.borrow().clone();
+                    inner.handle_notification(&json!({
+                        "method": "turn/started",
+                        "params": { "threadId": thread_id, "turn": value["turn"] },
+                    }));
+                }
+            })
+        };
+        let outcome = async {
+            let connection = inner.require_connection()?;
+            let mut rpc = connection.request(
+                "turn/start",
+                Obj::new()
+                    .set("threadId", thread_id.as_str())
+                    .set("clientUserMessageId", client_user_message_id.as_str())
+                    .set("input", input)
+                    .set("cwd", inner.workspace_root.as_str())
+                    .set("approvalPolicy", "on-request")
+                    .opt("model", model.clone().filter(js::truthy))
+                    .opt("effort", effort)
+                    .build(),
+                RequestOptions {
+                    on_late_response: Some(late),
+                    ..Default::default()
+                },
+            );
+            tokio::select! {
+                biased;
+                result = &mut rpc => result,
+                Ok(turn_id) = &mut native_start => {
+                    // A correlated native start is authoritative delivery
+                    // evidence. The RPC response may still arrive later; a late
+                    // timeout must not retire a live connection after the turn
+                    // has already started or completed.
+                    spawn(async move {
+                        let _ = rpc.await;
+                    });
+                    Ok(json!({ "turn": { "id": turn_id } }))
+                }
+            }
+        }
+        .await;
+        let outcome = outcome.map_err(|mut error| {
+            if error.delivery_outcome.as_deref() == Some("unknown") {
+                pending.uncertain.set(true);
+            }
+            // The request identity remains useful even when delivery is
+            // ambiguous: a native user item may still arrive and confirm that
+            // exact command.
+            error.client_user_message_id = Some(client_user_message_id.clone());
+            error
+        });
+        if !pending.uncertain.get() {
+            let mut current = inner.pending_turn_start.borrow_mut();
+            if current.as_ref().is_some_and(|p| Rc::ptr_eq(p, &pending)) {
+                *current = None;
+            }
+        }
+        let result = outcome?;
+        let turn_id = require_string(
+            result.get("turn").and_then(|t| t.get("id")),
+            "Codex turn/start did not return a turn id.",
+        )?;
+        // A receipt confirms delivery. Notifications received while awaiting
+        // it already describe newer native execution state and must win.
+        if !inner.terminal_turn_ids.borrow().contains(&turn_id) {
+            let mut active = inner.active_turn_id.borrow_mut();
+            if active.as_ref().is_none_or(|active| *active == turn_id) {
+                *active = Some(turn_id.clone());
+            }
+        }
+        Ok(json!({ "turnId": turn_id, "clientUserMessageId": client_user_message_id }))
+    }
+
+    async fn interrupt_turn_inner(&self, request: Value) -> AgentResult<Value> {
+        let thread_id = self.0.require_thread()?;
+        let turn_id = request.get("turnId").cloned().unwrap_or(Value::Null);
+        self.0
+            .require_connection()?
+            .request(
+                "turn/interrupt",
+                Obj::new()
+                    .set("threadId", thread_id)
+                    .set("turnId", turn_id.clone())
+                    .build(),
+                RequestOptions::default(),
+            )
+            .await?;
+        codex_clear_pending_approvals_for_turn(&self.0, turn_id.as_str(), "turn-interrupted", true);
+        codex_clear_pending_questions_for_turn(&self.0, turn_id.as_str().unwrap_or(""), true);
+        Ok(Value::Null)
+    }
+
+    async fn steer_turn_inner(&self, request: Value) -> AgentResult<Value> {
+        let thread_id = self.0.require_thread()?;
+        if request
+            .get("references")
+            .and_then(Value::as_array)
+            .is_some_and(|references| !references.is_empty())
+        {
+            return Err(AgentError::new(
+                "Codex steer does not accept reference inputs.",
+            ));
+        }
+        let input = build_codex_turn_input(js::str_or_empty(request.get("message")), &[], None)?;
+        self.0
+            .require_connection()?
+            .request(
+                "turn/steer",
+                Obj::new()
+                    .set("threadId", thread_id)
+                    .set(
+                        "expectedTurnId",
+                        request.get("turnId").cloned().unwrap_or(Value::Null),
+                    )
+                    .set("input", input)
+                    .build(),
+                RequestOptions::default(),
+            )
+            .await?;
+        Ok(Value::Null)
+    }
+
+    async fn fork_session_inner(&self, request: Value) -> AgentResult<Value> {
+        let thread_id = self.0.require_thread()?;
+        if self.0.active_turn_id.borrow().is_some() {
+            return Err(AgentError::new(
+                "Stop the active Codex turn before forking.",
+            ));
+        }
+        let history = self.0.history_request()?;
+        let result = request_codex_metadata_only_thread(
+            &*history,
+            "thread/fork",
+            Obj::new()
+                .set("threadId", thread_id)
+                .opt(
+                    "messageId",
+                    request.get("messageId").filter(|m| js::truthy(m)).cloned(),
+                )
+                .build(),
+        )
+        .await?;
+        let provider_session_id = require_string(
+            result.get("thread").and_then(|t| t.get("id")),
+            "Codex thread/fork did not return a thread id.",
+        )?;
+        Ok(json!({ "providerSessionId": provider_session_id }))
+    }
+
+    async fn compact_session_inner(&self) -> AgentResult<Value> {
+        let thread_id = self.0.require_thread()?;
+        if self.0.active_turn_id.borrow().is_some() {
+            return Err(AgentError::new(
+                "Stop the active Codex turn before compacting.",
+            ));
+        }
+        self.0
+            .require_connection()?
+            .request(
+                "thread/compact/start",
+                json!({ "threadId": thread_id }),
+                RequestOptions::default(),
+            )
+            .await?;
+        Ok(Value::Null)
+    }
+
+    /// `adapter.resolveApproval(request)`.
+    pub fn resolve_approval_now(&self, request: &Value) -> AgentResult<()> {
+        codex_resolve_approval(&self.0, request)
+    }
+
+    /// `adapter.resolveQuestion(request)`.
+    pub fn resolve_question_now(&self, request: &Value) -> AgentResult<()> {
+        codex_resolve_question(&self.0, request)
+    }
+
+    /// `adapter.dispose(reason)`.
+    pub async fn dispose_with(&self, reason: &str) -> AgentResult<()> {
+        let inner = &self.0;
+        let connection = inner.connection();
+        if inner.disposed.replace(true) {
+            if let Some(connection) = connection {
+                connection.wait_for_exit().await?;
+            }
+            return Ok(());
+        }
+        codex_clear_pending_approvals(inner, "cancel", true);
+        codex_clear_pending_questions(inner, true);
+        if let Some(connection) = connection {
+            connection.dispose(reason);
+            connection.wait_for_exit().await?;
+        }
+        Ok(())
+    }
+}
+
+impl AgentRuntimeAdapter for CodexAppServerAdapter {
+    fn inspect(&self) -> AdapterFuture<'_, Value> {
+        Box::pin(self.inspect_inner())
+    }
+    fn create_session(&self, selection: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.create_session_inner(selection))
+    }
+    fn resume_session(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.resume_session_inner(request))
+    }
+    fn start_turn(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.start_turn_inner(request))
+    }
+    fn interrupt_turn(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.interrupt_turn_inner(request))
+    }
+    fn dispose(&self) -> AdapterFuture<'_, ()> {
+        Box::pin(self.dispose_with("Codex app-server adapter closed."))
+    }
+    fn implements(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "steerTurn"
+                | "resolveApproval"
+                | "resolveQuestion"
+                | "forkSession"
+                | "compactSession"
+                | "referenceMentionDelivery"
+                | "getSessionHistoryPort"
         )
     }
-    fn from_connection(connection: Connection, root: PathBuf, history: bool) -> Self {
-        let mut s = Self {
-            connection,
-            root,
-            next: 0,
-            pending: HashMap::new(),
-            completed: HashSet::new(),
-            special: HashMap::new(),
-            reconcile_stop: false,
-            stop_retries: 0,
-            snapshot: {
-                let mut snapshot = SessionSnapshot::new("Codex", history);
-                snapshot.capabilities = Capabilities {
-                    history: true,
-                    models: true,
-                    modes: true,
-                    fork: true,
-                    steer: true,
-                    compact: true,
-                    archive: true,
-                    rename: true,
-                    images: true,
-                    text_references: true,
-                };
-                snapshot.modes = vec![
-                    ("workspace-write".into(), "Code".into()),
-                    ("read-only".into(), "Ask".into()),
-                ];
-                snapshot.mode = Some("workspace-write".into());
-                snapshot
-            },
-        };
-        s.request("initialize",json!({"clientInfo":{"name":"puppyone_gpui","title":"PuppyOne GPUI","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}}));
-        s
+    fn steer_turn(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.steer_turn_inner(request))
     }
-    fn request(&mut self, method: &str, params: Value) {
-        self.next += 1;
-        let id = self.next;
-        match self
-            .connection
-            .send(json!({"id":id,"method":method,"params":params}))
-        {
-            Ok(()) => {
-                self.pending.insert(id, (method.into(), Instant::now()));
-            }
-            Err(e) => self.fail(e),
-        }
+    fn resolve_approval(&self, request: Value) -> AdapterFuture<'_, Value> {
+        let result = self.resolve_approval_now(&request).map(|()| Value::Null);
+        Box::pin(async move { result })
     }
-    fn fail(&mut self, error: String) {
-        self.snapshot.error = Some(error);
-        self.snapshot.state = State::Failed;
-        self.snapshot.revision += 1;
+    fn resolve_question(&self, request: Value) -> AdapterFuture<'_, Value> {
+        let result = self.resolve_question_now(&request).map(|()| Value::Null);
+        Box::pin(async move { result })
     }
-    pub fn busy(&self) -> bool {
-        self.snapshot.busy()
+    fn fork_session(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.fork_session_inner(request))
     }
-    pub fn send(&mut self, text: String) {
-        self.submit(Prompt::text(text));
+    fn compact_session(&self) -> AdapterFuture<'_, Value> {
+        Box::pin(self.compact_session_inner())
     }
-    fn submit(&mut self, prompt: Prompt) {
-        let text = prompt.display();
-        if self.snapshot.state != State::Idle || text.trim().is_empty() {
-            return;
-        }
-        let Some(thread) = self.snapshot.thread.clone() else {
-            return;
-        };
-        let id = uuid::Uuid::new_v4().to_string();
-        self.push(Message {
-            id: id.clone(),
-            role: "You".into(),
-            text: text.clone(),
-            status: String::new(),
-            input: None,
-        });
-        self.snapshot.error = None;
-        self.snapshot.state = State::Running;
-        if self.snapshot.title == "Codex" {
-            self.snapshot.title = text.chars().take(42).collect();
-        }
-        self.request("turn/start",json!({"threadId":thread,"clientUserMessageId":id,"input":codex_input(&prompt),"cwd":self.root,"approvalPolicy":"on-request","model":self.snapshot.model,"effort":self.snapshot.effort,"sandboxPolicy":if self.snapshot.mode.as_deref()==Some("read-only"){json!({"type":"readOnly"})}else{json!({"type":"workspaceWrite","writableRoots":[self.root],"networkAccess":false})}}));
+    fn reference_mention_delivery(&self, _reference: &Value) -> Option<&'static str> {
+        Some("path")
     }
-    pub fn stop(&mut self) {
-        if let (Some(thread), Some(turn)) = (&self.snapshot.thread, &self.snapshot.turn) {
-            self.snapshot.state = State::Stopping;
-            self.stop_retries = 0;
-            self.request("turn/interrupt", json!({"threadId":thread,"turnId":turn}));
-        }
-    }
-    pub fn resume(&mut self, id: String) {
-        if self.busy() {
-            return;
-        }
-        self.snapshot.state = State::Starting;
-        self.snapshot.error = None;
-        self.snapshot.history_mode = false;
-        self.snapshot.messages.clear();
-        self.request("thread/resume",json!({"threadId":id,"cwd":self.root,"approvalPolicy":"on-request","sandbox":"workspace-write"}));
-    }
-    pub fn list_history(&mut self) {
-        if self.busy() {
-            return;
-        }
-        if !self.snapshot.history_mode {
-            self.snapshot.history.clear();
-            self.snapshot.cursor = None;
-        }
-        if self
-            .pending
-            .values()
-            .any(|(method, _)| method == "thread/list")
-        {
-            return;
-        }
-        self.snapshot.history_mode = true;
-        self.snapshot.state = State::History;
-        self.request(
-            "thread/list",
-            json!({"cwd":self.root,"limit":50,"cursor":self.snapshot.cursor,"sortKey":"updated_at"}),
-        );
-    }
-    pub fn new_thread(&mut self) {
-        if self.busy() {
-            return;
-        }
-        self.snapshot.history_mode = false;
-        self.snapshot.state = State::Starting;
-        self.snapshot.messages.clear();
-        self.start_thread();
-    }
-    fn start_thread(&mut self) {
-        self.request("thread/start",json!({"cwd":self.root,"approvalPolicy":"on-request","sandbox":"workspace-write","ephemeral":false}));
-    }
-    pub fn resolve(&mut self, id: &Value, response: Resolution) {
-        if matches!(self.snapshot.state, State::Failed | State::Stopping) {
-            return;
-        }
-        if let Some(index) = self.snapshot.interactions.iter().position(|i| &i.id == id) {
-            let interaction = &self.snapshot.interactions[index];
-            if Some(interaction.thread.as_str()) != self.snapshot.thread.as_deref()
-                || (!interaction.turn.is_empty()
-                    && Some(interaction.turn.as_str()) != self.snapshot.turn.as_deref())
-            {
-                self.snapshot.error = Some("This request belongs to a completed turn".into());
-                return;
-            }
-            let response = match (&interaction.kind, response) {
-                (InteractionKind::Form { .. }, Resolution::Form { decision, values }) => {
-                    let Some((_, params)) = self.special.get(&id.to_string()) else {
-                        return;
-                    };
-                    let content = if decision == Decision::Accept && params["mode"] != "url" {
-                        match crate::agent::domain::interaction_form::validate(
-                            &params["requestedSchema"],
-                            &values,
-                        ) {
-                            Ok(v) => v,
-                            Err(e) => {
-                                self.snapshot.error = Some(e);
-                                self.snapshot.revision += 1;
-                                return;
-                            }
-                        }
-                    } else {
-                        Value::Null
-                    };
-                    json!({"action": match decision { Decision::Accept | Decision::AcceptForSession=>"accept", Decision::Decline=>"decline", Decision::Cancel=>"cancel" }, "content":content})
-                }
-                (InteractionKind::Permission { options, .. }, Resolution::Choice(choice))
-                    if options.iter().any(|o| o.0 == choice) =>
-                {
-                    let Some((_, params)) = self.special.get(&id.to_string()) else {
-                        return;
-                    };
-                    json!({"permissions":if choice=="allow"{params["permissions"].clone()}else{json!({})},"scope":"turn"})
-                }
-                (InteractionKind::Approval { decisions, .. }, Resolution::Approval(decision))
-                    if decisions.contains(&decision) =>
-                {
-                    json!({"decision": match decision { Decision::Accept => "accept", Decision::AcceptForSession => "acceptForSession", Decision::Decline => "decline", Decision::Cancel => "cancel" }})
-                }
-                (InteractionKind::Questions(questions), Resolution::Answers(answers))
-                    if questions.iter().all(|q| answers.contains_key(&q.id)) =>
-                {
-                    let answers: serde_json::Map<String, Value> = answers
-                        .into_iter()
-                        .map(|(key, answer)| (key, json!({"answers":answer})))
-                        .collect();
-                    json!({"answers":answers})
-                }
-                _ => {
-                    self.snapshot.error =
-                        Some("This response does not match the pending interaction".into());
-                    self.snapshot.revision += 1;
-                    return;
-                }
-            };
-            match self.connection.send(json!({"id":id,"result":response})) {
-                Ok(()) => {
-                    self.snapshot.interactions.remove(index);
-                    self.special.remove(&id.to_string());
-                }
-                Err(e) => self.fail(e),
-            }
-            self.snapshot.revision += 1;
-        }
-    }
-    pub fn poll(&mut self) {
-        for event in self.connection.drain(64) {
-            match event {
-                Event::Message(value) => self.handle(value),
-                Event::Error(e) => self.fail(e),
-                Event::Exited => {
-                    if self.snapshot.state != State::Failed {
-                        self.fail("Agent process exited. Open a new tab or resume this conversation from History.".into());
-                    }
-                }
-            }
-        }
-        let timed_out = self
-            .pending
-            .iter()
-            .filter(|(_, (_, at))| at.elapsed() > Duration::from_secs(60))
-            .map(|(id, (method, _))| (*id, method.clone()))
-            .collect::<Vec<_>>();
-        for (id, method) in timed_out {
-            self.pending.remove(&id);
-            if !matches!(method.as_str(), "model/list" | "account/read") {
-                self.fail(format!("{method} timed out. Delivery may have occurred; reopen History to reconcile before retrying."));
-            }
-        }
-    }
-    fn push(&mut self, message: Message) {
-        self.snapshot.messages.push(message);
-        self.snapshot.bound();
-        if self.snapshot.messages.len() > 2000 {
-            self.snapshot.messages.remove(0);
-        }
-        self.snapshot.revision += 1;
-    }
-    fn item(&mut self, item: &Value, history: bool) {
-        let kind = item["type"].as_str().unwrap_or("");
-        let id = item["id"].as_str().unwrap_or("").to_owned();
-        // Tool items keep their request (`input`) beside their result (`text`).
-        let (role, input, text): (&str, Option<String>, String) = match kind {
-            "agentMessage" => (
-                "Codex",
-                None,
-                item["text"].as_str().unwrap_or("").to_owned(),
-            ),
-            "userMessage" if history => (
-                "You",
-                None,
-                item["content"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v["text"].as_str())
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    })
-                    .unwrap_or_default(),
-            ),
-            "commandExecution" => (
-                "Command",
-                item["command"].as_str().map(str::to_owned),
-                item["aggregatedOutput"].as_str().unwrap_or("").to_owned(),
-            ),
-            "fileChange" => (
-                "File changes",
-                None,
-                item["changes"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .map(|v| {
-                                format!(
-                                    "{}\n{}",
-                                    v["path"].as_str().unwrap_or(""),
-                                    v["diff"].as_str().unwrap_or("")
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    })
-                    .unwrap_or_default(),
-            ),
-            "mcpToolCall" => (
-                item["tool"].as_str().unwrap_or("Tool"),
-                Some(item.get("arguments").unwrap_or(&Value::Null).to_string()),
-                item.get("result")
-                    .filter(|v| !v.is_null())
-                    .map(Value::to_string)
-                    .unwrap_or_default(),
-            ),
-            "webSearch" => (
-                "websearch",
-                Some(json!({ "query": item["query"] }).to_string()),
-                String::new(),
-            ),
-            "reasoning" => (
-                "Reasoning",
-                None,
-                item["summary"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|v| v.as_str().or(v["text"].as_str()))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ),
-            "plan" => ("Plan", None, item["text"].as_str().unwrap_or("").into()),
-            "contextCompaction" => ("System", None, "Conversation context compacted".into()),
-            "dynamicToolCall" => (
-                item["tool"].as_str().unwrap_or("Tool"),
-                Some(item.get("arguments").unwrap_or(&Value::Null).to_string()),
-                item["contentItems"].to_string(),
-            ),
-            "collabAgentToolCall" => (
-                "Agent task",
-                Some(json!({ "description": item["prompt"] }).to_string()),
-                item["tool"].as_str().unwrap_or("Task").into(),
-            ),
-            _ => return,
-        };
-        let status = item["status"].as_str().unwrap_or("").into();
-        let text = bounded(text);
-        let input = input.map(bounded);
-        if let Some(message) = self.snapshot.messages.iter_mut().find(|m| m.id == id) {
-            message.text = text;
-            message.status = status;
-            if input.is_some() {
-                message.input = input;
-            }
-            self.snapshot.revision += 1;
-        } else {
-            self.push(Message {
-                id,
-                role: role.into(),
-                text,
-                status,
-                input,
-            });
-        }
-    }
-    fn delta(&mut self, id: &str, role: &str, delta: &str) {
-        self.snapshot.delta(id, role, delta);
-    }
-    fn handle(&mut self, value: Value) {
-        if let Some(method) = value["method"].as_str() {
-            let params = &value["params"];
-            if value.get("id").is_some() {
-                if params["threadId"].as_str() != self.snapshot.thread.as_deref()
-                    || (!(method == "mcpServer/elicitation/request" && params["turnId"].is_null())
-                        && params["turnId"].as_str() != self.snapshot.turn.as_deref())
-                {
-                    let _=self.connection.send(json!({"id":value["id"],"error":{"code":-32600,"message":"Session ownership mismatch"}}));
-                    return;
-                }
-                if matches!(
-                    method,
-                    "mcpServer/elicitation/request" | "item/permissions/requestApproval"
-                ) {
-                    let kind = if method == "mcpServer/elicitation/request" {
-                        let fields = if params["mode"] == "url" {
-                            Ok(vec![])
-                        } else {
-                            crate::agent::domain::interaction_form::fields(
-                                &params["requestedSchema"],
-                            )
-                        };
-                        let fields = match fields {
-                            Ok(f) => f,
-                            Err(e) => {
-                                let _ = self
-                                    .connection
-                                    .send(json!({"id":value["id"],"result":{"action":"cancel"}}));
-                                self.snapshot.error = Some(e);
-                                self.snapshot.revision += 1;
-                                return;
-                            }
-                        };
-                        InteractionKind::Form {
-                            prompt: format!(
-                                "{}: {}",
-                                params["serverName"].as_str().unwrap_or("MCP"),
-                                params["message"].as_str().unwrap_or("Provide input")
-                            ),
-                            fields,
-                            url: params["url"].as_str().map(str::to_owned),
-                        }
-                    } else {
-                        InteractionKind::Permission {
-                            prompt: format!(
-                                "{}\n{}",
-                                params["reason"]
-                                    .as_str()
-                                    .unwrap_or("Additional permissions requested"),
-                                serde_json::to_string_pretty(&params["permissions"])
-                                    .unwrap_or_default()
-                            ),
-                            options: vec![
-                                ("allow".into(), "Allow for this turn".into()),
-                                ("deny".into(), "Deny".into()),
-                            ],
-                        }
-                    };
-                    self.special
-                        .insert(value["id"].to_string(), (method.into(), params.clone()));
-                    self.snapshot.interactions.push(Interaction {
-                        id: value["id"].clone(),
-                        thread: params["threadId"].as_str().unwrap_or("").into(),
-                        turn: params["turnId"].as_str().unwrap_or("").into(),
-                        kind,
-                    });
-                    self.snapshot.revision += 1;
-                    return;
-                }
-                if matches!(
-                    method,
-                    "item/commandExecution/requestApproval"
-                        | "item/fileChange/requestApproval"
-                        | "item/tool/requestUserInput"
-                ) {
-                    let kind = if method == "item/tool/requestUserInput" {
-                        InteractionKind::Questions(
-                            params["questions"]
-                                .as_array()
-                                .into_iter()
-                                .flatten()
-                                .map(|q| {
-                                    let options =
-                                        q["options"].as_array().cloned().unwrap_or_default();
-                                    Question {
-                                        id: q["id"].as_str().unwrap_or("").into(),
-                                        text: q["question"].as_str().unwrap_or("").into(),
-                                        options: options
-                                            .iter()
-                                            .filter_map(|o| o["label"].as_str().map(str::to_owned))
-                                            .collect(),
-                                        descriptions: options
-                                            .iter()
-                                            .filter(|o| o["label"].is_string())
-                                            .map(|o| {
-                                                o["description"].as_str().unwrap_or("").to_owned()
-                                            })
-                                            .collect(),
-                                        header: q["header"].as_str().unwrap_or("").into(),
-                                        multiple: q["multiSelect"].as_bool().unwrap_or(false),
-                                        custom: q["isOther"].as_bool().unwrap_or(false),
-                                    }
-                                })
-                                .collect(),
-                        )
-                    } else {
-                        let decisions = match params["availableDecisions"].as_array() {
-                            Some(values) => values
-                                .iter()
-                                .filter_map(|v| match v.as_str() {
-                                    Some("accept") => Some(Decision::Accept),
-                                    Some("acceptForSession") => Some(Decision::AcceptForSession),
-                                    Some("decline") => Some(Decision::Decline),
-                                    Some("cancel") => Some(Decision::Cancel),
-                                    _ => None,
-                                })
-                                .collect(),
-                            None => vec![Decision::Accept, Decision::Decline],
-                        };
-                        // Product titles (`codex-interactions.mjs`).
-                        let command = method.contains("commandExecution");
-                        let network = params["networkApprovalContext"].is_object();
-                        InteractionKind::Approval {
-                            command,
-                            prompt: params["command"]
-                                .as_str()
-                                .or(params["reason"].as_str())
-                                .unwrap_or("The Agent requests permission to continue.")
-                                .into(),
-                            decisions,
-                            title: if network {
-                                "Allow network access"
-                            } else if command {
-                                "Run command"
-                            } else {
-                                "Apply file changes"
-                            }
-                            .into(),
-                            command_line: params["command"].as_str().map(str::to_owned),
-                            cwd: params["cwd"].as_str().map(str::to_owned),
-                            reason: params["reason"].as_str().map(str::to_owned),
-                        }
-                    };
-                    self.snapshot.interactions.push(Interaction {
-                        id: value["id"].clone(),
-                        thread: params["threadId"].as_str().unwrap_or("").into(),
-                        turn: params["turnId"].as_str().unwrap_or("").into(),
-                        kind,
-                    });
-                    self.snapshot.revision += 1;
-                } else {
-                    let _=self.connection.send(json!({"id":value["id"],"error":{"code":-32601,"message":"Unsupported interaction"}}));
-                    self.snapshot.error = Some(format!(
-                        "Unsupported Agent interaction was declined: {method}"
-                    ));
-                }
-                return;
-            }
-            if let Some(thread) = params["threadId"].as_str()
-                && self.snapshot.thread.as_deref() != Some(thread)
-            {
-                return;
-            }
-            match method {
-                "turn/started" => {
-                    if let Some(id) = params["turn"]["id"].as_str()
-                        && !self.completed.contains(id)
-                    {
-                        self.snapshot.turn = Some(id.into());
-                        self.snapshot.state = State::Running;
-                        self.pending.retain(|_, (method, _)| method != "turn/start");
-                    }
-                }
-                "turn/completed" => {
-                    if let Some(id) = params["turn"]["id"].as_str() {
-                        self.completed.insert(id.into());
-                        if self.snapshot.turn.as_deref() == Some(id) || self.snapshot.turn.is_none()
-                        {
-                            self.snapshot.turn = None;
-                            self.snapshot.interactions.retain(|i| i.turn.is_empty());
-                            let retained = self
-                                .snapshot
-                                .interactions
-                                .iter()
-                                .map(|i| i.id.to_string())
-                                .collect::<HashSet<_>>();
-                            self.special.retain(|id, _| retained.contains(id));
-                            let status = params["turn"]["status"].as_str().unwrap_or("failed");
-                            self.snapshot.state = State::Idle;
-                            self.snapshot.usage = status.into();
-                            if status == "failed" {
-                                self.snapshot.error = Some(
-                                    params["turn"]["error"]["message"]
-                                        .as_str()
-                                        .unwrap_or("Turn failed")
-                                        .into(),
-                                );
-                            }
-                        }
-                    }
-                }
-                "item/started" | "item/completed" => self.item(&params["item"], false),
-                "item/agentMessage/delta" => self.delta(
-                    params["itemId"].as_str().unwrap_or(""),
-                    "Codex",
-                    params["delta"].as_str().unwrap_or(""),
-                ),
-                "item/commandExecution/outputDelta" => self.delta(
-                    params["itemId"].as_str().unwrap_or(""),
-                    "Command",
-                    params["delta"].as_str().unwrap_or(""),
-                ),
-                "serverRequest/resolved" => self
-                    .snapshot
-                    .interactions
-                    .retain(|i| i.id != params["requestId"]),
-                "thread/tokenUsage/updated" => {
-                    let total = &params["tokenUsage"]["total"];
-                    self.snapshot.usage = format!(
-                        "{} input · {} output tokens",
-                        total["inputTokens"].as_u64().unwrap_or(0),
-                        total["outputTokens"].as_u64().unwrap_or(0)
-                    );
-                }
-                "error" => {
-                    self.snapshot.error = Some(
-                        params["error"]["message"]
-                            .as_str()
-                            .unwrap_or("Agent error")
-                            .into(),
-                    )
-                }
-                _ => {}
-            }
-            self.snapshot.revision += 1;
-            return;
-        }
-        let Some(id) = value["id"].as_u64() else {
-            return;
-        };
-        let Some((method, _)) = self.pending.remove(&id) else {
-            return;
-        };
-        if let Some(error) = value.get("error") {
-            if method == "thread/list" {
-                self.snapshot.error = Some(
-                    error["message"]
-                        .as_str()
-                        .unwrap_or("History unavailable")
-                        .into(),
-                );
-                self.snapshot.history_listed += 1;
-                self.snapshot.revision += 1;
-                return;
-            }
-            if method == "turn/interrupt" {
-                // A turn may finish between the Stop click and the RPC response.
-                // A failed cancellation receipt is never evidence that a completed turn failed.
-                if self.snapshot.state == State::Stopping {
-                    self.reconcile_stop = true;
-                    self.request(
-                        "thread/read",
-                        json!({"threadId":self.snapshot.thread,"includeTurns":true}),
-                    );
-                }
-                return;
-            } else if matches!(
-                method.as_str(),
-                "model/list"
-                    | "account/read"
-                    | "thread/name/set"
-                    | "thread/archive"
-                    | "thread/compact/start"
-                    | "thread/fork"
-                    | "turn/steer"
-            ) {
-                self.snapshot.error = Some(
-                    error["message"]
-                        .as_str()
-                        .unwrap_or("Model list unavailable")
-                        .into(),
-                );
-            } else {
-                self.fail(
-                    error["message"]
-                        .as_str()
-                        .unwrap_or("Agent request failed")
-                        .into(),
-                );
-            }
-            return;
-        }
-        let result = &value["result"];
-        match method.as_str() {
-            "initialize" => {
-                let _ = self.connection.send(json!({"method":"initialized"}));
-                self.request("model/list", json!({"limit":100}));
-                self.request("account/read", json!({"refreshToken":false}));
-                if self.snapshot.history_mode {
-                    self.snapshot.state = State::History;
-                    self.list_history();
-                } else {
-                    self.start_thread();
-                }
-            }
-            "model/list" => {
-                if let Some(models) = result["data"].as_array() {
-                    self.snapshot.efforts = models
-                        .iter()
-                        .flat_map(|m| {
-                            m["supportedReasoningEfforts"]
-                                .as_array()
-                                .into_iter()
-                                .flatten()
-                                .filter_map(|e| e["reasoningEffort"].as_str().map(str::to_owned))
-                        })
-                        .collect();
-                    self.snapshot.efforts.sort();
-                    self.snapshot.efforts.dedup();
-                    self.snapshot.models = models
-                        .iter()
-                        .filter_map(|m| {
-                            Some((
-                                m["model"].as_str()?.into(),
-                                m["displayName"].as_str().unwrap_or("Model").into(),
-                            ))
-                        })
-                        .collect();
-                }
-            }
-            "thread/start" | "thread/resume" | "thread/fork" => {
-                let thread = &result["thread"];
-                if let Some(id) = thread["id"].as_str() {
-                    self.snapshot.thread = Some(id.into());
-                    self.snapshot.model = result["model"].as_str().map(str::to_owned);
-                    self.snapshot.state = State::Idle;
-                    if matches!(method.as_str(), "thread/resume" | "thread/fork") {
-                        self.snapshot.messages.clear();
-                        if let Some(turns) = thread["turns"].as_array() {
-                            for turn in turns {
-                                if let Some(items) = turn["items"].as_array() {
-                                    for item in items {
-                                        self.item(item, true);
-                                    }
-                                }
-                            }
-                        } else {
-                            self.request("thread/read", json!({"threadId":id,"includeTurns":true}));
-                        }
-                    }
-                } else {
-                    self.fail("Agent returned no conversation identity".into());
-                }
-            }
-            "account/read" => {
-                self.snapshot.account = result["account"]["email"]
-                    .as_str()
-                    .or(result["account"]["type"].as_str())
-                    .unwrap_or("CLI account")
-                    .into();
-            }
-            "thread/compact/start" => {
-                self.snapshot.notice = Some("Context compaction requested".into());
-            }
-            "thread/archive" => {
-                self.snapshot.history.clear();
-                self.snapshot.cursor = None;
-                self.list_history();
-            }
-            "turn/steer" => {
-                self.snapshot.notice = Some("Follow-up delivered to the active turn".into());
-            }
-            "thread/read" => {
-                if self.reconcile_stop {
-                    self.reconcile_stop = false;
-                    if self.snapshot.state != State::Stopping {
-                        return;
-                    }
-                    let target = result["thread"]["turns"].as_array().and_then(|turns| {
-                        turns
-                            .iter()
-                            .find(|t| t["id"].as_str() == self.snapshot.turn.as_deref())
-                    });
-                    if let Some(turn) = target {
-                        if matches!(
-                            turn["status"].as_str(),
-                            Some("completed" | "interrupted" | "failed")
-                        ) {
-                            self.handle(json!({"method":"turn/completed","params":{"threadId":self.snapshot.thread,"turn":turn}}));
-                        } else if self.stop_retries < 2 {
-                            self.stop_retries += 1;
-                            self.request(
-                                "turn/interrupt",
-                                json!({"threadId":self.snapshot.thread,"turnId":self.snapshot.turn}),
-                            );
-                        } else {
-                            self.snapshot.error=Some("The Agent has not confirmed Stop; execution may still be running. Retry Stop or close this tab to terminate its process.".into());
-                            self.snapshot.state = State::Running;
-                        }
-                    } else {
-                        self.fail("Unable to reconcile this turn after Stop. Close the tab to terminate its process; reopen History before retrying work.".into());
-                    }
-                    self.snapshot.revision += 1;
-                    return;
-                }
-                if let Some(turns) = result["thread"]["turns"].as_array() {
-                    for turn in turns {
-                        if let Some(items) = turn["items"].as_array() {
-                            for item in items {
-                                self.item(item, true);
-                            }
-                        }
-                    }
-                }
-            }
-            "thread/list" => {
-                if let Some(entries) = result["data"].as_array() {
-                    for e in entries {
-                        if let Some(id) = e["id"].as_str() {
-                            self.snapshot.history.push(HistoryEntry {
-                                id: id.into(),
-                                title: e["name"]
-                                    .as_str()
-                                    .or(e["preview"].as_str())
-                                    .unwrap_or("Untitled conversation")
-                                    .chars()
-                                    .take(100)
-                                    .collect(),
-                                updated_at: e["updatedAt"]
-                                    .as_i64()
-                                    .or(e["createdAt"].as_i64())
-                                    .map(|seconds| seconds * 1000),
-                            });
-                        }
-                    }
-                }
-                self.snapshot.cursor = result["nextCursor"].as_str().map(str::to_owned);
-                self.snapshot.history_listed += 1;
-            }
-            "turn/start" => {
-                if let Some(id) = result["turn"]["id"].as_str()
-                    && !self.completed.contains(id)
-                {
-                    self.snapshot.turn = Some(id.into());
-                    self.snapshot.state = State::Running;
-                }
-            }
-            _ => {}
-        }
-        self.snapshot.revision += 1;
+    fn session_history_port(&self) -> Option<Rc<dyn SessionHistoryPort>> {
+        Some(Rc::new(CodexHistoryPort(self.clone())))
     }
 }
 
-impl AgentRuntimePort for Session {
-    fn snapshot(&self) -> &SessionSnapshot {
-        &self.snapshot
-    }
-    fn submit(&mut self, prompt: Prompt) {
-        Session::submit(self, prompt)
-    }
-    fn steer(&mut self, text: String) {
-        if let (Some(thread), Some(turn)) = (&self.snapshot.thread, &self.snapshot.turn) {
-            let params = json!({"threadId":thread,"expectedTurnId":turn,"input":codex_input(&Prompt::text(text.clone()))});
-            self.request("turn/steer", params);
-            self.snapshot
-                .upsert(uuid::Uuid::new_v4().to_string(), "You", text, "steering");
-        }
-    }
-    fn fork(&mut self) {
-        if !self.busy() {
-            self.request("thread/fork",json!({"threadId":self.snapshot.thread,"cwd":self.root,"approvalPolicy":"on-request","sandbox":"workspace-write"}));
-        }
-    }
-    fn compact(&mut self) {
-        if !self.busy() {
-            self.request(
-                "thread/compact/start",
-                json!({"threadId":self.snapshot.thread}),
-            );
-        }
-    }
-    fn archive(&mut self, id: String) {
-        if !self.busy() {
-            self.request("thread/archive", json!({"threadId":id}));
-        }
-    }
-    fn rename(&mut self, name: String) {
-        let name = name.trim();
-        if !self.busy() && !name.is_empty() {
-            self.request(
-                "thread/name/set",
-                json!({"threadId":self.snapshot.thread,"name":name}),
-            );
-            self.snapshot.title = name.into();
-            self.snapshot.revision += 1;
-        }
-    }
-    fn select_mode(&mut self, mode: String) {
-        if !self.busy() && self.snapshot.modes.iter().any(|m| m.0 == mode) {
-            self.snapshot.mode = Some(mode);
-            self.snapshot.revision += 1;
-        }
-    }
-    fn select_effort(&mut self, effort: String) {
-        if !self.busy() && self.snapshot.efforts.contains(&effort) {
-            self.snapshot.effort = Some(effort);
-            self.snapshot.revision += 1;
-        }
-    }
-    fn poll(&mut self) {
-        Session::poll(self)
-    }
-    fn send(&mut self, text: String) {
-        Session::send(self, text)
-    }
-    fn stop(&mut self) {
-        Session::stop(self)
-    }
-    fn resume(&mut self, id: String) {
-        Session::resume(self, id)
-    }
-    fn list_history(&mut self) {
-        Session::list_history(self)
-    }
-    fn new_thread(&mut self) {
-        Session::new_thread(self)
-    }
-    fn resolve(&mut self, id: &Value, response: Resolution) {
-        Session::resolve(self, id, response)
-    }
-    fn select_model(&mut self, model: Option<String>) {
-        if self.snapshot.state == State::Idle {
-            self.snapshot.model = model;
-            self.snapshot.revision += 1;
-        }
-    }
-}
+/// `adapter.getSessionHistoryPort()`.
+struct CodexHistoryPort(CodexAppServerAdapter);
 
-fn codex_input(prompt: &Prompt) -> Vec<Value> {
-    let mut input =
-        vec![json!({"type":"text","text":prompt.text_with_references(),"text_elements":[]})];
-    for r in &prompt.references {
-        if let ReferenceContent::Image { mime, data } = &r.content {
-            input.push(json!({"type":"image","url":format!("data:{mime};base64,{data}")}));
-        }
+impl SessionHistoryPort for CodexHistoryPort {
+    fn source_scope_id(&self) -> Option<String> {
+        Some(self.0.0.source_scope_id.clone())
     }
-    input
-}
-fn bounded(mut text: String) -> String {
-    let mut end = (2 * 1024 * 1024).min(text.len());
-    while !text.is_char_boundary(end) {
-        end -= 1;
+    fn implements(&self, method: &str) -> bool {
+        matches!(method, "discover" | "hydrate")
     }
-    text.truncate(end);
-    text
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn fixture() -> (Session, std::sync::mpsc::Receiver<Value>) {
-        let (connection, requests, _) = Connection::harness();
-        let mut session = Session::from_connection(connection, PathBuf::from("/tmp"), false);
-        requests.try_recv().unwrap();
-        session.pending.clear();
-        session.snapshot.thread = Some("thread".into());
-        session.snapshot.state = State::Idle;
-        (session, requests)
+    fn discover(
+        &self,
+        cursor: Option<String>,
+        limit: usize,
+        signal: AbortSignal,
+    ) -> AdapterFuture<'_, Value> {
+        Box::pin(
+            self.0
+                .discover_sessions(cursor, Some(Value::from(limit)), Some(signal)),
+        )
     }
-    #[test]
-    fn late_start_receipt_cannot_revive_a_completed_turn() {
-        let (mut s, _requests) = fixture();
-        s.pending.insert(10, ("turn/start".into(), Instant::now()));
-        s.handle(
-            json!({"method":"turn/started","params":{"threadId":"thread","turn":{"id":"turn"}}}),
-        );
-        s.handle(json!({"method":"turn/completed","params":{"threadId":"thread","turn":{"id":"turn","status":"completed"}}}));
-        s.handle(json!({"id":10,"result":{"turn":{"id":"turn"}}}));
-        assert_eq!(s.snapshot.state, State::Idle);
-        assert!(s.snapshot.turn.is_none());
-    }
-    #[test]
-    fn late_interrupt_error_preserves_a_completed_turn() {
-        let (mut s, requests) = fixture();
-        s.snapshot.turn = Some("turn".into());
-        s.snapshot.state = State::Running;
-        s.stop();
-        let stop = requests.try_recv().unwrap();
-        s.handle(json!({"method":"turn/completed","params":{"threadId":"thread","turn":{"id":"turn","status":"completed"}}}));
-        s.handle(json!({"id":stop["id"],"error":{"message":"no active turn to interrupt"}}));
-        assert_eq!(s.snapshot.state, State::Idle);
-        assert_eq!(s.snapshot.usage, "completed");
-        assert!(s.snapshot.error.is_none());
-        assert!(requests.try_recv().is_err());
-    }
-    #[test]
-    fn interrupt_error_reconciles_the_exact_turn_without_replaying_work() {
-        let (mut s, requests) = fixture();
-        s.snapshot.turn = Some("turn".into());
-        s.snapshot.state = State::Running;
-        s.stop();
-        let stop = requests.try_recv().unwrap();
-        s.handle(json!({"id":stop["id"],"error":{"message":"no active turn to interrupt"}}));
-        let read = requests.try_recv().unwrap();
-        assert_eq!(read["method"], "thread/read");
-        assert_eq!(read["params"]["threadId"], "thread");
-        s.handle(json!({"id":read["id"],"result":{"thread":{"turns":[{"id":"older","status":"failed"},{"id":"turn","status":"interrupted"}]}}}));
-        assert_eq!(s.snapshot.state, State::Idle);
-        assert_eq!(s.snapshot.usage, "interrupted");
-        assert!(s.snapshot.error.is_none());
-        assert!(requests.try_recv().is_err());
-    }
-    #[test]
-    fn typed_questions_preserve_wire_identity_and_reject_an_approval_answer() {
-        let (mut s, requests) = fixture();
-        s.snapshot.turn = Some("turn".into());
-        s.snapshot.state = State::Running;
-        s.handle(json!({"id":"ask-1","method":"item/tool/requestUserInput","params":{"threadId":"thread","turnId":"turn","questions":[{"id":"choice","question":"Choose one","options":[{"label":"A"},{"label":"B"}]}]}}));
-        let InteractionKind::Questions(questions) = &s.snapshot.interactions[0].kind else {
-            panic!("expected typed questions");
-        };
-        assert_eq!(questions[0].options, ["A", "B"]);
-        s.resolve(&json!("ask-1"), Resolution::Approval(Decision::Accept));
-        assert!(requests.try_recv().is_err());
-        assert_eq!(s.snapshot.interactions.len(), 1);
-        s.resolve(
-            &json!("ask-1"),
-            Resolution::Answers([("choice".into(), vec!["B".into()])].into()),
-        );
-        assert_eq!(
-            requests.try_recv().unwrap(),
-            json!({"id":"ask-1","result":{"answers":{"choice":{"answers":["B"]}}}})
-        );
-        assert!(s.snapshot.interactions.is_empty());
-    }
-    #[test]
-    fn approvals_require_exact_session_and_turn_and_resolve_once() {
-        let (mut s, requests) = fixture();
-        s.snapshot.turn = Some("turn".into());
-        s.snapshot.state = State::Running;
-        s.handle(json!({"id":"approval-1","method":"item/commandExecution/requestApproval","params":{"threadId":"wrong","turnId":"turn","command":"test"}}));
-        assert!(s.snapshot.interactions.is_empty());
-        assert_eq!(requests.try_recv().unwrap()["error"]["code"], -32600);
-        s.handle(json!({"id":7,"method":"item/commandExecution/requestApproval","params":{"threadId":"thread","turnId":"turn","command":"test"}}));
-        assert_eq!(s.snapshot.interactions.len(), 1);
-        s.resolve(&json!(7), Resolution::Approval(Decision::Decline));
-        s.resolve(&json!(7), Resolution::Approval(Decision::Accept));
-        assert_eq!(
-            requests.try_recv().unwrap(),
-            json!({"id":7,"result":{"decision":"decline"}})
-        );
-        assert!(requests.try_recv().is_err());
-    }
-    #[test]
-    fn stream_history_and_terminal_events_have_one_projection() {
-        let (mut s, _requests) = fixture();
-        s.delta("item", "Codex", "hello");
-        s.item(
-            &json!({"id":"item","type":"agentMessage","text":"hello world"}),
-            true,
-        );
-        assert_eq!(s.snapshot.messages.len(), 1);
-        assert_eq!(s.snapshot.messages[0].text, "hello world");
-        s.snapshot.turn = Some("current".into());
-        s.snapshot.state = State::Running;
-        s.handle(json!({"method":"turn/completed","params":{"threadId":"thread","turn":{"id":"older","status":"completed"}}}));
-        assert_eq!(s.snapshot.state, State::Running);
-        s.handle(json!({"method":"item/agentMessage/delta","params":{"threadId":"other-project","itemId":"item","delta":"wrong"}}));
-        assert_eq!(s.snapshot.messages[0].text, "hello world");
-    }
-    #[test]
-    fn mcp_form_is_validated_and_permission_grants_match_the_request() {
-        let (mut s, rx) = fixture();
-        s.handle(json!({"id":"form","method":"mcpServer/elicitation/request","params":{"threadId":"thread","turnId":null,"serverName":"fixture","mode":"form","message":"Select","requestedSchema":{"type":"object","properties":{"count":{"type":"integer","minimum":1}},"required":["count"]}}}));
-        s.resolve(
-            &json!("form"),
-            Resolution::Form {
-                decision: Decision::Accept,
-                values: std::collections::BTreeMap::from([("count".into(), "bad".into())]),
-            },
-        );
-        assert!(rx.try_recv().is_err());
-        s.resolve(
-            &json!("form"),
-            Resolution::Form {
-                decision: Decision::Accept,
-                values: std::collections::BTreeMap::from([("count".into(), "2".into())]),
-            },
-        );
-        assert_eq!(rx.try_recv().unwrap()["result"]["content"]["count"], 2);
-        s.snapshot.turn = Some("turn".into());
-        s.snapshot.state = State::Running;
-        s.handle(json!({"id":"permissions","method":"item/permissions/requestApproval","params":{"threadId":"thread","turnId":"turn","permissions":{"network":{"enabled":true}},"reason":"Fixture"}}));
-        s.resolve(&json!("permissions"), Resolution::Choice("allow".into()));
-        let receipt = rx.try_recv().unwrap();
-        assert_eq!(receipt["result"]["scope"], "turn");
-        assert_eq!(
-            receipt["result"]["permissions"],
-            json!({"network":{"enabled":true}})
-        );
-    }
-    fn wait(session: &mut Session, predicate: impl Fn(&Session) -> bool) {
-        let start = Instant::now();
-        loop {
-            session.poll();
-            assert_ne!(
-                session.snapshot.state,
-                State::Failed,
-                "{:?}",
-                session.snapshot.error
-            );
-            if predicate(session) {
-                return;
-            }
-            assert!(
-                start.elapsed() < Duration::from_secs(90),
-                "Agent timeout: {:?}, {:?}",
-                session.snapshot.state,
-                session.snapshot.error
-            );
-            std::thread::sleep(Duration::from_millis(20));
-        }
-    }
-    /// Explicit opt-in: uses the locally authenticated Codex CLI against a disposable project.
-    #[test]
-    #[ignore = "live Agent inference; run explicitly with --ignored"]
-    fn live_codex_roundtrip_resume_and_stop() {
-        let executable = crate::agent::connections::local_agent_inventory::discover()
-            .into_iter()
-            .find(|i| i.runtime == crate::agent::runtime::legacy_runtime_registry::Runtime::Codex)
-            .expect("Codex must be installed")
-            .executable;
-        let dir = tempfile::Builder::new()
-            .prefix("puppyone-agent-test-")
-            .tempdir()
-            .unwrap();
-        let root = dir.path().canonicalize().unwrap();
-        std::fs::write(root.join("AGENTS.md"),"This is a disposable PuppyOne GUI integration test. Follow the user's request precisely.\n").unwrap();
-        let mut session = Session::new(executable.clone(), root.clone(), false, Wake::default());
-        wait(&mut session, |s| s.snapshot.state == State::Idle);
-        let token = format!("GPUI_{}", uuid::Uuid::new_v4().simple());
-        session.send(format!(
-            "Remember this token: {token}. Reply with only that token. Do not use tools."
-        ));
-        wait(&mut session, |s| s.snapshot.state == State::Idle);
-        assert!(
-            session
-                .snapshot
-                .messages
-                .iter()
-                .any(|m| m.role == "Codex" && m.text.contains(&token)),
-            "{:?}",
-            session.snapshot.messages
-        );
-        let thread = session.snapshot.thread.clone().unwrap();
-        drop(session);
-        let mut resumed = Session::new(executable, root, true, Wake::default());
-        wait(&mut resumed, |s| {
-            s.snapshot.state == State::History
-                && !s.pending.values().any(|(m, _)| m == "thread/list")
-        });
-        resumed.resume(thread.clone());
-        wait(&mut resumed, |s| s.snapshot.state == State::Idle);
-        assert_eq!(resumed.snapshot.thread.as_deref(), Some(thread.as_str()));
-        resumed.send(
-            "What token did I ask you to remember? Reply with only the token; do not use tools."
-                .into(),
-        );
-        wait(&mut resumed, |s| s.snapshot.state == State::Idle);
-        assert!(
-            resumed
-                .snapshot
-                .messages
-                .iter()
-                .rev()
-                .find(|m| m.role == "Codex")
-                .unwrap()
-                .text
-                .contains(&token)
-        );
-        resumed.send("Use a shell tool to write exactly GPUI_TOOL_OK to result.txt in this disposable workspace, then run sleep 30 in the same shell invocation. After it finishes reply DONE. Do not just describe the command: execute it.".into());
-        wait(&mut resumed, |s| {
-            s.snapshot.turn.is_some() && dir.path().join("result.txt").exists()
-        });
-        assert_eq!(
-            std::fs::read_to_string(dir.path().join("result.txt"))
-                .unwrap()
-                .trim(),
-            "GPUI_TOOL_OK"
-        );
-        resumed.stop();
-        wait(&mut resumed, |s| s.snapshot.state == State::Idle);
-        assert_eq!(resumed.snapshot.usage, "interrupted");
-        use crate::agent::domain::reference_input::{Reference, ReferenceContent};
-        AgentRuntimePort::fork(&mut resumed);
-        wait(&mut resumed, |s| {
-            s.snapshot.thread.as_ref() != Some(&thread)
-        });
-        let forked = resumed.snapshot.thread.clone().unwrap();
-        AgentRuntimePort::rename(&mut resumed, "GPUI native fork fixture".into());
-        wait(&mut resumed, |s| {
-            !s.pending.values().any(|(m, _)| m == "thread/name/set")
-        });
-        assert!(
-            resumed.snapshot.error.is_none(),
-            "{:?}",
-            resumed.snapshot.error
-        );
-        AgentRuntimePort::select_mode(&mut resumed, "read-only".into());
-        resumed.submit(Prompt {
-            text: "Reply only with the exact token in the attached reference. Do not use tools."
-                .into(),
-            references: vec![Reference {
-                id: "fixture-reference".into(),
-                name: "note.txt".into(),
-                source: "explicit test fixture".into(),
-                bytes: 18,
-                content: ReferenceContent::Text("GPUI_REFERENCE_OK".into()),
-                origin: Default::default(),
-            }],
-        });
-        wait(&mut resumed, |s| s.snapshot.state == State::Idle);
-        assert!(
-            resumed
-                .snapshot
-                .messages
-                .iter()
-                .rev()
-                .find(|m| m.role == "Codex")
-                .unwrap()
-                .text
-                .contains("GPUI_REFERENCE_OK")
-        );
-        assert_eq!(resumed.snapshot.thread.as_ref(), Some(&forked));
-        println!(
-            "LIVE_AGENT_OK: streaming, second turn, native thread resume, real file write, interrupt, fork, rename, text reference; disposable workspace only"
-        );
+    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+        Box::pin(self.0.read_history_result())
     }
 }

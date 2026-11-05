@@ -87,12 +87,28 @@
       "sources": [
         "electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs",
         "electron/main/agent/runtimes/codex/codex-events.mjs",
-        "electron/main/agent/runtimes/codex/codex-interactions.mjs"
+        "electron/main/agent/runtimes/codex/codex-interactions.mjs",
+        "electron/main/agent/runtimes/codex/codex-native-values.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-reader.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-projection.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-discovery.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-source.mjs",
+        "electron/main/agent/runtimes/codex/codex-identity.mjs"
       ],
       "targets": [
-        "src/agent/runtimes/codex/codex_app_server_adapter.rs"
+        "src/agent/runtimes/codex/codex_app_server_adapter.rs",
+        "src/agent/runtimes/codex/codex_events.rs",
+        "src/agent/runtimes/codex/codex_interactions.rs",
+        "src/agent/runtimes/codex/codex_native_values.rs",
+        "src/agent/runtimes/codex/codex_history_reader.rs",
+        "src/agent/runtimes/codex/codex_history_projection.rs",
+        "src/agent/runtimes/codex/codex_history_discovery.rs",
+        "src/agent/runtimes/codex/codex_history_source.rs",
+        "src/agent/runtimes/codex/codex_identity.rs",
+        "src/agent/runtimes/codex/tests.rs",
+        "src/agent/transports/rpc_connection.rs"
       ],
-      "remaining": "Native send/stream/resume/tools/stop plus text/image inputs, fork/steer/rename/compact/archive, modes/effort and typed MCP/permission interactions exist. Full account login UI, all experimental protocol methods and complete event-schema parity are not claimed."
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter and paginated-history tests (FakeConnection via connectionFactory). Discovery (codex-discovery, executable discovery) and the runtime definition are pending; the running app still uses legacy_codex_app_server_adapter.rs until the Agent host switches to AgentService."
     },
     {
       "name": "Bounded native JSONL transport",
@@ -221,8 +237,7 @@
       "status": "partial",
       "sources": [
         "electron/main/agent/infrastructure/attachments/agent-attachment-store.mjs",
-        "electron/main/agent/agent-reference-authorization.mjs",
-        "electron/main/agent/runtimes/codex/codex-reference-input.mjs"
+        "electron/main/agent/agent-reference-authorization.mjs"
       ],
       "targets": [
         "src/agent/domain/reference_input.rs",
@@ -558,6 +573,34 @@
         "src/agent/runtimes/puppyone_agent/puppyone_agent_public_identity.rs"
       ],
       "remaining": "The session record keeps the product's derived getters over the SessionActor; the legacy snapshot model it replaces remains as domain/legacy_session_model.rs until the old UI and runtimes are removed."
+    },
+    {
+      "name": "Codex reference input",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/codex/codex-reference-input.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/codex/codex_reference_input.rs"
+      ],
+      "remaining": "Ported 1:1 (workspace text appendix, native localImage inputs, authorization errors) with the product cases; live wiring follows the runtime switch."
+    },
+    {
+      "name": "Main security boundaries",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/security/authorized-workspace-reference-prompt.mjs",
+        "electron/main/agent/security/authorized-project-instructions.mjs",
+        "electron/main/agent/security/acp-workspace-files.mjs"
+      ],
+      "targets": [
+        "src/agent/security/authorized_workspace_reference_prompt.rs",
+        "src/agent/security/authorized_project_instructions.rs",
+        "src/agent/security/acp_workspace_files.rs",
+        "src/agent/security/tests.rs",
+        "src/agent/node_path.rs"
+      ],
+      "remaining": "Ported 1:1 over Node path semantics (node_path.rs) with the product ACP workspace-file cases and the cross-root grant. The fsModule injection is replaced by the real file system; Windows identity falls back to size and mtime as in the product."
     }
   ]
 }

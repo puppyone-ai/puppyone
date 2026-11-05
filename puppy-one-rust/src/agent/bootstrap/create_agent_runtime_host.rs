@@ -4,7 +4,7 @@ use crate::{
         connections::local_agent_inventory::Installation,
         protocols::{acp::acp_runtime_adapter, pi_rpc::pi_rpc_adapter},
         runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
-        runtimes::{claude::claude_adapter, codex::codex_app_server_adapter},
+        runtimes::{claude::claude_adapter, codex::legacy_codex_app_server_adapter},
     },
     wake::Wake,
 };
@@ -52,7 +52,7 @@ fn create_inner(
         Runtime::PuppyOne => Box::new(
             crate::agent::runtimes::puppyone_agent::adapter::Session::new(root, history, wake),
         ),
-        Runtime::Codex => Box::new(codex_app_server_adapter::Session::new(
+        Runtime::Codex => Box::new(legacy_codex_app_server_adapter::Session::new(
             executable, root, history, wake,
         )),
         Runtime::Claude => Box::new(claude_adapter::Session::new(

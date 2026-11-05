@@ -8,6 +8,8 @@ pub mod legacy_jsonl_rpc_connection;
 pub mod managed_agent_process;
 #[allow(dead_code)]
 pub mod native_request_ledger;
+#[allow(dead_code)]
+pub mod rpc_connection;
 #[cfg(test)]
 pub mod test_support;
 #[cfg(test)]

@@ -126,6 +126,60 @@ pub fn opt_str(value: Option<&Value>) -> Option<&str> {
     value.and_then(Value::as_str)
 }
 
+/// `Number(value)` (`NaN` for an absent value, an object or unparsable
+/// text).
+pub fn to_number(value: Option<&Value>) -> f64 {
+    match value {
+        None => f64::NAN,
+        Some(Value::Null) => 0.0,
+        Some(Value::Bool(b)) => f64::from(u8::from(*b)),
+        Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
+        Some(Value::String(s)) => {
+            let text = trim(s);
+            if text.is_empty() {
+                0.0
+            } else {
+                text.parse::<f64>()
+                    .ok()
+                    .filter(|_| !text.contains(['n', 'N', 'i', 'I']) || text.contains("Infinity"))
+                    .unwrap_or(f64::NAN)
+            }
+        }
+        Some(Value::Array(_) | Value::Object(_)) => f64::NAN,
+    }
+}
+
+/// `String(value)` (`"undefined"` for an absent value).
+pub fn to_js_string(value: Option<&Value>) -> String {
+    match value {
+        None => "undefined".into(),
+        Some(Value::Null) => "null".into(),
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Bool(b)) => b.to_string(),
+        Some(Value::Number(n)) => match n.as_f64() {
+            Some(f) if f.fract() == 0.0 && f.abs() < 1e21 => format!("{f:.0}"),
+            _ => n.to_string(),
+        },
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .map(|entry| match entry {
+                Value::Null => String::new(),
+                entry => to_js_string(Some(entry)),
+            })
+            .collect::<Vec<_>>()
+            .join(","),
+        Some(Value::Object(_)) => "[object Object]".into(),
+    }
+}
+
+/// `String(value ?? "")`.
+pub fn string_or_empty(value: Option<&Value>) -> String {
+    match value {
+        None | Some(Value::Null) => String::new(),
+        value => to_js_string(value),
+    }
+}
+
 /// `JSON.stringify(value)`.
 pub fn stringify(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_default()

@@ -10,3 +10,12 @@ pub fn run_paused_local<F: Future>(future: F) -> F::Output {
         .expect("test runtime");
     tokio::task::LocalSet::new().block_on(&runtime, future)
 }
+
+/// One async test on a real clock.
+pub fn run_local<F: Future>(future: F) -> F::Output {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime");
+    tokio::task::LocalSet::new().block_on(&runtime, future)
+}

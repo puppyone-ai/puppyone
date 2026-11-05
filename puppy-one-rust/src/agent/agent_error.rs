@@ -124,3 +124,9 @@ impl From<std::io::Error> for AgentError {
         }
     }
 }
+
+impl From<crate::agent::domain::agent_reference_error::AgentReferenceError> for AgentError {
+    fn from(error: crate::agent::domain::agent_reference_error::AgentReferenceError) -> Self {
+        Self::coded(error.code, error.message).with_name("AgentReferenceError")
+    }
+}
