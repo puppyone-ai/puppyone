@@ -3,6 +3,8 @@ pub mod agent_error;
 #[allow(dead_code)]
 pub mod agent_events;
 #[allow(dead_code)]
+pub mod agent_reference_authorization;
+#[allow(dead_code)]
 pub mod agent_shutdown;
 #[allow(dead_code)]
 pub mod application;

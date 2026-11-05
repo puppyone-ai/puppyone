@@ -298,15 +298,19 @@
       "status": "partial",
       "sources": [
         "electron/main/agent/infrastructure/attachments/agent-attachment-store.mjs",
-        "electron/main/agent/agent-reference-authorization.mjs"
+        "electron/main/agent/agent-reference-authorization.mjs",
+        "electron/main/agent/agent-attachment-store.mjs"
       ],
       "targets": [
+        "src/agent/agent_reference_authorization.rs",
+        "src/agent/infrastructure/attachments/agent_attachment_store.rs",
+        "src/agent/infrastructure/attachments/mod.rs",
+        "src/agent/infrastructure/attachments/tests.rs",
+        "src/agent/infrastructure/legacy_attachments.rs",
         "src/agent/domain/reference_input.rs",
-        "src/agent/infrastructure/attachments.rs",
-        "src/features/desktop_agent/application/agent_session_controller.rs",
         "src/features/desktop_agent/infrastructure/native/native_attachment_client.rs"
       ],
-      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Path references are atomic @path mentions inserted at the caret as the composer's inline tokens, deleting one drops its reference, and drafts restore them; images stay on the attachment shelf. Authorization (agent-reference-authorization.mjs): workspace files and folders are live references, re-canonicalised, kept inside the workspace, checked for kind and size and read again for every turn; a failure keeps the draft with the product's message. Grants and lifetime (agent-attachment-store.mjs): files from outside the workspace are copied into a private per-process staging directory with a SHA-256 digest, owned by one conversation, deduplicated by name/size/digest, renewed when used, expired after 30 minutes, revoked when removed from the draft or when the conversation closes; staging of exited processes is swept. Limits: 32 references, 25 MB each and in total (text inlined by native runtimes stays at 1 MiB). Not ported: inline (pasted) attachment bytes, per-turn leases (native turns read the bytes at send), workspace resource URIs (Cloud) and mention navigation."
+      "remaining": "agent-reference-authorization and the attachment store are ported 1:1 with the product authorization and attachment-store tests: live workspace references re-canonicalized per turn with a shared 32-file/25 MB budget and portable root-independent ids; external files and pathless inline bytes copied into private 0600 snapshots bound to owner, workspace and draft epoch, deduplicated, leased by one turn, expired, revoked and swept with the staging of exited processes, with TOCTOU detection and transactional batch rollback. agent-attachment-store.mjs is a deprecated re-export. The composer still uses legacy_attachments.rs until the host switches to AgentService."
     },
     {
       "name": "Session catalog and capacity",

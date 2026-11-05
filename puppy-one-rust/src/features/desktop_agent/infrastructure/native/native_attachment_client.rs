@@ -1,5 +1,7 @@
 use crate::{
-    agent::{domain::reference_input::Reference, infrastructure::attachments},
+    agent::{
+        domain::reference_input::Reference, infrastructure::legacy_attachments as attachments,
+    },
     wake::Wake,
 };
 use std::{
