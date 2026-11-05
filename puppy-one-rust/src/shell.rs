@@ -806,9 +806,6 @@ impl Shell {
             Some(Modal::Executions) => {
                 self.modals.remove(|m| matches!(m, Modal::Executions));
             }
-            Some(Modal::About) => {
-                self.modals.remove(|m| matches!(m, Modal::About));
-            }
             Some(Modal::ProjectEntry) => self.close_project_entry(cx),
             Some(Modal::ProjectFailure { .. }) => {
                 self.modals
@@ -911,22 +908,24 @@ impl Shell {
                 window.minimize_window();
                 return;
             }
+            // Before any dialog's own handling: a dialog takes no ⌘W.
+            Command::CloseEditorOrWindow => {
+                if self.open_editors().is_some() {
+                    self.files.begin(Intent::CloseFile, &self.wake);
+                    self.receive(window, cx);
+                    cx.notify();
+                } else {
+                    self.command(Command::Quit, window, cx);
+                }
+                return;
+            }
             Command::Zoom => {
                 window.zoom_window();
                 return;
             }
+            // `role: "about"`: the system's About panel.
             Command::About => {
-                self.popover = None;
-                self.modals.remove(|m| matches!(m, Modal::About));
-                self.modals.open(Modal::About);
-                self.modal_focus.focus(window, cx);
-                cx.notify();
-                return;
-            }
-            Command::CloseAbout => {
-                self.modals.remove(|m| matches!(m, Modal::About));
-                self.focus.focus(window, cx);
-                cx.notify();
+                crate::platform::desktop::show_about_panel();
                 return;
             }
             // `checkForUpdatesFromNativeMenu`: this build has no update
@@ -1017,21 +1016,9 @@ impl Shell {
                 cx.notify();
                 return;
             }
-            // Escape answers the topmost dialog; ⌘W closes a window task
-            // (Settings, Create entry) on top instead of the file. Help →
-            // Feedback ignores both (`dismiss_modal`).
+            // Escape answers the topmost dialog (Help → Feedback ignores it,
+            // `dismiss_modal`).
             Command::Escape if self.modal() => {
-                self.dismiss_modal(window, cx);
-                self.receive(window, cx);
-                cx.notify();
-                return;
-            }
-            Command::CloseFile
-                if matches!(
-                    self.modals.top(),
-                    Some(Modal::Task(_) | Modal::CreateEntry(_))
-                ) =>
-            {
                 self.dismiss_modal(window, cx);
                 self.receive(window, cx);
                 cx.notify();
@@ -1186,13 +1173,29 @@ impl Shell {
                     }
                 }
             }
+            // Only Markdown's viewer takes the shortcut (`MarkdownViewer`'s
+            // `enableModeToggleShortcut`).
             Command::ToggleMarkdownSource => {
-                if !self.files.busy() && !self.modal() {
+                let markdown = self.editor.front.read(cx).viewer_id() == Some("markdown");
+                if markdown && !self.files.busy() && !self.modal() && !self.home_visible() {
                     self.editor
                         .front
                         .update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
+            Command::NextEditor | Command::PreviousEditor => {
+                if let Some((editors, active)) = self.open_editors() {
+                    let step = if command == Command::NextEditor {
+                        1
+                    } else {
+                        editors.len() - 1
+                    };
+                    let next = (active + step) % editors.len();
+                    self.files.activate(&editors[next]);
+                    self.sync_editor(window, cx);
+                }
+            }
+            Command::ToggleFullScreen => window.toggle_fullscreen(),
             Command::RetryFileOperation => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
@@ -1589,6 +1592,19 @@ impl Shell {
             self.panes.set_right_open(false);
         }
         self.sidebar.close_cloud_history(cx);
+    }
+    /// A project's editor tabs and the active one's index, while they show
+    /// (`activeView === "data"` with editors): what ⌘W and ⌃Tab act on.
+    fn open_editors(&self) -> Option<(Vec<String>, usize)> {
+        if self.file_mode() || self.home_visible() {
+            return None;
+        }
+        let catalog = &self.files.state()?.catalog;
+        let editors: Vec<String> = catalog.editors.iter().map(|e| e.id.clone()).collect();
+        let active = editors
+            .iter()
+            .position(|id| Some(id) == catalog.active.as_ref())?;
+        Some((editors, active))
     }
     /// The right sidebar is open on `surface`.
     fn right_shows(&self, surface: Surface) -> bool {
@@ -2484,7 +2500,6 @@ impl Shell {
                     )
                     .into_any_element(),
                 Modal::Executions => self.executions_dialog(cx).into_any_element(),
-                Modal::About => self.about_dialog(cx).into_any_element(),
                 Modal::ProjectEntry => self.project_entry_dialog(cx).into_any_element(),
                 Modal::ProjectFailure { message, .. } => {
                     self.project_failure_dialog(message, cx).into_any_element()

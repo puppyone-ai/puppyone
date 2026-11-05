@@ -90,6 +90,60 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     settle(&view, cx);
     view.update(cx, |s, _| assert!(s.files.document.is_none()));
 }
+/// `handleEditorShortcut`: ⌃Tab steps through a project's editor tabs and
+/// ⌘W closes the active one; with none open, ⌘W closes the window.
+#[gpui::test]
+fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut TestAppContext) {
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::write(folder.path().join("a.md"), "# A\n").unwrap();
+    std::fs::write(folder.path().join("b.md"), "# B\n").unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| s.window.fixture = false);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                if view.read_with(cx, |s, _| ready(s)) {
+                    break;
+                }
+                assert!(std::time::Instant::now() < deadline, "did not settle");
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let opened = |s: &Shell| s.files.opened().map(|(_, p)| p.to_owned());
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFolder(folder.path().into()), &s.wake)
+    });
+    settle(&view, cx, &|s| s.files.state().is_some());
+    for name in ["a.md", "b.md"] {
+        view.update(cx, |s, _| {
+            s.files.begin(Intent::OpenFile(name.into()), &s.wake)
+        });
+        settle(&view, cx, &|s| opened(s) == Some(PathBuf::from(name)));
+    }
+    command(&view, cx, Command::NextEditor);
+    settle(&view, cx, &|s| opened(s) == Some(PathBuf::from("a.md")));
+    command(&view, cx, Command::PreviousEditor);
+    settle(&view, cx, &|s| opened(s) == Some(PathBuf::from("b.md")));
+    command(&view, cx, Command::CloseEditorOrWindow);
+    settle(&view, cx, &|s| opened(s) == Some(PathBuf::from("a.md")));
+    command(&view, cx, Command::CloseEditorOrWindow);
+    settle(&view, cx, &|s| {
+        s.files
+            .state()
+            .is_some_and(|w| w.catalog.editors.is_empty())
+    });
+    view.read_with(cx, |s, _| assert!(!s.files.allow_quit));
+    // No editor left: the window closes.
+    view.update_in(cx, |s, w, cx| {
+        s.command(Command::CloseEditorOrWindow, w, cx)
+    });
+    cx.run_until_parked();
+    assert!(cx.read(|app| app.windows().is_empty()));
+}
 #[gpui::test]
 fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
     cx: &mut TestAppContext,
@@ -342,7 +396,7 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     });
 }
 #[gpui::test]
-fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppContext) {
+fn task_shortcuts_do_not_save_and_cmd_w_stays_the_windows(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Settings);
     cx.simulate_keystrokes("cmd-s");
@@ -351,11 +405,11 @@ fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppCon
         assert!(matches!(s.files.phase, Phase::Idle));
         assert!(s.files.outgoing.is_empty());
     });
+    // Settings takes no ⌘W of its own (`SettingsDialog`): with no editor
+    // open it is the menu's Close Window.
     cx.simulate_keystrokes("cmd-w");
-    view.update(cx, |s, _| {
-        assert_eq!(s.modals.task(), None);
-        assert!(!s.files.allow_quit);
-    });
+    cx.run_until_parked();
+    assert!(cx.read(|app| app.windows().is_empty()));
 }
 #[gpui::test]
 fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
@@ -1474,18 +1528,29 @@ fn windows_share_preferences_and_a_project_opens_where_it_was_chosen(cx: &mut Te
 #[gpui::test]
 fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    // `createApplicationMenuTemplate`: the app, File, Edit, View, Theme,
+    // Window and Help menus; File holds New Window, Manage Executions and
+    // Close Window only.
     let menus = app_menus();
     let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
-    assert_eq!(names.first().map(String::as_str), Some("PuppyOne"));
-    assert!(
-        names.len() >= 6,
-        "app, file, edit, format, view, window, help: {names:?}"
+    assert_eq!(names.len(), 7, "{names:?}");
+    assert_eq!(names[0], "PuppyOne");
+    assert_eq!(
+        [&names[2], &names[3], &names[5], &names[6]],
+        ["Edit", "View", "Window", "Help"]
     );
+    let file: Vec<String> = menus[1]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            gpui::MenuItem::Action { name, .. } => Some(name.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(file.len(), 3, "{file:?}");
+    assert_eq!(file[2], "Close Window");
+    // About is the system's panel, never a dialog of the window.
     command(&view, cx, Command::About);
-    view.read_with(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::About)))
-    });
-    command(&view, cx, Command::CloseAbout);
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
     // No update service in this build: the native "Updates Unavailable".
     command(&view, cx, Command::CheckForUpdates);
@@ -3901,7 +3966,12 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
     view.read_with(cx, |s, _| assert!(!s.homepage.open && !s.home_visible()));
-    for c in [Command::Settings, Command::Feedback, Command::CloseFile] {
+    for c in [
+        Command::Settings,
+        Command::Feedback,
+        Command::CloseFile,
+        Command::NextEditor,
+    ] {
         command(&view, cx, c);
     }
     cx.run_until_parked();
@@ -3929,7 +3999,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     });
     // Unsaved edits: the native Save, Don't Save or Cancel, asked once.
     view.update(cx, |s, _| s.files.dirty = true);
-    command(&view, cx, Command::Quit);
+    command(&view, cx, Command::CloseEditorOrWindow);
     command(&view, cx, Command::Quit);
     assert!(cx.has_pending_prompt());
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));

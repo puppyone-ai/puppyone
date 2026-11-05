@@ -11,7 +11,16 @@ pub enum Command {
     Redo,
     Save,
     Reload,
+    /// Close the active editor (the pane menu's close).
     CloseFile,
+    /// ⌘W (`handleEditorShortcut`): the active editor of a project's
+    /// documents closes; with none, the window does (the menu's Close Window).
+    CloseEditorOrWindow,
+    /// ⌃Tab / ⌃⇧Tab: the next or previous editor tab.
+    NextEditor,
+    PreviousEditor,
+    /// View → Toggle Full Screen.
+    ToggleFullScreen,
     /// Editor pane menu "Open in default app".
     OpenExternal,
     /// Close this window through its barrier (window close button, or one
@@ -50,7 +59,8 @@ pub enum Command {
     /// ⌘V outside a text field: a template link on the clipboard opens its
     /// card; anything else keeps its usual paste.
     PasteTemplateLink,
-    /// View → Toggle Markdown Source.
+    /// ⌘/ or ⇧⌘M in a Markdown document: live view ↔ source
+    /// (`isModeToggleShortcut`).
     ToggleMarkdownSource,
     ClearError,
     RetryFileOperation,
@@ -65,9 +75,8 @@ pub enum Command {
     ManageExecutions,
     /// File/Dock → New Window (`file.newWindow`, ⌘N).
     NewWindow,
-    /// App menu → About PuppyOne.
+    /// App menu → About PuppyOne (the system panel).
     About,
-    CloseAbout,
     /// App menu → Check for Updates… (grouped with About).
     CheckForUpdates,
     /// Window menu.
@@ -130,8 +139,11 @@ shell_actions! {
     CheckForUpdates => CheckForUpdates,
     Minimize => Minimize,
     Zoom => Zoom,
-    CloseWindow => Quit,
+    CloseWindow => CloseEditorOrWindow,
     OpenHelp => Feedback,
+    NextEditor => NextEditor,
+    PreviousEditor => PreviousEditor,
+    ToggleFullScreen => ToggleFullScreen,
 }
 
 /// The Dock menu (`createDockMenuTemplate`).
@@ -142,18 +154,24 @@ pub fn dock_menu() -> Vec<MenuItem> {
 pub fn bind_keys(cx: &mut App) {
     for modifier in ["cmd", "ctrl"] {
         let key = |k: &str| format!("{modifier}-{k}");
+        // The product's own shortcuts: the menu's ⌘, ⌘N ⌘W ⌘Q, ⌘S in a
+        // document, ⌘/ and ⇧⌘M for Markdown's view, ⌘V on the Homepage.
         cx.bind_keys([
-            KeyBinding::new(&key("b"), ToggleExplorer, None),
-            KeyBinding::new(&key("j"), ToggleRightSidebar, None),
             KeyBinding::new(&key(","), OpenSettings, None),
-            KeyBinding::new(&key("o"), OpenFolder, None),
             KeyBinding::new(&key("s"), Save, None),
-            KeyBinding::new(&key("w"), CloseFile, None),
+            KeyBinding::new(&key("w"), CloseWindow, None),
             KeyBinding::new(&key("q"), Quit, None),
             KeyBinding::new(&key("n"), NewWindow, None),
+            KeyBinding::new(&key("/"), ToggleMarkdownSource, None),
+            KeyBinding::new(&key("shift-m"), ToggleMarkdownSource, None),
             KeyBinding::new(&key("v"), PasteTemplateLink, Some("Homepage")),
         ]);
     }
+    cx.bind_keys([
+        KeyBinding::new("ctrl-tab", NextEditor, None),
+        KeyBinding::new("ctrl-shift-tab", PreviousEditor, None),
+        KeyBinding::new("ctrl-cmd-f", ToggleFullScreen, None),
+    ]);
     cx.bind_keys([
         KeyBinding::new("cmd-h", HideApp, None),
         KeyBinding::new("alt-cmd-h", HideOtherApps, None),
@@ -163,27 +181,30 @@ pub fn bind_keys(cx: &mut App) {
     super::explorer::bind_keys(cx);
 }
 
-/// Native menu bar in the current locale; rebuilt when the locale changes.
+/// The native menu bar (`createApplicationMenuTemplate`); rebuilt when the
+/// locale changes. The product localizes its own commands; Electron's role
+/// items and menus (`menu-item-roles`) keep Electron's English labels, and
+/// the page-only View items (reload, developer tools, page zoom) have no
+/// native window to act on.
 pub fn app_menus() -> Vec<Menu> {
+    let app = super::windows::APP_NAME;
     vec![
-        // `createApplicationMenuTemplate`: About and Check for Updates
-        // together, then Settings, the system items and Quit.
         Menu {
             disabled: false,
-            name: "PuppyOne".into(),
+            name: app.into(),
             items: vec![
-                MenuItem::action(tr("native.menu.about"), About),
+                MenuItem::action(format!("About {app}"), About),
                 MenuItem::action(tr("native.menu.checkForUpdates"), CheckForUpdates),
                 MenuItem::separator(),
                 MenuItem::action(tr("native.menu.settings"), OpenSettings),
                 MenuItem::separator(),
-                MenuItem::os_submenu(tr("native.menu.services"), SystemMenuType::Services),
+                MenuItem::os_submenu("Services", SystemMenuType::Services),
                 MenuItem::separator(),
-                MenuItem::action(tr("native.menu.hide"), HideApp),
-                MenuItem::action(tr("native.menu.hideOthers"), HideOtherApps),
-                MenuItem::action(tr("native.menu.showAll"), ShowAllApps),
+                MenuItem::action(format!("Hide {app}"), HideApp),
+                MenuItem::action("Hide Others", HideOtherApps),
+                MenuItem::action("Show All", ShowAllApps),
                 MenuItem::separator(),
-                MenuItem::action(tr("native.menu.quit"), Quit),
+                MenuItem::action(format!("Quit {app}"), Quit),
             ],
         },
         Menu {
@@ -192,37 +213,31 @@ pub fn app_menus() -> Vec<Menu> {
             items: vec![
                 MenuItem::action(tr("native.dock.newWindow"), NewWindow),
                 MenuItem::separator(),
-                MenuItem::action(tr("shell.workspaceSwitcher.openFolder"), OpenFolder),
-                MenuItem::action(tr("native.menu.reload"), Reload),
-                MenuItem::action(tr("native.menu.closeFile"), CloseFile),
-                MenuItem::separator(),
                 MenuItem::action(tr("native.execution.title"), ManageExecutions),
-                MenuItem::action(tr("native.menu.closeWindow"), CloseWindow),
+                MenuItem::action("Close Window", CloseWindow),
             ],
         },
-        ui::input::edit_menu(|id| tr(&format!("native.menu.edit.{id}")).into()),
-        crate::editor::actions::format_menu(|id| tr(&format!("native.menu.format.{id}")).into()),
+        ui::input::edit_menu(),
         Menu {
             disabled: false,
-            name: tr("native.menu.view").into(),
-            items: vec![MenuItem::action(
-                tr("native.menu.toggleSource"),
-                ToggleMarkdownSource,
-            )],
+            name: "View".into(),
+            items: vec![MenuItem::action("Toggle Full Screen", ToggleFullScreen)],
         },
         crate::features::sub_theme_catalog::theme_menu(|key| tr(key).into()),
+        // AppKit adds Bring All to Front and the window list to the menu
+        // named "Window".
         Menu {
             disabled: false,
-            name: tr("native.menu.window").into(),
+            name: "Window".into(),
             items: vec![
-                MenuItem::action(tr("native.menu.minimize"), Minimize),
-                MenuItem::action(tr("native.menu.zoom"), Zoom),
+                MenuItem::action("Minimize", Minimize),
+                MenuItem::action("Zoom", Zoom),
             ],
         },
         Menu {
             disabled: false,
-            name: tr("native.menu.help").into(),
-            items: vec![MenuItem::action(tr("shell.feedback.label"), OpenHelp)],
+            name: "Help".into(),
+            items: vec![],
         },
     ]
 }

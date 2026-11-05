@@ -25,18 +25,20 @@ pub fn bind_keys(cx: &mut App) {
 }
 /// The caller supplies display text for the stable item ids (`edit`, `undo`,
 /// `redo`, `cut`, `copy`, `paste`, `selectAll`), keeping copy out of this primitive.
-pub fn edit_menu(label: impl Fn(&'static str) -> SharedString) -> Menu {
+pub fn edit_menu() -> Menu {
+    // `role: "editMenu"` with Electron's labels.
     Menu {
         disabled: false,
-        name: label("edit"),
+        name: "Edit".into(),
         items: vec![
-            MenuItem::os_action(label("undo"), Undo, OsAction::Undo),
-            MenuItem::os_action(label("redo"), Redo, OsAction::Redo),
+            MenuItem::os_action("Undo", Undo, OsAction::Undo),
+            MenuItem::os_action("Redo", Redo, OsAction::Redo),
             MenuItem::separator(),
-            MenuItem::os_action(label("cut"), Cut, OsAction::Cut),
-            MenuItem::os_action(label("copy"), Copy, OsAction::Copy),
-            MenuItem::os_action(label("paste"), Paste, OsAction::Paste),
-            MenuItem::os_action(label("selectAll"), SelectAll, OsAction::SelectAll),
+            MenuItem::os_action("Cut", Cut, OsAction::Cut),
+            MenuItem::os_action("Copy", Copy, OsAction::Copy),
+            MenuItem::os_action("Paste", Paste, OsAction::Paste),
+            MenuItem::action("Paste and Match Style", Paste),
+            MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),
         ],
     }
 }

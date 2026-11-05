@@ -444,6 +444,11 @@ impl DocumentEditor {
         });
     }
 
+    /// The open document's viewer (`markdown`, `csv`, …).
+    pub fn viewer_id(&self) -> Option<&'static str> {
+        self.session.as_ref().map(|s| s.viewer.id)
+    }
+
     pub fn focus_document(&self, window: &mut Window, cx: &mut App) {
         match self.surface.as_ref().and_then(|s| s.focus_handle(cx)) {
             Some(handle) => handle.focus(window, cx),

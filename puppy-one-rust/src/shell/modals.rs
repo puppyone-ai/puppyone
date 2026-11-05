@@ -49,8 +49,6 @@ pub(super) enum Modal {
     /// `createItemLifecycleManager`: running Agent/terminal hosts of this
     /// window, listed from the host budget (not from their tabs).
     Executions,
-    /// App menu → About PuppyOne (`role: "about"`).
-    About,
     /// `CloudDialog`: the linked Project's Cloud services.
     CloudServices,
     /// A notice; a later one replaces it.

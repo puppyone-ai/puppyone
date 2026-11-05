@@ -13,7 +13,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cargo run --release --locked
 ```
 
-启动后点击 **Open folder…**，也可以通过 `⌘O` 选目录。Header 项目菜单列出最近项目、打开文件夹、首页，以及当前项目的位置菜单（Put in the Cloud / History / Open in Cloud）；产品在 qubits@671143f2a 已删除 Header 的本地 / Cloud 切换。
+启动后点击 **Open folder…** 选目录。Header 项目菜单列出最近项目、打开文件夹、首页，以及当前项目的位置菜单（Put in the Cloud / History / Open in Cloud）；产品在 qubits@671143f2a 已删除 Header 的本地 / Cloud 切换。
 
 直接打开一个文件夹 / 文件：
 
@@ -152,15 +152,15 @@ python3 tools/check-auth-reference.py
 ## 这一版可以做什么
 
 - 选择真实本地文件夹，展开目录，读取文件；目录扫描和读写在后台线程。
-- 点击已有 UTF-8 文本文件，在原生编辑器里编辑：Markdown（`.md` / `.mdx` / `.markdown`）实时预览与源码模式，CSV / TSV 表格与源码模式，其他文本为纯文本编辑。系统 **View → Toggle Markdown Source** 切换实时预览 / 源码。
+- 点击已有 UTF-8 文本文件，在原生编辑器里编辑：Markdown（`.md` / `.mdx` / `.markdown`）实时预览与源码模式，CSV / TSV 表格（产品的表格查看器没有源码模式），其他文本为纯文本编辑。Markdown 用 `⌘/` 或 `⇧⌘M`、或标题栏 / Pane 菜单的视图切换在实时预览与源码之间切换。
 - **Markdown 源码是唯一真相**：实时预览不改写原文。原生支持标题、强调、链接 / 维基链接、列表、任务、引用、分隔线、带高亮的代码块和可编辑表格；数学公式、Mermaid、图片、HTML / MDX 块尚未原生实现，按原文显示，不会被静默丢弃。几何与产品逐块对齐的验收见 PARITY_TODO §7。
 - 输入法：所有原生编辑器共用一套组字适配（中文 / 日文 / 韩文 / 死键 / 长按重音），整段组字一步撤销；过滤部分输入法（如搜狗）把方向键当文字插入的功能键字符。
 - 其他文本文件：撤销 / 重做、查找、输入法；暂无行号和语法高亮。
-- 编辑默认自动落盘；`⌘S` 仅用于 flush/retry；**File → Reload from Disk** 重读磁盘；`⌘W` / **File → Close File** 关闭当前文件。正文不再显示文件工具栏、格式工具栏和底部状态栏；格式操作移到系统 **Format** 菜单，源码切换位于 **View → Toggle Markdown Source**。
+- 编辑默认自动落盘；`⌘S` 仅用于 flush/retry；`⌘W` 关闭当前编辑器，没有编辑器时关闭窗口；`⌃Tab` / `⌃⇧Tab` 在标签间切换。菜单栏按产品的模板：应用、File（New Window / Manage Executions / Close Window）、Edit、View（Toggle Full Screen）、Theme、Window、Help。
 - 显式关闭文档、资源修改和正常退出会取得冻结快照并等待自动写入完成；IME 结束后继续，不弹出普通文档保存确认。标签、Pane 和本地项目切换保留文档，不以关闭/重开实现保活。
 - 磁盘轮询/条件写确认外部变化后采纳磁盘内容，推进 persistence epoch，忽略旧写回执；自身写回声不得覆盖新输入。真正 I/O 失败保留输入并显示可重试错误。
 - 保留 UTF-8 BOM、LF / CRLF 和末尾换行；普通 POSIX 文件权限随保存保留。
-- 外围 `⌘B` / `⌘J` 切换左右区域；Markdown 内容焦点内的 `⌘B` 由原生 Markdown 格式命令处理。拖动分隔线调整宽度。
+- Header 的按钮切换左右区域（产品没有对应快捷键）；Markdown 内容焦点内的 `⌘B` / `⌘I` 是粗体 / 斜体。拖动分隔线调整宽度。
 - Settings 按 Web 的 sidebar/main/components 分层；语言、深/浅色、三档文字尺度、Header Changes/Terminal 可见性、Project Rail 和创建菜单配置修改后自动持久化。不跟随系统主题；其他未接通设置明确只读/禁用。Feedback 已有原生表单，但附件和发送禁用，**不会上传任何内容**。
 
 **已有本地多文档和分屏，仍不是完整多格式 Editor workbench/L3。** Header 的 Git 显示实际变更和同步计数，打开右侧 Changes；Terminal 图标打开原生工作台。两者切换保留 Agent/Terminal 实例。

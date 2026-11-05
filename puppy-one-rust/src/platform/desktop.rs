@@ -46,3 +46,12 @@ pub fn open_url(url: &str) -> Result<(), String> {
     }
     spawn(&[parsed.as_str().as_ref()])
 }
+
+/// `role: "about"`: the system's standard About panel (the bundle's name,
+/// version, copyright and icon).
+pub fn show_about_panel() {
+    #[cfg(target_os = "macos")]
+    if let Some(mtm) = objc2::MainThreadMarker::new() {
+        objc2_app_kit::NSApplication::sharedApplication(mtm).orderFrontStandardAboutPanel(None);
+    }
+}
