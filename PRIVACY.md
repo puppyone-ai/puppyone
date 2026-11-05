@@ -56,11 +56,30 @@ files through the relay without storing them. Audit retention and privacy
 review remain rollout gates. It is **not end-to-end
 encrypted**, not an automatic Cloud publish, and not product analytics.
 
-On the computer that shares a folder, PuppyOne keeps the folder's location, the
-device key (encrypted with the operating system's credential storage) and a
-"paused" choice in its application data. On the computer that opens it,
-PuppyOne remembers recently opened folders by identifier and display name.
-Removing a computer deletes its key; pausing stops serving until resumed.
+On the computer that shares a folder, a separate PuppyOne Host process (the
+same program, without windows) keeps the folder's location, the device key
+(encrypted with the operating system's credential storage), the "paused" and
+"run on the whole computer" choices in its own application data. It keeps
+sharing after PuppyOne quits, until you pause, remove the folder or the
+computer, or sign out of PuppyOne on that computer. Your PuppyOne sign-in stays
+with the App; the Host process never receives it. On the computer that opens a
+shared folder, PuppyOne remembers recently opened folders by identifier and
+display name. Removing a computer deletes its key; pausing stops serving until
+resumed.
+
+If you allow terminals, Git or Agents in a shared folder, what your other
+computers start there runs on the sharing computer. By default it runs in an
+operating-system sandbox (macOS and Linux) that can change only that folder and
+cannot read SSH keys, the keychain, browser data or PuppyOne's own data; where
+no sandbox is available nothing runs unless you separately allow running on the
+whole computer, which acts as you with access to all your files and sign-ins.
+The relay records only that such a session or connection started and how it
+ended.
+
+For a planned end-to-end encrypted transport, the Cloud can also sign
+five-minute SSH certificates for your own computers and relay connection bytes
+it cannot read; it records only that a connection opened and how it ended. That
+transport is not used by PuppyOne yet.
 
 This experiment remains off until privacy review, retention policy, security
 and two-device acceptance are complete. Do not treat this section as notice
