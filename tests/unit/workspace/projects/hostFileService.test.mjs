@@ -101,6 +101,62 @@ describe("host file service", () => {
     } finally { stop(); }
   });
 
+  describe("a directory swapped for a symlink between check and use", () => {
+    // Deterministic race: the seam runs after the path check, before the filesystem call.
+    async function racing(operation) {
+      const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-host-race-")));
+      roots.push(base);
+      const root = path.join(base, "shared");
+      const outside = path.join(base, "outside");
+      await fs.mkdir(path.join(root, "sub"), { recursive: true });
+      await fs.writeFile(path.join(root, "sub", "note.md"), "inside");
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, "note.md"), "outside secret");
+      await fs.writeFile(path.join(outside, "keep.md"), "keep me");
+      let swapped = false;
+      const service = createHostFileService({
+        resolveFolder: async () => ({ rootPath: root, state: "active", capabilities: ["folder.read", "folder.write"] }),
+        beforeIo: async () => {
+          if (swapped) return;
+          swapped = true;
+          await fs.rename(path.join(root, "sub"), path.join(base, "moved-away"));
+          await fs.symlink(outside, path.join(root, "sub"));
+        },
+      });
+      const result = await operation(service).then(() => "ok", (error) => error.code);
+      expect(swapped).toBe(true); // The race really happened between the check and the call.
+      return { result, outside };
+    }
+
+    it("never returns bytes read through the swapped directory", async () => {
+      const { result } = await racing((service) => service.read("folder", "sub/note.md"));
+      expect(result).toBe("invalid_path");
+    });
+
+    it("never lists the swapped-in directory", async () => {
+      const { result } = await racing((service) => service.list("folder", "sub"));
+      expect(result).toBe("invalid_path");
+    });
+
+    it("never deletes files outside the folder", async () => {
+      const { result, outside } = await racing((service) => service.remove("folder", "sub"));
+      expect(result).toBe("invalid_path");
+      expect(await fs.readFile(path.join(outside, "keep.md"), "utf8")).toBe("keep me");
+      expect(await fs.readFile(path.join(outside, "note.md"), "utf8")).toBe("outside secret");
+    });
+
+    it("never writes or creates files outside the folder", async () => {
+      const read = await createHostFileService({ resolveFolder: async () => null }).read("x", "y").catch((e) => e.code);
+      expect(read).toBe("folder_unavailable");
+      const created = await racing((service) => service.write("folder", "sub/new.md", "bmV3", null));
+      expect(created.result).toBe("invalid_path");
+      await expect(fs.lstat(path.join(created.outside, "new.md"))).rejects.toMatchObject({ code: "ENOENT" });
+      const made = await racing((service) => service.mkdir("folder", "sub/made"));
+      expect(made.result).toBe("invalid_path");
+      await expect(fs.lstat(path.join(made.outside, "made"))).rejects.toMatchObject({ code: "ENOENT" });
+    });
+  });
+
   describe("shared conformance cases (host-file-protocol-v1)", () => {
     for (const testCase of contract.conformance) {
       it(testCase.name, async () => {

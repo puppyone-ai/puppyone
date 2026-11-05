@@ -56,7 +56,9 @@ function fileErrorCode(error) {
  * and revocation state on every call; a transport-supplied root is never accepted.
  * This is deliberately not a shell, Git or general local workspace IPC bridge.
  */
-export function createHostFileService({ resolveFolder, platform = process.platform }) {
+export function createHostFileService({ resolveFolder, platform = process.platform,
+  /** Test seam: runs between a path check and the filesystem call it guards. */
+  beforeIo = async () => {} }) {
   const writes = new Map();
   async function serialize(key, operation) {
     const previous = writes.get(key) ?? Promise.resolve();
@@ -105,10 +107,25 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
     return path.join(directory, base);
   }
 
-  async function readBounded(location) {
+  /**
+   * Path races: Node has no openat(), so every operation resolves a canonical
+   * path, acts on it, and then proves the path still resolves to the same place
+   * inside the root. A directory swapped for a symlink between the check and the
+   * act (only possible for a process already running on this computer) makes the
+   * operation fail instead of reaching outside the registered folder.
+   */
+  async function stillAt(rootPath, location) {
+    const current = await fs.realpath(location).catch(() => null);
+    if (current !== location || !isSameOrInsidePath(rootPath, current)) throw new HostFileError("invalid_path");
+  }
+
+  async function readBounded(rootPath, location) {
+    const expected = await fs.lstat(location, { bigint: true });
+    await beforeIo("read", location);
     const handle = await fs.open(location, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const before = await handle.stat({ bigint: true });
+      if (before.dev !== expected.dev || before.ino !== expected.ino) throw new HostFileError("invalid_path");
       if (!before.isFile() || before.size > BigInt(MAX_BYTES)) throw new HostFileError("unsupported_file");
       const bytes = await handle.readFile();
       const after = await handle.stat({ bigint: true });
@@ -116,17 +133,28 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
       if (before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
         throw new HostFileError("conflict");
       }
+      // Bytes read through a parent that moved since the check are never returned.
+      await stillAt(rootPath, location);
       return { bytes, info: after };
     } finally { await handle.close(); }
   }
 
-  async function removeTree(location, budget) {
+  async function removeTree(rootPath, location, budget) {
     const info = await fs.lstat(location);
     if (--budget.left < 0) throw new HostFileError("too_many_entries");
     if (info.isDirectory()) {
-      for (const child of await fs.readdir(location)) await removeTree(path.join(location, child), budget);
+      await stillAt(rootPath, location);
+      await beforeIo("remove", location);
+      const children = await fs.readdir(location);
+      // readdir follows a swapped-in symlink; prove the listing came from here.
+      await stillAt(rootPath, location);
+      const now = await fs.lstat(location);
+      if (now.ino !== info.ino || now.dev !== info.dev) throw new HostFileError("invalid_path");
+      for (const child of children) await removeTree(rootPath, path.join(location, child), budget);
       await fs.rmdir(location);
     } else {
+      // unlink never follows a symlink; it removes the link itself.
+      await stillAt(rootPath, path.dirname(location));
       await fs.unlink(location);
     }
   }
@@ -140,7 +168,9 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
     async list(folderId, requested = "") {
       const rootPath = await admit(folderId, "folder.read");
       const location = await entry(rootPath, relativePath(requested, { root: true }));
+      await beforeIo("list", location);
       const items = await fs.readdir(location, { withFileTypes: true });
+      await stillAt(rootPath, location);
       if (items.length > MAX_ENTRIES) throw new HostFileError("too_many_entries");
       const entries = [];
       for (const item of items) {
@@ -157,7 +187,7 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
     async read(folderId, requested) {
       const rootPath = await admit(folderId, "folder.read");
       const name = relativePath(requested);
-      const { bytes, info } = await readBounded(await entry(rootPath, name));
+      const { bytes, info } = await readBounded(rootPath, await entry(rootPath, name));
       return { ...describe(split(name).base, info), content_base64: bytes.toString("base64"), revision: revision(bytes) };
     },
     async write(folderId, requested, contentBase64, expectedRevision) {
@@ -180,7 +210,7 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
             throw new HostFileError("unsupported_file");
           }
           mode = info.mode & 0o777;
-          if (revision((await readBounded(location)).bytes) !== expectedRevision) throw new HostFileError("conflict");
+          if (revision((await readBounded(rootPath, location)).bytes) !== expectedRevision) throw new HostFileError("conflict");
         }
         const temp = path.join(path.dirname(location), `${TEMP_PREFIX}${crypto.randomUUID()}`);
         let handle;
@@ -189,6 +219,9 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
           await handle.writeFile(bytes);
           await handle.sync();
           await handle.close(); handle = undefined;
+          // The temporary file and its final name share a directory that must not have moved.
+          await beforeIo("write", location);
+          await stillAt(rootPath, path.dirname(location));
           if (creating) {
             // No-clobber creation: link fails if anything appeared at the name.
             await fs.link(temp, location).catch((error) => {
@@ -197,7 +230,7 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
           } else {
             // The local user may also edit the file. Never silently overwrite that edit.
             const latest = await entry(rootPath, name);
-            if (latest !== location || revision((await readBounded(latest)).bytes) !== expectedRevision) {
+            if (latest !== location || revision((await readBounded(rootPath, latest)).bytes) !== expectedRevision) {
               throw new HostFileError("conflict");
             }
             await fs.rename(temp, location);
@@ -211,7 +244,10 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
     },
     async mkdir(folderId, requested) {
       const rootPath = await admit(folderId, "folder.write");
-      await fs.mkdir(await newEntry(rootPath, relativePath(requested)), { mode: 0o755 });
+      const location = await newEntry(rootPath, relativePath(requested));
+      await beforeIo("mkdir", location);
+      await stillAt(rootPath, path.dirname(location));
+      await fs.mkdir(location, { mode: 0o755 });
       return {};
     },
     async move(folderId, requested, destination) {
@@ -223,6 +259,9 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
         const source = await entry(rootPath, from);
         const target = await newEntry(rootPath, to);
         const info = await fs.lstat(source);
+        await beforeIo("move", source);
+        await stillAt(rootPath, path.dirname(source));
+        await stillAt(rootPath, path.dirname(target));
         if (info.isFile()) {
           // A hard link refuses an existing target, so a move never overwrites.
           await fs.link(source, target);
@@ -240,7 +279,7 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
       return serialize(`${folderId}:${name}`, async () => {
         const location = await entry(rootPath, name);
         if (location === rootPath) throw new HostFileError("invalid_path");
-        await removeTree(location, { left: MAX_ENTRIES });
+        await removeTree(rootPath, location, { left: MAX_ENTRIES });
         return {};
       });
     },
