@@ -13,6 +13,7 @@ import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { HtmlViewMenu } from "./HtmlViewMenu";
+import { openWorkspaceDocumentIntent } from "./htmlOpenDocumentIntent";
 import { isHtmlDocumentEmpty } from "./htmlDocumentEmpty";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
@@ -125,14 +126,7 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   // absolute path or a URL scheme.
   const navigation = documentNavigation ?? null;
   const openDocument = useCallback((intent: { target: string; anchor: string | null }) => {
-    if (!navigation || !document.path) return;
-    // The reference parser only accepts explicit relative paths, and it splits
-    // the fragment itself so the heading survives as `reference.anchor`.
-    const path = intent.target.startsWith(".") ? intent.target : `./${intent.target}`;
-    const raw = intent.anchor ? `${path}#${intent.anchor}` : path;
-    const reference = navigation.resolveReference(document.path, raw);
-    if (!reference || !navigation.canOpenReference(reference)) return;
-    void navigation.openReference(reference);
+    openWorkspaceDocumentIntent(navigation, document.path, intent);
   }, [document.path, navigation]);
 
   const unavailable = useCallback(() => {

@@ -1,3 +1,5 @@
+import type { DocumentNavigationPort } from "../../navigation/documentNavigation";
+
 /** Documents a previewed HTML page may ask the host to open. Only text
  * documents that a viewer can show; never images, archives or executables. */
 const OPENABLE_DOCUMENT_EXTENSIONS = new Set(["md", "markdown", "mdx", "txt", "html"]);
@@ -39,4 +41,23 @@ export function isOpenableDocumentTarget(raw: string): boolean {
 function hasOpenableExtension(target: string): boolean {
   const match = /\.([a-z0-9]+)$/i.exec(target);
   return Boolean(match && OPENABLE_DOCUMENT_EXTENSIONS.has(match[1]!.toLowerCase()));
+}
+
+/**
+ * Hands a validated intent to the Host navigation port. The frame only names a
+ * relative path; the port decides whether that document exists and may open.
+ */
+export function openWorkspaceDocumentIntent(
+  navigation: DocumentNavigationPort | null,
+  sourcePath: string,
+  intent: HtmlDocumentOpenIntent,
+): void {
+  if (!navigation || !sourcePath) return;
+  // The reference parser only accepts explicit relative paths, and it splits
+  // the fragment itself so the heading survives as `reference.anchor`.
+  const path = intent.target.startsWith(".") ? intent.target : `./${intent.target}`;
+  const raw = intent.anchor ? `${path}#${intent.anchor}` : path;
+  const reference = navigation.resolveReference(sourcePath, raw);
+  if (!reference || !navigation.canOpenReference(reference)) return;
+  void navigation.openReference(reference);
 }
