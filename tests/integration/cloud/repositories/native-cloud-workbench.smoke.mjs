@@ -1032,8 +1032,11 @@ app.whenReady().then(async () => {
   assert(await evaluate(`(() => {
     const notice = document.querySelector('.desktop-local-folder-cloud-notice');
     return notice.textContent.includes('another Puppyone environment') && notice.textContent.includes('http://api.puppyone.ai')
-      && ![...notice.querySelectorAll('button')].some(button => /Open Cloud project|Reconnect/.test(button.textContent));
-  })()`), 'Another environment must be explained without an action that cannot succeed');
+      && ![...notice.querySelectorAll('button')].some(button => /Open Cloud project|Reconnect/.test(button.textContent))
+      && [...notice.querySelectorAll('button')].some(button => button.textContent === 'Disconnect');
+  })()`), 'Another environment must be explained, offering only to end the link');
+  assert(await evaluate("document.querySelector('.desktop-titlebar-place-button').dataset.cloudLink === 'problem'"),
+    'The Header must mark a link that cannot be used from here');
   await evaluate("window.__nativeCloudWorkbenchSmoke.requestCloud()");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert(await evaluate("!document.querySelector('.desktop-cloud-dialog, [role=dialog]') && Boolean(document.querySelector('.desktop-local-folder-cloud-notice.is-other-environment'))")
@@ -1043,7 +1046,7 @@ app.whenReady().then(async () => {
     await evaluate("Promise.all(document.querySelector('.desktop-local-folder-cloud-notice').getAnimations({subtree:true}).map(animation => animation.finished.catch(() => {})))");
     await writeFile(path.join(artifacts, `other-environment-${theme}.png`), (await window.webContents.capturePage()).toPNG());
   }
-  // A folder whose Cloud project disappeared can be put in the Cloud again.
+  // A folder whose Cloud project disappeared ends its link, from the notice or the Header.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryWrongHost(false)");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryMissing(true)");
   await waitFor("Boolean(document.querySelector('.desktop-local-folder-cloud-notice.is-missing'))");
@@ -1053,22 +1056,39 @@ app.whenReady().then(async () => {
     await evaluate("Promise.all(document.querySelector('.desktop-local-folder-cloud-notice').getAnimations({subtree:true}).map(animation => animation.finished.catch(() => {})))");
     await writeFile(path.join(artifacts, `missing-project-${theme}.png`), (await window.webContents.capturePage()).toPNG());
   }
-  await clickNoticeAction('Put in the Cloud again');
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-publish-confirmation'))");
-  await captureSettledDialog('missing-project-confirmation', '.desktop-cloud-publish-confirmation');
-  assert((await state()).detachRequests.length === 0, 'Replacement confirmation must precede detaching');
-  await evaluate("[...document.querySelectorAll('.desktop-cloud-publish-confirmation button')].find(button => button.textContent === 'Cancel').click()");
-  await waitFor("!document.querySelector('.desktop-cloud-publish-confirmation')");
-  assert((await state()).detachRequests.length === 0, 'Cancelling replacement must keep the old connection');
-  await clickNoticeAction('Put in the Cloud again');
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-publish-confirmation'))");
-  await evaluate("document.querySelector('.desktop-cloud-publish-confirmation button.primary').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-dialog [data-cloud-publish-action]'))");
+  await clickNoticeAction('Disconnect');
+  await captureSettledDialog('disconnect-confirmation', '.desktop-cloud-disconnect-dialog');
+  assert(await evaluate("document.querySelector('.desktop-cloud-disconnect-dialog').textContent.includes('The Cloud project isn’t deleted') && document.querySelector('.desktop-cloud-disconnect-dialog').textContent.includes('2 commits haven’t been sent')"),
+    'The confirmation must say the Cloud project stays and which commits will not be sent');
+  assert((await state()).detachRequests.length === 0, 'Confirmation must precede ending the link');
+  await evaluate("[...document.querySelectorAll('.desktop-cloud-disconnect-dialog button')].find(button => button.textContent === 'Cancel').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-disconnect-dialog')");
+  assert((await state()).detachRequests.length === 0, 'Cancelling must keep the link');
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=disconnect]'))");
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    await captureSettledDialog(`cloud-link-menu-${theme}`, '.desktop-project-place-menu');
+  }
+  assert(await evaluate("document.querySelector('[data-project-place-row=cloud-link]').textContent.includes('No longer in the Cloud')"),
+    'The Header must say why the link cannot be opened');
+  await evaluate("document.querySelector('[data-project-place-row=disconnect]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-disconnect-dialog'))");
+  await evaluate("document.querySelector('.desktop-cloud-disconnect-dialog .desktop-dialog-button.destructive').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-disconnect-dialog') && !document.querySelector('.desktop-local-folder-cloud-notice')");
   assert((await state()).detachRequests.length === 1 && (await state()).detachRequests[0].join(',') === 'puppyone',
-    'Reviewed replacement must detach exactly the old canonical Cloud remote');
+    'Ending the link must detach exactly the reviewed Cloud connection');
+  assert((await state()).publishRequests.length === 1, 'Ending the link must never put the folder in the Cloud by itself');
+  assert(await evaluate("!document.querySelector('.desktop-titlebar-place-button').dataset.cloudLink && !document.querySelector('.desktop-titlebar-place-link')"),
+    'An unlinked folder carries no Cloud mark');
+  // Afterwards the folder is an ordinary local project that can be put in the Cloud again.
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=put-in-cloud]'))");
+  await evaluate("document.querySelector('[data-project-place-row=put-in-cloud]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-dialog [data-cloud-publish-action]'))");
   assert((await state()).publishRequests.length === 1,
-    'Replacing the connection must return to explicit organization-scoped publication without uploading automatically');
-  await captureSettledDialog('missing-project-ready-to-publish', '.desktop-cloud-dialog');
+    'Putting the folder in the Cloud again must start with explicit organization-scoped publication, never uploading automatically');
+  await captureSettledDialog('after-disconnect-ready-to-publish', '.desktop-cloud-dialog');
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("!document.querySelector('.desktop-cloud-dialog')");
   assert((await state()).location === 'local', 'The folder stays open throughout');
@@ -1076,7 +1096,7 @@ app.whenReady().then(async () => {
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations,  nativeCornerCaptures, authGeometry, loginPresentations, publishPresentations, snapshot, errors }, null, 2));
-  console.log("Native Cloud workbench smoke passed: a local folder and its Cloud project as two projects in one retained shell, identical native layout/styles, Cloud tree/data/edit/save, folder notices, Cloud dialog sign-in across themes and eight locales, first publish, other-environment and missing-project folders, isolated drafts and retained hosts.");
+  console.log("Native Cloud workbench smoke passed: a local folder and its Cloud project as two projects in one retained shell, identical native layout/styles, Cloud tree/data/edit/save, folder notices, Cloud dialog sign-in across themes and eight locales, first publish, other-environment and missing-project folders and ending their Cloud links from the Header, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {
   console.error(error);

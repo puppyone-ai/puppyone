@@ -9,7 +9,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 const noop = () => undefined;
 const handlers: ProjectPlaceHandlers = { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop,
-  onPutInCloudAgain: noop, onOpenLocalFolder: noop };
+  onRetryCloudLink: noop, onDisconnectCloudLink: noop, onOpenLocalFolder: noop };
 const row = () => document.querySelector<HTMLElement>('[data-project-place-row="history"]');
 let root: Root;
 const render = async (extra: Partial<ProjectPlaceHandlers>, onDismiss = vi.fn()) => {

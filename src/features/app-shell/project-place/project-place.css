@@ -64,6 +64,21 @@
     white-space: nowrap;
   }
 
+  /* A folder linked to a Cloud project carries one small cloud after its
+     address: blue while the link works, the warning tone when it cannot be
+     used from here. */
+  .desktop-titlebar-place-link {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    color: var(--po-brand-blue, var(--po-accent-text));
+  }
+
+  .desktop-titlebar-place-button[data-cloud-link="problem"] .desktop-titlebar-place-link,
+  .desktop-project-place-row[data-cloud-link="problem"] .desktop-project-place-mark[data-project-place="cloud"] {
+    color: var(--po-warning, #d4a032);
+  }
+
   .desktop-titlebar-place-button:hover,
   .desktop-titlebar-place-button[aria-expanded="true"] {
     background: var(--desktop-titlebar-hover);
@@ -104,9 +119,15 @@
     color: inherit;
   }
 
-  /* The current place is a fact, not an action. */
-  .desktop-project-place-row[aria-current="true"] {
+  /* The current place is a fact, not an action; so is a link that cannot be
+     opened from here. */
+  .desktop-project-place-row[aria-current="true"],
+  .desktop-project-place-row[aria-disabled="true"] {
     cursor: default;
+  }
+
+  .desktop-project-place-row[data-project-place-row="cloud-link"][aria-disabled="true"]:hover {
+    background: transparent;
   }
 
   /* The action that reaches the Cloud carries the product blue, as the

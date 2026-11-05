@@ -121,9 +121,9 @@ import {
 } from "./features/cloud/project/localFolderCloudNoticeState";
 import { LocalFolderCloudNotice } from "./features/cloud/project/LocalFolderCloudNotice";
 import {
-  canReplaceMissingCloudProject,
-  MissingCloudProjectReplacement,
-} from "./features/cloud/project/MissingCloudProjectReplacement";
+  canDisconnectCloudLink,
+  CloudLinkDisconnectDialog,
+} from "./features/cloud/project/CloudLinkDisconnectDialog";
 import { useAccountAvailable, useCloudEnabled } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
@@ -807,7 +807,8 @@ function AppContent() {
   // starts putting the folder in the Cloud, or shows the notice saying why it
   // cannot be opened from here. The folder itself is never replaced or blocked.
   const [dismissedCloudNoticeKey, setDismissedCloudNoticeKey] = useState<string | null>(null);
-  const [replacingMissingCloudProject, setReplacingMissingCloudProject] = useState(false);
+  /** The folder whose Cloud link is being ended, while that dialog is open. */
+  const [disconnectingCloudLinkPath, setDisconnectingCloudLinkPath] = useState<string | null>(null);
   const selectCloudProjectRef = useRef<(projectId: string) => Promise<void>>(async () => {});
   const openCloudWorkspace = useCallback(() => {
     if (!cloudEnabled) return;
@@ -1415,34 +1416,37 @@ function AppContent() {
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
-  const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
-    && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
     ? resolveLocalFolderCloudNotice(projectCloudContext) : null;
+  // The folder's Cloud link can be ended from here whatever state it is in,
+  // except while a first publish owns it.
+  const cloudLinkDisconnectable = Boolean(cloudProjectNoticeState) && !repositoryCloudInitializationPending
+    && canDisconnectCloudLink(activeGitStatus);
+  const openCloudLinkDisconnect = () => setDisconnectingCloudLinkPath(workspace?.path ?? null);
   const cloudProjectNoticeKey = localFolderCloudNoticeKey(focusedWorkspace?.path, cloudProjectNoticeState);
   const cloudProjectNotice = cloudProjectNoticeState && cloudProjectNoticeKey !== dismissedCloudNoticeKey
     ? <LocalFolderCloudNotice notice={cloudProjectNoticeState}
       onOpenCloudProject={(projectId) => { void selectCloudProject(projectId); }}
       onSignIn={() => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); }}
-      onPutInCloud={missingCloudProjectReplaceable ? () => setReplacingMissingCloudProject(true) : undefined}
+      onDisconnect={cloudLinkDisconnectable ? openCloudLinkDisconnect : undefined}
       onRetry={revalidateRepositoryContext}
       onDismiss={() => setDismissedCloudNoticeKey(cloudProjectNoticeKey)} />
     : undefined;
-  // Putting the folder in the Cloud again first retires its old, missing
-  // Cloud project's Git connection, then continues to the first publish.
-  const missingCloudProjectDialog = replacingMissingCloudProject && missingCloudProjectReplaceable
-    && workspace && activeCloudSession && projectCloudContext.status === "not-found"
-    ? <MissingCloudProjectReplacement
-      key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
-        activeCloudSession.session_generation, projectCloudContext.projectId])}
-      context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
-      apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
-      onCancel={() => setReplacingMissingCloudProject(false)}
-      onDone={(outcome) => {
-        setReplacingMissingCloudProject(false);
+  // Ending the link removes only the folder's Git connection; the folder is
+  // then an ordinary local project that can be put in the Cloud again.
+  const cloudLinkDisconnectDialog = workspace && disconnectingCloudLinkPath === workspace.path && cloudLinkDisconnectable
+    ? <CloudLinkDisconnectDialog key={workspace.path}
+      projectName={cloudProjectNoticeState?.kind === "linked" ? cloudProjectNoticeState.projectName : null}
+      status={activeGitStatus}
+      onDisconnect={async (expectedRemotes) => {
+        await handleRemoveCloudRemote(expectedRemotes);
+        // Settled here rather than in the dialog: the refreshed status can
+        // close the dialog before its own completion runs.
+        setDisconnectingCloudLinkPath(null);
         revalidateRepositoryContext();
-        if (outcome === "replaced") openCloudPublish();
-      }} />
+      }}
+      onCancel={() => setDisconnectingCloudLinkPath(null)}
+      onDone={() => setDisconnectingCloudLinkPath(null)} />
     : null;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
   const firstRunSignIn = useFirstRunSignIn({
@@ -1680,14 +1684,15 @@ function AppContent() {
       unhosted: projectCloudContext.status === "local-only",
       publishPending: repositoryCloudInitializationPending,
       notice: cloudProjectNoticeState,
-      missingReplaceable: missingCloudProjectReplaceable,
+      disconnectable: cloudLinkDisconnectable,
       linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
     }),
     handlers: {
       onPutInCloud: openCloudPublish,
       onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
       onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
-      onPutInCloudAgain: () => setReplacingMissingCloudProject(true),
+      onRetryCloudLink: revalidateRepositoryContext,
+      onDisconnectCloudLink: openCloudLinkDisconnect,
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
       ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
     },
@@ -2006,7 +2011,7 @@ function AppContent() {
       {accountCloudSurface}
       {projectNavigationOverlay}
       {projectEntryOverlay}
-      <DesktopOverlayPortal appearance={surfaceAppearance}>{missingCloudProjectDialog}</DesktopOverlayPortal>
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{cloudLinkDisconnectDialog}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }

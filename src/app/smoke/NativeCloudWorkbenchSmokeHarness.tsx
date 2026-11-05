@@ -15,10 +15,10 @@ import { CloudPublishDialog } from "../../features/cloud/initialization/CloudPub
 import { CloudSignedOutRoute } from "../../features/cloud/auth/CloudSignedOutRoute";
 import { LocalFolderCloudNotice } from "../../features/cloud/project/LocalFolderCloudNotice";
 import { resolveLocalFolderCloudEntry, resolveLocalFolderCloudNotice } from "../../features/cloud/project/localFolderCloudNoticeState";
-import { MissingCloudProjectReplacement } from "../../features/cloud/project/MissingCloudProjectReplacement";
+import { CloudLinkDisconnectDialog } from "../../features/cloud/project/CloudLinkDisconnectDialog";
 import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
-import { cloudProjectAddress, localProjectAddress } from "../../features/app-shell/project-place/projectPlaceMenuState";
+import { cloudProjectAddress, localProjectAddress, resolveProjectPlaceMenu } from "../../features/app-shell/project-place/projectPlaceMenuState";
 import { cloudMessage } from "../../features/cloud/cloudPresentation";
 import type { ProjectCloudContext } from "../../features/cloud/project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
@@ -229,7 +229,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     cloudSessionAvailable);
   const [publishLoading, setPublishLoading] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
-  const [replacingMissingProject, setReplacingMissingProject] = useState(false);
+  const [disconnectingCloudLink, setDisconnectingCloudLink] = useState(false);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
@@ -346,19 +346,22 @@ export function NativeCloudWorkbenchSmokeHarness() {
     ...(cloudSessionAvailable && !repositoryMissing
       ? [{ id: `cloud:${context.projectId}`, label: context.projectName, localPath: "", cloudProjectId: context.projectId }] : []),
   ];
+  const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
   const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} multiRootWorkspacesEnabled={false}
         projectItems={projectItems} {...smokeHeaderProject(location === "cloud" ? workbench.service : null)}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject}
         placeMenu={{ menu: location === "cloud"
           ? { place: "cloud", address: cloudProjectAddress(FIXTURE_ORGANIZATION), action: null }
-          : { place: "local", address: localProjectAddress(localWorkspace.path), action: null },
-        handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
+          : resolveProjectPlaceMenu({ place: "local", address: localProjectAddress(localWorkspace.path),
+            unhosted: repositoryContext.status === "local-only", publishPending: publishLoading,
+            notice: noticeState, disconnectable: true }),
+        handlers: { onPutInCloud: requestCloud, onOpenCloudProject: openCloudProject, onSignIn: requestCloud,
+          onRetryCloudLink: noop, onDisconnectCloudLink: () => setDisconnectingCloudLink(true), onOpenLocalFolder: noop,
           ...(location === "cloud" && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } }} />;
-  const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
   const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
     onOpenCloudProject={openCloudProject} onSignIn={requestCloud}
-    onPutInCloud={() => setReplacingMissingProject(true)} onRetry={noop}
+    onDisconnect={() => setDisconnectingCloudLink(true)} onRetry={noop}
     onDismiss={() => setNoticeDismissed(true)} /> : undefined;
   // The Cloud dialog's own content for this folder: sign in first, then the
   // existing first publish. A linked folder has nothing to do here.
@@ -395,15 +398,17 @@ export function NativeCloudWorkbenchSmokeHarness() {
       <SmokeCloudDialogContent signedIn={cloudSessionAvailable} publishLoading={publishLoading}
         onPublish={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />
     </CloudPublishDialog>}
-    {replacingMissingProject && repositoryContext.status === "not-found" && <MissingCloudProjectReplacement
-      context={repositoryContext} session={session} apiBaseUrl={API}
-      status={{ remotes: [{ name: "puppyone", fetchUrl: cloudRemote, pushUrl: cloudRemote, branches: [] }] }}
-      onCancel={() => setReplacingMissingProject(false)}
-      onRemoveCloudRemote={async remotes => {
+    {disconnectingCloudLink && noticeState && <CloudLinkDisconnectDialog
+      projectName={noticeState.kind === "linked" ? noticeState.projectName : null}
+      status={{ remotes: [{ name: "puppyone", fetchUrl: cloudRemote, pushUrl: cloudRemote, branches: [] }],
+        sourceControl: { remote: { target: { remote: "puppyone", exists: true, ahead: 2 } } } }}
+      onCancel={() => setDisconnectingCloudLink(false)}
+      onDisconnect={async remotes => {
         detachRequests.push(remotes.map(remote => remote.name));
-        cloudProjectMissing = false; setRepositoryMissing(false); setRepositoryLocalOnly(true);
+        cloudProjectMissing = false; setRepositoryMissing(false); setRepositoryWrongHost(false); setRepositoryLocalOnly(true);
+        setDisconnectingCloudLink(false);
       }}
-      onDone={(outcome) => { setReplacingMissingProject(false); if (outcome === "replaced") setCloudDialogOpen(true); }} />}
+      onDone={() => setDisconnectingCloudLink(false)} />}
   </div>;
 }
 

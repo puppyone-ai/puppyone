@@ -13,10 +13,10 @@ const noop = () => undefined;
 /** The Header place menu for a scenario: a folder to put in the Cloud, a linked folder, or a Cloud project. */
 function placeMenuFor(state: string, current: "local" | "cloud") {
   return { menu: resolveProjectPlaceMenu({ place: current, unhosted: state === "local-only" || state === "local-github",
-    publishPending: false, missingReplaceable: false,
+    publishPending: false, disconnectable: true,
     notice: state === "local-cloud" ? { kind: "linked", projectId: "project-1", projectName: "To-Do-List", openable: true } : null,
     linkedFolder: current === "cloud" ? { path: "/Users/demo/Projects/To-Do-List", name: "To-Do-List" } : null }),
-  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
+  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onRetryCloudLink: noop, onDisconnectCloudLink: noop,
     onOpenLocalFolder: noop } };
 }
 
