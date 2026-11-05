@@ -1,0 +1,86 @@
+/*
+ * Persistent Markdown document outline. Lives beside the editor surface, so it
+ * shares the rail's 26px item rhythm instead of looking like a second product.
+ */
+
+.po-markdown-outline-panel {
+  position: sticky;
+  top: 0;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 200px;
+  max-height: 100%;
+  overflow: hidden auto;
+  padding: 10px 8px;
+  border-inline-start: 1px solid color-mix(in srgb, var(--po-border-subtle) 70%, transparent);
+  background: var(--po-menu-bg);
+  font-family: var(--po-font-ui, var(--po-font-sans));
+}
+
+.po-markdown-outline-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.po-markdown-outline-row {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.po-markdown-outline-item {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  padding-inline-start: calc(8px + var(--po-markdown-outline-indent, 0px));
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 26px;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.po-markdown-outline-item:hover {
+  color: var(--po-text);
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+}
+
+.po-markdown-outline-item[data-active="true"] {
+  color: var(--po-text);
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+}
+
+.po-markdown-outline-item:focus-visible {
+  outline: 2px solid var(--po-accent);
+  outline-offset: -2px;
+}
+
+/* The outline sits beside the editor frame rather than inside its scroll area,
+ * so it never participates in the document's own scroll surface. */
+.markdown-viewer-shell {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.markdown-viewer-shell > .editor-host {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
