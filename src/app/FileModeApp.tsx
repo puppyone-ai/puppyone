@@ -21,6 +21,7 @@ import {
 } from "@puppyone/shared-ui";
 import { EditorPaneActionsMenu } from "../components/EditorPaneActionsMenu";
 import { EditorViewModeMenu } from "../components/EditorViewModeMenu";
+import { useEditorPaneChromeReveal } from "../components/useEditorPaneChromeReveal";
 import { PageLoading } from "../components/loading";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../features/appearance/AppearanceRuntime";
@@ -60,6 +61,9 @@ export function FileModeApp() {
   const [menuContribution, setMenuContribution] = useState<EditorPaneMenuContribution | null>(null);
   const documentRef = useRef<HTMLElement>(null);
   useScrolledUnderTitlebar(documentRef);
+  // The file's controls appear as a project pane's do: only near the top of the window.
+  const windowRef = useRef<HTMLDivElement>(null);
+  const controlsReveal = useEditorPaneChromeReveal(windowRef, false);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +82,11 @@ export function FileModeApp() {
     <SurfaceAppearanceProvider value={appearance}>
       <div
         {...appearance.rootProps}
+        ref={windowRef}
         className={`file-mode-window${appearance.appearance.effectiveColorMode === "dark" ? " dark" : ""}`}
+        data-controls-revealed={controlsReveal.revealed ? "true" : undefined}
+        onPointerMove={controlsReveal.onPointerMove}
+        onPointerLeave={controlsReveal.onPointerLeave}
       >
         <header
           className="file-mode-window__titlebar"

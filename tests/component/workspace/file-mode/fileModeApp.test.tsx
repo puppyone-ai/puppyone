@@ -208,6 +208,28 @@ describe("FileModeApp", () => {
     expect(document.querySelector(".desktop-editor-view-mode-menu")).toBeNull();
   });
 
+  it("shows the file's controls only while the pointer is in the top third of the window", async () => {
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "live", setValue: vi.fn(),
+      options: [{ id: "live", label: "Live view", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const pointAt = (clientY: number) => act(() => {
+      windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY }));
+    });
+
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    pointAt(150);
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    pointAt(450);
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    pointAt(150);
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null })); });
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+  });
+
   it("puts the editor's settings in a title bar menu instead of the editor", async () => {
     const setChecked = vi.fn();
     mocks.menuItems.value = [{ kind: "toggle", id: "csv-header-row", label: "Header row", checked: true, setChecked }];

@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState, type PointerEvent, type RefObject } from "react";
 
-/** Ghostty-style reveal: pane chrome appears in the leading third of the pane. */
+/**
+ * Ghostty-style reveal: editor chrome appears in the leading third of what it
+ * belongs to, a project pane or a file window.
+ */
 export const PANE_HANDLE_REVEAL_RATIO = 1 / 3;
 
 export function useEditorPaneChromeReveal(

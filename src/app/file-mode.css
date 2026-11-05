@@ -66,7 +66,13 @@
     white-space: nowrap;
   }
 
-  /* The editor's view and settings, spaced as a project pane menu's commands. */
+  /*
+   * The editor's view and settings, spaced as a project pane menu's commands.
+   * Like a project pane's chrome they keep out of the way of reading: they
+   * appear while the pointer is in the top third of the window, and stay while
+   * one of their menus is open or the keyboard is on them. Hidden, they still
+   * take the pointer, so the first press never falls through to the bar.
+   */
   .file-mode-window__controls {
     grid-column: 3;
     justify-self: end;
@@ -74,6 +80,14 @@
     align-items: center;
     gap: 3px;
     margin-inline-end: var(--file-mode-titlebar-safe-end);
+    opacity: 0;
+    transition: opacity 90ms ease;
+  }
+
+  .file-mode-window[data-controls-revealed] .file-mode-window__controls,
+  .file-mode-window__controls:hover,
+  .file-mode-window__controls:has(:focus-visible, [aria-expanded="true"]) {
+    opacity: 1;
   }
 
   /* Each control is an icon command on the project titlebar's terms. */
@@ -90,23 +104,27 @@
     outline: 0;
     background: transparent;
     box-shadow: none;
-    color: inherit;
+    /* A shade lighter than the name at rest, as a project pane's handle is. */
+    color: color-mix(in srgb, var(--po-text-muted) 68%, transparent);
     cursor: var(--po-clickable-cursor, default);
     transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
   }
 
-  /* Icons keep the name's ink in every state; only the fill says hover, focus or open. */
+  /* Touched, an icon takes the name's ink, and the fill says hover, focus or open. */
   .file-mode-window__action:hover {
     background: var(--po-hover);
+    color: var(--po-text-muted);
   }
 
   .file-mode-window__action:focus-visible {
     background: var(--po-hover);
     box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+    color: var(--po-text-muted);
   }
 
   .file-mode-window__action[aria-expanded="true"] {
     background: var(--po-selected);
+    color: var(--po-text-muted);
   }
 
   /* One size and weight for every icon here, the project titlebar's, whichever editor drew it. */
@@ -160,7 +178,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .file-mode-window__document {
+    .file-mode-window__document,
+    .file-mode-window__controls {
       transition: none;
     }
   }

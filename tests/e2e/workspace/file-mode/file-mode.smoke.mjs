@@ -71,14 +71,32 @@ const titlebarControls = (window) => evaluate(window, `(async () => {
     await settle();
     return found;
   };
+  // At rest an icon is the name's ink, a shade lighter.
+  const alpha = (colour) => Number(/[/,]\\s*([\\d.]+)\\)$/.exec(colour)?.[1] ?? 1);
   const name = getComputedStyle(bar.querySelector(".file-mode-window__name")).color;
   return {
     buttons: bar.querySelectorAll("button").length,
-    iconsLikeTheName: [...bar.querySelectorAll("button svg")].every((icon) => icon.getBoundingClientRect().width === 15 && getComputedStyle(icon).color === name),
+    iconsLighterThanTheName: [...bar.querySelectorAll("button svg")].every((icon) => icon.getBoundingClientRect().width === 15 && alpha(getComputedStyle(icon).color) < alpha(name)),
     views: await count(bar.querySelector(".file-mode-window__view-mode"), ".desktop-editor-view-mode-menu", "[role=menuitemradio]"),
     settings: await count(bar.querySelector(".file-mode-window__action:not(.file-mode-window__view-mode)"), ".desktop-editor-pane-menu:not(.desktop-editor-view-mode-menu)", "[role^=menuitem]"),
   };
 })()`);
+/** Moves the real pointer to `fraction` of the window's height and reports whether the file's controls show. */
+async function controlsShowWithPointerAt(window, fraction) {
+  const [width, height] = window.getContentSize();
+  window.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(width / 2), y: Math.round(height * fraction) });
+  await wait(250);
+  return evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__controls")).opacity === "1"`);
+}
+/** Clicks the middle of `selector` with the real mouse. */
+async function clickWithMouse(window, selector) {
+  const { x, y } = await evaluate(window, `(() => {
+    const { left, top, width, height } = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return { x: Math.round(left + width / 2), y: Math.round(top + height / 2) };
+  })()`);
+  for (const type of ["mouseDown", "mouseUp"]) window.webContents.sendInputEvent({ type, x, y, button: "left", clickCount: 1 });
+  await wait(300);
+}
 /** Picks a view from the title bar's view menu by its place in the list. */
 const chooseView = (window, index) => evaluate(window, `(async () => {
   document.querySelector(".file-mode-window__titlebar .file-mode-window__view-mode").click();
@@ -212,7 +230,22 @@ async function coldStart() {
   check("title sits in the middle of the window", await evaluate(window, `(() => { const { left, right } = document.querySelector(".file-mode-window__name").getBoundingClientRect(); return Math.abs((left + right) / 2 - innerWidth / 2) <= 1; })()`));
   check("title bar shares the document's colour", await evaluate(window, `${visibleColour}(document.querySelector(".file-mode-window__titlebar")) === getComputedStyle(document.querySelector(".markdown-codemirror-editor")).backgroundColor`));
   check("title bar can drag the window", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar")).webkitAppRegion`), "drag");
-  check("Markdown shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 2, settings: 0 });
+  check("Markdown shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 2, settings: 0 });
+  // Like a project pane's chrome, the controls keep out of the way until the pointer comes near the top.
+  check("title bar controls stay hidden while reading lower down", await controlsShowWithPointerAt(window, 0.6), false);
+  check("title bar controls show in the top third of the window", await controlsShowWithPointerAt(window, 0.2), true);
+  await screenshot(window, "controls-revealed");
+  check("title bar controls hide again below it", await controlsShowWithPointerAt(window, 0.4), false);
+  await evaluate(window, `document.querySelector(".file-mode-window__view-mode").click()`);
+  check("title bar controls stay while their menu is open", await controlsShowWithPointerAt(window, 0.6), true);
+  await evaluate(window, `document.querySelector(".file-mode-window__view-mode").click()`);
+  check("title bar controls hide once the menu closes", await controlsShowWithPointerAt(window, 0.6), false);
+  // Picking a view with the mouse leaves focus on the control, but no reason to keep it in sight.
+  await controlsShowWithPointerAt(window, 0.05);
+  await clickWithMouse(window, ".file-mode-window__view-mode");
+  await clickWithMouse(window, '.desktop-editor-view-mode-menu [role=menuitemradio][aria-checked="true"]');
+  check("the view menu closes after a mouse pick", await exists(window, ".desktop-editor-view-mode-menu"), false);
+  check("title bar controls hide below the top third after a mouse pick", await controlsShowWithPointerAt(window, 0.6), false);
   check("project shell is not mounted", await exists(window, ".desktop-editor-pane"), false);
   check("project application is not loaded", await evaluate(window, `performance.getEntriesByType("resource").some((entry) => /\\/src\\/App\\.tsx/.test(entry.name))`), false);
   await until(() => evaluate(window, `[...document.querySelectorAll("img")].some((image) => image.complete && image.naturalWidth > 0)`), "the relative image");
@@ -331,7 +364,7 @@ async function routing(window) {
 async function csv() {
   const window = await openAndWait(inDocs("table.csv"), ".csv-table-editor__table");
   await screenshot(window, "csv");
-  check("CSV settings sit behind the title bar menu", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 0, settings: 4 });
+  check("CSV settings sit behind the title bar menu", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 0, settings: 4 });
   await evaluate(window, `(() => {
     const cell = document.querySelector('input[data-csv-row="1"][data-csv-column="1"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(cell, "Paris");
@@ -383,7 +416,7 @@ async function html() {
   check("page scripts cannot read local files", results, {
     "fetch sibling": "BLOCKED", "fetch nested": "BLOCKED", "xhr sibling": "BLOCKED", "json module": "BLOCKED",
   });
-  check("HTML shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLikeTheName: true, views: 3, settings: 0 });
+  check("HTML shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 3, settings: 0 });
   check("page still loads its own stylesheet", await frame.executeJavaScript(`getComputedStyle(document.getElementById("title")).color`), "rgb(0, 187, 102)");
   const area = await evaluate(window, `(() => { const { width, height } = document.querySelector("iframe").getBoundingClientRect(); return { width, height, windowWidth: innerWidth, windowHeight: innerHeight }; })()`);
   report.htmlArea = area;
