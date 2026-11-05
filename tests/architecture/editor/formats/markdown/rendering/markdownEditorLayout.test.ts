@@ -135,7 +135,10 @@ describe("Markdown editor layout", () => {
     expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 48px;");
     expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);");
     expect(contentRule).toContain("--po-markdown-editor-content-gutter-inline: max(");
-    expect(contentRule).toContain("padding-block: var(--po-markdown-editor-gutter-min);");
+    // A host drawing chrome over the document's top adds its height to the resting start padding.
+    expect(contentRule).toMatch(
+      /padding-block:\s*calc\(var\(--po-markdown-editor-gutter-min\) \+ var\(--po-editor-chrome-inset-block-start, 0px\)\)\s*var\(--po-markdown-editor-gutter-min\);/,
+    );
     expect(contentRule).toContain("padding-inline: var(--po-markdown-editor-content-gutter-inline);");
     expect(editorRule).toContain("container-type: inline-size;");
     expect(editorRule).toContain("--po-markdown-scroll-viewport-inline-size: 100cqw;");
