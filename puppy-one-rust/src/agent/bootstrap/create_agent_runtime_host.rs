@@ -2,7 +2,7 @@
 use crate::{
     agent::{
         connections::local_agent_inventory::Installation,
-        protocols::{acp::acp_runtime_adapter, pi_rpc::pi_rpc_adapter},
+        protocols::{acp::legacy_acp_runtime_adapter, pi_rpc::pi_rpc_adapter},
         runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
         runtimes::{claude::claude_adapter, codex::legacy_codex_app_server_adapter},
     },
@@ -67,7 +67,7 @@ fn create_inner(
                 Runtime::OpenCode => vec!["acp".into(), format!("--cwd={}", root.display())],
                 _ => vec!["acp".into()],
             };
-            Box::new(acp_runtime_adapter::Session::new(
+            Box::new(legacy_acp_runtime_adapter::Session::new(
                 executable,
                 args,
                 root,

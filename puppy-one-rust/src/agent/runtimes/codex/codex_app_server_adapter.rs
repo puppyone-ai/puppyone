@@ -419,7 +419,7 @@ impl CodexAppServerAdapter {
             .and_then(|_| connection.notify("initialized", None));
         if let Err(error) = initialized {
             let diagnostic = connection.diagnostics();
-            connection.dispose("JSONL-RPC connection closed.");
+            connection.dispose("JSONL-RPC connection closed.", true);
             let message = [error.message, diagnostic]
                 .into_iter()
                 .filter(|part| !part.is_empty())
@@ -888,7 +888,7 @@ impl CodexAppServerAdapter {
         codex_clear_pending_approvals(inner, "cancel", true);
         codex_clear_pending_questions(inner, true);
         if let Some(connection) = connection {
-            connection.dispose(reason);
+            connection.dispose(reason, true);
             connection.wait_for_exit().await?;
         }
         Ok(())

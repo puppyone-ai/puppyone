@@ -26,11 +26,13 @@ pub trait RpcConnection {
     fn respond_error(&self, id: Value, code: i64, message: &str) -> AgentResult<()>;
     /// `connection.on(event, listener)` for every event.
     fn on(&self, listener: Rc<dyn Fn(ConnectionEvent)>) -> u64;
+    /// `connection.off(event, listener)`.
+    fn off(&self, id: u64);
     fn closed(&self) -> bool;
     /// `connection.getDiagnostics()`.
     fn diagnostics(&self) -> String;
-    /// `connection.dispose(reason)`.
-    fn dispose(&self, reason: &str);
+    /// `connection.dispose(reason, { expected })`.
+    fn dispose(&self, reason: &str, expected: bool);
     /// `connection.waitForExit()`.
     fn wait_for_exit(&self) -> LocalBoxFuture<'static, AgentResult<Value>>;
 }
@@ -73,6 +75,10 @@ impl RpcConnection for JsonlRpcConnection {
         JsonlRpcConnection::on(self, move |event| listener(event))
     }
 
+    fn off(&self, id: u64) {
+        JsonlRpcConnection::off(self, id);
+    }
+
     fn closed(&self) -> bool {
         JsonlRpcConnection::closed(self)
     }
@@ -81,8 +87,8 @@ impl RpcConnection for JsonlRpcConnection {
         JsonlRpcConnection::diagnostics(self)
     }
 
-    fn dispose(&self, reason: &str) {
-        JsonlRpcConnection::dispose(self, reason, true);
+    fn dispose(&self, reason: &str, expected: bool) {
+        JsonlRpcConnection::dispose(self, reason, expected);
     }
 
     fn wait_for_exit(&self) -> LocalBoxFuture<'static, AgentResult<Value>> {
@@ -112,7 +118,9 @@ pub mod fake {
         pub errors: RefCell<Vec<Value>>,
         pub notifications: RefCell<Vec<Value>>,
         answers: RefCell<HashMap<String, Answer>>,
-        listeners: RefCell<Vec<Listener>>,
+        listeners: RefCell<Vec<(u64, Listener)>>,
+        /// Each `dispose(reason, expected)`.
+        pub disposals: RefCell<Vec<(String, bool)>>,
     }
 
     impl FakeConnection {
@@ -156,7 +164,12 @@ pub mod fake {
 
         /// `connection.emit(event)`.
         pub fn emit(&self, event: ConnectionEvent) {
-            let listeners = self.listeners.borrow().clone();
+            let listeners: Vec<Listener> = self
+                .listeners
+                .borrow()
+                .iter()
+                .map(|(_, l)| l.clone())
+                .collect();
             for listener in listeners {
                 listener(event.clone());
             }
@@ -184,11 +197,11 @@ pub mod fake {
             &self,
             method: &str,
             params: Value,
-            _options: RequestOptions,
+            options: RequestOptions,
         ) -> LocalBoxFuture<'static, AgentResult<Value>> {
             self.requests
                 .borrow_mut()
-                .push(serde_json::json!({ "method": method, "params": params }));
+                .push(serde_json::json!({ "method": method, "params": params, "timeoutMs": options.timeout_ms }));
             let answer = self.answers.borrow().get(method).cloned();
             match answer {
                 Some(answer) => answer(&params),
@@ -218,8 +231,15 @@ pub mod fake {
         }
 
         fn on(&self, listener: Rc<dyn Fn(ConnectionEvent)>) -> u64 {
-            self.listeners.borrow_mut().push(listener);
-            self.listeners.borrow().len() as u64
+            let id = self.listeners.borrow().last().map_or(1, |(id, _)| id + 1);
+            self.listeners.borrow_mut().push((id, listener));
+            id
+        }
+
+        fn off(&self, id: u64) {
+            self.listeners
+                .borrow_mut()
+                .retain(|(listener, _)| *listener != id);
         }
 
         fn closed(&self) -> bool {
@@ -230,10 +250,13 @@ pub mod fake {
             String::new()
         }
 
-        fn dispose(&self, _reason: &str) {
+        fn dispose(&self, reason: &str, expected: bool) {
+            self.disposals
+                .borrow_mut()
+                .push((reason.to_string(), expected));
             self.closed.set(true);
             self.emit(ConnectionEvent::Exit(
-                serde_json::json!({ "expected": true }),
+                serde_json::json!({ "expected": expected }),
             ));
         }
 

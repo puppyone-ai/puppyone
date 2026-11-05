@@ -35,7 +35,7 @@ fn live_installed_runtime_handshakes() {
                         )],
                     );
                 Box::new(
-                    super::protocols::acp::acp_runtime_adapter::Session::connected(
+                    super::protocols::acp::legacy_acp_runtime_adapter::Session::connected(
                         connection, root, "OpenCode", false,
                     ),
                 )
