@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { DataWorkspace, closeDocumentWorkingCopiesUnderResource,
-  withEditorDocumentOperations } from "@puppyone/shared-ui";
+import { DataWorkspace, appendWorkspaceContentChange, closeDocumentWorkingCopiesUnderResource,
+  withEditorDocumentOperations, type WorkspaceContentChange } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { createDeviceDataService } from "../data/deviceDataPort";
 import type { DeviceFolderRef } from "../model/deviceFolderIdentity";
@@ -18,6 +18,7 @@ export function DeviceFolderSurface({ selection, session, apiBase, onHome }: {
   leaseRef.current = lease;
   useEffect(() => () => { lease.current = false; }, [lease]);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
   const service = useMemo(() => createDeviceDataService({ ...selection, session, apiBase,
     isCurrent: () => lease.current && leaseRef.current === lease }),
     [selection, session, apiBase, lease]);
@@ -34,12 +35,16 @@ export function DeviceFolderSurface({ selection, session, apiBase, onHome }: {
       <button type="button" onClick={() => void close()}>← {t("hosts.folder.home")}</button>
       <strong>{selection.name}</strong>
       <span>{selection.writable ? t("hosts.folder.editing") : t("hosts.folder.readOnly")}</span>
+      <button type="button" onClick={() => setRefreshToken(current =>
+        appendWorkspaceContentChange(current, { rootUri: service.folder.uri, paths: null }))}>
+        {t("hosts.catalog.refresh")}
+      </button>
       {closeError && <span role="alert">{closeError}</span>}
     </header>
     <div style={{ flex: 1, minHeight: 0 }}>
       <DataWorkspace key={service.workspace.id} workspace={service.workspace} dataPort={dataPort}
         documentSourceKind="cloud" capabilities={{ write: selection.writable }}
-        showHeader={false} />
+        refreshKey={refreshToken} showHeader={false} />
     </div>
   </div>;
 }
