@@ -1,17 +1,20 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { promisify } from "node:util";
+import { afterEach, describe, expect, it } from "vitest";
 import { applyMacosBuilderConfig } from "../../../../scripts/desktop/build/platforms/macos.mjs";
 import {
-  FORWARD_EXIT,
+  DEV_NOT_RUNNING_MESSAGE,
   OPENER_BUNDLE_ID,
   appleScriptString,
   createOpenerInfo,
   createOpenerScript,
-  forwardFile,
+  devControlEndpoint,
 } from "../../../../scripts/desktop/dev/open-with.mjs";
+import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
 
 const identity = {
   applicationName: "PuppyOne",
@@ -19,24 +22,57 @@ const identity = {
   release: { baseVersion: "1.0.0", channel: "stable" },
 };
 const packagedTypes = applyMacosBuilderConfig({ config: {}, baseBuild: {}, identity }).mac.extendInfo.CFBundleDocumentTypes;
+const runAsync = promisify(execFile);
 
-const temporaryDirectories = [];
+const cleanups = [];
 function temporaryDirectory() {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "puppyone-open-with-test-"));
-  temporaryDirectories.push(directory);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "p1-open-with-"));
+  cleanups.push(() => fs.rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) fs.rmSync(directory, { recursive: true, force: true });
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function fakeApp({ lockGranted }) {
-  return {
-    setPath: vi.fn(),
-    requestSingleInstanceLock: vi.fn(() => lockGranted),
-    releaseSingleInstanceLock: vi.fn(),
-  };
+/** A stand-in for the dev instance's socket: records each request and answers with `reply`. */
+async function fakeDevInstance(endpoint, reply) {
+  const requests = [];
+  const server = net.createServer((socket) => {
+    let buffer = "";
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => {
+      buffer += chunk;
+      if (!buffer.includes("\n")) return;
+      const request = JSON.parse(buffer.slice(0, buffer.indexOf("\n")));
+      requests.push(request);
+      socket.end(`${JSON.stringify(reply(request))}\n`);
+    });
+  });
+  await new Promise((resolve) => server.listen(endpoint, resolve));
+  cleanups.push(() => new Promise((resolve) => server.close(resolve)));
+  return requests;
 }
+
+/** Runs the Open With app's hand-off for `files` and returns what it would tell the user. */
+async function handOff(root, endpoint, files) {
+  const sourcePath = path.join(root, "opener.applescript");
+  const scriptPath = path.join(root, "opener.scpt");
+  fs.writeFileSync(sourcePath, createOpenerScript({ endpoint }));
+  execFileSync("/usr/bin/osacompile", ["-o", scriptPath, sourcePath]);
+  const items = files.map((file) => `POSIX file ${appleScriptString(file)}`).join(", ");
+  // Asynchronous, so the fake dev instance in this process can answer.
+  const { stdout } = await runAsync("/usr/bin/osascript", [
+    "-e", `set opener to load script POSIX file ${appleScriptString(scriptPath)}`,
+    "-e", `tell opener to handOff({${items}})`,
+  ]);
+  return stdout.replace(/\n$/, "");
+}
+
+const opened = (request) => ({
+  ok: true,
+  protocol: 1,
+  results: request.paths.map((requestPath) => ({ path: requestPath, status: "opened" })),
+});
 
 describe("dev Open With app", () => {
   it("offers exactly the packaged build's file types instead of every file", () => {
@@ -59,58 +95,42 @@ describe("dev Open With app", () => {
     expect(appleScriptString(String.raw`/a "b"\c`)).toBe(String.raw`"/a \"b\"\\c"`);
   });
 
-  it.runIf(process.platform === "darwin")("passes awkward paths through to the forwarder intact", () => {
+  it("reaches the dev channel's socket, which belongs to no checkout", () => {
+    const userDataName = getDesktopBuildChannelPolicy("dev").userDataName;
+    expect(devControlEndpoint({ homeDirectory: "/Users/a", uid: 501 }))
+      .toBe(`/Users/a/Library/Application Support/${userDataName}/cli/control.sock`);
+  });
+
+  it.runIf(process.platform === "darwin")("asks the running dev instance to open each file, awkward paths intact", async () => {
     const root = temporaryDirectory();
-    const tools = path.join(root, `My "Tools" \\ dir`);
-    fs.mkdirSync(tools);
-    const electronPath = path.join(tools, "electron");
-    const record = path.join(root, "arguments.txt");
-    fs.writeFileSync(electronPath, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(record)}\n`, { mode: 0o755 });
-    const forwarderPath = path.join(tools, "forwarder's.mjs");
-    const file = path.join(root, "notes it's \"here\".md");
-    fs.writeFileSync(file, "# Notes\n");
+    const endpoint = path.join(root, "dev.sock");
+    const requests = await fakeDevInstance(endpoint, opened);
+    const files = [`notes it's "here" \\ 中文.md`, "table.csv"].map((name) => path.join(root, name));
+    for (const file of files) fs.writeFileSync(file, "x\n");
 
-    const scriptPath = path.join(root, "opener.scpt");
-    const sourcePath = path.join(root, "opener.applescript");
-    fs.writeFileSync(sourcePath, createOpenerScript({ electronPath, forwarderPath }));
-    execFileSync("/usr/bin/osacompile", ["-o", scriptPath, sourcePath]);
-    execFileSync("/usr/bin/osascript", [
-      "-e", `set opener to load script POSIX file ${appleScriptString(scriptPath)}`,
-      "-e", `tell opener to open {POSIX file ${appleScriptString(file)}}`,
-    ]);
-
-    expect(fs.readFileSync(record, "utf8")).toBe(`${forwarderPath}\n${file}\n`);
+    expect(await handOff(root, endpoint, files)).toBe("");
+    expect(requests).toEqual([{ protocol: 1, type: "open", paths: files }]);
   });
 
-  it("hands the file to the running dev instance", () => {
-    const directory = temporaryDirectory();
-    const file = path.join(directory, "notes.md");
-    fs.writeFileSync(file, "# Notes\n");
-    const app = fakeApp({ lockGranted: false });
+  it.runIf(process.platform === "darwin")("says so when npm run dev is not running", async () => {
+    const root = temporaryDirectory();
+    const file = path.join(root, "notes.md");
+    fs.writeFileSync(file, "x\n");
 
-    const result = forwardFile({ app, argv: ["electron", "forwarder.mjs", file], workingDirectory: directory, userDataPath: "/dev-data" });
-
-    expect(result).toBe(FORWARD_EXIT.delivered);
-    expect(app.setPath).toHaveBeenCalledWith("userData", "/dev-data");
-    expect(app.requestSingleInstanceLock).toHaveBeenCalledWith(expect.objectContaining({ filePath: file }));
+    expect(await handOff(root, path.join(root, "nobody-listens.sock"), [file])).toBe(DEV_NOT_RUNNING_MESSAGE);
   });
 
-  it("reports a missing dev instance and gives the lock back", () => {
-    const directory = temporaryDirectory();
-    const file = path.join(directory, "notes.md");
-    fs.writeFileSync(file, "# Notes\n");
-    const app = fakeApp({ lockGranted: true });
+  it.runIf(process.platform === "darwin")("passes on why the dev instance refused a file", async () => {
+    const root = temporaryDirectory();
+    const endpoint = path.join(root, "dev.sock");
+    await fakeDevInstance(endpoint, (request) => ({
+      ok: true,
+      protocol: 1,
+      results: [{ path: request.paths[0], status: "rejected", error: { code: "FILE_TOO_LARGE", message: "big.md is larger than 1 MB." } }],
+    }));
+    const file = path.join(root, "big.md");
+    fs.writeFileSync(file, "x\n");
 
-    expect(forwardFile({ app, argv: ["electron", "forwarder.mjs", file], workingDirectory: directory, userDataPath: "/dev-data" }))
-      .toBe(FORWARD_EXIT.devNotRunning);
-    expect(app.releaseSingleInstanceLock).toHaveBeenCalledOnce();
-  });
-
-  it("does not touch the lock without a file", () => {
-    const app = fakeApp({ lockGranted: false });
-
-    expect(forwardFile({ app, argv: ["electron", "forwarder.mjs"], workingDirectory: os.tmpdir(), userDataPath: "/dev-data" }))
-      .toBe(FORWARD_EXIT.noFile);
-    expect(app.requestSingleInstanceLock).not.toHaveBeenCalled();
+    expect(await handOff(root, endpoint, [file])).toBe("npm run dev did not open the file: big.md is larger than 1 MB.");
   });
 });

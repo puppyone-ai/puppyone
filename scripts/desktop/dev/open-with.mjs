@@ -4,50 +4,43 @@
  *
  * macOS offers only installed apps that declare file types, and the dev build
  * runs inside a generic Electron.app that declares none. This installs a small
- * AppleScript app carrying the packaged build's declarations. Choosing it hands
- * the file to the running dev instance, so the File Mode window loads from the
- * Vite server and style edits apply live, without packaging.
+ * AppleScript app carrying the packaged build's declarations. Choosing it asks
+ * the running dev instance to open the file over the per-user socket
+ * `puppyone open` uses, so the File Mode window loads from the Vite server and
+ * style edits apply live, without packaging.
  *
- * The app runs the Electron of the checkout it was installed from, and reaches
- * whichever dev instance is running. Reinstall after deleting that checkout.
+ * The app only knows that socket, which belongs to the dev channel's user
+ * data, not to a checkout: it reaches whichever checkout or worktree is
+ * running `npm run dev`, and keeps working after any of them is deleted.
  *
  *   npm run dev:open-with          install or refresh
  *   npm run dev:open-with:remove   uninstall
  */
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import plist from "plist";
-import { createDesktopLaunchIntent } from "../../../electron/main/desktop-launch-intent.mjs";
+import { resolveCliControlEndpoint } from "../../../electron/main/cli-control/endpoint.mjs";
+import { CLI_CONTROL_PROTOCOL } from "../../../shared/cli-control-contract/protocol.mjs";
+import { getDesktopBuildChannelPolicy } from "../../../shared/desktop-build-identity.mjs";
 import { resolveDesktopAppIcon } from "../../../shared/desktop/app-icon-contract.mjs";
 import { buildMacosAppIcon } from "../build/macos-app-icon.mjs";
 import { FILE_MODE_DOCUMENT_TYPES } from "../build/platforms/macos.mjs";
 
 export const OPENER_NAME = "PuppyOne (npm run dev)";
 export const OPENER_BUNDLE_ID = "ai.puppyone.desktop.dev-open-with";
-
-/** How the forwarder reports back to the Open With app. */
-export const FORWARD_EXIT = Object.freeze({ delivered: 0, noFile: 2, devNotRunning: 3 });
+export const DEV_NOT_RUNNING_MESSAGE = "PuppyOne isn't running from npm run dev. Start it (for example npm run dev:qubits), then open the file again.";
 
 const LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 const run = promisify(execFile);
 
-/**
- * Hands the file named on the command line to whichever instance holds the
- * lock for `userDataPath`, exactly like a second launch of the real app.
- */
-export function forwardFile({ app, argv, workingDirectory, userDataPath }) {
-  const intent = createDesktopLaunchIntent({ argv, workingDirectory });
-  if (!intent.filePath) return FORWARD_EXIT.noFile;
-  app.setPath("userData", userDataPath);
-  if (!app.requestSingleInstanceLock(intent)) return FORWARD_EXIT.delivered;
-  // Getting the lock means nothing is running to receive the file.
-  app.releaseSingleInstanceLock();
-  return FORWARD_EXIT.devNotRunning;
+/** Where every `npm run dev` instance of this user listens, whichever checkout it runs from. */
+export function devControlEndpoint({ homeDirectory = os.homedir(), uid = process.getuid?.() ?? null } = {}) {
+  const userDataPath = path.join(homeDirectory, "Library", "Application Support", getDesktopBuildChannelPolicy("dev").userDataName);
+  return resolveCliControlEndpoint({ userDataPath, platform: "darwin", uid });
 }
 
 export function appleScriptString(value) {
@@ -55,31 +48,71 @@ export function appleScriptString(value) {
 }
 
 /**
- * The Open With app. It waits for each hand-off so a missing dev instance is
- * reported instead of silently starting a second, unrelated app.
+ * The Open With app. `handOff` returns what went wrong, or "" once the dev
+ * instance has opened every file; only `open` talks to the user, so the
+ * hand-off can be checked without a dialog. A missing dev instance is reported
+ * instead of starting a second, unrelated app.
  */
-export function createOpenerScript({ electronPath, forwarderPath }) {
-  const command = `quoted form of ${appleScriptString(electronPath)} & " " & quoted form of ${appleScriptString(forwarderPath)}`;
-  return `on open theItems
-	repeat with theItem in theItems
-		try
-			do shell script ${command} & " " & quoted form of (POSIX path of theItem) & " >/dev/null 2>&1"
-		on error errorMessage number errorNumber
-			activate
-			if errorNumber is ${FORWARD_EXIT.devNotRunning} then
-				display dialog "PuppyOne is not running from npm run dev. Start it, then open the file again." buttons {"OK"} default button 1 with icon caution
-			else
-				display dialog "The file could not be handed to npm run dev (" & errorNumber & ")." buttons {"OK"} default button 1 with icon caution
-			end if
-			return
-		end try
-	end repeat
+export function createOpenerScript({ endpoint }) {
+  // Raw, so this text is the AppleScript source exactly as written.
+  return String.raw`on open theItems
+	set problem to handOff(theItems)
+	if problem is not "" then
+		activate
+		display dialog problem buttons {"OK"} default button 1 with icon caution
+	end if
 end open
 
 on run
 	activate
 	display dialog "Choose ${OPENER_NAME} from a file's Open With menu. The file opens in the running npm run dev instance." buttons {"OK"} default button 1
 end run
+
+on handOff(theItems)
+	set requestPaths to {}
+	repeat with theItem in theItems
+		set end of requestPaths to jsonString(POSIX path of theItem)
+	end repeat
+	set previousDelimiters to AppleScript's text item delimiters
+	set AppleScript's text item delimiters to ","
+	set request to "{\"protocol\":${CLI_CONTROL_PROTOCOL},\"type\":\"open\",\"paths\":[" & (requestPaths as text) & "]}"
+	set AppleScript's text item delimiters to previousDelimiters
+	try
+		set reply to do shell script "printf '%s\\n' " & quoted form of request & " | /usr/bin/nc -U " & quoted form of ${appleScriptString(endpoint)}
+	on error
+		return ${appleScriptString(DEV_NOT_RUNNING_MESSAGE)}
+	end try
+	if reply does not contain "\"ok\":true" then
+		if reply is "" then return ${appleScriptString(DEV_NOT_RUNNING_MESSAGE)}
+		return "npm run dev did not open the file: " & replyMessage(reply)
+	end if
+	if reply contains "\"status\":\"rejected\"" then return "npm run dev did not open the file: " & replyMessage(reply)
+	return ""
+end handOff
+
+on replyMessage(reply)
+	set marker to "\"message\":\""
+	set markerOffset to offset of marker in reply
+	if markerOffset is 0 then return reply
+	set message to text (markerOffset + (length of marker)) thru -1 of reply
+	set messageEnd to offset of "\"" in message
+	if messageEnd is 0 then return message
+	if messageEnd is 1 then return ""
+	return text 1 thru (messageEnd - 1) of message
+end replyMessage
+
+on jsonString(value)
+	set escaped to value
+	repeat with pair in {{"\\", "\\\\"}, {"\"", "\\\""}, {linefeed, "\\n"}, {return, "\\r"}, {tab, "\\t"}}
+		set previousDelimiters to AppleScript's text item delimiters
+		set AppleScript's text item delimiters to item 1 of pair
+		set parts to text items of escaped
+		set AppleScript's text item delimiters to item 2 of pair
+		set escaped to parts as text
+		set AppleScript's text item delimiters to previousDelimiters
+	end repeat
+	return "\"" & escaped & "\""
+end jsonString
 `;
 }
 
@@ -103,13 +136,12 @@ export function openerPath(applicationsDirectory = path.join(os.homedir(), "Appl
 export async function installOpener({ repoRoot, applicationsDirectory } = {}) {
   const target = openerPath(applicationsDirectory);
   await assertReplaceable(target);
-  const electronPath = createRequire(path.join(repoRoot, "package.json"))("electron");
-  const forwarderPath = path.join(repoRoot, "scripts/desktop/dev/open-with-forwarder.mjs");
+  const endpoint = devControlEndpoint();
   const staging = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-open-with-"));
   try {
     const scriptPath = path.join(staging, "open-with.applescript");
     const staged = path.join(staging, path.basename(target));
-    await fs.writeFile(scriptPath, createOpenerScript({ electronPath, forwarderPath }));
+    await fs.writeFile(scriptPath, createOpenerScript({ endpoint }));
     await run("/usr/bin/osacompile", ["-o", staged, scriptPath]);
 
     const infoPath = path.join(staged, "Contents/Info.plist");
