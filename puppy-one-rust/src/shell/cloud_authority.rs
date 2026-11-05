@@ -68,7 +68,7 @@ impl Shell {
         if self.hosted_project().is_some() {
             self.close_workspace_sidebars(window, cx);
             self.files.deactivate();
-            self.home = true;
+            self.homepage.open = true;
             self.receive(window, cx);
         }
         self.window.cloud = None;

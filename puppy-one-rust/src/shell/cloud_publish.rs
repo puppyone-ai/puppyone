@@ -156,7 +156,8 @@ impl Shell {
     pub(super) fn project_display_name(&self) -> String {
         self.workspace_root()
             .and_then(|root| {
-                self.recent_projects
+                self.homepage
+                    .recent
                     .iter()
                     .find(|p| p.path == root)
                     .map(|p| p.name.clone())

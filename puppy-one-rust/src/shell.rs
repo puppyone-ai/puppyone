@@ -98,11 +98,6 @@ pub struct Shell {
     /// A file window's own state (File Mode); `None` for a project window.
     pub(super) file: Option<file_mode::FileWindow>,
     popover: Option<Popover>,
-    /// Homepage requested from the project menu (`goToHomepage`).
-    home: bool,
-    recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
-    /// The Homepage project list's scroller.
-    home_scroll: ScrollHandle,
     weak: WeakEntity<Shell>,
     /// Header introductions (`useHeaderCoachmarks`).
     coachmarks: coachmarks::Coachmarks,
@@ -258,9 +253,6 @@ impl Shell {
             window_title: None,
             file: None,
             popover: None,
-            home: false,
-            recent_projects: vec![],
-            home_scroll: ScrollHandle::new(),
             weak: cx.weak_entity(),
             coachmarks: Default::default(),
             explorer: {
@@ -730,7 +722,7 @@ impl Shell {
             .with_loading(p.loading_style)
             .with_fonts(p.fonts.normalized())
             .apply(Some(window), cx);
-        self.recent_projects = p.recent_projects.clone();
+        self.homepage.recent = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
         self.sidebar
             .workbench
@@ -1158,7 +1150,7 @@ impl Shell {
                 if !self.home_visible() {
                     self.hold_home_list();
                 }
-                self.home = true;
+                self.homepage.open = true;
             }
             // With no dialog open, Escape closes a menu.
             // Escape cancels a Cloud opening; whatever showed stays.
@@ -1325,7 +1317,7 @@ impl Shell {
             self.window.entries += 1;
             self.window.fixture = false;
             self.modals.remove(|m| matches!(m, Modal::Error(_)));
-            self.home = false;
+            self.homepage.open = false;
             let opened = ws.local_root().map(PathBuf::from);
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1679,7 +1671,7 @@ impl Shell {
             .as_ref()
             .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
         {
-            self.home = false;
+            self.homepage.open = false;
         } else if !self.pending && !self.files.navigation_blocked() {
             // `ProjectNavigation.select`: a newer choice replaces the one
             // still opening.
@@ -1722,7 +1714,7 @@ impl Shell {
         .items_center()
         .pt(px(12.))
         .gap(px(6.));
-        for (index, project) in self.recent_projects.iter().take(12).enumerate() {
+        for (index, project) in self.homepage.recent.iter().take(12).enumerate() {
             let active = current.as_ref() == Some(&project.path);
             let initial = project
                 .name
@@ -1887,7 +1879,8 @@ impl Shell {
         }
         let root = self.files.preparing_root()?;
         Some(
-            self.recent_projects
+            self.homepage
+                .recent
                 .iter()
                 .find(|p| p.path == root)
                 .map(|p| p.name.clone())

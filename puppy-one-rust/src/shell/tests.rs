@@ -622,7 +622,7 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Home);
     view.update(cx, |s, _| {
-        assert!(s.home && s.popover.is_none());
+        assert!(s.homepage.open && s.popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible());
     });
@@ -1802,7 +1802,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
             p.state.remember_project(&plain, 2);
             p.state.remember_project(&linked, 1);
         });
-        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
         s.refresh_cloud_catalog(true, cx);
         // The Header project menu hydrates the same list as the Homepage.
         s.popover = Some(Popover::Project);
@@ -1901,7 +1901,7 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
         s.hosted_project().is_none() && s.window.cloud.is_none()
     });
     view.read_with(cx, |s, _| {
-        assert!(s.home);
+        assert!(s.homepage.open);
         assert!(s.window.authority.is_none());
     });
 }
@@ -2150,7 +2150,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&path, 1));
-        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
         s.open_project_actions(
             target.clone(),
             Bounds::new(point(px(20.), px(80.)), size(px(0.), px(0.))),
@@ -2781,7 +2781,7 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
         s.window.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
-        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
     });
     command(&view, cx, Command::Home);
     settle_cloud(&view, cx, "the Homepage list", &|s, _| {
@@ -3900,7 +3900,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     });
     // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
-    view.read_with(cx, |s, _| assert!(!s.home && !s.home_visible()));
+    view.read_with(cx, |s, _| assert!(!s.homepage.open && !s.home_visible()));
     for c in [Command::Settings, Command::Feedback, Command::CloseFile] {
         command(&view, cx, c);
     }

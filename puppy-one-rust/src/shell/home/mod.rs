@@ -59,9 +59,16 @@ const PAGE_WIDTH: f32 = 680.;
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
 const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
 
-/// Homepage state held by the shell.
+/// The Homepage (`MinimalOnboarding` and its stores): whether the window
+/// shows it, the remembered projects it lists, and its own state.
 #[derive(Default)]
 pub(super) struct Homepage {
+    /// The window shows the Homepage instead of a project.
+    pub open: bool,
+    /// Remembered projects, newest first (`recentProjects`).
+    pub recent: Vec<crate::features::settings::preference_types::RecentProject>,
+    /// The project list's scroller.
+    pub scroll: ScrollHandle,
     /// When each project last changed (`None`: unknown), by path.
     activity: HashMap<PathBuf, Option<SystemTime>>,
     /// `puppyoneGitRemote` of each checkout whose remotes were read
@@ -211,7 +218,7 @@ impl Shell {
         !self.window.fixture
             && !self.file_mode()
             && !self.opening()
-            && (self.home || self.files.workspace.is_none())
+            && (self.homepage.open || self.files.workspace.is_none())
     }
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project
@@ -229,7 +236,8 @@ impl Shell {
         }
         self.homepage.shown = shown;
         let paths: Vec<PathBuf> = self
-            .recent_projects
+            .homepage
+            .recent
             .iter()
             .map(|p| p.path.clone())
             .collect();
@@ -333,7 +341,8 @@ impl Shell {
                 .map(|d| d.as_millis() as i64)
         };
         let local: Vec<catalog::LocalEntry> = self
-            .recent_projects
+            .homepage
+            .recent
             .iter()
             .map(|p| catalog::LocalEntry {
                 path: p.path.to_string_lossy().into_owned(),

@@ -25,7 +25,7 @@ impl Shell {
         let settled = !matches!(snapshot.status, Status::Restoring);
         settled
             && snapshot.account.is_none()
-            && self.recent_projects.is_empty()
+            && self.homepage.recent.is_empty()
             && self.files.workspace.is_none()
     }
     /// Signing in or having a project completes the first run.
@@ -35,7 +35,7 @@ impl Shell {
             return;
         }
         let signed_in = self.account_status(cx).is_some_and(|s| s.account.is_some());
-        if signed_in || !self.recent_projects.is_empty() || self.files.workspace.is_some() {
+        if signed_in || !self.homepage.recent.is_empty() || self.files.workspace.is_some() {
             self.complete_first_run(cx);
         }
     }

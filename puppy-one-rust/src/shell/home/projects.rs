@@ -737,7 +737,7 @@ impl Shell {
             .py(px(8.))
             .pr(px(SCROLLBAR_SIZE))
             .overflow_y_scroll()
-            .track_scroll(&self.home_scroll)
+            .track_scroll(&self.homepage.scroll)
             .on_hover(cx.listener(|s, hovered: &bool, _, cx| {
                 if !*hovered && s.homepage.hovered.take().is_some() {
                     cx.notify();
@@ -801,7 +801,7 @@ impl Shell {
             .child(fade(false))
             .child(crate::ui::scrollbar::vertical(
                 "home-projects-scrollbar",
-                &self.home_scroll,
+                &self.homepage.scroll,
             ))
             .into_any_element()
     }
