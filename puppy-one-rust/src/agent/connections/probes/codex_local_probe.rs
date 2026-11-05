@@ -256,6 +256,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
         max_pending: Some(4),
         force_kill_timeout_ms: Some(250),
         spawner: None,
+        bootstrap: None,
     })?;
     {
         let target = Rc::downgrade(&connection);

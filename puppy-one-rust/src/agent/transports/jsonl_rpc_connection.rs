@@ -107,6 +107,9 @@ pub struct ConnectionOptions {
     pub force_kill_timeout_ms: Option<u64>,
     /// `spawn`: the default launches a managed process group.
     pub spawner: Option<Spawner>,
+    /// A private bootstrap envelope delivered on the child's fd 3, which
+    /// closes after the envelope (`stdio: [..., "pipe"]`).
+    pub bootstrap: Option<Vec<u8>>,
 }
 
 /// The default spawner: an isolated process group with piped stdio.
@@ -116,6 +119,7 @@ pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<Process
         &options.args,
         Path::new(&options.cwd),
         options.env.as_deref(),
+        options.bootstrap.as_deref(),
     )?;
     let (pid, grouped) = (process.pid, process.grouped);
     let stdin = process

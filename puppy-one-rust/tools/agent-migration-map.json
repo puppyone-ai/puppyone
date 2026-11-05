@@ -273,15 +273,25 @@
         "electron/main/agent/runtimes/puppyone-agent/worker/session-resolver.mjs"
       ],
       "targets": [
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_adapter.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_approval.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_discovery.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_environment.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_history_source.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_identity.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_kernel.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_runtime_definition.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_binding.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_verifier.rs",
+        "src/agent/runtimes/puppyone_agent/tests.rs",
         "src/agent/runtimes/puppyone_agent/adapter.rs",
-        "src/model_connections/configuration.rs",
         "src/agent/runtimes/puppyone_agent/model_client.rs",
         "src/agent/runtimes/puppyone_agent/session_store.rs",
         "src/agent/runtimes/puppyone_agent/tools.rs",
-        "src/features/model_connections/ui.rs",
-        "src/features/model_connections/infrastructure.rs"
+        "src/agent/runtimes/puppyone_agent/mod.rs",
+        "src/model_connections/schema.rs"
       ],
-      "remaining": "A native Rust HTTP/tool harness replaces the Pi SDK worker. OpenAI-compatible model connections, Keychain references, binding generations, approvals, scoped tools, stop and durable sessions are implemented and loopback-tested. Existing Electron encrypted credentials are not imported; managed compute, native provider discovery/catalog verification, full Pi kernel parity and real configured-model inference remain pending."
+      "remaining": "The Main-side modules are ported 1:1 over the shared Pi RPC adapter (model-connection lease binding, private fd-3 configuration bootstrap, read-only history resume, image capability gate, worker discovery and probe contract, narrow worker environment, versioned approval envelope) with the Main-side kernel tests. The JS worker on the pinned Pi SDK (worker/*.mjs) is neither bundled nor reimplemented: by decision (2026-11-06) the Built-in Agent keeps running on the legacy native Rust harness (adapter.rs, model_client.rs, session_store.rs, tools.rs) until the kernel question is revisited."
     },
     {
       "name": "Reference ingestion",

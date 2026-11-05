@@ -1,6 +1,28 @@
 pub mod adapter;
 #[allow(dead_code)]
+pub mod model_connection_binding;
+#[allow(dead_code)]
+pub mod model_connection_verifier;
+#[allow(dead_code)]
+pub mod puppyone_agent_adapter;
+#[allow(dead_code)]
+pub mod puppyone_agent_approval;
+#[allow(dead_code)]
+pub mod puppyone_agent_discovery;
+#[allow(dead_code)]
+pub mod puppyone_agent_environment;
+#[allow(dead_code)]
+pub mod puppyone_agent_history_source;
+#[allow(dead_code)]
+pub mod puppyone_agent_identity;
+#[allow(dead_code)]
+pub mod puppyone_agent_kernel;
+#[allow(dead_code)]
 pub mod puppyone_agent_public_identity;
+#[allow(dead_code)]
+pub mod puppyone_agent_runtime_definition;
+#[cfg(test)]
+mod tests;
 pub use crate::model_connections::configuration;
 mod model_client;
 mod session_store;

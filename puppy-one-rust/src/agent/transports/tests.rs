@@ -299,3 +299,24 @@ fn an_unexpected_exit_rejects_pending_requests_and_reports_the_exit() {
         assert!(!error.message.is_empty());
     });
 }
+
+#[test]
+fn delivers_a_private_bootstrap_envelope_on_fd_3_only() {
+    crate::agent::application::tests_support::run_local(async {
+        use tokio::io::AsyncReadExt;
+        let mut io = super::jsonl_rpc_connection::spawn_managed_process(&ConnectionOptions {
+            executable_path: "/bin/sh".into(),
+            args: vec!["-c".into(), "cat <&3; printf '|%s' \"$BOOTSTRAP\"".into()],
+            cwd: std::env::temp_dir(),
+            env: Some(vec![("PATH".into(), "/usr/bin:/bin".into())]),
+            bootstrap: Some(br#"{"connectionId":"private"}"#.to_vec()),
+            ..Default::default()
+        })
+        .unwrap();
+        let mut output = String::new();
+        io.stdout.read_to_string(&mut output).await.unwrap();
+        let (code, _, _) = io.exit.await;
+        assert_eq!(code, Some(0));
+        assert_eq!(output, r#"{"connectionId":"private"}|"#);
+    });
+}
