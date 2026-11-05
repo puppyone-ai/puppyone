@@ -18,7 +18,10 @@ async function atomicSave(filePath, content) {
 
 /** Main-process only. A lost registration reply retries with the SAME key. */
 export function createDeviceIdentityService({ filePath, secureStorage, auth, apiBase }) {
-  if (!secureStorage?.isEncryptionAvailable?.()) throw new Error("Device key storage is unavailable.");
+  if (!secureStorage?.isEncryptionAvailable?.() ||
+      secureStorage.getSelectedStorageBackend?.() === "basic_text") {
+    throw new Error("Device key storage is unavailable.");
+  }
   const deployment = resolveCloudApiBaseUrl(apiBase);
   let pending = Promise.resolve();
 

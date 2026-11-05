@@ -38,6 +38,11 @@ async function setup() {
 }
 
 describe("device identity", () => {
+  it("refuses Linux plaintext fallback even when the storage API reports availability", async () => {
+    const { root, auth } = await setup();
+    expect(() => createDeviceIdentityService({ filePath: path.join(root, "device.json"), auth, apiBase,
+      secureStorage: { ...secureStorage, getSelectedStorageBackend: () => "basic_text" } })).toThrow("storage is unavailable");
+  });
   it("persists one encrypted private key before request and retries with the same public key", async () => {
     const { root, auth, calls } = await setup();
     const filePath = path.join(root, "device.json");
