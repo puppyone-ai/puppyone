@@ -4,6 +4,7 @@ export function sameProjectTarget(a: ProjectTarget | null, b: ProjectTarget | nu
   if (!a || !b) return a === b;
   if (a.kind === "local" && b.kind === "local") return a.path === b.path;
   if (a.kind === "cloud" && b.kind === "cloud") return a.projectId === b.projectId;
+  if (a.kind === "host" && b.kind === "host") return a.hostId === b.hostId && a.folderId === b.folderId;
   return a.kind === "dropped" && b.kind === "dropped" && a.folder === b.folder;
 }
 

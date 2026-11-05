@@ -1,13 +1,25 @@
 import type { WorkbenchWorkspace } from "@puppyone/shared-ui";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import type { HostFolderRef } from "../../../../shared/host-contract/types";
 import type { WorkspaceEntryIntent } from "../workspaceEntryBootstrap";
+
+/** A folder on another of the owner's computers; where it lives is part of the folder. */
+export type HostFolderSelection = Readonly<{
+  ref: HostFolderRef;
+  name: string;
+  /** The other computer's name, for "On {host}". */
+  hostName: string;
+  writable: boolean;
+}>;
 
 export type ProjectTarget =
   | Readonly<{ kind: "local"; path: string }>
   | Readonly<{ kind: "cloud"; projectId: string }>
   /** A folder dropped on the Homepage: opened on the drop's own grant, not by path. */
-  | Readonly<{ kind: "dropped"; folder: File }>;
+  | Readonly<{ kind: "dropped"; folder: File }>
+  /** A registered folder on another computer: identified by IDs, never by its host path. */
+  | Readonly<{ kind: "host"; hostId: string; folderId: string; selection: HostFolderSelection }>;
 
 export type ProjectOpenFailure = Readonly<{
   target: ProjectTarget;
@@ -28,8 +40,10 @@ export type ProjectOpenFailure = Readonly<{
 export type WindowProject = Readonly<{
   /** The folders open in this window. They stay open behind a Cloud project. */
   folders: WorkbenchWorkspace | null;
-  /** Which project the window shows: its folders, or a Cloud project. */
-  shown: "local" | "cloud";
+  /** Which project the window shows: its folders, a Cloud project, or another computer's folder. */
+  shown: "local" | "cloud" | "host";
+  /** The other computer's folder this window shows when `shown` is "host". Local folders stay open behind it. */
+  host: HostFolderSelection | null;
   /** The first document of the folders just opened, still on its way to the editor. */
   entry: WorkspaceEntryIntent | null;
   /** The project this window is entering. The one it leaves stays mounted until this one arrives. */
@@ -38,12 +52,26 @@ export type WindowProject = Readonly<{
   failure: ProjectOpenFailure | null;
 }>;
 
-export const INITIAL_WINDOW_PROJECT: WindowProject = { folders: null, shown: "local", entry: null, opening: null, failure: null };
+export const INITIAL_WINDOW_PROJECT: WindowProject = { folders: null, shown: "local", host: null, entry: null, opening: null, failure: null };
 
 export const windowProjectStore = createStore<WindowProject>(() => INITIAL_WINDOW_PROJECT);
 
-export function showWindowProject(shown: WindowProject["shown"]) {
-  windowProjectStore.setState({ shown });
+export function showWindowProject(shown: Exclude<WindowProject["shown"], "host">) {
+  windowProjectStore.setState({ shown, host: null });
+}
+
+/** Show another computer's folder in this window, in one update. */
+export function showHostFolder(selection: HostFolderSelection) {
+  windowProjectStore.setState({ shown: "host", host: selection, opening: null, failure: null });
+}
+
+/** Leave another computer's folder; the window returns to its own folders. */
+export function closeHostFolder() {
+  if (windowProjectStore.getState().shown === "host") windowProjectStore.setState({ shown: "local", host: null });
+}
+
+export function hostFolderTarget(selection: HostFolderSelection): ProjectTarget {
+  return { kind: "host", hostId: selection.ref.deviceId, folderId: selection.ref.folderId, selection };
 }
 
 export function useWindowProject<T>(selector: (project: WindowProject) => T): T {

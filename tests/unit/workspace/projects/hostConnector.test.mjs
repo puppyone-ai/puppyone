@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createHostConnector } from "../../../../electron/main/hosts/host-connector.mjs";
+import { createHostConnector, deviceSocketUrl } from "../../../../electron/main/hosts/host-connector.mjs";
 
 const owner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const device = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -41,7 +41,10 @@ describe("host connector", () => {
       seen.push(payload); return "signature";
     } };
     const registry = { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null };
-    const fileService = { read: async () => ({ revision: "abc", content_base64: "bm90ZQ==" }) };
+    const fileService = { run: async (message) => {
+      expect(message).toMatchObject({ action: "read", path: "note.md", folder_id: folder });
+      return { revision: "abc", content_base64: "bm90ZQ==" };
+    } };
     const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, WebSocketImpl: FakeWebSocket });
     expect(await connector.connect(device)).toEqual({ deviceId: device, epoch });
     const socket = FakeWebSocket.last;
@@ -53,6 +56,106 @@ describe("host connector", () => {
     expect(socket.sent.at(-1)).toEqual({ type: "reply", id: request, result: { revision: "abc", content_base64: "bm90ZQ==" } });
     connector.stop();
     expect(socket.readyState).toBe(3);
+  });
+
+  it("stops for good on a revocation close or a refused challenge, but retries an outage", async () => {
+    let challenges = 0;
+    let refuse = null;
+    const revoked = [];
+    const auth = {
+      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
+      requestSessionApi: async () => {
+        challenges++;
+        if (refuse) { const error = new Error("refused"); error.status = refuse; throw error; }
+        return { challenge_id: challenge, epoch, nonce: "some-nonce" };
+      },
+      subscribe: () => () => {},
+    };
+    const connector = createHostConnector({ apiBase, auth, onRevoked: (lost) => revoked.push(lost),
+      identity: { signForCurrentAccount: async () => "signature" }, logger: { warn() {} },
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
+    await connector.connect(device);
+    FakeWebSocket.last.readyState = 3;
+    FakeWebSocket.last.emit("close", { code: 4004 });
+    expect(revoked).toEqual([{ accountId: owner, deviceId: device }]);
+    expect(connector.isActive()).toBe(false);
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    expect(challenges).toBe(1);
+
+    refuse = 503;
+    await expect(connector.connect(device)).rejects.toThrow("refused");
+    expect(connector.isActive()).toBe(true);
+    refuse = 403;
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    expect(challenges).toBe(3);
+    expect(revoked).toHaveLength(2);
+    expect(connector.isActive()).toBe(false);
+  });
+
+  it("serves watch subscriptions and releases them on unwatch and on close", async () => {
+    const stopped = [];
+    let emit;
+    const auth = {
+      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
+      requestSessionApi: async () => ({ challenge_id: challenge, epoch, nonce: "some-nonce" }),
+      subscribe: () => () => {},
+    };
+    const fileService = { watch: async (folderId, onEvent) => {
+      expect(folderId).toBe(folder);
+      emit = onEvent;
+      return () => stopped.push(folderId);
+    } };
+    const connector = createHostConnector({ apiBase, auth, fileService, logger: { warn() {} },
+      identity: { signForCurrentAccount: async () => "signature" },
+      registry: { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null }, WebSocketImpl: FakeWebSocket });
+    await connector.connect(device);
+    const socket = FakeWebSocket.last;
+    const subscription = "abababab-abab-4bab-8bab-abababababab";
+    socket.emit("message", { data: JSON.stringify({ type: "watch", subscription, folder_id: folder }) });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(connector.status()).toMatchObject({ state: "online", watching: 1 });
+    emit({ paths: ["note.md"], reset: false });
+    expect(socket.sent.at(-1)).toEqual({ type: "event", subscription, paths: ["note.md"], reset: false });
+    socket.emit("message", { data: JSON.stringify({ type: "unwatch", subscription }) });
+    expect(stopped).toEqual([folder]);
+    socket.emit("message", { data: JSON.stringify({ type: "watch", subscription, folder_id: folder }) });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    connector.stop();
+    expect(stopped).toEqual([folder, folder]);
+    expect(connector.status().state).toBe("off");
+  });
+
+  it("follows system sleep: drops the socket on suspend and reconnects at once on wake", async () => {
+    let challenges = 0;
+    const auth = {
+      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
+      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
+      subscribe: () => () => {},
+    };
+    const connector = createHostConnector({ apiBase, auth, logger: { warn() {} },
+      identity: { signForCurrentAccount: async () => "signature" },
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
+    await connector.connect(device);
+    const first = FakeWebSocket.last;
+    connector.suspend();
+    expect(first.readyState).toBe(3);
+    expect(connector.status().state).toBe("offline");
+    expect(connector.isActive()).toBe(true);
+    connector.wake();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(challenges).toBe(2);
+    expect(FakeWebSocket.last).not.toBe(first);
+    expect(connector.status().state).toBe("online");
+    connector.stop();
+  });
+
+  it("uses a dedicated gateway address only inside the PuppyOne host family", () => {
+    expect(deviceSocketUrl(apiBase, device, undefined)).toBe(`wss://api.puppyone.ai/api/v1/hosts/devices/${device}/connect`);
+    expect(deviceSocketUrl(apiBase, device, `https://devices.puppyone.ai/api/v1/hosts/devices/${device}/connect`))
+      .toBe(`wss://devices.puppyone.ai/api/v1/hosts/devices/${device}/connect`);
+    expect(() => deviceSocketUrl(apiBase, device, `https://evil.example/api/v1/hosts/devices/${device}/connect`)).toThrow();
+    expect(() => deviceSocketUrl(apiBase, device, `http://devices.puppyone.ai/api/v1/hosts/devices/${device}/connect`)).toThrow();
+    expect(() => deviceSocketUrl(apiBase, device, `https://devices.puppyone.ai/api/v1/hosts/devices/${folder}/connect`)).toThrow();
   });
 
   it("reconnects with a fresh challenge after an unexpected socket close", async () => {

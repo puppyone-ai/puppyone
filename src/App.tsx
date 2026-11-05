@@ -33,7 +33,8 @@ import {
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { HomepageDeviceFolders } from "./features/hosts/ui/HomepageDeviceFolders";
-import { DeviceFolderSurface, type DeviceFolderSelection } from "./features/hosts/ui/DeviceFolderSurface";
+import { DeviceFolderSurface } from "./features/hosts/ui/DeviceFolderSurface";
+import { ShareFolderControl } from "./features/hosts/ui/ShareFolderControl";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
 import { useWindowProjectNavigation, type ProjectDesktopView } from "./app/useWindowProjectNavigation";
@@ -81,7 +82,9 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
-import { showWindowProject, useWindowProject } from "./features/app-shell/window-project/windowProjectStore";
+import { closeHostFolder, showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
+import { useHostFolderRestore } from "./features/hosts/useHostFolderRestore";
+import { normalizeCloudApiBaseUrl } from "../shared/cloudEndpoint.js";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
 import {
   getDesktopCloudApiBaseUrl,
@@ -292,19 +295,25 @@ function AppContent() {
     sessionRestoring: cloudSessionRestoring,
     environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
   })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
+  const hostAccountId = activeCloudSession?.user_id ?? null;
+  const hostSessionGeneration = activeCloudSession?.session_generation ?? null;
   useEffect(() => {
-    if (!hostDevicesEnabled || !window.puppyoneDesktop || !activeCloudSession) return;
-    void window.puppyoneDesktop.connectHostDevice({ userId: activeCloudSession.user_id,
-      generation: activeCloudSession.session_generation }).catch(() => {
-      // The connector retries transport outages; local folders stay available.
-    });
-  }, [hostDevicesEnabled, activeCloudSession?.user_id, activeCloudSession?.session_generation]);
-  const [selectedDeviceFolder, setSelectedDeviceFolder] = useState<DeviceFolderSelection | null>(null);
-  const [hostRegistrationStatus, setHostRegistrationStatus] = useState<string | null>(null);
-  useEffect(() => { setSelectedDeviceFolder(null); }, [activeCloudSession?.user_id,
-    activeCloudSession?.session_generation, desktopCloudApiBaseUrl]);
+    if (!hostDevicesEnabled || !window.puppyoneDesktop || !hostAccountId || !hostSessionGeneration) return;
+    void window.puppyoneDesktop.connectHostDevice({ userId: hostAccountId, generation: hostSessionGeneration })
+      .catch(() => {
+        // The connector retries transport outages; local folders stay available.
+      });
+  }, [hostDevicesEnabled, hostAccountId, hostSessionGeneration]);
+  // Another computer's folder is part of this window's project state, not a side mode.
+  const shownHostFolder = useWindowProject((project) => project.shown === "host" ? project.host : null);
+  useEffect(() => {
+    const host = windowProjectStore.getState().host;
+    // A different account or deployment never keeps another account's folder open.
+    if (host && (host.ref.accountId !== hostAccountId
+      || normalizeCloudApiBaseUrl(host.ref.deployment) !== normalizeCloudApiBaseUrl(desktopCloudApiBaseUrl))) closeHostFolder();
+  }, [hostAccountId, desktopCloudApiBaseUrl]);
   const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
-    shown: useWindowProject((project) => project.shown), onShow: showWindowProject });
+    shown: useWindowProject((project) => project.shown === "cloud" ? "cloud" : "local"), onShow: showWindowProject });
   const cloudWorkspaceActive = accountCloud.active;
   const { useLocal: returnToLocalWorkspace } = accountCloud;
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -910,7 +919,7 @@ function AppContent() {
       const refreshed = refreshRecentWorkspaceList();
       holdHomepageList(refreshed);
       await showHomepage();
-      setSelectedDeviceFolder(null);
+      closeHostFolder();
       cancelCloudWorkspaceSwitch();
       returnToLocalWorkspace();
       clearWorkspace();
@@ -1378,7 +1387,7 @@ function AppContent() {
   };
   const {
     dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
-    projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
+    projectNavigation, projectOpenFailure, selectCloudProject, selectHostFolder, selectProject,
   } = useWindowProjectNavigation({
     accountCloud, activeCloudSession, cloudSessionRestoring, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
     cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef,
@@ -1477,6 +1486,8 @@ function AppContent() {
     account: projectCatalog.account,
     accountRestoring: cloudSessionRestoring,
   });
+  useHostFolderRestore({ enabled: hostDevicesEnabled, session: activeCloudSession, apiBase: desktopCloudApiBaseUrl,
+    restoring: restoringWorkspace || cloudSessionRestoring || !homepageReady, open: selectHostFolder });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1580,11 +1591,18 @@ function AppContent() {
     );
   }
 
+  // Another computer's folder covers the window; this window's own folders stay
+  // open behind it and return when it closes.
+  if (hostDevicesEnabled && shownHostFolder && activeCloudSession && desktopCloudApiBaseUrl
+    && shownHostFolder.ref.accountId === activeCloudSession.user_id) return themeRuntime(
+    <DeviceFolderSurface selection={shownHostFolder} session={activeCloudSession}
+      apiBase={desktopCloudApiBaseUrl} onClose={() => {
+        closeHostFolder();
+        if (!workspace) void goToHomepage();
+      }} />,
+  );
+
   if (!workspace) {
-    if (selectedDeviceFolder && activeCloudSession && desktopCloudApiBaseUrl && !cloudWorkspaceActive) return themeRuntime(
-      <DeviceFolderSurface selection={selectedDeviceFolder} session={activeCloudSession}
-        apiBase={desktopCloudApiBaseUrl} onHome={() => void goToHomepage()} />,
-    );
     if (firstRunSignIn.required) return themeRuntime(
       <FirstRunSignInScreen appearance={surfaceAppearance} apiBaseUrl={desktopCloudApiBaseUrl}
         onContinueLocally={firstRunSignIn.complete} />,
@@ -1607,7 +1625,7 @@ function AppContent() {
         cloudOpening={accountCloud.opening}
         remoteFoldersSlot={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
           ? <HomepageDeviceFolders key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
-              session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} onOpen={setSelectedDeviceFolder} /> : undefined}
+              session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
@@ -1762,15 +1780,8 @@ function AppContent() {
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
-      {hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl && !cloudWorkspaceActive && <>
-        <button type="button" onClick={() => {
-          setHostRegistrationStatus(t("hosts.register.pending"));
-          void window.puppyoneDesktop?.registerHostFolder({ rootPath: workspace.path }).then(result => {
-            setHostRegistrationStatus("cancelled" in result ? null : t("hosts.register.success"));
-          }).catch((cause: unknown) => setHostRegistrationStatus(cause instanceof Error ? cause.message : t("hosts.register.failure")));
-        }}>{t("hosts.register.action")}</button>
-        {hostRegistrationStatus && <span role="status">{hostRegistrationStatus}</span>}
-      </>}
+      {hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl && !cloudWorkspaceActive &&
+        <ShareFolderControl key={workspace.path} rootPath={workspace.path} sharedFolderId={workspace.hostFolderId} />}
       <DesktopTitlebarActions {...chromeActionProps} />
     </>
   );

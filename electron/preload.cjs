@@ -221,6 +221,27 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   connectHostDevice: (expectedSession) => ipcRenderer.invoke("host:connect", expectedSession),
   disconnectHostDevice: () => ipcRenderer.invoke("host:disconnect"),
   removeHostFolder: (request) => ipcRenderer.invoke("host:remove-folder", request),
+  updateHostFolder: (request) => ipcRenderer.invoke("host:update-folder", request),
+  revokeHostDevice: (request) => ipcRenderer.invoke("host:revoke-device", request),
+  getHostStatus: () => ipcRenderer.invoke("host:status"),
+  setHostSharingPaused: (request) => ipcRenderer.invoke("host:set-sharing-paused", request),
+  onHostStatus: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:status-changed", listener);
+    return () => ipcRenderer.removeListener("host:status-changed", listener);
+  },
+  requestHostFolder: (request) => ipcRenderer.invoke("host:folder-request", request),
+  watchHostFolder: (request) => ipcRenderer.invoke("host:folder-watch", request),
+  stopHostFolderWatch: (request) => ipcRenderer.invoke("host:folder-watch-stop", request),
+  onHostFolderEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:folder-event", listener);
+    return () => ipcRenderer.removeListener("host:folder-event", listener);
+  },
+  listRecentHostFolders: (expectedSession) => ipcRenderer.invoke("host:recent-folders", expectedSession),
+  recordRecentHostFolder: (request) => ipcRenderer.invoke("host:record-recent-folder", request),
+  closeRecentHostFolder: (request) => ipcRenderer.invoke("host:close-recent-folder", request),
+  forgetRecentHostFolder: (request) => ipcRenderer.invoke("host:forget-recent-folder", request),
   cloudInitializationGetState: (request) => ipcRenderer.invoke("cloud-initialization:get-state", request),
   cloudInitializationStart: (request) => ipcRenderer.invoke("cloud-initialization:start", request),
   cloudInitializationCleanup: (request) => ipcRenderer.invoke("cloud-initialization:cleanup", request),

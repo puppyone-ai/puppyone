@@ -46,11 +46,20 @@ one signed-in computer for access from your other signed-in computers. Local
 folder use does not enable it. When enabled, the host makes an outbound TLS
 connection; file bytes travel through the Puppyone API/gateway, which can see
 them in transit. The planned relay must not persist file bodies or the host's absolute
-path. Its current prototype stores device and folder identifiers, display names,
-permissions and connection metadata. It records operation type and outcome,
-not file paths or bodies; audit retention and privacy review remain rollout
-gates. It is **not end-to-end
+path. Its current prototype stores device and folder identifiers, display names
+(the computer's host name and the folder's name), permissions and connection
+metadata including when the computer was last online. It records operation
+type (including starting to watch a folder for changes) and outcome, not file
+paths or bodies. Change notifications carry folder-relative names of changed
+files through the relay without storing them. Audit retention and privacy
+review remain rollout gates. It is **not end-to-end
 encrypted**, not an automatic Cloud publish, and not product analytics.
+
+On the computer that shares a folder, PuppyOne keeps the folder's location, the
+device key (encrypted with the operating system's credential storage) and a
+"paused" choice in its application data. On the computer that opens it,
+PuppyOne remembers recently opened folders by identifier and display name.
+Removing a computer deletes its key; pausing stops serving until resumed.
 
 This experiment remains off until privacy review, retention policy, security
 and two-device acceptance are complete. Do not treat this section as notice

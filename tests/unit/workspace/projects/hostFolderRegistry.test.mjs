@@ -59,6 +59,18 @@ describe("host folder registry", () => {
     expect(requests.filter(item => item.options.method === "DELETE")).toHaveLength(2);
   });
 
+  it("denies every folder of a revoked device locally without contacting the backend", async () => {
+    const { registry, folderPath, requests } = await setup();
+    await expect(registry.register({ deviceId, rootPath: folderPath, name: "Notes" })).rejects.toThrow();
+    const { folderId } = await registry.register({ deviceId, rootPath: folderPath, name: "Notes" });
+    const before = requests.length;
+    expect(await registry.forgetDevice({ accountId, deviceId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" })).toBe(false);
+    expect(await registry.forgetDevice({ accountId, deviceId })).toBe(true);
+    expect(await registry.resolve(folderId, accountId, deviceId)).toBeNull();
+    expect(await registry.hasActive(accountId, deviceId)).toBe(false);
+    expect(requests).toHaveLength(before);
+  });
+
   it("rejects a symlink root and changed registration settings", async () => {
     const { registry, folderPath, root } = await setup();
     const link = path.join(root, "link");

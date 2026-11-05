@@ -62,6 +62,21 @@ describe("device identity", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("forgets only the revoked device key so a later share registers a new device", async () => {
+    const { root, auth, calls } = await setup();
+    const filePath = path.join(root, "device.json");
+    const service = createDeviceIdentityService({ filePath, secureStorage, auth, apiBase });
+    await expect(service.register("Mac", "darwin")).rejects.toThrow();
+    await service.register("Mac", "darwin");
+    expect(await service.forget({ accountId: accountB, deviceId: deviceA })).toBe(false);
+    expect(await service.forget({ accountId: accountA, deviceId: deviceA })).toBe(true);
+    expect(JSON.parse(await fs.readFile(filePath, "utf8"))).toEqual([]);
+    expect(await service.existingForCurrentAccount()).toBeNull();
+    await expect(service.signForCurrentAccount(deviceA, "challenge")).rejects.toThrow("not registered");
+    await service.register("Mac", "darwin");
+    expect(calls.at(-1).key).not.toBe(calls[0].key);
+  });
+
   it("does not reuse another account's identity", async () => {
     const { root, auth, calls, changeAccount } = await setup();
     const service = createDeviceIdentityService({ filePath: path.join(root, "device.json"), secureStorage, auth, apiBase });

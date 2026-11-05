@@ -1,52 +1,129 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
+import type { HostCatalogDevice, HostSharingStatus, RecentHostFolder } from "../../../../shared/host-contract/types";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { DeviceFolderSelection } from "./DeviceFolderSurface";
+import type { HostFolderSelection } from "../../app-shell/window-project/windowProjectStore";
 
-type Catalog = Awaited<ReturnType<NonNullable<Window["puppyoneDesktop"]>["listHostDevices"]>>["devices"];
+type RelativeTime = (value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions) => string;
 
-/** Signed-in catalog; an offline host remains listed but cannot be opened. */
+function relativeTime(value: string | null, format: RelativeTime): string | null {
+  if (!value) return null;
+  const elapsed = Date.parse(value) - Date.now();
+  if (Number.isNaN(elapsed)) return null;
+  const minutes = Math.round(elapsed / 60_000);
+  if (Math.abs(minutes) < 60) return format(minutes, "minute", { numeric: "auto" });
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 48) return format(hours, "hour", { numeric: "auto" });
+  return format(Math.round(hours / 24), "day", { numeric: "auto" });
+}
+
+/**
+ * Folders grouped by the computer they live on. This computer is listed first
+ * with its sharing switch; another computer that is offline stays listed with
+ * when it was last online, and its folders cannot be opened until it returns.
+ */
 export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
-  session: DesktopCloudSession; apiBase: string; onOpen: (selection: DeviceFolderSelection) => void;
+  session: DesktopCloudSession; apiBase: string; onOpen: (selection: HostFolderSelection) => void;
 }) {
-  const { t } = useLocalization();
-  const [devices, setDevices] = useState<Catalog>([]);
+  const { t, formatRelativeTime } = useLocalization();
+  const [devices, setDevices] = useState<HostCatalogDevice[]>([]);
+  const [recents, setRecents] = useState<RecentHostFolder[]>([]);
+  const [sharing, setSharing] = useState<HostSharingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const expectedSession = useMemo(() => ({ userId: session.user_id, generation: session.session_generation }),
+    [session.user_id, session.session_generation]);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await window.puppyoneDesktop?.listHostDevices({ userId: session.user_id,
-        generation: session.session_generation });
+      const bridge = window.puppyoneDesktop;
+      const [result, recent, status] = await Promise.all([
+        bridge?.listHostDevices(expectedSession),
+        bridge?.listRecentHostFolders?.(expectedSession).catch(() => null),
+        bridge?.getHostStatus?.().catch(() => null),
+      ]);
       if (!Array.isArray(result?.devices)) throw new Error(t("hosts.catalog.unavailable"));
-      setDevices(result.devices); setError(null);
+      setDevices(result.devices); setRecents(recent?.folders ?? []); setSharing(status ?? null); setError(null);
     } catch (cause) { setDevices([]); setError(cause instanceof Error ? cause.message : t("hosts.catalog.unavailable")); }
     finally { setLoading(false); }
-  }, [session.user_id, session.session_generation, t]);
+  }, [expectedSession, t]);
   useEffect(() => { void refresh(); }, [refresh, apiBase]);
+  useEffect(() => window.puppyoneDesktop?.onHostStatus?.((status) => setSharing((previous) =>
+    ({ ...(previous ?? {}), ...status }) as HostSharingStatus)), []);
+  const thisComputer = sharing?.deviceId ?? null;
+  const ordered = [...devices].sort((left, right) => Number(right.id === thisComputer) - Number(left.id === thisComputer));
+  const open = (device: HostCatalogDevice, folder: HostCatalogDevice["folders"][number]) => onOpen({
+    ref: { deployment: apiBase, accountId: session.user_id, deviceId: device.id, folderId: folder.id },
+    name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write") });
+  const act = (operation: Promise<unknown> | undefined, failure: string) => {
+    void operation?.then(() => refresh()).catch((cause) => setError(cause instanceof Error ? cause.message : t(failure)));
+  };
+  const stateLabels: Partial<Record<HostSharingStatus["state"], string>> = {
+    online: t("hosts.sharing.online"),
+    connecting: t("hosts.sharing.connecting"),
+    offline: t("hosts.sharing.reconnecting"),
+  };
+  const sharingLabel = sharing?.paused ? t("hosts.sharing.paused") : (sharing && stateLabels[sharing.state]) ?? null;
   return <section aria-label={t("hosts.catalog.title")} style={{ margin: "24px auto", maxWidth: 880, padding: "0 20px" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <h2 style={{ fontSize: 16 }}>{t("hosts.catalog.title")}</h2>
+      <h2 style={{ fontSize: "var(--po-type-ui-heading)" }}>{t("hosts.catalog.title")}</h2>
       <button type="button" onClick={() => void refresh()} disabled={loading}>{t("hosts.catalog.refresh")}</button>
     </div>
     {error && <p role="alert">{error}</p>}
     {!error && !loading && devices.length === 0 && <p>{t("hosts.catalog.empty")}</p>}
-    {devices.map(device => <div key={device.id}>
-      <h3 style={{ fontSize: 14 }}>{device.name} · {device.online ? t("hosts.catalog.online") : t("hosts.catalog.offline")}</h3>
-      {device.folders.filter(folder => folder.state === "active").map(folder =>
-        <div key={folder.id} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <button type="button" disabled={!device.online}
-            onClick={() => onOpen({ ref: { deployment: apiBase, accountId: session.user_id,
-              deviceId: device.id, folderId: folder.id }, name: folder.name,
-              writable: folder.capabilities.includes("folder.write") })}>
-            {folder.name}
-          </button>
-          <button type="button" onClick={() => {
-            void window.puppyoneDesktop?.removeHostFolder({ deviceId: device.id, folderId: folder.id,
-              expectedSession: { userId: session.user_id, generation: session.session_generation } })
-              .then(() => refresh()).catch(cause => setError(cause instanceof Error ? cause.message : t("hosts.catalog.removeFailure")));
-          }}>{t("hosts.catalog.remove")}</button>
-        </div>)}
-    </div>)}
+    {ordered.map((device) => {
+      const mine = device.id === thisComputer;
+      const lastSeen = relativeTime(device.last_seen_at, formatRelativeTime);
+      let presence = t("hosts.catalog.offline");
+      if (device.online) presence = t("hosts.catalog.online");
+      else if (lastSeen) presence = t("hosts.catalog.lastSeen", { time: lastSeen });
+      return <div key={device.id} data-host-device={device.id}>
+        <h3 style={{ fontSize: "var(--po-type-ui-body-large)", display: "flex", gap: 8, alignItems: "center" }}>
+          <span>{mine ? t("hosts.catalog.thisComputer", { name: device.name }) : device.name}</span>
+          <span>· {presence}</span>
+          {mine && sharingLabel && <span role="status">· {sharingLabel}</span>}
+          {mine && sharing && sharing.activeRequests + sharing.watching > 0 &&
+            <span role="status">· {t("hosts.sharing.inUse")}</span>}
+          {mine && <button type="button" onClick={() => act(window.puppyoneDesktop?.setHostSharingPaused?.({
+            paused: !sharing?.paused, expectedSession }), "hosts.catalog.updateFailure")}>
+            {sharing?.paused ? t("hosts.sharing.resume") : t("hosts.sharing.pause")}</button>}
+          <button type="button" onClick={() => act(window.puppyoneDesktop?.revokeHostDevice?.({
+            deviceId: device.id, expectedSession }), "hosts.catalog.removeFailure")}>
+            {t("hosts.catalog.removeComputer")}</button>
+        </h3>
+        {device.folders.filter((folder) => folder.state === "active").map((folder) => {
+          const writable = folder.capabilities.includes("folder.write");
+          return <div key={folder.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+            {mine
+              ? <span>{folder.name}</span>
+              : <button type="button" disabled={!device.online} onClick={() => open(device, folder)}>{folder.name}</button>}
+            <span>{writable ? t("hosts.catalog.editable") : t("hosts.catalog.readOnly")}</span>
+            {mine && <button type="button" onClick={() => act(window.puppyoneDesktop?.updateHostFolder?.({
+              deviceId: device.id, folderId: folder.id, name: folder.name, writable: !writable,
+              expectedRevision: folder.revision, expectedSession }), "hosts.catalog.updateFailure")}>
+              {writable ? t("hosts.catalog.makeReadOnly") : t("hosts.catalog.allowEditing")}</button>}
+            <button type="button" onClick={() => act(window.puppyoneDesktop?.removeHostFolder({
+              deviceId: device.id, folderId: folder.id, expectedSession }), "hosts.catalog.removeFailure")}>
+              {t("hosts.catalog.remove")}</button>
+          </div>;
+        })}
+      </div>;
+    })}
+    {recents.length > 0 && <div>
+      <h3 style={{ fontSize: "var(--po-type-ui-body-large)" }}>{t("hosts.catalog.recent")}</h3>
+      {recents.map((recent) => {
+        const device = devices.find((item) => item.id === recent.deviceId);
+        const folder = device?.folders.find((item) => item.id === recent.folderId && item.state === "active");
+        return <div key={recent.folderId} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <button type="button" disabled={!device?.online || !folder}
+            onClick={() => device && folder && open(device, folder)}>
+            {recent.name} · {t("hosts.folder.onHost", { host: device?.name ?? recent.hostName })}</button>
+          {!folder && <span>{t("hosts.catalog.noLongerShared")}</span>}
+          <button type="button" onClick={() => act(window.puppyoneDesktop?.forgetRecentHostFolder?.({
+            folderId: recent.folderId, expectedSession }), "hosts.catalog.removeFailure")}>
+            {t("hosts.catalog.forgetRecent")}</button>
+        </div>;
+      })}
+    </div>}
   </section>;
 }

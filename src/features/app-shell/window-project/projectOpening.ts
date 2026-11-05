@@ -25,6 +25,8 @@ export function describeProjectOpening({
 }: ProjectOpeningInput): ProjectOpening | null {
   if (!opening) return null;
   if (opening.kind === "dropped") return { location: "local", projectName: opening.folder.name };
+  // Another computer's folder opens without a preparation step: no Cloud wait to cancel.
+  if (opening.kind === "host") return { location: "local", projectName: opening.selection.name };
   if (opening.kind === "local") {
     if (opening.path === displayedPath) return null;
     return { location: "local", projectName: localProjectName(opening.path, projectItems) };

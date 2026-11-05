@@ -7,6 +7,8 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostSession,
+  HostSharingStatus, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
@@ -1127,16 +1129,31 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
-      listHostDevices: (expectedSession: { userId: string; generation: string }) => Promise<{ devices: Array<{ id: string; name: string; state: string;
-        online: boolean; folders: Array<{ id: string; name: string; state: string;
-          capabilities: string[] }> }> }>;
+      listHostDevices: (expectedSession: HostSession) => Promise<{ devices: HostCatalogDevice[] }>;
       registerHostFolder: (request: { rootPath: string; writable?: boolean }) => Promise<
         { deviceId: string; folderId: string } | { cancelled: true }>;
-      connectHostDevice: (expectedSession: { userId: string; generation: string }) => Promise<{ deviceId: string | null }>;
+      connectHostDevice: (expectedSession: HostSession) => Promise<{ deviceId: string | null; paused?: boolean }>;
       disconnectHostDevice: () => Promise<{ disconnected: true }>;
       removeHostFolder: (request: { deviceId: string; folderId: string;
-        expectedSession: { userId: string; generation: string } }) => Promise<
-          { removed: boolean } | { cancelled: true }>;
+        expectedSession: HostSession }) => Promise<{ removed: boolean } | { cancelled: true }>;
+      updateHostFolder: (request: { deviceId: string; folderId: string; name: string; writable: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      revokeHostDevice: (request: { deviceId: string; expectedSession: HostSession }) => Promise<
+        { revoked: boolean } | { cancelled: true }>;
+      getHostStatus: () => Promise<HostSharingStatus>;
+      setHostSharingPaused: (request: { paused: boolean; expectedSession: HostSession }) => Promise<{ paused: boolean }>;
+      onHostStatus: (callback: (status: HostSharingStatus) => void) => () => void;
+      requestHostFolder: <T>(request: { folderId: string; operation: HostFileOperation;
+        expectedSession: HostSession }) => Promise<HostFolderResult<T>>;
+      watchHostFolder: (request: { id: string; folderId: string; expectedSession: HostSession }) => Promise<{ id: string }>;
+      stopHostFolderWatch: (request: { id: string }) => Promise<void>;
+      onHostFolderEvent: (callback: (event: HostFolderEvent) => void) => () => void;
+      listRecentHostFolders: (expectedSession: HostSession) => Promise<{ folders: RecentHostFolder[];
+        lastActive: RecentHostFolder | null }>;
+      recordRecentHostFolder: (request: { deviceId: string; folderId: string; name: string; hostName: string;
+        writable: boolean; expectedSession: HostSession }) => Promise<RecentHostFolder>;
+      closeRecentHostFolder: (request: { expectedSession: HostSession }) => Promise<boolean>;
+      forgetRecentHostFolder: (request: { folderId: string; expectedSession: HostSession }) => Promise<boolean>;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;

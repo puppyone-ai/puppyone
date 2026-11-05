@@ -1,13 +1,9 @@
 import { createResourceUri, createWorkspaceResourceUri, type ResourceUri } from "@puppyone/shared-ui";
 import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
+import type { HostFolderRef } from "../../../../shared/host-contract/types";
 
 /** Stable resource identity, not a connection ticket or a filesystem path. */
-export type DeviceFolderRef = Readonly<{
-  deployment: string;
-  accountId: string;
-  deviceId: string;
-  folderId: string;
-}>;
+export type DeviceFolderRef = HostFolderRef;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

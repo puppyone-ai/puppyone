@@ -1364,7 +1364,10 @@ function registerIpcHandlers() {
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
   const hostIpc = registerHostIpcHandlers({ ipcMain: trustedIpcMain, app, auth: cloudAuthService,
     secureStorage: safeStorage, apiBase: desktopCloudConfiguration?.apiBase,
-    authorizeWorkspaceRoot, dialog, BrowserWindow,
+    authorizeWorkspaceRoot, dialog, BrowserWindow, utilityProcess, powerMonitor,
+    fileServiceModulePath: path.join(__dirname, "utility", "host-file-service", "main.mjs"),
+    markWorkspaceShared: (rootPath, hostFolderId) =>
+      workspaceStateStore.setRecentWorkspaceHostFolder(rootPath, hostFolderId),
     t: (id, values) => localeService.t(id, values) });
   app.once("will-quit", () => hostIpc.dispose());
   trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));

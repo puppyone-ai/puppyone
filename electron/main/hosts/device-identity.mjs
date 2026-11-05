@@ -92,6 +92,19 @@ export function createDeviceIdentityService({ filePath, secureStorage, auth, api
       pending = result;
       return result;
     },
+    /** After a definite revocation: drop the key so a later share registers a new device. */
+    forget({ accountId, deviceId }) {
+      const result = pending.catch(() => {}).then(async () => {
+        const records = await load();
+        const kept = records.filter((item) => !(item.deployment === deployment &&
+          item.accountId === accountId && item.deviceId === deviceId));
+        if (kept.length === records.length) return false;
+        await atomicSave(filePath, JSON.stringify(kept));
+        return true;
+      });
+      pending = result;
+      return result;
+    },
     async signForCurrentAccount(deviceId, payload) {
       const accountId = (await forSession()).user_id;
       const record = (await load()).find((item) => item.deployment === deployment &&

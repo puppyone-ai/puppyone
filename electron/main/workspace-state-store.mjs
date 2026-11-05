@@ -2,7 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const WORKSPACE_REGISTRY_VERSION = 7;
+// v8 adds an optional `hostFolderId` (this folder is open on the owner's other
+// computers). v7 records read unchanged; the field is absent until shared.
+const WORKSPACE_REGISTRY_VERSION = 8;
+const HOST_FOLDER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HYDRATION_CONCURRENCY = 4;
 
 export function createWorkspaceStateStore({
@@ -286,6 +289,27 @@ export function createWorkspaceStateStore({
     });
   }
 
+  /** Mark (or unmark, with null) a recent folder as open on the owner's other computers. */
+  async function setRecentWorkspaceHostFolder(folderPath, hostFolderId) {
+    if (hostFolderId !== null && !HOST_FOLDER_ID.test(hostFolderId)) throw new Error("Invalid shared folder.");
+    const canonicalPath = await canonicalizeRequiredPath(folderPath);
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      const recordIndex = state.recentWorkspaceRecords.findIndex((item) => item.path === canonicalPath
+        || (hostFolderId === null && item.hostFolderId && item.path === path.resolve(folderPath)));
+      if (recordIndex < 0) return { updated: false };
+      const current = state.recentWorkspaceRecords[recordIndex];
+      const updated = { ...current };
+      if (hostFolderId) updated.hostFolderId = hostFolderId.toLowerCase();
+      else delete updated.hostFolderId;
+      const recentWorkspaceRecords = [...state.recentWorkspaceRecords];
+      recentWorkspaceRecords[recordIndex] = updated;
+      await writeWorkspaceState(createPersistedState(recentWorkspaceRecords,
+        state.lastActiveWorkspacePaths, state.lastActiveWorkbenchWorkspaceId));
+      return { updated: true, path: current.path };
+    });
+  }
+
   function clearActiveWorkspaceComposition(workbenchWorkspaceId) {
     return enqueueMutation(async () => {
       const state = normalizeWorkspaceState(await readWorkspaceState());
@@ -422,6 +446,7 @@ export function createWorkspaceStateStore({
     requireRecentWorkspacePath,
     removeRecentWorkspacePath,
     renameRecentWorkspacePath,
+    setRecentWorkspaceHostFolder,
     forgetLastWorkspacePath,
   };
 }
@@ -489,6 +514,9 @@ function normalizeWorkspaceRecord(value, fallbackTimestamp = null) {
     ...(normalizeOptionalString(value.displayName)
       ? { displayName: normalizeOptionalString(value.displayName) }
       : {}),
+    ...(typeof value.hostFolderId === "string" && HOST_FOLDER_ID.test(value.hostFolderId)
+      ? { hostFolderId: value.hostFolderId.toLowerCase() }
+      : {}),
     lastOpenedAt: normalizeWorkspaceTimestamp(value.lastOpenedAt ?? fallbackTimestamp),
   };
 }
@@ -541,22 +569,25 @@ function lightweightWorkspaceFromRecord(record) {
     puppyoneGitRemote: record.puppyoneGitRemote,
     workspaceInstanceId: record.workspaceInstanceId,
     ...(record.fsIdentity ? { fsIdentity: record.fsIdentity } : {}),
+    ...(record.hostFolderId ? { hostFolderId: record.hostFolderId } : {}),
     hydrationState: "metadata",
   };
 }
 
 function applyWorkspaceDisplayName(workspace, record) {
-  return record?.displayName ? { ...workspace, name: record.displayName } : workspace;
+  const named = record?.displayName ? { ...workspace, name: record.displayName } : workspace;
+  return record?.hostFolderId ? { ...named, hostFolderId: record.hostFolderId } : named;
 }
 
 function withPreservedDisplayName(record, previousRecord) {
+  const shared = previousRecord?.hostFolderId ? { ...record, hostFolderId: previousRecord.hostFolderId } : record;
   return previousRecord?.displayName
     ? {
-        ...record,
+        ...shared,
         name: previousRecord.name,
         displayName: previousRecord.displayName,
       }
-    : record;
+    : shared;
 }
 
 function normalizeWorkspaceDisplayName(value) {

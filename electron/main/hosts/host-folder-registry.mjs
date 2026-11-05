@@ -95,6 +95,44 @@ export function createHostFolderRegistry({ filePath, auth, apiBase }) {
       return { rootPath: row.rootPath, state: row.state,
         capabilities: row.writable ? ["folder.read", "folder.write"] : ["folder.read"] };
     },
+    /** This computer's own shared folders, for its status surface. No paths leave Main. */
+    async list(accountId, deviceId) {
+      return (await load()).filter((row) => row.deployment === deployment && row.accountId === accountId &&
+        row.deviceId === deviceId && row.state === "active")
+        .map(({ folderId, name, writable, rootPath }) => ({ folderId, name, writable, rootPath }));
+    },
+    /** Local enforcement follows the narrower of the old and new access at every step. */
+    setAccess({ accountId, deviceId, folderId, name, writable }) {
+      const result = pending.catch(() => {}).then(async () => {
+        if (typeof name !== "string" || !name.trim() || typeof writable !== "boolean") throw new Error("Invalid folder update.");
+        const rows = await load();
+        const row = rows.find((item) => item.deployment === deployment && item.accountId === accountId &&
+          item.deviceId === deviceId && item.folderId === folderId && item.state === "active");
+        if (!row) return false;
+        row.name = name.trim(); row.writable = writable;
+        await save(rows);
+        return true;
+      });
+      pending = result;
+      return result;
+    },
+    /** A revoked device's folders are denied locally; nothing remains to tell the backend. */
+    forgetDevice({ accountId, deviceId }) {
+      const result = pending.catch(() => {}).then(async () => {
+        const rows = await load();
+        let changed = false;
+        for (const row of rows) {
+          if (row.deployment === deployment && row.accountId === accountId &&
+              row.deviceId === deviceId && row.state !== "removed") {
+            row.state = "removed"; changed = true;
+          }
+        }
+        if (changed) await save(rows);
+        return changed;
+      });
+      pending = result;
+      return result;
+    },
     async remove(deviceId, folderId) {
       const current = await session();
       const rows = await load();
