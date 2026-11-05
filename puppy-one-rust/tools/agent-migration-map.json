@@ -97,9 +97,14 @@
         "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/infrastructure/native/native_agent_client.rs"
+        "src/features/desktop_agent/infrastructure/native/native_agent_client.rs",
+        "src/features/desktop_agent/infrastructure/host/agent_host_client.rs",
+        "src/features/desktop_agent/infrastructure/host/project_agent_client.rs",
+        "src/features/desktop_agent/infrastructure/host/window_runtime.rs",
+        "src/features/desktop_agent/infrastructure/host/tests.rs",
+        "src/features/desktop_agent/infrastructure/host/mod.rs"
       ],
-      "remaining": "In-process native composition now routes Codex, Claude, ACP providers, Pi and the Rust PuppyOne runtime. Complete Electron setup/account/installation services are not represented by this port."
+      "remaining": "The window client (preload agent:* bridge + getElectronAgentClient) runs over AgentHostHandle: each port method maps to its IPC channel, structured failure envelopes become AgentOperationError, attachment staging captures native paths or sends bytes inline within the 25 MB in-flight budget, and the window's frame sink feeds onAgentSessionFrame on the GPUI executor (WindowUiRuntime). createProjectAgentClientProvider attaches the project context and fills in session instance ids. End-to-end tests drive AgentSessionController through the host thread. Not represented yet: agentSessionClient's per-session MessagePort transcript connection and agentExecutionClient's item-host execution ownership (they arrive with the item-host process service); the legacy native_agent_client still serves the GPUI views."
     },
     {
       "name": "Chat presentation",
