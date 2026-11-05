@@ -19,11 +19,14 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "puppyone-resource-smoke-"));
 const automated = process.argv.includes("--automated");
 const editorMode = process.argv.includes("--editor");
+const imageMode = process.argv.includes("--images");
 app.setPath("userData", path.join(temporaryRoot, "user-data"));
 if (automated) app.on("window-all-closed", () => {});
 const deadline = automated ? setTimeout(() => { console.error("Native acceptance exceeded 120 seconds"); process.exit(1); }, 120_000) : null;
 app.whenReady().then(async () => {
   await fs.mkdir(path.join(temporaryRoot, "docs"));
+  await fs.mkdir(path.join(temporaryRoot, "assets"));
+  await fs.writeFile(path.join(temporaryRoot, "assets", "photo #1%.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGOwaT4KRAAJkQMJDwNCIAAAAABJRU5ErkJggg==", "base64"));
   await fs.writeFile(path.join(temporaryRoot, "docs", "中文 file.md"), "native drag fixture\n");
   await fs.writeFile(path.join(temporaryRoot, "existing.md"), "# Existing document\n\nDrag the Explorer file into this pane to split it.\n");
   const workspacePath = await fs.realpath(temporaryRoot);
@@ -48,8 +51,14 @@ app.whenReady().then(async () => {
   ipcMain.handle("resource-smoke:config", () => ({ workspacePath }));
   ipcMain.handle("resource-smoke:read", async (event, resource) => {
     const resolved = await resolver(event, resource);
+    if (resolved.absolutePath.endsWith(".png")) return { path: resource, name: path.basename(resolved.absolutePath), type: "image", mimeType: "image/png", version: "smoke" };
     return { path: resource, name: path.basename(resolved.absolutePath), type: "markdown", mimeType: "text/markdown",
       content: await fs.readFile(resolved.absolutePath, "utf8"), version: "smoke" };
+  });
+  ipcMain.handle("resource-smoke:persist", async (event, request) => {
+    const resolved = await resolver(event, request.path);
+    await fs.writeFile(resolved.absolutePath, request.content, "utf8");
+    return { ok: true, version: `smoke:${request.revision}` };
   });
   ipcMain.on("resource-smoke:event", (_event, entry) => { void log(entry); });
   const server = await createServer({ root: repoRoot, cacheDir: path.join(temporaryRoot, "vite-cache"), server: { port: 5187, strictPort: false, host: "127.0.0.1" } });
@@ -71,7 +80,7 @@ app.whenReady().then(async () => {
   if (automated) {
     let failed = false;
     try {
-      await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode });
+      await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, imageMode });
     } catch (error) { console.error(error); failed = true; }
     finally {
       transfer.dispose();

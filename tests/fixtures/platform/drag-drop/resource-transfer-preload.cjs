@@ -26,5 +26,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
 contextBridge.exposeInMainWorld("resourceSmoke", {
   config: () => ipcRenderer.invoke("resource-smoke:config"),
   read: (resource) => ipcRenderer.invoke("resource-smoke:read", resource),
+  persist: (request) => ipcRenderer.invoke("resource-smoke:persist", request),
   record: (entry) => ipcRenderer.send("resource-smoke:event", entry),
 });

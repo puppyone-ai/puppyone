@@ -27,7 +27,7 @@ function point(window, rect, x = 0.5, y = 0.5) {
 }
 
 /** Uses CoreGraphics at the OS boundary. No DOM drag dispatch or sendInputEvent. */
-export async function runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, attachPdf }) {
+export async function runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, imageMode = false, attachPdf }) {
   assert.equal(process.platform, "darwin", "Native resource acceptance requires macOS.");
   const source = await readSourceIdentity(repoRoot);
   const artifactRoot = path.join(repoRoot, "artifacts/tests/native-resource-drag");
@@ -84,10 +84,32 @@ export async function runNativeResourceAcceptance({ windows, entries, temporaryR
       await drag(point(window, sourceRect), point(window, await bounds(window, "[data-editor-pane-id]"), 0.9, 0.6));
       assert.equal(entries.findLast((entry) => entry.panes).panes.length, 2, "Repeated drop duplicated a pane.");
       steps.push({ name: "repeat-focus", paneCount: 2 });
+      let expectedPaneCount = 2;
+      if (imageMode) {
+        const imageSource = await bounds(window, '[data-explorer-path*="photo%20"]');
+        const editorPane = await bounds(window, "[data-editor-pane-id]");
+        const start = entries.length;
+        await drag(point(window, imageSource), point(window, editorPane, 0.5, 0.6));
+        const saved = await until(() => entries.slice(start).find(entry => entry.persisted && entry.content?.includes("![photo #1%]")), "image inserted and persisted");
+        assert(saved.content.includes("(<assets/photo %231%25.png>)"), "Image path was not portable or escaped correctly.");
+        assert.equal(entries.findLast(entry => entry.panes).panes.length, expectedPaneCount, "Inline insertion created another pane.");
+        const received = entries.slice(start).find(entry => entry.event === "drop");
+        assert(received?.types.includes("Files"), "Image did not arrive through a native Files drop.");
+        const onDisk = await fs.readFile(path.join(temporaryRoot, "existing.md"), "utf8");
+        assert.equal(onDisk, saved.content);
+        assert(await window.webContents.executeJavaScript(`Boolean(document.activeElement?.closest('.markdown-codemirror-editor'))`), "Inserted image did not hand keyboard focus to the editor.");
+        await until(() => window.webContents.executeJavaScript(`Boolean(document.querySelector('.cm-md-image-widget img[data-preview-state="ready"]'))`), "rendered image preview");
+        await fs.writeFile(path.join(directory, "inline-image.png"), (await window.webContents.capturePage()).toPNG());
+        steps.push({ name: "inline-image", received, saved });
+        await drag(point(window, imageSource), point(window, await bounds(window, "[data-editor-pane-id]"), 0.99, 0.6));
+        expectedPaneCount += 1;
+        await until(() => entries.findLast(entry => entry.panes).panes.length === expectedPaneCount, "image edge split");
+        steps.push({ name: "image-edge-split", paneCount: expectedPaneCount });
+      }
       // Releasing over non-target chrome cancels the transfer without mutation.
       await drag(point(window, sourceRect), point(window, { x: 0, y: 0, width: 220, height: 30 }));
       await until(() => entries.findLast((entry) => entry.pointerPassthrough)?.pointerPassthrough.active === false, "cancel routing release");
-      assert.equal(entries.findLast((entry) => entry.panes).panes.length, 2);
+      assert.equal(entries.findLast((entry) => entry.panes).panes.length, expectedPaneCount);
       if (pdf) {
         await until(() => !pdf.entry.occluded && pdf.entry.view.getVisible(), "PDF restored after drop/cancel");
         assert.equal(pdf.entry.view.webContents.isDestroyed(), false);
@@ -100,7 +122,7 @@ export async function runNativeResourceAcceptance({ windows, entries, temporaryR
   if (source.fingerprint !== sourceAfter.fingerprint) failure ??= new Error("Source changed during native acceptance.");
   await fs.writeFile(path.join(directory, "result.json"), JSON.stringify({
     ok: !failure, source, sourceAfter, system: { platform: process.platform, arch: process.arch, release: os.release(), electron: process.versions.electron },
-    input: "CoreGraphics CGHIDEventTap", editorMode, pdf: Boolean(attachPdf), steps, entries,
+    input: "CoreGraphics CGHIDEventTap", editorMode, imageMode, pdf: Boolean(attachPdf), steps, entries,
     error: failure?.stack ?? null,
   }, null, 2));
   console.log(`NATIVE_RESOURCE_ACCEPTANCE ${directory}`);
