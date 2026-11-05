@@ -27,11 +27,23 @@ const section = (index: number) => [
   `Closing paragraph ${index}.`, "", "",
 ].join("\n");
 
+const imageSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="220"><rect width="480" height="220" rx="12" fill="#39BC66"/></svg>';
+// AssetBroker revokes a blob URL with its widget, so each request needs its own.
+// `pending.svg` never resolves, so the loading placeholder can be measured.
+const imageResolver = (_sourcePath: string, href: string) => (
+  href.includes("pending")
+    ? new Promise<never>(() => {})
+    : Promise.resolve(URL.createObjectURL(new Blob([imageSvg], { type: "image/svg+xml" })))
+);
+
 const documents: Record<string, () => string> = {
   mixed: () => `- only item in its list\n\n${section(1)}${section(2)}`,
   long: () => Array.from({ length: 600 }, (_, index) => section(index + 1)).join(""),
   rtl: () => "שלום עולם\n\nפסקה שנייה\n\nפסקה שלישית\n",
   frontmatter: () => "---\ntitle: Hello\n---\n\nFirst paragraph.\n\nSecond paragraph.\n",
+  image: () => ["# 健身营养", "", "![三大供能系统](three-energy-systems.svg)", "", "ATP-CP 供能系统之后的说明段落。", ""].join("\n"),
+  imagePending: () => ["# 占位", "", "![加载中](pending.svg)", "", "占位之后。", ""].join("\n"),
+  imageRtl: () => ["שלום עולם", "", "![תמונה](three-energy-systems.svg)", "", "פסקה אחרונה.", ""].join("\n"),
 };
 
 const parameters = new URLSearchParams(location.search);
@@ -53,7 +65,8 @@ function Harness() {
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} className={themeMode === "dark" ? "dark" : ""} style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", width: "100vw", height: "100vh" }}>
       <section id="markdown" style={{ height: "100%" }}>
-        <MarkdownCodeMirrorEditor value={initial} livePreview readOnly={false} blockDragEnabled={enabled} />
+        <MarkdownCodeMirrorEditor value={initial} livePreview readOnly={false} blockDragEnabled={enabled}
+          documentPath="image.md" markdownAssetUrlResolver={imageResolver} />
       </section>
     </div>
   </SurfaceAppearanceProvider></TestLocalizationProvider>;
@@ -98,6 +111,18 @@ const fixture = {
     const rect = shown("drag-handle");
     if (!rect) return null;
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2, kind: part("drag-handle")!.dataset.blockKind };
+  },
+  async imageReady() {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      if (document.querySelector(".cm-md-image-widget img:not([hidden])")) return;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  },
+  blockImage() {
+    const widget = view().contentDOM.querySelector<HTMLElement>(".cm-md-image-widget");
+    const line = widget?.closest<HTMLElement>(".cm-line");
+    if (!widget || !line) return null;
+    return { widget: box(widget)!, line: box(line)!, display: getComputedStyle(widget).display };
   },
   handleLook() {
     const handle = part("drag-handle")!, grip = handle.querySelector("svg")!;
