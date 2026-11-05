@@ -148,6 +148,27 @@ impl FakeClient {
     }
 }
 
+/// Resolves once the test runtime has taken a turn, however often it is
+/// polled before.
+pub async fn next_turn() {
+    let turn = Rc::new((Cell::new(false), RefCell::new(None::<std::task::Waker>)));
+    let taken = turn.clone();
+    tokio::task::spawn_local(async move {
+        taken.0.set(true);
+        if let Some(waker) = taken.1.borrow_mut().take() {
+            waker.wake();
+        }
+    });
+    std::future::poll_fn(move |context| {
+        if turn.0.get() {
+            return std::task::Poll::Ready(());
+        }
+        *turn.1.borrow_mut() = Some(context.waker().clone());
+        std::task::Poll::Pending
+    })
+    .await;
+}
+
 impl AgentClientPort for FakeClient {
     fn implements(&self, method: &str) -> bool {
         match method {
@@ -179,10 +200,17 @@ impl AgentClientPort for FakeClient {
             }
         };
         let interceptor = self.interceptor.borrow().clone();
-        match interceptor {
+        let pending = match interceptor {
             Some(interceptor) => interceptor(method, request, &invoke),
             None => invoke(request),
-        }
+        };
+        // A JS promise settles its awaiters on a later microtask, even when
+        // it is already resolved.
+        Box::pin(async move {
+            let result = pending.await;
+            next_turn().await;
+            result
+        })
     }
 
     fn on_agent_session_frame(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {

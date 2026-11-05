@@ -397,6 +397,11 @@ impl AgentSessionController {
         Self(inner)
     }
 
+    /// `controller === other`.
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+
     pub fn workspace_root(&self) -> &str {
         &self.0.workspace_root
     }
