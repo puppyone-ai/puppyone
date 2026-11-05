@@ -1,5 +1,6 @@
 import { parseFragment, serialize, type DefaultTreeAdapterTypes as Tree } from "parse5";
 import { HTML_FRAME_BRIDGE } from "./htmlFrameBridge";
+import { HTML_PAGE_SCROLLBAR_STYLE } from "./htmlPageViewport";
 import { attribute, escapeHtmlAttribute, HTML_TARGET_ATTRIBUTE, isHtmlElement, type HtmlSourceIndex } from "./htmlSourceIndex";
 
 const REMOVED = new Set("script noscript iframe frame frameset object embed applet template base meta portal fencedframe".split(" "));
@@ -58,7 +59,8 @@ export function buildHtmlEditingProjection(index: HtmlSourceIndex, fileUrl: stri
     "base-uri https: puppyone-local:"].join("; ");
   const head = `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">`
     + (base ? `<base href="${escapeHtmlAttribute(base)}">` : "")
-    + `<style>[${HTML_TARGET_ATTRIBUTE}]{cursor:default}input,textarea,select{pointer-events:none}</style>`;
+    + `<style>[${HTML_TARGET_ATTRIBUTE}]{cursor:default}input,textarea,select{pointer-events:none}</style>`
+    + HTML_PAGE_SCROLLBAR_STYLE;
   const script = `<script nonce="${nonce}">const SESSION=${JSON.stringify(session)};${HTML_FRAME_BRIDGE}</script>`;
   // Mutate parsed nodes, never search markup strings that can also occur in CSS or quoted attributes.
   const html = index.tree.childNodes.find((node): node is Tree.Element => isHtmlElement(node) && node.tagName === "html")!;

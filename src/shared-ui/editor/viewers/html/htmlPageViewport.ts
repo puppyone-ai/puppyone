@@ -78,3 +78,18 @@ if(event.data.type==='puppyone-html-inset'){const top=event.data.top;if(Number.i
 if(event.data.type!=='puppyone-html-restore')return;
 const {x,y}=event.data;if(Number.isFinite(x)&&Number.isFinite(y))scrollTo(x,y)})})();</script>`;
 }
+
+/**
+ * The product scrollbar for a page's own viewport, as an editor's document
+ * has it: a thumb on a clear lane, shown while the page is under the pointer.
+ * It goes first in the page's head with no specificity of its own, so any
+ * scrollbar the page styles itself wins. Colours are neutral enough for a
+ * light or a dark page, since the app's tokens do not reach inside it.
+ */
+export const HTML_PAGE_SCROLLBAR_STYLE = `<style id="puppyone-html-page-scrollbar">
+:where(html)::-webkit-scrollbar{width:12px;height:12px}
+:where(html)::-webkit-scrollbar-track,:where(html)::-webkit-scrollbar-corner{background:transparent}
+:where(html)::-webkit-scrollbar-thumb{border:3px solid transparent;border-radius:999px;background-clip:padding-box;background-color:transparent}
+:where(html:hover)::-webkit-scrollbar-thumb{border-width:2px;background-color:rgb(128 128 128 / .45)}
+:where(html)::-webkit-scrollbar-thumb:hover{background-color:rgb(128 128 128 / .6)}
+</style>`;

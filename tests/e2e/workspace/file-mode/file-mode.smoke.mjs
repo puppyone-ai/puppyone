@@ -160,6 +160,7 @@ async function prepareFixtures() {
   await fs.writeFile(inDocs("images/dot.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKDveksOjmAAAAAElFTkSuQmCC", "base64"));
   await fs.writeFile(inDocs("plan.md"), "# Plan\n\nBody.\n\n![dot](./images/dot.png)\n\n```mermaid\ngraph TD\n  A --> B\n```\n");
   // The numbers make the first row read as a header; plain rows have none.
+  await fs.writeFile(inDocs("wide-code.md"), `# Wide code\n\n\`\`\`js\nconst first = 1;\nconst line = "${"x".repeat(400)}";\nconst last = 3;\n\`\`\`\n\n$$\n${"a+".repeat(200)}a\n$$\n`);
   await fs.writeFile(inDocs("rows.csv"), `name,amount\n${"Ada,100\n".repeat(300)}`);
   await fs.writeFile(inDocs("plain-rows.csv"), "Ada,London\n".repeat(300));
   await fs.writeFile(inDocs("long.md"), `# Long\n\n${"A paragraph long enough to scroll under the title bar.\n\n".repeat(80)}`);
@@ -273,6 +274,7 @@ async function coldStart() {
   })()`));
   await closeAndWait(long);
   await scrollEdge();
+  await scrollbars();
   return window;
 }
 
@@ -281,6 +283,32 @@ const scrollEdgeOf = (window) => evaluate(window, `(() => {
   const surface = document.querySelector(".file-mode-window__document");
   return { scrolled: surface.hasAttribute("data-scrolled"), masked: getComputedStyle(surface).maskImage !== "none" };
 })()`);
+
+/** Scrollers in the window that overflow but are left to the platform's native scrollbar. */
+const nativeScrollers = (window) => evaluate(window, `[...document.querySelectorAll("*")].filter((element) => {
+  const { overflowX, overflowY } = getComputedStyle(element);
+  const scrolls = (/auto|scroll/.test(overflowX) && element.scrollWidth > element.clientWidth + 1)
+    || (/auto|scroll/.test(overflowY) && element.scrollHeight > element.clientHeight + 1);
+  return scrolls && !element.hasAttribute("data-po-scrollbar");
+}).map((element) => element.tagName.toLowerCase() + "." + [...element.classList].join("."))`);
+
+/** One scrollbar throughout: wide blocks scroll sideways on the product scrollbar, and a code block's hides none of its lines. */
+async function scrollbars() {
+  const window = await openAndWait(inDocs("wide-code.md"), ".cm-md-code-textarea");
+  await until(() => exists(window, ".cm-md-math-block-widget"), "the wide formula");
+  await wait(300);
+  check("a wide code block scrolls sideways on the product scrollbar without hiding a line", await evaluate(window, `(() => {
+    const code = document.querySelector(".cm-md-code-textarea");
+    return { scrollbar: code.dataset.poScrollbar, overflows: code.scrollWidth > code.clientWidth, linesHidden: code.scrollHeight > code.clientHeight };
+  })()`), { scrollbar: "horizontal", overflows: true, linesHidden: false });
+  check("a wide formula scrolls sideways on the product scrollbar", await evaluate(window, `(() => {
+    const math = document.querySelector(".cm-md-math-block-widget");
+    return { scrollbar: math.dataset.poScrollbar, overflows: math.scrollWidth > math.clientWidth };
+  })()`), { scrollbar: "horizontal", overflows: true });
+  check("nothing in a Markdown window scrolls on the native scrollbar", await nativeScrollers(window), []);
+  await screenshot(window, "wide-code");
+  await closeAndWait(window);
+}
 
 /** No divider under the bar: text scrolled up under it fades out, and only once the document has left its top. */
 async function scrollEdge() {
@@ -448,6 +476,7 @@ async function controlsShowWithPagePointerAt(window, frame, fraction) {
 async function htmlEdges() {
   const page = await openAndWait(path.join(site, "long-page.html"), "iframe");
   let frame = await pageFrame(page, "#banner");
+  check("a page without scrollbar styles of its own gets the product scrollbar", await frame.executeJavaScript(`!!document.getElementById("puppyone-html-page-scrollbar")`));
   for (const view of ["preview", "visual edit"]) {
     check(`${view}: over the page, the title bar controls stay hidden lower down`, await controlsShowWithPagePointerAt(page, frame, 0.6), false);
     check(`${view}: over the page, the title bar controls show in the top third`, await controlsShowWithPagePointerAt(page, frame, 0.2), true);

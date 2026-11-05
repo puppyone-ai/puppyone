@@ -81,6 +81,7 @@ export function CloudActivationHero({
   return (
     <section
       className={rootClassName}
+      data-po-scrollbar="content"
       aria-label={ariaLabel ?? title}
       aria-labelledby={resolvedTitleId}
     >
