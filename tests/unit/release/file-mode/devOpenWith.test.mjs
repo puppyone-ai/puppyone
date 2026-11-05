@@ -97,8 +97,8 @@ describe("dev Open With app", () => {
 
   it("reaches the dev channel's socket, which belongs to no checkout", () => {
     const userDataName = getDesktopBuildChannelPolicy("dev").userDataName;
-    expect(devControlEndpoint({ homeDirectory: "/Users/a", uid: 501 }))
-      .toBe(`/Users/a/Library/Application Support/${userDataName}/cli/control.sock`);
+    expect(devControlEndpoint({ homeDirectory: "/Users/example", uid: 501 }))
+      .toBe(`/Users/example/Library/Application Support/${userDataName}/cli/control.sock`);
   });
 
   it.runIf(process.platform === "darwin")("asks the running dev instance to open each file, awkward paths intact", async () => {
