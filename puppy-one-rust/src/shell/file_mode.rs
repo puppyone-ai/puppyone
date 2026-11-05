@@ -162,7 +162,7 @@ impl Shell {
     }
     /// The file window's editor, once its document has a host.
     pub(super) fn file_editor(&self) -> Option<Entity<crate::editor::host::DocumentEditor>> {
-        self.native_hosts.get(&self.files.active_slot()).cloned()
+        self.editor.hosts.get(&self.files.active_slot()).cloned()
     }
     fn file_menu(
         &self,
@@ -423,7 +423,7 @@ impl Shell {
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
                 let slot = self.files.active_slot();
-                let document = self.native_hosts.get(&slot).map(|editor| {
+                let document = self.editor.hosts.get(&slot).map(|editor| {
                     div()
                         .relative()
                         .flex_1()

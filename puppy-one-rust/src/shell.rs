@@ -23,6 +23,7 @@ mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
 mod create_new;
+mod editor_area;
 mod editor_workbench;
 mod explorer;
 mod file_mode;
@@ -115,15 +116,8 @@ pub struct Shell {
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     pending: bool,
     files: Documents,
-    native: Entity<crate::editor::host::DocumentEditor>,
-    native_hosts: std::collections::BTreeMap<u64, Entity<crate::editor::host::DocumentEditor>>,
-    editor_resize: Option<editor_workbench::EditorResize>,
-    editor_drop: Option<editor_workbench::EditorDrop>,
-    /// The save failure whose notice the person dismissed (`useDismissibleNotice`).
-    dismissed_save_error: Option<String>,
-    /// Re-renders once a transient "Saved" status lapses.
-    saved_refresh: Option<gpui::Task<()>>,
-    editor_tab_focus: std::collections::BTreeMap<u64, FocusHandle>,
+    /// The editor area's hosts, drops, resizes and save notices.
+    editor: editor_area::EditorArea,
     wake: Wake,
     focus: FocusHandle,
     project_focus: FocusHandle,
@@ -287,13 +281,7 @@ impl Shell {
             } else {
                 Documents::native()
             },
-            native: cx.new(crate::editor::host::DocumentEditor::new),
-            native_hosts: Default::default(),
-            editor_resize: None,
-            editor_drop: None,
-            dismissed_save_error: None,
-            saved_refresh: None,
-            editor_tab_focus: Default::default(),
+            editor: editor_area::EditorArea::new(cx.new(crate::editor::host::DocumentEditor::new)),
             wake,
             focus,
             project_focus: cx.focus_handle(),
@@ -310,7 +298,7 @@ impl Shell {
             frames: 0,
         };
         s.files.task_scope = s.window_key.clone();
-        s.native_hosts.insert(0, s.native.clone());
+        s.editor.hosts.insert(0, s.editor.front.clone());
         // Agent file presence over the editor panes.
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
@@ -454,7 +442,7 @@ impl Shell {
                 .source_control
                 .update(cx, |sc, cx| sc.set_focused(active, cx));
             if !active {
-                s.editor_drop = None;
+                s.editor.drop = None;
                 s.end_pane_drag(false, cx);
                 s.end_editor_resize(false, cx);
             } else {
@@ -484,12 +472,12 @@ impl Shell {
                 return;
             }
             let _ = shell.update(cx, |s, cx| {
-                if s.editor_drop.take().is_some() {
+                if s.editor.drop.take().is_some() {
                     cx.stop_active_drag(window);
                     cx.stop_propagation();
                     cx.notify();
                 }
-                if s.editor_resize.is_some() {
+                if s.editor.resize.is_some() {
                     s.end_editor_resize(false, cx);
                     cx.stop_propagation();
                 }
@@ -573,7 +561,7 @@ impl Shell {
             },
         )
         .detach();
-        cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
+        cx.subscribe_in(&s.editor.front, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {
                 if s.files.state().is_some() {
@@ -1208,7 +1196,8 @@ impl Shell {
             }
             Command::ToggleMarkdownSource => {
                 if !self.files.busy() && !self.modal() {
-                    self.native
+                    self.editor
+                        .front
                         .update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
@@ -1312,7 +1301,7 @@ impl Shell {
                 .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
         }
         if let Some(nodes) = self.files.tree_update.take() {
-            self.editor_drop = None;
+            self.editor.drop = None;
             self.end_editor_resize(false, cx);
             let ws = self.files.workspace.clone().unwrap();
             self.explorer
@@ -1418,9 +1407,10 @@ impl Shell {
         let file = self.file_mode();
         let active = self.files.active_slot();
         let mut focus_native = self
-            .native_hosts
+            .editor
+            .hosts
             .get(&active)
-            .is_some_and(|e| e != &self.native);
+            .is_some_and(|e| e != &self.editor.front);
         for _ in 0..4 {
             let messages = self.files.take_outgoing();
             if messages.is_empty() {
@@ -1428,9 +1418,9 @@ impl Shell {
             }
             for (slot, message) in messages {
                 if let std::collections::btree_map::Entry::Vacant(entry) =
-                    self.native_hosts.entry(slot)
+                    self.editor.hosts.entry(slot)
                 {
-                    self.editor_tab_focus.insert(slot, cx.focus_handle());
+                    self.editor.tab_focus.insert(slot, cx.focus_handle());
                     let owner = cx.entity_id();
                     let file_mode = self.file.is_some();
                     let editor = cx.new(|cx| {
@@ -1480,7 +1470,7 @@ impl Shell {
                         explorer.reference_context(workspace, path)
                     })
                 });
-                let replies = self.native_hosts[&slot].update(cx, |s, cx| {
+                let replies = self.editor.hosts[&slot].update(cx, |s, cx| {
                     s.set_reference_context(references, cx);
                     s.receive(&message, window, cx)
                 });
@@ -1490,16 +1480,16 @@ impl Shell {
             }
         }
         let retained = self.files.retained_slots();
-        self.native_hosts.retain(|id, _| retained.contains(id));
-        self.editor_tab_focus.retain(|id, _| retained.contains(id));
-        if let Some(editor) = self.native_hosts.get(&active) {
-            self.native = editor.clone();
+        self.editor.hosts.retain(|id, _| retained.contains(id));
+        self.editor.tab_focus.retain(|id, _| retained.contains(id));
+        if let Some(editor) = self.editor.hosts.get(&active) {
+            self.editor.front = editor.clone();
         }
         let modal = self.modal() || self.sidebar.workbench.read(cx).dialog_open();
         let home = self.home_visible();
         let visible = self.files.visible_slots();
         let read_only = self.file_read_only();
-        for (slot, editor) in &self.native_hosts {
+        for (slot, editor) in &self.editor.hosts {
             // A lone file has no neighbours (`EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT`).
             let references = self.files.slot(*slot).filter(|_| !file).and_then(|files| {
                 let workspace = files.workspace.as_ref()?;
@@ -1532,7 +1522,8 @@ impl Shell {
             focus_native = false;
         }
         if focus_native && !modal && !self.files.busy() {
-            self.native
+            self.editor
+                .front
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
     }
@@ -1705,7 +1696,7 @@ impl Shell {
             canvas =
                 canvas.child(self.editor_node(&state.layout.root, Rect::new(0., 0., r.w, r.h), cx));
         } else if self.files.opened().is_some() {
-            canvas = canvas.child(at(Rect::new(0., 0., r.w, r.h)).child(self.native.clone()));
+            canvas = canvas.child(at(Rect::new(0., 0., r.w, r.h)).child(self.editor.front.clone()));
         }
         canvas
     }
@@ -2116,7 +2107,7 @@ impl Render for Shell {
         crate::web_host::set_overlay(window, !self.modals.is_empty() || self.popover.is_some());
         crate::web_host::frame_drawn(window);
         if !cx.has_active_drag() {
-            self.editor_drop = None;
+            self.editor.drop = None;
             self.homepage.dragging_path = None;
         }
         #[cfg(test)]
@@ -2189,7 +2180,7 @@ impl Render for Shell {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|s, e: &MouseUpEvent, _, cx| {
-                    if s.editor_resize.is_some() {
+                    if s.editor.resize.is_some() {
                         s.move_editor_resize(e.position, cx);
                         s.end_editor_resize(true, cx);
                     }
@@ -2338,7 +2329,7 @@ impl Shell {
         }
         // `editor-notice-stack`: the active document's save failure.
         if let Some(detail) = self.files.save_error.clone().filter(|e| {
-            !self.files.cloud_conflict() && self.dismissed_save_error.as_ref() != Some(e)
+            !self.files.cloud_conflict() && self.editor.dismissed_save_error.as_ref() != Some(e)
         }) {
             let dismiss = self.weak.clone();
             let dismissed = detail.clone();
@@ -2363,7 +2354,7 @@ impl Shell {
                     .tone(NoticeTone::Danger)
                     .on_dismiss(move |_, cx| {
                         let _ = dismiss.update(cx, |s, cx| {
-                            s.dismissed_save_error = Some(dismissed.clone());
+                            s.editor.dismissed_save_error = Some(dismissed.clone());
                             cx.notify();
                         });
                     }),

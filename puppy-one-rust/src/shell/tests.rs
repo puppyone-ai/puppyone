@@ -130,7 +130,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
     let (slot, entity, key) = view.read_with(cx, |s, _| {
         (
             s.files.active_slot(),
-            s.native.entity_id(),
+            s.editor.front.entity_id(),
             s.files
                 .state()
                 .unwrap()
@@ -161,7 +161,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
     });
     view.read_with(cx, |s, _| {
         assert_eq!(s.files.visible_slots().len(), 2);
-        assert_eq!(s.native_hosts[&slot].entity_id(), entity);
+        assert_eq!(s.editor.hosts[&slot].entity_id(), entity);
     });
     view.update_in(cx, |s, w, cx| {
         let pane = s.files.state().unwrap().layout.active.clone();
@@ -171,7 +171,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
     });
     view.read_with(cx, |s, _| {
         assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
-        assert_eq!(s.native.entity_id(), entity);
+        assert_eq!(s.editor.front.entity_id(), entity);
     });
     view.update(cx, |s, _| {
         s.files
@@ -189,7 +189,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
         )
     });
     settle(&view, cx, &|s| s.files.active_slot() == slot);
-    view.read_with(cx, |s, _| assert_eq!(s.native.entity_id(), entity));
+    view.read_with(cx, |s, _| assert_eq!(s.editor.front.entity_id(), entity));
     command(&view, cx, Command::Undo);
     settle(&view, cx, &|s| !s.files.saving());
     assert_eq!(
@@ -720,7 +720,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     let (slot, entity, session) = view.read_with(cx, |s, _| {
         (
             s.files.active_slot(),
-            s.native.entity_id(),
+            s.editor.front.entity_id(),
             s.files.document.as_ref().unwrap().id.clone(),
         )
     });
@@ -755,7 +755,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
         assert!(s.files.retained_slots().contains(&unrelated));
         assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
         assert_eq!(s.files.active_slot(), unrelated);
-        assert_eq!(s.native_hosts[&slot].entity_id(), entity);
+        assert_eq!(s.editor.hosts[&slot].entity_id(), entity);
         assert_eq!(
             s.files.slot(slot).unwrap().document.as_ref().unwrap().id,
             session
@@ -1321,8 +1321,10 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
         s.files
             .begin(Intent::OpenFile("dir/table.csv".into()), &s.wake)
     });
-    settle(&view, cx, |s, cx| s.native.read(cx).csv_editor().is_some());
-    let csv = view.read_with(cx, |s, cx| s.native.read(cx).csv_editor().unwrap());
+    settle(&view, cx, |s, cx| {
+        s.editor.front.read(cx).csv_editor().is_some()
+    });
+    let csv = view.read_with(cx, |s, cx| s.editor.front.read(cx).csv_editor().unwrap());
     assert_eq!(
         cx.read(|cx| path(&csv, cx, 1)),
         Some("dir/Target.md".into())
@@ -1362,12 +1364,13 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
         s.files.begin(Intent::OpenFile("table.csv".into()), &s.wake)
     });
     settle(&view, cx, |s, cx| {
-        s.native
+        s.editor
+            .front
             .read(cx)
             .csv_editor()
             .is_some_and(|other| other != csv)
     });
-    let other = view.read_with(cx, |s, cx| s.native.read(cx).csv_editor().unwrap());
+    let other = view.read_with(cx, |s, cx| s.editor.front.read(cx).csv_editor().unwrap());
     assert_eq!(cx.read(|cx| path(&other, cx, 1)), Some("Target.md".into()));
     assert_eq!(
         cx.read(|cx| path(&csv, cx, 1)),
