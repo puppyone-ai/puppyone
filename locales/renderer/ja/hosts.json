@@ -33,6 +33,7 @@
   "sharing.pause": "一時停止",
   "sharing.resume": "再開",
   "sharing.inUse": "別のコンピュータで開かれています",
+  "sharing.outdated": "フォルダの開放を続けるには、このコンピュータの PuppyOne を更新してください",
   "folder.home": "プロジェクト",
   "folder.onHost": "{host} 上",
   "folder.editing": "リモートフォルダ · 編集可",

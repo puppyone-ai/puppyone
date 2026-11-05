@@ -48,7 +48,8 @@ connection; file bytes travel through the Puppyone API/gateway, which can see
 them in transit. The planned relay must not persist file bodies or the host's absolute
 path. Its current prototype stores device and folder identifiers, display names
 (the computer's host name and the folder's name), permissions and connection
-metadata including when the computer was last online. It records operation
+metadata including when the computer was last online, the PuppyOne version it
+runs and a random identifier that changes on every launch. It records operation
 type (including starting to watch a folder for changes) and outcome, not file
 paths or bodies. Change notifications carry folder-relative names of changed
 files through the relay without storing them. Audit retention and privacy

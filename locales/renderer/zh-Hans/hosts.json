@@ -33,6 +33,7 @@
   "sharing.pause": "暂停",
   "sharing.resume": "继续",
   "sharing.inUse": "另一台电脑正在打开",
+  "sharing.outdated": "请更新这台电脑上的 PuppyOne，以继续开放文件夹",
   "folder.home": "项目",
   "folder.onHost": "在 {host} 上",
   "folder.editing": "远程文件夹 · 可编辑",

@@ -29,6 +29,8 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
   fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console }) {
   let services = null;
   let recents = null;
+  // One per App launch: lets the Cloud tell a restarted host from a reconnect.
+  const bootId = crypto.randomUUID();
   const recentFolders = () => {
     recents ??= createHostRecents({ filePath: path.join(app.getPath("userData"), "host-recent-folders.json") });
     return recents;
@@ -80,6 +82,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       ? createHostFileProcess({ utilityProcess, modulePath: fileServiceModulePath, resolveFolder, logger })
       : createHostFileService({ resolveFolder });
     const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, logger,
+      appVersion: app.getVersion?.() ?? "unknown", bootId,
       onStatus: (status) => broadcast({ ...status, paused: paused === true }),
       onRevoked: (lost) => {
         if (active?.deviceId === lost.deviceId && active?.accountId === lost.accountId) active = null;

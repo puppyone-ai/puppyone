@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { normalizeCloudApiBaseUrl, resolveCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -7,6 +8,10 @@ const MAX_WATCHES = 64;
 
 /** Server close codes (host file protocol v1). */
 export const CLOSE_REVOKED = 4004;
+export const CLOSE_UNSUPPORTED = 4005;
+/** Host file protocol version this App speaks. */
+export const HOST_PROTOCOL_VERSION = 1;
+const APP_VERSION = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$/;
 const FILE_ERRORS = new Set(["invalid_path", "not_found", "already_exists", "not_empty", "folder_unavailable",
   "root_changed", "unsupported_file", "too_many_entries", "invalid_content", "revision_required", "conflict"]);
 
@@ -36,7 +41,11 @@ export function deviceSocketUrl(deployment, deviceId, connectUrl) {
  * (close 4004 or a 403 challenge) stops for good and calls `onRevoked`.
  */
 export function createHostConnector({ apiBase, auth, identity, registry, fileService,
-  WebSocketImpl = globalThis.WebSocket, logger = console, onRevoked = () => {}, onStatus = () => {} }) {
+  WebSocketImpl = globalThis.WebSocket, logger = console, onRevoked = () => {}, onStatus = () => {},
+  appVersion = "unknown", bootId = randomUUID() }) {
+  // Sent with every proof; an unexpected App version string never blocks connecting.
+  const hello = { protocol: HOST_PROTOCOL_VERSION, boot_id: bootId,
+    app_version: APP_VERSION.test(String(appVersion)) ? String(appVersion) : "unknown" };
   const deployment = resolveCloudApiBaseUrl(apiBase);
   let socket = null;
   let heartbeat = null;
@@ -97,6 +106,13 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     const lost = { accountId, deviceId };
     stop();
     try { onRevoked(lost); } catch (error) { logger.warn("Device revocation cleanup failed", error?.message); }
+  }
+
+  // The Cloud no longer serves this App's protocol. Retrying cannot help, so stop
+  // until the App is updated; the identity and shared folders stay as they are.
+  function outdated() {
+    stop();
+    setState("outdated");
   }
 
   function retry() {
@@ -196,7 +212,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
       const timeout = setTimeout(() => { if (!ready) { close(); reject(new Error("Device connection timed out.")); } }, 15_000);
       ws.addEventListener("open", () => {
         ws.send(JSON.stringify({ owner: accountId, challenge_id: challenge.challenge_id,
-          epoch: challenge.epoch, nonce: challenge.nonce, signature }));
+          epoch: challenge.epoch, nonce: challenge.nonce, signature, ...hello }));
       });
       ws.addEventListener("message", (event) => {
         if (ws !== socket) return;
@@ -224,6 +240,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
         if (socket === ws) {
           close(); unsubscribe?.(); unsubscribe = null; stopped = true;
           if (event?.code === CLOSE_REVOKED) revoked();
+          else if (event?.code === CLOSE_UNSUPPORTED) outdated();
           else if (ready) retry();
         }
         if (!ready) reject(new Error("Device connection closed."));

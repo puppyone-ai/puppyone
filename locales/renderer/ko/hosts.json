@@ -33,6 +33,7 @@
   "sharing.pause": "일시 중지",
   "sharing.resume": "다시 시작",
   "sharing.inUse": "지금 다른 컴퓨터에서 열려 있음",
+  "sharing.outdated": "폴더를 계속 공유하려면 이 컴퓨터의 PuppyOne을 업데이트하세요",
   "folder.home": "프로젝트",
   "folder.onHost": "{host}에 있음",
   "folder.editing": "원격 폴더 · 편집 가능",

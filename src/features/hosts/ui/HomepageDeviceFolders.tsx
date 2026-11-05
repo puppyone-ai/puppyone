@@ -62,6 +62,7 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
     online: t("hosts.sharing.online"),
     connecting: t("hosts.sharing.connecting"),
     offline: t("hosts.sharing.reconnecting"),
+    outdated: t("hosts.sharing.outdated"),
   };
   const sharingLabel = sharing?.paused ? t("hosts.sharing.paused") : (sharing && stateLabels[sharing.state]) ?? null;
   return <section aria-label={t("hosts.catalog.title")} style={{ margin: "24px auto", maxWidth: 880, padding: "0 20px" }}>

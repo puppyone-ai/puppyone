@@ -61,7 +61,7 @@ let active = null;
 const fileService = createHostFileService({ resolveFolder: (folderId) => active
   ? registry.resolve(folderId, active.accountId, active.deviceId) : null });
 const connector = createHostConnector({ apiBase, auth, identity, registry, fileService,
-  logger: { warn() {} },
+  logger: { warn() {} }, appVersion: "0.0.0-e2e",
   onRevoked: (lost) => {
     active = null;
     void registry.forgetDevice(lost).then(() => identity.forget(lost))

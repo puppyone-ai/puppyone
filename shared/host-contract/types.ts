@@ -45,6 +45,9 @@ export type HostCatalogDevice = Readonly<{
   revision: number;
   online: boolean;
   last_seen_at: string | null;
+  /** Protocol version and App version of an online host; null while offline. */
+  protocol?: number | null;
+  app_version?: string | null;
   folders: HostCatalogFolder[];
 }>;
 
@@ -68,7 +71,8 @@ export type HostFolderEvent =
   | Readonly<{ id: string; type: "unavailable"; retryable: boolean; code?: string }>;
 
 export type HostSharingStatus = Readonly<{
-  state: "off" | "connecting" | "online" | "offline";
+  /** "outdated": the Cloud no longer serves this App's protocol; update to keep sharing. */
+  state: "off" | "connecting" | "online" | "offline" | "outdated";
   deviceId: string | null;
   paused: boolean;
   activeRequests: number;

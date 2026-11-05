@@ -33,6 +33,7 @@
   "sharing.pause": "Pausar",
   "sharing.resume": "Retomar",
   "sharing.inUse": "Aberta agora em outro computador",
+  "sharing.outdated": "Atualize o PuppyOne neste computador para continuar compartilhando pastas",
   "folder.home": "Projetos",
   "folder.onHost": "Em {host}",
   "folder.editing": "Pasta remota · edição ativada",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createHostConnector, deviceSocketUrl } from "../../../../electron/main/hosts/host-connector.mjs";
+import { createHostConnector, deviceSocketUrl, HOST_PROTOCOL_VERSION } from "../../../../electron/main/hosts/host-connector.mjs";
 
 const owner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const device = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -45,9 +45,13 @@ describe("host connector", () => {
       expect(message).toMatchObject({ action: "read", path: "note.md", folder_id: folder });
       return { revision: "abc", content_base64: "bm90ZQ==" };
     } };
-    const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, WebSocketImpl: FakeWebSocket });
+    const bootId = "abababab-abab-4bab-8bab-abababababab";
+    const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, WebSocketImpl: FakeWebSocket,
+      appVersion: "1.4.0-beta.2", bootId });
     expect(await connector.connect(device)).toEqual({ deviceId: device, epoch });
     const socket = FakeWebSocket.last;
+    expect(socket.sent[0]).toMatchObject({ owner, challenge_id: challenge, epoch, signature: "signature",
+      protocol: HOST_PROTOCOL_VERSION, boot_id: bootId, app_version: "1.4.0-beta.2" });
     expect(socket.url).toBe(`wss://api.puppyone.ai/api/v1/hosts/devices/${device}/connect`);
     expect(seen[0].expected).toEqual({ userId: owner, generation: "one" });
     expect(seen[1]).toContain(`puppyone-device-v1\n${owner}\n${device}\n${challenge}\n${epoch}\nsome-nonce`);
@@ -147,6 +151,34 @@ describe("host connector", () => {
     expect(FakeWebSocket.last).not.toBe(first);
     expect(connector.status().state).toBe("online");
     connector.stop();
+  });
+
+  it("stops and asks for an update when the Cloud no longer serves its protocol", async () => {
+    let challenges = 0;
+    const auth = {
+      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
+      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
+      subscribe: () => () => {},
+    };
+    class OutdatedSocket extends FakeWebSocket {
+      send(data) {
+        this.sent.push(JSON.parse(data));
+        queueMicrotask(() => { this.readyState = 3; this.emit("close", { code: 4005 }); });
+      }
+    }
+    const revoked = [];
+    const connector = createHostConnector({ apiBase, auth, logger: { warn() {} }, appVersion: "not a version!",
+      identity: { signForCurrentAccount: async () => "signature" }, onRevoked: (lost) => revoked.push(lost),
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: OutdatedSocket });
+    await expect(connector.connect(device)).rejects.toThrow();
+    // An unexpected App version string is sent as "unknown" rather than blocking the connection.
+    expect(FakeWebSocket.last.sent[0].app_version).toBe("unknown");
+    expect(connector.status().state).toBe("outdated");
+    expect(connector.isActive()).toBe(false);
+    connector.wake();
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(challenges).toBe(1);
+    expect(revoked).toEqual([]);
   });
 
   it("uses a dedicated gateway address only inside the PuppyOne host family", () => {
