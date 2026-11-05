@@ -2701,16 +2701,32 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
         // Not the generic error dialog.
         assert!(s.files.error.is_none());
     });
-    // Retry opens the same folder again.
-    command(&view, cx, Command::RetryProjectOpen);
-    view.read_with(cx, |s, _| {
-        assert!(
-            !s.modals
-                .iter()
-                .any(|m| matches!(m, Modal::ProjectFailure { .. }))
-        );
-        assert!(s.files.opening_root());
+    // Retry opens the same folder again: the dialog goes, the opening
+    // starts, and (the folder still missing) the same failure returns. A
+    // fast failure may already be back when Retry returns.
+    view.update_in(cx, |s, w, cx| {
+        s.command(Command::RetryProjectOpen, w, cx);
+        let failed_again = s
+            .modals
+            .iter()
+            .any(|m| matches!(m, Modal::ProjectFailure { path, .. } if path == &missing));
+        assert!(s.files.opening_root() || failed_again);
     });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        if view.read_with(cx, |s, _| {
+            matches!(s.modals.top(), Some(Modal::ProjectFailure { path, .. }) if path == &missing)
+        }) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the retry did not run"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
 }
 
 /// H-20: a new project starts with Getting started, which opens first;
