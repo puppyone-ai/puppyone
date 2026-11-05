@@ -682,6 +682,83 @@
         "src/agent/connections/probes/versioned_local_agent_probe.rs"
       ],
       "remaining": "Ported 1:1; codex-local-probe and the local inventory tools move with the local-agent inventory."
+    },
+    {
+      "name": "Hermes runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/hermes/hermes-acp-adapter.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-discovery.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-history-source.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-identity.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/hermes/hermes_acp_adapter.rs",
+        "src/agent/runtimes/hermes/hermes_discovery.rs",
+        "src/agent/runtimes/hermes/hermes_history_source.rs",
+        "src/agent/runtimes/hermes/hermes_identity.rs",
+        "src/agent/runtimes/hermes/hermes_runtime_definition.rs",
+        "src/agent/runtimes/hermes/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "OpenCode protocol profile",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/opencode-protocol/opencode-acp-adapter.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-history-source.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-security-policy.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-version.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/opencode_protocol/opencode_acp_adapter.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_history_source.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_security_policy.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_version.rs",
+        "src/agent/runtimes/opencode_protocol/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "OpenCode native runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/opencode-native/opencode-native-discovery.mjs",
+        "electron/main/agent/runtimes/opencode-native/opencode-native-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/opencode_native/opencode_native_discovery.rs",
+        "src/agent/runtimes/opencode_native/opencode_native_runtime_definition.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "WorkBuddy runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/workbuddy/workbuddy-acp-adapter.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-channels.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-config-directory.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-environment.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-history-source.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-identity.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/workbuddy/workbuddy_acp_adapter.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_channels.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_config_directory.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_discovery.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_environment.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_history_source.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_identity.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_runtime_definition.rs",
+        "src/agent/runtimes/workbuddy/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
     }
   ]
 }

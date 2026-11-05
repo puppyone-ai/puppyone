@@ -19,7 +19,7 @@ use crate::platform::local_agent_installation::installation_definition::{Candida
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -33,7 +33,7 @@ pub mod limits {
 pub type ParseVersion = Rc<dyn Fn(&str) -> Option<String>>;
 
 /// `buildEnvironment(baseEnv, overrides, { homedir, platform })`.
-pub type BuildEnvironment = Rc<dyn Fn(&EnvMap, &EnvMap, &str) -> EnvMap>;
+pub type BuildEnvironment = Rc<dyn Fn(&EnvMap, &EnvMap, &Path, &str) -> EnvMap>;
 
 /// `buildProbeEnvironment(environment, { executablePath, homedir, platform })`.
 pub type BuildProbeEnvironment =
@@ -86,15 +86,6 @@ impl DiscoverExecutableOptions {
             run_probe: None,
         }
     }
-}
-
-fn environment_value(environment: &EnvMap) -> Value {
-    Value::Object(
-        environment
-            .iter()
-            .map(|(key, value)| (key.clone(), Value::from(value.as_str())))
-            .collect(),
-    )
 }
 
 /// `discoverExecutable(options)`: the runtime's internal readiness.
@@ -220,16 +211,17 @@ pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentRes
         Observation::Found { candidate, .. } => Some(candidate.clone()),
         _ => None,
     };
-    let build_environment = options
-        .build_environment
-        .clone()
-        .unwrap_or_else(|| Rc::new(build_agent_environment));
+    let build_environment = options.build_environment.clone().unwrap_or_else(|| {
+        Rc::new(|base, overrides, _homedir, platform| {
+            build_agent_environment(base, overrides, platform)
+        })
+    });
     let base_environment = candidate
         .as_ref()
         .and_then(|c| c.environment.clone())
         .or_else(|| context.as_ref().map(|c| c.environment.clone()))
         .unwrap_or_else(|| env.clone());
-    let environment = build_environment(&base_environment, &EnvMap::new(), &platform);
+    let environment = build_environment(&base_environment, &EnvMap::new(), &homedir, &platform);
     let executable_path = candidate.as_ref().map(|c| c.executable_path.clone());
     let base = Obj::new()
         .set("version", Value::Null)
@@ -289,11 +281,15 @@ pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentRes
         args.push("--version".into());
         run_bounded(
             options.run_probe.clone(),
-            &executable_path,
-            args,
-            probe_environment,
-            &label,
-            signal.clone(),
+            BoundedRun {
+                file: executable_path.clone(),
+                args,
+                env: probe_environment,
+                timeout_ms: limits::VERSION_TIMEOUT_MS,
+                max_bytes: limits::MAX_DISCOVERY_OUTPUT,
+                label: label.clone(),
+                signal: signal.clone(),
+            },
         )
         .await
     }
@@ -346,28 +342,67 @@ pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentRes
 }
 
 /// `runBounded(spawn, file, args, { env, timeoutMs, maxBytes, label, signal })`.
+#[derive(Clone)]
+pub struct BoundedRun {
+    pub file: String,
+    pub args: Vec<String>,
+    pub env: EnvMap,
+    pub timeout_ms: u64,
+    pub max_bytes: usize,
+    pub label: String,
+    pub signal: Option<AbortSignal>,
+}
+
+/// An injectable `runBounded` (`probe`).
+pub type RunBounded = Rc<dyn Fn(BoundedRun) -> LocalBoxFuture<'static, AgentResult<ProbeResult>>>;
+
+/// An injectable `discoverExecutable` (`discover`).
+pub type DiscoverFn =
+    Rc<dyn Fn(DiscoverExecutableOptions) -> LocalBoxFuture<'static, AgentResult<Value>>>;
+
+/// `runBounded(spawn, file, args, options)`.
 pub async fn run_bounded(
     run_probe: Option<ProbeRunner>,
-    file: &str,
-    args: Vec<String>,
-    env: EnvMap,
-    label: &str,
-    signal: Option<AbortSignal>,
+    run: BoundedRun,
 ) -> AgentResult<ProbeResult> {
     let run_probe = run_probe.unwrap_or_else(default_probe_runner);
     run_probe(
-        file.to_string(),
-        args,
+        run.file,
+        run.args,
         ProbeOptions {
-            env: Some(env),
-            timeout_ms: limits::VERSION_TIMEOUT_MS,
-            max_output_bytes: limits::MAX_DISCOVERY_OUTPUT,
-            label: format!("{label} discovery"),
-            signal,
+            env: Some(run.env),
+            timeout_ms: run.timeout_ms,
+            max_output_bytes: run.max_bytes,
+            label: format!("{} discovery", run.label),
+            signal: run.signal,
             ..Default::default()
         },
     )
     .await
+}
+
+/// A readiness `environment` object as a process environment.
+pub fn environment_map(value: Option<&Value>) -> EnvMap {
+    value
+        .and_then(Value::as_object)
+        .map(|map| {
+            map.iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A process environment as a readiness `environment` object.
+pub fn environment_value(environment: &EnvMap) -> Value {
+    Value::Object(
+        environment
+            .iter()
+            .map(|(key, value)| (key.clone(), Value::from(value.as_str())))
+            .collect(),
+    )
 }
 
 /// `buildAgentEnvironment(baseEnv, overrides, { platform })`.

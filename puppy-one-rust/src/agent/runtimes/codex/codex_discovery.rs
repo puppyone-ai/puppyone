@@ -59,7 +59,9 @@ pub async fn discover_codex_executable(
     discovery.run_probe = options.run_probe;
     discovery.signal = signal;
     discovery.minimum_version = Some(MIN_SUPPORTED_CODEX_VERSION.into());
-    discovery.build_environment = Some(Rc::new(build_provider_environment));
+    discovery.build_environment = Some(Rc::new(|base, login, _homedir, platform| {
+        build_provider_environment(base, login, platform)
+    }));
     let result = discover_executable(discovery).await?;
     let text = |key: &str| {
         result
