@@ -31,7 +31,9 @@ function requireSession(expectedSession) {
 export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, apiBase,
   authorizeWorkspaceRoot, dialog, BrowserWindow, t, utilityProcess = null, powerMonitor = null,
   fileServiceModulePath = null, markWorkspaceShared = async () => {}, logger = console,
-  hostExecModulePath = null, createTerminals = null }) {
+  hostExecModulePath = null, createTerminals = null,
+  // Transports for the device connection; tests replace them.
+  WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch }) {
   let services = null;
   let recents = null;
   // One per App launch: lets the Cloud tell a restarted host from a reconnect.
@@ -95,7 +97,8 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
       createTerminalService: terminalFactory,
       onChange: () => broadcast({ ...(services?.connector.status() ?? {}), paused: paused === true }) }) : null;
     const gitService = createHostGitService({ resolveFolder });
-    const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, logger,
+    const connector = createHostConnector({ apiBase, identity, registry, fileService, logger,
+      WebSocketImpl, fetchImpl,
       gitService, execService,
       appVersion: app.getVersion?.() ?? "unknown", bootId,
       onStatus: (status) => broadcast({ ...status, paused: paused === true }),
@@ -134,9 +137,22 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     const { deviceId, accountId } = existing;
     active = { deviceId, accountId };
     if (await isPaused()) return { deviceId, paused: true };
-    if (!connector.isActive()) await connector.connect(deviceId);
+    if (!connector.isActive()) await connector.connect(deviceId, accountId);
     return { deviceId };
   }
+
+  // The connection itself needs only the device key. While this App runs it, sharing
+  // follows the person signed in here: signing out or switching accounts stops it,
+  // and signing back in to the same account resumes it through host:connect.
+  async function followSignedInAccount() {
+    if (!active) return;
+    let session = null;
+    try { session = await auth.readSession(); } catch { session = null; }
+    if (session?.user_id === active.accountId && session?.api_base_url === apiBase) return;
+    services?.connector.stop();
+    active = null;
+  }
+  const unsubscribeAuth = auth.subscribe?.(() => { void followSignedInAccount(); }) ?? null;
 
   const onSuspend = () => services?.connector.suspend();
   const onResume = () => services?.connector.wake();
@@ -176,7 +192,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
     active = { deviceId, accountId };
     if (!await isPaused() && !connector.isActive()) {
       // A transport failure retries in the connector; keep this folder binding.
-      await connector.connect(deviceId).catch((error) => logger.warn("Device connection deferred", error?.message));
+      await connector.connect(deviceId, accountId).catch((error) => logger.warn("Device connection deferred", error?.message));
     }
     return { deviceId, folderId: registered.folderId };
   });
@@ -430,6 +446,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, secureStorage, api
 
   return {
     dispose() {
+      unsubscribeAuth?.();
       remoteExec?.closeAll();
       void services?.execService?.stopAll().catch(() => {});
       powerMonitor?.removeListener("suspend", onSuspend);

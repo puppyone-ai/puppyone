@@ -33,15 +33,25 @@ export function deviceSocketUrl(deployment, deviceId, connectUrl) {
   return url.toString();
 }
 
+/** What a host signs to ask for a challenge; the Cloud checks it against the registered key. */
+export function deviceChallengeRequestPayload(accountId, deviceId, timestamp) {
+  return `puppyone-device-challenge-v1\n${accountId}\n${deviceId}\n${timestamp}`;
+}
+
 /**
  * A signed, outbound-only device connection. No local listening port.
  *
+ * The connection needs only the device key: it asks for each challenge with a
+ * device-signed request, so it stays online with nobody signed in on this
+ * computer. Whoever owns the connector decides when sharing stops.
+ *
  * Lifecycle: `connect` starts serving; transport loss retries with backoff;
  * `suspend`/`wake` follow system sleep; `stop` ends it; a definite revocation
- * (close 4004 or a 403 challenge) stops for good and calls `onRevoked`.
+ * (close 4004 or a `device_revoked` refusal) stops for good and calls `onRevoked`.
  */
-export function createHostConnector({ apiBase, auth, identity, registry, fileService,
-  WebSocketImpl = globalThis.WebSocket, logger = console, onRevoked = () => {}, onStatus = () => {},
+export function createHostConnector({ apiBase, identity, registry, fileService,
+  WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, now = () => Date.now(),
+  logger = console, onRevoked = () => {}, onStatus = () => {},
   appVersion = "unknown", bootId = randomUUID(), gitService = null, execService = null }) {
   // Sent with every proof; an unexpected App version string never blocks connecting.
   const hello = { protocol: HOST_PROTOCOL_VERSION, boot_id: bootId,
@@ -52,8 +62,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
   let stopped = true;
   let accountId = null;
   let deviceId = null;
-  let sessionGeneration = null;
-  let unsubscribe = null;
+  // Learned from the Cloud when this computer's clock is off; never persisted.
+  let clockOffset = 0;
   let wantsConnection = false;
   let retryTimer = null;
   let retryDelay = 1000;
@@ -99,12 +109,13 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     wantsConnection = false; stopped = true;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
-    close(); unsubscribe?.(); unsubscribe = null;
+    close();
     setState("off");
   }
 
-  // Only a definite server denial (socket close 4004 or a 403 challenge) means
-  // revoked. Transport errors and 5xx keep retrying with the same identity.
+  // Only a definite server denial (socket close 4004 or a `device_revoked`
+  // refusal) means revoked. Transport errors, a bad clock or signature and 5xx
+  // keep retrying with the same identity.
   function revoked() {
     const lost = { accountId, deviceId };
     stop();
@@ -125,17 +136,33 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     retryDelay = Math.min(retryDelay * 2, 30_000);
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      void current().then(valid => {
-        if (!valid) { stop(); return; }
-        if (wantsConnection && stopped) void connect(deviceId).catch(() => retry());
-      }).catch(() => stop());
+      if (wantsConnection && stopped) void connect(deviceId, accountId).catch(() => retry());
     }, delay);
   }
 
-  async function current() {
-    const session = await auth.readSession();
-    return session?.user_id === accountId && session?.session_generation === sessionGeneration &&
-      session?.api_base_url === deployment;
+  /** A device-signed challenge request; one retry with the Cloud's clock if ours is off. */
+  async function requestChallenge() {
+    for (let attempt = 0; ; attempt++) {
+      const timestamp = Math.floor((now() + clockOffset) / 1000);
+      const signature = await identity.signForDevice({ accountId, deviceId },
+        deviceChallengeRequestPayload(accountId, deviceId, timestamp));
+      const response = await fetchImpl(`${deployment}/hosts/devices/${deviceId}/device-challenge`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner: accountId, timestamp, signature }),
+      });
+      const text = await response.text();
+      let body = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+      if (response.ok) return body;
+      const detail = body?.detail;
+      if (response.status === 401 && detail?.code === "device_clock_skew" &&
+          Number.isInteger(detail.server_time) && attempt === 0) {
+        clockOffset = detail.server_time * 1000 - now();
+        continue;
+      }
+      throw Object.assign(new Error(`Device challenge refused (${response.status}).`),
+        { status: response.status, code: typeof detail?.code === "string" ? detail.code : null });
+    }
   }
 
   function send(ws, frame) {
@@ -143,7 +170,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
   }
 
   async function handleFile(message, ws) {
-    if (!UUID.test(message?.folder_id) || !UUID.test(message?.id) || !await current()) {
+    if (!UUID.test(message?.folder_id) || !UUID.test(message?.id)) {
       stop(); return;
     }
     const folder = await registry.resolve(message.folder_id, accountId, deviceId);
@@ -152,9 +179,10 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     try {
       if (message.action === "git" && !gitService) throw Object.assign(new Error("git"), { code: "folder_unavailable" });
       const result = message.action === "git" ? await gitService.run(message) : await fileService.run(message);
-      if (await current()) send(ws, { type: "reply", id: message.id, result });
+      // A reply for a socket that was replaced or closed meanwhile is dropped by send().
+      send(ws, { type: "reply", id: message.id, result });
     } catch (error) {
-      if (await current()) send(ws, { type: "reply", id: message.id,
+      send(ws, { type: "reply", id: message.id,
         error: FILE_ERRORS.has(error?.code) ? error.code : "file_operation_failed" });
     } finally {
       activeRequests--; notify();
@@ -163,7 +191,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
 
   async function handleWatch(message, ws) {
     const subscription = message?.subscription;
-    if (!UUID.test(message?.folder_id) || !UUID.test(subscription) || !await current()) { stop(); return; }
+    if (!UUID.test(message?.folder_id) || !UUID.test(subscription)) { stop(); return; }
     const ended = () => send(ws, { type: "event", subscription, paths: [], reset: true });
     if (watches.has(subscription) || watches.size >= MAX_WATCHES ||
         !await registry.resolve(message.folder_id, accountId, deviceId)) { ended(); return; }
@@ -184,8 +212,10 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     notify();
   }
 
-  async function connect(registeredDeviceId) {
-    if (!UUID.test(registeredDeviceId) || !WebSocketImpl) throw new Error("Host connector unavailable.");
+  async function connect(registeredDeviceId, registeredAccountId) {
+    if (!UUID.test(registeredDeviceId) || !UUID.test(registeredAccountId) || !WebSocketImpl || !fetchImpl) {
+      throw new Error("Host connector unavailable.");
+    }
     if (!stopped) throw new Error("Host is already connecting.");
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
@@ -193,24 +223,17 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     wantsConnection = true;
     setState("connecting");
     try {
-    const session = await auth.readSession();
-    if (!session?.user_id || session.api_base_url !== deployment) {
-      stopped = true; throw new Error("Sign in before connecting this device.");
-    }
-    accountId = session.user_id;
+    accountId = registeredAccountId;
     deviceId = registeredDeviceId;
-    sessionGeneration = session.session_generation;
-    const challenge = await auth.requestSessionApi(deployment, `/hosts/devices/${deviceId}/challenge`,
-      { method: "POST" }, { userId: accountId, generation: sessionGeneration });
-    if (stopped || !await current()) { stopped = true; throw new Error("Account changed during connection."); }
+    const challenge = await requestChallenge();
+    if (stopped) throw new Error("Connection cancelled.");
     if (![challenge.challenge_id, challenge.epoch].every((value) => UUID.test(value)) ||
         typeof challenge.nonce !== "string") throw new Error("Invalid device challenge.");
     const payload = `puppyone-device-v1\n${accountId}\n${deviceId}\n${challenge.challenge_id}\n${challenge.epoch}\n${challenge.nonce}`;
-    const signature = await identity.signForCurrentAccount(deviceId, payload);
+    const signature = await identity.signForDevice({ accountId, deviceId }, payload);
     if (stopped) throw new Error("Connection cancelled.");
     const ws = new WebSocketImpl(deviceSocketUrl(deployment, deviceId, challenge.connect_url));
     socket = ws;
-    unsubscribe = auth.subscribe?.(() => { void current().then((valid) => { if (!valid) stop(); }); });
     return await new Promise((resolve, reject) => {
       let ready = false;
       const timeout = setTimeout(() => { if (!ready) { close(); reject(new Error("Device connection timed out.")); } }, 15_000);
@@ -244,7 +267,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
       ws.addEventListener("close", (event) => {
         clearTimeout(timeout);
         if (socket === ws) {
-          close(); unsubscribe?.(); unsubscribe = null; stopped = true;
+          close(); stopped = true;
           if (event?.code === CLOSE_REVOKED) revoked();
           else if (event?.code === CLOSE_UNSUPPORTED) outdated();
           else if (ready) retry();
@@ -254,8 +277,8 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
       ws.addEventListener("error", (error) => { logger.warn("Device connection error", error?.message ?? "unknown"); });
     });
     } catch (error) {
-      stopped = true; close(); unsubscribe?.(); unsubscribe = null;
-      if (error?.status === 403 && wantsConnection) revoked();
+      stopped = true; close();
+      if (error?.status === 403 && error?.code === "device_revoked" && wantsConnection) revoked();
       else if (wantsConnection) retry();
       throw error;
     }
@@ -267,7 +290,7 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
     const previous = socket;
-    close(); unsubscribe?.(); unsubscribe = null; stopped = true;
+    close(); stopped = true;
     if (previous) setState("offline");
   }
 
@@ -277,12 +300,9 @@ export function createHostConnector({ apiBase, auth, identity, registry, fileSer
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
     retryDelay = 1000;
-    void current().then((valid) => {
-      if (!valid) { stop(); return; }
-      if (wantsConnection && stopped) void connect(deviceId).catch(() => retry());
-    }).catch(() => stop());
+    if (wantsConnection && stopped) void connect(deviceId, accountId).catch(() => retry());
   }
 
   return Object.freeze({ connect, stop, suspend, wake, status,
-    isActive: () => wantsConnection, deviceId: () => deviceId });
+    isActive: () => wantsConnection, deviceId: () => deviceId, accountId: () => accountId });
 }

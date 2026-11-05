@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createHostConnector, deviceSocketUrl, HOST_PROTOCOL_VERSION } from "../../../../electron/main/hosts/host-connector.mjs";
+import {
+  createHostConnector,
+  deviceChallengeRequestPayload,
+  deviceSocketUrl,
+  HOST_PROTOCOL_VERSION,
+} from "../../../../electron/main/hosts/host-connector.mjs";
 
 const owner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const device = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -26,72 +31,122 @@ class FakeWebSocket {
   close() { this.readyState = 3; this.emit("close", {}); }
 }
 
+function reply(status, body) {
+  return { ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(body) };
+}
+
+/** The Cloud's device-challenge route; no human session is ever involved. */
+function challengeRoute() {
+  const route = { requests: [], refusal: null };
+  route.fetchImpl = async (url, init) => {
+    route.requests.push({ url, init, body: JSON.parse(init.body) });
+    const refusal = typeof route.refusal === "function" ? route.refusal(route.requests.length) : route.refusal;
+    return refusal ? reply(refusal.status, refusal.body) : reply(200, { challenge_id: challenge, epoch, nonce: "some-nonce" });
+  };
+  return route;
+}
+
+const signer = (seen = []) => ({ signForDevice: async (who, payload) => { seen.push({ who, payload }); return "signature"; } });
+
 describe("host connector", () => {
-  it("makes an outbound signed connection, dispatches only registered files and stops", async () => {
-    const seen = [];
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async (base, route, init, expected) => {
-        seen.push({ base, route, init, expected });
-        return { challenge_id: challenge, epoch, nonce: "some-nonce" };
-      },
-      subscribe: () => () => {},
-    };
-    const identity = { signForCurrentAccount: async (_device, payload) => {
-      seen.push(payload); return "signature";
-    } };
+  it("makes an outbound connection with only the device key, dispatches only registered files and stops", async () => {
+    const route = challengeRoute();
+    const signed = [];
     const registry = { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null };
     const fileService = { run: async (message) => {
       expect(message).toMatchObject({ action: "read", path: "note.md", folder_id: folder });
       return { revision: "abc", content_base64: "bm90ZQ==" };
     } };
     const bootId = "abababab-abab-4bab-8bab-abababababab";
-    const connector = createHostConnector({ apiBase, auth, identity, registry, fileService, WebSocketImpl: FakeWebSocket,
+    const connector = createHostConnector({ apiBase, identity: signer(signed), registry, fileService,
+      WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl, now: () => 1_800_000_000_500,
       appVersion: "1.4.0-beta.2", bootId });
-    expect(await connector.connect(device)).toEqual({ deviceId: device, epoch });
+    expect(await connector.connect(device, owner)).toEqual({ deviceId: device, epoch });
+
+    // The challenge request is signed by the device and carries no Authorization header.
+    const [asked] = route.requests;
+    expect(asked.url).toBe(`${apiBase}/hosts/devices/${device}/device-challenge`);
+    expect(asked.init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(asked.body).toEqual({ owner, timestamp: 1_800_000_000, signature: "signature" });
+    expect(signed[0]).toEqual({ who: { accountId: owner, deviceId: device },
+      payload: deviceChallengeRequestPayload(owner, device, 1_800_000_000) });
+    expect(signed[0].payload).toBe(`puppyone-device-challenge-v1\n${owner}\n${device}\n1800000000`);
+    expect(signed[1].payload).toBe(`puppyone-device-v1\n${owner}\n${device}\n${challenge}\n${epoch}\nsome-nonce`);
+
     const socket = FakeWebSocket.last;
     expect(socket.sent[0]).toMatchObject({ owner, challenge_id: challenge, epoch, signature: "signature",
       protocol: HOST_PROTOCOL_VERSION, boot_id: bootId, app_version: "1.4.0-beta.2" });
     expect(socket.url).toBe(`wss://api.puppyone.ai/api/v1/hosts/devices/${device}/connect`);
-    expect(seen[0].expected).toEqual({ userId: owner, generation: "one" });
-    expect(seen[1]).toContain(`puppyone-device-v1\n${owner}\n${device}\n${challenge}\n${epoch}\nsome-nonce`);
     socket.emit("message", { data: JSON.stringify({ type: "file", id: request, folder_id: folder, action: "read", path: "note.md" }) });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(socket.sent.at(-1)).toEqual({ type: "reply", id: request, result: { revision: "abc", content_base64: "bm90ZQ==" } });
+    expect(connector.accountId()).toBe(owner);
     connector.stop();
     expect(socket.readyState).toBe(3);
   });
 
-  it("stops for good on a revocation close or a refused challenge, but retries an outage", async () => {
-    let challenges = 0;
-    let refuse = null;
+  it("refuses to connect without a registered account and device", async () => {
+    const connector = createHostConnector({ apiBase, identity: signer(), registry: {}, fileService: {},
+      WebSocketImpl: FakeWebSocket, fetchImpl: challengeRoute().fetchImpl });
+    await expect(connector.connect(device)).rejects.toThrow("unavailable");
+    await expect(connector.connect("not-a-device", owner)).rejects.toThrow("unavailable");
+    expect(connector.isActive()).toBe(false);
+  });
+
+  it("retries once with the Cloud's clock when this computer's clock is off", async () => {
+    const route = challengeRoute();
+    route.refusal = (count) => count === 1
+      ? { status: 401, body: { detail: { code: "device_clock_skew", server_time: 2_000_000_000 } } } : null;
+    const signed = [];
+    const connector = createHostConnector({ apiBase, identity: signer(signed), registry: {}, fileService: {},
+      WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl, now: () => 1_000_000_000_000 });
+    await connector.connect(device, owner);
+    expect(route.requests.map(({ body }) => body.timestamp)).toEqual([1_000_000_000, 2_000_000_000]);
+    expect(connector.status().state).toBe("online");
+    connector.stop();
+  });
+
+  it("never treats a bad signature, a clock that stays off or an unexplained 403 as revocation", async () => {
+    for (const refusal of [
+      { status: 401, body: { detail: { code: "device_proof_invalid" } } },
+      { status: 401, body: { detail: { code: "device_clock_skew", server_time: 5 } } },
+      { status: 403, body: { detail: "Forbidden" } },
+    ]) {
+      const route = challengeRoute();
+      route.refusal = refusal;
+      const revoked = [];
+      const connector = createHostConnector({ apiBase, identity: signer(), registry: {}, fileService: {},
+        logger: { warn() {} }, onRevoked: (lost) => revoked.push(lost), WebSocketImpl: FakeWebSocket,
+        fetchImpl: route.fetchImpl });
+      await expect(connector.connect(device, owner)).rejects.toThrow("refused");
+      expect(revoked).toEqual([]);
+      // Still sharing: it keeps the identity and retries with backoff.
+      expect(connector.isActive()).toBe(true);
+      expect(connector.status().state).toBe("offline");
+      connector.stop();
+    }
+  });
+
+  it("stops for good on a revocation close or a device_revoked refusal, but retries an outage", async () => {
+    const route = challengeRoute();
     const revoked = [];
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async () => {
-        challenges++;
-        if (refuse) { const error = new Error("refused"); error.status = refuse; throw error; }
-        return { challenge_id: challenge, epoch, nonce: "some-nonce" };
-      },
-      subscribe: () => () => {},
-    };
-    const connector = createHostConnector({ apiBase, auth, onRevoked: (lost) => revoked.push(lost),
-      identity: { signForCurrentAccount: async () => "signature" }, logger: { warn() {} },
-      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
-    await connector.connect(device);
+    const connector = createHostConnector({ apiBase, onRevoked: (lost) => revoked.push(lost),
+      identity: signer(), logger: { warn() {} }, registry: { resolve: async () => null }, fileService: {},
+      WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl });
+    await connector.connect(device, owner);
     FakeWebSocket.last.readyState = 3;
     FakeWebSocket.last.emit("close", { code: 4004 });
     expect(revoked).toEqual([{ accountId: owner, deviceId: device }]);
     expect(connector.isActive()).toBe(false);
     await new Promise(resolve => setTimeout(resolve, 1100));
-    expect(challenges).toBe(1);
+    expect(route.requests).toHaveLength(1);
 
-    refuse = 503;
-    await expect(connector.connect(device)).rejects.toThrow("refused");
+    route.refusal = { status: 503, body: { detail: { code: "device_unavailable" } } };
+    await expect(connector.connect(device, owner)).rejects.toThrow("refused");
     expect(connector.isActive()).toBe(true);
-    refuse = 403;
+    route.refusal = { status: 403, body: { detail: { code: "device_revoked" } } };
     await new Promise(resolve => setTimeout(resolve, 1100));
-    expect(challenges).toBe(3);
+    expect(route.requests).toHaveLength(3);
     expect(revoked).toHaveLength(2);
     expect(connector.isActive()).toBe(false);
   });
@@ -99,20 +154,15 @@ describe("host connector", () => {
   it("serves watch subscriptions and releases them on unwatch and on close", async () => {
     const stopped = [];
     let emit;
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async () => ({ challenge_id: challenge, epoch, nonce: "some-nonce" }),
-      subscribe: () => () => {},
-    };
     const fileService = { watch: async (folderId, onEvent) => {
       expect(folderId).toBe(folder);
       emit = onEvent;
       return () => stopped.push(folderId);
     } };
-    const connector = createHostConnector({ apiBase, auth, fileService, logger: { warn() {} },
-      identity: { signForCurrentAccount: async () => "signature" },
-      registry: { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null }, WebSocketImpl: FakeWebSocket });
-    await connector.connect(device);
+    const connector = createHostConnector({ apiBase, fileService, logger: { warn() {} }, identity: signer(),
+      registry: { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null },
+      WebSocketImpl: FakeWebSocket, fetchImpl: challengeRoute().fetchImpl });
+    await connector.connect(device, owner);
     const socket = FakeWebSocket.last;
     const subscription = "abababab-abab-4bab-8bab-abababababab";
     socket.emit("message", { data: JSON.stringify({ type: "watch", subscription, folder_id: folder }) });
@@ -130,16 +180,11 @@ describe("host connector", () => {
   });
 
   it("follows system sleep: drops the socket on suspend and reconnects at once on wake", async () => {
-    let challenges = 0;
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
-      subscribe: () => () => {},
-    };
-    const connector = createHostConnector({ apiBase, auth, logger: { warn() {} },
-      identity: { signForCurrentAccount: async () => "signature" },
-      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
-    await connector.connect(device);
+    const route = challengeRoute();
+    const connector = createHostConnector({ apiBase, logger: { warn() {} }, identity: signer(),
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket,
+      fetchImpl: route.fetchImpl });
+    await connector.connect(device, owner);
     const first = FakeWebSocket.last;
     connector.suspend();
     expect(first.readyState).toBe(3);
@@ -147,19 +192,14 @@ describe("host connector", () => {
     expect(connector.isActive()).toBe(true);
     connector.wake();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(challenges).toBe(2);
+    expect(route.requests).toHaveLength(2);
     expect(FakeWebSocket.last).not.toBe(first);
     expect(connector.status().state).toBe("online");
     connector.stop();
   });
 
   it("stops and asks for an update when the Cloud no longer serves its protocol", async () => {
-    let challenges = 0;
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
-      subscribe: () => () => {},
-    };
+    const route = challengeRoute();
     class OutdatedSocket extends FakeWebSocket {
       send(data) {
         this.sent.push(JSON.parse(data));
@@ -167,17 +207,18 @@ describe("host connector", () => {
       }
     }
     const revoked = [];
-    const connector = createHostConnector({ apiBase, auth, logger: { warn() {} }, appVersion: "not a version!",
-      identity: { signForCurrentAccount: async () => "signature" }, onRevoked: (lost) => revoked.push(lost),
-      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: OutdatedSocket });
-    await expect(connector.connect(device)).rejects.toThrow();
+    const connector = createHostConnector({ apiBase, logger: { warn() {} }, appVersion: "not a version!",
+      identity: signer(), onRevoked: (lost) => revoked.push(lost),
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: OutdatedSocket,
+      fetchImpl: route.fetchImpl });
+    await expect(connector.connect(device, owner)).rejects.toThrow();
     // An unexpected App version string is sent as "unknown" rather than blocking the connection.
     expect(FakeWebSocket.last.sent[0].app_version).toBe("unknown");
     expect(connector.status().state).toBe("outdated");
     expect(connector.isActive()).toBe(false);
     connector.wake();
     await new Promise((resolve) => setTimeout(resolve, 1100));
-    expect(challenges).toBe(1);
+    expect(route.requests).toHaveLength(1);
     expect(revoked).toEqual([]);
   });
 
@@ -191,20 +232,15 @@ describe("host connector", () => {
   });
 
   it("reconnects with a fresh challenge after an unexpected socket close", async () => {
-    let challenges = 0;
-    const auth = {
-      readSession: async () => ({ user_id: owner, api_base_url: apiBase, session_generation: "one" }),
-      requestSessionApi: async () => { challenges++; return { challenge_id: challenge, epoch, nonce: "some-nonce" }; },
-      subscribe: () => () => {},
-    };
-    const connector = createHostConnector({ apiBase, auth,
-      identity: { signForCurrentAccount: async () => "signature" },
-      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket });
-    await connector.connect(device);
+    const route = challengeRoute();
+    const connector = createHostConnector({ apiBase, identity: signer(),
+      registry: { resolve: async () => null }, fileService: {}, WebSocketImpl: FakeWebSocket,
+      fetchImpl: route.fetchImpl });
+    await connector.connect(device, owner);
     const first = FakeWebSocket.last;
     first.close();
     await new Promise(resolve => setTimeout(resolve, 1100));
-    expect(challenges).toBe(2);
+    expect(route.requests).toHaveLength(2);
     expect(FakeWebSocket.last).not.toBe(first);
     connector.stop();
   });

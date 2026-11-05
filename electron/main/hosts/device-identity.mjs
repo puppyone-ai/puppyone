@@ -25,6 +25,14 @@ export function createDeviceIdentityService({ filePath, secureStorage, auth, api
   const deployment = resolveCloudApiBaseUrl(apiBase);
   let pending = Promise.resolve();
 
+  async function sign(accountId, deviceId, payload, missing) {
+    const record = (await load()).find((item) => item.deployment === deployment &&
+      item.accountId === accountId && item.deviceId === deviceId);
+    if (!record) throw new Error(missing);
+    const privateKey = crypto.createPrivateKey(secureStorage.decryptString(Buffer.from(record.encryptedPrivateKey, "base64")));
+    return crypto.sign(null, Buffer.from(payload, "utf8"), privateKey).toString("base64");
+  }
+
   async function load() {
     try {
       const records = JSON.parse(await fs.readFile(filePath, "utf8"));
@@ -107,11 +115,15 @@ export function createDeviceIdentityService({ filePath, secureStorage, auth, api
     },
     async signForCurrentAccount(deviceId, payload) {
       const accountId = (await forSession()).user_id;
-      const record = (await load()).find((item) => item.deployment === deployment &&
-        item.accountId === accountId && item.deviceId === deviceId);
-      if (!record) throw new Error("This device is not registered to the current account.");
-      const privateKey = crypto.createPrivateKey(secureStorage.decryptString(Buffer.from(record.encryptedPrivateKey, "base64")));
-      return crypto.sign(null, Buffer.from(payload, "utf8"), privateKey).toString("base64");
+      return sign(accountId, deviceId, payload, "This device is not registered to the current account.");
+    },
+    /**
+     * Signs for a registered identity with nobody signed in: the device key is the
+     * host's own credential. Who may start sharing is decided before this is called.
+     */
+    async signForDevice({ accountId, deviceId }, payload) {
+      if (!UUID.test(accountId) || !UUID.test(deviceId)) throw new Error("Invalid device identity.");
+      return sign(accountId, deviceId, payload, "This device is not registered.");
     },
   });
 }

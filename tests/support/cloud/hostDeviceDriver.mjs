@@ -60,7 +60,8 @@ const registry = createHostFolderRegistry({ filePath: registryFile, auth, apiBas
 let active = null;
 const fileService = createHostFileService({ resolveFolder: (folderId) => active
   ? registry.resolve(folderId, active.accountId, active.deviceId) : null });
-const connector = createHostConnector({ apiBase, auth, identity, registry, fileService,
+// The connector carries no session: only the device key keeps this host online.
+const connector = createHostConnector({ apiBase, identity, registry, fileService,
   logger: { warn() {} }, appVersion: "0.0.0-e2e",
   onRevoked: (lost) => {
     active = null;
@@ -75,14 +76,14 @@ const commands = {
     const { folderId } = await registry.register({ deviceId, rootPath: folderRoot,
       name: path.basename(folderRoot), writable, expectedSession });
     active = { deviceId, accountId };
-    if (!connector.isActive()) await connector.connect(deviceId);
+    if (!connector.isActive()) await connector.connect(deviceId, accountId);
     return { deviceId, folderId };
   },
   async resume() {
     const existing = await identity.existingForCurrentAccount();
     if (!existing || !await registry.hasActive(existing.accountId, existing.deviceId)) return { deviceId: null };
     active = existing;
-    if (!connector.isActive()) await connector.connect(existing.deviceId);
+    if (!connector.isActive()) await connector.connect(existing.deviceId, existing.accountId);
     return { deviceId: existing.deviceId };
   },
   async unshare({ deviceId, folderId }) {

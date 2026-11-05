@@ -77,6 +77,27 @@ describe("device identity", () => {
     expect(calls.at(-1).key).not.toBe(calls[0].key);
   });
 
+  it("signs for a registered identity with nobody signed in, and only for that account's device", async () => {
+    const { root, auth, calls, changeAccount } = await setup();
+    const service = createDeviceIdentityService({ filePath: path.join(root, "device.json"), secureStorage, auth, apiBase });
+    await expect(service.register("Mac", "darwin")).rejects.toThrow();
+    await service.register("Mac", "darwin");
+    // Signed out or someone else signed in: the device key still proves this host.
+    changeAccount();
+    auth.readSession = async () => null;
+    const signature = await service.signForDevice({ accountId: accountA, deviceId: deviceA }, "device-challenge");
+    const publicKey = crypto.createPublicKey({ key: Buffer.concat([
+      Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(calls[0].key, "base64")]),
+      format: "der", type: "spki" });
+    expect(crypto.verify(null, Buffer.from("device-challenge"), publicKey, Buffer.from(signature, "base64"))).toBe(true);
+    await expect(service.signForDevice({ accountId: accountB, deviceId: deviceA }, "x")).rejects.toThrow("not registered");
+    await expect(service.signForDevice({ accountId: accountA, deviceId: deviceB }, "x")).rejects.toThrow("not registered");
+    await expect(service.signForDevice({ accountId: "nobody", deviceId: deviceA }, "x")).rejects.toThrow("Invalid");
+    // After a definite revocation the key is gone.
+    await service.forget({ accountId: accountA, deviceId: deviceA });
+    await expect(service.signForDevice({ accountId: accountA, deviceId: deviceA }, "x")).rejects.toThrow("not registered");
+  });
+
   it("does not reuse another account's identity", async () => {
     const { root, auth, calls, changeAccount } = await setup();
     const service = createDeviceIdentityService({ filePath: path.join(root, "device.json"), secureStorage, auth, apiBase });
