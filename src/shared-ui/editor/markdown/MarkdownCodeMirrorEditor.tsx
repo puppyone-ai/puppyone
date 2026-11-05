@@ -55,6 +55,18 @@ import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
 import { useEditorTaskOwner } from "../runtime/EditorTaskContext";
 import { markdownTaskOwner } from "./platform/codemirror/markdownTaskOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
+import { useDocumentAssetImport, type DocumentAssetImportPort } from "../resource/DocumentAssetImport";
+import {
+  useRegisterDocumentDropTarget,
+  type DocumentDropPayload,
+  type DocumentDropTargetRegistration,
+} from "../resource/DocumentDropTarget";
+import {
+  buildMarkdownImageSnippet,
+  escapeMarkdownDestination,
+  isDropImageName,
+  relativeMarkdownDestination,
+} from "./features/image/markdownImageDropSyntax";
 
 const rendererPerformance = getRendererPerformanceTracker();
 
@@ -156,6 +168,10 @@ export function MarkdownCodeMirrorEditor({
   const contentLanguage = contentLanguageState.resolution;
   const initialLocalizationRef = useRef(localization);
   const findAdapter = useMemo(() => new CodeMirrorFindAdapter(), []);
+  const assets = useDocumentAssetImport();
+  // Drop payloads are asynchronous (native import awaits Main), so the last
+  // pointer position is the only correct insertion coordinate.
+  const dropPointRef = useRef<{ x: number; y: number } | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const modelOwner = useDocumentModelOwner();
   const modelRef = useRef<CodeMirrorDocumentModel | null>(null);
@@ -286,6 +302,12 @@ export function MarkdownCodeMirrorEditor({
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
           taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
+          EditorView.domEventHandlers({
+            dragover: (event) => {
+              dropPointRef.current = { x: event.clientX, y: event.clientY };
+              return false;
+            },
+          }),
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),
           ),
@@ -636,6 +658,38 @@ export function MarkdownCodeMirrorEditor({
     if (viewRef.current) createMarkdownLayoutCoordinator(viewRef.current).invalidate("appearance");
   }, [appearanceRevision]);
 
+  const dropRegistration = useMemo<DocumentDropTargetRegistration | null>(() => {
+    if (readOnly || !documentPath) return null;
+    return {
+      containsPoint(clientX, clientY) {
+        const view = viewRef.current;
+        if (!view) return false;
+        // The content element, not the editor host: drops on the toolbar or a
+        // scrollbar must keep the pane's own split behaviour.
+        const rect = view.contentDOM.getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right
+          && clientY >= rect.top && clientY <= rect.bottom;
+      },
+      async insert(payload: DocumentDropPayload) {
+        const view = viewRef.current;
+        if (!view) return false;
+        const target = await resolveDropTarget(payload, documentPath, assets);
+        if (!target) return false;
+        const destination = relativeMarkdownDestination(documentPath, target.path);
+        if (!destination) return false;
+        const snippet = buildMarkdownImageSnippet(
+          escapeMarkdownDestination(destination),
+          target.name.replace(/\.[^.]+$/, ""),
+        );
+        const point = dropPointRef.current;
+        const position = point ? view.posAtCoords(point) : null;
+        insertMarkdownImageAt(view, position ?? view.state.selection.main.from, snippet);
+        return true;
+      },
+    };
+  }, [assets, documentPath, readOnly]);
+  useRegisterDocumentDropTarget(dropRegistration);
+
   const previewMessage = previewState === "error"
     ? t("editor.markdown.previewUnavailable")
     : previewState === "pending" && showPendingMessage
@@ -679,6 +733,43 @@ export function MarkdownCodeMirrorEditor({
       )}
     </>
   );
+}
+
+type ResolvedDropTarget = Readonly<{ path: string; name: string }>;
+
+/** Workspace entries are already stored; Finder/paste files land next to the
+ * document first. Both end up as a workspace-relative image reference. */
+async function resolveDropTarget(
+  payload: DocumentDropPayload,
+  documentPath: string,
+  assets: DocumentAssetImportPort | null,
+): Promise<ResolvedDropTarget | null> {
+  if (payload.kind === "workspace-entry") {
+    return isDropImageName(payload.name) ? { path: payload.path, name: payload.name } : null;
+  }
+  if (!assets || !isDropImageName(payload.file.name)) return null;
+  const imported = await assets.importImage(documentPath, payload.file);
+  return { path: imported.path, name: payload.file.name };
+}
+
+/**
+ * Insert an image snippet at a character position. A drop that lands inside a
+ * word must not glue the image to the surrounding text; a drop at the start of
+ * a line inserts bare, so the image can open the line.
+ */
+export function insertMarkdownImageAt(view: EditorView, position: number, snippet: string): void {
+  const { doc } = view.state;
+  const atLineStart = position === doc.lineAt(position).from;
+  const before = position > 0 ? doc.sliceString(position - 1, position) : "";
+  const after = position < doc.length ? doc.sliceString(position, position + 1) : "";
+  let insert = snippet;
+  if (!atLineStart && before && !/\s/u.test(before)) insert = ` ${insert}`;
+  if (!atLineStart && after && !/\s/u.test(after)) insert = `${insert} `;
+  view.dispatch({
+    changes: { from: position, insert },
+    selection: { anchor: position + insert.length },
+    userEvent: "input.drop",
+  });
 }
 
 function getEditableExtensions(readOnly: boolean): Extension[] {
