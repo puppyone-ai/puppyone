@@ -5,12 +5,11 @@
  */
 export type PaneDropRegion = "edge" | "center";
 
-// A proportional band alone turns a short pane into almost nothing but edge:
-// at 0.3 a 360px-tall pane had a 108px band on every side, so the reading area
-// of a small document never counted as the centre.
-export const PANE_DROP_EDGE_RATIO = 0.15;
-export const PANE_DROP_EDGE_MIN_PX = 40;
-export const PANE_DROP_EDGE_MAX_PX = 88;
+// Splitting requires an intentional edge drop. Wider bands overlap the first
+// reading lines and turn ordinary image insertion into an unexpected split.
+export const PANE_DROP_EDGE_RATIO = 0.04;
+export const PANE_DROP_EDGE_MIN_PX = 16;
+export const PANE_DROP_EDGE_MAX_PX = 24;
 
 /** The edge band is proportional but never swallows the reading area of a
  * small pane, and never grows into the whole pane on a large display. */
@@ -19,6 +18,7 @@ export function paneDropEdgeBand(
 ): number {
   const shortest = Math.min(rect.width, rect.height);
   return Math.min(
+    shortest / 4,
     PANE_DROP_EDGE_MAX_PX,
     Math.max(PANE_DROP_EDGE_MIN_PX, shortest * PANE_DROP_EDGE_RATIO),
   );
