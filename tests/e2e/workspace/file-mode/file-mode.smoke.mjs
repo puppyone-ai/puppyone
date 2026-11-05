@@ -106,12 +106,10 @@ const chooseView = (window, index) => evaluate(window, `(async () => {
 /** Source of a page function: the colour an element shows, from itself or the nearest painted ancestor. */
 const visibleColour = `((element) => { for (; element; element = element.parentElement) { const colour = getComputedStyle(element).backgroundColor; if (colour !== "rgba(0, 0, 0, 0)") return colour; } return null; })`;
 const editorText = (window) => evaluate(window, `document.querySelector(".cm-content")?.innerText ?? ""`);
-const pressSave = (window, target = ".editor-document-session-boundary") => evaluate(window, `document.querySelector(${JSON.stringify(target)})
-  .dispatchEvent(new KeyboardEvent("keydown", { key: "s", metaKey: true, bubbles: true, cancelable: true }))`);
 async function type(window, text) {
   await evaluate(window, `document.querySelector(".cm-content").focus()`);
   window.webContents.insertText(text);
-  await until(() => window.isDocumentEdited(), "the edited mark");
+  await until(async () => (await editorText(window)).includes(text), "the typed text");
 }
 async function openAndWait(file, selector) {
   const name = path.basename(file);
@@ -147,11 +145,10 @@ for (const level of ["warn", "error"]) {
   };
 }
 
-/** Every answer the app gets from the dialog is scripted, and every question recorded. */
-let dialogAnswer = 2;
+/** Every question the app asks is recorded; a File Mode window should ask none. */
 dialog.showMessageBox = async (_window, options) => {
   report.asked.push(options.message);
-  return { response: dialogAnswer };
+  return { response: 0 };
 };
 
 async function prepareFixtures() {
@@ -166,7 +163,7 @@ async function prepareFixtures() {
   await fs.writeFile(inDocs("rows.csv"), `name,amount\n${"Ada,100\n".repeat(300)}`);
   await fs.writeFile(inDocs("plain-rows.csv"), "Ada,London\n".repeat(300));
   await fs.writeFile(inDocs("long.md"), `# Long\n\n${"A paragraph long enough to scroll under the title bar.\n\n".repeat(80)}`);
-  for (const name of ["save.md", "cancel.md", "discard.md", "clean.md", "second.md", "theme.md", LONG_NAME]) {
+  for (const name of ["save.md", "clean.md", "second.md", "theme.md", LONG_NAME]) {
     await fs.writeFile(inDocs(name), `# ${name}\n`);
   }
   await fs.writeFile(inDocs("secret.txt"), "FAKE-SECRET\n");
@@ -252,12 +249,13 @@ async function coldStart() {
   check("relative image shows", true);
   await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the Mermaid diagram");
   check("Mermaid shows", true);
+  const beforeViews = await read(inDocs("plan.md"));
   await chooseView(window, 1);
   await until(async () => !(await exists(window, ".cm-md-mermaid-svg-root")), "the Markdown source view");
   await chooseView(window, 0);
   await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the rendered Markdown again");
   check("Markdown switches between rendered and source from the title bar", true);
-  check("switching views leaves the file unedited", window.isDocumentEdited(), false);
+  check("switching views leaves the file unchanged", await read(inDocs("plan.md")), beforeViews);
   check("document uses the window width", await evaluate(window, `document.querySelector(".cm-editor").getBoundingClientRect().width === innerWidth`));
   await screenshot(window, "markdown");
 
@@ -304,13 +302,13 @@ async function scrollEdge() {
 async function savingAndOutsideChanges(window) {
   const file = inDocs("plan.md");
   const original = await read(file);
+  // As in a project window: what is typed is in the file, with no save step and nothing asking to save.
   await type(window, "typed ");
-  check("edits stay out of the file until saved", await read(file), original);
-  check("unsaved state is visible", await exists(window, ".editor-save-overlay"));
-  await pressSave(window);
-  await until(async () => (await read(file)).includes("typed "), "the save");
-  await until(() => !window.isDocumentEdited(), "the edited mark to clear");
-  check("saving clears the edited mark", window.isDocumentEdited(), false);
+  await until(async () => (await read(file)).includes("typed "), "the edit to reach the file");
+  check("edits reach the file as they are typed", (await read(file)).replace("typed ", ""), original);
+  await wait(300);
+  check("nothing shows a save step", await exists(window, ".editor-save-overlay"), false);
+  check("the window is never marked unsaved", window.isDocumentEdited(), false);
 
   await fs.appendFile(file, "\nchanged outside\n");
   await evaluate(window, `window.dispatchEvent(new Event("focus"))`);
@@ -318,13 +316,8 @@ async function savingAndOutsideChanges(window) {
   check("outside change shows on return", true);
 
   await type(window, "more ");
-  await fs.appendFile(file, "changed again\n");
-  await pressSave(window);
-  await until(() => exists(window, '.editor-save-overlay, [role="alert"]'), "the conflict");
-  await wait(300);
-  const onDisk = await read(file);
-  check("outside change survives a conflicting save", onDisk.includes("changed again"));
-  check("conflicting edit does not reach the file", onDisk.includes("more "), false);
+  await until(async () => (await read(file)).includes("more "), "the next edit to reach the file");
+  check("editing after an outside change keeps it", (await read(file)).includes("changed outside"));
 }
 
 async function windowAuthority(window) {
@@ -370,11 +363,8 @@ async function csv() {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(cell, "Paris");
     cell.dispatchEvent(new Event("input", { bubbles: true }));
   })()`);
-  await until(() => window.isDocumentEdited(), "the CSV edit");
-  await pressSave(window);
-  await until(async () => (await read(inDocs("table.csv"))).includes("Paris"), "the CSV save");
-  check("CSV edit saves and keeps its line endings", await read(inDocs("table.csv")), "name,city\r\nAda,Paris\r\n");
-  await until(() => !window.isDocumentEdited(), "the CSV edited mark to clear");
+  await until(async () => (await read(inDocs("table.csv"))).includes("Paris"), "the CSV edit to reach the file");
+  check("CSV edit saves itself and keeps its line endings", await read(inDocs("table.csv")), "name,city\r\nAda,Paris\r\n");
   await closeAndWait(window);
 
   for (const [file, selector, masked, name] of [
@@ -428,36 +418,16 @@ async function html() {
 }
 
 async function closing() {
-  const asked = () => report.asked.length;
   const clean = await openAndWait(inDocs("clean.md"), ".cm-editor");
-  const beforeClean = asked();
   await closeAndWait(clean);
-  check("a clean file closes without asking", asked(), beforeClean);
 
-  const cancel = await openAndWait(inDocs("cancel.md"), ".cm-editor");
-  await type(cancel, "kept ");
-  dialogAnswer = 2;
-  cancel.close();
-  await until(() => report.asked.at(-1)?.includes("cancel.md"), "the question");
-  await wait(300);
-  check("cancel keeps the window", cancel.isDestroyed(), false);
-  check("cancel keeps the edits unsaved", await read(inDocs("cancel.md")), "# cancel.md\n");
-  check("cancel keeps the edits in the editor", (await editorText(cancel)).includes("kept "));
-  await evaluate(cancel, `document.querySelector(".cm-content").focus()`);
-  dialogAnswer = 1;
-  await closeAndWait(cancel);
-
-  const discard = await openAndWait(inDocs("discard.md"), ".cm-editor");
-  await type(discard, "dropped ");
-  dialogAnswer = 1;
-  await closeAndWait(discard);
-  check("don't save leaves the file alone", await read(inDocs("discard.md")), "# discard.md\n");
-
+  // Closed the moment after typing, before anything else happens: the edit is still saved.
   const save = await openAndWait(inDocs("save.md"), ".cm-editor");
-  await type(save, "written ");
-  dialogAnswer = 0;
+  await evaluate(save, `document.querySelector(".cm-content").focus()`);
+  save.webContents.insertText("written ");
   await closeAndWait(save);
-  check("save writes the edits", (await read(inDocs("save.md"))).includes("written "));
+  check("closing right after an edit keeps it", (await read(inDocs("save.md"))).includes("written "));
+  check("no window asked about saving", report.asked, []);
 }
 
 async function projectWindows(window) {

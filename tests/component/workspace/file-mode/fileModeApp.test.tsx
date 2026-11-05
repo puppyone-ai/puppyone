@@ -15,9 +15,7 @@ const mocks = vi.hoisted(() => ({
   retry: vi.fn(),
   preview: vi.fn(),
   content: { value: null as null | Record<string, unknown> },
-  setFileEdited: vi.fn(),
   fileChanged: { value: () => undefined as void },
-  publishUnsaved: { value: (_unsaved: boolean) => undefined as void },
   platformCapabilities: { value: null as null | Record<string, unknown> },
   menuItems: { value: [] as Array<
     | { kind: "toggle"; id: string; label: string; checked: boolean; setChecked: (checked: boolean) => void }
@@ -41,7 +39,6 @@ vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
 vi.mock("../../../../src/lib/localFiles", () => ({
   getInitialWorkspace: mocks.getInitialWorkspace,
   openExternalUrl: vi.fn(),
-  setFileEdited: mocks.setFileEdited,
   subscribeFileModeFileChanges: (callback: () => void) => {
     mocks.fileChanged.value = callback;
     return () => { mocks.fileChanged.value = () => undefined; };
@@ -78,10 +75,6 @@ vi.mock("@puppyone/shared-ui", async (original) => {
     return <div data-testid="preview" />;
   }
   return { ...actual, FilePreview,
-  subscribeUnsavedDocumentSessions: (listener: (unsaved: boolean) => void) => {
-    mocks.publishUnsaved.value = listener;
-    return () => undefined;
-  },
   useDocumentInput: () => ({
     content: mocks.content.value, generation: 0, fileUrl: null, fileUrlLoading: false, fileUrlError: null,
     loading: false, error: null, retry: mocks.retry, applyPersistedCommit: vi.fn(),
@@ -140,19 +133,20 @@ describe("FileModeApp", () => {
     container.remove();
   });
 
-  it("shows the bound file under a draggable bar with explicit saves", async () => {
+  it("shows the bound file under a draggable bar and saves edits as they are made", async () => {
     await mount();
 
     expect(mocks.resolveNode).toHaveBeenCalledWith("plan.md");
     expect(container.querySelector('[data-window-drag-region="true"] .file-mode-window__name')?.textContent).toBe("plan.md");
     expect(container.querySelector('[data-testid="preview"]')).not.toBeNull();
     expect(mocks.preview).toHaveBeenLastCalledWith(expect.objectContaining({
-      editorSaveMode: "manual",
+      // As in a project window: no save step, no save status.
+      editorSaveMode: "auto",
       // Markdown keeps its source view, as in a project pane.
       hideSourceView: false,
       htmlTrustMode: "safe",
       workspaceRoot: "/notes",
-      editorInteractionPreferences: expect.objectContaining({ showSaveStatus: true }),
+      editorInteractionPreferences: expect.objectContaining({ showSaveStatus: false }),
     }));
     expect(mocks.preview.mock.lastCall?.[0].markdownEnvironment.assetUrlResolver).toBeTypeOf("function");
   });
@@ -170,12 +164,6 @@ describe("FileModeApp", () => {
 
     const titlebar = container.querySelector<HTMLElement>(".file-mode-window__titlebar");
     expect(titlebar?.dataset).toMatchObject({ windowPlatform: "macos", windowChromeMode: "overlay" });
-  });
-
-  it("lets the window know about unsaved edits", async () => {
-    await mount();
-    mocks.publishUnsaved.value(true);
-    expect(mocks.setFileEdited).toHaveBeenLastCalledWith(true);
   });
 
   it("keeps the title bar to the file's name when the editor has no settings", async () => {

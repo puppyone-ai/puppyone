@@ -138,13 +138,12 @@ import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
-import { askToSaveFile, createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
+import { createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
 import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
 import { createCliControlServer } from "./main/cli-control/cli-control-server.mjs";
 import { createCliControlRequests } from "./main/cli-control/cli-control-requests.mjs";
 import { resolveCliControlEndpoint } from "./main/cli-control/endpoint.mjs";
 import { CLI_CONTROL_LIMITS, CLI_LAUNCH_ARGUMENT } from "../shared/cli-control-contract/protocol.mjs";
-import { registerFileModeIpcHandlers } from "./main/ipc/file-mode-ipc.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
@@ -383,16 +382,6 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   onCloseCancelled: applicationQuitIntent.cancel,
   closeResources: async (window) => {
     return (await projectSessions.closeWindow(window.webContents.id)).closed;
-  },
-  resolveCloseChoice: (window) => {
-    const state = windowStateById.get(window.webContents.id);
-    if (!state?.fileTarget || !state.fileEdited) return "save";
-    return askToSaveFile({
-      dialog,
-      window,
-      name: state.fileTarget.name,
-      t: (messageId, values) => localeService.t(messageId, values),
-    });
   },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
@@ -1266,14 +1255,6 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
-  registerFileModeIpcHandlers({
-    ipcMain: trustedIpcMain,
-    getFileWindow: (sender) => {
-      const state = windowStateById.get(sender.id);
-      const window = windowsById.get(sender.id);
-      return state?.fileTarget && window ? { state, window } : null;
-    },
-  });
   registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });

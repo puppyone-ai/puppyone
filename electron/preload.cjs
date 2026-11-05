@@ -229,7 +229,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   listCloudAccessPointDirectory: (request) => ipcRenderer.invoke("cloud:access-point-list-directory", request),
   getCloudAccessPointSemantics: (request) => ipcRenderer.invoke("cloud:access-point-semantics", request),
   openExternalUrl: (href) => ipcRenderer.invoke("system:open-external-url", href),
-  setFileEdited: (edited) => ipcRenderer.send("file-mode:set-edited", edited === true),
   onFileModeFileChanged: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = () => callback();

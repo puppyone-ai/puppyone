@@ -10,7 +10,6 @@ import {
   FilePreview,
   getEditorProviderPolicy,
   isDocumentDataNode,
-  subscribeUnsavedDocumentSessions,
   Tooltip,
   useDocumentInput,
   type DataPort,
@@ -32,17 +31,10 @@ import {
   createLocalDataPort,
   getInitialWorkspace,
   openExternalUrl,
-  setFileEdited,
   subscribeFileModeFileChanges,
 } from "../lib/localFiles";
 import type { FileModeTarget } from "../types/electron";
 import "./file-mode.css";
-
-/** Saves are explicit here, so the window has to show when a change is unsaved. */
-const FILE_MODE_EDITOR_PREFERENCES = {
-  ...DEFAULT_EDITOR_INTERACTION_PREFERENCES,
-  showSaveStatus: true,
-};
 
 /** Links leave for the browser. A lone file has no neighbours to open. */
 const FILE_MODE_NAVIGATION = createDocumentNavigationPort({ openExternalUrl });
@@ -75,8 +67,6 @@ export function FileModeApp() {
     });
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => subscribeUnsavedDocumentSessions(setFileEdited), []);
 
   return (
     <SurfaceAppearanceProvider value={appearance}>
@@ -332,12 +322,13 @@ function FileModeDocument({ target, dataPort, node }: OpenedFile & { node: Docum
         onRetry={source.retry}
         showHeader={false}
         hideSourceView={!sourceToggle}
-        editorSaveMode="manual"
+        // Edits are saved as they are made, as in a project window.
+        editorSaveMode="auto"
         htmlTrustMode="safe"
         workspaceRoot={target.rootPath}
         markdownEnvironment={markdownEnvironment}
         documentNavigation={FILE_MODE_NAVIGATION}
-        editorInteractionPreferences={FILE_MODE_EDITOR_PREFERENCES}
+        editorInteractionPreferences={DEFAULT_EDITOR_INTERACTION_PREFERENCES}
         previewServices={dataPort.previewServices}
         documentPersistence={readOnly ? null : dataPort.documentPersistence ?? null}
         onDocumentPersisted={source.applyPersistedCommit}

@@ -14,7 +14,6 @@ const FILE_MODE_CHANNELS = new Set([
   "appearance:set-window-background",
   "document-session:flush-result",
   "editor:markdown-format-active",
-  "file-mode:set-edited",
   "localization:get-bootstrap",
   "mermaid:cancel",
   "mermaid:render",
@@ -77,18 +76,4 @@ function isAllowedResource(fileTarget, request) {
   if (request?.path === fileTarget.name) return true;
   if (request?.purpose !== "markdown-asset" || typeof request.path !== "string") return false;
   return /^(image|audio|video)\//.test(getMimeType(request.path) ?? "");
-}
-
-/** What to do with unsaved edits when a File Mode window closes. */
-export async function askToSaveFile({ dialog, window, name, t }) {
-  const { response } = await dialog.showMessageBox(window, {
-    type: "warning",
-    buttons: [t("native.fileClose.save"), t("native.fileClose.discard"), t("native.fileClose.cancel")],
-    defaultId: 0,
-    cancelId: 2,
-    noLink: true,
-    message: t("native.fileClose.message", { name }),
-    detail: t("native.fileClose.detail"),
-  });
-  return ["save", "discard", "cancel"][response] ?? "cancel";
 }
