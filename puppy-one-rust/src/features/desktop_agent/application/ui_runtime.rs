@@ -3,6 +3,7 @@
 //! executor in the app and on a paused test runtime in tests.
 use futures_util::future::LocalBoxFuture;
 use std::cell::Cell;
+use std::future::Future as _;
 use std::rc::Rc;
 
 /// The window executor.
@@ -73,27 +74,81 @@ impl UiRuntime for TokioUiRuntime {
 /// running when nobody awaits it.
 pub type Task<T> = futures_util::future::Shared<LocalBoxFuture<'static, T>>;
 
-/// Starts `future` on `runtime` (on its next turn, as a microtask would) and
-/// returns its settlement.
+/// Runs `future` until its first suspension now, as calling an `async`
+/// function does, and keeps driving it on `runtime`. A future polled here
+/// registers its waker again on its next poll.
 pub fn start<T: Clone + 'static>(
     runtime: &Rc<dyn UiRuntime>,
     future: impl std::future::Future<Output = T> + 'static,
 ) -> Task<T> {
+    let task = unstarted(future);
+    launch(runtime, &task);
+    task
+}
+
+/// A task that has not started. Store it where its own completion looks for
+/// it (`this.pending = task`), then [`launch`] it: the product assigns a
+/// promise before any of its callbacks can run.
+pub fn unstarted<T: Clone + 'static>(
+    future: impl std::future::Future<Output = T> + 'static,
+) -> Task<T> {
     use futures_util::FutureExt;
-    let task = future.boxed_local().shared();
+    future.boxed_local().shared()
+}
+
+/// Starts a [`task`]: its synchronous prefix runs now.
+pub fn launch<T: Clone + 'static>(runtime: &Rc<dyn UiRuntime>, task: &Task<T>) {
+    let mut prefix = task.clone();
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+    let _ = std::pin::Pin::new(&mut prefix).poll(&mut context);
+    drop(prefix);
     let driver = task.clone();
     runtime.spawn(Box::pin(async move {
         driver.await;
     }));
-    task
 }
 
-/// `void promise`: drives `future` to completion.
+/// `Promise.resolve().then(() => future)`: `future` starts only after the
+/// runtime's next turn, even when its task is awaited synchronously.
+pub fn start_deferred<T: Clone + 'static>(
+    runtime: &Rc<dyn UiRuntime>,
+    future: impl std::future::Future<Output = T> + 'static,
+) -> Task<T> {
+    let turn = microtask(runtime);
+    start(runtime, async move {
+        turn.await;
+        future.await
+    })
+}
+
+/// `void promise`: runs `future` until its first suspension now and keeps
+/// driving it.
 pub fn detach(
     runtime: &Rc<dyn UiRuntime>,
     future: impl std::future::Future<Output = ()> + 'static,
 ) {
-    runtime.spawn(Box::pin(future));
+    drop(start(runtime, future));
+}
+
+/// `await Promise.resolve()`: resolves once the runtime has taken a turn,
+/// however often it is polled before.
+pub fn microtask(runtime: &Rc<dyn UiRuntime>) -> impl std::future::Future<Output = ()> + 'static {
+    type Turn = (Cell<bool>, std::cell::RefCell<Option<std::task::Waker>>);
+    let turn: Rc<Turn> = Rc::new((Cell::new(false), std::cell::RefCell::new(None)));
+    let taken = turn.clone();
+    runtime.spawn(Box::pin(async move {
+        taken.0.set(true);
+        if let Some(waker) = taken.1.borrow_mut().take() {
+            waker.wake();
+        }
+    }));
+    std::future::poll_fn(move |context| {
+        if turn.0.get() {
+            return std::task::Poll::Ready(());
+        }
+        *turn.1.borrow_mut() = Some(context.waker().clone());
+        std::task::Poll::Pending
+    })
 }
 
 /// A settled task (`Promise.resolve(value)`).

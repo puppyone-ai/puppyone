@@ -10,6 +10,8 @@ use std::rc::Rc;
 
 pub type Handler = Rc<dyn Fn(Value) -> ClientFuture>;
 type Listener = Rc<dyn Fn(Value)>;
+/// Wraps every call (`new Proxy(bridge, { get })`).
+pub type Interceptor = Rc<dyn Fn(&str, Value, &dyn Fn(Value) -> ClientFuture) -> ClientFuture>;
 
 #[derive(Default)]
 pub struct FakeClient {
@@ -20,6 +22,7 @@ pub struct FakeClient {
     failure_listener: Rc<RefCell<Option<Listener>>>,
     frame_subscriptions: RefCell<Vec<Listener>>,
     listens: Cell<bool>,
+    interceptor: RefCell<Option<Interceptor>>,
 }
 
 impl FakeClient {
@@ -67,6 +70,32 @@ impl FakeClient {
             let value = value.clone();
             Box::pin(async move { Ok(value) })
         });
+    }
+
+    /// `mockResolvedValueOnce(value)`.
+    pub fn resolve_once(&self, method: &str, value: Value) {
+        self.handle_once(method, move |_| {
+            let value = value.clone();
+            Box::pin(async move { Ok(value) })
+        });
+    }
+
+    /// `mockClear()`.
+    pub fn clear(&self, method: &str) {
+        self.calls.borrow_mut().retain(|(name, _)| name != method);
+    }
+
+    /// The last request of `method` (`toHaveBeenLastCalledWith`).
+    pub fn last_call(&self, method: &str) -> Option<Value> {
+        self.calls(method).pop()
+    }
+
+    /// Wraps every later call.
+    pub fn intercept(
+        &self,
+        interceptor: impl Fn(&str, Value, &dyn Fn(Value) -> ClientFuture) -> ClientFuture + 'static,
+    ) {
+        *self.interceptor.borrow_mut() = Some(Rc::new(interceptor));
     }
 
     /// `getMockImplementation()`.
@@ -137,15 +166,22 @@ impl AgentClientPort for FakeClient {
             .get_mut(method)
             .and_then(VecDeque::pop_front);
         let handler = once.or_else(|| self.methods.borrow().get(method).cloned());
-        match handler {
-            Some(handler) => handler(request),
-            None => {
-                let error: AgentResult<Value> = Err(AgentError::new(format!(
-                    "bridge.{method} is not a function"
-                ))
-                .with_name("TypeError"));
-                Box::pin(async move { error })
+        let invoke = move |request: Value| -> ClientFuture {
+            match &handler {
+                Some(handler) => handler(request),
+                None => {
+                    let error: AgentResult<Value> = Err(AgentError::new(format!(
+                        "bridge.{method} is not a function"
+                    ))
+                    .with_name("TypeError"));
+                    Box::pin(async move { error })
+                }
             }
+        };
+        let interceptor = self.interceptor.borrow().clone();
+        match interceptor {
+            Some(interceptor) => interceptor(method, request, &invoke),
+            None => invoke(request),
         }
     }
 

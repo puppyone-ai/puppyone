@@ -5,7 +5,7 @@ use super::agent_client_port::AgentClientProvider;
 use super::agent_controller_state::{LocalConnectionsPhase, StatePatch};
 use super::agent_error::{create_agent_error, format_agent_error};
 use super::agent_session_controller::AgentControllerStore;
-use super::ui_runtime::{Task, UiRuntime, resolved, start};
+use super::ui_runtime::{Task, UiRuntime, launch, resolved, unstarted};
 use serde_json::json;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -73,7 +73,7 @@ impl LocalAgentConnectionLoader {
         let id = inner.next_task.get() + 1;
         inner.next_task.set(id);
         let loader = inner.clone();
-        let task = start(&inner.runtime, async move {
+        let task = unstarted(async move {
             let result = call.await;
             if !loader.disposed.get() {
                 match result {
@@ -115,6 +115,7 @@ impl LocalAgentConnectionLoader {
             }
         });
         *inner.pending.borrow_mut() = Some((id, task.clone()));
+        launch(&inner.runtime, &task);
         task
     }
 

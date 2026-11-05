@@ -215,6 +215,56 @@ impl AgentControllerState {
             .running_turn_id()
             .filter(|id| !id.is_empty())
     }
+    /// The state as the product's plain object (`getSnapshot()`).
+    pub fn to_value(&self) -> Value {
+        let text = |value: &Option<String>| value.clone().map_or(Value::Null, Value::from);
+        let mut value = serde_json::json!({
+            "phase": self.phase.as_str(),
+            "inspection": self.inspection,
+            "session": self.session,
+            "control": self.control,
+            "replicaStatus": self.replica_status.as_str(),
+            "projection": self.projection.to_value(),
+            "selectedRuntimeId": text(&self.selected_runtime_id),
+            "selectedProviderId": text(&self.selected_provider_id),
+            "selectedModel": text(&self.selected_model),
+            "selectedEffort": text(&self.selected_effort),
+            "selectedMode": text(&self.selected_mode),
+            "localConnections": self.local_connections,
+            "localConnectionsPhase": self.local_connections_phase.as_str(),
+            "localConnectionsScannedAt": text(&self.local_connections_scanned_at),
+            "localConnectionsError": self.local_connections_error,
+            "draft": self.draft,
+            "draftMentions": self.draft_mentions,
+            "pendingPrompt": text(&self.pending_prompt),
+            "pendingIntent": self.pending_intent,
+            "sessionPreparation": self.session_preparation.as_str(),
+            "references": self.references,
+            "error": self.error,
+            "submitting": self.submitting,
+            "stopping": self.stopping,
+            "initialized": self.initialized,
+        });
+        if let Some(request) = &self.stop_request {
+            value["stopRequest"] = serde_json::json!({
+                "commandId": request.command_id,
+                "sessionId": request.session_id,
+                "instanceId": request.instance_id,
+                "turnId": request.turn_id,
+                "status": request.status.as_str(),
+            });
+        }
+        if let Some(recovery) = &self.display_recovery {
+            value["displayRecovery"] = serde_json::json!({
+                "policy": recovery.policy.as_str(),
+                "stage": recovery.stage.as_str(),
+                "cause": recovery.cause.as_str(),
+                "attempt": recovery.attempt,
+                "maxAttempts": recovery.max_attempts,
+            });
+        }
+        value
+    }
     /// `state.error?.code`.
     pub fn error_code(&self) -> Option<&str> {
         self.error.as_ref().and_then(|e| e["code"].as_str())

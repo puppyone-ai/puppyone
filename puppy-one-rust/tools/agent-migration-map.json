@@ -71,9 +71,12 @@
         "src/features/desktop_agent/domain/agent_chat_history_target.rs",
         "src/features/session_transport/managed_operation_scope.rs",
         "src/features/desktop_agent/application/legacy_agent_session_controller.rs",
-        "src/agent/runtime/legacy_runtime_port.rs"
+        "src/agent/runtime/legacy_runtime_port.rs",
+        "src/features/desktop_agent/application/tests/controller.rs",
+        "src/features/desktop_agent/application/tests/display_fixture.rs",
+        "src/features/desktop_agent/application/tests/support.rs"
       ],
-      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent\u2192reconnecting\u2192degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness. Remaining: the controller/registry/history/submission/reference-draft suites, AgentControllerRegistry, ConversationHistoryController, the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
+      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent\u2192reconnecting\u2192degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. Remaining: the registry/history/submission/reference-draft suites, AgentControllerRegistry, ConversationHistoryController, the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
     },
     {
       "name": "Native platform client",

@@ -4,7 +4,7 @@
 //! Preview URLs deliberately stay outside `AgentDraftReference` so they are
 //! never persisted, cloned into queued intents, or sent across the Agent IPC
 //! boundary.
-use super::agent_client_port::AgentFile;
+use super::agent_client_port::{AgentFile, AgentFileSource};
 use std::rc::Rc;
 
 /// `AgentReferenceVisualPreview`.
@@ -92,13 +92,48 @@ pub fn release(preview: Option<AgentReferenceVisualPreview>) {
     }
 }
 
-/// `createAgentFileVisualPreview(file)`: a raster image's local preview.
+/// `createAgentFileVisualPreview(file)`: a raster image's local preview. A
+/// file without a native path gets an object URL its release revokes.
 pub fn create_agent_file_visual_preview(file: &AgentFile) -> Option<AgentReferenceVisualPreview> {
     if !is_previewable_raster_image(file) {
         return None;
     }
-    file.preview_url()
-        .map(|url| AgentReferenceVisualPreview { url, release: None })
+    match &file.source {
+        AgentFileSource::Path(path) => Some(AgentReferenceVisualPreview {
+            url: path.clone(),
+            release: None,
+        }),
+        AgentFileSource::Bytes(bytes) => {
+            let url = create_object_url(bytes.clone());
+            let revoked = url.clone();
+            Some(AgentReferenceVisualPreview {
+                url,
+                release: Some(Rc::new(move || revoke_object_url(&revoked))),
+            })
+        }
+    }
+}
+
+thread_local! {
+    static OBJECT_URLS: std::cell::RefCell<std::collections::HashMap<String, Rc<Vec<u8>>>> =
+        std::cell::RefCell::default();
+}
+
+/// `URL.createObjectURL(file)`: a window-local URL for in-memory bytes.
+pub fn create_object_url(bytes: Rc<Vec<u8>>) -> String {
+    let url = format!("blob:puppyone/{}", super::ui_runtime::random_uuid());
+    OBJECT_URLS.with(|urls| urls.borrow_mut().insert(url.clone(), bytes));
+    url
+}
+
+/// `URL.revokeObjectURL(url)`.
+pub fn revoke_object_url(url: &str) {
+    OBJECT_URLS.with(|urls| urls.borrow_mut().remove(url));
+}
+
+/// The bytes behind an object URL the view loads.
+pub fn object_url_bytes(url: &str) -> Option<Rc<Vec<u8>>> {
+    OBJECT_URLS.with(|urls| urls.borrow().get(url).cloned())
 }
 
 fn is_previewable_raster_image(file: &AgentFile) -> bool {

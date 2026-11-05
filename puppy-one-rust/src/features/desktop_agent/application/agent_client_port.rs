@@ -82,12 +82,4 @@ impl AgentFile {
         }
         value
     }
-
-    /// A local URL the view can load (`URL.createObjectURL(file)`).
-    pub fn preview_url(&self) -> Option<String> {
-        match &self.source {
-            AgentFileSource::Path(path) => Some(path.clone()),
-            AgentFileSource::Bytes(_) => None,
-        }
-    }
 }

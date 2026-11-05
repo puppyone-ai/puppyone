@@ -6,7 +6,7 @@ use super::agent_controller_state::{
 };
 use super::agent_error::format_agent_error;
 use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSession};
-use super::ui_runtime::{Task, UiRuntime, resolved, start};
+use super::ui_runtime::{Task, UiRuntime, launch, microtask, resolved, unstarted};
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -96,7 +96,9 @@ impl Inner {
         let id = self.next_task.get() + 1;
         self.next_task.set(id);
         let preparer = self.clone();
-        let task = start(&self.options.runtime, async move {
+        let turn = microtask(&self.options.runtime);
+        let task = unstarted(async move {
+            turn.await;
             let prepared = match (preparer.options.create_session)().await {
                 Ok(snapshot) => {
                     if !preparer.is_current(epoch, &selection) {
@@ -135,6 +137,7 @@ impl Inner {
             prepared
         });
         *self.preparation.borrow_mut() = Some((id, task.clone()));
+        launch(&self.options.runtime, &task);
         store.patch(
             StatePatch::new()
                 .session_preparation(AgentSessionPreparation::Preparing)

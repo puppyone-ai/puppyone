@@ -9,7 +9,8 @@ use super::agent_controller_state::{
 use super::agent_error::{agent_known_error, known_error_code, operation_failure};
 use super::agent_session_controller::AgentControllerStore;
 use super::ui_runtime::{
-    Task, Timer, UiRuntime, detach, math_random, resolved, set_timeout, start,
+    Task, Timer, UiRuntime, detach, launch, math_random, microtask, resolved, set_timeout,
+    start_deferred, unstarted,
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::display_schema::assert_display;
@@ -367,7 +368,7 @@ impl Inner {
             let replica = self.weak();
             let bridge = bridge.clone();
             let request = session_request(&self.workspace_root, session_id, instance_id.as_deref());
-            start(&self.runtime, async move {
+            start_deferred(&self.runtime, async move {
                 let current = replica.upgrade().is_some_and(|r| {
                     !r.disposed.get() && !r.paused.get() && epoch == r.epoch.get()
                 });
@@ -555,7 +556,7 @@ impl Inner {
         let repair_epoch = self.epoch.get();
         let id = self.task_id();
         let replica = self.clone();
-        let repair = start(&self.runtime, async move {
+        let repair = unstarted(async move {
             let result: AgentResult<()> = async {
                 let Some(snapshot) = pending.await? else {
                     return Ok(());
@@ -614,6 +615,7 @@ impl Inner {
             replica.schedule_recovery_retry();
         });
         *self.repair_promise.borrow_mut() = Some((id, repair.clone()));
+        launch(&self.runtime, &repair);
         repair.boxed_local()
     }
 
@@ -782,7 +784,7 @@ impl Inner {
         let id = self.task_id();
         let replica = self.clone();
         let tracked = subscription.clone();
-        let task = start(&self.runtime, async move {
+        let task = unstarted(async move {
             let subscription = tracked;
             let result: AgentResult<bool> = async {
                 while replica.current(&subscription)
@@ -798,7 +800,11 @@ impl Inner {
                     request["streamId"] = Value::from(subscription.stream_id.as_str());
                     request["revision"] = Value::from(revision);
                     let signal = replica.scope.borrow().signal();
-                    let call = bridge.call("acknowledgeAgentSession", request);
+                    let turn = microtask(&replica.runtime);
+                    let call = async {
+                        turn.await;
+                        bridge.call("acknowledgeAgentSession", request).await
+                    };
                     let result = wait_for_scoped_operation(
                         &replica.runtime,
                         call,
@@ -825,6 +831,7 @@ impl Inner {
             result
         });
         *subscription.ack_promise.borrow_mut() = Some((id, task.clone()));
+        launch(&self.runtime, &task);
         task
     }
 
@@ -872,7 +879,11 @@ impl Inner {
             request
         };
         let signal = self.scope.borrow().signal();
-        let call = bridge.call("readAgentSessionWatermark", request);
+        let turn = microtask(&self.runtime);
+        let call = async {
+            turn.await;
+            bridge.call("readAgentSessionWatermark", request).await
+        };
         match wait_for_scoped_operation(&self.runtime, call, &signal, CONTROL_REQUEST_TIMEOUT_MS)
             .await
         {

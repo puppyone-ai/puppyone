@@ -26,7 +26,7 @@ use super::agent_turn_submission_coordinator::{
 };
 use super::local_agent_connection_loader::LocalAgentConnectionLoader;
 use super::session_ui_state_store::{SessionUiPatch, SessionUiState, SessionUiStateStore};
-use super::ui_runtime::{Task, UiRuntime, detach, random_uuid, resolved, start};
+use super::ui_runtime::{Task, UiRuntime, detach, launch, random_uuid, resolved, start, unstarted};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::constants::AGENT_IDLE_DISCONNECT_REASON;
 use crate::agent::contract::display_state::create_empty_agent_display;
@@ -781,7 +781,7 @@ impl Inner {
         let run = self.run_initialize(refresh, restore_latest);
         let id = self.task_id();
         let inner = self.clone();
-        let task = start(&self.runtime, async move {
+        let task = unstarted(async move {
             let result = run.await;
             let current = inner
                 .initialize_promise
@@ -794,6 +794,7 @@ impl Inner {
             result
         });
         *self.initialize_promise.borrow_mut() = Some((id, task.clone()));
+        launch(&self.runtime, &task);
         task
     }
 
