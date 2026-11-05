@@ -69,26 +69,6 @@ vi.mock("../../../../src/features/cloud/project/context", async (importOriginal)
   getResolvedCloudProjectId: () => null,
 }));
 vi.mock("../../../../src/features/cloud/initialization/useCloudInitialization", () => ({ useCloudInitialization: () => ({}) }));
-vi.mock("../../../../src/features/cloud/share", () => ({
-  CloudShareProvider: ({ children }: { children: ReactNode }) => children,
-  ShareWizardDialog: () => null,
-  ProjectReachDialog: () => null,
-  // The Header states reach from these share facts, so the stub keeps their
-  // shape even though this file asserts shell layout.
-  ReadersList: () => null,
-  SHARE_TARGETS: [],
-  resolveCloudShareStatus: () => ({ kind: "local", readers: [], pending: null, message: null }),
-  shareTargetLabelKey: (id: string) => `cloud.share.target.${id}.label`,
-  useProjectShareRevoke: () => ({
-    available: false, confirmingId: null, pendingId: null, failed: false,
-    ask: state.noop, dismiss: state.noop, stop: async () => undefined,
-  }),
-  useProjectShareActivity: () => ({
-    shares: { shares: [], loading: false, loaded: true, error: false, reload: async () => undefined },
-    pending: null,
-    setPending: state.noop,
-  }),
-}));
 vi.mock("../../../../src/features/source-control/useDesktopGitController", () => ({
   useDesktopGitController: () => ({
     activeGitStatus: null, setGitOperationError: state.noop, setGitOperationLoading: state.noop,

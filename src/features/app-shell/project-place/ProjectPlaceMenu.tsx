@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, History, Plug, UserPlus } from "lucide-react";
+import { Check, History } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudIcon, CloudUploadIcon, LocalIcon } from "@puppyone/shared-ui";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
@@ -14,9 +14,6 @@ export type ProjectPlaceHandlers = Readonly<{
   onSignIn: () => void;
   onPutInCloudAgain: () => void;
   onOpenLocalFolder: (path: string) => void;
-  /** Sharing is part of putting a folder in the Cloud; absent when sharing is off. */
-  onInvitePerson?: () => void;
-  onConnectAgent?: () => void;
   /** A hosted project's own record; absent where it has none to show. */
   onOpenHistory?: () => void;
 }>;
@@ -65,14 +62,12 @@ export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = fals
 }
 
 /**
- * The current place as a fact, then the Cloud action. Inviting a person and
- * connecting an agent sit under it: they are part of going to the Cloud, not
- * separate tools.
+ * The current place as a fact, then the one Cloud action that applies.
+ * Invitations belong to the Cloud project, never to this local folder.
  */
 export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
   const placeLabel = useProjectPlaceLabel(menu.place);
-  const sharing = menu.action && sharesThroughCloud(menu.action) ? handlers : null;
   const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
   return <section className="desktop-project-place-rows" aria-label={t("cloud.placeMenu.label")}>
     <DesktopMenuItem className="desktop-project-place-row" role="button" aria-current="true" aria-disabled="true"
@@ -85,12 +80,6 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
     {menu.action && <>
       <DesktopMenuSeparator />
       <ProjectPlaceActionRow action={menu.action} handlers={handlers} onDismiss={onDismiss} />
-      {sharing?.onInvitePerson && <DesktopMenuItem className="desktop-project-place-row desktop-project-place-subrow"
-        role="button" data-project-place-row="invite-person" icon={<UserPlus size={14} strokeWidth={1.8} />}
-        label={t("shell.projectReach.invitePerson")} onClick={run(sharing.onInvitePerson)} />}
-      {sharing?.onConnectAgent && <DesktopMenuItem className="desktop-project-place-row desktop-project-place-subrow"
-        role="button" data-project-place-row="connect-agent" icon={<Plug size={14} strokeWidth={1.8} />}
-        label={t("shell.projectReach.connectAgent")} onClick={run(sharing.onConnectAgent)} />}
     </>}
     {handlers.onOpenHistory && <>
       <DesktopMenuSeparator />
@@ -99,11 +88,6 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
         label={t("source-control.history.title")} onClick={run(handlers.onOpenHistory)} />
     </>}
   </section>;
-}
-
-/** Inviting and connecting reach this folder's Cloud project, new or existing. */
-function sharesThroughCloud(action: ProjectPlaceAction) {
-  return action.kind === "put-in-cloud" || action.kind === "open-cloud-project";
 }
 
 function ProjectPlaceActionRow({ action, handlers, onDismiss }: {

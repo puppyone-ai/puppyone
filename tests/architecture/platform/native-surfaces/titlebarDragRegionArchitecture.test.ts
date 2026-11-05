@@ -83,7 +83,7 @@ describe("titlebar drag-region architecture", () => {
     );
     expect(titlebarCss).toContain("width: var(--desktop-shell-right-sidebar-width);");
     expect(titlebarCss).toContain(
-      ":is(.desktop-titlebar-share, .desktop-titlebar-cloud-agents-anchor) + .desktop-titlebar-action-divider",
+      ".desktop-titlebar-cloud-agents-anchor + .desktop-titlebar-action-divider",
     );
     expect(titlebarCss).toContain("inset-inline-start: 0;");
   });

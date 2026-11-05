@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceAgentPeople } from "../../../../src/app/CloudWorkspaceAgentPeople";
 import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
-import { agentCreatureFor } from "../../../../src/features/app-shell/project-reach/AgentCreature";
+import { agentCreatureFor } from "../../../../src/components/brand/AgentCreature";
 import { CloudWorkspaceHeaderTools } from "../../../../src/features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { cloudApiRequest, type DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
@@ -14,9 +14,6 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
-}));
-vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
-  CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
   CloudWorkspaceAgentsDialog: ({ agents, requests, control, onClose }: {
@@ -154,7 +151,7 @@ describe("An Agent in the Header", () => {
     expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["2"]);
     expect([...stack()!.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")].map(mark => mark.dataset.reachBrand))
       .toEqual(["cursor", "gemini"]);
-    const styles = readFileSync(resolve(process.cwd(), "src/features/app-shell/project-reach/reach-header.css"), "utf8");
+    const styles = readFileSync(resolve(process.cwd(), "src/components/brand/agent-avatar.css"), "utf8");
     const reduced = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(reduced).toMatch(/\[data-reach-activity\],\s+[^{]*\[data-reach-activity\]::before\s*\{\s*animation: none;/);
   });

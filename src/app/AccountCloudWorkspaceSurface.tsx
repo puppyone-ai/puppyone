@@ -14,7 +14,6 @@ import type { NativeCloudWorkbench } from "../features/cloud/workbench/useNative
 import type { DesktopCloudSession } from "../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
-import { captureCloudWorkspaceShareResource } from "../features/cloud/share/cloudWorkspaceShareResource";
 import type { ProjectCloudContext } from "../features/cloud/project/context";
 import type { ProjectTarget } from "../features/app-shell/window-project/windowProjectStore";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
@@ -133,7 +132,6 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
       "data-active-cloud-project": service.workspace.projectId ?? undefined }}
       {...projectRail}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}

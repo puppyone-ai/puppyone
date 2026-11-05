@@ -124,7 +124,7 @@ describe("Experimental settings", () => {
     expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
   });
 
-  it("keeps project sharing as an enabled-by-default feature switch", () => {
+  it("has no switch to revive the retired project sharing flow", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -132,13 +132,8 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Project sharing"]');
-    expect(toggle?.checked).toBe(true);
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableShareOnboarding: false,
-    });
+    expect(host.querySelector('input[aria-label="Project sharing"]')).toBeNull();
+    expect(store.getState().experimentalSettings).not.toHaveProperty("enableShareOnboarding");
   });
 
   it("offers Header menu / Sidebar project switching choices and preserves the saved position", () => {

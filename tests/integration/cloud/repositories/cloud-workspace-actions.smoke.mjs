@@ -39,8 +39,7 @@ const button = tool => `document.querySelector('[data-cloud-workspace-tool=${too
 async function exercise(hosted) {
   const mode = hosted ? "account" : "native";
   const api = hosted ? "window.__accountCloudSmoke" : "window.__nativeCloudWorkbenchSmoke";
-  // The Header and Share keep the Agent list current by themselves, whatever else is happening.
-  const workspaceRequests = `${api}.state().requests.filter(path => !/\\/(agent-links|access\\/sessions)$/.test(path)).length`;
+  // The Header keeps the Agent list current by itself, whatever else is happening.
   await window.loadURL("about:blank");
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${mode}-cloud-workbench-smoke`);
   await waitFor(`Boolean(${api})`);
@@ -54,42 +53,9 @@ async function exercise(hosted) {
     await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]').querySelector('button').click()");
     await waitFor(`${api}.state().location === 'cloud'`);
   }
-  await waitFor(`${button("share")} && !${button("share")}.disabled`);
+  await waitFor(`${button("agent")} && !${button("agent")}.disabled`);
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=share], .desktop-cloud-workspace-share')"), "Retired Share must have no Header entry or popup");
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");
-  if (!hosted) {
-    await evaluate(`${api}.setLoginAppearance('light', 'en')`);
-    await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/cloud-only.md')).click()");
-    await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud only'))");
-    const before = await evaluate(workspaceRequests);
-    await evaluate(`${button("share")}.click()`);
-    await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
-    assert(await evaluate("document.querySelector('[data-share-target=resource]').dataset.shareUrl === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
-    assert(await evaluate(`${workspaceRequests} === ${before}`), "Sharing must make zero Cloud requests");
-    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share').getAttribute('aria-label') === 'Share this project'"), "Share's name is independent of project name");
-    for (const theme of ["light", "dark"]) {
-      await evaluate(`${api}.setLoginAppearance('${theme}', 'en')`);
-      await capture(`share-${theme}`);
-    }
-    window.setSize(720, 520);
-    await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
-    assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
-    await capture("share-small");
-    window.setSize(1100, 760);
-    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-    // Selecting a folder overrides the still-open document; switching tabs
-    // restores the actual document as the target rather than retaining it.
-    await evaluate("[...document.querySelectorAll('.data-content .tree-row.folder')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/records')).click()");
-    await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/records/')");
-    await capture("share-folder");
-    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-    await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/notes.md')).click()");
-    await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud note'))");
-    await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/notes.md')");
-    await capture("share-notes");
-    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-  }
   await evaluate(`${button("agent")}.click()`);
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-sidebar .cm-content'))");
   await evaluate(`${api}.editAgent('Keep this draft')`);
@@ -119,6 +85,6 @@ app.whenReady().then(async () => {
   await exercise(false);
   await exercise(true);
   assert(errors.length === 0, `Renderer errors: ${errors.join("; ")}`);
-  console.log("Cloud workspace actions passed: Share URL, zero-request sharing, History in both shells and themes, retained Agent draft, sidebar close.");
+  console.log("Cloud workspace actions passed: no retired Share entry, History in both shells and themes, retained Agent draft, sidebar close.");
   window.destroy(); app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });

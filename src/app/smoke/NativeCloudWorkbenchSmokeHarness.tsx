@@ -9,10 +9,9 @@ import { DesktopTitlebarContext } from "../../features/app-shell/DesktopTitlebar
 import { DesktopTitlebarActions } from "../../features/app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "../../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "../CloudWorkspaceAgentPeople";
-import { captureCloudWorkspaceShareResource } from "../../features/cloud/share/cloudWorkspaceShareResource";
 import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
-import { CloudDialog } from "../../features/cloud/CloudDialog";
+import { CloudPublishDialog } from "../../features/cloud/initialization/CloudPublishDialog";
 import { CloudSignedOutRoute } from "../../features/cloud/auth/CloudSignedOutRoute";
 import { LocalFolderCloudNotice } from "../../features/cloud/project/LocalFolderCloudNotice";
 import { resolveLocalFolderCloudEntry, resolveLocalFolderCloudNotice } from "../../features/cloud/project/localFolderCloudNoticeState";
@@ -378,7 +377,6 @@ export function NativeCloudWorkbenchSmokeHarness() {
       titlebarSidebarSlot={projectSwitcher}
       titlebarActions={<>
         {location === "cloud" && <CloudWorkspaceHeaderTools context={context}
-          getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
           renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
@@ -393,10 +391,10 @@ export function NativeCloudWorkbenchSmokeHarness() {
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
     </ProjectShell>
-    {cloudDialogOpen && cloudDialogAvailable && <CloudDialog sidebar={null}
-      main={<SmokeCloudDialogContent signedIn={cloudSessionAvailable} publishLoading={publishLoading}
-        onPublish={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />}
-      onClose={() => setCloudDialogOpen(false)} />}
+    {cloudDialogOpen && cloudDialogAvailable && <CloudPublishDialog onClose={() => setCloudDialogOpen(false)}>
+      <SmokeCloudDialogContent signedIn={cloudSessionAvailable} publishLoading={publishLoading}
+        onPublish={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />
+    </CloudPublishDialog>}
     {replacingMissingProject && repositoryContext.status === "not-found" && <MissingCloudProjectReplacement
       context={repositoryContext} session={session} apiBaseUrl={API}
       status={{ remotes: [{ name: "puppyone", fetchUrl: cloudRemote, pushUrl: cloudRemote, branches: [] }] }}

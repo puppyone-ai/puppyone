@@ -61,8 +61,7 @@ const state = () => evaluate("window.__nativeCloudWorkbenchSmoke.state()");
 // The Header and Share keep the Agent list current by themselves, whatever else is happening.
 const workspaceRequests = async () => (await state()).requests.filter(path => !/\/(agent-links|access\/sessions)$/.test(path));
 // The Cloud Header's tools: the Agent pane, and the empty invite seat only while
-// no Agent is here (or while that is still being checked). Share with people
-// stays out of the Header until inviting Agents works end to end.
+// no Agent is here (or while that is still being checked). Legacy Share has no entry.
 const cloudTools = `(() => {
   const tools = [...document.querySelectorAll('[data-cloud-workspace-tool]')].map(tool => tool.dataset.cloudWorkspaceTool);
   return tools.includes('agent') && tools.every(tool => tool === 'agent' || tool === 'invite-agent');
@@ -908,7 +907,7 @@ app.whenReady().then(async () => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const sample = await evaluate(`(() => {
       const dialog = document.querySelector('.desktop-cloud-dialog');
-      const content = dialog.querySelector('.desktop-cloud-dialog-content');
+      const content = dialog.querySelector('.desktop-cloud-publish-dialog-content');
       const button = dialog.querySelector('.desktop-cloud-auth-submit');
       const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
       const b = box(button), c = box(content);

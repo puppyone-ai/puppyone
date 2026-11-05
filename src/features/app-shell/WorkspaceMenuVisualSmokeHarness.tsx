@@ -7,7 +7,6 @@ import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktop
 import "./workspace-menu-visual-smoke.css";
 import { initializeDesktopPreferences } from "../../preferencesStore";
 import { ProjectSwitcherRail } from "./ProjectSwitcherRail";
-import { resolveProjectReachState } from "./project-reach";
 import { resolveProjectPlaceMenu } from "./project-place/projectPlaceMenuState";
 
 const noop = () => undefined;
@@ -18,7 +17,7 @@ function placeMenuFor(state: string, current: "local" | "cloud") {
     notice: state === "local-cloud" ? { kind: "linked", projectId: "project-1", projectName: "To-Do-List", openable: true } : null,
     linkedFolder: current === "cloud" ? { path: "/Users/demo/Projects/To-Do-List", name: "To-Do-List" } : null }),
   handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
-    onOpenLocalFolder: noop, onInvitePerson: noop, onConnectAgent: noop } };
+    onOpenLocalFolder: noop } };
 }
 
 initializeDesktopPreferences();
@@ -65,7 +64,6 @@ function readWorkspaceMenuScenario(search: string) {
     theme: params.get("theme") === "light" ? "light" as const : "dark" as const,
     projectActions: menu === "project-actions",
     projectList: menu === "project-list",
-    reach: menu === "reach",
     previewPath: params.get("path") === "long"
       ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
       : "/Users/demo/Projects/puppyone-qubits",
@@ -76,7 +74,7 @@ function readWorkspaceMenuScenario(search: string) {
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const { state, current, theme, projectActions, projectList, reach, previewPath } =
+  const { state, current, theme, projectActions, projectList, previewPath } =
     readWorkspaceMenuScenario(window.location.search);
   const previewWorkspace = workspace("desktop", "puppyone-qubits", previewPath);
 
@@ -95,11 +93,6 @@ export function WorkspaceMenuVisualSmokeHarness() {
             availableProjects={projectList ? menuProjects : [currentWorkspace]}
             workspaceFolders={[]}
             multiRootWorkspacesEnabled={false}
-            projectReach={reach ? {
-              state: resolveProjectReachState({ share: "local", shares: [], destinations: [],
-                place: current === "cloud" ? "cloud" : "this-device" }),
-              onInvitePerson: () => undefined, onConnectAgent: () => undefined,
-            } : undefined}
             placeMenu={placeMenuFor(state, current)}
             onOpenFolder={() => undefined}
             onClose={() => setOpen(false)}

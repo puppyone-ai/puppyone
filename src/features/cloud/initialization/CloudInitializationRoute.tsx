@@ -1,241 +1,91 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { CloudServiceMainViewProps } from "../types";
+import type { CloudProjectPreparationProps, CloudWorkspaceSection } from "../types";
 import { useCloudOrganizationData } from "../organization/CloudOrganizationTeamPage";
 import { CloudWorkspaceLoadingState } from "../components/shared";
-import {
-  formatCloudMessage,
-  type CloudMessageDescriptor,
-} from "../cloudPresentation";
+import { formatCloudMessage, type CloudMessageDescriptor } from "../cloudPresentation";
 import { getCloudPublishReadiness } from "../workspace/cloudPublishReadiness";
-import {
-  CloudLocalOnlyWorkspace,
-} from "./CloudInitializationView";
+import { CloudLocalOnlyWorkspace } from "./CloudInitializationView";
 import { CloudLocalGitStatusError } from "./CloudLocalGitStatusError";
 
-export function CloudInitializationRoute({
-  activeSection,
-  workspace,
-  status,
-  session,
-  apiBaseUrl,
-  accountEmail,
-  loading,
-  error,
-  cloudActionNotice,
-  cloudBackupLoading,
-  cloudBackupPending,
-  cloudPublishError,
-  cloudPublishNotice,
-  cloudPublishProgress,
-  cloudPublishState,
-  cloudPublishStateLoading,
-  onSessionChange,
-  onAbandonPublish,
-  onRefresh,
-  onPublishWorkspace,
-}: {
-  activeSection: CloudServiceMainViewProps["activeSection"];
-  workspace: CloudServiceMainViewProps["workspace"];
-  status: CloudServiceMainViewProps["status"];
+type Props = Pick<CloudProjectPreparationProps, "workspace" | "status" | "loading" | "error"
+  | "cloudBackupLoading" | "cloudBackupPending" | "cloudPublishError" | "cloudPublishNotice"
+  | "cloudPublishProgress" | "cloudPublishState" | "cloudPublishStateLoading"> & {
+  activeSection: CloudWorkspaceSection;
   session: DesktopCloudSession;
   apiBaseUrl: string | null;
   accountEmail: string | null;
-  loading: boolean;
-  error: string | null;
   cloudActionNotice: CloudMessageDescriptor | null;
-  cloudBackupLoading: boolean;
-  cloudBackupPending: boolean;
-  cloudPublishError: CloudServiceMainViewProps["cloudPublishError"];
-  cloudPublishNotice: CloudServiceMainViewProps["cloudPublishNotice"];
-  cloudPublishProgress: CloudServiceMainViewProps["cloudPublishProgress"];
-  cloudPublishState: CloudServiceMainViewProps["cloudPublishState"];
-  cloudPublishStateLoading: boolean;
-  onSessionChange: CloudServiceMainViewProps["onCloudSessionChange"];
-  onAbandonPublish: CloudServiceMainViewProps["onAbandonPuppyoneBackup"];
-  onRefresh: CloudServiceMainViewProps["onRefresh"];
-  onPublishWorkspace: CloudServiceMainViewProps["onStartPuppyoneBackup"];
-}) {
+  onSessionChange: CloudProjectPreparationProps["onCloudSessionChange"];
+  onAbandonPublish: CloudProjectPreparationProps["onAbandonPuppyoneBackup"];
+  onRefresh: CloudProjectPreparationProps["onRefresh"];
+  onPublishWorkspace: CloudProjectPreparationProps["onStartPuppyoneBackup"];
+};
+
+export function CloudInitializationRoute(props: Props) {
   const { t } = useLocalization();
-
-  if (error) {
-    return (
-      <CloudInitializationFrame>
-        <CloudLocalGitStatusError error={error} loading={loading} onRetry={onRefresh} />
-      </CloudInitializationFrame>
-    );
-  }
-
-  if (!status) {
-    return (
-      <CloudInitializationFrame>
-        <CloudWorkspaceLoadingState label={t("cloud.initialize.loadingRepository")} />
-      </CloudInitializationFrame>
-    );
-  }
-
-  const branchName = status.branch ?? t("cloud.git.noBranch");
-  const localChangeCount = status.entries.length;
-  return (
-    <CloudInitializationFrame>
-      {cloudActionNotice && (
-        <div className="desktop-cloud-main-alert success" role="status">
-          {formatCloudMessage(cloudActionNotice, t)}
-        </div>
-      )}
-      {cloudPublishNotice === "cleanup-completed" && (
-        <div className="desktop-cloud-main-alert success" role="status">
-          {t("cloud.initialize.cleanupCompleted")}
-        </div>
-      )}
-      {cloudPublishState || cloudPublishStateLoading ? (
-        <CloudLocalOnlyWorkspace
-          activeSection={activeSection}
-          workspace={workspace}
-          accountEmail={accountEmail}
-          branchName={branchName}
-          totalCommits={status.totalCommits ?? 0}
-          localChangeCount={localChangeCount}
-          localChangeCountIsMinimum={status.didHitStatusLimit}
-          publishReadiness={getCloudPublishReadiness(status)}
-          isGitRepository={status.isRepo === true}
-          hasHeadCommit={Boolean(status.headCommitId)}
-          hasCurrentBranch={getCloudPublishReadiness(status) !== "branch-required"}
-          publishLoading={cloudBackupLoading}
-          publishPending={cloudBackupPending}
-          publishError={cloudPublishError}
-          publishProgress={cloudPublishProgress}
-          publishState={cloudPublishState}
-          publishStateLoading={cloudPublishStateLoading}
-          onAbandonPublish={onAbandonPublish}
-          onPublishWorkspace={onPublishWorkspace}
-        />
-      ) : (
-        <AuthenticatedCloudInitialize
-          activeSection={activeSection}
-          workspace={workspace}
-          status={status}
-          session={session}
-          apiBaseUrl={apiBaseUrl}
-          accountEmail={accountEmail}
-          branchName={branchName}
-          localChangeCount={localChangeCount}
-          publishLoading={cloudBackupLoading}
-          publishPending={cloudBackupPending}
-          publishError={cloudPublishError}
-          publishProgress={cloudPublishProgress}
-          onSessionChange={onSessionChange}
-          onPublishWorkspace={onPublishWorkspace}
-          onAbandonPublish={onAbandonPublish}
-        />
-      )}
-    </CloudInitializationFrame>
-  );
+  if (props.error) return <CloudInitializationFrame>
+    <CloudLocalGitStatusError error={props.error} loading={props.loading} onRetry={props.onRefresh} />
+  </CloudInitializationFrame>;
+  if (!props.status) return <CloudInitializationFrame>
+    <CloudWorkspaceLoadingState label={t("cloud.initialize.loadingRepository")} />
+  </CloudInitializationFrame>;
+  return <CloudInitializationFrame>
+    {props.cloudActionNotice && <div className="desktop-cloud-main-alert success" role="status">
+      {formatCloudMessage(props.cloudActionNotice, t)}
+    </div>}
+    {props.cloudPublishNotice === "cleanup-completed" && <div className="desktop-cloud-main-alert success" role="status">
+      {t("cloud.initialize.cleanupCompleted")}
+    </div>}
+    {props.cloudPublishState || props.cloudPublishStateLoading
+      ? <PublishWorkspace {...props} status={props.status} />
+      : <AuthenticatedCloudInitialize {...props} status={props.status} />}
+  </CloudInitializationFrame>;
 }
 
 function CloudInitializationFrame({ children }: { children: ReactNode }) {
-  return (
-    <main
-      className="desktop-cloud-main-view desktop-cloud-initialize-main-view"
-      data-po-scrollbar="content"
-    >
-      <div className="desktop-cloud-page-shell">{children}</div>
-    </main>
-  );
+  return <main className="desktop-cloud-main-view desktop-cloud-initialize-main-view" data-po-scrollbar="content">
+    <div className="desktop-cloud-page-shell">{children}</div>
+  </main>;
 }
 
-function AuthenticatedCloudInitialize({
-  activeSection,
-  workspace,
-  status,
-  session,
-  apiBaseUrl,
-  accountEmail,
-  branchName,
-  localChangeCount,
-  publishLoading,
-  publishPending,
-  publishError,
-  publishProgress,
-  onSessionChange,
-  onPublishWorkspace,
-  onAbandonPublish,
-}: {
-  activeSection: CloudServiceMainViewProps["activeSection"];
-  workspace: CloudServiceMainViewProps["workspace"];
-  status: NonNullable<CloudServiceMainViewProps["status"]>;
-  session: DesktopCloudSession;
-  apiBaseUrl: string | null;
-  accountEmail: string | null;
-  branchName: string;
-  localChangeCount: number;
-  publishLoading: boolean;
-  publishPending: boolean;
-  publishError: CloudServiceMainViewProps["cloudPublishError"];
-  publishProgress: CloudServiceMainViewProps["cloudPublishProgress"];
-  onSessionChange: CloudServiceMainViewProps["onCloudSessionChange"];
-  onPublishWorkspace: CloudServiceMainViewProps["onStartPuppyoneBackup"];
-  onAbandonPublish: CloudServiceMainViewProps["onAbandonPuppyoneBackup"];
-}) {
-  const { t } = useLocalization();
-  const autoStartedOrganizationRef = useRef<string | null>(null);
-  const organizationData = useCloudOrganizationData(
-    session,
-    apiBaseUrl,
-    onSessionChange,
-    { loadTeamDetails: false, selectionPolicy: "explicit" },
-  );
-  const organizationError = organizationData.error
-    ? formatCloudMessage(organizationData.error, t)
-    : null;
+type ReadyProps = Props & { status: NonNullable<Props["status"]> };
+type OrganizationProps = Pick<Parameters<typeof CloudLocalOnlyWorkspace>[0], "organizations" | "selectedOrganizationId"
+  | "organizationStatus" | "organizationError" | "onSelectOrganization" | "onRetryOrganizations">;
 
+function PublishWorkspace(props: ReadyProps & OrganizationProps) {
+  const { t } = useLocalization();
+  return <CloudLocalOnlyWorkspace activeSection="initialize" workspace={props.workspace} accountEmail={props.accountEmail}
+    branchName={props.status.branch ?? t("cloud.git.noBranch")} totalCommits={props.status.totalCommits ?? 0}
+    localChangeCount={props.status.entries.length} localChangeCountIsMinimum={props.status.didHitStatusLimit}
+    publishReadiness={getCloudPublishReadiness(props.status)} isGitRepository={props.status.isRepo === true}
+    hasHeadCommit={Boolean(props.status.headCommitId)} hasCurrentBranch={getCloudPublishReadiness(props.status) !== "branch-required"}
+    publishLoading={props.cloudBackupLoading} publishPending={props.cloudBackupPending} publishError={props.cloudPublishError}
+    publishProgress={props.cloudPublishProgress} publishState={props.cloudPublishState} publishStateLoading={props.cloudPublishStateLoading}
+    onAbandonPublish={props.onAbandonPublish} onPublishWorkspace={props.onPublishWorkspace}
+    organizations={props.organizations} selectedOrganizationId={props.selectedOrganizationId} organizationStatus={props.organizationStatus}
+    organizationError={props.organizationError} onSelectOrganization={props.onSelectOrganization} onRetryOrganizations={props.onRetryOrganizations} />;
+}
+
+function AuthenticatedCloudInitialize(props: ReadyProps) {
+  const { t } = useLocalization();
+  const { cloudBackupPending, cloudBackupLoading, onPublishWorkspace } = props;
+  const autoStartedOrganizationRef = useRef<string | null>(null);
+  const organizationData = useCloudOrganizationData(props.session, props.apiBaseUrl, props.onSessionChange,
+    { loadTeamDetails: false, selectionPolicy: "explicit" });
   useEffect(() => {
     const organizationId = organizationData.selectedOrganizationId;
-    if (
-      !publishPending
-      || publishLoading
-      || organizationData.status !== "ready"
-      || organizationData.organizations.length !== 1
-      || !organizationId
-      || autoStartedOrganizationRef.current === organizationId
-    ) return;
+    if (!cloudBackupPending || cloudBackupLoading || organizationData.status !== "ready"
+      || organizationData.organizations.length !== 1 || !organizationId
+      || autoStartedOrganizationRef.current === organizationId) return;
     autoStartedOrganizationRef.current = organizationId;
     onPublishWorkspace(organizationId);
-  }, [
-    onPublishWorkspace,
-    organizationData.organizations.length,
-    organizationData.selectedOrganizationId,
-    organizationData.status,
-    publishLoading,
-    publishPending,
-  ]);
-
-  return (
-    <CloudLocalOnlyWorkspace
-      activeSection={activeSection}
-      workspace={workspace}
-      accountEmail={accountEmail}
-      branchName={branchName}
-      totalCommits={status.totalCommits ?? 0}
-      localChangeCount={localChangeCount}
-      localChangeCountIsMinimum={status.didHitStatusLimit}
-      publishReadiness={getCloudPublishReadiness(status)}
-      isGitRepository={status.isRepo === true}
-      hasHeadCommit={Boolean(status.headCommitId)}
-      hasCurrentBranch={getCloudPublishReadiness(status) !== "branch-required"}
-      publishLoading={publishLoading}
-      publishPending={publishPending}
-      publishError={publishError}
-      publishProgress={publishProgress}
-      onAbandonPublish={onAbandonPublish}
-      organizations={organizationData.organizations}
-      selectedOrganizationId={organizationData.selectedOrganizationId}
-      organizationStatus={organizationData.status === "partial" ? "ready" : organizationData.status}
-      organizationError={organizationError}
-      onSelectOrganization={organizationData.selectOrganization}
-      onRetryOrganizations={organizationData.refresh}
-      onPublishWorkspace={onPublishWorkspace}
-    />
-  );
+  }, [cloudBackupLoading, cloudBackupPending, onPublishWorkspace,
+    organizationData.organizations.length, organizationData.selectedOrganizationId, organizationData.status]);
+  return <PublishWorkspace {...props} organizations={organizationData.organizations}
+    selectedOrganizationId={organizationData.selectedOrganizationId}
+    organizationStatus={organizationData.status === "partial" ? "ready" : organizationData.status}
+    organizationError={organizationData.error ? formatCloudMessage(organizationData.error, t) : null}
+    onSelectOrganization={organizationData.selectOrganization} onRetryOrganizations={organizationData.refresh} />;
 }

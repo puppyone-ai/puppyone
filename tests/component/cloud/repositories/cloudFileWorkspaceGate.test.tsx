@@ -3,7 +3,7 @@ import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CloudFileWorkspaceGate } from "../../../../src/features/cloud/workbench/CloudFileWorkspaceGate";
-import type { CloudServiceMainViewProps } from "../../../../src/features/cloud/types";
+import type { CloudProjectPreparationProps } from "../../../../src/features/cloud/types";
 import type { CloudInitializationRoute } from "../../../../src/features/cloud/initialization/CloudInitializationRoute";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -22,55 +22,54 @@ const apiBaseUrl = "https://cloud-fixture.puppyone.ai/api/v1";
 const session = { api_base_url: apiBaseUrl, user_id: "owner", user_email: "owner@example.com", session_generation: "first",
   expires_in: 3600, expires_at: Date.now() + 3_600_000, status: "authenticated" as const };
 let root: Root | null = null;
-const render = async (overrides: Partial<CloudServiceMainViewProps> = {}) => {
-  const props: CloudServiceMainViewProps = {
+async function render(overrides: Partial<CloudProjectPreparationProps> = {}) {
+  const props: CloudProjectPreparationProps = {
     workspace: { id: "local", name: "Project", path: "/fixture/project", status: "recording" },
     status: null, cloudEnvironment: { apiBaseUrl, source: "default", cloudRemote: null },
-    cloudAuthState: { status: "signed-in", apiBaseUrl, session },
-    projectContext: { status: "local-only", projectId: null },
-    onCloudSessionChange: vi.fn(), activeSection: "team",
-    loading: false, error: null, cloudBackupLoading: false, cloudBackupPending: false,
+    cloudAuthState: { status: "signed-in", apiBaseUrl, session }, projectContext: { status: "local-only", projectId: null },
+    onCloudSessionChange: vi.fn(), loading: false, error: null, cloudBackupLoading: false, cloudBackupPending: false,
     cloudPublishError: null, cloudPublishNotice: null, cloudPublishState: null, cloudPublishStateLoading: false,
-    onAbandonPuppyoneBackup: vi.fn(), onStartPuppyoneBackup: vi.fn(), onSelectSection: vi.fn(),
-    onRefresh: vi.fn(), onOpenGitSettings: vi.fn(), ...overrides,
+    onAbandonPuppyoneBackup: vi.fn(), onStartPuppyoneBackup: vi.fn(), onRefresh: vi.fn(), onOpenGitSettings: vi.fn(), ...overrides,
   };
   const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(withTestLocalization(<CloudFileWorkspaceGate {...props} />)));
   return props;
-};
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
+}
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); vi.clearAllMocks(); });
+const resolved = { status: "resolved" as const, projectId: "p1", target: { kind: "project_root" as const, project_id: "p1" } };
 
-describe("Cloud file-provider gate", () => {
-  it("requires sign-in in the editor area without entering the Cloud service router", async () => {
+describe("Cloud file-provider preparation", () => {
+  it("requires sign-in without entering services navigation", async () => {
     const props = await render({ cloudAuthState: { status: "signed-out", apiBaseUrl } });
     expect(document.querySelector("[data-sign-in]")).not.toBeNull();
     expect(document.querySelector("aside, nav, [role=dialog]")).toBeNull();
     expect(initialization).not.toHaveBeenCalled();
     expect(props.onStartPuppyoneBackup).not.toHaveBeenCalled();
-    expect(props.onSelectSection).not.toHaveBeenCalled();
   });
-  it("offers explicit creation independently of the last Cloud management route", async () => {
+  it("only creates a Cloud project on an explicit action", async () => {
     const props = await render();
     expect(initialization.mock.calls[0]![0].activeSection).toBe("initialize");
     expect(props.onStartPuppyoneBackup).not.toHaveBeenCalled();
     await act(async () => document.querySelector<HTMLButtonElement>("button")!.click());
     expect(props.onStartPuppyoneBackup).toHaveBeenCalledOnce();
-    expect(props.onSelectSection).not.toHaveBeenCalled();
   });
-  it("keeps project resolution in a loading state without showing organization services", async () => {
-    const props = await render({ projectContext: { status: "resolving", projectId: null } });
+  it.each(["loading", "progress", "error"])("keeps %s in the publish task even after its remote resolves", async (kind) => {
+    await render({ projectContext: resolved, ...(kind === "loading" ? { cloudBackupLoading: true }
+      : kind === "error" ? { cloudPublishError: { code: "UNKNOWN" as const, retryable: true } }
+      : { cloudPublishProgress: { rootPath: "/fixture/project", operationId: "one", stage: "uploading" as const, state: null, updatedAt: "2026-11-05T00:00:00Z" } }) });
+    expect(initialization).toHaveBeenCalledOnce();
+  });
+  it("keeps unresolved identity in a loading state without organization services", async () => {
+    await render({ projectContext: { status: "resolving", projectId: null } });
     expect(document.querySelector("[data-cloud-file-provider-state]")?.getAttribute("data-cloud-file-provider-state")).toBe("resolving");
     expect(document.querySelector("[role=status]")).not.toBeNull();
     expect(initialization).not.toHaveBeenCalled();
-    expect(props.onSelectSection).not.toHaveBeenCalled();
   });
-  it("offers provider recovery without replacing the file Sidebar", async () => {
-    const props = await render({ projectContext: { status: "temporarily-unavailable", projectId: null,
-      message: { code: "remote-network-failed" } } });
+  it("offers recovery without replacing the file Sidebar", async () => {
+    const props = await render({ projectContext: { status: "temporarily-unavailable", projectId: null, message: { code: "remote-network-failed" } } });
     expect(document.querySelector("aside, nav, [role=dialog]")).toBeNull();
-    const retry = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Retry")!;
-    await act(async () => retry.click());
-    expect(props.onRefresh).toHaveBeenCalledOnce();
+    const retry = [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === "Retry")!;
+    await act(async () => retry.click()); expect(props.onRefresh).toHaveBeenCalledOnce();
     expect(props.onStartPuppyoneBackup).not.toHaveBeenCalled();
   });
 });

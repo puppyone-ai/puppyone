@@ -29,10 +29,8 @@ export const FLAG_OWNERS = [
  * change to the fork contract, not an implementation detail.
  */
 export const FORK_ENTRIES = {
-  // Header project control in the project menu, and the share entry.
-  "src/App.tsx": 2,
-  // Header project control in the titlebar.
-  "src/features/app-shell/DesktopTitlebarContext.tsx": 1,
+  // Header status for this device's own work; Share has been retired.
+  "src/App.tsx": 1,
   // Notice for changes made elsewhere.
   "src/features/source-control/SourceControlSidebar.tsx": 1,
 };
@@ -42,10 +40,6 @@ export const FORK_ENTRIES = {
  * no second data layer. Each delivery registers its own home in the same change.
  */
 export const NEW_PATH_DIRECTORIES = [
-  // Header reach (115).
-  "src/features/app-shell/project-reach",
-  // One-screen invite / connect (116).
-  "src/features/cloud/share/project-reach",
   // Changes made elsewhere as a receipt awaiting review (117).
   "src/features/changes",
   "src/features/source-control/reach",
@@ -57,12 +51,6 @@ const CONVENTION_SECTIONS = ["Fork convention", "Retirement"];
 
 /** Share and Git facts both paths must share instead of re-deriving. */
 export const DATA_OWNERS = [
-  "useProjectShares",
-  "buildProjectShares",
-  "useProjectShareActivity",
-  "useCloudShare",
-  "resolveCloudShareStatus",
-  "resolveProjectLocationStatus",
   "getGitTitlebarStatus",
 ];
 

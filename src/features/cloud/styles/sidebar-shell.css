@@ -1,9 +1,3 @@
-.desktop-cloud-sidebar-nav {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
 .desktop-cloud-main-view {
   --desktop-cloud-content-max-width: 900px;
   --desktop-cloud-shell-padding-top: var(--desktop-utility-page-padding-top);

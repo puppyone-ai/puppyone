@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { disableTooltipHints } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { ReachMemberMark } from "../features/app-shell/project-reach";
+import { AgentAvatarMark } from "../components/brand/AgentAvatarMark";
 import type { CloudWorkspacePeople } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import type { ShareAgentMark } from "../features/cloud/share/agentMark";
 import { workspaceAgentStatus } from "../features/cloud/share/useWorkspaceAgents";
@@ -126,10 +126,9 @@ function useAgentCard(suppressed: boolean) {
 }
 
 /** The same mark in the Agents dialog and its card as in the Header, so an Agent looks like itself in all of them. */
-export function CloudWorkspaceAgentMark({ id, name, avatar, active, size = 22 }: Omit<ShareAgentMark, "size"> & {
+export function CloudWorkspaceAgentMark({ name, avatar, active, size = 22 }: Omit<ShareAgentMark, "size"> & {
   /** Pixels, or a length such as a control token when the mark is its button. */
   size?: number | string;
 }) {
-  return <ReachMemberMark size={size} avatar={avatar} member={{ id, name, audience: "machine", lastSeenAt: null,
-    activity: active ? { kind: "working", label: name } : null }} />;
+  return <AgentAvatarMark name={name} size={size} avatar={avatar} active={active} />;
 }

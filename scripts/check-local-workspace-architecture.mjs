@@ -129,7 +129,7 @@ if (
 }
 
 const contextualCloudData = read("src/features/cloud/data/useDesktopCloudData.ts");
-const contextualCloudRouter = read("src/features/cloud/routes/CloudRouter.tsx");
+const contextualCloudTask = read("src/features/cloud/initialization/CloudPublishTask.tsx");
 const contextualCloudStates = read("src/features/cloud/initialization/CloudInitializationView.tsx");
 const contextualCloudResolver = read("src/features/cloud/project/context/useCurrentRepositoryCloudContext.ts");
 const contextualProjectContext = read("src/features/cloud/project/context/projectCloudContext.ts");
@@ -139,8 +139,8 @@ const desktopApp = read("src/App.tsx");
 if (contextualCloudData.includes("listCloudProjects")) {
   errors.push("contextual Cloud data must never enumerate the Organization Project catalog");
 }
-if (contextualCloudRouter.includes("CloudProjectBrowser")) {
-  errors.push("the Local workspace Cloud router must not render the global Project browser");
+if (contextualCloudTask.includes("CloudProjectBrowser") || contextualCloudTask.includes("useDesktopCloudData")) {
+  errors.push("the Local publish task must not restore a global browser or services Hub");
 }
 for (const forbiddenLocalOnlyToken of ["CloudProjectRow", "onCopyCloneCommand"]) {
   if (contextualCloudStates.includes(forbiddenLocalOnlyToken)) {
