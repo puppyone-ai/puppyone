@@ -8,6 +8,7 @@
   "projectSessions.closeFailed": "部分项目任务未能停止。",
   "projectSessions.retryClose": "重试关闭",
   "drag.exportFailed": "无法完成拖拽。请确认来源和目标仍然可用，且目标支持此操作。",
+  "drag.imageInsertFailed": "无法插入这张图片。支持 PNG、JPEG、GIF 和 WebP，单张不超过 20 MB。",
   "restoring.message": "正在打开上次的项目…",
   "viewerPack.rootUnavailable": "无法获取用于激活 Viewer Pack 的工作区根目录。",
   "viewerPack.loadingExtension": "正在加载查看器扩展…",

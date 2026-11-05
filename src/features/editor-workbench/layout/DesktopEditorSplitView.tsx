@@ -172,9 +172,11 @@ export function DesktopEditorSplitView({
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
       <FloatingNoticePortal stack={noticeStack}>
-        {fileDrop.dropFailed && (
+        {fileDrop.dropFailure && (
           <FloatingNotice tone="danger" onDismiss={fileDrop.dismissDropFailure}>
-            {t("workspace.drag.exportFailed")}
+            {t(fileDrop.dropFailure === "image"
+              ? "workspace.drag.imageInsertFailed"
+              : "workspace.drag.exportFailed")}
           </FloatingNotice>
         )}
       </FloatingNoticePortal>

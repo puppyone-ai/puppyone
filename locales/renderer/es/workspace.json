@@ -8,6 +8,7 @@
   "projectSessions.closeFailed": "No se pudieron detener algunas tareas del proyecto.",
   "projectSessions.retryClose": "Reintentar cierre",
   "drag.exportFailed": "No se pudo completar la operación. Comprueba que el origen y el destino estén disponibles y que el destino admita esta operación.",
+  "drag.imageInsertFailed": "No se pudo insertar esta imagen. Formatos admitidos: PNG, JPEG, GIF y WebP, hasta 20 MB por imagen.",
   "restoring.message": "Abriendo el último proyecto…",
   "viewerPack.rootUnavailable": "La raíz del espacio de trabajo no está disponible para activar Viewer Pack.",
   "viewerPack.loadingExtension": "Cargando la extensión del visor…",

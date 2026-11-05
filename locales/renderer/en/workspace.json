@@ -8,6 +8,7 @@
   "projectSessions.closeFailed": "Some project tasks could not be stopped.",
   "projectSessions.retryClose": "Retry closing",
   "drag.exportFailed": "Unable to complete the drop. Check that the source and destination are still available and the destination supports this operation.",
+  "drag.imageInsertFailed": "Unable to insert this image. Supported formats are PNG, JPEG, GIF and WebP, up to 20 MB each.",
   "restoring.message": "Opening last project…",
   "viewerPack.rootUnavailable": "Workspace root unavailable for Viewer Pack activation.",
   "viewerPack.loadingExtension": "Loading viewer extension…",

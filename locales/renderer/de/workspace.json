@@ -8,6 +8,7 @@
   "projectSessions.closeFailed": "Einige Projektaufgaben konnten nicht beendet werden.",
   "projectSessions.retryClose": "Schließen erneut versuchen",
   "drag.exportFailed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe, ob Quelle und Ziel verfügbar sind und das Ziel diesen Vorgang unterstützt.",
+  "drag.imageInsertFailed": "Dieses Bild kann nicht eingefügt werden. Unterstützt werden PNG, JPEG, GIF und WebP bis 20 MB pro Bild.",
   "restoring.message": "Letztes Projekt wird geöffnet…",
   "viewerPack.rootUnavailable": "Der Arbeitsbereichsstamm ist für die Aktivierung des Viewer Packs nicht verfügbar.",
   "viewerPack.loadingExtension": "Viewer-Erweiterung wird geladen…",

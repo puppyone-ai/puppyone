@@ -44,9 +44,13 @@ export type EditorFileDropHandler = (
   placement: NonNullable<EditorPaneSplitOptions["placement"]>,
 ) => void;
 
+export type EditorDropFailure = "export" | "image";
+
 export type EditorFileDropController = Readonly<{
   dropIntent: PaneDropIntent | null;
-  dropFailed: boolean;
+  /** `image` means the document claimed the drop but could not insert it;
+   * `export` is the pane's own open/export failure. */
+  dropFailure: EditorDropFailure | null;
   /** The pointer is over a document drop target: releasing inserts, not splits. */
   insertIntent: boolean;
   dismissDropFailure: () => void;
@@ -89,7 +93,7 @@ export function useExplorerFileDrop(
   options: ExplorerFileDropOptions = {},
 ): EditorFileDropController {
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
-  const [dropFailed, setDropFailed] = useState(false);
+  const [dropFailure, setDropFailure] = useState<EditorDropFailure | null>(null);
   const [insertIntent, setInsertIntent] = useState(false);
   const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
@@ -99,7 +103,7 @@ export function useExplorerFileDrop(
   useLayoutEffect(() => { openRef.current = onOpenAtPaneEdge; });
   useLayoutEffect(() => {
     const targets = targetsRef.current;
-    setDropFailed(false);
+    setDropFailure(null);
     return () => { targets.clear(); };
   }, [workspaceId, target.workspacePath]);
   useLayoutEffect(() => {
@@ -160,7 +164,7 @@ export function useExplorerFileDrop(
       const native = resourceDragPreviewStore.getSnapshot();
       if (native?.entries.length === 1 && native.entries[0].entryType === "file") {
         beginFileDrag();
-        setDropFailed(false);
+        setDropFailure(null);
       } else {
         finishFileDrag("dragend");
       }
@@ -220,7 +224,7 @@ export function useExplorerFileDrop(
     const rect = event.currentTarget.getBoundingClientRect();
     const edge = closestPaneDropEdge(rect, event.clientX, event.clientY);
     finishFileDrag("drop");
-    setDropFailed(false);
+    setDropFailure(null);
     setInsertIntent(false);
 
     const lifetime = targetsRef.current.get(paneId);
@@ -233,7 +237,7 @@ export function useExplorerFileDrop(
     const split = () => {
       if (source.kind === "files") {
         void claimEditorDropDocument(source).then(deliver).catch(() => {
-          if (targetsRef.current.get(paneId) === lifetime) setDropFailed(true);
+          if (targetsRef.current.get(paneId) === lifetime) setDropFailure("export");
         });
       } else {
         deliver(editorDropDocument(source, workspaceId));
@@ -256,15 +260,15 @@ export function useExplorerFileDrop(
       // asset) hands the drop back to the pane instead of swallowing it.
       if (!claimed) split();
     }).catch(() => {
-      setDropFailed(true);
+      setDropFailure("image");
     });
   }, [finishFileDrag, registry, workspaceId]);
 
-  const dismissDropFailure = useCallback(() => setDropFailed(false), []);
+  const dismissDropFailure = useCallback(() => setDropFailure(null), [])
   const dropIntent = preview?.intent ?? null;
   return useMemo(
-    () => ({ dropIntent, dropFailed, insertIntent, dismissDropFailure, over, leave, drop }),
-    [dismissDropFailure, drop, dropFailed, dropIntent, insertIntent, leave, over],
+    () => ({ dropIntent, dropFailure, insertIntent, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailure, dropIntent, insertIntent, leave, over],
   );
 }
 

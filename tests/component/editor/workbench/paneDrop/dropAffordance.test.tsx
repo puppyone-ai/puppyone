@@ -34,7 +34,7 @@ const paneMove: PaneMoveDragController = {
 function dropController(overrides: Partial<EditorFileDropController> = {}): EditorFileDropController {
   return {
     dropIntent: null,
-    dropFailed: false,
+    dropFailure: null,
     insertIntent: false,
     dismissDropFailure: vi.fn(),
     over: vi.fn(),

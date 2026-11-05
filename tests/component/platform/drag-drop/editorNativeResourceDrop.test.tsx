@@ -51,7 +51,7 @@ function fixture() {
     return <><div draggable data-source onDragStart={(event) => exportNodes([{ id: uri, path: uri, name: entry.name, type: "file" }], event)} />
       {panes.map((id) => <section key={id} data-pane={id} data-edge={drop.dropIntent?.edge}
         onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)} />)}
-      <output>{drop.dropFailed ? "failed" : "ok"}</output></>;
+      <output>{drop.dropFailure ?? "ok"}</output></>;
   }
   const render = (workspace?: string, panes?: string[]) => act(() => root.render(<Harness workspace={workspace} panes={panes} />));
   render();
@@ -119,7 +119,7 @@ it("reports a rejected native claim without falling back to the preview or raw p
   act(() => f.publish({ id: "native-1", entries: [entry] }));
   await act(async () => { f.pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(f.open).not.toHaveBeenCalled();
-  expect(f.container.querySelector("output")?.textContent).toBe("failed");
+  expect(f.container.querySelector("output")?.textContent).toBe("export");
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
 });
 
