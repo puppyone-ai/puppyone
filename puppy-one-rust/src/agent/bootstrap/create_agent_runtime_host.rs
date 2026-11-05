@@ -1,80 +1,97 @@
-//! Native composition root. Provider adapters never leak into GPUI or application commands.
-use crate::{
-    agent::{
-        connections::legacy_local_agent_inventory::Installation,
-        protocols::{acp::legacy_acp_runtime_adapter, pi_rpc::legacy_pi_rpc_adapter},
-        runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
-        runtimes::{claude::legacy_claude_adapter, codex::legacy_codex_app_server_adapter},
-    },
-    wake::Wake,
+//! `bootstrap/create-agent-runtime-host.mjs`: the only production
+//! composition root that imports concrete Agent runtimes.
+use crate::agent::agent_error::AgentResult;
+use crate::agent::protocols::acp::acp_runtime_adapter::Logger;
+use crate::agent::runtime::agent_runtime_registry::{
+    AgentRuntimeHost, AgentRuntimeRegistry, RuntimeDiscovery,
 };
-use std::path::PathBuf;
-pub fn create(
-    installation: Installation,
-    root: PathBuf,
-    history: bool,
-    wake: Wake,
-) -> Box<dyn AgentRuntimePort> {
-    use crate::agent::{
-        domain::legacy_session_model::SessionSnapshot,
-        runtime::session_lease::{Lease, Leased, Unavailable},
-    };
-    let lease = match Lease::acquire(root.clone()) {
-        Ok(lease) => lease,
-        Err(error) => {
-            let mut snapshot = SessionSnapshot::new(&installation.label, history);
-            snapshot.fail(error);
-            return Box::new(Unavailable { snapshot });
-        }
-    };
-    Box::new(Leased {
-        lease,
-        inner: create_inner(installation, root, history, wake),
-    })
+use crate::agent::runtimes::claude::claude_runtime_definition::{
+    ClaudeRuntimeDefinitionOptions, create_claude_runtime_definition,
+};
+use crate::agent::runtimes::codex::codex_runtime_definition::create_codex_runtime_definition;
+use crate::agent::runtimes::cursor::cursor_runtime_definition::create_cursor_runtime_definition;
+use crate::agent::runtimes::hermes::hermes_runtime_definition::create_hermes_runtime_definition;
+use crate::agent::runtimes::opencode_native::opencode_native_runtime_definition::create_open_code_native_runtime_definition;
+use crate::agent::runtimes::pi::pi_runtime_definition::create_pi_runtime_definition;
+use crate::agent::runtimes::puppyone_agent::model_connection_binding::ModelConnectionPort;
+use crate::agent::runtimes::puppyone_agent::puppyone_agent_runtime_definition::{
+    PuppyOneRuntimeDefinitionOptions, create_puppyone_agent_runtime_definition,
+};
+use crate::agent::runtimes::workbuddy::workbuddy_channels::{
+    WORKBUDDY_CHINA_CHANNEL, WORKBUDDY_INTERNATIONAL_CHANNEL,
+};
+use crate::agent::runtimes::workbuddy::workbuddy_runtime_definition::create_work_buddy_runtime_definition;
+use std::rc::Rc;
+
+/// `DEFAULT_AGENT_RUNTIME_ID`.
+pub const DEFAULT_AGENT_RUNTIME_ID: &str = "codex";
+
+/// `createDefaultAgentRuntimeHost({ … })`: per-runtime overrides are their
+/// discoveries (`codex: { discovery }`, …).
+#[derive(Clone, Default)]
+pub struct DefaultRuntimeHostOptions {
+    pub logger: Option<Logger>,
+    pub app_version: Option<String>,
+    pub app_path: Option<String>,
+    pub user_data_path: Option<String>,
+    pub executable_path: Option<String>,
+    pub codex: Option<Rc<dyn RuntimeDiscovery>>,
+    pub claude: Option<Rc<dyn RuntimeDiscovery>>,
+    pub cursor: Option<Rc<dyn RuntimeDiscovery>>,
+    pub open_code_native: Option<Rc<dyn RuntimeDiscovery>>,
+    pub pi: Option<Rc<dyn RuntimeDiscovery>>,
+    pub work_buddy_china: Option<Rc<dyn RuntimeDiscovery>>,
+    pub work_buddy_international: Option<Rc<dyn RuntimeDiscovery>>,
+    pub hermes: Option<Rc<dyn RuntimeDiscovery>>,
+    pub puppyone_agent: Option<Rc<dyn RuntimeDiscovery>>,
+    pub model_connection_port: Option<Rc<dyn ModelConnectionPort>>,
 }
-/// A locator-only history listing (`listSessions`): it lists saved
-/// conversations and never opens one, so it takes no project session lease.
-pub fn create_listing(
-    installation: Installation,
-    root: PathBuf,
-    wake: Wake,
-) -> Box<dyn AgentRuntimePort> {
-    create_inner(installation, root, true, wake)
-}
-fn create_inner(
-    installation: Installation,
-    root: PathBuf,
-    history: bool,
-    wake: Wake,
-) -> Box<dyn AgentRuntimePort> {
-    let executable = installation.executable;
-    match installation.runtime {
-        Runtime::PuppyOne => Box::new(
-            crate::agent::runtimes::puppyone_agent::adapter::Session::new(root, history, wake),
+
+/// `createDefaultAgentRuntimeHost(options)`.
+pub fn create_default_agent_runtime_host(
+    options: DefaultRuntimeHostOptions,
+) -> AgentResult<AgentRuntimeHost> {
+    let app_version = options.app_version.as_deref();
+    let logger = options.logger.clone();
+    let definitions = vec![
+        create_codex_runtime_definition(app_version, options.codex.clone(), None),
+        create_claude_runtime_definition(ClaudeRuntimeDefinitionOptions {
+            app_version: options.app_version.clone(),
+            discovery: options.claude.clone(),
+            logger: logger.clone(),
+            ..Default::default()
+        }),
+        create_open_code_native_runtime_definition(
+            options.open_code_native.clone(),
+            logger.clone(),
+            app_version,
         ),
-        Runtime::Codex => Box::new(legacy_codex_app_server_adapter::Session::new(
-            executable, root, history, wake,
-        )),
-        Runtime::Claude => Box::new(legacy_claude_adapter::Session::new(
-            executable, root, history, wake,
-        )),
-        Runtime::Pi => Box::new(legacy_pi_rpc_adapter::Session::new(
-            executable, root, history, wake,
-        )),
-        runtime => {
-            let args = match runtime {
-                Runtime::WorkBuddy => vec!["--acp".into()],
-                Runtime::OpenCode => vec!["acp".into(), format!("--cwd={}", root.display())],
-                _ => vec!["acp".into()],
-            };
-            Box::new(legacy_acp_runtime_adapter::Session::new(
-                executable,
-                args,
-                root,
-                &installation.label,
-                history,
-                wake,
-            ))
-        }
-    }
+        create_pi_runtime_definition(options.pi.clone()),
+        create_cursor_runtime_definition(options.cursor.clone(), None, None),
+        create_work_buddy_runtime_definition(
+            WORKBUDDY_CHINA_CHANNEL,
+            options.work_buddy_china.clone(),
+            logger.clone(),
+            app_version,
+        ),
+        create_work_buddy_runtime_definition(
+            WORKBUDDY_INTERNATIONAL_CHANNEL,
+            options.work_buddy_international.clone(),
+            logger.clone(),
+            app_version,
+        ),
+        create_hermes_runtime_definition(options.hermes.clone(), logger.clone(), app_version),
+        create_puppyone_agent_runtime_definition(PuppyOneRuntimeDefinitionOptions {
+            app_path: options.app_path.clone(),
+            user_data_path: options.user_data_path.clone(),
+            executable_path: options.executable_path.clone(),
+            model_connection_port: options.model_connection_port.clone(),
+            discovery: options.puppyone_agent.clone(),
+            adapter_factory: None,
+        }),
+    ];
+    AgentRuntimeRegistry::new(definitions, Some(DEFAULT_AGENT_RUNTIME_ID), None)
 }
+
+#[cfg(test)]
+mod tests;

@@ -321,7 +321,7 @@
         "src/agent/persistence/tests.rs",
         "src/agent/persistence/legacy_session_catalog.rs",
         "src/agent/runtime/session_lease.rs",
-        "src/agent/bootstrap/create_agent_runtime_host.rs"
+        "src/agent/bootstrap/legacy_create_agent_runtime_host.rs"
       ],
       "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The session lease still limits sessions to eight per workspace and 32 per application; the app keeps legacy_session_catalog.rs until the host switches to AgentService."
     },
@@ -853,6 +853,19 @@
         "src/agent/agent_shutdown.rs"
       ],
       "remaining": "Ported 1:1 with the product persistence and shutdown tests: bounded, redacted, process-local recovery events (the legacy durable journal is removed once and never recreated), and quit held until Agent sessions and runtime resources drain. agent-persistence.mjs is a deprecated re-export of the cache. Wiring follows the host switch to AgentService."
+    },
+    {
+      "name": "Production runtime composition",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/bootstrap/create-agent-runtime-host.mjs"
+      ],
+      "targets": [
+        "src/agent/bootstrap/create_agent_runtime_host.rs",
+        "src/agent/bootstrap/create_agent_runtime_host/tests.rs",
+        "src/agent/bootstrap/mod.rs"
+      ],
+      "remaining": "Ported 1:1 with the product production-composition test: the nine runtime definitions (Built-in Agent, Codex, Claude, OpenCode, Cursor, Hermes, Pi and both WorkBuddy channels) in one registry with Codex as the default and per-runtime discovery isolation. The app still composes sessions through legacy_create_agent_runtime_host.rs until the host switches to AgentService."
     }
   ]
 }
