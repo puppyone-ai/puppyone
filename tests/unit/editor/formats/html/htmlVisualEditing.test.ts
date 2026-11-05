@@ -7,7 +7,7 @@ import { decodeHtmlBridgeMessage } from "../../../../../src/shared-ui/editor/vie
 import { imageSourceReference } from "../../../../../src/shared-ui/editor/viewers/html/htmlImageReference";
 import { compileHtmlEdit } from "../../../../../src/shared-ui/editor/viewers/html/htmlEditCompiler";
 import { buildHtmlPreviewDocument, getHtmlPreviewPolicy } from "../../../../../src/shared-ui/editor/viewers/html/HtmlPreviewFrame";
-import { readHtmlPageViewport } from "../../../../../src/shared-ui/editor/viewers/html/htmlPageViewport";
+import { readHtmlPagePointer, readHtmlPageViewport } from "../../../../../src/shared-ui/editor/viewers/html/htmlPageViewport";
 
 function setup(content: string) {
   const model = new CodeMirrorDocumentModel(content, undefined, true);
@@ -176,6 +176,13 @@ describe("HTML projection and resource boundaries", () => {
       expect(readHtmlPageViewport(value)).toBeNull();
     }
   });
+  it("accepts only a finite, bounded pointer or a leave from the interactive page", () => {
+    expect(readHtmlPagePointer({ x: 10, y: 200 })).toEqual({ x: 10, y: 200 });
+    expect(readHtmlPagePointer({ left: true, x: 10, y: 200 })).toBeNull();
+    for (const value of [null, { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: 0, y: 1e8 }, { x: "1", y: 2 }, { left: "yes" }]) {
+      expect(readHtmlPagePointer(value)).toBeUndefined();
+    }
+  });
   it("builds preview headers structurally and honors the original relative base", () => {
     const source = '<!doctype html><html><head data-note=">"><base href="assets/"><style>p:after{content:"</body>"}</style></head><body><p>Hi</p></body></html>';
     const projected = buildHtmlPreviewDocument(source, "puppyone-local://workspace/pages/index.html", { sandbox: "", csp: "script-src 'none'" });
@@ -219,6 +226,9 @@ describe("HTML projection and resource boundaries", () => {
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: Infinity, y: 0 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 0, y: 1e8 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 12, y: 24, path: "secret" })).toEqual({ type: "pointer", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "hover", x: 12, y: 24, path: "secret" })).toEqual({ type: "hover", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "hover", x: 12, y: NaN })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "hover-end", x: 1 })).toEqual({ type: "hover-end" });
     expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: false, reason: "hover",
       rect: { x: 0, y: 0, width: 10, height: 10 }, clip: { top: 0, right: 0, bottom: 0, left: 0 }, styles: {} })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: true, reason: "select",

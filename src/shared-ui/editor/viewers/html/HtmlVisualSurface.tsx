@@ -23,6 +23,7 @@ import { imageSourceReference } from "./htmlImageReference";
 import { useHtmlEditPresence } from "./useHtmlEditPresence";
 import { HtmlBlockActionRail, type HtmlActionBounds } from "./HtmlBlockActionRail";
 import type { HtmlPageViewport } from "./htmlPageViewport";
+import { relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
 
 export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewportState, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
@@ -201,7 +202,10 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
       if (port.current !== channel.port1 || !session.valid) return;
       const message = decodeHtmlBridgeMessage(event.data);
       if (!message) return;
-      if (message.type === "viewport") { scroll.current = { x: message.x, y: message.y }; return; }
+      // The page scrolls and takes the pointer inside its frame, out of the host's sight.
+      if (message.type === "viewport") { scroll.current = { x: message.x, y: message.y }; relayEmbeddedScroll(frame.current, message.y); return; }
+      if (message.type === "hover") { relayEmbeddedPointer(frame.current, message); return; }
+      if (message.type === "hover-end") { relayEmbeddedPointer(frame.current, null); return; }
       if (message.type === "pointer") { presence.move(message.x, message.y); return; }
       if (message.type === "ready") {
         if (acknowledged || new Set(message.ids).size !== session.index.targets.size

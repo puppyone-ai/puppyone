@@ -220,6 +220,13 @@ export type {
   DataNodeEditorHostProps as EditorHostProps,
 } from "./editor/host/DataNodeEditorHost";
 export { EditorDocumentHost } from "./editor/host/EditorDocumentHost";
+export {
+  EMBEDDED_POINTER_EVENT,
+  EMBEDDED_SCROLL_EVENT,
+  relayEmbeddedPointer,
+  relayEmbeddedScroll,
+} from "./editor/host/embeddedFrameRelay";
+export type { EmbeddedPointerDetail, EmbeddedScrollDetail } from "./editor/host/embeddedFrameRelay";
 export type { EditorDocumentHostProps } from "./editor/host/EditorDocumentHost";
 export { PresetViewerRuntimeHostProvider } from "./editor/host/PresetViewerRuntimeHost";
 export type {

@@ -144,7 +144,6 @@
   }
 
   .file-mode-window__document {
-    --file-mode-scrollbar-room: var(--po-scrollbar-size, 12px);
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -158,23 +157,17 @@
    * meeting a line. Nothing fades at the top of the document, where the first
    * row (a table's header, a page's banner) has to stay whole, nor under a
    * table's pinned header row, which is already the edge and holds the column
-   * names. The scrollbar keeps its full height.
+   * names. The fade runs the full width: a page with its own background (HTML)
+   * would otherwise show a hard notch above its scrollbar.
    */
   .file-mode-window__document[data-scrolled]:not(:has(.csv-table-editor__table > thead)) {
     --file-mode-scroll-fade: 24px;
-    mask-image:
-      linear-gradient(#000, #000),
-      linear-gradient(
-        to bottom,
-        transparent,
-        rgb(0 0 0 / 0.5) calc(var(--file-mode-scroll-fade) * 0.45),
-        #000 var(--file-mode-scroll-fade)
-      );
-    mask-position: right top, left top;
-    mask-repeat: no-repeat;
-    mask-size:
-      var(--file-mode-scrollbar-room) 100%,
-      calc(100% - var(--file-mode-scrollbar-room)) 100%;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(0 0 0 / 0.5) calc(var(--file-mode-scroll-fade) * 0.45),
+      #000 var(--file-mode-scroll-fade)
+    );
   }
 
   @media (prefers-reduced-motion: reduce) {

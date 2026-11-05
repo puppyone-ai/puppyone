@@ -83,6 +83,7 @@ vi.mock("@puppyone/shared-ui", async (original) => {
 });
 
 import { FileModeApp } from "../../../../src/app/FileModeApp";
+import { EMBEDDED_POINTER_EVENT, EMBEDDED_SCROLL_EVENT } from "../../../../src/shared-ui/editor/host/embeddedFrameRelay";
 
 const target = { path: "/notes/plan.md", rootPath: "/notes", name: "plan.md", tooLarge: false, sizeLimit: 1048576 };
 
@@ -216,6 +217,41 @@ describe("FileModeApp", () => {
     pointAt(150);
     act(() => { windowRoot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null })); });
     expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+  });
+
+  it("fades and reveals for a page drawn in a frame, from what its viewer relays", async () => {
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "preview", setValue: vi.fn(),
+      options: [{ id: "preview", label: "Interact", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    const surface = container.querySelector<HTMLElement>(".file-mode-window__document")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const frame = document.createElement("iframe");
+    container.querySelector('[data-testid="preview"]')!.append(frame);
+    const relay = (type: string, detail: unknown) => act(() => {
+      frame.dispatchEvent(new CustomEvent(type, { bubbles: true, detail }));
+    });
+
+    // The page scrolls inside its frame; only its viewer's report says so.
+    relay(EMBEDDED_SCROLL_EVENT, { top: 300 });
+    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    relay(EMBEDDED_SCROLL_EVENT, { top: 0 });
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
+
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 120 });
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 450 });
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 120 });
+    relay(EMBEDDED_POINTER_EVENT, null);
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+
+    // Moving from the page onto the title bar: the window sees the pointer before the page says it left.
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY: 20 })); });
+    relay(EMBEDDED_POINTER_EVENT, null);
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
   });
 
   it("puts the editor's settings in a title bar menu instead of the editor", async () => {

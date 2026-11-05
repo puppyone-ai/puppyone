@@ -176,6 +176,8 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(site, "data.json"), '{"secret":"FAKE-SECRET"}\n');
   await fs.writeFile(path.join(site, "sub", "deep.txt"), "FAKE-SECRET\n");
   await fs.writeFile(path.join(site, "style.css"), "h1 { color: rgb(0, 187, 102); }\n");
+  await fs.writeFile(path.join(site, "long-page.html"), `<!doctype html><html><head><meta charset="utf-8"></head><body>
+<h1 id="banner">Long page</h1>${"<p>A paragraph long enough to scroll under the title bar.</p>".repeat(120)}</body></html>`);
   await fs.writeFile(path.join(site, "page.html"), `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head>
 <body><h1 id="title">Page</h1><pre id="out">running</pre><script>
 (async () => {
@@ -417,6 +419,59 @@ async function html() {
   await closeAndWait(window);
 }
 
+/** The frame showing an HTML page, once its document has `selector`. A view switch replaces it. */
+async function pageFrame(window, selector, exclude = null) {
+  return until(async () => {
+    for (const candidate of window.webContents.mainFrame.framesInSubtree) {
+      if (candidate === window.webContents.mainFrame || candidate === exclude || !candidate.url.startsWith("puppyone-local:")) continue;
+      if (await candidate.executeJavaScript(`!!document.querySelector(${JSON.stringify(selector)})`).catch(() => false)) return candidate;
+    }
+    return null;
+  }, "the page frame");
+}
+
+/**
+ * Moves the pointer inside the page's own frame, where a real mouse over the page is seen (the window
+ * itself is not told), and reports whether the file's controls show. null leaves the page.
+ */
+async function controlsShowWithPagePointerAt(window, frame, fraction) {
+  const [width, height] = window.getContentSize();
+  const top = await evaluate(window, `document.querySelector(".file-mode-window__document iframe").getBoundingClientRect().top`);
+  await frame.executeJavaScript(fraction === null
+    ? `document.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null }))`
+    : `document.body.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: ${Math.round(width / 2)}, clientY: ${Math.round(height * fraction - top)} }))`);
+  await wait(250);
+  return evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__controls")).opacity === "1"`);
+}
+
+/** An HTML page scrolls and takes the pointer inside its own frame; the window treats it as it treats Markdown. */
+async function htmlEdges() {
+  const page = await openAndWait(path.join(site, "long-page.html"), "iframe");
+  let frame = await pageFrame(page, "#banner");
+  for (const view of ["preview", "visual edit"]) {
+    check(`${view}: over the page, the title bar controls stay hidden lower down`, await controlsShowWithPagePointerAt(page, frame, 0.6), false);
+    check(`${view}: over the page, the title bar controls show in the top third`, await controlsShowWithPagePointerAt(page, frame, 0.2), true);
+    check(`${view}: over the page, the title bar controls hide again below it`, await controlsShowWithPagePointerAt(page, frame, 0.6), false);
+    await controlsShowWithPagePointerAt(page, frame, 0.2);
+    check(`${view}: leaving the page hides the title bar controls`, await controlsShowWithPagePointerAt(page, frame, null), false);
+    check(`${view}: nothing fades at the top of the page`, await scrollEdgeOf(page), { scrolled: false, masked: false });
+    await frame.executeJavaScript(`scrollTo(0, 430)`);
+    await until(async () => (await scrollEdgeOf(page)).masked, `the ${view} edge to fade`);
+    check(`${view}: a page scrolled under the title bar fades out`, await scrollEdgeOf(page), { scrolled: true, masked: true });
+    await wait(250);
+    await screenshot(page, `html-${view.replace(" ", "-")}-scrolled`);
+    await frame.executeJavaScript(`scrollTo(0, 0)`);
+    await until(async () => !(await scrollEdgeOf(page)).scrolled, `the ${view} edge to clear`);
+    check(`${view}: back at the top of the page, nothing fades`, await scrollEdgeOf(page), { scrolled: false, masked: false });
+    if (view === "preview") {
+      await chooseView(page, 1);
+      frame = await pageFrame(page, "[data-puppyone-html-target]", frame);
+      await until(() => evaluate(page, `document.querySelector(".html-visual-editor iframe")?.getAttribute("aria-busy") === "false"`), "the visual editor");
+    }
+  }
+  await closeAndWait(page);
+}
+
 async function closing() {
   const clean = await openAndWait(inDocs("clean.md"), ".cm-editor");
   await closeAndWait(clean);
@@ -506,7 +561,7 @@ async function run() {
     report.stage = "cold start";
     const window = await coldStart();
     for (const [stage, scenario] of Object.entries({
-      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, closing, projectWindows,
+      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, htmlEdges, closing, projectWindows,
     })) {
       report.stage = stage;
       await scenario(window);

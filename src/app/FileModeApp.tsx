@@ -6,6 +6,7 @@ import {
   createDocumentNavigationPort,
   DEFAULT_EDITOR_INTERACTION_PREFERENCES,
   EditorPaneMenuContributionProvider,
+  EMBEDDED_SCROLL_EVENT,
   EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT,
   FilePreview,
   getEditorProviderPolicy,
@@ -16,6 +17,7 @@ import {
   type DocumentDataNode,
   type EditorPaneMenuContribution,
   type EditorPaneMenuSegmentedControl,
+  type EmbeddedScrollDetail,
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
 import { EditorPaneActionsMenu } from "../components/EditorPaneActionsMenu";
@@ -187,23 +189,40 @@ function FileSettingsMenu({ buttonRef, label, name, settings, open, onToggle, on
  * Marks the document while its text is scrolled up under the title bar, which
  * then fades that text out instead of drawing a divider. Only the scroller that
  * starts right under the bar counts, not a code block or table scrolling inside
- * the page. A view switch can replace it without a scroll event.
+ * the page. A page in a frame (HTML) scrolls out of sight, so its viewer
+ * reports how far instead. A view switch can replace the scroller without a
+ * scroll event.
  */
 function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
   useEffect(() => {
     const surface = documentRef.current;
     if (!surface) return undefined;
     let scroller: Element | null = null;
+    // How far a frame's page is scrolled, as its viewer reported; null for an ordinary scroller.
+    let reportedTop: number | null = null;
     const update = () => {
-      surface.toggleAttribute("data-scrolled", !!scroller?.isConnected && scroller.scrollTop > 0);
+      const top = reportedTop ?? scroller?.scrollTop ?? 0;
+      surface.toggleAttribute("data-scrolled", !!scroller?.isConnected && top > 0);
     };
+    const startsUnderTitlebar = (target: Element) =>
+      Math.abs(target.getBoundingClientRect().top - surface.getBoundingClientRect().top) <= 1;
     const onScroll = (event: Event) => {
       const target = event.target;
       if (target !== scroller) {
         if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return;
-        if (Math.abs(target.getBoundingClientRect().top - surface.getBoundingClientRect().top) > 1) return;
+        if (!startsUnderTitlebar(target)) return;
         scroller = target;
+        reportedTop = null;
       }
+      update();
+    };
+    const onEmbeddedScroll = (event: Event) => {
+      const target = event.target;
+      const top = (event as CustomEvent<EmbeddedScrollDetail>).detail?.top;
+      if (!(target instanceof Element) || typeof top !== "number") return;
+      if (target !== scroller && !startsUnderTitlebar(target)) return;
+      scroller = target;
+      reportedTop = top;
       update();
     };
     const replaced = new MutationObserver(() => {
@@ -213,9 +232,11 @@ function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
       }
     });
     surface.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    surface.addEventListener(EMBEDDED_SCROLL_EVENT, onEmbeddedScroll);
     replaced.observe(surface, { childList: true, subtree: true });
     return () => {
       surface.removeEventListener("scroll", onScroll, { capture: true });
+      surface.removeEventListener(EMBEDDED_SCROLL_EVENT, onEmbeddedScroll);
       replaced.disconnect();
     };
   }, [documentRef]);
