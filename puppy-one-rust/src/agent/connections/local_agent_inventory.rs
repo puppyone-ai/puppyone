@@ -1,7 +1,7 @@
 //! Local CLI inventory; availability is not a claim of Chat adapter support.
 //! Identities and labels mirror `local-agents/setup/localAgentCatalog.ts`
 //! and `electron/main/local-agent-installation/definitions/*`.
-use crate::{agent::runtime::agent_runtime_registry::Runtime, platform::environment::search_dirs};
+use crate::{agent::runtime::legacy_runtime_registry::Runtime, platform::environment::search_dirs};
 use std::path::{Path, PathBuf};
 #[derive(Clone, Debug)]
 pub struct Installation {

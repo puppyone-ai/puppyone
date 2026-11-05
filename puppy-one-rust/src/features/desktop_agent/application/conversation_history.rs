@@ -4,8 +4,8 @@
 //! the workbench, which starts a real chat for the chosen locator.
 use crate::agent::{
     connections::local_agent_inventory::Installation,
-    domain::agent_session_model::{HistoryEntry, State},
-    runtime::agent_runtime_port::AgentRuntimePort,
+    domain::legacy_session_model::{HistoryEntry, State},
+    runtime::legacy_runtime_port::AgentRuntimePort,
 };
 use crate::wake::Wake;
 use std::path::PathBuf;
@@ -283,7 +283,7 @@ impl Source {
 mod tests {
     use super::*;
     use crate::agent::{
-        domain::agent_session_model::SessionSnapshot, runtime::agent_runtime_registry::Runtime,
+        domain::legacy_session_model::SessionSnapshot, runtime::legacy_runtime_registry::Runtime,
     };
     use core::prelude::v1::test;
     use serde_json::Value;
@@ -314,7 +314,11 @@ mod tests {
             self.snapshot.history_listed += 1;
         }
         fn new_thread(&mut self) {}
-        fn resolve(&mut self, _: &Value, _: crate::agent::domain::agent_session_model::Resolution) {
+        fn resolve(
+            &mut self,
+            _: &Value,
+            _: crate::agent::domain::legacy_session_model::Resolution,
+        ) {
         }
         fn select_model(&mut self, _: Option<String>) {}
     }

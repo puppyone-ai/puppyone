@@ -1,5 +1,5 @@
 use super::configuration::{data_dir, read_json, write_json};
-use crate::agent::domain::agent_session_model::{HistoryEntry, Message};
+use crate::agent::domain::legacy_session_model::{HistoryEntry, Message};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};

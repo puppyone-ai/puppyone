@@ -2,11 +2,11 @@
 use crate::{
     agent::{
         domain::{
-            agent_session_model::*,
+            legacy_session_model::*,
             reference_input::{Prompt, ReferenceContent},
         },
-        persistence::session_catalog::Catalog,
-        runtime::agent_runtime_port::AgentRuntimePort,
+        persistence::legacy_session_catalog::Catalog,
+        runtime::legacy_runtime_port::AgentRuntimePort,
         transports::jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,

@@ -29,7 +29,7 @@ impl AgentChat {
         let caps = s.session.snapshot().capabilities.clone();
         let busy = s.session.busy();
         let puppyone = s.installation.runtime
-            == crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne;
+            == crate::agent::runtime::legacy_runtime_registry::Runtime::PuppyOne;
         let item = |label: &'static str, enabled: bool, action: u8| {
             let chat = chat.clone();
             MenuItem::new(tr(label))

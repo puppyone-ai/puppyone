@@ -43,7 +43,7 @@ flate2 = "1.1"
 zeroize = "1"
 httparse = "1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
 futures-util = "0.3"
 icu_collator = "=2.3.0"
 icu_normalizer = "=2.3.0"
@@ -83,6 +83,8 @@ gpui-pre-apple = { version = "=0.3.9", features = ["font-kit"] }
 [dev-dependencies]
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 tempfile = "3"
+# Paused clocks for the Agent service timers (src/agent/application/tests).
+tokio = { version = "1", features = ["test-util"] }
 
 [features]
 # Opt-in developer captures (screenshots, editor geometry dumps, visual

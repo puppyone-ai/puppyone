@@ -3,10 +3,10 @@
 use crate::{
     agent::{
         domain::{
-            agent_session_model::*,
+            legacy_session_model::*,
             reference_input::{Prompt, ReferenceContent},
         },
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
         transports::jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,
@@ -475,7 +475,7 @@ impl Session {
                                 .unwrap_or("Untitled conversation")
                                 .into(),
                             updated_at: e["updatedAt"].as_str().and_then(
-                                crate::agent::domain::agent_session_model::parse_rfc3339_ms,
+                                crate::agent::domain::legacy_session_model::parse_rfc3339_ms,
                             ),
                         });
                     }

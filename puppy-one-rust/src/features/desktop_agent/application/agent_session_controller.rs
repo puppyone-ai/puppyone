@@ -1,8 +1,8 @@
 //! Application-owned session commands; hiding the GPUI view does not dispose this owner.
 use crate::agent::domain::reference_input::{Prompt, Reference};
 use crate::agent::{
-    domain::agent_session_model::{Resolution, SessionSnapshot, State},
-    runtime::agent_runtime_port::AgentRuntimePort,
+    domain::legacy_session_model::{Resolution, SessionSnapshot, State},
+    runtime::legacy_runtime_port::AgentRuntimePort,
 };
 use serde_json::Value;
 use std::collections::HashMap;

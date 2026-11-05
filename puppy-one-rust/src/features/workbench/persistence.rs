@@ -1,5 +1,5 @@
 use super::layout::{Id, Layout};
-use crate::agent::runtime::agent_runtime_registry::Runtime;
+use crate::agent::runtime::legacy_runtime_registry::Runtime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 #[derive(Clone, Serialize, Deserialize)]

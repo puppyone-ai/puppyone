@@ -19,7 +19,7 @@ use crate::ui::{
 use crate::{
     agent::{
         connections::local_agent_inventory::{self as agents, Installation},
-        runtime::agent_runtime_registry::Runtime,
+        runtime::legacy_runtime_registry::Runtime,
     },
     theme::Theme,
     wake::Wake,
@@ -132,7 +132,7 @@ struct CloudLocation {
 fn cloud_installation() -> Installation {
     use crate::features::desktop_agent::infrastructure::cloud;
     Installation {
-        runtime: crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne,
+        runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::PuppyOne,
         id: cloud::INSTALLATION_ID,
         label: cloud::LABEL.into(),
         executable: PathBuf::new(),
@@ -1572,7 +1572,7 @@ mod tests {
         let tab = view.update_in(cx, |s, window, cx| {
             s.set_workspace(PathBuf::from("/project"), cx);
             let installation = Installation {
-                runtime: crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne,
+                runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::PuppyOne,
                 id: "puppyone-agent",
                 label: "Built-in Agent".into(),
                 executable: PathBuf::new(),
@@ -1632,7 +1632,7 @@ mod tests {
                 p.content.insert(
                     id,
                     Content::Retained(RetainedItem::Chat {
-                        runtime: crate::agent::runtime::agent_runtime_registry::Runtime::Codex,
+                        runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::Codex,
                         thread: None,
                         title: format!("c{n}"),
                     }),

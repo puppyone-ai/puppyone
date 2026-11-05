@@ -1,4 +1,6 @@
 pub mod adapter;
+#[allow(dead_code)]
+pub mod puppyone_agent_public_identity;
 pub use crate::model_connections::configuration;
 mod model_client;
 mod session_store;

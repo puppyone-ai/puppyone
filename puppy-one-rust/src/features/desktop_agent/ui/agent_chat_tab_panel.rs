@@ -32,7 +32,7 @@ use super::super::{
 use crate::{
     agent::{
         connections::local_agent_inventory::Installation,
-        domain::agent_session_model::{Decision, InteractionKind, Resolution, State},
+        domain::legacy_session_model::{Decision, InteractionKind, Resolution, State},
     },
     theme::Theme,
     ui::form_input::TextInput,
@@ -135,7 +135,7 @@ impl AgentChat {
             bool,
             Wake,
         )
-            -> Box<dyn crate::agent::runtime::agent_runtime_port::AgentRuntimePort>,
+            -> Box<dyn crate::agent::runtime::legacy_runtime_port::AgentRuntimePort>,
     ) -> Self {
         let (wake, rx) = Wake::channel();
         let timer = wake.clone();
@@ -328,7 +328,7 @@ impl AgentChat {
             show_rename: false,
         }
     }
-    pub fn runtime(&self) -> crate::agent::runtime::agent_runtime_registry::Runtime {
+    pub fn runtime(&self) -> crate::agent::runtime::legacy_runtime_registry::Runtime {
         self.installation.runtime
     }
     pub fn installation(&self) -> &Installation {
@@ -564,10 +564,10 @@ mod tests {
         cx.executor().allow_parking();
         use crate::agent::{
             domain::{
-                agent_session_model::{Interaction, Question, SessionSnapshot},
                 interaction_form::Field,
+                legacy_session_model::{Interaction, Question, SessionSnapshot},
             },
-            runtime::{agent_runtime_registry::Runtime, session_lease::Unavailable},
+            runtime::{legacy_runtime_registry::Runtime, session_lease::Unavailable},
         };
         let root = std::env::temp_dir().join(format!("puppyone-ui-{}", uuid::Uuid::new_v4()));
         let (view, cx) = cx.add_window_view(|w, cx| {

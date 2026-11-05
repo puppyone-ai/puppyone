@@ -16,11 +16,11 @@
 //!   once (`onPublication`); chat text is never parsed for success.
 use crate::{
     agent::{
-        domain::agent_session_model::{
+        domain::legacy_session_model::{
             Decision, HistoryEntry, Interaction, InteractionKind, Resolution, SessionSnapshot,
             State, parse_rfc3339_ms,
         },
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
     },
     cloud_auth::Cancellation,
     wake::Wake,

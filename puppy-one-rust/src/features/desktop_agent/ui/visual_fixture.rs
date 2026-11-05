@@ -1,8 +1,8 @@
 //! Opt-in screenshot data. No provider startup, inference, or credentials.
 use super::*;
 use crate::agent::{
-    domain::agent_session_model::SessionSnapshot,
-    runtime::{agent_runtime_registry::Runtime, session_lease::Unavailable},
+    domain::legacy_session_model::SessionSnapshot,
+    runtime::{legacy_runtime_registry::Runtime, session_lease::Unavailable},
 };
 impl AgentChat {
     pub(crate) fn visual_fixture(
@@ -113,7 +113,7 @@ impl AgentChat {
         );
         if scenario == "chat-activities" {
             // `tools/reference-workbench-entry.tsx` `ACTIVITIES`.
-            use crate::agent::domain::agent_session_model::{ActivityKind, ProviderActivity};
+            use crate::agent::domain::legacy_session_model::{ActivityKind, ProviderActivity};
             for (id, kind, label, status, category, source) in [
                 (
                     "a1",
@@ -221,19 +221,19 @@ impl AgentChat {
             }
             if scenario == "chat-approval" {
                 snapshot.interactions.push(
-                    crate::agent::domain::agent_session_model::Interaction {
+                    crate::agent::domain::legacy_session_model::Interaction {
                         id: serde_json::Value::String("reference-approval".into()),
                         thread: String::new(),
                         turn: "turn-2".into(),
                         kind:
-                            crate::agent::domain::agent_session_model::InteractionKind::Approval {
+                            crate::agent::domain::legacy_session_model::InteractionKind::Approval {
                                 command: true,
                                 prompt: "rg -n padding src".into(),
                                 decisions: vec![
-                            crate::agent::domain::agent_session_model::Decision::Accept,
-                            crate::agent::domain::agent_session_model::Decision::AcceptForSession,
-                            crate::agent::domain::agent_session_model::Decision::Decline,
-                            crate::agent::domain::agent_session_model::Decision::Cancel,
+                            crate::agent::domain::legacy_session_model::Decision::Accept,
+                            crate::agent::domain::legacy_session_model::Decision::AcceptForSession,
+                            crate::agent::domain::legacy_session_model::Decision::Decline,
+                            crate::agent::domain::legacy_session_model::Decision::Cancel,
                         ],
                                 title: "Run rg -n padding src".into(),
                                 command_line: Some("rg -n padding src".into()),
@@ -245,27 +245,28 @@ impl AgentChat {
             }
             if scenario == "chat-question" {
                 snapshot.interactions.push(
-                    crate::agent::domain::agent_session_model::Interaction {
+                    crate::agent::domain::legacy_session_model::Interaction {
                         id: serde_json::Value::String("reference-question".into()),
                         thread: String::new(),
                         turn: "turn-2".into(),
-                        kind: crate::agent::domain::agent_session_model::InteractionKind::Questions(
-                            vec![crate::agent::domain::agent_session_model::Question {
-                                id: "padding".into(),
-                                text: "Which padding should the editor use?".into(),
-                                options: vec![
-                                    "24px on every side".into(),
-                                    "Keep 12px vertical".into(),
-                                ],
-                                descriptions: vec![
-                                    "Match the horizontal padding".into(),
-                                    "Only widen the sides".into(),
-                                ],
-                                header: "Padding".into(),
-                                multiple: false,
-                                custom: true,
-                            }],
-                        ),
+                        kind:
+                            crate::agent::domain::legacy_session_model::InteractionKind::Questions(
+                                vec![crate::agent::domain::legacy_session_model::Question {
+                                    id: "padding".into(),
+                                    text: "Which padding should the editor use?".into(),
+                                    options: vec![
+                                        "24px on every side".into(),
+                                        "Keep 12px vertical".into(),
+                                    ],
+                                    descriptions: vec![
+                                        "Match the horizontal padding".into(),
+                                        "Only widen the sides".into(),
+                                    ],
+                                    header: "Padding".into(),
+                                    multiple: false,
+                                    custom: true,
+                                }],
+                            ),
                     },
                 );
             }

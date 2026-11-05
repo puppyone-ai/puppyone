@@ -2,8 +2,8 @@
 use crate::agent::domain::reference_input::{Prompt, ReferenceContent};
 use crate::{
     agent::{
-        domain::agent_session_model::*,
-        runtime::agent_runtime_port::AgentRuntimePort,
+        domain::legacy_session_model::*,
+        runtime::legacy_runtime_port::AgentRuntimePort,
         transports::jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,
@@ -1117,7 +1117,7 @@ mod tests {
     fn live_codex_roundtrip_resume_and_stop() {
         let executable = crate::agent::connections::local_agent_inventory::discover()
             .into_iter()
-            .find(|i| i.runtime == crate::agent::runtime::agent_runtime_registry::Runtime::Codex)
+            .find(|i| i.runtime == crate::agent::runtime::legacy_runtime_registry::Runtime::Codex)
             .expect("Codex must be installed")
             .executable;
         let dir = tempfile::Builder::new()

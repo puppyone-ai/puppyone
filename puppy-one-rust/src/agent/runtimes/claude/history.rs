@@ -1,5 +1,5 @@
 //! Bounded, read-only projection of Claude's project-scoped native JSONL store.
-use crate::agent::domain::agent_session_model::HistoryEntry;
+use crate::agent::domain::legacy_session_model::HistoryEntry;
 use serde_json::Value;
 use std::{
     io::{BufRead, BufReader, Read},

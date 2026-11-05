@@ -4,7 +4,7 @@
 //! disclosure. Compaction and completed sign-ins are not notices; there are
 //! no timers, toasts, transcript rows or tool glyphs.
 use super::*;
-use crate::agent::domain::agent_session_model::{ActivityKind, ProviderActivity};
+use crate::agent::domain::legacy_session_model::{ActivityKind, ProviderActivity};
 use crate::localization::t as tr;
 use crate::ui::{appearance::ActiveAppearance, components::tooltip};
 use gpui_kit::base::{h_flex, v_flex};

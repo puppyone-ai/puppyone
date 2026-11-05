@@ -1,12 +1,12 @@
 //! Pi's official JSONL RPC. Modern runs complete at agent_settled, after retries.
-use crate::agent::persistence::session_catalog::Catalog;
+use crate::agent::persistence::legacy_session_catalog::Catalog;
 use crate::{
     agent::{
         domain::{
-            agent_session_model::*,
+            legacy_session_model::*,
             reference_input::{Prompt, ReferenceContent},
         },
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
         transports::jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,

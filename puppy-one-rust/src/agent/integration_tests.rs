@@ -1,6 +1,6 @@
 use super::{
     bootstrap::create_agent_runtime_host, connections::local_agent_inventory,
-    domain::agent_session_model::State, runtime::agent_runtime_registry::Runtime,
+    domain::legacy_session_model::State, runtime::legacy_runtime_registry::Runtime,
 };
 use crate::wake::Wake;
 use std::time::{Duration, Instant};
@@ -19,7 +19,7 @@ fn live_installed_runtime_handshakes() {
             .tempdir()
             .unwrap();
         let root = dir.path().canonicalize().unwrap();
-        let mut client: Box<dyn super::runtime::agent_runtime_port::AgentRuntimePort> =
+        let mut client: Box<dyn super::runtime::legacy_runtime_port::AgentRuntimePort> =
             if installation.runtime == Runtime::OpenCode {
                 // Protocol verification uses a disposable config. The installed user profile has
                 // an unrelated plugin bootstrap failure; production continues to honor that profile.
@@ -97,8 +97,8 @@ fn live_claude_stream_and_resume() {
         Wake::default(),
     );
     fn wait(
-        client: &mut Box<dyn super::runtime::agent_runtime_port::AgentRuntimePort>,
-        predicate: impl Fn(&super::domain::agent_session_model::SessionSnapshot) -> bool,
+        client: &mut Box<dyn super::runtime::legacy_runtime_port::AgentRuntimePort>,
+        predicate: impl Fn(&super::domain::legacy_session_model::SessionSnapshot) -> bool,
     ) {
         let start = Instant::now();
         loop {
@@ -162,7 +162,8 @@ fn live_claude_stream_and_resume() {
 
 fn live_native_conversation(runtime: Runtime) {
     use super::{
-        domain::agent_session_model::SessionSnapshot, runtime::agent_runtime_port::AgentRuntimePort,
+        domain::legacy_session_model::SessionSnapshot,
+        runtime::legacy_runtime_port::AgentRuntimePort,
     };
     let installation = local_agent_inventory::discover()
         .into_iter()
@@ -292,7 +293,7 @@ fn live_native_conversation(runtime: Runtime) {
             .find(|m| m.role == label)
             .map(|m| (
                 &m.id,
-                super::domain::agent_session_model::bounded_text(m.text.clone(), 512)
+                super::domain::legacy_session_model::bounded_text(m.text.clone(), 512)
             )),
         resumed
             .snapshot()
@@ -319,10 +320,10 @@ fn live_pi_stream_and_resume() {
 fn native_puppyone_http_approval_resume_fork_stop_and_binding() {
     use super::{
         domain::{
-            agent_session_model::{Decision, Resolution},
+            legacy_session_model::{Decision, Resolution},
             reference_input::Prompt,
         },
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
         runtimes::puppyone_agent::{
             adapter::Session,
             configuration::{self, ModelConnection},
@@ -404,7 +405,7 @@ fn native_puppyone_http_approval_resume_fork_stop_and_binding() {
     let root = dir.path().canonicalize().unwrap();
     fn wait(
         s: &mut Session,
-        p: impl Fn(&super::domain::agent_session_model::SessionSnapshot) -> bool,
+        p: impl Fn(&super::domain::legacy_session_model::SessionSnapshot) -> bool,
     ) {
         let at = Instant::now();
         loop {

@@ -15,7 +15,7 @@ use super::*;
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use crate::{
-    agent::domain::agent_session_model::Message,
+    agent::domain::legacy_session_model::Message,
     localization::{t as tr, tf},
     theme,
 };

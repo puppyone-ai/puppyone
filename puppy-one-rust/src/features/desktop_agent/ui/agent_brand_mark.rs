@@ -1,6 +1,6 @@
 //! Port of `AgentBrandMark`: official local product assets shared by the
 //! launcher, workbench tabs and the empty state.
-use crate::agent::runtime::agent_runtime_registry::Runtime;
+use crate::agent::runtime::legacy_runtime_registry::Runtime;
 use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;

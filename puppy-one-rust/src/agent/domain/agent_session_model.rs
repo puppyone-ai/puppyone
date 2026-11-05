@@ -1,502 +1,631 @@
-//! Provider-independent values exposed to the native application and presentation.
-//! This is the implemented contract subset, not full shared/agent-contract parity.
-use serde::{Deserialize, Serialize};
+//! `domain/agent-session-model.mjs`: the Main-owned session record. Its
+//! execution facts are read from the SessionActor; everything else is the
+//! application's mutable bookkeeping for one live conversation.
+use super::agent_control_view::project_agent_control_view;
+use super::agent_event_workspace_paths::normalize_agent_event_workspace_paths;
+use super::agent_session_actor::{ActorOptions, SessionActor};
+use super::agent_session_control::is_agent_idle_disconnect;
+use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::agent_events::is_agent_event_envelope;
+use crate::agent::contract::event_schema::sanitize_agent_event_envelope;
+use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::runtime_schema::{
+    normalize_capability_snapshot, sanitize_agent_runtime_descriptor,
+};
+use crate::agent::contract::types::AgentEventView;
+use crate::agent::event_loop::{SharedTask, Timer};
+use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
+use crate::agent::sender::Sender;
 use serde_json::Value;
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum State {
-    Starting,
-    History,
-    Idle,
-    Running,
-    Stopping,
-    Failed,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Message {
-    pub id: String,
-    pub role: String,
-    /// Content; for a tool call, its result.
-    pub text: String,
-    pub status: String,
-    /// The tool request (arguments JSON or command line), kept beside the
-    /// result so evidence shows both (`detail.input` in the product contract).
-    #[serde(default)]
-    pub input: Option<String>,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Decision {
-    Accept,
-    /// Allow this request and the same kind for the rest of the session.
-    AcceptForSession,
-    Decline,
-    Cancel,
-}
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Question {
-    pub id: String,
-    pub text: String,
-    pub options: Vec<String>,
-    /// `AgentQuestionPrompt.header` (the fieldset legend).
-    #[serde(default)]
-    pub header: String,
-    /// Option descriptions, parallel to `options`.
-    #[serde(default)]
-    pub descriptions: Vec<String>,
-    #[serde(default)]
-    pub multiple: bool,
-    /// Free-text answers are allowed beside the options ("Other…").
-    #[serde(default)]
-    pub custom: bool,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum InteractionKind {
-    Form {
-        prompt: String,
-        fields: Vec<super::interaction_form::Field>,
-        url: Option<String>,
-    },
-    Permission {
-        prompt: String,
-        options: Vec<(String, String)>,
-    },
-    Approval {
-        command: bool,
-        prompt: String,
-        decisions: Vec<Decision>,
-        /// `AgentApproval.title`, `command`, `cwd` and `reason`.
-        #[serde(default)]
-        title: String,
-        #[serde(default)]
-        command_line: Option<String>,
-        #[serde(default)]
-        cwd: Option<String>,
-        #[serde(default)]
-        reason: Option<String>,
-    },
-    Questions(Vec<Question>),
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Interaction {
-    pub id: Value,
-    pub thread: String,
-    pub turn: String,
-    pub kind: InteractionKind,
-}
-pub enum Resolution {
-    Form {
-        decision: Decision,
-        values: std::collections::BTreeMap<String, String>,
-    },
-    Choice(String),
-    Approval(Decision),
-    Answers(std::collections::BTreeMap<String, Vec<String>>),
-}
-/// `YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM)` to Unix milliseconds (ACP
-/// `SessionInfo.updatedAt`); anything else is an unknown time.
-pub fn parse_rfc3339_ms(value: &str) -> Option<i64> {
-    let b = value.trim().as_bytes();
-    let num = |range: std::ops::Range<usize>| -> Option<i64> {
-        std::str::from_utf8(b.get(range)?).ok()?.parse().ok()
-    };
-    if b.len() < 20 || b[4] != b'-' || b[7] != b'-' || !matches!(b[10], b'T' | b't' | b' ') {
-        return None;
-    }
-    let (year, month, day) = (num(0..4)?, num(5..7)?, num(8..10)?);
-    let (hour, minute, second) = (num(11..13)?, num(14..16)?, num(17..19)?);
-    if !(1..=12).contains(&month)
-        || !(1..=31).contains(&day)
-        || hour > 23
-        || minute > 59
-        || second > 60
-    {
-        return None;
-    }
-    let mut i = 19;
-    let mut millis = 0;
-    if b.get(i) == Some(&b'.') {
-        let start = i + 1;
-        i = start;
-        while b.get(i).is_some_and(u8::is_ascii_digit) {
-            i += 1;
-        }
-        let digits = std::str::from_utf8(&b[start..i]).ok()?;
-        let padded = format!("{:0<3}", &digits[..digits.len().min(3)]);
-        millis = padded.parse::<i64>().ok()?;
-    }
-    let offset = match b.get(i)? {
-        b'Z' | b'z' if i + 1 == b.len() => 0,
-        sign @ (b'+' | b'-') if i + 6 == b.len() && b[i + 3] == b':' => {
-            let minutes = num(i + 1..i + 3)? * 60 + num(i + 4..i + 6)?;
-            if *sign == b'+' { minutes } else { -minutes }
-        }
-        _ => return None,
-    };
-    // Howard Hinnant's days-from-civil.
-    let y = if month <= 2 { year - 1 } else { year };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let mp = (month + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146_097 + doe - 719_468;
-    Some(((days * 24 + hour) * 60 + minute - offset) * 60_000 + second * 1000 + millis)
+use std::cell::{Ref, RefCell, RefMut};
+use std::rc::Rc;
+
+const MAX_REPLAY_EVENTS: usize = 1_000;
+
+/// One reference claim: leased tokens and private paths to scrub.
+#[derive(Clone, Debug, Default)]
+pub struct ReferenceClaim {
+    pub tokens: Vec<String>,
+    pub paths: Vec<(String, String)>,
 }
 
-/// `AgentActivityKind` of a provider notice.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ActivityKind {
-    /// `provider.notification` (extension notices).
-    Notification,
-    /// `provider.activity` (provider status such as authentication).
-    System,
-}
-/// A provider notice (`classifyProviderActivity`): bounded, live metadata
-/// beside the transcript, never a transcript row.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ProviderActivity {
+/// The mutable fields of a session record.
+pub struct SessionState {
     pub id: String,
-    pub kind: ActivityKind,
-    pub label: String,
-    /// `running`, `completed`, `failed`, `warning` or `cancelled`.
-    pub status: String,
-    /// A system activity's category (`authentication`, `compaction`, `status`).
-    pub category: Option<String>,
-    /// Where a notification came from (its tooltip).
-    pub source: Option<String>,
-    pub sequence: u64,
-}
-/// `MAX_PROVIDER_ACTIVITIES`.
-pub const MAX_PROVIDER_ACTIVITIES: usize = 32;
-/// `redactSecretText` (`agent-events.mjs`): API keys, bearer tokens,
-/// `key=value` credentials and provider token shapes become `[redacted]`.
-pub fn redact_secret_text(value: &str) -> String {
-    use std::sync::OnceLock;
-    static PATTERNS: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
-        [
-            (r"\bsk-[A-Za-z0-9_-]{12,}\b", "[redacted]"),
-            (r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/-]{12,}", "${1}[redacted]"),
-            (
-                r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|token|authorization|password|client[_-]?secret|secret[_-]?access[_-]?key|private[_-]?key)(\s*[:=]\s*)[^\s,;]+",
-                "${1}${2}[redacted]",
-            ),
-            (
-                r"\b([A-Z][A-Z0-9_]*(?:_API_KEY|_ACCESS_TOKEN|_REFRESH_TOKEN|_AUTH_TOKEN|_ID_TOKEN|_SESSION_TOKEN|_CLIENT_SECRET|_SECRET_ACCESS_KEY|_PRIVATE_KEY|_PASSWORD|_CREDENTIALS?))(\s*=\s*)[^\s,;]+",
-                "${1}${2}[redacted]",
-            ),
-            (r"\bAIza[0-9A-Za-z_-]{20,}\b", "[redacted]"),
-            (r"\bgh[pousr]_[A-Za-z0-9]{20,}\b", "[redacted]"),
-        ]
-        .into_iter()
-        .map(|(pattern, replacement)| (regex::Regex::new(pattern).unwrap(), replacement))
-        .collect()
-    });
-    patterns
-        .iter()
-        .fold(value.to_owned(), |text, (pattern, replacement)| {
-            pattern.replace_all(&text, *replacement).into_owned()
-        })
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    pub id: String,
+    pub workspace_root: String,
+    pub runtime_id: String,
+    pub runtime: Value,
+    pub provider_session_id: Option<String>,
+    pub adapter: Option<Rc<dyn AgentRuntimeAdapter>>,
+    /// `referenceClaims` (insertion-ordered).
+    pub reference_claims: Vec<(String, ReferenceClaim)>,
+    /// `privateReferencePaths`: private path → display name.
+    pub private_reference_paths: Vec<(String, String)>,
+    pub active_reference_tokens: Vec<String>,
+    pub account: Value,
+    pub providers: Vec<Value>,
+    pub models: Vec<Value>,
+    pub modes: Vec<Value>,
+    pub commands: Vec<Value>,
+    pub capabilities: Option<Value>,
+    pub selected_model: Option<String>,
+    pub selected_effort: Option<String>,
+    pub selected_mode: Option<String>,
     pub title: String,
-    /// Last update in Unix milliseconds when the provider reports it
-    /// (`AgentSessionListItem.updatedAt`, `updatedAtKnown`).
-    #[serde(default)]
-    pub updated_at: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub persist_timer: Option<Timer>,
+    pub interrupt_fallback_timer: Option<Timer>,
+    pub closing: bool,
+    pub closed: bool,
+    pub lifecycle_event_seen: bool,
+    pub source_scope_id: Option<String>,
+    pub history_coverage: Option<String>,
+    pub model_binding_revision: Option<String>,
+    pub native_persistence_confirmed: bool,
+    pub bootstrap_events: Option<Vec<Value>>,
+    pub bootstrap_error: Option<AgentError>,
+    pub close_promise: Option<SharedTask<AgentResult<()>>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SessionSnapshot {
-    pub runtime: String,
-    pub capabilities: Capabilities,
-    pub modes: Vec<(String, String)>,
-    pub mode: Option<String>,
-    pub efforts: Vec<String>,
-    pub effort: Option<String>,
-    pub account: String,
-    pub commands: Vec<(String, String)>,
-    pub notice: Option<String>,
-    /// Provider notices (`projection.activities` outside the transcript).
-    #[serde(default)]
-    pub activities: Vec<ProviderActivity>,
-    pub thread: Option<String>,
-    pub turn: Option<String>,
-    pub state: State,
-    pub messages: Vec<Message>,
-    pub interactions: Vec<Interaction>,
-    pub error: Option<String>,
-    pub models: Vec<(String, String)>,
+/// `session`: shared by every coordinator; identity is the allocation
+/// (`sessionStore.isCurrent(session)` compares objects).
+pub struct AgentSession {
+    pub actor: SessionActor,
+    pub instance_id: String,
+    pub owner_id: u64,
+    pub sender: Sender,
+    state: RefCell<SessionState>,
+}
+
+pub type SessionRef = Rc<AgentSession>;
+
+/// `createAgentSessionRecord(input)`.
+pub struct SessionRecordInput {
+    pub id: String,
+    pub owner_id: u64,
+    pub sender: Sender,
+    pub workspace_root: String,
+    pub runtime_id: String,
+    pub runtime: Option<Value>,
     pub model: Option<String>,
-    pub history: Vec<HistoryEntry>,
-    pub cursor: Option<String>,
-    pub history_mode: bool,
-    /// Bumped whenever a history page (or its failure) has been applied, so
-    /// locator-only listings can tell a pending scan from an empty one.
-    #[serde(default)]
-    pub history_listed: u64,
-    /// The thread whose oldest output fell outside the live display window
-    /// (`displayWindow.truncated`); its transcript says it shows recent messages.
-    #[serde(default)]
-    pub truncated_thread: Option<Option<String>>,
-    pub usage: String,
-    pub title: String,
-    pub revision: u64,
+    pub effort: Option<String>,
+    pub mode: Option<String>,
+    pub events: Vec<Value>,
+    pub sequence: i64,
+    pub created_at: Option<String>,
+    pub title: Option<String>,
+    pub terminal_state: Option<String>,
 }
-impl SessionSnapshot {
-    pub fn busy(&self) -> bool {
-        matches!(
-            self.state,
-            State::Starting | State::Running | State::Stopping
-        ) || (self.state == State::Failed && self.turn.is_some())
+
+/// `createAgentSessionRecord(input)`.
+pub fn create_agent_session_record(input: SessionRecordInput) -> AgentResult<SessionRef> {
+    let restored: Vec<Value> = {
+        let valid: Vec<&Value> = input
+            .events
+            .iter()
+            .filter(|e| is_agent_event_envelope(e))
+            .collect();
+        valid[valid.len().saturating_sub(MAX_REPLAY_EVENTS)..]
+            .iter()
+            .map(|event| {
+                sanitize_agent_event_envelope(event).map(|sanitized| {
+                    normalize_agent_event_workspace_paths(&sanitized, &input.workspace_root)
+                })
+            })
+            .collect::<Result<_, _>>()?
+    };
+    let highest = restored.iter().map(|e| e.sequence()).max().unwrap_or(0);
+    let actor = SessionActor::new(ActorOptions {
+        events: restored,
+        sequence: normalize_sequence(input.sequence).max(highest),
+        terminal_state: Some(input.terminal_state.unwrap_or_else(|| "idle".into())),
+        clock: None,
+    })?;
+    let runtime = input.runtime.unwrap_or_else(|| {
+        Obj::new()
+            .set("id", input.runtime_id.as_str())
+            .set("displayName", input.runtime_id.as_str())
+            .build()
+    });
+    let title = input.title.filter(|t| !t.is_empty()).unwrap_or_else(|| {
+        format!(
+            "{} session",
+            runtime["displayName"]
+                .as_str()
+                .filter(|n| !n.is_empty())
+                .unwrap_or("Agent")
+        )
+    });
+    let now = js::now_iso();
+    Ok(Rc::new(AgentSession {
+        actor,
+        instance_id: uuid::Uuid::new_v4().to_string(),
+        owner_id: input.owner_id,
+        sender: input.sender,
+        state: RefCell::new(SessionState {
+            id: input.id,
+            workspace_root: input.workspace_root,
+            runtime_id: input.runtime_id,
+            runtime,
+            provider_session_id: None,
+            adapter: None,
+            reference_claims: Vec::new(),
+            private_reference_paths: Vec::new(),
+            active_reference_tokens: Vec::new(),
+            account: Value::Null,
+            providers: Vec::new(),
+            models: Vec::new(),
+            modes: Vec::new(),
+            commands: Vec::new(),
+            capabilities: None,
+            selected_model: input.model,
+            selected_effort: input.effort,
+            selected_mode: input.mode,
+            title,
+            created_at: input
+                .created_at
+                .filter(|c| !c.is_empty())
+                .unwrap_or_else(|| now.clone()),
+            updated_at: now,
+            persist_timer: None,
+            interrupt_fallback_timer: None,
+            closing: false,
+            closed: false,
+            lifecycle_event_seen: false,
+            source_scope_id: None,
+            history_coverage: None,
+            model_binding_revision: None,
+            native_persistence_confirmed: false,
+            bootstrap_events: None,
+            bootstrap_error: None,
+            close_promise: None,
+        }),
+    }))
+}
+
+impl AgentSession {
+    pub fn state(&self) -> Ref<'_, SessionState> {
+        self.state.borrow()
+    }
+    pub fn state_mut(&self) -> RefMut<'_, SessionState> {
+        self.state.borrow_mut()
+    }
+    pub fn id(&self) -> String {
+        self.state().id.clone()
+    }
+    pub fn workspace_root(&self) -> String {
+        self.state().workspace_root.clone()
+    }
+    pub fn runtime_id(&self) -> String {
+        self.state().runtime_id.clone()
+    }
+    pub fn provider_session_id(&self) -> Option<String> {
+        self.state().provider_session_id.clone()
+    }
+    pub fn adapter(&self) -> Option<Rc<dyn AgentRuntimeAdapter>> {
+        self.state().adapter.clone()
+    }
+    pub fn closing(&self) -> bool {
+        self.state().closing
+    }
+    pub fn capabilities(&self) -> Option<Value> {
+        self.state().capabilities.clone()
+    }
+    /// `session.capabilities?.[flag] === true`.
+    pub fn capability(&self, flag: &str) -> bool {
+        self.state()
+            .capabilities
+            .as_ref()
+            .is_some_and(|c| c[flag] == true)
+    }
+    pub fn runtime_display_name(&self) -> String {
+        self.state().runtime["displayName"]
+            .as_str()
+            .filter(|n| !n.is_empty())
+            .unwrap_or("Agent runtime")
+            .to_string()
+    }
+
+    fn control(&self) -> Value {
+        self.actor.control()
+    }
+    /// `session.activeTurnId`.
+    pub fn active_turn_id(&self) -> Option<String> {
+        self.actor.read(|a| {
+            a.control()["execution"]["activeTurnId"]
+                .as_str()
+                .map(str::to_string)
+        })
+    }
+    /// `session.activeTurnStartedAtMs`.
+    pub fn active_turn_started_at_ms(&self) -> Option<i64> {
+        self.actor
+            .read(|a| a.control()["execution"]["startedAtMs"].as_i64())
+    }
+    /// `session.lastStartedTurnId`.
+    pub fn last_started_turn_id(&self) -> Option<String> {
+        self.active_turn_id()
+    }
+    /// `session.pendingPrompt`.
+    pub fn pending_prompt(&self) -> Option<String> {
+        self.actor.read(|a| {
+            a.control()["pendingSubmission"]["prompt"]
+                .as_str()
+                .map(str::to_string)
+        })
+    }
+    /// `session.pendingPromptMentions`.
+    pub fn pending_prompt_mentions(&self) -> Value {
+        self.actor.read(|a| {
+            a.control()["pendingSubmission"]
+                .get("promptMentions")
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new()))
+        })
+    }
+    /// `session.pendingReferenceDisplays`.
+    pub fn pending_reference_displays(&self) -> Value {
+        self.actor.read(|a| {
+            a.control()["pendingSubmission"]
+                .get("referenceDisplays")
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new()))
+        })
+    }
+    /// `session.turnStarting`.
+    pub fn turn_starting(&self) -> bool {
+        self.actor
+            .read(|a| a.control()["execution"]["status"] == "starting")
+    }
+    /// `session.interruptingTurnId`.
+    pub fn interrupting_turn_id(&self) -> Option<String> {
+        self.actor.read(|a| {
+            a.control()["commands"].as_array().and_then(|commands| {
+                commands
+                    .iter()
+                    .find(|c| c["kind"] == "interrupt" && c["status"] == "dispatching")
+                    .and_then(|c| c["targetTurnId"].as_str().map(str::to_string))
+            })
+        })
+    }
+    /// `session.pendingApprovals.get(requestId)`.
+    pub fn pending_approval(&self, request_id: &str) -> Option<Value> {
+        self.blocker("approvals", request_id)
+    }
+    /// `session.pendingQuestions.get(requestId)`.
+    pub fn pending_question(&self, request_id: &str) -> Option<Value> {
+        self.blocker("questions", request_id)
+    }
+    /// `session.pendingApprovals.values()` / `pendingQuestions.values()`.
+    pub fn pending_blockers(&self, key: &str) -> Vec<Value> {
+        self.actor.read(|a| {
+            a.control()["interaction"][key]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        })
+    }
+    fn blocker(&self, key: &str, request_id: &str) -> Option<Value> {
+        self.pending_blockers(key)
+            .into_iter()
+            .find(|entry| entry["requestId"] == request_id)
+    }
+    /// `session.sequence`.
+    pub fn sequence(&self) -> i64 {
+        self.actor.sequence()
+    }
+    /// `session.events`.
+    pub fn events(&self) -> Vec<Value> {
+        self.actor.events()
+    }
+    /// `session.terminalState`.
+    pub fn terminal_state(&self) -> String {
+        terminal_state_from_control(&self.control())
+    }
+    /// `session.providerExited`.
+    pub fn provider_exited(&self) -> bool {
+        self.actor
+            .read(|a| a.control()["connection"]["status"] == "exited")
+    }
+    pub fn updated_at(&self) -> String {
+        self.state().updated_at.clone()
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Capabilities {
-    pub history: bool,
-    pub models: bool,
-    pub modes: bool,
-    pub fork: bool,
-    pub steer: bool,
-    pub compact: bool,
-    pub archive: bool,
-    pub rename: bool,
-    pub images: bool,
-    pub text_references: bool,
+/// `requireConnectedSession(session)`.
+pub fn require_connected_session(session: &AgentSession) -> AgentResult<()> {
+    if session.provider_exited() || session.adapter().is_none() {
+        let name = session.state().runtime["displayName"]
+            .as_str()
+            .filter(|n| !n.is_empty())
+            .unwrap_or("Agent runtime")
+            .to_string();
+        return Err(AgentError::new(format!(
+            "{name} is disconnected. Refresh to resume the saved session."
+        )));
+    }
+    Ok(())
 }
-impl SessionSnapshot {
-    pub fn new(runtime: &str, history: bool) -> Self {
-        Self {
-            runtime: runtime.into(),
-            capabilities: Capabilities::default(),
-            modes: vec![],
-            mode: None,
-            efforts: vec![],
-            effort: None,
-            account: String::new(),
-            commands: vec![],
-            notice: None,
-            activities: vec![],
-            thread: None,
-            turn: None,
-            state: State::Starting,
-            messages: vec![],
-            interactions: vec![],
-            error: None,
-            models: vec![],
-            model: None,
-            history: vec![],
-            cursor: None,
-            history_mode: history,
-            history_listed: 0,
-            truncated_thread: None,
-            usage: String::new(),
-            title: runtime.into(),
-            revision: 0,
-        }
+
+/// `persistedRecordFromSession(session)`.
+pub fn persisted_record_from_session(session: &AgentSession) -> Value {
+    let state = session.state();
+    Obj::new()
+        .set("sessionId", state.id.as_str())
+        .set("workspaceRoot", state.workspace_root.as_str())
+        .set("runtimeId", state.runtime_id.as_str())
+        .set("runtime", state.runtime.clone())
+        .set("provider", state.runtime_id.as_str())
+        .set("providerSessionId", state.provider_session_id.clone())
+        .set(
+            "sourceScopeId",
+            state
+                .source_scope_id
+                .clone()
+                .unwrap_or_else(|| "default".into()),
+        )
+        .opt("historyCoverage", state.history_coverage.clone())
+        .set("title", state.title.as_str())
+        .set("createdAt", state.created_at.as_str())
+        .set("updatedAt", state.updated_at.as_str())
+        .set(
+            "terminalState",
+            terminal_state_from_control(&session.actor.control()),
+        )
+        .set("selectedModel", state.selected_model.clone())
+        .opt(
+            "modelBindingRevision",
+            state
+                .model_binding_revision
+                .clone()
+                .filter(|r| !r.is_empty()),
+        )
+        .set("selectedEffort", state.selected_effort.clone())
+        .set("selectedMode", state.selected_mode.clone())
+        .set("lastSequence", session.sequence())
+        .set("events", session.events())
+        .build()
+}
+
+/// `applyProviderSession(session, providerSession)`.
+pub fn apply_provider_session(session: &AgentSession, provider_session: &Value) {
+    let text = |key: &str| {
+        provider_session
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    };
+    let mut state = session.state_mut();
+    if let Some(revision) = text("modelBindingRevision") {
+        state.model_binding_revision = Some(revision);
     }
-    /// Adds or updates a provider notice by id, keeping the newest
-    /// `MAX_PROVIDER_ACTIVITIES` (`pruneProviderActivities`). Labels are
-    /// bounded to 4000 characters as in the product.
-    pub fn provider_activity(&mut self, mut activity: ProviderActivity) {
-        activity.label = activity.label.chars().take(4_000).collect();
-        self.revision += 1;
-        activity.sequence = self.revision;
-        match self.activities.iter_mut().find(|a| a.id == activity.id) {
-            Some(existing) => *existing = activity,
-            None => self.activities.push(activity),
-        }
-        if self.activities.len() > MAX_PROVIDER_ACTIVITIES {
-            self.activities.sort_by_key(|a| a.sequence);
-            let excess = self.activities.len() - MAX_PROVIDER_ACTIVITIES;
-            self.activities.drain(..excess);
-        }
+    state.provider_session_id = provider_session
+        .get("providerSessionId")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(title) = text("title") {
+        state.title = title;
     }
-    pub fn fail(&mut self, error: impl Into<String>) {
-        self.error = Some(error.into());
-        self.state = State::Failed;
-        self.revision += 1;
+    if let Some(model) = text("model") {
+        state.selected_model = Some(model);
     }
-    pub fn upsert(
-        &mut self,
-        id: impl Into<String>,
-        role: impl Into<String>,
-        text: impl Into<String>,
-        status: impl Into<String>,
-    ) {
-        let id = id.into();
-        let text = bounded_text(text.into(), 2 * 1024 * 1024);
-        let status = status.into();
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            m.text = text;
-            m.status = status;
-        } else {
-            self.messages.push(Message {
-                id,
-                role: role.into(),
-                text,
-                status,
-                input: None,
-            });
-        }
-        self.bound();
-        self.revision += 1;
+    if let Some(effort) = text("effort") {
+        state.selected_effort = Some(effort);
     }
-    pub fn delta(&mut self, id: &str, role: &str, delta: &str) {
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            let remaining = (2 * 1024 * 1024usize).saturating_sub(m.text.len());
-            m.text.push_str(&bounded_text(delta.into(), remaining));
-        } else {
-            self.messages.push(Message {
-                id: id.into(),
-                role: role.into(),
-                text: bounded_text(delta.into(), 2 * 1024 * 1024),
-                status: "running".into(),
-                input: None,
-            });
-        }
-        self.bound();
-        self.revision += 1;
+    if let Some(mode) = text("mode") {
+        state.selected_mode = Some(mode);
     }
-    /// A tool call starts (or its request is revised). Later results keep it.
-    pub fn tool_call(
-        &mut self,
-        id: impl Into<String>,
-        name: impl Into<String>,
-        input: impl Into<String>,
-        status: impl Into<String>,
-    ) {
-        let id = id.into();
-        let input = bounded_text(input.into(), 256 * 1024);
-        let status = status.into();
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            m.input = Some(input);
-            m.status = status;
-        } else {
-            self.messages.push(Message {
-                id,
-                role: name.into(),
-                text: String::new(),
-                status,
-                input: Some(input),
-            });
-        }
-        self.bound();
-        self.revision += 1;
+    if let Some(created) = text("createdAt") {
+        state.created_at = created;
     }
-    /// Streamed tool arguments (Claude `input_json_delta`).
-    pub fn tool_input_delta(&mut self, id: &str, name: &str, delta: &str) {
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            let input = m.input.get_or_insert_with(String::new);
-            let remaining = (256 * 1024usize).saturating_sub(input.len());
-            input.push_str(&bounded_text(delta.into(), remaining));
-            self.revision += 1;
-        } else {
-            self.tool_call(id, name, delta, "running");
-        }
+    state.updated_at = text("updatedAt").unwrap_or_else(js::now_iso);
+}
+
+fn list(value: Option<&Value>) -> Vec<Value> {
+    value.and_then(Value::as_array).cloned().unwrap_or_default()
+}
+
+/// `applyInspection(session, inspection)`.
+pub fn apply_inspection(session: &AgentSession, inspection: &Value) {
+    let mut state = session.state_mut();
+    state.account = inspection.get("account").cloned().unwrap_or(Value::Null);
+    state.providers = list(inspection.get("providers"));
+    state.models = list(inspection.get("models"));
+    state.modes = list(inspection.get("modes"));
+    state.commands = list(inspection.get("commands"));
+    state.capabilities = Some(normalize_capability_snapshot(
+        inspection.get("capabilities").unwrap_or(&Value::Null),
+    ));
+    if let Some(runtime) = inspection.get("runtime").filter(|r| js::truthy(r))
+        && let Ok(descriptor) = sanitize_agent_runtime_descriptor(runtime)
+    {
+        state.runtime = Obj::from(&state.runtime).spread(&descriptor).build();
     }
-    /// A tool result; the request recorded by `tool_call` is preserved.
-    pub fn tool_result(
-        &mut self,
-        id: impl Into<String>,
-        name: impl Into<String>,
-        output: impl Into<String>,
-        status: impl Into<String>,
-    ) {
-        let id = id.into();
-        let output = bounded_text(output.into(), 2 * 1024 * 1024);
-        let status = status.into();
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            m.text = output;
-            m.status = status;
-        } else {
-            self.messages.push(Message {
-                id,
-                role: name.into(),
-                text: output,
-                status,
-                input: None,
-            });
-        }
-        self.bound();
-        self.revision += 1;
+    let model_connections = js::truthy_opt(inspection["capabilities"].get("modelConnections"));
+    let has_model =
+        |state: &SessionState, model: &str| state.models.iter().any(|m| m["model"] == model);
+    if !model_connections
+        && let Some(model) = state.selected_model.clone()
+        && !has_model(&state, &model)
+    {
+        state.selected_model = None;
     }
-    pub fn bound(&mut self) {
-        let mut bytes: usize = self.messages.iter().map(|m| m.text.len()).sum();
-        let mut remove = 0;
-        while self.messages.len() - remove > 2000 || bytes > 16 * 1024 * 1024 {
-            bytes -= self.messages[remove].text.len();
-            remove += 1;
-        }
-        if remove > 0 {
-            self.messages.drain(..remove);
-            self.truncated_thread = Some(self.thread.clone());
-        }
-    }
-    pub fn finish(&mut self, status: &str) {
-        self.turn = None;
-        self.interactions.clear();
-        self.state = State::Idle;
-        self.usage = status.into();
-        for m in &mut self.messages {
-            if m.status == "running" {
-                m.status = status.into();
+    if state.selected_model.is_none() && !model_connections {
+        let mut provider_ids: Vec<String> = Vec::new();
+        for model in &state.models {
+            if let Some(id) = model_provider_id(model)
+                && !provider_ids.contains(&id)
+            {
+                provider_ids.push(id);
             }
         }
-        self.revision += 1;
-    }
-}
-pub fn bounded_text(mut text: String, limit: usize) -> String {
-    let mut end = text.len().min(limit);
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    text.truncate(end);
-    text
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn secrets_follow_the_product_patterns() {
-        for (input, output) in [
-            ("key sk-abcdefghijklmnopq end", "key [redacted] end"),
-            // As in the product: the bearer value, then the header's word.
-            (
-                "Authorization: Bearer abc.def-ghi_jklmno",
-                "Authorization: [redacted] [redacted]",
-            ),
-            ("api_key=12345 next", "api_key=[redacted] next"),
-            ("OPENAI_API_KEY=xyz", "OPENAI_API_KEY=[redacted]"),
-            ("AIzaSyA1234567890abcdefghij", "[redacted]"),
-            ("ghp_abcdefghijklmnopqrstuv", "[redacted]"),
-            ("nothing secret here", "nothing secret here"),
-        ] {
-            assert_eq!(super::redact_secret_text(input), output, "{input}");
+        if provider_ids.len() <= 1 {
+            let provider = provider_ids.first().cloned();
+            let provider_models: Vec<&Value> = state
+                .models
+                .iter()
+                .filter(|m| provider.is_none() || model_provider_id(m) == provider)
+                .collect();
+            state.selected_model = provider_models
+                .iter()
+                .find(|m| js::truthy_opt(m.get("isDefault")))
+                .or(provider_models.first())
+                .and_then(|m| m["model"].as_str().map(str::to_string));
         }
     }
-    use super::parse_rfc3339_ms;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn rfc3339_timestamps_become_unix_milliseconds() {
-        assert_eq!(parse_rfc3339_ms("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(
-            parse_rfc3339_ms("2027-01-15T08:00:00.000Z"),
-            Some(1_800_000_000_000)
-        );
-        assert_eq!(
-            parse_rfc3339_ms("2027-01-15T16:00:00.5+08:00"),
-            Some(1_800_000_000_500)
-        );
-        assert_eq!(
-            parse_rfc3339_ms("2000-02-29T12:30:00-01:30"),
-            Some(951_832_800_000)
-        );
-        assert_eq!(parse_rfc3339_ms("yesterday"), None);
-        assert_eq!(parse_rfc3339_ms("2027-13-15T08:00:00Z"), None);
+    if state.selected_model.is_none() && model_connections {
+        let defaults: Vec<&Value> = state
+            .models
+            .iter()
+            .filter(|m| js::truthy_opt(m.get("isDefault")))
+            .collect();
+        state.selected_model = (defaults.len() == 1)
+            .then(|| defaults[0]["model"].as_str().map(str::to_string))
+            .flatten();
     }
+    let selected = state
+        .selected_model
+        .as_ref()
+        .and_then(|model| state.models.iter().find(|m| m["model"] == model.as_str()))
+        .cloned();
+    let efforts: Vec<String> = selected
+        .as_ref()
+        .and_then(|m| m["variants"].as_array())
+        .map(|v| {
+            v.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if state
+        .selected_effort
+        .as_ref()
+        .is_none_or(|effort| !efforts.contains(effort))
+    {
+        let default_variant = selected
+            .as_ref()
+            .and_then(|m| m["defaultVariant"].as_str())
+            .map(str::to_string);
+        state.selected_effort = match default_variant {
+            Some(variant) if efforts.contains(&variant) => Some(variant),
+            _ if efforts.iter().any(|e| e == "medium") => Some("medium".into()),
+            _ => efforts.first().cloned(),
+        };
+    }
+    if state.selected_mode.is_none() {
+        state.selected_mode = state
+            .modes
+            .iter()
+            .find(|m| js::truthy_opt(m.get("isDefault")))
+            .or(state.modes.first())
+            .and_then(|m| m["id"].as_str().map(str::to_string));
+    }
+}
+
+/// `sessionMetadata(session, control)`.
+pub fn session_metadata(session: &AgentSession, control: Option<&Value>) -> Value {
+    let owned;
+    let control = match control {
+        Some(control) => control,
+        None => {
+            owned = session.actor.control();
+            &owned
+        }
+    };
+    let state = session.state();
+    Obj::new()
+        .set("instanceId", session.instance_id.as_str())
+        .set("id", state.id.as_str())
+        .set("runtimeId", state.runtime_id.as_str())
+        .set("runtime", state.runtime.clone())
+        .set("provider", state.runtime_id.as_str())
+        .set("providerSessionId", state.provider_session_id.clone())
+        .set(
+            "sourceScopeId",
+            state
+                .source_scope_id
+                .clone()
+                .unwrap_or_else(|| "default".into()),
+        )
+        .set("workspaceRoot", state.workspace_root.as_str())
+        .opt("historyCoverage", state.history_coverage.clone())
+        .set("title", state.title.as_str())
+        .set("createdAt", state.created_at.as_str())
+        .set("updatedAt", state.updated_at.as_str())
+        .set("terminalState", terminal_state_from_control(control))
+        .set("selectedModel", state.selected_model.clone())
+        .set("selectedEffort", state.selected_effort.clone())
+        .set("selectedMode", state.selected_mode.clone())
+        .set("activeTurnId", control["execution"]["activeTurnId"].clone())
+        .set("lastSequence", session.sequence())
+        .build()
+}
+
+/// `sessionSnapshot(session)`.
+pub fn session_snapshot(session: &AgentSession) -> Value {
+    let snapshot = session.actor.snapshot();
+    let state = session.state();
+    let metadata = {
+        drop(state);
+        session_metadata(session, Some(&snapshot.control))
+    };
+    let state = session.state();
+    Obj::new()
+        .set("session", metadata)
+        .set("account", state.account.clone())
+        .set("providers", state.providers.clone())
+        .set("models", state.models.clone())
+        .set("modes", state.modes.clone())
+        .set("commands", state.commands.clone())
+        .set(
+            "capabilities",
+            state.capabilities.clone().unwrap_or(Value::Null),
+        )
+        .set("runtime", state.runtime.clone())
+        .set("cursor", snapshot.cursor.clone())
+        .set("control", project_agent_control_view(&snapshot.control))
+        .set("display", snapshot.display.to_value())
+        .set("timeline", snapshot.timeline.clone())
+        .set("events", snapshot.timeline["events"].clone())
+        .set("partial", snapshot.timeline["partial"].clone())
+        .set(
+            "firstAvailableSequence",
+            snapshot.timeline["firstAvailableSequence"].clone(),
+        )
+        .set("lastSequence", snapshot.timeline["lastSequence"].clone())
+        .build()
+}
+
+/// `terminalStateFromControl(control)`.
+pub fn terminal_state_from_control(control: &Value) -> String {
+    if control["connection"]["status"] == "exited" && !is_agent_idle_disconnect(control) {
+        return "provider-exited".into();
+    }
+    if js::truthy_opt(control["execution"].get("activeTurnId")) {
+        return "running".into();
+    }
+    if control["execution"]["status"] == "outcome-unknown" {
+        return "outcome-unknown".into();
+    }
+    control["execution"]["nativeOutcome"]
+        .as_str()
+        .filter(|o| !o.is_empty())
+        .unwrap_or("idle")
+        .to_string()
+}
+
+fn model_provider_id(model: &Value) -> Option<String> {
+    if let Some(id) = model["providerId"].as_str().filter(|id| !id.is_empty()) {
+        return Some(id.to_string());
+    }
+    let name = model["model"].as_str()?;
+    let slash = name.find('/')?;
+    (slash > 0).then(|| name[..slash].to_string())
+}
+
+fn normalize_sequence(value: i64) -> i64 {
+    value.max(0)
 }

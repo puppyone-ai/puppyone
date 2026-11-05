@@ -1,6 +1,6 @@
 //! Project-scoped capacity is acquired before starting a provider and released with its owner.
-use super::agent_runtime_port::AgentRuntimePort;
-use crate::agent::domain::{agent_session_model::*, reference_input::Prompt};
+use super::legacy_runtime_port::AgentRuntimePort;
+use crate::agent::domain::{legacy_session_model::*, reference_input::Prompt};
 use serde_json::Value;
 use std::{
     collections::HashMap,

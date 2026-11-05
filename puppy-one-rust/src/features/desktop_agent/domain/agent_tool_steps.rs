@@ -8,7 +8,7 @@ use super::agent_activity_presentation::{
     self as presentation, ActivityStatus, Renderer, command, command_tool, file_changes,
     input_value, tool_id,
 };
-use crate::agent::domain::agent_session_model::Message;
+use crate::agent::domain::legacy_session_model::Message;
 use serde_json::Value;
 use std::collections::HashSet;
 

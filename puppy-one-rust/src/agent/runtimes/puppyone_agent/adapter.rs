@@ -8,10 +8,10 @@ use super::{
 use crate::{
     agent::{
         domain::{
-            agent_session_model::*,
+            legacy_session_model::*,
             reference_input::{Prompt, ReferenceContent},
         },
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
     },
     wake::Wake,
 };

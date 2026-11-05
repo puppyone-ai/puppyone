@@ -3,7 +3,7 @@ use crate::{
     agent::{
         connections::local_agent_inventory::Installation,
         protocols::{acp::acp_runtime_adapter, pi_rpc::pi_rpc_adapter},
-        runtime::{agent_runtime_port::AgentRuntimePort, agent_runtime_registry::Runtime},
+        runtime::{legacy_runtime_port::AgentRuntimePort, legacy_runtime_registry::Runtime},
         runtimes::{claude::claude_adapter, codex::codex_app_server_adapter},
     },
     wake::Wake,
@@ -16,7 +16,7 @@ pub fn create(
     wake: Wake,
 ) -> Box<dyn AgentRuntimePort> {
     use crate::agent::{
-        domain::agent_session_model::SessionSnapshot,
+        domain::legacy_session_model::SessionSnapshot,
         runtime::session_lease::{Lease, Leased, Unavailable},
     };
     let lease = match Lease::acquire(root.clone()) {

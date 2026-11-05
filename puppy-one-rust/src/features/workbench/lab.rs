@@ -111,7 +111,7 @@ impl Workbench {
                         Content::Terminal(
                             view,
                             "Claude Code".into(),
-                            Some(crate::agent::runtime::agent_runtime_registry::Runtime::Claude),
+                            Some(crate::agent::runtime::legacy_runtime_registry::Runtime::Claude),
                         ),
                     );
                 }
@@ -131,8 +131,8 @@ impl Workbench {
     /// `FixtureHistory` in the reference entry: four runtimes, five sessions;
     /// Codex has another page, so "Load more" shows.
     fn lab_history(&mut self, tab: Id, cx: &mut Context<Self>) {
-        use crate::agent::domain::agent_session_model::HistoryEntry;
-        use crate::agent::runtime::agent_runtime_registry::Runtime;
+        use crate::agent::domain::legacy_session_model::HistoryEntry;
+        use crate::agent::runtime::legacy_runtime_registry::Runtime;
         use crate::features::desktop_agent::application::conversation_history::{
             ConversationHistory, SourceStatus,
         };

@@ -2,7 +2,7 @@
 use crate::{
     agent::{
         connections::local_agent_inventory::Installation,
-        runtime::agent_runtime_port::AgentRuntimePort,
+        runtime::legacy_runtime_port::AgentRuntimePort,
     },
     wake::Wake,
 };

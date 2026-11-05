@@ -19,7 +19,7 @@
       ],
       "targets": [
         "src/features/desktop_agent/application/agent_session_controller.rs",
-        "src/agent/runtime/agent_runtime_port.rs"
+        "src/agent/runtime/legacy_runtime_port.rs"
       ],
       "remaining": "Send/stop/resume, immutable references, fork/steer, typed controls and explicit failed-draft recovery are implemented. Durable feed acknowledgement/replay ledgers and the complete shared controller contract remain unported."
     },
@@ -118,19 +118,6 @@
         "src/platform/environment.rs"
       ],
       "remaining": "Installed native Chat runtimes are discovered; startup negotiates provider capabilities. Formal cached readiness/version compatibility, installation/setup and global accounts remain pending. OpenCode user-profile plugin failure is recorded separately from isolated handshake verification."
-    },
-    {
-      "name": "Runtime contract and read model",
-      "status": "partial",
-      "sources": [
-        "electron/main/agent/runtime/agent-runtime-port.mjs",
-        "electron/main/agent/domain/agent-session-model.mjs"
-      ],
-      "targets": [
-        "src/agent/runtime/agent_runtime_port.rs",
-        "src/agent/domain/agent_session_model.rs"
-      ],
-      "remaining": "Provider-independent commands, bounded snapshots, references and typed interactions exist. Full normalized shared schema, stable cross-product identities and durable delivery ledger remain pending."
     },
     {
       "name": "ACP protocol core",
@@ -245,11 +232,10 @@
       "status": "partial",
       "sources": [
         "electron/main/agent/persistence/agent-conversation-catalog.mjs",
-        "electron/main/agent/persistence/agent-session-repository.mjs",
-        "electron/main/agent/runtime/agent-runtime-registry.mjs"
+        "electron/main/agent/persistence/agent-session-repository.mjs"
       ],
       "targets": [
-        "src/agent/persistence/session_catalog.rs",
+        "src/agent/persistence/legacy_session_catalog.rs",
         "src/agent/runtime/session_lease.rs",
         "src/agent/bootstrap/create_agent_runtime_host.rs"
       ],
@@ -285,7 +271,7 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/agent_provider_activities.rs",
-        "src/agent/domain/agent_session_model.rs",
+        "src/agent/domain/legacy_session_model.rs",
         "src/agent/protocols/pi_rpc/pi_rpc_adapter.rs",
         "src/agent/runtimes/claude/claude_adapter.rs"
       ],
@@ -450,6 +436,123 @@
         "src/agent/migrations/legacy_file_change_evidence.rs"
       ],
       "remaining": "Envelope creation, redaction and renderer bounds are ported; jsdiff structuredPatch is replaced by the similar crate (Myers line diff), whose hunk boundaries can differ from jsdiff on ambiguous edits. Cyclic payloads cannot occur in JSON values."
+    },
+    {
+      "name": "Main Agent application service",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/application/agent-event-journal.mjs",
+        "electron/main/agent/application/agent-input-policy.mjs",
+        "electron/main/agent/application/agent-reference-policy.mjs",
+        "electron/main/agent/application/agent-runtime-catalog.mjs",
+        "electron/main/agent/application/agent-service.mjs",
+        "electron/main/agent/application/agent-session-store.mjs",
+        "electron/main/agent/application/history/agent-history-queries.mjs",
+        "electron/main/agent/application/history/history-catalog-port.mjs",
+        "electron/main/agent/application/history/history-operation.mjs",
+        "electron/main/agent/application/history/native-conversation-indexer.mjs",
+        "electron/main/agent/application/processes/agent-process-supervisor.mjs",
+        "electron/main/agent/application/runtime-resolution/runtime-readiness-store.mjs",
+        "electron/main/agent/application/runtime-resolution/runtime-resolution-coordinator.mjs",
+        "electron/main/agent/application/session/agent-history-hydration.mjs",
+        "electron/main/agent/application/session/agent-session-commands.mjs",
+        "electron/main/agent/application/session/agent-session-feed.mjs",
+        "electron/main/agent/application/session/agent-session-lifecycle.mjs",
+        "electron/main/agent/application/session/agent-session-open-errors.mjs",
+        "electron/main/agent/application/session/agent-session-runtime.mjs",
+        "electron/main/agent/application/turn/agent-command-outcome-policy.mjs",
+        "electron/main/agent/application/turn/agent-command-policy.mjs",
+        "electron/main/agent/application/turn/agent-start-transaction.mjs",
+        "electron/main/agent/application/turn/agent-turn-coordinator.mjs",
+        "electron/main/agent/application/turn/agent-turn-queue.mjs"
+      ],
+      "targets": [
+        "src/agent/application/agent_event_journal.rs",
+        "src/agent/application/agent_input_policy.rs",
+        "src/agent/application/agent_reference_policy.rs",
+        "src/agent/application/agent_runtime_catalog.rs",
+        "src/agent/application/agent_service.rs",
+        "src/agent/application/agent_session_store.rs",
+        "src/agent/application/history/agent_history_queries.rs",
+        "src/agent/application/history/history_catalog_port.rs",
+        "src/agent/application/history/history_operation.rs",
+        "src/agent/application/history/mod.rs",
+        "src/agent/application/history/native_conversation_indexer.rs",
+        "src/agent/application/mod.rs",
+        "src/agent/application/ports.rs",
+        "src/agent/application/processes/agent_process_supervisor.rs",
+        "src/agent/application/processes/mod.rs",
+        "src/agent/application/runtime_resolution/mod.rs",
+        "src/agent/application/runtime_resolution/runtime_readiness_store.rs",
+        "src/agent/application/runtime_resolution/runtime_resolution_coordinator.rs",
+        "src/agent/application/session/agent_history_hydration.rs",
+        "src/agent/application/session/agent_session_commands.rs",
+        "src/agent/application/session/agent_session_feed.rs",
+        "src/agent/application/session/agent_session_lifecycle.rs",
+        "src/agent/application/session/agent_session_open_errors.rs",
+        "src/agent/application/session/agent_session_runtime.rs",
+        "src/agent/application/session/mod.rs",
+        "src/agent/application/tests/control.rs",
+        "src/agent/application/tests/harness.rs",
+        "src/agent/application/tests/mod.rs",
+        "src/agent/application/tests/service.rs",
+        "src/agent/application/turn/agent_command_outcome_policy.rs",
+        "src/agent/application/turn/agent_command_policy.rs",
+        "src/agent/application/turn/agent_start_transaction.rs",
+        "src/agent/application/turn/agent_turn_coordinator.rs",
+        "src/agent/application/turn/agent_turn_queue.rs",
+        "src/agent/application/turn/mod.rs",
+        "src/agent/agent_error.rs",
+        "src/agent/event_loop.rs",
+        "src/agent/sender.rs"
+      ],
+      "remaining": "Every application module (service, session runtime/lifecycle/commands/feed, turns and queue, history indexer and queries, runtime resolution, process supervisor) is ported onto a single-threaded tokio LocalSet with the product's service and control tests. Project-session operation fences (operation.assertCurrent) are not wired yet; the IPC handlers, item-host process split and Renderer feed client arrive with the host layer."
+    },
+    {
+      "name": "Main runtime port and registry",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtime/agent-history-read-result.mjs",
+        "electron/main/agent/runtime/agent-operation-error.mjs",
+        "electron/main/agent/runtime/agent-runtime-manifest.mjs",
+        "electron/main/agent/runtime/agent-runtime-port.mjs",
+        "electron/main/agent/runtime/agent-runtime-registry.mjs",
+        "electron/main/agent/runtime/agent-runtime-resolution.mjs",
+        "electron/main/agent/runtime/agent-session-history-port.mjs",
+        "electron/main/agent/runtime/history-source-scope.mjs",
+        "electron/main/agent/runtime/native-persistence-reporter.mjs",
+        "electron/main/agent/runtime/runtime-discovery-supervisor.mjs"
+      ],
+      "targets": [
+        "src/agent/runtime/agent_runtime_port.rs",
+        "src/agent/runtime/agent_runtime_registry.rs",
+        "src/agent/runtime/agent_runtime_manifest.rs",
+        "src/agent/runtime/agent_runtime_resolution.rs",
+        "src/agent/runtime/agent_operation_error.rs",
+        "src/agent/runtime/agent_history_read_result.rs",
+        "src/agent/runtime/agent_session_history_port.rs",
+        "src/agent/runtime/history_source_scope.rs",
+        "src/agent/runtime/native_persistence_reporter.rs",
+        "src/agent/runtime/runtime_discovery_supervisor.rs"
+      ],
+      "remaining": "The adapter port is a trait whose optional methods are named by implements(); requests and results stay plain objects. Concrete runtimes still run on the legacy adapter until each is ported onto this port."
+    },
+    {
+      "name": "Session record and legacy format",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/agent-session-model.mjs",
+        "electron/main/agent/migrations/legacy-session-format.mjs"
+      ],
+      "targets": [
+        "src/agent/domain/agent_session_model.rs",
+        "src/agent/migrations/legacy_session_format.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_channels.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_config_directory.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_history_source.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_public_identity.rs"
+      ],
+      "remaining": "The session record keeps the product's derived getters over the SessionActor; the legacy snapshot model it replaces remains as domain/legacy_session_model.rs until the old UI and runtimes are removed."
     }
   ]
 }

@@ -1,5 +1,5 @@
 //! The application stores native identities, never credentials or a second transcript authority.
-use crate::{agent::domain::agent_session_model::HistoryEntry, wake::Wake};
+use crate::{agent::domain::legacy_session_model::HistoryEntry, wake::Wake};
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},

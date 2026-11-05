@@ -1,7 +1,7 @@
 //! Port of `domain/agent-activity-presentation.ts`, `AgentToolRendererRegistry`
 //! and `AgentToolGlyph`'s classification, over the native message model
 //! (`role` names the tool, `input` is its request, `text` its result).
-use crate::agent::domain::agent_session_model::Message;
+use crate::agent::domain::legacy_session_model::Message;
 use serde_json::Value;
 
 /// Transcript part kinds (`AgentPart["kind"]`) the native model can express.

@@ -1,1 +1,1 @@
-pub mod session_catalog;
+pub mod legacy_session_catalog;

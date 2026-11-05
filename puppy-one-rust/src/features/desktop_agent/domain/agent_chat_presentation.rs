@@ -1,6 +1,6 @@
 //! Presentation decisions independent of GPUI layout and provider transport.
 //! Labels are product catalog keys (`locales/renderer/*/agent.json`).
-use crate::agent::domain::agent_session_model::Decision;
+use crate::agent::domain::legacy_session_model::Decision;
 pub fn decision_label(decision: Decision) -> &'static str {
     match decision {
         Decision::Accept => "agent.approval.allowOnce",

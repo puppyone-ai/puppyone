@@ -14,8 +14,10 @@ pub mod agent_reference_error;
 pub mod agent_session_actor;
 #[allow(dead_code)]
 pub mod agent_session_control;
+#[allow(dead_code)]
 pub mod agent_session_model;
 pub mod interaction_form;
+pub mod legacy_session_model;
 pub mod reference_input;
 #[cfg(test)]
 mod tests;
