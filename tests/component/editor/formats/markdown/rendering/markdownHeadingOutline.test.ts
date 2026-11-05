@@ -40,9 +40,9 @@ describe("Markdown heading outline", () => {
     ].join("\n"));
 
     expect(collectMarkdownHeadingOutlineEntries(state)).toEqual([
-      { from: 2, level: 1, title: "Company" },
-      { from: 14, level: 2, title: "Design" },
-      { from: 26, level: 3, title: "Frontend" },
+      { from: 2, level: 1, title: "Company", plainTitle: "Company" },
+      { from: 14, level: 2, title: "Design", plainTitle: "Design" },
+      { from: 26, level: 3, title: "Frontend", plainTitle: "Frontend" },
     ]);
   });
 

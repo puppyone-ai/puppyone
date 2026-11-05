@@ -20,10 +20,19 @@ const POPOVER_CLOSE_DELAY_MS = 140;
 const POPOVER_MAX_HEIGHT_PX = 320;
 let nextOutlinePopoverId = 0;
 
-type HeadingEntry = Readonly<{
+/** One heading in the document outline. `title` keeps the authored inline
+ * Markdown; `plainTitle` is what a reader-facing list should render. */
+export type MarkdownOutlineHeading = Readonly<{
   from: number;
   level: number;
   title: string;
+  plainTitle: string;
+}>;
+
+export type MarkdownOutlineNode = Readonly<{
+  heading: MarkdownOutlineHeading;
+  index: number;
+  children: MarkdownOutlineNode[];
 }>;
 
 type TickMeasurement = Readonly<{
@@ -46,7 +55,7 @@ class MarkdownHeadingOutlineController {
   private readonly popover: HTMLDivElement;
   private readonly popoverList: HTMLDivElement;
   private readonly measureKey = {};
-  private headings: readonly HeadingEntry[] = [];
+  private headings: readonly MarkdownOutlineHeading[] = [];
   private activeIndex = -1;
   private visible = false;
   private disposed = false;
@@ -387,8 +396,8 @@ export function markdownHeadingOutlineExtension(): Extension {
   return markdownHeadingOutlinePlugin;
 }
 
-export function collectMarkdownHeadingOutlineEntries(state: EditorState): HeadingEntry[] {
-  const headings: HeadingEntry[] = [];
+export function collectMarkdownHeadingOutlineEntries(state: EditorState): MarkdownOutlineHeading[] {
+  const headings: MarkdownOutlineHeading[] = [];
   let fence: { character: "`" | "~"; length: number } | null = null;
 
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
@@ -412,33 +421,94 @@ export function collectMarkdownHeadingOutlineEntries(state: EditorState): Headin
     if (fence) continue;
 
     const headingMatch = /^( {0,3})(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/.exec(text);
-    if (!headingMatch) continue;
-    const leading = headingMatch[1];
-    const marker = headingMatch[2];
-    const authoredTitle = headingMatch[3] ?? "";
-    const title = authoredTitle.replace(/[ \t]+#+[ \t]*$/, "").trim();
-    const contentOffset = text.indexOf(authoredTitle, leading.length + marker.length);
+    if (headingMatch) {
+      const leading = headingMatch[1];
+      const marker = headingMatch[2];
+      const authoredTitle = headingMatch[3] ?? "";
+      const title = authoredTitle.replace(/[ \t]+#+[ \t]*$/, "").trim();
+      const contentOffset = text.indexOf(authoredTitle, leading.length + marker.length);
+      headings.push({
+        from: line.from + (contentOffset >= 0 ? contentOffset : text.length),
+        level: marker.length,
+        title: title || "Untitled",
+        plainTitle: stripMarkdownInlineText(title) || "Untitled",
+      });
+      continue;
+    }
+
+    // A paragraph line underlined with === or --- is a setext heading. The
+    // underline line itself is consumed so it can never be read as a heading.
+    if (lineNumber >= state.doc.lines || !isSetextHeadingText(text)) continue;
+    const underline = /^ {0,3}(=+|-+)[ \t]*$/.exec(state.doc.line(lineNumber + 1).text);
+    if (!underline) continue;
+    const setextTitle = text.trim();
     headings.push({
-      from: line.from + (contentOffset >= 0 ? contentOffset : text.length),
-      level: marker.length,
-      title: title || "Untitled",
+      from: line.from,
+      level: underline[1][0] === "=" ? 1 : 2,
+      title: setextTitle,
+      plainTitle: stripMarkdownInlineText(setextTitle) || "Untitled",
     });
+    lineNumber += 1;
   }
 
   return headings;
 }
 
-function collectHeadings(view: EditorView): HeadingEntry[] {
+/** Groups a flat heading list into the tree a reader-facing panel renders.
+ * Skipped levels (`##` followed by `####`) nest under the shallower heading. */
+export function buildMarkdownOutlineTree(
+  headings: readonly MarkdownOutlineHeading[],
+): MarkdownOutlineNode[] {
+  const roots: MarkdownOutlineNode[] = [];
+  const stack: Array<{ level: number; children: MarkdownOutlineNode[] }> = [
+    { level: 0, children: roots },
+  ];
+  for (const [index, heading] of headings.entries()) {
+    while (stack.length > 1 && stack[stack.length - 1]!.level >= heading.level) stack.pop();
+    const node: MarkdownOutlineNode = { heading, index, children: [] };
+    stack[stack.length - 1]!.children.push(node);
+    stack.push({ level: heading.level, children: node.children });
+  }
+  return roots;
+}
+
+const SETEXT_LIST_OR_QUOTE = /^ {0,3}(?:[-*+][ \t]|\d{1,9}[.)][ \t]|>)/;
+
+function isSetextHeadingText(text: string): boolean {
+  if (!text.trim()) return false;
+  // Indented code, lists, quotes, and bare rule/underline punctuation are not
+  // paragraph lines and must not become headings.
+  if (/^ {4,}/.test(text)) return false;
+  if (SETEXT_LIST_OR_QUOTE.test(text)) return false;
+  if (/^ {0,3}#/.test(text)) return false;
+  return !/^[-=*_\s]+$/.test(text.trim());
+}
+
+/** Reader-facing heading text: authored inline Markdown is reduced to the text
+ * a reader actually sees. */
+function stripMarkdownInlineText(value: string): string {
+  return value
+    .replace(/!?\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(?<![\w*])\*(?!\s)([^*]+?)\*(?![\w*])/g, "$1")
+    .replace(/(?<![\w_])_(?!\s)([^_]+?)_(?![\w_])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectHeadings(view: EditorView): MarkdownOutlineHeading[] {
   return collectMarkdownHeadingOutlineEntries(view.state);
 }
 
-function shouldShowOutline(view: EditorView, headings: readonly HeadingEntry[]): boolean {
+function shouldShowOutline(view: EditorView, headings: readonly MarkdownOutlineHeading[]): boolean {
   if (headings.length < MIN_HEADING_COUNT) return false;
   return view.scrollDOM.scrollHeight > view.scrollDOM.clientHeight + SCROLL_HEIGHT_PADDING_PX;
 }
 
 function resolveActiveHeadingIndex(
-  headings: readonly HeadingEntry[],
+  headings: readonly MarkdownOutlineHeading[],
   scrollTop: number,
   view: EditorView,
 ): number {
