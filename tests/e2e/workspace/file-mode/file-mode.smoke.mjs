@@ -144,6 +144,10 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(project, "note.md"), "# Last project\n");
   await fs.writeFile(inDocs("images/dot.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKDveksOjmAAAAAElFTkSuQmCC", "base64"));
   await fs.writeFile(inDocs("plan.md"), "# Plan\n\nBody.\n\n![dot](./images/dot.png)\n\n```mermaid\ngraph TD\n  A --> B\n```\n");
+  // The numbers make the first row read as a header; plain rows have none.
+  await fs.writeFile(inDocs("rows.csv"), `name,amount\n${"Ada,100\n".repeat(300)}`);
+  await fs.writeFile(inDocs("plain-rows.csv"), "Ada,London\n".repeat(300));
+  await fs.writeFile(inDocs("long.md"), `# Long\n\n${"A paragraph long enough to scroll under the title bar.\n\n".repeat(80)}`);
   for (const name of ["save.md", "cancel.md", "discard.md", "clean.md", "second.md", "theme.md", LONG_NAME]) {
     await fs.writeFile(inDocs(name), `# ${name}\n`);
   }
@@ -235,7 +239,33 @@ async function coldStart() {
     return name.scrollWidth > name.clientWidth && left >= ${process.platform === "darwin" ? 86 : 6} && right <= control.left;
   })()`));
   await closeAndWait(long);
+  await scrollEdge();
   return window;
+}
+
+/** Whether the document is scrolled under the title bar, and whether it fades there. */
+const scrollEdgeOf = (window) => evaluate(window, `(() => {
+  const surface = document.querySelector(".file-mode-window__document");
+  return { scrolled: surface.hasAttribute("data-scrolled"), masked: getComputedStyle(surface).maskImage !== "none" };
+})()`);
+
+/** No divider under the bar: text scrolled up under it fades out, and only once the document has left its top. */
+async function scrollEdge() {
+  const window = await openAndWait(inDocs("long.md"), ".cm-scroller");
+  const edge = () => scrollEdgeOf(window);
+  const scrollTo = (top) => evaluate(window, `document.querySelector(".cm-scroller").scrollTop = ${top}`);
+  check("title bar draws no divider", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar"), "::after").content`), "none");
+  check("nothing fades at the top of the document", await edge(), { scrolled: false, masked: false });
+  // Leaves a line half under the bar, where the fade shows.
+  await scrollTo(430);
+  await until(async () => (await edge()).masked, "the edge to fade");
+  check("text scrolled under the title bar fades out", await edge(), { scrolled: true, masked: true });
+  await wait(250);
+  await screenshot(window, "scrolled-under-title-bar");
+  await scrollTo(0);
+  await until(async () => !(await edge()).scrolled, "the edge to clear");
+  check("back at the top, nothing fades", await edge(), { scrolled: false, masked: false });
+  await closeAndWait(window);
 }
 
 async function savingAndOutsideChanges(window) {
@@ -313,6 +343,19 @@ async function csv() {
   check("CSV edit saves and keeps its line endings", await read(inDocs("table.csv")), "name,city\r\nAda,Paris\r\n");
   await until(() => !window.isDocumentEdited(), "the CSV edited mark to clear");
   await closeAndWait(window);
+
+  for (const [file, selector, masked, name] of [
+    ["rows.csv", ".csv-table-editor__table thead", false, "a table's pinned header row does not fade"],
+    ["plain-rows.csv", ".csv-table-editor__table tbody", true, "rows without a header fade under the title bar"],
+  ]) {
+    const rows = await openAndWait(inDocs(file), selector);
+    await evaluate(rows, `document.querySelector(".csv-table-editor__scroll").scrollTop = 400`);
+    await until(async () => (await scrollEdgeOf(rows)).scrolled, `${file} to scroll under the title bar`);
+    check(name, await scrollEdgeOf(rows), { scrolled: true, masked });
+    await wait(250);
+    await screenshot(rows, `${file}-scrolled`);
+    await closeAndWait(rows);
+  }
 }
 
 async function dataSafety() {
@@ -389,16 +432,15 @@ async function projectWindows(window) {
   const project = await until(() => windows().find((candidate) => !candidate.isDestroyed() && !candidate.webContents.getURL().includes("#file-mode") && candidate.webContents.getURL()), "the folder's project window");
   await until(() => exists(project, ".desktop-titlebar-workspace-name"), "the project's title bar", 60_000);
   check("a folder from the system opens as a project", true);
+  // The file window draws no divider; its document fades out under the bar instead.
   const look = (target, header, name) => evaluate(target, `(() => {
-    const style = (selector, properties, pseudo) => { const computed = getComputedStyle(document.querySelector(selector), pseudo); return properties.map((property) => computed[property]); };
+    const style = (selector, properties) => { const computed = getComputedStyle(document.querySelector(selector)); return properties.map((property) => computed[property]); };
     return [
       ...style(${JSON.stringify(header)}, ["height"]),
-      // The divider under the bar.
-      ...style(${JSON.stringify(header)}, ["content", "backgroundColor", "height", "left", "right", "bottom"], "::after"),
       ...style(${JSON.stringify(name)}, ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight"]),
     ].join(" | ");
   })()`);
-  check("file and project title bars share size, divider and type",
+  check("file and project title bars share size and type",
     await look(window, ".file-mode-window__titlebar", ".file-mode-window__name"),
     await look(project, ".desktop-titlebar", ".desktop-titlebar-workspace-name"));
   check("project windows keep their full access", await evaluate(project, `window.puppyoneDesktop.listFolderChildren({ rootPath: ${JSON.stringify(docs)}, folderPath: null }).then((children) => children.length > 0)`));

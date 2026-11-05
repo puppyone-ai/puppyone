@@ -107,6 +107,24 @@ async function mount() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve)); });
 }
 
+/** A tall scroller whose top sits `top` pixels below the document's. */
+function scrollerAt(parent: Element, top: number) {
+  const element = document.createElement("div");
+  Object.defineProperties(element, {
+    scrollHeight: { value: 2000 },
+    clientHeight: { value: 600 },
+    scrollTop: { value: 0, writable: true },
+  });
+  element.getBoundingClientRect = () => ({ top } as DOMRect);
+  parent.append(element);
+  return element;
+}
+
+function scroll(element: HTMLElement, top: number) {
+  element.scrollTop = top;
+  element.dispatchEvent(new Event("scroll"));
+}
+
 describe("FileModeApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -205,6 +223,29 @@ describe("FileModeApp", () => {
     expect(document.querySelector(".desktop-editor-pane-menu-close-action")).toBeNull();
     act(() => item?.click());
     expect(setChecked).toHaveBeenCalledWith(false);
+  });
+
+  it("fades the document under the title bar only once it has left its top", async () => {
+    await mount();
+    const surface = container.querySelector<HTMLElement>(".file-mode-window__document")!;
+    const scroller = scrollerAt(container.querySelector('[data-testid="preview"]')!, 0);
+    const codeBlock = scrollerAt(scroller, 300);
+
+    scroll(scroller, 40);
+    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    // A block scrolling inside the page does not decide the edge.
+    scroll(codeBlock, 0);
+    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    scroll(scroller, 0);
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
+
+    // A view switch replaces the scroller without scrolling.
+    scroll(scroller, 40);
+    await act(async () => {
+      scroller.remove();
+      await new Promise((resolve) => setTimeout(resolve));
+    });
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
   });
 
   it("sends links to the browser without offering neighbouring files", async () => {

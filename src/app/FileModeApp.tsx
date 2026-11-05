@@ -58,6 +58,8 @@ export function FileModeApp() {
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [failed, setFailed] = useState(false);
   const [menuContribution, setMenuContribution] = useState<EditorPaneMenuContribution | null>(null);
+  const documentRef = useRef<HTMLElement>(null);
+  useScrolledUnderTitlebar(documentRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +89,7 @@ export function FileModeApp() {
           <span className="file-mode-window__name" dir="auto">{opened?.target.name}</span>
           <FileControls name={opened?.target.name ?? null} contribution={menuContribution} />
         </header>
-        <main className="file-mode-window__document">
+        <main ref={documentRef} className="file-mode-window__document">
           {failed && <FileUnavailable />}
           {opened?.target.tooLarge && <FileUnavailable sizeLimit={opened.target.sizeLimit} />}
           {opened?.node && (
@@ -181,6 +183,44 @@ function FileSettingsMenu({ buttonRef, label, name, settings, open, onToggle, on
       />
     </>
   );
+}
+
+/**
+ * Marks the document while its text is scrolled up under the title bar, which
+ * then fades that text out instead of drawing a divider. Only the scroller that
+ * starts right under the bar counts, not a code block or table scrolling inside
+ * the page. A view switch can replace it without a scroll event.
+ */
+function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
+  useEffect(() => {
+    const surface = documentRef.current;
+    if (!surface) return undefined;
+    let scroller: Element | null = null;
+    const update = () => {
+      surface.toggleAttribute("data-scrolled", !!scroller?.isConnected && scroller.scrollTop > 0);
+    };
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target !== scroller) {
+        if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return;
+        if (Math.abs(target.getBoundingClientRect().top - surface.getBoundingClientRect().top) > 1) return;
+        scroller = target;
+      }
+      update();
+    };
+    const replaced = new MutationObserver(() => {
+      if (scroller && !scroller.isConnected) {
+        scroller = null;
+        update();
+      }
+    });
+    surface.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    replaced.observe(surface, { childList: true, subtree: true });
+    return () => {
+      surface.removeEventListener("scroll", onScroll, { capture: true });
+      replaced.disconnect();
+    };
+  }, [documentRef]);
 }
 
 /** The theme boundary a project window has, so sub-themes reach this window too. */
