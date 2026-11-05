@@ -16,11 +16,16 @@ async function setup() {
   const folderPath = path.join(root, "Notes");
   await fs.mkdir(folderPath);
   let loseReply = true;
+  let loseRemoval = true;
   const requests = [];
   const auth = {
     readSession: async () => ({ user_id: accountId, api_base_url: apiBase, session_generation: "one" }),
     async requestSessionApi(base, route, options) {
       requests.push({ base, route, options });
+      if (options.method === "DELETE") {
+        if (loseRemoval) { loseRemoval = false; throw new Error("lost removal reply"); }
+        return { removed: true };
+      }
       if (loseReply) { loseReply = false; throw new Error("lost response"); }
       return { folder_id: JSON.parse(options.body).folder_id };
     },
@@ -42,6 +47,16 @@ describe("host folder registry", () => {
     });
     expect(await registry.resolve(result.folderId, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", deviceId)).toBeNull();
     expect(await registry.resolve(result.folderId, accountId, "dddddddd-dddd-4ddd-8ddd-dddddddddddd")).toBeNull();
+  });
+
+  it("denies locally before deletion and retries a lost revocation reply", async () => {
+    const { registry, folderPath, requests } = await setup();
+    await expect(registry.register({ deviceId, rootPath: folderPath, name: "Notes" })).rejects.toThrow();
+    const { folderId } = await registry.register({ deviceId, rootPath: folderPath, name: "Notes" });
+    await expect(registry.remove(deviceId, folderId)).rejects.toThrow("lost removal reply");
+    expect(await registry.resolve(folderId, accountId, deviceId)).toBeNull();
+    expect(await registry.remove(deviceId, folderId)).toBe(true);
+    expect(requests.filter(item => item.options.method === "DELETE")).toHaveLength(2);
   });
 
   it("rejects a symlink root and changed registration settings", async () => {

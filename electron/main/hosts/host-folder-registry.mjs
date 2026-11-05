@@ -99,10 +99,13 @@ export function createHostFolderRegistry({ filePath, auth, apiBase }) {
       const current = await session();
       const rows = await load();
       const row = rows.find((item) => item.deployment === deployment && item.accountId === current.user_id &&
-        item.deviceId === deviceId && item.folderId === folderId && item.state === "active");
+        item.deviceId === deviceId && item.folderId === folderId);
       if (!row) return false;
-      row.state = "removed";
-      await save(rows); // Deny locally before asking the backend to revoke.
+      if (row.state !== "removed") {
+        row.state = "removed";
+        await save(rows); // Deny locally before asking the backend to revoke.
+      }
+      // A lost DELETE reply must remain retryable even after local denial.
       await auth.requestSessionApi(deployment, `/hosts/devices/${deviceId}/folders/${folderId}`, { method: "DELETE" },
         { userId: current.user_id, generation: current.session_generation });
       return true;
