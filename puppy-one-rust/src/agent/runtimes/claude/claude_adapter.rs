@@ -7,7 +7,7 @@ use crate::{
         },
         persistence::legacy_session_catalog::Catalog,
         runtime::legacy_runtime_port::AgentRuntimePort,
-        transports::jsonl_rpc_connection::{Connection, Event},
+        transports::legacy_jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,
 };

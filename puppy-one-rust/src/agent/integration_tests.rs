@@ -24,7 +24,7 @@ fn live_installed_runtime_handshakes() {
                 // Protocol verification uses a disposable config. The installed user profile has
                 // an unrelated plugin bootstrap failure; production continues to honor that profile.
                 let connection =
-                    super::transports::jsonl_rpc_connection::Connection::spawn_with_env(
+                    super::transports::legacy_jsonl_rpc_connection::Connection::spawn_with_env(
                         installation.executable.clone(),
                         vec!["acp".into(), format!("--cwd={}", root.display())],
                         root.clone(),

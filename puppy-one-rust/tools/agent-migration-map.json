@@ -99,13 +99,18 @@
       "status": "partial",
       "sources": [
         "electron/main/agent/transports/jsonl-rpc-connection.mjs",
-        "electron/main/agent/transports/managed-agent-process.mjs"
+        "electron/main/agent/transports/managed-agent-process.mjs",
+        "electron/main/agent/transports/jsonl-stream.mjs",
+        "electron/main/agent/transports/native-request-ledger.mjs"
       ],
       "targets": [
         "src/agent/transports/jsonl_rpc_connection.rs",
-        "src/platform/process.rs"
+        "src/agent/transports/managed_agent_process.rs",
+        "src/agent/transports/jsonl_stream.rs",
+        "src/agent/transports/native_request_ledger.rs",
+        "src/agent/transports/tests.rs"
       ],
-      "remaining": "Input/output/frame and aggregate queue limits, bounded redacted stderr, correlated receipts, timed controls and process-group cleanup exist. External crash supervisor and full durable request/replay ledger remain pending."
+      "remaining": "Ported 1:1 with an injectable spawner and the product transport tests. The Codex/ACP/Pi adapters still use legacy_jsonl_rpc_connection.rs until they move onto the new runtime port."
     },
     {
       "name": "Native installation inventory",

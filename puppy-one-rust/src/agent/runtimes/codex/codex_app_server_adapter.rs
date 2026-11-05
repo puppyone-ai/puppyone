@@ -4,7 +4,7 @@ use crate::{
     agent::{
         domain::legacy_session_model::*,
         runtime::legacy_runtime_port::AgentRuntimePort,
-        transports::jsonl_rpc_connection::{Connection, Event},
+        transports::legacy_jsonl_rpc_connection::{Connection, Event},
     },
     wake::Wake,
 };
