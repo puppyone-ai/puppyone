@@ -25,6 +25,8 @@ export type DocumentWorkspaceReference = Readonly<{
   raw: string;
   label: string;
   target: string;
+  /** Fragment after the first `#`, kept verbatim. */
+  anchor: string | null;
   status: DocumentWorkspaceReferenceStatus;
   path: string | null;
   candidatePaths: readonly string[];
@@ -62,6 +64,9 @@ export type DocumentNavigationOptions = Readonly<{
     target: string,
   ) => WorkspaceDocumentReferenceResolution | null;
   openWorkspaceCandidates?: (paths: readonly string[]) => void | Promise<void>;
+  /** Preferred when the reference names a heading; falls back to the plain
+   * opener when the host cannot reveal positions. */
+  openWorkspaceCandidateAt?: (path: string, anchor: string) => void | Promise<void>;
   openExternalUrl?: (href: string) => void | Promise<void>;
 }>;
 
@@ -105,9 +110,11 @@ export function createDocumentNavigationPort(
       if ("reason" in intent) return admit(intent);
       if ("href" in intent) return admit({ kind: "external", ...intent });
 
+      const [target, anchorText] = splitFragment(intent.target);
+      const anchor = anchorText === "" ? null : anchorText;
       const resolution = options.resolveWorkspaceReference?.(
         sourcePath,
-        intent.target,
+        target,
       ) ?? null;
       const candidatePaths = uniquePaths([
         ...(resolution?.path ? [resolution.path] : []),
@@ -116,6 +123,8 @@ export function createDocumentNavigationPort(
       return admit({
         kind: "workspace",
         ...intent,
+        target,
+        anchor,
         status: resolution?.ambiguous
           ? "ambiguous"
           : resolution?.exists && resolution.path
@@ -132,6 +141,9 @@ export function createDocumentNavigationPort(
         return options.openExternalUrl?.(reference.href);
       }
       if (reference.kind !== "workspace") return;
+      if (reference.anchor && reference.path && options.openWorkspaceCandidateAt) {
+        return options.openWorkspaceCandidateAt(reference.path, reference.anchor);
+      }
       const candidates = uniquePaths([
         ...(reference.path ? [reference.path] : []),
         ...reference.candidatePaths,
@@ -185,6 +197,11 @@ export function parseDocumentReferenceIntent(rawValue: string): ParsedReferenceI
   }
 
   return null;
+}
+
+function splitFragment(value: string): [target: string, anchor: string] {
+  const index = value.indexOf("#");
+  return index === -1 ? [value, ""] : [value.slice(0, index), value.slice(index + 1)];
 }
 
 function classifyTarget(

@@ -126,8 +126,10 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   const navigation = documentNavigation ?? null;
   const openDocument = useCallback((intent: { target: string; anchor: string | null }) => {
     if (!navigation || !document.path) return;
-    // The reference parser only accepts explicit relative paths.
-    const raw = intent.target.startsWith(".") ? intent.target : `./${intent.target}`;
+    // The reference parser only accepts explicit relative paths, and it splits
+    // the fragment itself so the heading survives as `reference.anchor`.
+    const path = intent.target.startsWith(".") ? intent.target : `./${intent.target}`;
+    const raw = intent.anchor ? `${path}#${intent.anchor}` : path;
     const reference = navigation.resolveReference(document.path, raw);
     if (!reference || !navigation.canOpenReference(reference)) return;
     void navigation.openReference(reference);

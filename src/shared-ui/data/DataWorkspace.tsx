@@ -41,6 +41,7 @@ import {
 } from "../editor/markdown/linkIndex";
 import { createDataPortMarkdownAssetResolver } from "../editor/markdown/dataPortAssetResolver";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
+import { requestDocumentAnchorReveal } from "../editor/navigation/documentAnchorReveal";
 import {
   ExplorerTree,
   type ExplorerListEndPlacement,
@@ -990,6 +991,11 @@ export function DataWorkspace({
     },
     openWorkspaceCandidates(paths) {
       return openMarkdownLinkCandidatesCommand(paths);
+    },
+    openWorkspaceCandidateAt(path, anchor) {
+      // The Markdown editor that mounts for `path` consumes this request.
+      requestDocumentAnchorReveal(path, anchor);
+      return openMarkdownLinkCandidatesCommand([path]);
     },
     openExternalUrl: canOpenExternalDocumentReference
       ? (href) => openExternalMarkdownUrlCommand(href)

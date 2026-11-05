@@ -17,7 +17,18 @@ import {
 import { markdownLivePreviewContextExtension } from "./core/editor/markdownLivePreviewContext";
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./addons/block-drag";
-import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
+import {
+  findOutlineHeadingIndexForAnchor,
+  markdownHeadingOutlineExtension,
+  scrollMarkdownViewToHeading,
+} from "./core/interaction/markdownHeadingOutline";
+import {
+  clearDocumentAnchorReveal,
+  consumeDocumentAnchorReveal,
+  subscribeDocumentAnchorReveal,
+  type DocumentAnchorRevealRequest,
+} from "../navigation/documentAnchorReveal";
+import { collectOutlineHeadings } from "./core/interaction/markdownOutlineState";
 import {
   createMarkdownOutlineStateTracker,
   type MarkdownOutlineSnapshot,
@@ -400,6 +411,25 @@ export function MarkdownCodeMirrorEditor({
   useLayoutEffect(() => {
     viewRef.current?.dispatch({ effects: taskOwnerCompartment.current.reconfigure(markdownTaskOwner.of(taskOwner)) });
   }, [taskOwner]);
+
+  // A deep link may ask for a heading after the document opens. The request is
+  // one-shot and only the document it names consumes it.
+  useEffect(() => {
+    if (!documentPath) return undefined;
+    const reveal = (request: DocumentAnchorRevealRequest) => {
+      if (request.path !== documentPath) return;
+      const view = viewRef.current;
+      clearDocumentAnchorReveal(request.id);
+      if (!view) return;
+      const headings = collectOutlineHeadings(view.state);
+      const index = findOutlineHeadingIndexForAnchor(headings, request.anchor);
+      const heading = headings[index];
+      if (heading) scrollMarkdownViewToHeading(view, heading);
+    };
+    const pending = consumeDocumentAnchorReveal();
+    if (pending) reveal(pending);
+    return subscribeDocumentAnchorReveal(reveal);
+  }, [documentPath]);
 
   useEffect(() => {
     const view = viewRef.current;

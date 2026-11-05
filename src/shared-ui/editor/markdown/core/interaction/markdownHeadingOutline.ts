@@ -580,3 +580,33 @@ function headingTickTop(
   const spacing = (railHeight - RAIL_TICK_TARGET_PX) / (headingCount - 1);
   return RAIL_TICK_TARGET_PX / 2 + spacing * index;
 }
+
+/**
+ * Finds the heading a fragment identifies. Markdown headings carry no ids, so
+ * the authored text is the target: whitespace is normalized and a
+ * percent-encoded fragment is decoded first.
+ */
+export function findOutlineHeadingIndexForAnchor(
+  headings: readonly MarkdownOutlineHeading[],
+  anchor: string,
+): number {
+  const target = normalizeHeadingText(anchor);
+  if (!target) return -1;
+  for (const [index, heading] of headings.entries()) {
+    if (normalizeHeadingText(heading.plainTitle) === target) return index;
+  }
+  for (const [index, heading] of headings.entries()) {
+    if (normalizeHeadingText(heading.title) === target) return index;
+  }
+  return -1;
+}
+
+function normalizeHeadingText(value: string): string {
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    // A malformed escape is ordinary text, not a fragment.
+  }
+  return decoded.replace(/\s+/gu, " ").trim();
+}
