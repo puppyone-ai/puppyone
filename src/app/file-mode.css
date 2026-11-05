@@ -1,5 +1,6 @@
 @layer features {
   .file-mode-window {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -12,8 +13,9 @@
 
   /*
    * The project titlebar's geometry and type (styles/titlebar.css), so both
-   * windows read as one app, without its own fill or divider: the document
-   * fades out under it instead. Header text uses the muted ink. Overlay chrome
+   * windows read as one app, but no bar of its own: it floats over the
+   * document's top with no fill or divider, and the document scrolls on under
+   * it to the window's edge. Header text uses the muted ink. Overlay chrome
    * draws the native window controls over this row.
    */
   .file-mode-window__titlebar {
@@ -25,8 +27,10 @@
       var(--file-mode-titlebar-safe-start),
       calc(var(--file-mode-titlebar-safe-end) + var(--file-mode-titlebar-controls-room))
     );
-    position: relative;
-    flex: none;
+    position: absolute;
+    z-index: 1;
+    inset-block-start: 0;
+    inset-inline: 0;
     display: grid;
     /* Equal sides keep the name in the middle of the window, clear of the window's controls and the file's. */
     grid-template-columns:
@@ -145,16 +149,27 @@
     stroke-width: 1.85;
   }
 
+  /* A notice sits where the document would start, below the title bar's row. */
   .file-mode-window__notice {
     flex: none;
     margin: 0;
+    margin-block-start: var(--desktop-chrome-height);
     padding: 8px 16px;
     color: var(--po-text-muted);
     font-size: var(--po-type-header-content);
     line-height: var(--po-type-header-line-height);
   }
 
+  /*
+   * The document fills the window from its top edge. Editors keep the title
+   * bar's row as room above their content (--po-editor-chrome-inset-block-start),
+   * so at rest nothing sits under it; scrolled, content passes beneath it.
+   * Its own stacking context keeps everything in it under the bar.
+   */
   .file-mode-window__document {
+    --po-editor-chrome-inset-block-start: var(--desktop-chrome-height);
+    position: relative;
+    z-index: 0;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -163,16 +178,22 @@
     transition: --file-mode-scroll-fade 0.16s ease-out;
   }
 
+  /* Below a notice the document already starts clear of the bar. */
+  .file-mode-window__document:has(> .file-mode-window__notice) {
+    --po-editor-chrome-inset-block-start: 0px;
+  }
+
   /*
-   * Text scrolled up under the title bar fades into the window instead of
-   * meeting a line. Nothing fades at the top of the document, where the first
-   * row (a table's header, a page's banner) has to stay whole, nor under a
-   * table's pinned header row, which is already the edge and holds the column
-   * names. The fade runs the full width: a page with its own background (HTML)
-   * would otherwise show a hard notch above its scrollbar.
+   * Content scrolled up to the window's edge fades out across the title bar's
+   * row instead of meeting a line, so the name and window controls stay clear.
+   * Nothing fades at the top of the document, where the first row (a table's
+   * header, a page's banner) has to stay whole, nor around a table's pinned
+   * header row, which is already the edge and holds the column names, nor
+   * for a page in a frame (HTML): it has its own background, and fading it
+   * into the window's would draw a band. The fade runs the full width.
    */
-  .file-mode-window__document[data-scrolled]:not(:has(.csv-table-editor__table > thead)) {
-    --file-mode-scroll-fade: 24px;
+  .file-mode-window__document[data-scrolled]:not([data-scrolled="frame"], :has(.csv-table-editor__table > thead)) {
+    --file-mode-scroll-fade: var(--desktop-chrome-height);
     mask-image: linear-gradient(
       to bottom,
       transparent,

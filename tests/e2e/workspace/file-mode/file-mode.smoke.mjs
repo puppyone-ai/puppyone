@@ -456,8 +456,9 @@ async function htmlEdges() {
     check(`${view}: leaving the page hides the title bar controls`, await controlsShowWithPagePointerAt(page, frame, null), false);
     check(`${view}: nothing fades at the top of the page`, await scrollEdgeOf(page), { scrolled: false, masked: false });
     await frame.executeJavaScript(`scrollTo(0, 430)`);
-    await until(async () => (await scrollEdgeOf(page)).masked, `the ${view} edge to fade`);
-    check(`${view}: a page scrolled under the title bar fades out`, await scrollEdgeOf(page), { scrolled: true, masked: true });
+    await until(async () => (await scrollEdgeOf(page)).scrolled, `the ${view} page to scroll under the title bar`);
+    // The page keeps its own background to the window's edge; a fade into the window's would draw a band.
+    check(`${view}: a page scrolls on under the title bar without fading into the window`, await scrollEdgeOf(page), { scrolled: true, masked: false });
     await wait(250);
     await screenshot(page, `html-${view.replace(" ", "-")}-scrolled`);
     await frame.executeJavaScript(`scrollTo(0, 0)`);

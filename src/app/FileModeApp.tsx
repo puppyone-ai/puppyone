@@ -202,7 +202,9 @@ function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
     let reportedTop: number | null = null;
     const update = () => {
       const top = reportedTop ?? scroller?.scrollTop ?? 0;
-      surface.toggleAttribute("data-scrolled", !!scroller?.isConnected && top > 0);
+      if (!scroller?.isConnected || top <= 0) delete surface.dataset.scrolled;
+      // A page in a frame has its own background, which a fade into the window's would not match.
+      else surface.dataset.scrolled = reportedTop === null ? "" : "frame";
     };
     const startsUnderTitlebar = (target: Element) =>
       Math.abs(target.getBoundingClientRect().top - surface.getBoundingClientRect().top) <= 1;

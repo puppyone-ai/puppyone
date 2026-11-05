@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject, type RefObject } from "react";
-import { relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
+import { readEmbeddedChromeInset, relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
 
 export type HtmlPageViewport = MutableRefObject<{ x: number; y: number }>;
 
@@ -34,7 +34,11 @@ export function useHtmlPageViewport({ frame, viewportState, channel, enabled, wa
     // The initial about:blank load is not the projected page becoming ready.
     if (waiting) return;
     onFrameLoad();
-    if (enabled && viewportState) frame.current?.contentWindow?.postMessage({
+    if (!enabled) return;
+    // Before the page shows: room for chrome the host draws over its top.
+    const inset = readEmbeddedChromeInset(frame.current);
+    if (inset) frame.current?.contentWindow?.postMessage({ type: "puppyone-html-inset", channel, top: inset }, "*");
+    if (viewportState) frame.current?.contentWindow?.postMessage({
       type: "puppyone-html-restore", channel, ...viewportState.current,
     }, "*");
   };
@@ -69,6 +73,8 @@ addEventListener('pointermove',event=>{pointer=[event.clientX,event.clientY];if(
 requestAnimationFrame(()=>{pointerQueued=false;if(pointer)parent.postMessage({type:'puppyone-html-pointer',channel,x:pointer[0],y:pointer[1]},'*')})},{capture:true,passive:true});
 document.addEventListener('pointerout',event=>{if(event.relatedTarget)return;pointer=null;
 parent.postMessage({type:'puppyone-html-pointer',channel,left:true},'*')},{capture:true,passive:true});
-addEventListener('message',event=>{if(event.source!==parent||event.data?.type!=='puppyone-html-restore'||event.data.channel!==channel)return;
+addEventListener('message',event=>{if(event.source!==parent||event.data?.channel!==channel)return;
+if(event.data.type==='puppyone-html-inset'){const top=event.data.top;if(Number.isFinite(top)&&top>0&&top<=400)document.documentElement.style.setProperty('padding-top',top+'px','important');return}
+if(event.data.type!=='puppyone-html-restore')return;
 const {x,y}=event.data;if(Number.isFinite(x)&&Number.isFinite(y))scrollTo(x,y)})})();</script>`;
 }

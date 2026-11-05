@@ -114,6 +114,11 @@ export const HTML_FRAME_BRIDGE = String.raw`
       if (data.type === 'active' && nodes.has(data.id)) { active = data.id; selected = active; measure(); return; }
       if (data.type === 'clear') { selected = null; active = null; setTyping(null); return; }
       if (data.type === 'enabled') { enabled = data.value === true; return; }
+      if (data.type === 'inset') {
+        // Room for chrome the host draws over the page's top.
+        if (Number.isFinite(data.value) && data.value > 0 && data.value <= 400) document.documentElement.style.setProperty('padding-top', data.value + 'px', 'important');
+        schedule(); return;
+      }
       if (data.type === 'base') {
         let base = document.querySelector('base');
         if (!data.value) { base?.remove(); return; }

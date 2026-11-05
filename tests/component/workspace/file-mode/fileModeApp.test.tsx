@@ -236,7 +236,8 @@ describe("FileModeApp", () => {
 
     // The page scrolls inside its frame; only its viewer's report says so.
     relay(EMBEDDED_SCROLL_EVENT, { top: 300 });
-    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    // Marked as a frame's: the page keeps its own background instead of fading into the window's.
+    expect(surface.dataset.scrolled).toBe("frame");
     relay(EMBEDDED_SCROLL_EVENT, { top: 0 });
     expect(surface.hasAttribute("data-scrolled")).toBe(false);
 

@@ -32,3 +32,14 @@ export function relayEmbeddedPointer(
     detail: point && bounds ? { clientX: bounds.left + point.x, clientY: bounds.top + point.y } : null,
   }));
 }
+
+/**
+ * How much of the document's top a host covers with its own chrome, from
+ * --po-editor-chrome-inset-block-start where the frame sits. A page in a frame
+ * cannot read the host's styles, so its viewer passes this on.
+ */
+export function readEmbeddedChromeInset(frame: Element | null | undefined): number {
+  if (!frame) return 0;
+  const inset = Number.parseFloat(getComputedStyle(frame).getPropertyValue("--po-editor-chrome-inset-block-start"));
+  return Number.isFinite(inset) && inset > 0 ? Math.min(inset, 400) : 0;
+}

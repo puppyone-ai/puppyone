@@ -23,7 +23,7 @@ import { imageSourceReference } from "./htmlImageReference";
 import { useHtmlEditPresence } from "./useHtmlEditPresence";
 import { HtmlBlockActionRail, type HtmlActionBounds } from "./HtmlBlockActionRail";
 import type { HtmlPageViewport } from "./htmlPageViewport";
-import { relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
+import { readEmbeddedChromeInset, relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
 
 export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewportState, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
@@ -211,6 +211,8 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
         if (acknowledged || new Set(message.ids).size !== session.index.targets.size
           || message.ids.length !== session.index.targets.size || message.ids.some((id) => !session.index.targets.has(id))) return;
         acknowledged = true; if (bridgeTimeout.current) clearTimeout(bridgeTimeout.current); setReady(true);
+        const inset = readEmbeddedChromeInset(frame.current);
+        if (inset) channel.port1.postMessage({ type: "inset", value: inset });
         channel.port1.postMessage({ type: "restore-scroll", ...scroll.current });
         channel.port1.postMessage({ type: "enabled", value: enabled.current });
         channel.port1.postMessage({ type: "base", value: resolveHtmlBase(resourceUrl.current, session.index.baseHref) });
