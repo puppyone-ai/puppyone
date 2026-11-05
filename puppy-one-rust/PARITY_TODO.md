@@ -155,6 +155,21 @@
 - 像素（新套件 `tools/file-scenarios.json`，参考为真实 `FileModeApp`）：md 99.42、视图菜单 99.36、已编辑 99.33、旧编码 99.52、csv 99.99、csv 菜单 99.87、加载 99.97、打不开 99.95、超大 99.95；剩下的差异是文字抗锯齿。editor 套件 md 从 99.37 升到 99.53，csv 99.99。
 - 未改：菜单栏本身和产品不完全一样（多 Open Folder / Reload / Close File，Help 菜单是反馈而不是系统帮助菜单，没有 Edit / View 角色菜单的全部项目）；这影响所有窗口，留作下一批。
 
+### 0.8 2026-11-05 Shell 拆分与菜单栏
+
+- [x] `Shell` 从 62 个字段降到 30 个，状态按产品的 store / hook 分组，每组一个模块：
+  - `right_sidebar::RightSidebar`：右侧栏显示什么（Agent / Git / 托管项目的 History）、三个常驻视图、Header 入口的判断、存取 `rightSidebarSurface`、History 的作用域守卫（`useGitPresentation`、`handleToggleAgentWorkbench`、`useCloudWorkspaceSidebar`）。开没开、多宽仍归 `panes`（`rightSidebarOpen` / 宽度），每个入口只回答“该不该开”。
+  - `window_project::WindowProject`：窗口显示的项目及来历（名称、托管项目与账号、启动恢复、先打开的文档、进入次数、工作区提示，`WindowWorkspaceState` / `useWorkspaceSession`）。
+  - `window_cloud::WindowCloud`：目录、关联与首次发布、托管项目里的 Agents、Share 卡片、收起的提示。
+  - `editor_area::EditorArea`：编辑器宿主、拖放预览、分屏缩放、标签焦点、保存提示；文档本身仍是工作台运行时（`Shell::files`）。
+  - `home::Homepage`：首页是否显示、列出的最近项目和滚动位置并入首页自己的状态。
+- 没拆：单文件窗口仍和项目窗口共用 `Shell` 这个根视图。产品的 `FileModeApp` 是单独的根组件，但这里文档管线（运行时、编辑器宿主、receive / sync 循环、关闭协议）都在 `Shell` 上，单独成根要先把这条管线做成独立 entity，留作下一步。
+- [x] 菜单栏和快捷键按产品：
+  - 菜单是 `createApplicationMenuTemplate`：应用、File（New Window / Manage Executions / Close Window）、Edit、View、Theme、Window、Help。产品自己的命令走本地化，Electron 角色项保留 Electron 的英文标签。About 改为系统的 About 面板。View 只保留 Toggle Full Screen，重新加载、开发者工具、页面缩放只对网页有意义。
+  - `⌘W` 先关当前编辑器，没有编辑器时关窗口（对话框不拦）；单文件窗口里 `⌘W` 和关窗口一样，有未保存的编辑时先询问。`⌃Tab` / `⌃⇧Tab` 在标签间切换。`⌘/` 和 `⇧⌘M` 切换 Markdown 实时预览与源码。
+  - 去掉产品没有的：`⌘B` / `⌘J` / `⌘O`、File → Open Folder / Reload from Disk / Close File、Format 菜单、View → Toggle Markdown Source、Help → Feedback、窗口内的 About 对话框。
+- [x] `a_project_that_cannot_open_reports_why_and_retries` 不再在负载下偶发失败（重试后的状态读取和再次失败存在竞争）。
+
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
