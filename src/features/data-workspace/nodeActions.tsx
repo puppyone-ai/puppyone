@@ -444,6 +444,7 @@ export function DesktopNodeActionMenu({
   onCreateInside,
   onRename,
   onDelete,
+  deleteShortcut,
   onOpenInDefaultApp,
   onRevealInFinder,
   onShare,
@@ -469,6 +470,8 @@ export function DesktopNodeActionMenu({
   onCreateInside: () => void;
   onRename: () => void;
   onDelete: () => void;
+  /** Platform delete chord, only when the host actually enables it. */
+  deleteShortcut?: string;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
   /** Experimental Share onboarding: offered for a single folder only. */
@@ -506,6 +509,7 @@ export function DesktopNodeActionMenu({
         onDuplicate={onDuplicate}
         onCreateInside={onCreateInside}
         onDelete={onDelete}
+        deleteShortcut={deleteShortcut}
         onOpenInDefaultApp={onOpenInDefaultApp}
         onRevealInFinder={onRevealInFinder}
         onShare={onShare}
@@ -533,6 +537,7 @@ function DesktopNodeActionPopover({
   onDuplicate,
   onCreateInside,
   onDelete,
+  deleteShortcut,
   onOpenInDefaultApp,
   onRevealInFinder,
   onShare,
@@ -556,6 +561,7 @@ function DesktopNodeActionPopover({
   onDuplicate: () => void;
   onCreateInside: () => void;
   onDelete: () => void;
+  deleteShortcut?: string;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
   /** Experimental Share onboarding: offered for a single folder only. */
@@ -738,6 +744,7 @@ function DesktopNodeActionPopover({
         label={draft.operation === "delete"
           ? t("workspace.node.deleting")
           : t("workspace.node.deleteItems", { count: actionCount })}
+        shortcut={deleteShortcut}
         destructive
         disabled={draft.operation !== null}
         onClick={onDelete}
