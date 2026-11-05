@@ -885,9 +885,12 @@
       "targets": [
         "src/agent/ipc/agent_ipc.rs",
         "src/agent/ipc/mod.rs",
-        "src/agent/ipc/tests.rs"
+        "src/agent/ipc/tests.rs",
+        "src/agent/host/agent_host.rs",
+        "src/agent/host/mod.rs",
+        "src/agent/host/tests.rs"
       ],
-      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the GPUI client still talks to the legacy runtimes until the host switches to AgentService."
+      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
     }
   ]
 }

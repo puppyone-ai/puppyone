@@ -12,7 +12,7 @@ pub mod processes;
 pub mod runtime_resolution;
 pub mod session;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 #[cfg(test)]
 pub mod tests_support;
 pub mod turn;

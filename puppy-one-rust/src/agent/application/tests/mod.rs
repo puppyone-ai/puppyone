@@ -1,4 +1,4 @@
 //! The product's AgentService tests, over the same harness.
 mod control;
-mod harness;
+pub(crate) mod harness;
 mod service;

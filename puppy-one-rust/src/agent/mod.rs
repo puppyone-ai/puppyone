@@ -18,6 +18,8 @@ pub mod contract;
 pub mod domain;
 #[allow(dead_code)]
 pub mod event_loop;
+#[allow(dead_code)]
+pub mod host;
 pub mod infrastructure;
 #[cfg(test)]
 mod integration_tests;
