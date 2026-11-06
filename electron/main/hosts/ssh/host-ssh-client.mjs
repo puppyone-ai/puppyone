@@ -86,7 +86,7 @@ function tunnelReady(ws) {
 }
 
 /** The file protocol over one `puppyone-files` channel: JSON lines, numbered requests, watches. */
-function filesChannel(channel) {
+function filesChannel(channel, { read = READ_TIMEOUT_MS, write = WRITE_TIMEOUT_MS } = {}) {
   let nextId = 1;
   let buffered = Buffer.alloc(0);
   let closed = false;
@@ -142,7 +142,7 @@ function filesChannel(channel) {
         const timer = setTimeout(() => {
           pending.delete(id);
           reject(new HostSshError("device_timeout", { status: 504, outcomeUnknown: mutating }));
-        }, mutating ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS);
+        }, mutating ? write : read);
         pending.set(id, { resolve, reject, timer, mutating });
         send({ id, op: "request", request });
       });
@@ -153,7 +153,7 @@ function filesChannel(channel) {
       const id = nextId++;
       watches.set(id, { onEvent, ended });
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { pending.delete(id); reject(new HostSshError("device_timeout", { status: 504 })); }, READ_TIMEOUT_MS);
+        const timer = setTimeout(() => { pending.delete(id); reject(new HostSshError("device_timeout", { status: 504 })); }, read);
         pending.set(id, { resolve: () => resolve(() => { watches.delete(id); if (!closed) send({ id, op: "unwatch" }); }),
           reject: (error) => { watches.delete(id); reject(error); }, timer, mutating: false });
         send({ id, op: "watch" });
@@ -162,7 +162,7 @@ function filesChannel(channel) {
   });
 }
 
-export function createHostSshClient({ auth, apiBase, WebSocketImpl = globalThis.WebSocket, logger = console }) {
+export function createHostSshClient({ auth, apiBase, WebSocketImpl = globalThis.WebSocket, logger = console, timeouts = {} }) {
   const deployment = resolveCloudApiBaseUrl(apiBase);
   const connections = new Map();
 
@@ -210,7 +210,7 @@ export function createHostSshClient({ auth, apiBase, WebSocketImpl = globalThis.
       async files() {
         if (files?.isOpen()) return files;
         files = await new Promise((resolve, reject) => client.subsys(FILES_SUBSYSTEM, (error, channel) =>
-          error ? reject(new HostSshError("folder_unavailable")) : resolve(filesChannel(channel))));
+          error ? reject(new HostSshError("folder_unavailable")) : resolve(filesChannel(channel, timeouts))));
         return files;
       },
       /** A terminal (`launcher` "shell") or an Agent, with a pty. */

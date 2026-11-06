@@ -29,7 +29,7 @@ function requireSession(expectedSession) {
  * explicitly opened.
  */
 export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorizeWorkspaceRoot, dialog,
-  BrowserWindow, t, hostService = null, markWorkspaceShared = async () => {}, logger = console }) {
+  BrowserWindow, t, hostService = null, markWorkspaceShared = async () => {}, logger = console, hostAutostart = null }) {
   let recents = null;
   const recentFolders = () => {
     recents ??= createHostRecents({ filePath: path.join(app.getPath("userData"), "host-recent-folders.json") });
@@ -187,7 +187,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
   });
 
   // Start the host service at login, so shared folders come back after a restart.
-  let autostart = null;
+  let autostart = hostAutostart;
   const loginItem = () => {
     autostart ??= createHostAutostart({ execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged, app });
     return autostart;

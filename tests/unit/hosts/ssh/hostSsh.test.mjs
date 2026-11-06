@@ -72,7 +72,7 @@ function tunnelSocketTo(server, folder, refusal = null) {
 }
 
 describe("host SSH: certificate login, files, terminals and commands, end to end", () => {
-  let root, ca, hostKey, folders, server, sshOptions, terminalsSeen;
+  let root, ca, hostKey, folders, server, sshOptions, terminalsSeen, makeServer, tunnelsOpened;
 
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "host-ssh-")));
@@ -101,7 +101,7 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
       },
       enforce: async () => {},
     };
-    server = createHostSshServer({
+    makeServer = (overrides = {}) => createHostSshServer({
       hostKey: async () => openSshPrivateKey(hostKey),
       authorities: async () => [ed25519PublicBlob(ed25519Raw(ca).publicKey)],
       active: () => ({ accountId: account, deviceId }),
@@ -110,14 +110,16 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
       // The test runs the command itself; the sandbox wrapping is covered by the sandbox tests.
       spawn: (_file, args, options) => spawn("/bin/sh", ["-c", args.at(-1)], options),
       logger: { warn() {} },
+      ...overrides,
     });
+    server = makeServer();
     sshOptions = { tunnelFolder: folderId, refusal: null, hostKeyLine: `ssh-ed25519 ${ed25519PublicBlob(ed25519Raw(hostKey).publicKey).toString("base64")}`,
       certificate: (line) => issue(ca, line) };
   });
 
   afterEach(async () => { server.closeAll(); await fs.rm(root, { recursive: true, force: true }); });
 
-  function client() {
+  function client({ target = server, timeouts = {} } = {}) {
     const auth = {
       async requestSessionApi(_base, route, init) {
         if (route === "/hosts") return { devices: [{ id: deviceId, online: true, folders: [{ id: folderId }, { id: otherFolder }] }] };
@@ -129,11 +131,13 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
       },
       async openHostTunnelSocket(_base, url, _expected, WebSocketImpl) {
         expect(url).toMatch(/^wss:\/\/api\.puppyone\.ai\/api\/v1\/hosts\/folders\/[0-9a-f-]{36}\/tunnel$/);
+        tunnelsOpened = (tunnelsOpened ?? 0) + 1;
         return new WebSocketImpl(url);
       },
     };
-    const ssh = createHostSshClient({ auth, apiBase, logger: { warn() {} },
-      WebSocketImpl: tunnelSocketTo(server, sshOptions.tunnelFolder, sshOptions.refusal) });
+    tunnelsOpened = 0;
+    const ssh = createHostSshClient({ auth, apiBase, logger: { warn() {} }, timeouts,
+      WebSocketImpl: tunnelSocketTo(target, sshOptions.tunnelFolder, sshOptions.refusal) });
     return { ssh, files: createRemoteHostClient({ auth, apiBase, ssh, retryDelays: [] }), terminals: createRemoteExecClient({ auth, apiBase, ssh }) };
   }
 
@@ -261,6 +265,64 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
     await server.enforce(folderId);
     for (let i = 0; i < 50 && !connection.closed; i++) await new Promise((resolve) => setTimeout(resolve, 20));
     expect(connection.closed).toBe(true);
+  });
+  it("a read that gets no answer times out, and a write without an answer is reported as uncertain", async () => {
+    const silent = makeServer({ fileService: { run: () => new Promise(() => {}), watch: async () => () => {} } });
+    const { files, ssh } = client({ target: silent, timeouts: { read: 150, write: 250 } });
+    expect(await files.request(folderId, { action: "read", path: "note.md" }))
+      .toEqual({ ok: false, status: 504, code: "device_timeout", outcomeUnknown: false });
+    expect(await files.request(folderId, { action: "write", path: "note.md", content_base64: "eA==", expected_revision: null }))
+      .toEqual({ ok: false, status: 504, code: "device_timeout", outcomeUnknown: true });
+    ssh.closeAll();
+    silent.closeAll();
+  });
+
+  it("a connection that ends is replaced by a new one on the next request", async () => {
+    const { files, ssh } = client();
+    expect((await files.request(folderId, { action: "list", path: "" })).ok).toBe(true);
+    const first = await ssh.get(folderId);
+    server.closeAll();
+    for (let i = 0; i < 50 && !first.closed; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(first.closed).toBe(true);
+    expect((await files.request(folderId, { action: "list", path: "" })).ok).toBe(true);
+    expect(tunnelsOpened).toBe(2);
+    ssh.closeAll();
+  });
+
+  it("consent widened on this computer applies to the open connection once the host is told", async () => {
+    // Like the real registry: every lookup is a new object.
+    const state = { capabilities: ["folder.read", "folder.write"] };
+    const resolveFolder = async (id) => (id === folderId ? { rootPath: root, state: "active", capabilities: [...state.capabilities] } : null);
+    const host = makeServer({ resolveFolder, fileService: createHostFileService({ resolveFolder }) });
+    const { terminals, ssh } = client({ target: host });
+    const open = async (id) => {
+      const events = [];
+      await terminals.open({ id, folderId, kind: "shell", launcher: "shell", cols: 80, rows: 24 }, (event) => events.push(event));
+      return events[0];
+    };
+    expect(await open("t1")).toEqual({ type: "error", code: "not_allowed" });
+    state.capabilities.push("folder.shell");
+    // Not yet: the connection decides on its own view until enforce() refreshes it.
+    expect(await open("t2")).toEqual({ type: "error", code: "not_allowed" });
+    await host.enforce(folderId);
+    expect(await open("t3")).toEqual({ type: "started" });
+    ssh.closeAll();
+    host.closeAll();
+  });
+
+  it("a session that fails to start ends on its own and the host keeps serving", async () => {
+    folders.get(folderId).capabilities.push("folder.shell");
+    const broken = makeServer({ execService: { receive() { throw new Error("terminal service down"); }, enforce: async () => {} } });
+    const { terminals, files, ssh } = client({ target: broken });
+    const events = [];
+    await terminals.open({ id: "t1", folderId, kind: "shell", launcher: "shell", cols: 80, rows: 24 }, (event) => events.push(event));
+    for (let i = 0; i < 50 && !events.some((event) => ["exit", "closed"].includes(event.type)); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(events.at(-1)).toEqual({ type: "exit", status: 1 });
+    expect((await files.request(folderId, { action: "list", path: "" })).ok).toBe(true);
+    ssh.closeAll();
+    broken.closeAll();
   });
 });
 
