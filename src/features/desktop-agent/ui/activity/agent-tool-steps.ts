@@ -36,7 +36,7 @@ export const AGENT_TOOL_EXPLORATION_FOLD_MIN = 4;
 export const AGENT_TOOL_SETTLED_FOLD_MIN = 2;
 
 const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["queued", "running", "pending", "in-progress", "waiting-for-user"]);
-const FAILED_STATUSES = new Set<AgentActivityStatus>(["failed", "warning", "blocked", "waiting-for-user"]);
+const VISIBLE_STATUSES = new Set<AgentActivityStatus>(["failed", "warning", "blocked", "waiting-for-user"]);
 
 export function isActiveToolStatus(status: AgentActivityStatus) {
   return ACTIVE_STATUSES.has(status);
@@ -61,31 +61,30 @@ export function isExplorationStep(kind: AgentToolStepKind) {
 }
 
 /**
- * Splits one tool group into visible lines. Every settled, successful step is
- * folded once it stops being current: a finished run reads as one "Explored"
- * or "N steps done" line. Older unfinished tools share a Working disclosure; only the latest active
- * step stays visible. Failures and user waits always keep their own line.
+ * One disclosure per adjacent run, regardless of mixed active/settled states.
+ * The latest activity belongs in the summary, not in a separate row between
+ * two folds. Failures and user waits always keep their own line.
  * Folding is presentation only and never infers successful completion.
  */
 export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolStepSegment[] {
   const segments: AgentToolStepSegment[] = [];
-  const latestActive = parts.findLast(part => isAgentToolActivity(part) && ACTIVE_STATUSES.has(part.status));
   let run: AgentToolActivity[] = [];
   const flush = () => {
     if (run.length === 0) return;
+    const id = `tools:${run[0].id}`;
     if (run.some(part => ACTIVE_STATUSES.has(part.status))) {
-      segments.push({ type: "working", id: `working:${run[0].id}`, parts: run });
+      segments.push({ type: "working", id, parts: run });
     } else if (run.length >= AGENT_TOOL_EXPLORATION_FOLD_MIN && run.every(isExploration)) {
-      segments.push({ type: "explored", id: `explored:${run[0].id}`, parts: run, ...explorationCounts(run) });
-    } else if (run.length >= AGENT_TOOL_SETTLED_FOLD_MIN) {
-      segments.push({ type: "settled", id: `settled:${run[0].id}`, parts: run, steps: run.length });
+      segments.push({ type: "explored", id, parts: run, ...explorationCounts(run) });
+    } else if (run.length >= AGENT_TOOL_SETTLED_FOLD_MIN || agentActivityToolId(run[0]) === "tool") {
+      segments.push({ type: "settled", id, parts: run, steps: run.length });
     } else {
       for (const part of run) segments.push({ type: "step", id: part.id, part });
     }
     run = [];
   };
   for (const part of parts) {
-    if (isAgentToolActivity(part) && part !== latestActive && !FAILED_STATUSES.has(part.status)) {
+    if (isAgentToolActivity(part) && !VISIBLE_STATUSES.has(part.status)) {
       run.push(part);
       continue;
     }

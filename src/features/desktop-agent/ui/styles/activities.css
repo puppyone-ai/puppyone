@@ -129,6 +129,10 @@
 .desktop-agent-tool-row:hover:not(:disabled),
 .desktop-agent-tool-row:focus-visible { background: var(--agent-row-hover-surface); color: var(--agent-text); }
 .desktop-agent-tool-row:disabled { opacity: 1; }
+/* Summary hover follows the text instead of painting a full-width banner. */
+.desktop-agent-tool-fold-row { width: fit-content; max-width: 100%; }
+.desktop-agent-tool-live-summary { align-items: center; gap: 6px; }
+.desktop-agent-tool-live-verb { flex: 0 0 auto; }
 .desktop-agent-tool-icon {
   display: grid;
   width: var(--agent-tool-icon-size);

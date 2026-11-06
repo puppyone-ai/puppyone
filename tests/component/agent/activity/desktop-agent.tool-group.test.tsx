@@ -75,7 +75,7 @@ describe("Desktop Agent tool step lists", () => {
     expect(rows[2].estimatedHeight).toBe(34);
   });
 
-  it("folds every settled step and keeps running or failed work on its own line", () => {
+  it("groups ordinary work together and keeps failed work on its own line", () => {
     const explored = [
       toolPart("tool:read-a", "turn:fold", "tool", 1, "read", "src/a.ts", "a"),
       toolPart("tool:read-a-again", "turn:fold", "tool", 2, "read", "src/a.ts", "a"),
@@ -98,19 +98,18 @@ describe("Desktop Agent tool step lists", () => {
     expect(agentToolStepSegments(explored.slice(0, 2)).map((segment) => segment.type)).toEqual(["settled"]);
     expect(agentToolStepSegments(explored.slice(0, 1)).map((segment) => segment.type)).toEqual(["step"]);
 
-    // Running and failed work is never hidden inside a fold.
-    const running = { ...explored[2], status: "running" } as AgentPart;
-    const failed = { ...explored[3], status: "failed" } as AgentPart;
+    // Active work joins its adjacent history; failures remain visible.
+    const running = { ...explored[2], status: "running" } as unknown as AgentPart;
+    const failed = { ...explored[3], status: "failed" } as unknown as AgentPart;
     expect(agentToolStepSegments([explored[0], explored[1], running, failed, explored[4]])
-      .map((segment) => segment.type)).toEqual(["settled", "step", "step", "step"]);
+      .map((segment) => segment.type)).toEqual(["working", "step", "step"]);
   });
 
   it("bounds a stream of unfinished tools without pretending they succeeded", () => {
     const parts = Array.from({ length: 12 }, (_, i) => ({ ...toolPart(`tool:${i}`, "turn:live", "tool", i, "read", "file.md", ""), status: "running" }) as AgentPart);
     const segments = agentToolStepSegments(parts);
-    expect(segments.map(segment => segment.type)).toEqual(["working", "step"]);
-    expect(segments[0]).toMatchObject({ parts: parts.slice(0, -1) });
-    expect(segments[1]).toMatchObject({ part: parts.at(-1) });
+    expect(segments.map(segment => segment.type)).toEqual(["working"]);
+    expect(segments[0]).toMatchObject({ parts });
     expect(parts.every(part => "status" in part && part.status === "running")).toBe(true);
   });
 
@@ -121,10 +120,53 @@ describe("Desktop Agent tool step lists", () => {
     const container = render(<AgentToolActivityGroup parts={[...parts, waiting, failed]} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />);
     expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(2);
     const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
-    expect(fold.textContent).toBe("Working");
+    expect(fold.textContent).toContain("10 steps");
     expect(fold.getAttribute("aria-expanded")).toBe("false");
     act(() => fold.click());
     expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(12);
+  });
+
+  it("uses one neutral summary for mixed pending and finished tools without a standalone Tool row", () => {
+    const parts = [
+      { ...toolPart("old", "turn:live", "tool", 1, "read", "old.md", ""), status: "running" } as AgentPart,
+      { ...toolPart("opaque", "turn:live", "tool", 2, "tool", "", ""), status: "running" } as AgentPart,
+      toolPart("done-a", "turn:live", "tool", 3, "read", "a.md", "contents"),
+      toolPart("done-b", "turn:live", "tool", 4, "read", "b.md", "contents"),
+    ];
+    const container = render(<AgentToolActivityGroup parts={parts} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />);
+    expect(container.querySelectorAll(".desktop-agent-tool-row")).toHaveLength(1);
+    expect(container.textContent).toBe("4 steps");
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!.click());
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(4);
+  });
+
+  it("shows the latest concrete activity inline and preserves an open group as work continues", () => {
+    const done = toolPart("done", "turn:live", "tool", 1, "read", "old.md", "contents");
+    const current = { ...toolPart("current", "turn:live", "tool", 2, "read", "README.md", "contents"), status: "running" } as AgentPart;
+    const group = (parts: AgentPart[]) => <AgentToolActivityGroup parts={parts} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />;
+    const container = render(group([done, current]));
+    const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(container.querySelectorAll(".desktop-agent-tool-row")).toHaveLength(1);
+    expect(fold.textContent).toContain("2 steps");
+    expect(fold.textContent).toContain("Reading");
+    expect(fold.textContent).toContain("README.md");
+    act(() => fold.click());
+    const next = { ...toolPart("next", "turn:live", "tool", 3, "read", "next.md", "contents"), status: "running" } as AgentPart;
+    act(() => root!.render(withTestLocalization(group([done, { ...current, status: "completed" } as AgentPart, next]))));
+    expect(container.querySelector(".desktop-agent-tool-fold-body")).not.toBeNull();
+    expect(container.querySelector(".desktop-agent-tool-fold-row")?.textContent).toContain("next.md");
+  });
+
+  it("keeps a single unnamed tool folded after it finishes", () => {
+    const done = toolPart("opaque", "turn:live", "tool", 1, "tool", "", "result");
+    const group = (part: AgentPart) => <AgentToolActivityGroup parts={[part]} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />;
+    const container = render(group({ ...done, status: "running" } as AgentPart));
+    expect(container.textContent).toBe("1 step");
+    act(() => root!.render(withTestLocalization(group(done))));
+    expect(container.textContent).toBe("1 step done");
+    expect(container.querySelector(".desktop-agent-tool-group-item")).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!.click());
+    expect(container.querySelector(".desktop-agent-tool-group-item")).not.toBeNull();
   });
 
   it("automatically closes inspected work when the last tool finishes, then permits reopening", () => {
@@ -300,7 +342,7 @@ describe("Desktop Agent tool step lists", () => {
     expect(folded[0].querySelector(".desktop-agent-tool-branch")?.textContent).toContain("contents");
   });
 
-  it("collapses a finished mixed run to one settled line while the current step stays visible", () => {
+  it("keeps mixed tool categories in one summary with the current action inline", () => {
     const parts = [
       toolPart("tool:read-a", "turn:fold", "tool", 1, "read", "src/a.ts", "a"),
       toolPart("tool:grep", "turn:fold", "tool", 2, "grep", "src", "src/a.ts:1:match"),
@@ -317,11 +359,11 @@ describe("Desktop Agent tool step lists", () => {
     );
 
     const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
-    expect(fold.textContent).toBe("3 steps done");
-    // Only the running step keeps its own line.
+    expect(fold.textContent).toContain("4 steps");
+    expect(fold.textContent).toContain("Editing");
+    // The current action is part of the summary, not another full tool row.
     const visibleItems = container.querySelectorAll(".desktop-agent-tool-group-item");
-    expect(visibleItems).toHaveLength(1);
-    expect(visibleItems[0].querySelector(".desktop-agent-tool-name")?.textContent).toBe("Editing");
+    expect(visibleItems).toHaveLength(0);
 
     act(() => fold.click());
     expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(4);
