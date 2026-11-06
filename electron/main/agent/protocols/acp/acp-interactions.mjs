@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { boundRendererValue, redactSecrets, redactSecretText } from '../../agent-events.mjs';
-import { event, array, record, safeId, text } from './acp-native-values.mjs';
+import { event, array, record, safeId, text, acpToolItemId } from './acp-native-values.mjs';
 
 /** Native request correlation and response serialization for this adapter. */
 export function acpResolveApproval(adapter, { requestId, decision, turnId }) {
@@ -31,7 +31,8 @@ export function acpRequestPermission(adapter, request) {
       return Promise.resolve({ outcome: { outcome: "cancelled" } });
     }
     const options = array(request.options).filter((option) => safeId(option?.optionId));
-    const requestId = `${adapter.runtimeDescriptor.id}:${safeId(request.toolCall?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
+    const itemId = acpToolItemId(request.toolCall?.toolCallId);
+    const requestId = `${adapter.runtimeDescriptor.id}:${itemId ?? randomUUID()}:${randomUUID()}`;
     const input = record(request.toolCall?.rawInput);
     return new Promise((resolve) => {
       adapter.pendingApprovals.set(requestId, {
@@ -41,7 +42,7 @@ export function acpRequestPermission(adapter, request) {
         resolve,
       });
       adapter.onEvent(event("approval.requested", adapter.sessionId, adapter.activeTurn.turnId,
-        safeId(request.toolCall?.toolCallId), {
+        itemId, {
           requestId,
           title: text(request.toolCall?.title, 300) || "Approval required",
           kind: approvalKind(request.toolCall?.kind),
@@ -57,7 +58,8 @@ export function acpHandleExtensionRequest(adapter, method, request) {
     if (!adapter.questionMethods.has(method)) return undefined;
     if (!adapter.activeTurn) return { outcome: "cancelled" };
     const questions = normalizeQuestions(request?.questions);
-    const requestId = `${adapter.runtimeDescriptor.id}:question:${safeId(request?.toolCallId) ?? randomUUID()}:${randomUUID()}`;
+    const itemId = acpToolItemId(request?.toolCallId);
+    const requestId = `${adapter.runtimeDescriptor.id}:question:${itemId ?? randomUUID()}:${randomUUID()}`;
     return new Promise((resolve) => {
       adapter.pendingQuestions.set(requestId, {
         requestId,
@@ -66,7 +68,7 @@ export function acpHandleExtensionRequest(adapter, method, request) {
         resolve,
       });
       adapter.onEvent(event("question.requested", adapter.sessionId, adapter.activeTurn.turnId,
-        safeId(request?.toolCallId), { requestId, questions }));
+        itemId, { requestId, questions }));
     });
   }
 

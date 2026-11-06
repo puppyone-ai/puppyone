@@ -1,6 +1,7 @@
 import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
 import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
+import { acpToolItemId } from "./acp-native-values.mjs";
 
 const TERMINAL_TOOL_STATUSES = new Set(["completed", "failed"]);
 
@@ -96,7 +97,7 @@ export class AcpEventNormalizer {
   }
 
   #toolUpdate(sessionId, update) {
-    const itemId = safeId(update.toolCallId) ?? `acp-tool:${this.tools.size + 1}`;
+    const itemId = acpToolItemId(update.toolCallId) ?? `acp-tool:${this.tools.size + 1}`;
     const previous = this.tools.get(itemId) ?? {
       started: false,
       output: "",
