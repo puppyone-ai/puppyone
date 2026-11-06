@@ -71,6 +71,8 @@ security-framework = "3.7"
 objc2 = "=0.6.4"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSDragging", "NSDraggingItem", "NSDraggingSession", "NSEvent", "NSImage", "NSPasteboard", "NSResponder", "NSView", "NSWindow", "NSWorkspace"] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSDate", "NSDateFormatter", "NSFormatter", "NSLocale", "NSString", "NSObject"] }
+# Dev-capture snapshots of web content (`takeSnapshotWithConfiguration:`).
+block2 = { version = "=0.6.2", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -90,7 +92,8 @@ tokio = { version = "1", features = ["test-util"] }
 # Opt-in developer captures (screenshots, editor geometry dumps, visual
 # fixtures); absent from normal builds. GPUI's test support renders a frame
 # off screen (`PUPPYONE_SCREENSHOT_OFFSCREEN`).
-dev-capture = ["gpui-kit/test-support"]
+# Web content is composited from WKWebView snapshots (src/web_host.rs).
+dev-capture = ["gpui-kit/test-support", "dep:block2"]
 
 [profile.dev]
 debug = 0

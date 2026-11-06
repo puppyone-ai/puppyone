@@ -6278,6 +6278,7 @@ dependencies = [
  "async-channel",
  "base64",
  "blake3",
+ "block2 0.6.2",
  "cap-std",
  "chrono",
  "encoding_rs",

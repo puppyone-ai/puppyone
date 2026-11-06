@@ -269,3 +269,70 @@ fn response(
         .body(Cow::<'static, [u8]>::Owned(body))
         .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..])))
 }
+
+/// A snapshot of one host's web content and where it sits in the window
+/// (logical pixels), filled in on the main thread when WebKit answers.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub struct Snapshot {
+    pub bounds: (f32, f32, f32, f32),
+    pub png: Rc<RefCell<Option<Option<Vec<u8>>>>>,
+}
+/// Dev-capture: snapshots of this window's visible web content, so an
+/// offscreen capture (GPUI's frame alone) can show it in place.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
+    use objc2::{class, msg_send, runtime::AnyObject};
+    use wry::WebViewExtMacOS;
+    let key = window_key(window);
+    let states: Vec<Rc<HostState>> = HOSTS.with(|h| {
+        h.borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter(|s| s.window == key && s.visible.get())
+            .collect()
+    });
+    states
+        .into_iter()
+        .map(|state| {
+            let png: Rc<RefCell<Option<Option<Vec<u8>>>>> = Rc::default();
+            let slot = png.clone();
+            let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
+                // SAFETY: WebKit hands back an NSImage (or nil) on the main
+                // thread; every object is used only inside this call.
+                let bytes = unsafe {
+                    (!image.is_null())
+                        .then(|| {
+                            let tiff: *mut AnyObject = msg_send![image, TIFFRepresentation];
+                            let rep: *mut AnyObject =
+                                msg_send![class!(NSBitmapImageRep), imageRepWithData: tiff];
+                            if rep.is_null() {
+                                return None;
+                            }
+                            let properties: *mut AnyObject = msg_send![class!(NSDictionary), dictionary];
+                            // NSBitmapImageFileTypePNG
+                            let data: *mut AnyObject = msg_send![rep, representationUsingType: 4usize, properties: properties];
+                            if data.is_null() {
+                                return None;
+                            }
+                            let length: usize = msg_send![data, length];
+                            let bytes: *const u8 = msg_send![data, bytes];
+                            Some(std::slice::from_raw_parts(bytes, length).to_vec())
+                        })
+                        .flatten()
+                };
+                *slot.borrow_mut() = Some(bytes);
+            });
+            let view = state.view.webview();
+            let view: *const AnyObject = objc2::rc::Retained::as_ptr(&view).cast();
+            // SAFETY: a live WKWebView on the main thread; a nil
+            // configuration snapshots its visible bounds.
+            unsafe {
+                let _: () = msg_send![view, takeSnapshotWithConfiguration: std::ptr::null::<AnyObject>(), completionHandler: &*handler];
+            }
+            Snapshot {
+                bounds: state.bounds.get(),
+                png,
+            }
+        })
+        .collect()
+}

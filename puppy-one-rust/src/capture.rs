@@ -84,8 +84,44 @@ fn schedule_offscreen(
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(500))
                 .await;
+            // Native web content is not in GPUI's frame: composite WebKit's
+            // own snapshots of it where each host sits.
+            #[cfg(target_os = "macos")]
+            let snapshots = cx
+                .update(|window, _| crate::web_host::snapshots(window))
+                .unwrap_or_default();
+            #[cfg(target_os = "macos")]
+            for _ in 0..200 {
+                if snapshots.iter().all(|s| s.png.borrow().is_some()) {
+                    break;
+                }
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(10))
+                    .await;
+            }
             let _ = cx.update(|window, _| {
-                let result = window.render_to_image().and_then(|image| {
+                let scale = window.scale_factor();
+                let result = window.render_to_image().and_then(|mut image| {
+                    #[cfg(target_os = "macos")]
+                    for snapshot in &snapshots {
+                        let Some(Some(png)) = snapshot.png.borrow().clone() else {
+                            continue;
+                        };
+                        let (x, y, w, h) = snapshot.bounds;
+                        let content = image::load_from_memory(&png)?.resize_exact(
+                            (w * scale).round() as u32,
+                            (h * scale).round() as u32,
+                            image::imageops::FilterType::Triangle,
+                        );
+                        image::imageops::overlay(
+                            &mut image,
+                            &content.to_rgba8(),
+                            (x * scale).round() as i64,
+                            (y * scale).round() as i64,
+                        );
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    let _ = scale;
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
