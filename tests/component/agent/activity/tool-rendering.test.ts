@@ -39,7 +39,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
     const row = container.querySelector(".desktop-agent-tool-row") as HTMLButtonElement;
     expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Ran");
-    expect(row.querySelector(".desktop-agent-tool-subject-code")?.textContent).toBe("npm test");
+    expect(row.querySelector(".desktop-agent-tool-summary")?.textContent).toBe("Run tests");
     expect(row.querySelector(".desktop-agent-tool-chevron")).toBeNull();
     expect(row.getAttribute("aria-expanded")).toBe("false");
     act(() => row.click());
@@ -79,7 +79,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const row = container.querySelector(".desktop-agent-tool-row") as HTMLButtonElement;
     expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Searched");
     // The login-shell wrapper is provenance, not what the Agent meant to do.
-    expect(row.querySelector(".desktop-agent-tool-subject-code")?.textContent).toBe("rg -n -i liangyu src");
+    expect(row.querySelector(".desktop-agent-tool-summary")?.textContent).toBe("Search repository");
     expect(row.textContent).not.toContain("/bin/zsh");
     expect(row.textContent).not.toContain("via Bash");
     expect(row.textContent).not.toContain("exit 0");

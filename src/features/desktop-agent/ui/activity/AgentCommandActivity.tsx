@@ -1,6 +1,7 @@
 import { useLocalization } from "@puppyone/localization/react";
 import {
   commandForActivity,
+  commandPurposeForActivity,
   commandMetadata,
   commandPresentationForActivity,
   formatAgentDuration,
@@ -11,7 +12,7 @@ import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
 import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
-import { AgentToolStepCode, agentToolStepVerb } from "./AgentToolStepText";
+import { AgentToolStepCode, AgentToolStepText, agentToolStepVerb } from "./AgentToolStepText";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 import { agentToolStepKind, isActiveToolStatus } from "./agent-tool-steps";
 
@@ -21,7 +22,8 @@ export function AgentCommandActivity({ activity }: { activity: AgentActivity }) 
   const output = outputForActivity(activity);
   const presentation = commandPresentationForActivity(activity);
   const stepKind = agentToolStepKind(activity);
-  const visibleCommand = visibleCommandForActivity(activity) || activity.label;
+  const visibleCommand = visibleCommandForActivity(activity);
+  const purpose = commandPurposeForActivity(activity);
   const { exitCode, durationMs } = commandMetadata(activity);
   const settled = !isActiveToolStatus(activity.status);
   // Only facts worth a glance: a non-zero exit, and runs long enough to notice.
@@ -32,7 +34,9 @@ export function AgentCommandActivity({ activity }: { activity: AgentActivity }) 
   return (
     <AgentActivityShell
       title={agentToolStepVerb(stepKind === "generic" ? "command" : stepKind, activity.status, t)}
-      subject={visibleCommand ? <AgentToolStepCode text={visibleCommand} /> : undefined}
+      subject={purpose || !visibleCommand
+        ? <AgentToolStepText text={purpose || t("agent.activity.detailsNotProvided")} />
+        : <AgentToolStepCode text={visibleCommand} />}
       metadata={facts.length ? <span className="desktop-agent-tool-facts">{facts.join(" · ")}</span> : undefined}
       status={activity.status}
       icon={<AgentToolGlyph tool={presentation.tool} status={activity.status} />}

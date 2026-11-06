@@ -124,6 +124,7 @@ export function AgentVisualSmokeHarness() {
   const startupLoading = smokeState === "loading";
   const streamingTableSmoke = smokeState === "streaming-table";
   const toolMotionSmoke = smokeState === "tool-motion";
+  const toolDescriptionsSmoke = smokeState === "tool-descriptions";
   const approvalSmoke = smokeState === "approval";
   const selectedRuntime = agentRuntimes.find((entry) => entry.descriptor.id === runtimeId) ?? agentRuntimes[0];
   const models = modelsByRuntime[runtimeId];
@@ -343,8 +344,22 @@ export function AgentVisualSmokeHarness() {
     ];
     value.lastSequence = streamingTableSmoke ? 13 : 11;
     value.terminalState = "completed";
+    if (toolDescriptionsSmoke) {
+      value.messages = [{ id: "description-answer", role: "assistant", turnId: "description-turn", itemId: null,
+        text: "检查完成，可以展开查看操作详情。", streaming: false, terminalState: "completed", sequence: 10 }];
+      value.parts = [];
+      value.turns = [];
+      value.activities = [
+        { tool: "exec_command", input: JSON.stringify({ cmd: "node scripts/check-layout.mjs", description: "Check editor layout constraints" }), label: "exec_command" },
+        { tool: "read", input: JSON.stringify({ file_path: "plan/05-image-block-handle.md" }), label: "Read plan" },
+        { tool: "grep", input: { pattern: "insertionAnchor", path: "src/editor" }, label: "Grep" },
+        { tool: "tool", input: { description: "Find recent project decisions", query: "editor layout" }, label: "persome: context" },
+        { tool: "tool", input: {}, label: "Tool" },
+      ].map(({ label, ...detail }, index) => ({ id: `description-${index}`, itemId: `description-${index}`,
+        turnId: "description-turn", kind: "tool", label, status: "completed", detail, output: "Completed", sequence: index + 1 }));
+    }
     return value;
-  }, [streamingTableSmoke, toolMotionSmoke]);
+  }, [streamingTableSmoke, toolMotionSmoke, toolDescriptionsSmoke]);
   const visibleProjection = startupLoading ? startupProjection : projection;
 
   return (

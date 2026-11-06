@@ -15,6 +15,7 @@ import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenc
 import { AgentToolStepCode, AgentToolStepPath, AgentToolStepText, agentToolStepVerb } from "./AgentToolStepText";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 import { agentToolStepKind, isActiveToolStatus } from "./agent-tool-steps";
+import { inputForActivity } from "../../domain/agent-tool-input";
 
 const NO_RESULTS = /^no (?:matches|files|results)(?: found)?\.?$/iu;
 
@@ -57,9 +58,7 @@ export function AgentFileQueryActivity({ activity, onOpenFile }: { activity: Age
 }
 
 function fileQuerySubject(activity: AgentActivity, stepKind: string, t: MessageFormatter): ReactNode {
-  const input = activity.detail.input && typeof activity.detail.input === "object" && !Array.isArray(activity.detail.input)
-    ? activity.detail.input as Record<string, unknown>
-    : {};
+  const input = inputForActivity(activity);
   if (stepKind === "search") {
     const pattern = firstText(input.pattern, activity.detail.query, input.query, input.glob);
     const scope = firstText(input.path, activity.detail.path);
@@ -67,7 +66,11 @@ function fileQuerySubject(activity: AgentActivity, stepKind: string, t: MessageF
   }
   const path = pathForActivity(activity);
   if (path) return <AgentToolStepPath path={path} />;
-  const summary = agentActivitySummary(activity);
+  let summary = agentActivitySummary(activity);
+  // A provider title may already include the action rendered on the left.
+  if (summary === activity.label && summary.toLowerCase().startsWith(`${stepKind} `)) {
+    summary = summary.slice(stepKind.length).trim();
+  }
   return summary ? <AgentToolStepText text={summary} /> : undefined;
 }
 

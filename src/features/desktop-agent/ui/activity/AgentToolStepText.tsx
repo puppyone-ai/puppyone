@@ -2,10 +2,8 @@ import type { MessageFormatter } from "@puppyone/localization/core";
 import type { AgentActivityStatus } from "../../domain/agent-projection-types";
 import { isActiveToolStatus, type AgentToolStepKind } from "./agent-tool-steps";
 
-type LocalizedStepKind = Exclude<AgentToolStepKind, "generic">;
-
 /** Past tense once settled, progressive while the tool is still working. */
-export function agentToolStepVerb(kind: LocalizedStepKind, status: AgentActivityStatus, t: MessageFormatter) {
+export function agentToolStepVerb(kind: AgentToolStepKind, status: AgentActivityStatus, t: MessageFormatter) {
   return t(`agent.toolStep.${kind}.${isActiveToolStatus(status) ? "active" : "done"}`);
 }
 
@@ -30,10 +28,11 @@ export function AgentToolStepCode({ text, context }: Readonly<{ text: string; co
   );
 }
 
-export function AgentToolStepText({ text }: Readonly<{ text: string }>) {
+export function AgentToolStepText({ text, context }: Readonly<{ text: string; context?: string }>) {
   return (
     <span className="desktop-agent-tool-subject">
       <span className="desktop-agent-tool-subject-context">{firstLine(text)}</span>
+      {context && <span className="desktop-agent-tool-subject-context">{firstLine(context)}</span>}
     </span>
   );
 }

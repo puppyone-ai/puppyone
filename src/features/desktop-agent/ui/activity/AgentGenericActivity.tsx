@@ -2,7 +2,6 @@ import { useLocalization } from "@puppyone/localization/react";
 import {
   agentActivitySummary,
   agentActivityToolId,
-  formatAgentToolName,
   isContextCompactionActivity,
   outputForActivity,
   structuredInputForActivity,
@@ -14,6 +13,7 @@ import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenc
 import { AgentToolStepCode, AgentToolStepText, agentToolStepVerb } from "./AgentToolStepText";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 import { agentToolStepKind } from "./agent-tool-steps";
+import { genericToolSummary, informativeToolLabel, inputForActivity } from "../../domain/agent-tool-input";
 
 export function AgentGenericActivity({ activity }: { activity: AgentActivity }) {
   const { t } = useLocalization();
@@ -31,22 +31,23 @@ export function AgentGenericActivity({ activity }: { activity: AgentActivity }) 
   const input = structuredInputForActivity(activity);
   const detail = output || input;
   const stepKind = agentToolStepKind(activity);
-  const structured = activity.detail.input && typeof activity.detail.input === "object" && !Array.isArray(activity.detail.input)
-    ? activity.detail.input as Record<string, unknown>
-    : {};
+  const structured = inputForActivity(activity);
   const target = [structured.url, structured.uri, activity.detail.url, structured.query, activity.detail.query]
     .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
-  const title = stepKind === "fetch" || stepKind === "search"
-    ? agentToolStepVerb(stepKind, activity.status, t)
-    : formatAgentToolName(tool, t);
+  const title = agentToolStepVerb(stepKind, activity.status, t);
   // A provider label that only repeats the tool name adds nothing to the line.
   const summary = agentActivitySummary(activity);
   const informativeSummary = summary && ![title, tool, activity.detail.tool]
     .some((value) => typeof value === "string" && value.trim().toLowerCase() === summary.trim().toLowerCase());
+  const identity = informativeToolLabel(activity) || (tool === "tool" ? "" : tool);
+  const purpose = genericToolSummary(activity);
+  const genericSummary = purpose || identity || t("agent.activity.detailsNotProvided");
   return (
     <AgentActivityShell
       title={title}
-      subject={genericSubject(target, informativeSummary ? summary : "")}
+      subject={stepKind === "generic"
+        ? <AgentToolStepText text={genericSummary} context={purpose && identity && purpose !== identity ? identity : undefined} />
+        : genericSubject(target, informativeSummary ? summary : "")}
       status={activity.status}
       icon={<AgentToolGlyph tool={tool} status={activity.status} />}
       className="desktop-agent-generic-tool"
