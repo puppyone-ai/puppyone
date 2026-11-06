@@ -4,13 +4,21 @@
  * App's own binary keeps the OS key store (safeStorage), code signing and
  * updates identical to the App's.
  */
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, powerMonitor, safeStorage, utilityProcess } from "electron";
 import { hostServiceStateDir } from "./paths.mjs";
 import { runHostService } from "./runtime.mjs";
+import { configureDesktopApplicationIdentity, loadDesktopBuildInfo } from "../main/build-info-service.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const buildInfo = loadDesktopBuildInfo({ app, packageMetadata: require("../../package.json"),
+  projectRoot: path.resolve(here, "../..") });
+// Resolve the same channel as Desktop before taking a separate profile and lock.
+// Electron's default package name is not Desktop's dev/internal/stable identity.
+configureDesktopApplicationIdentity({ app, buildInfo });
 app.setPath("userData", hostServiceStateDir(app.getPath("userData")));
 if (!app.requestSingleInstanceLock()) {
   app.exit(0);
@@ -26,7 +34,7 @@ if (!app.requestSingleInstanceLock()) {
       utilityProcess,
       fileServiceModulePath: path.join(here, "..", "utility", "host-file-service", "main.mjs"),
       hostExecModulePath: path.join(here, "..", "utility", "host-exec", "main.mjs"),
-      appVersion: app.getVersion(),
+      appVersion: buildInfo.version,
       onShutdown: () => app.quit(),
     });
     powerMonitor.on("suspend", () => host.service.suspend());
