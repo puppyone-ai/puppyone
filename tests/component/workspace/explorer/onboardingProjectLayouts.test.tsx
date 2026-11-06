@@ -403,6 +403,13 @@ describe("Homepage project layouts", () => {
     expect(LAYOUTS.map((layout) => layoutOption(container, layout).textContent)).toEqual(["List", "Grid"]);
   });
 
+  it("offers the Grid, the default, first", () => {
+    const { container } = renderHome();
+    act(() => layoutTrigger(container).click());
+    expect([...container.querySelectorAll("[data-project-layout-option]")].map((option) => option.textContent))
+      .toEqual(["Grid", "List"]);
+  });
+
   it("remembers the choice across launches", () => {
     const { container } = renderHome();
     pick(container, "grid");

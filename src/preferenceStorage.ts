@@ -54,7 +54,8 @@ export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPrefer
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
 export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferredModel";
 export type RightSidebarSurface = "chat" | "changes" | "history";
-export const HOMEPAGE_PROJECT_LAYOUTS = ["list", "grid"] as const;
+/** In the order the layout menu offers them: the Grid, the default, first. */
+export const HOMEPAGE_PROJECT_LAYOUTS = ["grid", "list"] as const;
 export type HomepageProjectLayout = typeof HOMEPAGE_PROJECT_LAYOUTS[number];
 export const HOMEPAGE_PROJECT_SORTS = ["modified", "name"] as const;
 export type HomepageProjectSort = typeof HOMEPAGE_PROJECT_SORTS[number];
