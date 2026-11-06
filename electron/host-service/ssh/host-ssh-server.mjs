@@ -140,7 +140,7 @@ export function createHostSshServer({ hostKey, authorities, active, resolveFolde
     sessionChannel.on("shell", guard((accept, reject) => {
       if (!pty || !execService || !allows("folder.shell")) return reject?.();
       const channel = accept();
-      if (channel) terminal({ channel, folderId, kind: "shell", launcher: "shell", pty, record });
+      if (channel) start(channel, () => terminal({ channel, folderId, kind: "shell", launcher: "shell", pty, record }));
     }));
     sessionChannel.on("exec", guard((accept, reject, info) => {
       const command = String(info.command ?? "");
@@ -148,7 +148,7 @@ export function createHostSshServer({ hostKey, authorities, active, resolveFolde
       if (agent) {
         if (!pty || !execService || !allows("folder.agent")) return reject?.();
         const channel = accept();
-        if (channel) terminal({ channel, folderId, kind: "agent", launcher: agent[1], pty, record });
+        if (channel) start(channel, () => terminal({ channel, folderId, kind: "agent", launcher: agent[1], pty, record }));
         return;
       }
       if (!executionPolicy || !command || Buffer.byteLength(command) > MAX_COMMAND_BYTES || !allows("folder.shell")) {
@@ -157,6 +157,14 @@ export function createHostSshServer({ hostKey, authorities, active, resolveFolde
       const channel = accept();
       if (channel) void runCommand({ channel, folderId, command, env, record }).catch(() => fail(channel, 1));
     }));
+  }
+
+  // An accepted channel whose start fails ends with a status instead of hanging open.
+  function start(channel, run) {
+    try { run(); } catch (error) {
+      logger.warn?.("SSH session failed to start", { reason: error?.message });
+      fail(channel, 1, "start_failed");
+    }
   }
 
   function track(record, channel) {

@@ -183,6 +183,30 @@ describe("host connector", () => {
     expect(connector.status().state).toBe("off");
   });
 
+  it("refuses tunnels past the limit, and closes on a malformed tunnel frame", async () => {
+    const accepted = [];
+    const sshServer = { list: () => [], accept: async (stream) => { accepted.push(stream); return true; } };
+    const connector = createHostConnector({ apiBase, sshServer, logger: { warn() {} }, identity: signer(),
+      registry: { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null },
+      WebSocketImpl: FakeWebSocket, fetchImpl: challengeRoute().fetchImpl });
+    await connector.connect(device, owner);
+    const socket = FakeWebSocket.last;
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    for (let index = 0; index < 16; index++) {
+      socket.emit("message", { data: JSON.stringify({ type: "tunnel_open", stream: `s${index}`, folder_id: folder }) });
+      await tick();
+    }
+    expect(accepted).toHaveLength(16);
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_open", stream: "s16", folder_id: folder }) });
+    await tick();
+    expect(socket.sent.at(-1)).toEqual({ type: "tunnel_refused", stream: "s16", error: "tunnel_limit" });
+    // A stream id outside the protocol, or a reused one, ends the connection.
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_open", stream: "not ok!", folder_id: folder }) });
+    await tick();
+    expect(socket.readyState).toBe(3);
+    connector.stop();
+  });
+
   it("reconnects when the gateway stops answering heartbeats", async () => {
     let clock = 1_800_000_000_000;
     const timers = [];

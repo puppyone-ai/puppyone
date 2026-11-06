@@ -14,10 +14,15 @@ import {
 
 const run = promisify(execFile);
 const roots = [];
+// This computer's real folder sandbox. CI sets PUPPYONE_REQUIRE_SANDBOX so a missing one fails instead of skipping.
+const realSandbox = await detectSandbox().catch(() => null);
+if (process.env.PUPPYONE_REQUIRE_SANDBOX === "1" && !realSandbox) throw new Error("This runner has no folder sandbox.");
+// bubblewrap puts an empty /tmp over the session; a home that lives there would vanish from it.
+const scratch = () => (process.platform === "linux" ? os.homedir() : os.tmpdir());
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))); });
 
 async function layout() {
-  const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-sandbox-")));
+  const base = await fs.realpath(await fs.mkdtemp(path.join(scratch(), ".puppyone-sandbox-")));
   roots.push(base);
   const home = path.join(base, "home");
   const root = path.join(home, "work", "Notes");
@@ -82,9 +87,9 @@ describe("folder-tier sandbox", () => {
       .toEqual({ mechanism: "bubblewrap", path: "/usr/bin/bwrap" });
   });
 
-  it.runIf(process.platform === "darwin")("confines a real shell on macOS: the folder only, no credentials", async () => {
-    const sandbox = await detectSandbox();
-    expect(sandbox?.mechanism).toBe("seatbelt");
+  it.runIf(realSandbox)("confines a real shell in the folder sandbox: the folder only, no credentials", async () => {
+    const sandbox = realSandbox;
+    expect(sandbox.mechanism).toBe(process.platform === "darwin" ? "seatbelt" : "bubblewrap");
     const { home, root, appData } = await layout();
     const script = [
       "echo made > inside.txt && echo 'write inside: ok'",
