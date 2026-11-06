@@ -245,6 +245,7 @@ impl OfficeView {
             ],
             ipc: Some(Ipc(tx)),
             policy: None,
+            frames: None,
         };
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {

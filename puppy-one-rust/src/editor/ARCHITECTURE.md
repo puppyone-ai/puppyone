@@ -74,8 +74,9 @@ The document session (`documents.rs`) asks the registry what to read: text
 for `content` viewers (autosaved), nothing for `resource` / `none` viewers,
 which receive the file's checked path (`Workspace::resource`). The host
 (`host/`) opens the resolved contribution's surface and never names a
-concrete viewer; product viewers the native build does not have yet are
-`Presentation::Unavailable` and show the honest placeholder.
+concrete viewer. Viewers whose product surface is a web application (Office,
+PuppyFlow, Context Map, App Preview, HTML Edit) run the product's own bundled
+code in a WebView over native file, runtime and pane bridges.
 
 Local text remains capped at 4 MiB (`MAX_TEXT_BYTES`), no larger than
 any content viewer's `maxSourceBytes`. The dormant live Cloud adapter has an

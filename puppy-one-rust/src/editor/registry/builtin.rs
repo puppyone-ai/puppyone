@@ -2,14 +2,14 @@
 //! (`builtinViewerContributions.ts`) — the only list of them. Matching is the
 //! product's; each viewer's surface lives in `editor::viewers`.
 //!
-//! The app preview, whose runtime the native build does not have yet, shows
-//! an honest "preview unavailable" placeholder.
+//! Every built-in viewer has a native surface; `Unavailable` remains for
+//! contributions without one.
 use super::contribution::{
-    Presentation::{Native, Unavailable},
-    Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
+    Presentation::Native, Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
 use crate::editor::viewers::{
-    code, csv, database, html, image, media, office, pdf, placeholder, structured, text,
+    app_preview, code, csv, database, html, image, media, office, pdf, placeholder, structured,
+    text,
 };
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
@@ -36,7 +36,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| kind(m, "app") || viewer(m, "app-preview"),
             editable: None,
-            presentation: Unavailable,
+            presentation: Native(app_preview::open),
         },
         ViewerImplementation {
             id: "markdown",

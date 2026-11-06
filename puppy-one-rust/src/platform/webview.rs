@@ -93,6 +93,32 @@ pub struct Content {
     /// `Content-Security-Policy` sent with every response (the entry, its
     /// resources and any document the page navigates to).
     pub policy: Option<&'static str>,
+    /// Origins the page's own frames may load (App Preview's running app);
+    /// everything else stays refused.
+    pub frames: Option<Frames>,
+}
+/// Frame origins a page may load, changed while it runs.
+#[derive(Clone, Debug, Default)]
+pub struct Frames(pub std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+impl Frames {
+    /// Allow `url`'s origin (scheme, host and port).
+    pub fn allow(&self, url: &str) {
+        if let Some(origin) = origin(url)
+            && let Ok(mut origins) = self.0.lock()
+            && !origins.contains(&origin)
+        {
+            origins.push(origin);
+        }
+    }
+    pub fn allows(&self, url: &str) -> bool {
+        origin(url)
+            .is_some_and(|origin| self.0.lock().is_ok_and(|origins| origins.contains(&origin)))
+    }
+}
+/// An http(s) URL's origin.
+fn origin(url: &str) -> Option<String> {
+    let url = url::Url::parse(url).ok()?;
+    matches!(url.scheme(), "http" | "https").then(|| url.origin().ascii_serialization())
 }
 /// The receiving end of a page's messages.
 #[derive(Clone)]
@@ -377,6 +403,7 @@ mod tests {
             assets: vec![("r.js", b"x()")],
             ipc: None,
             policy: None,
+            frames: None,
         };
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
@@ -451,6 +478,7 @@ mod tests {
             assets: vec![],
             ipc: None,
             policy: None,
+            frames: None,
         };
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);

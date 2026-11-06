@@ -122,6 +122,7 @@ fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Conte
         assets: vec![],
         ipc: None,
         policy: Some(html_preview::INTERACTIVE_HEADER),
+        frames: None,
     }
 }
 

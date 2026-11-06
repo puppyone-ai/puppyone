@@ -136,6 +136,7 @@ impl Session {
             ],
             ipc: Some(Ipc(tx.clone())),
             policy: None,
+            frames: None,
         };
         #[cfg(not(test))]
         drop(tx);

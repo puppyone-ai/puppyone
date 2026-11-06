@@ -1,6 +1,5 @@
 //! `DocumentPreview` (`document-preview.css`): the honest surface of a file no
-//! viewer can render here — the fallback for binary files, product viewers
-//! the native build does not have yet.
+//! viewer can render here — the fallback for binary files.
 use crate::{
     editor::registry::{SurfaceRequest, ViewerSurface},
     localization::t,
@@ -16,14 +15,6 @@ pub fn open_binary(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     preview(request, t("editor.preview.binaryFile"), cx)
-}
-/// A product viewer the native build does not have yet.
-pub fn open_unavailable(
-    request: &SurfaceRequest,
-    _: &mut Window,
-    cx: &mut App,
-) -> Box<dyn ViewerSurface> {
-    preview(request, t("editor.preview.unavailable"), cx)
 }
 fn preview(request: &SurfaceRequest, label: &str, cx: &mut App) -> Box<dyn ViewerSurface> {
     let file_type = file_type(request.name);

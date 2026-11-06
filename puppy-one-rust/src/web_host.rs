@@ -42,6 +42,7 @@ impl WebHost {
         } else {
             (255, 255, 255, 255)
         };
+        let frames = content.frames.clone();
         let mut builder = wry::WebViewBuilder::new();
         if let Some(ipc) = content.ipc.clone() {
             builder = builder.with_ipc_handler(move |request: wry::http::Request<String>| {
@@ -105,10 +106,13 @@ impl WebHost {
             // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
             // pane in the product).
             .with_drag_drop_handler(|_| true)
-            .with_navigation_handler(|url| {
+            .with_navigation_handler(move |url| {
                 // `about:srcdoc` is inline content the page already holds
                 // (the HTML visual editor's sandboxed projection frame).
                 if url.starts_with(SCHEME) || url == "about:blank" || url == "about:srcdoc" {
+                    return true;
+                }
+                if frames.as_ref().is_some_and(|frames| frames.allows(&url)) {
                     return true;
                 }
                 if url.starts_with("https://") || url.starts_with("http://") {

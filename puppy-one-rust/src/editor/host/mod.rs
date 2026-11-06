@@ -11,7 +11,7 @@ use crate::{
             SurfaceRequest, ViewerSurface,
             packs::{ExtensionHost, Route, route},
         },
-        viewers::{external, placeholder},
+        viewers::external,
     },
     typography::Scale,
 };
@@ -194,7 +194,6 @@ impl DocumentEditor {
             Some(surface) => surface,
             None => match viewer.presentation {
                 Presentation::Native(open) => open(&request, window, cx),
-                Presentation::Unavailable => placeholder::open_unavailable(&request, window, cx),
             },
         };
         surface.set_reference_context(self.references.clone(), cx);

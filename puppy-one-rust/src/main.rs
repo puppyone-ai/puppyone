@@ -181,6 +181,18 @@ fn main() {
         }
         #[cfg(not(feature = "dev-capture"))]
         features::telemetry::init(cx);
+        // `appPreviewRuntime.closeAll()`: running App Previews stop with the
+        // app; the quit waits for their process groups, bounded.
+        cx.on_app_quit(|_| {
+            let (done, stopped) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                platform::app_preview::runtime::runtime().close_all();
+                let _ = done.send(());
+            });
+            let _ = stopped.recv_timeout(std::time::Duration::from_secs(4));
+            async {}
+        })
+        .detach();
         // What the launch itself was asked to open (a file or folder from
         // Finder) arrives before launching finishes and replaces the window
         // the launch would otherwise open (`openPendingPaths`).

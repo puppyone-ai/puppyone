@@ -86,9 +86,6 @@ pub type SurfaceFactory = fn(&SurfaceRequest, &mut Window, &mut App) -> Box<dyn 
 pub enum Presentation {
     /// A native surface.
     Native(SurfaceFactory),
-    /// Declared by the product, not yet available natively: the host shows
-    /// an honest "preview unavailable" placeholder for the document.
-    Unavailable,
 }
 
 /// What one viewer implementation provides (`PresetViewerImplementation`).

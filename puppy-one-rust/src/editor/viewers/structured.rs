@@ -26,10 +26,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use serde::Deserialize;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 
 const SCRIPT: &[u8] = include_bytes!("../../../assets/web/structured-viewers.js");
 const STYLE: &[u8] = include_bytes!("../../../assets/web/structured-viewers.css");
@@ -152,21 +149,6 @@ fn intern(id: &str) -> &'static str {
     ids.push(leaked);
     leaked
 }
-/// A workspace entry as the product's `DataNode`.
-fn data_node(workspace: &Workspace, node: &crate::model::Node) -> serde_json::Value {
-    let path = node.path.to_string_lossy().replace('\\', "/");
-    let kind = if node.folder {
-        "folder".to_owned()
-    } else {
-        crate::formats::semantic_kind(&node.name, None, None)
-    };
-    serde_json::json!({
-        "id": path, "name": node.name, "path": path, "type": kind,
-        "source": if workspace.local_root().is_some() { "local" } else { "cloud" },
-        "hasChildren": node.folder,
-    })
-}
-
 /// The page reported a local edit.
 pub struct Changed;
 
@@ -221,6 +203,7 @@ impl StructuredView {
             assets,
             ipc: Some(Ipc(tx)),
             policy: None,
+            frames: None,
         };
         self.ready = false;
         self.pane.clear();
@@ -248,43 +231,18 @@ impl StructuredView {
                 let Some(workspace) = self.workspace.clone() else {
                     return self.reply(request, Err("The workspace is unavailable.".into()), cx);
                 };
-                let task = cx.background_executor().spawn(async move {
-                    let folder = PathBuf::from(path.unwrap_or_default());
-                    workspace
-                        .list(&folder)
-                        .map(|nodes| {
-                            serde_json::Value::Array(
-                                nodes
-                                    .iter()
-                                    .map(|node| data_node(&workspace, node))
-                                    .collect(),
-                            )
-                        })
-                        .map_err(|error| error.to_string())
-                });
+                let task = cx
+                    .background_executor()
+                    .spawn(async move { super::workspace_port::list(&workspace, path.as_deref()) });
                 self.answer(request, task, cx);
             }
             Inbound::Read { request, path } => {
                 let Some(workspace) = self.workspace.clone() else {
                     return self.reply(request, Err("The workspace is unavailable.".into()), cx);
                 };
-                let task = cx.background_executor().spawn(async move {
-                    let relative = PathBuf::from(&path);
-                    let name = relative
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    workspace
-                        .read(&relative)
-                        .map(|document| {
-                            serde_json::json!({
-                                "path": path, "name": name,
-                                "type": crate::formats::semantic_kind(&name, None, None),
-                                "content": document.text,
-                            })
-                        })
-                        .map_err(|error| error.to_string())
-                });
+                let task = cx
+                    .background_executor()
+                    .spawn(async move { super::workspace_port::read(&workspace, &path) });
                 self.answer(request, task, cx);
             }
             Inbound::Pane { items } => {
@@ -671,7 +629,10 @@ mod tests {
         std::fs::write(dir.path().join("plan.md"), "# Plan").unwrap();
         let workspace = Workspace::open(dir.path()).unwrap();
         let nodes = workspace.list(Path::new("")).unwrap();
-        let mut listed: Vec<_> = nodes.iter().map(|n| data_node(&workspace, n)).collect();
+        let mut listed: Vec<_> = nodes
+            .iter()
+            .map(|n| super::super::workspace_port::data_node(&workspace, n))
+            .collect();
         listed.sort_by_key(|n| n["path"].as_str().unwrap_or_default().to_owned());
         assert_eq!(listed[0]["type"], "folder");
         assert_eq!(listed[1]["type"], "markdown");
