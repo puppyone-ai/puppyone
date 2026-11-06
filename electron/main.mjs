@@ -79,6 +79,7 @@ import { SETTINGS_OPEN_REQUESTED_CHANNEL } from "./main/ipc/settings-ipc.mjs";
 import { registerAppPreviewIpcHandlers } from "./main/ipc/app-preview-ipc.mjs";
 import { registerBuildInfoIpcHandlers } from "./main/ipc/build-info-ipc.mjs";
 import { registerPlatformIpcHandlers } from "./main/ipc/platform-ipc.mjs";
+import cloudOpeningLog from "electron-log";
 import { registerCloudIpcHandlers } from "./main/ipc/cloud-ipc.mjs";
 import { registerCloudPublishIpcHandlers } from "./main/ipc/cloud-publish-ipc.mjs";
 import { registerMarkdownWebEmbedIpcHandlers } from "./main/ipc/markdown-web-embed-ipc.mjs";
@@ -1363,7 +1364,9 @@ function registerIpcHandlers() {
     attachWorkspaceToCurrentWindow,
     detachWorkspaceFromCurrentWindow,
   });
-  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  // Failed Cloud Computer openings go to the app log file so a report can be
+  // matched to the server log by request id.
+  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService, diagnostics: cloudOpeningLog });
   // Sharing this computer's folders runs in the Puppyone Host service, which
   // keeps sharing after this App quits; Desktop reaches it over a local channel.
   const hostService = createHostServiceLauncher({ stateDir: hostServiceStateDir(app.getPath("userData")),
