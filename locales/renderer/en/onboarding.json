@@ -122,5 +122,8 @@
   "template.getCopy": "Get a copy",
   "template.loading": "Loading…",
   "template.signIn": "Sign in to use this template",
-  "template.signingIn": "Signing in…"
+  "template.signingIn": "Signing in…",
+  "entry.import.includeSubpages": "Include subpages",
+  "template.unpack": "Unpack and open",
+  "template.localDescription": "Unpack these template files into a new project."
 }

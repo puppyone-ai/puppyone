@@ -5,6 +5,7 @@ import { useLocalization } from "@puppyone/localization";
 import { DesktopDialogCloseButton, DesktopDialogRoot } from "./DesktopDialog";
 import { useProjectTemplateImport } from "./useProjectTemplateImport";
 import type {
+  LocalTemplateDetail,
   MarketplaceTemplateDetail,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
@@ -120,7 +121,7 @@ function useTemplateCopy({
   return { name, setName, rename, location, editing, setEditing, submitting, choosingLocation, created, error, busy, submit, chooseLocation };
 }
 
-function TemplateSummary({ template }: { template: MarketplaceTemplateDetail }) {
+function TemplateSummary({ template }: { template: Pick<MarketplaceTemplateDetail, "name" | "author" | "fileCount" | "icon" | "description"> }) {
   const { t } = useLocalization();
   const facts = [
     template.author,
@@ -199,6 +200,46 @@ function TemplateDestinationSummary({ copy }: { copy: ReturnType<typeof useTempl
 function submitLabelKey(submitting: boolean, created: boolean) {
   if (submitting) return "onboarding.entry.create.submitting";
   return created ? "onboarding.entry.create.retryOpen" : "onboarding.template.getCopy";
+}
+
+function localSubmitLabelKey(submitting: boolean, created: boolean) {
+  if (submitting) return "onboarding.entry.create.submitting";
+  return created ? "onboarding.entry.create.retryOpen" : "onboarding.template.unpack";
+}
+
+/** File packages are ready to unpack without a marketplace or provider account. */
+export function LocalTemplateImportCard(props: Omit<TemplateImportCardProps, "url"> & { template: LocalTemplateDetail }) {
+  const { template, onClose, onChooseLocation } = props;
+  const { t } = useLocalization();
+  const source: WorkspaceCreateProjectRequest["source"] = { kind: "template", ref: { sourceId: "local-package", id: template.id } };
+  const copy = useTemplateCopy({ ...props, source });
+  const { setName, busy } = copy;
+  useEffect(() => {
+    setName(projectNameFromTemplate(template.name) || t("onboarding.entry.create.defaultName"));
+  }, [setName, t, template]);
+  const title = t("onboarding.template.title");
+  const ready = Boolean(copy.name.trim()) && Boolean(copy.location);
+  return <DesktopDialogRoot onClose={busy ? undefined : onClose} dismissOnBackdrop={!busy} className="onboarding-entry-dialog-root">
+    <form className="desktop-dialog-surface desktop-file-dialog onboarding-entry-dialog is-create" role="dialog" aria-modal="true" aria-label={title}
+      onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void copy.submit(); }}>
+      <header className="desktop-dialog-header">
+        <div className="desktop-dialog-title-row"><span className="desktop-dialog-leading file" aria-hidden="true"><FolderPlus size={16} strokeWidth={1.8} /></span><h2>{title}</h2></div>
+        <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={busy} onClick={onClose} /></Tooltip>
+      </header>
+      <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
+        <div className="onboarding-entry-template">
+          <TemplateSummary template={{ ...template, author: "", icon: null, description: t("onboarding.template.localDescription") }} />
+          {copy.editing ? <TemplateDestinationFields copy={copy} canChooseLocation={Boolean(onChooseLocation)} /> : <TemplateDestinationSummary copy={copy} />}
+        </div>
+        {copy.created && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.entry.create.createdNote", { path: copy.created.initialization.path })}</p>}
+        {copy.error && <p className="desktop-dialog-error" role="alert">{copy.error}</p>}
+      </div>
+      <footer className="desktop-dialog-footer">
+        <button className="desktop-dialog-button" type="button" disabled={busy} onClick={onClose}>{t("common.action.cancel")}</button>
+        <button className="desktop-dialog-button primary file" type="submit" disabled={busy || !ready}>{t(localSubmitLabelKey(copy.submitting, copy.created !== null))}</button>
+      </footer>
+    </form>
+  </DesktopDialogRoot>;
 }
 
 /**

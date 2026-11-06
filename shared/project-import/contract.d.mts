@@ -30,7 +30,7 @@ export type ImportSourceAdapter = Readonly<{
   /** Remote adapters keep the returned session in Main; it never crosses IPC. */
   connect?: (context: { ownerWindow?: unknown; shell?: unknown }) => Promise<unknown>;
   listResources?: (request: { connection: unknown; parentId: string | null; cursor: string | null }) => Promise<ImportResourcePage>;
-  inspect: (source: Record<string, unknown>, context: { connection: unknown }) => Promise<{
+  inspect: (source: Record<string, unknown>, context: { connection: unknown; signal?: AbortSignal }) => Promise<{
     name: string;
     source: unknown;
   }>;

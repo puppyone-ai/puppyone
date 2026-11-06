@@ -14,13 +14,16 @@ export function useImportLocation({
   const [choosing, setChoosing] = useState(false);
   const [resolvingDefault, setResolvingDefault] = useState(Boolean(onDefaultLocation));
   const [error, setError] = useState<string | null>(null);
-  const requestedDefault = useRef(false);
+  const defaultRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
 
   useEffect(() => {
-    if (!onDefaultLocation || requestedDefault.current) return;
-    requestedDefault.current = true;
+    if (!onDefaultLocation) { setResolvingDefault(false); return; }
+    // Reattach to one request when Strict Mode replays the effect or the parent
+    // supplies a new callback identity. A cancelled subscriber must not leave
+    // the next subscriber waiting forever.
+    defaultRequest.current ??= Promise.resolve().then(onDefaultLocation);
     let cancelled = false;
-    void onDefaultLocation().then((grant) => {
+    void defaultRequest.current.then((grant) => {
       if (!cancelled && grant) setLocation((current) => current ?? grant);
     }).catch(() => {
       // Main asks for a destination if the default could not be granted.
@@ -61,6 +64,8 @@ export function ImportLocationField({
   onChoose: () => void;
 }) {
   const { t } = useLocalization();
+  const idleAction = location ? "onboarding.entry.create.change" : "onboarding.entry.create.browse";
+  const action = choosing ? "onboarding.entry.create.browsing" : idleAction;
   return (
     <div className="onboarding-entry-create-field onboarding-import-location">
       <span className="onboarding-entry-create-label">{t("onboarding.entry.import.saveTo")}</span>
@@ -80,11 +85,7 @@ export function ImportLocationField({
           {location?.path ?? t("onboarding.entry.import.saveToPicker")}
         </bdi>
         <span className="onboarding-entry-location-action">
-          {t(choosing
-            ? "onboarding.entry.create.browsing"
-            : location
-              ? "onboarding.entry.create.change"
-              : "onboarding.entry.create.browse")}
+          {t(action)}
         </span>
       </button>
     </div>

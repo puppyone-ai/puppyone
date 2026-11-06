@@ -16,6 +16,7 @@ export function createProjectEntryService({
   journalDirectory = null,
   resolveTemplate,
   validateTemplateSource,
+  connectNotion,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory, resolveTemplate, validateSource: validateTemplateSource });
   // A retry must land on the name its first attempt chose, even though that
@@ -43,7 +44,7 @@ export function createProjectEntryService({
     validateName: requireProjectName,
     loadAdapter: async (id) => {
       const module = await import(`./project-import/sources/${id}.mjs`);
-      return module.createImportSource({ cloneGit, requireGitRepository, io: fsPromises, requireProjectName });
+      return module.createImportSource({ cloneGit, requireGitRepository, io: fsPromises, requireProjectName, connectNotion });
     },
   });
   async function importProject({ parentPath, source, ownerId, signal, onProgress }) {
