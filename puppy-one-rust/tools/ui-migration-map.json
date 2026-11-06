@@ -1991,7 +1991,8 @@
         "src/editor/viewers/web.rs"
       ],
       "evidence": [
-        "test:media_pages_reference_the_served_file_with_controls"
+        "test:media_pages_reference_the_served_file_with_controls",
+        "artifact:media-native/video-failure-light.png"
       ],
       "remaining": "Images decode natively (AVIF through the platform codec) with the pending label and the unavailable state with Retry; audio and video play in the system web engine, which reports a media error so the surface shows the product's failure with Retry. Native controls are WebKit's, not Chromium's, and the audio card's icon uses the default file icon theme."
     },
@@ -2010,9 +2011,35 @@
         "test:next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
         "test:a_sqlite_file_lists_tables_and_pages_rows",
         "test:long_values_wide_tables_and_generated_columns_follow_the_budget",
-        "test:signatures_sidecars_and_budgets_are_checked"
+        "test:signatures_sidecars_and_budgets_are_checked",
+        "artifact:database-native/rows-light.png",
+        "artifact:database-native/objects-light.png"
       ],
       "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager. DuckDB files are reported unsupported (the product reads them through @duckdb/node-api), queries run on the background executor rather than a killable host process with the SQL authorizer, object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies."
+    },
+    {
+      "name": "Office viewer",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/office/**",
+        "src/shared-ui/editor/security/**"
+      ],
+      "targets": [
+        "src/editor/viewers/office.rs",
+        "src/platform/office.rs",
+        "tools/office-viewer-entry.tsx",
+        "tools/import-office-viewer.mjs",
+        "assets/web/office-viewer.json"
+      ],
+      "evidence": [
+        "test:the_page_boots_the_product_bundle_and_reads_only_typed_messages",
+        "test:rtf_converts_to_a_docx_package_and_other_inputs_are_refused",
+        "artifact:office-native/spreadsheet-light.png",
+        "artifact:office-native/word-light.png",
+        "artifact:office-native/presentation-light.png",
+        "artifact:office-native/rtf-converted-light.png"
+      ],
+      "remaining": "The product's OfficeViewer (with its security preflight, validation and text-fallback workers) is bundled from the pinned sources and runs in WKWebView; .doc/.rtf conversion is the macOS textutil bridge. WebKit, not Chromium, renders the documents, and the bundle adapts TextDecoder on resizable buffers and DOMParser with a leading BOM. The editor task scheduler, host leases and worker host run inside the page rather than sharing the workbench's document barriers, and Office editor actions (unused by the product) are not offered."
     }
   ],
   "retired_sources": {
