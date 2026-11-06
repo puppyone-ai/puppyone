@@ -9,6 +9,7 @@ use crate::agent::agent_error::AgentResult;
 use crate::agent::protocols::pi_rpc::pi_rpc_runtime_adapter::PiAdapterOptions;
 use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
 use crate::agent::runtime::agent_runtime_registry::{RuntimeDefinition, RuntimeDiscovery};
+use crate::agent::transports::jsonl_rpc_connection::Spawner;
 use std::rc::Rc;
 
 /// `adapterFactory(options)`.
@@ -28,6 +29,9 @@ pub struct PuppyOneRuntimeDefinitionOptions {
     pub model_connection_port: Option<Rc<dyn ModelConnectionPort>>,
     pub discovery: Option<Rc<dyn RuntimeDiscovery>>,
     pub adapter_factory: Option<PuppyOneAdapterFactory>,
+    /// Launches the kernel in place of the bundled worker process (the
+    /// native kernel); `None` spawns the worker.
+    pub spawner: Option<Spawner>,
 }
 
 /// `createPuppyOneAgentRuntimeDefinition(options)`.
@@ -51,6 +55,7 @@ pub fn create_puppyone_agent_runtime_definition(
         })
     });
     let port = options.model_connection_port.clone();
+    let spawner = options.spawner.clone();
     RuntimeDefinition {
         manifest: PUPPYONE_AGENT_RUNTIME_MANIFEST.clone(),
         discovery,
@@ -64,6 +69,7 @@ pub fn create_puppyone_agent_runtime_definition(
             pi.on_event = options.on_event.clone();
             pi.on_exit = options.on_exit.clone();
             pi.on_session_persisted = options.on_session_persisted.clone();
+            pi.spawner = spawner.clone();
             factory(pi, port.clone())
         }),
         dispose: None,

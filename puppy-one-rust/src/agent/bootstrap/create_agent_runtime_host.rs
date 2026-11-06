@@ -45,6 +45,8 @@ pub struct DefaultRuntimeHostOptions {
     pub hermes: Option<Rc<dyn RuntimeDiscovery>>,
     pub puppyone_agent: Option<Rc<dyn RuntimeDiscovery>>,
     pub model_connection_port: Option<Rc<dyn ModelConnectionPort>>,
+    /// The Built-in Agent's kernel launcher (the native kernel).
+    pub puppyone_agent_spawner: Option<crate::agent::transports::jsonl_rpc_connection::Spawner>,
 }
 
 /// `createDefaultAgentRuntimeHost(options)`.
@@ -88,6 +90,7 @@ pub fn create_default_agent_runtime_host(
             model_connection_port: options.model_connection_port.clone(),
             discovery: options.puppyone_agent.clone(),
             adapter_factory: None,
+            spawner: options.puppyone_agent_spawner.clone(),
         }),
     ];
     AgentRuntimeRegistry::new(definitions, Some(DEFAULT_AGENT_RUNTIME_ID), None)

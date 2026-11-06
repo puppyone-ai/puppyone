@@ -3,6 +3,8 @@ pub mod adapter;
 pub mod model_connection_binding;
 #[allow(dead_code)]
 pub mod model_connection_verifier;
+pub mod native_kernel;
+pub mod native_model_connections;
 #[allow(dead_code)]
 pub mod puppyone_agent_adapter;
 #[allow(dead_code)]

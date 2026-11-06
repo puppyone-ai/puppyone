@@ -282,11 +282,28 @@ fn production_services(
         ..Default::default()
     })?;
     let repository = AgentSessionRepository::new(event_cache, catalog.clone());
+    // The Built-in Agent runs its kernel in process: the native harness
+    // serves the bundled worker's protocol, and its leases come from this
+    // app's model connections.
+    use crate::agent::runtimes::puppyone_agent::{native_kernel, native_model_connections};
+    let user_data = options.user_data_path.to_string_lossy().into_owned();
     let registry = create_default_agent_runtime_host(DefaultRuntimeHostOptions {
         app_version: Some(options.app_version.clone()),
         app_path: options.app_path.clone(),
-        user_data_path: Some(options.user_data_path.to_string_lossy().into_owned()),
+        user_data_path: Some(user_data.clone()),
         executable_path: options.executable_path.clone(),
+        puppyone_agent: Some(Rc::new(native_kernel::create_native_kernel_discovery(
+            user_data,
+            options.executable_path.clone().unwrap_or_default(),
+        ))),
+        model_connection_port: Some(Rc::new(
+            native_model_connections::NativeModelConnectionPort::new(
+                native_model_connections::configured_connections(),
+            ),
+        )),
+        puppyone_agent_spawner: Some(native_kernel::native_kernel_spawner(
+            native_kernel::configured_complete(),
+        )),
         ..Default::default()
     })?;
     let attachment_store = AgentAttachmentStore::new(AttachmentStoreOptions {
