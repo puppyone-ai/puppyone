@@ -1,0 +1,14 @@
+import { useCallback, useSyncExternalStore } from "react";
+import { useLocalization } from "@puppyone/localization";
+import { agentChangedFilesStore } from "./agentChangedFilesStore";
+import "./agent-changed-files.css";
+
+export function AgentChangedFileMark({ root, path, folder = false }: { root: string; path: string; folder?: boolean }) {
+  const { t } = useLocalization();
+  const subscribe = useCallback((listener: () => void) => agentChangedFilesStore.subscribe(root, listener), [root]);
+  const snapshot = useCallback(() => agentChangedFilesStore.has(root, path, folder), [root, path, folder]);
+  const changed = useSyncExternalStore(subscribe, snapshot, () => false);
+  if (!changed) return null;
+  const label = t(folder ? "workspace.explorer.agentChangedFolder" : "workspace.explorer.agentChangedFile");
+  return <span className="desktop-agent-changed-file-mark" data-folder={folder || undefined} title={label} aria-label={label} role="img" />;
+}

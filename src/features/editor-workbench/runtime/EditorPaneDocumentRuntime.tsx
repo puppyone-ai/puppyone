@@ -23,8 +23,10 @@ import {
   workspaceContentChangeMatchesResource,
 } from "@puppyone/shared-ui";
 import { useEditorPaneSource } from "./useEditorPaneSource";
+import { useAgentFileReview } from "../../desktop-agent-presence";
 
 export type EditorPaneDocumentRuntimeProps = Readonly<{
+  agentReviewPath?: string | null;
   aiEditFile: AiEditFile | null;
   dataPort: DataPort;
   documentSourceKind?: DocumentSourceKind;
@@ -43,6 +45,7 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
 /** Expensive source and Viewer boundary. Active-pane routing lives above this
  * component so focus changes do not reconcile document content. */
 export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime({
+  agentReviewPath,
   aiEditFile,
   dataPort,
   documentSourceKind = "local",
@@ -59,6 +62,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
 }: EditorPaneDocumentRuntimeProps) {
   return (
     <RegularEditorPaneDocumentRuntime
+      agentReviewPath={agentReviewPath}
       aiEditFile={aiEditFile}
       dataPort={dataPort}
       documentSourceKind={documentSourceKind}
@@ -79,6 +83,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
 type RegularEditorPaneDocumentRuntimeProps = EditorPaneDocumentRuntimeProps;
 
 function RegularEditorPaneDocumentRuntime({
+  agentReviewPath,
   aiEditFile,
   dataPort,
   documentSourceKind = "local",
@@ -102,6 +107,9 @@ function RegularEditorPaneDocumentRuntime({
   );
   const sourceNode = isDocumentDataNode(treeNode) ? treeNode : fallbackNode;
   const source = useEditorPaneSource(sourceNode, dataPort, refreshKey);
+  useAgentFileReview(workspaceRoot, documentSourceKind === "local" ? agentReviewPath ?? null : null,
+    !invalidTreeNode && !source.loading && !source.error && !source.fileUrlLoading && !source.fileUrlError
+    && Boolean(source.content || source.fileUrl));
   const node = useMemo(() => (
     source.content ? mergeNodeWithContent(sourceNode, source.content) : sourceNode
   ), [source.content, sourceNode]);
@@ -174,7 +182,8 @@ export function areEditorPaneDocumentRuntimePropsEqual(
   previous: EditorPaneDocumentRuntimeProps,
   next: EditorPaneDocumentRuntimeProps,
 ): boolean {
-  return previous.aiEditFile === next.aiEditFile
+  return previous.agentReviewPath === next.agentReviewPath
+    && previous.aiEditFile === next.aiEditFile
     && previous.dataPort === next.dataPort
     && previous.documentSourceKind === next.documentSourceKind
     && sameEditor(previous.editor, next.editor)

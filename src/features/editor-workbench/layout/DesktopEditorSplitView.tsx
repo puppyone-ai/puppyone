@@ -55,7 +55,7 @@ import {
   usePersistentEditorPaneHosts,
   type PersistentEditorPaneHosts,
 } from "./pane-host/usePersistentEditorPaneHosts";
-import { toWorkspaceRelativePath } from "../../desktop-agent-presence";
+import { toWorkspaceRelativePath, agentChangedFilesStore } from "../../desktop-agent-presence";
 
 export type DesktopEditorSplitViewProps = Readonly<{
   aiEditRequest: AiEditRequest | null;
@@ -387,7 +387,13 @@ function EditorPane({
       menuContribution={paneMenuContribution}
       onActionsPaneChange={onOpenActionsPaneChange}
       onActivate={() => {
-        if (!active) onFocusPane(pane.id);
+        if (!active) {
+          if (agentPresencePath) agentChangedFilesStore.requestReview(editorWorkspace.path, agentPresencePath);
+          onFocusPane(pane.id);
+        }
+      }}
+      onReview={() => {
+        if (agentPresencePath) agentChangedFilesStore.requestReview(editorWorkspace.path, agentPresencePath);
       }}
       onClose={() => onClosePane(pane.id)}
       onOpenExternal={externalOpen && externalOpenPath
@@ -402,6 +408,7 @@ function EditorPane({
           : null}
       >
         <EditorPaneRuntime
+          agentReviewPath={agentPresencePath}
           aiEditFile={getAiEditFileForPath(aiEditRequest, editor?.resource) ?? null}
           dataPort={dataPort}
           documentSourceKind={documentSourceKind}

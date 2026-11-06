@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Agent가 수정함 — 아직 확인하지 않음",
+  "explorer.agentChangedFolder": "Agent가 수정한 미확인 파일이 있습니다",
   "node.copyLink": "링크 복사",
   "workbench.renderFailure": "이 탭을 표시할 수 없습니다.",
   "workbench.reloadView": "화면 다시 불러오기",

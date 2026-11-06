@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Modificado pelo Agent — ainda não visualizado",
+  "explorer.agentChangedFolder": "Contém arquivos modificados pelo Agent ainda não visualizados",
   "node.copyLink": "Copiar link",
   "workbench.renderFailure": "Não foi possível exibir esta aba.",
   "workbench.reloadView": "Recarregar visualização",

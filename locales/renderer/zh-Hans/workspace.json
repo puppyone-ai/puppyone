@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Agent 已修改，待查看",
+  "explorer.agentChangedFolder": "包含 Agent 修改后待查看的文件",
   "node.copyLink": "复制链接",
   "workbench.renderFailure": "无法显示此标签页。",
   "workbench.reloadView": "重新显示",

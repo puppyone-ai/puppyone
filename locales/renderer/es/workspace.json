@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Modificado por el Agent; pendiente de revisar",
+  "explorer.agentChangedFolder": "Contiene archivos modificados por el Agent pendientes de revisar",
   "node.copyLink": "Copiar enlace",
   "workbench.renderFailure": "No se puede mostrar esta pestaña.",
   "workbench.reloadView": "Recargar vista",

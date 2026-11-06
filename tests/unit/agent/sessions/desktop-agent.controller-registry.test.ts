@@ -27,6 +27,23 @@ const deferred = <T>() => {
 describe("Project-owned Agent Controller registry", () => {
   beforeEach(() => { instances.length = 0; });
 
+  it("keeps observers while tabs are hidden and releases them with their controller", async () => {
+    const cleanups: Array<ReturnType<typeof vi.fn>> = [];
+    const observe = vi.fn(() => { const cleanup = vi.fn(); cleanups.push(cleanup); return cleanup; });
+    const owner = new AgentControllerRegistry("/workspace", () => () => undefined, false, observe);
+    const first = owner.get("first"); owner.get("second"); owner.get("first");
+    expect(observe).toHaveBeenCalledTimes(2);
+    expect(cleanups[0]).not.toHaveBeenCalled();
+    instances[0].closeTabSession.mockResolvedValueOnce(false);
+    expect(await owner.close("first")).toBe(false);
+    expect(cleanups[0]).not.toHaveBeenCalled();
+    expect(owner.get("first")).toBe(first);
+    await owner.close("first");
+    expect(cleanups[0]).toHaveBeenCalledOnce();
+    owner.dispose();
+    expect(cleanups[1]).toHaveBeenCalledOnce();
+  });
+
   it("retains hidden tabs and isolates projects or generations using the same root and Item id", () => {
     const a = registry(), b = registry();
     const first = a.get("tab-0");

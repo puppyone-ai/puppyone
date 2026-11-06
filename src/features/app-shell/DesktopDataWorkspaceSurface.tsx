@@ -46,6 +46,8 @@ import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditor
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {
   AgentFilePresence,
+  AgentChangedFileMark,
+  agentChangedFilesStore,
   desktopAgentActivityStore,
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
@@ -198,6 +200,13 @@ export function DesktopDataWorkspaceSurface({
     ?? workspaceFolders[0]?.uri
     ?? null;
   const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
+  const openReviewedFile = useCallback(async (path: string | null, node?: DataNode | null) => {
+    const resource = localResources && path ? resolveWorkspaceResource(path) : null;
+    const root = resource?.folder.workspace.path;
+    const relative = resource?.providerPath;
+    if (root && relative && node?.type !== "folder") agentChangedFilesStore.requestReview(root, relative);
+    await onActiveDataPathChange(path, node);
+  }, [localResources, onActiveDataPathChange, resolveWorkspaceResource]);
   const pinsProjectKey = getExplorerPinsProjectKey(workspace, workspaceFolders);
   const pins = useExplorerPins(pinsProjectKey);
   const hasPins = pins.files.length > 0;
@@ -278,7 +287,7 @@ export function DesktopDataWorkspaceSurface({
         onExplorerSessionChange={explorerSession.onSessionChange}
         activePath={activeExplorerPath}
         onResourceMove={onResourceMove}
-        onActivePathChange={onActiveDataPathChange}
+        onActivePathChange={openReviewedFile}
         onActiveNodeChange={onActiveDataNodeChange}
         onOpenExternalUrl={openExternalUrl}
         viewerExtensionAdapter={viewerExtensionAdapter}
@@ -325,7 +334,7 @@ export function DesktopDataWorkspaceSurface({
                 activePath={activeDocumentPath ?? activeExplorerPath}
                 filesCollapsed={pins.filesCollapsed}
                 fileIconTheme={fileIconTheme}
-                onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
+                onOpen={(file) => { void openReviewedFile(file.path, file); }}
                 onContextMenu={(file, event) => {
                   if (!canChangeNodes) return;
                   event.preventDefault();
@@ -384,6 +393,7 @@ export function DesktopDataWorkspaceSurface({
         refreshKey={workspaceRefreshToken}
         atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
+          const changeResource = localResources ? resolveWorkspaceResource(node.path) : null;
           const agentPresencePath = localResources && node.type === "file"
             ? node.workspaceFolderId
               ? resolveWorkspaceResource(node.path)?.providerPath ?? null
@@ -391,6 +401,8 @@ export function DesktopDataWorkspaceSurface({
             : null;
           return (
             <>
+              {changeResource && <AgentChangedFileMark root={changeResource.folder.workspace.path}
+                path={changeResource.providerPath ?? ""} folder={node.type === "folder"} />}
               {agentPresencePath && (
                 <AgentFilePresence
                   path={agentPresencePath}
@@ -491,7 +503,7 @@ export function DesktopDataWorkspaceSurface({
           <AiResponseChangesCard
             request={activeAiEditRequest}
             activePath={activeDocumentPath}
-            onOpenFile={onActiveDataPathChange}
+            onOpenFile={openReviewedFile}
           />
         </div>
       )}

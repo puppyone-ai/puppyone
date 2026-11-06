@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Modified by Agent — not yet viewed",
+  "explorer.agentChangedFolder": "Contains files modified by Agent — not yet viewed",
   "node.copyLink": "Copy Link",
   "workbench.renderFailure": "Unable to display this tab.",
   "workbench.reloadView": "Reload view",

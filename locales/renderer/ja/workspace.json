@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Agent が変更しました — 未確認",
+  "explorer.agentChangedFolder": "Agent が変更した未確認のファイルがあります",
   "node.copyLink": "リンクをコピー",
   "workbench.renderFailure": "このタブを表示できません。",
   "workbench.reloadView": "表示を再読み込み",

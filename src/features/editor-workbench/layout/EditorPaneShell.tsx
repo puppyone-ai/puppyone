@@ -53,6 +53,7 @@ export type EditorPaneShellProps = Readonly<{
   paneMove: PaneMoveDragController;
   onActionsPaneChange: (paneId: string | null) => void;
   onActivate: () => void;
+  onReview?: () => void;
   onClose: () => void;
   onOpenExternal: (() => void | Promise<void>) | null;
   onSplit: (
@@ -77,6 +78,7 @@ export function EditorPaneShell({
   paneMove,
   onActionsPaneChange,
   onActivate,
+  onReview,
   onClose,
   onOpenExternal,
   onSplit,
@@ -127,7 +129,7 @@ export function EditorPaneShell({
       onPointerUp={(event) => {
         // Focusable editors activate through focus after native caret placement.
         // Pointer-up covers non-focusable previews after selection handling.
-        if (event.button === 0) onActivate();
+        if (event.button === 0) { onReview?.(); onActivate(); }
       }}
       onDragEnterCapture={(event) => fileDrop.over(event, pane.id)}
       onDragOverCapture={(event) => fileDrop.over(event, pane.id)}
