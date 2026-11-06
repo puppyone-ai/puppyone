@@ -28,7 +28,5 @@ pub mod claude_prompt_input;
 pub mod claude_runtime_definition;
 #[allow(dead_code)]
 pub mod claude_spawn;
-pub mod legacy_claude_adapter;
-mod legacy_history;
 #[cfg(test)]
 mod tests;

@@ -110,7 +110,7 @@ impl AgentChat {
                                     .icon("rotate-ccw")
                                     .label(tr("agent.readiness.reconnect"))
                                     .on_click(cx.listener(|s, _, _, cx| {
-                                        s.session.replace_client(native_agent_client::create(
+                                        s.session.replace_client((s.connect)(
                                             s.installation.clone(),
                                             s.root.clone(),
                                             true,

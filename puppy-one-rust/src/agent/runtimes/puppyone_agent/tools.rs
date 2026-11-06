@@ -1,25 +1,11 @@
 //! Workspace-scoped native tools. Mutations and commands require a turn-owned approval.
 use cap_std::fs::Dir;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{
     io::Read,
     path::{Component, Path},
     sync::atomic::AtomicBool,
 };
-pub fn schema() -> Value {
-    json!([
-      {"type":"function","function":{"name":"read","description":"Read a UTF-8 file inside the assigned workspace.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"ls","description":"List one workspace directory.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"grep","description":"Search UTF-8 workspace files for a literal substring; bounded results with line numbers.","parameters":{"type":"object","properties":{"path":{"type":"string"},"query":{"type":"string"}},"required":["path","query"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"find","description":"Find workspace paths containing a literal name fragment.","parameters":{"type":"object","properties":{"path":{"type":"string"},"query":{"type":"string"}},"required":["path","query"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"write","description":"Write a UTF-8 workspace file after user approval.","parameters":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"edit","description":"Replace exactly one matching text in a workspace file after approval.","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_text":{"type":"string"},"new_text":{"type":"string"}},"required":["path","old_text","new_text"],"additionalProperties":false}}},
-      {"type":"function","function":{"name":"bash","description":"Run an explicitly approved shell command with the workspace as cwd. Use read/ls for inspection when possible.","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"],"additionalProperties":false}}}
-    ])
-}
-pub fn approval(name: &str) -> bool {
-    !matches!(name, "read" | "ls" | "grep" | "find")
-}
 fn relative(value: &Value) -> Result<&Path, String> {
     let path = Path::new(value["path"].as_str().ok_or("Tool path is required")?);
     if path.is_absolute()
@@ -253,6 +239,7 @@ fn search(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     #[test]
     fn workspace_tool_escape_and_ambiguous_edit_are_rejected() {
         let d = tempfile::tempdir().unwrap();

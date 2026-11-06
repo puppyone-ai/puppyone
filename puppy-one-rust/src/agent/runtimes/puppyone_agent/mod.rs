@@ -1,4 +1,3 @@
-pub mod adapter;
 #[allow(dead_code)]
 pub mod model_connection_binding;
 #[allow(dead_code)]
@@ -27,7 +26,6 @@ pub mod puppyone_agent_runtime_definition;
 mod tests;
 pub use crate::model_connections::configuration;
 mod model_client;
-mod session_store;
 mod tools;
 
 /// `verifyConnectionModel`: a two-step tool round trip — the model must call

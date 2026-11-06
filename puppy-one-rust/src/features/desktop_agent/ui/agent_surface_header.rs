@@ -79,7 +79,7 @@ impl AgentChat {
             6 => cx.emit(AgentChatEvent::OpenModelConnections),
             7 => {
                 // `onCloseSession`: drop the live connection; history stays available.
-                self.session.replace_client(native_agent_client::create(
+                self.session.replace_client((self.connect)(
                     self.installation.clone(),
                     self.root.clone(),
                     true,

@@ -97,14 +97,13 @@
         "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/infrastructure/native/native_agent_client.rs",
         "src/features/desktop_agent/infrastructure/host/agent_host_client.rs",
         "src/features/desktop_agent/infrastructure/host/project_agent_client.rs",
         "src/features/desktop_agent/infrastructure/host/window_runtime.rs",
         "src/features/desktop_agent/infrastructure/host/tests.rs",
         "src/features/desktop_agent/infrastructure/host/mod.rs"
       ],
-      "remaining": "The window client (preload agent:* bridge + getElectronAgentClient) runs over AgentHostHandle: each port method maps to its IPC channel, structured failure envelopes become AgentOperationError, attachment staging captures native paths or sends bytes inline within the 25 MB in-flight budget, and the window's frame sink feeds onAgentSessionFrame on the GPUI executor (WindowUiRuntime). createProjectAgentClientProvider attaches the project context and fills in session instance ids. End-to-end tests drive AgentSessionController through the host thread. Not represented yet: agentSessionClient's per-session MessagePort transcript connection and agentExecutionClient's item-host execution ownership (they arrive with the item-host process service); the legacy native_agent_client still serves the GPUI views."
+      "remaining": "The window client (preload agent:* bridge + getElectronAgentClient) runs over AgentHostHandle: each port method maps to its IPC channel, structured failure envelopes become AgentOperationError, attachment staging captures native paths or sends bytes inline within the 25 MB in-flight budget, and the window's frame sink feeds onAgentSessionFrame on the GPUI executor (WindowUiRuntime). createProjectAgentClientProvider attaches the project context and fills in session instance ids. End-to-end tests drive AgentSessionController through the host thread. Not represented yet: agentSessionClient's per-session MessagePort transcript connection and agentExecutionClient's item-host execution ownership (they arrive with the item-host process service); every local chat uses this client."
     },
     {
       "name": "Chat presentation",
@@ -319,11 +318,9 @@
         "src/agent/runtimes/claude/claude_prompt_input.rs",
         "src/agent/runtimes/claude/claude_runtime_definition.rs",
         "src/agent/runtimes/claude/claude_spawn.rs",
-        "src/agent/runtimes/claude/tests.rs",
-        "src/agent/runtimes/claude/legacy_claude_adapter.rs",
-        "src/agent/runtimes/claude/legacy_history.rs"
+        "src/agent/runtimes/claude/tests.rs"
       ],
-      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter, events, spawn and prompt-input tests. claude_agent_sdk/ is the Rust equivalent of @anthropic-ai/claude-agent-sdk@0.3.159 (stream-json control protocol, listSessions/getSessionInfo/getSessionMessages/forkSession); its session helpers match the official SDK on real transcripts, and the initialization handshake is verified against Claude Code 2.1.291. The app still runs legacy_claude_adapter.rs until the host switches to AgentService."
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter, events, spawn and prompt-input tests. claude_agent_sdk/ is the Rust equivalent of @anthropic-ai/claude-agent-sdk@0.3.159 (stream-json control protocol, listSessions/getSessionInfo/getSessionMessages/forkSession); its session helpers match the official SDK on real transcripts, and the initialization handshake is verified against Claude Code 2.1.291. The app still runs legacy_claude_adapter.rs until the host switches to AgentService. The legacy CLI adapter and its history reader are removed."
     },
     {
       "name": "Product-owned PuppyOne runtime",
@@ -359,9 +356,7 @@
         "src/agent/runtimes/puppyone_agent/model_connection_binding.rs",
         "src/agent/runtimes/puppyone_agent/model_connection_verifier.rs",
         "src/agent/runtimes/puppyone_agent/tests.rs",
-        "src/agent/runtimes/puppyone_agent/adapter.rs",
         "src/agent/runtimes/puppyone_agent/model_client.rs",
-        "src/agent/runtimes/puppyone_agent/session_store.rs",
         "src/agent/runtimes/puppyone_agent/tools.rs",
         "src/agent/runtimes/puppyone_agent/mod.rs",
         "src/model_connections/schema.rs",
@@ -373,7 +368,7 @@
         "src/agent/runtimes/puppyone_agent/native_model_connections.rs",
         "src/agent/host/agent_host.rs"
       ],
-      "remaining": "The Main-side Built-in Agent modules are ported 1:1. Its worker is the in-process native kernel: the native inference loop and workspace tools serve the bundled worker's puppyone-pi-rpc-v1 protocol (state, models, prompt, steer, abort, compact, get_messages, extension_ui confirm approvals under the product policy, Pi-shaped sessions under the managed profile) over in-memory pipes, so PuppyOneAgentAdapter, the model-connection binding and the Pi RPC client and normalizer run unchanged. Leases come from this app's model connections (mc_ ids, no secret in the bootstrap envelope). The Pi SDK itself (extensions, skills, prompt templates, thinking levels, auto-retry, jsonl sessions) is not reimplemented, and the legacy harness adapter remains only for the hosted Agent's native chat view."
+      "remaining": "The Main-side Built-in Agent modules are ported 1:1. Its worker is the in-process native kernel: the native inference loop and workspace tools serve the bundled worker's puppyone-pi-rpc-v1 protocol (state, models, prompt, steer, abort, compact, get_messages, extension_ui confirm approvals under the product policy, Pi-shaped sessions under the managed profile) over in-memory pipes, so PuppyOneAgentAdapter, the model-connection binding and the Pi RPC client and normalizer run unchanged. Leases come from this app's model connections (mc_ ids, no secret in the bootstrap envelope). The Pi SDK itself (extensions, skills, prompt templates, thinking levels, auto-retry, jsonl sessions) is not reimplemented, and the legacy harness adapter and session store are removed (the kernel reuses its workspace tools and model client)."
     },
     {
       "name": "Reference ingestion",
@@ -405,11 +400,9 @@
         "src/agent/persistence/agent_conversation_catalog.rs",
         "src/agent/persistence/agent_session_repository.rs",
         "src/agent/persistence/tests.rs",
-        "src/agent/persistence/legacy_session_catalog.rs",
-        "src/agent/runtime/session_lease.rs",
-        "src/agent/bootstrap/legacy_create_agent_runtime_host.rs"
+        "src/agent/runtime/session_lease.rs"
       ],
-      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The session lease still limits sessions to eight per workspace and 32 per application; the app keeps legacy_session_catalog.rs until the host switches to AgentService."
+      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The app runs every local chat on AgentService with this catalog; the legacy catalog and native-harness leases are gone (session_lease.rs keeps only the hosted chat view's unavailable placeholder)."
     },
     {
       "name": "Native rich transcript and composer",
@@ -442,11 +435,9 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/agent_provider_activities.rs",
-        "src/agent/domain/legacy_session_model.rs",
-        "src/agent/protocols/pi_rpc/legacy_pi_rpc_adapter.rs",
-        "src/agent/runtimes/claude/legacy_claude_adapter.rs"
+        "src/agent/domain/legacy_session_model.rs"
       ],
-      "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read."
+      "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read. The legacy Pi and Claude adapters that produced them for the native chat view are removed."
     },
     {
       "name": "Tool activity step lines",

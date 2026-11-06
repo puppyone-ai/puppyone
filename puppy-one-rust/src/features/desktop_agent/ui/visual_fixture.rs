@@ -51,7 +51,11 @@ impl AgentChat {
             false,
             window,
             cx,
-            move |_, _, _, _| Box::new(Unavailable { snapshot }),
+            move |_, _, _, _| {
+                Box::new(Unavailable {
+                    snapshot: snapshot.clone(),
+                })
+            },
         );
         view.diagnostics_open = failed;
         view.refresh_transcript();
@@ -277,7 +281,11 @@ impl AgentChat {
             false,
             window,
             cx,
-            move |_, _, _, _| Box::new(Unavailable { snapshot }),
+            move |_, _, _, _| {
+                Box::new(Unavailable {
+                    snapshot: snapshot.clone(),
+                })
+            },
         );
         use crate::features::desktop_agent::application::legacy_agent_session_controller::{
             RunningTurn, TurnOutcome, TurnTiming, now_ms,

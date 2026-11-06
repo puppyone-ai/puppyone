@@ -7,7 +7,6 @@ pub mod executable_discovery;
 pub mod jsonl_rpc_connection;
 #[allow(dead_code)]
 pub mod jsonl_stream;
-pub mod legacy_jsonl_rpc_connection;
 #[allow(dead_code)]
 pub mod managed_agent_process;
 #[allow(dead_code)]

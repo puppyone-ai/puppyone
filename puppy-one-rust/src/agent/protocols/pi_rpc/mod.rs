@@ -1,5 +1,4 @@
 //! `electron/main/agent/protocols/pi-rpc`: Pi's official RPC protocol.
-pub mod legacy_pi_rpc_adapter;
 #[allow(dead_code)]
 pub mod pi_event_normalizer;
 #[allow(dead_code)]

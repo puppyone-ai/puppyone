@@ -38,28 +38,6 @@ pub struct Prompt {
     pub references: Vec<Reference>,
 }
 impl Prompt {
-    pub fn text(text: String) -> Self {
-        Self {
-            text,
-            references: vec![],
-        }
-    }
-    /// The prompt as shown in the transcript: path references are already
-    /// inline as `@path` mentions, so only media are listed after it.
-    pub fn display(&self) -> String {
-        let names = self
-            .references
-            .iter()
-            .filter(|r| matches!(r.content, ReferenceContent::Image { .. }))
-            .map(|r| format!("📎 {}", r.name))
-            .collect::<Vec<_>>()
-            .join("\n");
-        if names.is_empty() {
-            self.text.clone()
-        } else {
-            format!("{}\n\n{}", self.text, names)
-        }
-    }
     pub fn text_with_references(&self) -> String {
         let mut out = self.text.clone();
         for r in &self.references {

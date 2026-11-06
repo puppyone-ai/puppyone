@@ -27,7 +27,7 @@ mod visual_fixture;
 use super::super::{
     application::legacy_agent_session_controller::AgentSessionController,
     domain::agent_chat_presentation::message_preview,
-    infrastructure::native::{native_agent_client, native_attachment_client},
+    infrastructure::native::native_attachment_client,
 };
 use crate::{
     agent::{
@@ -40,7 +40,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Duration};
 actions!(agent, [SendMessage]);
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -56,7 +56,19 @@ pub(super) struct Scrollers {
     pub dock: ScrollHandle,
     pub command: ScrollHandle,
 }
+/// Connects this chat's runtime (again, to reconnect or close a session).
+pub(crate) type ClientFactory = Rc<
+    dyn Fn(
+        Installation,
+        PathBuf,
+        bool,
+        Wake,
+    ) -> Box<dyn crate::agent::runtime::legacy_runtime_port::AgentRuntimePort>,
+>;
+
 pub struct AgentChat {
+    /// The hosted Agent's runtime factory.
+    pub(super) connect: ClientFactory,
     installation: Installation,
     root: PathBuf,
     wake: Wake,
@@ -107,39 +119,22 @@ pub struct AgentChat {
     drafts: super::super::application::session_draft_store::SessionDraftStore,
 }
 impl AgentChat {
-    /// A native-harness chat (local chats now run on the Agent service; the
-    /// hosted Agent still uses this view).
-    #[cfg(test)]
-    pub fn new(
-        installation: Installation,
-        root: PathBuf,
-        history: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::with_client_factory(
-            installation,
-            root,
-            history,
-            window,
-            cx,
-            native_agent_client::create,
-        )
-    }
     pub(crate) fn with_client_factory(
         installation: Installation,
         root: PathBuf,
         history: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-        create: impl FnOnce(
+        create: impl Fn(
             Installation,
             PathBuf,
             bool,
             Wake,
         )
-            -> Box<dyn crate::agent::runtime::legacy_runtime_port::AgentRuntimePort>,
+            -> Box<dyn crate::agent::runtime::legacy_runtime_port::AgentRuntimePort>
+        + 'static,
     ) -> Self {
+        let create: ClientFactory = Rc::new(create);
         let (wake, rx) = Wake::channel();
         let timer = wake.clone();
         cx.spawn_in(window, async move |this, cx| {
@@ -294,6 +289,7 @@ impl AgentChat {
         .detach();
         cx.observe(&composer, |_, _, cx| cx.notify()).detach();
         Self {
+            connect: create,
             pending_resume: None,
             resuming: None,
             picker_open: None,
@@ -563,7 +559,6 @@ mod tests {
     use core::prelude::v1::test;
     #[gpui::test]
     fn native_chat_renders_markdown_forms_and_restores_a_draft(cx: &mut TestAppContext) {
-        // Session construction includes a real native runtime worker.
         cx.executor().allow_parking();
         use crate::agent::{
             domain::{
@@ -574,7 +569,7 @@ mod tests {
         };
         let root = std::env::temp_dir().join(format!("puppyone-ui-{}", uuid::Uuid::new_v4()));
         let (view, cx) = cx.add_window_view(|w, cx| {
-            AgentChat::new(
+            AgentChat::with_client_factory(
                 Installation {
                     runtime: Runtime::PuppyOne,
                     id: "puppyone-agent",
@@ -586,6 +581,11 @@ mod tests {
                 false,
                 w,
                 cx,
+                |_, _, _, _| {
+                    Box::new(Unavailable {
+                        snapshot: SessionSnapshot::new("Fixture", false),
+                    })
+                },
             )
         });
         view.update(cx,|s,cx|{

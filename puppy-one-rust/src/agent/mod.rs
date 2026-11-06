@@ -21,8 +21,6 @@ pub mod event_loop;
 #[allow(dead_code)]
 pub mod host;
 pub mod infrastructure;
-#[cfg(test)]
-mod integration_tests;
 #[allow(dead_code)]
 pub mod ipc;
 #[allow(dead_code)]

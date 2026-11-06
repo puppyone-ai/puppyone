@@ -23,6 +23,5 @@ pub mod codex_native_values;
 pub mod codex_reference_input;
 #[allow(dead_code)]
 pub mod codex_runtime_definition;
-pub mod legacy_codex_app_server_adapter;
 #[cfg(test)]
 mod tests;

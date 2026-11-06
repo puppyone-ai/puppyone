@@ -82,6 +82,9 @@ pub struct Interaction {
     pub turn: String,
     pub kind: InteractionKind,
 }
+/// The hosted Agent answers approvals only; the question and form answers
+/// stay until its chat view moves onto the shared panel.
+#[allow(dead_code)]
 pub enum Resolution {
     Form {
         decision: Decision,
@@ -167,36 +170,6 @@ pub struct ProviderActivity {
 }
 /// `MAX_PROVIDER_ACTIVITIES`.
 pub const MAX_PROVIDER_ACTIVITIES: usize = 32;
-/// `redactSecretText` (`agent-events.mjs`): API keys, bearer tokens,
-/// `key=value` credentials and provider token shapes become `[redacted]`.
-pub fn redact_secret_text(value: &str) -> String {
-    use std::sync::OnceLock;
-    static PATTERNS: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
-        [
-            (r"\bsk-[A-Za-z0-9_-]{12,}\b", "[redacted]"),
-            (r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/-]{12,}", "${1}[redacted]"),
-            (
-                r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|token|authorization|password|client[_-]?secret|secret[_-]?access[_-]?key|private[_-]?key)(\s*[:=]\s*)[^\s,;]+",
-                "${1}${2}[redacted]",
-            ),
-            (
-                r"\b([A-Z][A-Z0-9_]*(?:_API_KEY|_ACCESS_TOKEN|_REFRESH_TOKEN|_AUTH_TOKEN|_ID_TOKEN|_SESSION_TOKEN|_CLIENT_SECRET|_SECRET_ACCESS_KEY|_PRIVATE_KEY|_PASSWORD|_CREDENTIALS?))(\s*=\s*)[^\s,;]+",
-                "${1}${2}[redacted]",
-            ),
-            (r"\bAIza[0-9A-Za-z_-]{20,}\b", "[redacted]"),
-            (r"\bgh[pousr]_[A-Za-z0-9]{20,}\b", "[redacted]"),
-        ]
-        .into_iter()
-        .map(|(pattern, replacement)| (regex::Regex::new(pattern).unwrap(), replacement))
-        .collect()
-    });
-    patterns
-        .iter()
-        .fold(value.to_owned(), |text, (pattern, replacement)| {
-            pattern.replace_all(&text, *replacement).into_owned()
-        })
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistoryEntry {
@@ -315,11 +288,6 @@ impl SessionSnapshot {
             self.activities.drain(..excess);
         }
     }
-    pub fn fail(&mut self, error: impl Into<String>) {
-        self.error = Some(error.into());
-        self.state = State::Failed;
-        self.revision += 1;
-    }
     pub fn upsert(
         &mut self,
         id: impl Into<String>,
@@ -339,22 +307,6 @@ impl SessionSnapshot {
                 role: role.into(),
                 text,
                 status,
-                input: None,
-            });
-        }
-        self.bound();
-        self.revision += 1;
-    }
-    pub fn delta(&mut self, id: &str, role: &str, delta: &str) {
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            let remaining = (2 * 1024 * 1024usize).saturating_sub(m.text.len());
-            m.text.push_str(&bounded_text(delta.into(), remaining));
-        } else {
-            self.messages.push(Message {
-                id: id.into(),
-                role: role.into(),
-                text: bounded_text(delta.into(), 2 * 1024 * 1024),
-                status: "running".into(),
                 input: None,
             });
         }
@@ -386,17 +338,6 @@ impl SessionSnapshot {
         }
         self.bound();
         self.revision += 1;
-    }
-    /// Streamed tool arguments (Claude `input_json_delta`).
-    pub fn tool_input_delta(&mut self, id: &str, name: &str, delta: &str) {
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
-            let input = m.input.get_or_insert_with(String::new);
-            let remaining = (256 * 1024usize).saturating_sub(input.len());
-            input.push_str(&bounded_text(delta.into(), remaining));
-            self.revision += 1;
-        } else {
-            self.tool_call(id, name, delta, "running");
-        }
     }
     /// A tool result; the request recorded by `tool_call` is preserved.
     pub fn tool_result(
@@ -436,18 +377,6 @@ impl SessionSnapshot {
             self.truncated_thread = Some(self.thread.clone());
         }
     }
-    pub fn finish(&mut self, status: &str) {
-        self.turn = None;
-        self.interactions.clear();
-        self.state = State::Idle;
-        self.usage = status.into();
-        for m in &mut self.messages {
-            if m.status == "running" {
-                m.status = status.into();
-            }
-        }
-        self.revision += 1;
-    }
 }
 pub fn bounded_text(mut text: String, limit: usize) -> String {
     let mut end = text.len().min(limit);
@@ -460,24 +389,6 @@ pub fn bounded_text(mut text: String, limit: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn secrets_follow_the_product_patterns() {
-        for (input, output) in [
-            ("key sk-abcdefghijklmnopq end", "key [redacted] end"),
-            // As in the product: the bearer value, then the header's word.
-            (
-                "Authorization: Bearer abc.def-ghi_jklmno",
-                "Authorization: [redacted] [redacted]",
-            ),
-            ("api_key=12345 next", "api_key=[redacted] next"),
-            ("OPENAI_API_KEY=xyz", "OPENAI_API_KEY=[redacted]"),
-            ("AIzaSyA1234567890abcdefghij", "[redacted]"),
-            ("ghp_abcdefghijklmnopqrstuv", "[redacted]"),
-            ("nothing secret here", "nothing secret here"),
-        ] {
-            assert_eq!(super::redact_secret_text(input), output, "{input}");
-        }
-    }
     use super::parse_rfc3339_ms;
     use core::prelude::v1::test;
 

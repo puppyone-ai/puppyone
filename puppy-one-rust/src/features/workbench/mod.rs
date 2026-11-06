@@ -500,7 +500,7 @@ impl Workbench {
                 move |_, _, history, wake| {
                     Box::new(
                         crate::features::desktop_agent::infrastructure::cloud::CloudAgentRuntime::new(
-                            hub, &key, history, wake,
+                            hub.clone(), &key, history, wake,
                         ),
                     )
                 },
