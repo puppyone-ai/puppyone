@@ -302,6 +302,11 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
   getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
+  openLocalTemplateFile: (file) => {
+    const filePath = webUtils.getPathForFile(file);
+    if (!filePath) return Promise.reject(new Error("Drop a local template file from Finder or File Explorer."));
+    return ipcRenderer.invoke("template:open-local", { path: filePath });
+  },
   resolveTemplateLink: (request) => ipcRenderer.invoke("template:resolve", request),
   readTemplateImportIntent: () => ipcRenderer.invoke("template:read-intent"),
   acknowledgeTemplateImportIntent: (id) => ipcRenderer.invoke("template:acknowledge-intent", id),

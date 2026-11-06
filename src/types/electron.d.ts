@@ -746,6 +746,8 @@ export type MarketplaceTemplateDetail = {
   fileCount: number | null; icon: string | null; requiresSignIn: boolean;
 };
 
+export type LocalTemplateDetail = { id: string; name: string; fileCount: number; entry: string };
+
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
@@ -754,7 +756,7 @@ export type WorkspaceCreateProjectRequest = {
   numberIfTaken?: boolean;
   /** Leave this window's Project where it is and open the new one beside it. */
   openInNewWindow?: boolean;
-  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } } | { kind: "template"; ref: { sourceId: "local-package"; id: string } };
   locale: string;
 };
 
@@ -781,7 +783,7 @@ export type WorkspaceProjectLocationGrant = {
 export type WorkspaceImportSourceRequest = {
   provider: string;
   taskId: string;
-  selection?: { repositoryUrl?: string; connectionId?: string; resourceId?: string };
+  selection?: { repositoryUrl?: string; connectionId?: string; resourceId?: string; includeSubpages?: boolean };
   locationGrantId?: string | null;
 };
 
@@ -1248,7 +1250,8 @@ declare global {
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
-      readTemplateImportIntent: () => Promise<{ id: string; url: string } | null>;
+      openLocalTemplateFile: (file: File) => Promise<LocalTemplateDetail>;
+      readTemplateImportIntent: () => Promise<({ id: string; kind?: "template"; url: string } | { id: string; kind: "source"; provider: "notion"; name: string } | { id: string; kind: "local-template"; detail: LocalTemplateDetail }) | null>;
       acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
       onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (

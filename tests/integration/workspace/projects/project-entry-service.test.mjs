@@ -34,7 +34,7 @@ describe("project entry service", () => {
     for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational)) {
       await expect(registry.require(descriptor.id)).resolves.toMatchObject({ descriptor });
     }
-    await expect(registry.require("notion")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
+    await expect(registry.require("google-drive")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
   });
 
   it("creates one empty child directory under the selected parent", async () => {
@@ -304,7 +304,7 @@ describe("project entry service", () => {
     const service = createProjectEntryService();
     await expect(service.importProject({
       parentPath,
-      source: { kind: "folder", provider: "notion", sourcePath },
+      source: { kind: "folder", provider: "google-drive", sourcePath },
     })).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
     expect(await readdir(parentPath)).toEqual(["export"]);
   });

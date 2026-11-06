@@ -66,7 +66,7 @@ export function createLocalProjectImportService({
       }
       const connection = record?.value ?? null;
       onProgress({ phase: "preparing" });
-      const prepared = await adapter.inspect(source, { connection });
+      const prepared = await adapter.inspect(source, { connection, signal });
       const name = validateName(prepared.name);
       const targetPath = path.join(parentPath, name);
       const existing = await io.lstat(targetPath).then(() => true).catch((error) => {
@@ -91,7 +91,7 @@ export function createLocalProjectImportService({
         }
         published = true;
         onProgress({ phase: "complete", filesWritten: writer.filesWritten });
-        return { path: targetPath, name, provider: descriptor.id };
+        return { path: targetPath, name, provider: descriptor.id, initialOpenPath: descriptor.id === "notion" ? "migration/report.md" : null };
       } finally {
         if (!published) await io.rm(stagingPath, { recursive: true, force: true });
       }

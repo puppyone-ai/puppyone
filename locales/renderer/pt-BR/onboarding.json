@@ -122,5 +122,8 @@
   "template.getCopy": "Obter uma cópia",
   "template.loading": "Carregando…",
   "template.signIn": "Entrar para usar este modelo",
-  "template.signingIn": "Entrando…"
+  "template.signingIn": "Entrando…",
+  "entry.import.includeSubpages": "Incluir subpáginas",
+  "template.unpack": "Extrair e abrir",
+  "template.localDescription": "Extraia os arquivos do modelo para um novo projeto."
 }

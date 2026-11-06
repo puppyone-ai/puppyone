@@ -659,7 +659,7 @@ describe("project folder home", () => {
     ".onboarding-entry-import .po-button__icon",
     ".onboarding-entry-import-label",
     ".onboarding-entry-import [data-import-brand='github']",
-    ".onboarding-entry-import [data-import-brand='obsidian']",
+    ".onboarding-entry-import [data-import-brand='notion']",
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
@@ -705,7 +705,7 @@ describe("project folder home", () => {
     expect(container.querySelector('[data-import-source="obsidian"]')).toBeNull();
     act(() => preferences.getState().setExperimentalSettings(current => ({ ...current, enableOtherAppImports: true })));
     expect(container.querySelector('[data-import-source="obsidian"]')).not.toBeNull();
-    expect(container.querySelector(".onboarding-entry-import [data-import-brand='obsidian']")).not.toBeNull();
+    expect(container.querySelector(".onboarding-entry-import [data-import-brand='notion']")).not.toBeNull();
     expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enableOtherAppImports).toBe(true);
   });
 
@@ -716,7 +716,7 @@ describe("project folder home", () => {
       onImportSource,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
-    for (const source of ["notion", "google-drive", "airtable"]) {
+    for (const source of ["google-drive", "airtable"]) {
       const button = container.querySelector<HTMLButtonElement>(`.onboarding-import-source[data-import-source='${source}']`);
       expect(button?.dataset.importMode).toBe("remote");
       expect(button?.disabled).toBe(true);
