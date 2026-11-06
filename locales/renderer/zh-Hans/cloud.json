@@ -1036,6 +1036,8 @@
   "message.project-unavailable": "当前服务上无法访问此项目。",
   "opening.failedTitle": "无法打开云电脑",
   "message.project-publish-size-limit": "本次上传超过了大小限制。每次上传最多 2 GiB。请减少要发送的内容后重试。这台 Mac 上的文件保持不变。",
+  "message.project-publish-lfs-unsupported": "这个项目使用了 Git LFS，Puppyone Cloud 暂不支持，所以无法发送。这台 Mac 上的文件保持不变。",
+  "message.project-publish-finalize-failed": "项目已在 Puppyone Cloud 准备好，但这台 Mac 没能完成与它的关联。请重试。",
   "initialize.progress.title": "正在把 {project} 放到云端",
   "initialize.progress.titleFallback": "正在把这个项目放到云端",
   "initialize.progress.lead": "可以关掉这个窗口，只要 PuppyOne 开着就会继续进行。进度会显示在顶部栏，点一下就能回到这里。",

@@ -1036,6 +1036,8 @@
   "message.project-unavailable": "현재 서비스에서 이 프로젝트를 이용할 수 없습니다.",
   "opening.failedTitle": "클라우드 컴퓨터를 열 수 없습니다",
   "message.project-publish-size-limit": "이번 업로드가 크기 제한을 초과했습니다. 한 번에 최대 2 GiB까지 업로드할 수 있습니다. 전송할 내용을 줄인 후 다시 시도하세요. 이 Mac의 파일은 그대로 유지됩니다.",
+  "message.project-publish-lfs-unsupported": "이 프로젝트는 Git LFS를 사용하지만 Puppyone Cloud는 아직 지원하지 않아 보낼 수 없습니다. 이 Mac의 파일은 그대로 유지됩니다.",
+  "message.project-publish-finalize-failed": "프로젝트가 Puppyone Cloud에 준비되었지만 이 Mac에서 연결을 마치지 못했습니다. 다시 시도하세요.",
   "initialize.progress.title": "클라우드에 {project} 올리는 중",
   "initialize.progress.titleFallback": "이 프로젝트를 클라우드에 올리는 중",
   "initialize.progress.lead": "이 창은 닫아도 됩니다. PuppyOne이 열려 있는 동안 계속 진행되며, 진행 상황은 상단 막대에 표시되고 클릭하면 여기로 돌아옵니다.",

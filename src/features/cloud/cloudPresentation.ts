@@ -126,12 +126,19 @@ export function formatCloudPublishFailure(
   if (error.code === "REMOTE_CONFIG_FAILED") return t("cloud.message.project-publish-remote-failed");
   if (error.code === "PUSH_FAILED") return t("cloud.message.project-publish-push-failed");
   if (error.code === "PUSH_LIMIT_EXCEEDED") return t("cloud.message.project-publish-size-limit");
+  if (error.code === "LFS_UNSUPPORTED") return t("cloud.message.project-publish-lfs-unsupported");
+  // No longer produced: Cloud accepts merge commits. A journal that recorded it
+  // before then is retried like any send that did not finish.
+  if (error.code === "MERGE_TIP_UNSUPPORTED") return t("cloud.message.project-publish-push-failed");
+  if (error.code === "LOCAL_FINALIZE_FAILED") return t("cloud.message.project-publish-finalize-failed");
   if (error.code === "COMPENSATION_FAILED") {
     return t("cloud.message.project-publish-compensation-failed");
   }
   if (error.code === "JOURNAL_CORRUPT" || error.code === "JOURNAL_IO_FAILED") {
     return t("cloud.initialize.localRecoveryFailed");
   }
+  // Only a failure nobody could classify reads as the general message. Every
+  // named code above has its own words; a test holds that line.
   return t("cloud.message.project-publish-failed");
 }
 
