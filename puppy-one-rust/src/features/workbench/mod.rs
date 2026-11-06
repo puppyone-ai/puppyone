@@ -1,3 +1,4 @@
+mod agent_chat;
 mod auxiliary_workbench_launcher;
 mod close_dialog;
 mod drag;
@@ -35,8 +36,12 @@ enum Content {
     Launcher,
     Retained(RetainedItem),
     Chat(Entity<AgentChat>),
-    /// `AgentChatWorkbenchItem` over its project-owned controller.
-    Agent(Entity<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>),
+    /// `AgentChatWorkbenchItem` over its project-owned controller, and its
+    /// Item id.
+    Agent(
+        Entity<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>,
+        String,
+    ),
     /// A PTY, its tab title and the CLI it launched (`None` for the shell).
     Terminal(Entity<TerminalView>, String, Option<Runtime>),
 }
@@ -44,7 +49,7 @@ impl Content {
     fn busy(&self, cx: &App) -> bool {
         match self {
             Self::Chat(e) => e.read(cx).busy(),
-            Self::Agent(e) => e.read(cx).presentation().is_some_and(|p| p.running),
+            Self::Agent(e, _) => e.read(cx).presentation().is_some_and(|p| p.running),
             Self::Terminal(e, ..) => e.read(cx).running,
             _ => false,
         }
@@ -52,7 +57,7 @@ impl Content {
     /// Whether this item counts against the chat (`true`) or terminal cap.
     fn is_kind(&self, chat: bool) -> bool {
         match self {
-            Self::Chat(_) | Self::Agent(_) | Self::Retained(RetainedItem::Chat { .. }) => chat,
+            Self::Chat(_) | Self::Agent(..) | Self::Retained(RetainedItem::Chat { .. }) => chat,
             Self::Terminal(..) | Self::Retained(RetainedItem::Terminal { .. }) => !chat,
             _ => false,
         }
@@ -64,6 +69,13 @@ impl Content {
                 "{title} — {}",
                 crate::localization::t(view.read(cx).status().label_key())
             )),
+            Self::Agent(view, _) => view.read(cx).presentation().map(|p| {
+                agent_chat::present_agent_chat_workbench_item(
+                    p,
+                    crate::localization::t("agent.name"),
+                )
+                .detail
+            }),
             _ => None,
         }
     }
@@ -72,7 +84,7 @@ impl Content {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
             Self::Retained(item) => item.title(),
             Self::Chat(e) => e.read(cx).session.snapshot().title.clone(),
-            Self::Agent(e) => e
+            Self::Agent(e, _) => e
                 .read(cx)
                 .presentation()
                 .map(|p| p.title.clone())
@@ -88,6 +100,8 @@ struct Project {
     loading: bool,
     saved: Option<blake3::Hash>,
     storage_error: Option<String>,
+    /// `projectAgentControllers(project)`, created with its first chat.
+    agents: Option<agent_chat::ProjectAgents>,
 }
 #[derive(Clone)]
 struct DragTab {
@@ -130,6 +144,11 @@ pub enum WorkbenchEvent {
     OpenModelConnections,
     /// A hosted Agent run's changes were accepted (`onPublication`).
     CloudPublished,
+    /// A chat opened `path` of the project at `root` (`onOpenFile`).
+    OpenAgentFile {
+        root: PathBuf,
+        path: String,
+    },
 }
 /// The hosted Agent location (`CloudAgentSidebar`): a target's Hub.
 struct CloudLocation {
@@ -212,6 +231,11 @@ pub struct Workbench {
     cloud_published: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// The close dialog refuses (an unconfirmed Cloud submission).
     close_blocked: bool,
+    /// This window on the Agent host, and its bridge once a chat needs it.
+    window_id: u64,
+    agent_window: Option<agent_chat::WindowAgent>,
+    /// Chat tabs whose session is being released.
+    closing_agents: std::collections::HashSet<Id>,
 }
 struct CreationFailure {
     tab: Id,
@@ -299,6 +323,9 @@ impl Workbench {
             cloud_hubs: HashMap::new(),
             cloud_published: Default::default(),
             close_blocked: false,
+            window_id: window.window_handle().window_id().as_u64(),
+            agent_window: None,
+            closing_agents: Default::default(),
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -331,7 +358,9 @@ impl Workbench {
         let id = project.layout.add(0);
         let view = cx.new(|cx| AgentChatTabPanel::visual_fixture(populated, window, cx));
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        project.content.insert(id, Content::Agent(view));
+        project
+            .content
+            .insert(id, Content::Agent(view, "visual-fixture".into()));
         self.projects.insert(root.clone(), project);
         self.root = Some(root);
         cx.notify();
@@ -339,6 +368,7 @@ impl Workbench {
     pub fn set_preferences(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
         if self.hidden_agents != hidden {
             self.hidden_agents = hidden;
+            self.sync_agent_hidden_runtimes(cx);
             cx.notify();
         }
     }
@@ -458,6 +488,7 @@ impl Workbench {
                 },
             );
             ui_state_store::load(root.clone(), self.store_tx.clone(), self.wake.clone());
+            self.authorize_agent_roots();
         }
         self.root = Some(root);
         self.confirm = None;
@@ -536,12 +567,20 @@ impl Workbench {
                                         .then(|| view.session.snapshot().thread.clone())
                                         .flatten(),
                                     title: view.session.snapshot().title.clone(),
+                                    runtime_id: None,
                                 }
                             }
-                            Content::Agent(view) => {
+                            Content::Agent(view, _) => {
                                 let panel = view.read(cx);
                                 let presentation = panel.presentation().cloned();
+                                let state = panel.controller().get_snapshot();
                                 RetainedItem::Chat {
+                                    runtime_id: state
+                                        .session
+                                        .as_ref()
+                                        .and_then(|s| s["runtimeId"].as_str())
+                                        .map(str::to_string)
+                                        .or(state.selected_runtime_id),
                                     runtime: presentation
                                         .as_ref()
                                         .and_then(|p| p.runtime_icon_key.as_deref())
@@ -599,6 +638,39 @@ impl Workbench {
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
                 cx.subscribe(&view, Self::chat_event).detach();
                 Content::Chat(view)
+            }
+            // `restoreAgentChatWorkbenchItem` / `prepareAgentChatWorkbenchItem`.
+            RetainedItem::Chat {
+                runtime,
+                thread,
+                runtime_id,
+                ..
+            } if runtime != Runtime::PuppyOne
+                || runtime_id
+                    .as_deref()
+                    .is_some_and(|id| id != agent_chat::BUILT_IN_AGENT_RUNTIME_ID) =>
+            {
+                let runtime_id = runtime_id.or_else(|| {
+                    self.installations
+                        .iter()
+                        .find(|i| i.runtime == runtime)
+                        .map(agent_chat::agent_chat_runtime_id)
+                });
+                let content = runtime_id
+                    .ok_or_else(|| crate::localization::t("native.agent.uninstalled").to_string())
+                    .and_then(|runtime_id| {
+                        self.agent_chat_content(&runtime_id, thread, window, cx)
+                    });
+                match content {
+                    Ok(content) => content,
+                    Err(error) => {
+                        if let Some(p) = self.project_mut() {
+                            p.storage_error = Some(error);
+                        }
+                        cx.notify();
+                        return;
+                    }
+                }
             }
             RetainedItem::Chat {
                 runtime, thread, ..
@@ -709,12 +781,26 @@ impl Workbench {
             self.request_close_confirmation(id, cx);
             return;
         }
-        if let Some(p) = self.project_mut() {
+        if let Some(Content::Agent(_, item)) = self.project().and_then(|p| p.content.get(&id)) {
+            let item = item.clone();
+            self.confirm = None;
+            self.close_agent_chat(id, item, cx);
+            return;
+        }
+        if let Some(root) = self.root.clone() {
+            self.remove_tab(&root, id, cx);
+        }
+    }
+    /// `removeItem`: the tab leaves `root`'s layout.
+    fn remove_tab(&mut self, root: &std::path::Path, id: Id, cx: &mut Context<Self>) {
+        if let Some(p) = self.projects.get_mut(root) {
             p.layout.remove(id);
             p.content.remove(&id);
         }
         self.history.remove(&id);
-        self.confirm = None;
+        if self.confirm == Some(id) {
+            self.confirm = None;
+        }
         self.close_blocked = false;
         cx.notify();
     }
@@ -769,8 +855,9 @@ impl Workbench {
         if !self.can_create(chat) {
             return;
         }
+        let native_chat = chat && installation.as_ref().is_some_and(|i| i.bundled());
         // `launchError`: a refused creation stays on the launcher with its reason.
-        if chat && !crate::agent::runtime::session_lease::Lease::available(&root) {
+        if native_chat && !crate::agent::runtime::session_lease::Lease::available(&root) {
             self.launch_errors.insert(
                 group,
                 crate::localization::t("native.agent.capacity").into(),
@@ -779,23 +866,40 @@ impl Workbench {
             return;
         }
         self.launch_errors.remove(&group);
-        let content =
-            if let Some(installation) = installation.clone().filter(|i| i.chat && self.chat_mode) {
-                let view = cx.new(|cx| AgentChat::new(installation, root, history, window, cx));
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                cx.subscribe(&view, Self::chat_event).detach();
-                Content::Chat(view)
-            } else {
-                // `TerminalWorkbenchContribution`: the tab is titled by the
-                // project folder; the launcher shows as its icon.
-                let label = super::terminal::path_label(&root);
-                let runtime = installation.as_ref().map(|i| i.runtime);
-                let launcher = installation.as_ref().map_or("shell", |i| i.id);
-                let exe = installation.map(|i| i.executable);
-                let view = cx.new(|cx| TerminalView::new(root, exe, launcher, window, cx));
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                Content::Terminal(view, label, runtime)
-            };
+        let content = if let Some(installation) =
+            installation.clone().filter(|i| chat && !i.bundled())
+        {
+            // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`.
+            match self.agent_chat_content(
+                &agent_chat::agent_chat_runtime_id(&installation),
+                None,
+                window,
+                cx,
+            ) {
+                Ok(content) => content,
+                Err(error) => {
+                    self.launch_errors.insert(group, error);
+                    cx.notify();
+                    return;
+                }
+            }
+        } else if let Some(installation) = installation.clone().filter(|i| i.chat && self.chat_mode)
+        {
+            let view = cx.new(|cx| AgentChat::new(installation, root, history, window, cx));
+            cx.observe(&view, |_, _, cx| cx.notify()).detach();
+            cx.subscribe(&view, Self::chat_event).detach();
+            Content::Chat(view)
+        } else {
+            // `TerminalWorkbenchContribution`: the tab is titled by the
+            // project folder; the launcher shows as its icon.
+            let label = super::terminal::path_label(&root);
+            let runtime = installation.as_ref().map(|i| i.runtime);
+            let launcher = installation.as_ref().map_or("shell", |i| i.id);
+            let exe = installation.map(|i| i.executable);
+            let view = cx.new(|cx| TerminalView::new(root, exe, launcher, window, cx));
+            cx.observe(&view, |_, _, cx| cx.notify()).detach();
+            Content::Terminal(view, label, runtime)
+        };
         if let Some(p) = self.project_mut() {
             let id = tab.unwrap_or_else(|| p.layout.add(group));
             p.content.insert(id, content);
@@ -882,7 +986,7 @@ impl Workbench {
                 let view = view.clone();
                 div().size_full().child(view).into_any_element()
             }
-            Some(Content::Agent(view)) => {
+            Some(Content::Agent(view, _)) => {
                 let view = view.clone();
                 div().size_full().child(view).into_any_element()
             }
@@ -1679,6 +1783,7 @@ mod tests {
                         runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::Codex,
                         thread: None,
                         title: format!("c{n}"),
+                        runtime_id: Some("codex".into()),
                     }),
                 );
             }

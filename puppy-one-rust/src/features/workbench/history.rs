@@ -105,6 +105,10 @@ impl Workbench {
                     .values()
                     .filter_map(|c| match c {
                         Content::Chat(view) => view.read(cx).session.snapshot().thread.clone(),
+                        Content::Agent(view, _) => view
+                            .read(cx)
+                            .presentation()
+                            .and_then(|p| p.session_id.clone()),
                         _ => None,
                     })
                     .collect()

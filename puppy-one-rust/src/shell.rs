@@ -406,6 +406,17 @@ impl Shell {
                     });
                     s.command(Command::Settings, w, cx);
                 }
+                // `handleAgentOpenFile`: a path inside the chat's project
+                // opens in the editor.
+                crate::features::workbench::WorkbenchEvent::OpenAgentFile { root, path } => {
+                    if let Some(path) = crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path(
+                        &root.to_string_lossy(),
+                        path,
+                    ) {
+                        s.files
+                            .begin(Intent::OpenFile(root.join(path)), &s.wake);
+                    }
+                }
                 // A hosted run's accepted changes: reread the Cloud tree and
                 // revalidate the open document (a draft is kept).
                 crate::features::workbench::WorkbenchEvent::CloudPublished => {

@@ -66,7 +66,7 @@ impl Workbench {
                     })
                     .into_any_element()
             }
-            Content::Agent(view) => {
+            Content::Agent(view, _) => {
                 let presentation = view.read(cx).presentation().cloned();
                 let running = presentation.as_ref().is_some_and(|p| p.running);
                 let runtime = presentation

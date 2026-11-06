@@ -20,7 +20,8 @@
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
 //! allowed or not), `agents:<more|invite|agent id>` (their card),
-//! `manage-agents`, and in a file window `file-menu:<view|settings>` (a
+//! `manage-agents`, `agent-chat:<runtime id>` (a new chat on a detected
+//! Agent) and `agent-settled` (its session prepared or failed), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
 //! for the homepage's project activity and an open diff.
@@ -63,6 +64,10 @@ enum Step {
     FileMenu(super::file_mode::FileMenu),
     FileEdit,
     Blur,
+    /// `agent-chat:<runtime id>`: a new chat on a detected Agent.
+    AgentChat(String),
+    /// `agent-settled`: the chat's session is prepared, or failed.
+    AgentSettled,
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -114,6 +119,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 }),
                 "file-edit" => Step::FileEdit,
                 "blur" => Step::Blur,
+                "agent-chat" => Step::AgentChat(arg.to_string()),
+                "agent-settled" => Step::AgentSettled,
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -314,6 +321,20 @@ impl Shell {
             Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
             Step::Wait(_) => {}
+            Step::AgentChat(runtime_id) => {
+                if !self
+                    .sidebar
+                    .workbench
+                    .update(cx, |w, cx| w.capture_new_chat(runtime_id, window, cx))
+                {
+                    return false;
+                }
+            }
+            Step::AgentSettled => {
+                if !self.sidebar.workbench.read(cx).capture_agent_settled(cx) {
+                    return false;
+                }
+            }
             Step::HomeList => self.preferences.update(cx, |p, cx| {
                 p.change(
                     |p| {

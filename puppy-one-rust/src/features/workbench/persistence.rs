@@ -9,6 +9,10 @@ pub enum RetainedItem {
         runtime: Runtime,
         thread: Option<String>,
         title: String,
+        /// The Agent runtime of a chat on the Agent service; `None` for a
+        /// native-harness chat.
+        #[serde(default)]
+        runtime_id: Option<String>,
     },
     Terminal {
         title: String,

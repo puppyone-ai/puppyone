@@ -145,11 +145,14 @@
         "src/features/desktop-agent/workbench/projectAgentControllers.ts"
       ],
       "targets": [
+        "src/features/workbench/agent_chat.rs",
         "src/features/workbench/mod.rs",
-        "src/features/workbench/layout.rs",
-        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
+        "src/features/workbench/persistence.rs",
+        "src/features/workbench/history.rs",
+        "src/features/desktop_agent/infrastructure/host/agent_host_global.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs"
       ],
-      "remaining": "Project-retained entities and persisted validated tabs/splits/native identities exist; restart uses explicit resume and never replays terminal commands. Formal RootId/session-registry integration, exact preparation leases and visual drag/drop parity remain pending."
+      "remaining": "Local Agent chats are AgentChatTabPanel items over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session, close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, and chat file links open in the editor. The process host starts on first use and drains on quit. The Built-in Agent keeps the native harness (AgentChat) and is hidden from panel runtime choices. AgentChatHistoryBrowser over ConversationHistoryController, history-target restore with creation failure, routing preferences and the item-host process service remain."
     },
     {
       "name": "Codex runtime and protocol",
@@ -955,7 +958,8 @@
         "src/agent/ipc/tests.rs",
         "src/agent/host/agent_host.rs",
         "src/agent/host/mod.rs",
-        "src/agent/host/tests.rs"
+        "src/agent/host/tests.rs",
+        "src/features/desktop_agent/infrastructure/host/agent_host_global.rs"
       ],
       "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
     },
