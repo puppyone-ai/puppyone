@@ -39,6 +39,10 @@ function fakeTerminals({ fail = null } = {}) {
   };
 }
 
+// This computer's real folder sandbox. CI sets PUPPYONE_REQUIRE_SANDBOX so a missing one fails instead of skipping.
+const realSandbox = await detectSandbox().catch(() => null);
+if (process.env.PUPPYONE_REQUIRE_SANDBOX === "1" && !realSandbox) throw new Error("This runner has no folder sandbox.");
+
 describe("host execution service", () => {
   it("runs only what this computer allows, in the folder, and relays output and exit", async () => {
     let capabilities = ["folder.read", "folder.write", "folder.shell"];
@@ -128,8 +132,10 @@ describe("host execution policy", () => {
     expect(spawned).toHaveLength(1);
   });
 
-  it.runIf(process.platform === "darwin")("runs Git and its hooks inside the folder sandbox", async () => {
-    const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-sandboxed-git-")));
+  it.runIf(realSandbox)("runs Git and its hooks inside the folder sandbox", async () => {
+    // bubblewrap puts an empty /tmp over the session; keep the test's home outside it.
+    const scratch = process.platform === "linux" ? os.homedir() : os.tmpdir();
+    const base = await fs.realpath(await fs.mkdtemp(path.join(scratch, ".puppyone-sandboxed-git-")));
     roots.push(base);
     const home = path.join(base, "home");
     const root = path.join(home, "Notes");
@@ -144,8 +150,7 @@ describe("host execution policy", () => {
     const hook = path.join(root, ".git", "hooks", "pre-commit");
     await fs.writeFile(hook, `#!/bin/sh\necho escaped > "${home}/Documents/escaped.txt" 2>/dev/null\necho ran > hook-ran.txt\nexit 0\n`);
     await fs.chmod(hook, 0o755);
-    const sandbox = await detectSandbox();
-    const sandboxed = createSandboxedGit({ sandbox, root, home, nodePath: process.execPath, tempDirs: [] });
+    const sandboxed = createSandboxedGit({ sandbox: realSandbox, root, home, nodePath: process.execPath, tempDirs: [] });
     const service = createHostGitService({ resolveFolder: async () => ({ rootPath: root,
       capabilities: ["folder.read", "folder.write", "folder.git"] }), gitFor: async () => sandboxed });
     expect(await service.run({ folder_id: folderId, op: "status" })).toBeTypeOf("object");
