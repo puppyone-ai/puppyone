@@ -983,6 +983,7 @@ impl Shell {
         .detach();
     }
     pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        crate::platform::watchdog::activity("shell.command");
         if command == Command::QuitApp {
             windows::quit_all(cx);
             return;
@@ -2144,6 +2145,7 @@ impl Shell {
 }
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::platform::watchdog::activity("shell.render");
         // Native web content draws above GPUI: overlays hide it, and only
         // surfaces painted in this frame stay visible.
         crate::web_host::set_overlay(window, !self.modals.is_empty() || self.popover.is_some());

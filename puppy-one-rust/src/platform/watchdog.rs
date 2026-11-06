@@ -34,11 +34,14 @@ static ACTIVITY: Mutex<&'static str> = Mutex::new("startup");
 fn now_ms() -> u64 {
     EPOCH.get_or_init(Instant::now).elapsed().as_millis() as u64
 }
-/// Called by the foreground ticker.
+/// Called by the foreground ticker. Until the next task labels itself, a
+/// stall is the foreground's unlabeled work, not the last label set.
 pub fn beat() {
     LAST_BEAT.store(now_ms().max(1), Ordering::Release);
+    activity("foreground");
 }
-/// Labels what the foreground is about to do (cheap; static strings only).
+/// Labels what the foreground is about to do (cheap; static strings only):
+/// a stall is recorded under the label of the work that was running.
 pub fn activity(label: &'static str) {
     *ACTIVITY.lock().unwrap() = label;
 }

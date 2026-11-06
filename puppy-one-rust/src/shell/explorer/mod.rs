@@ -327,6 +327,7 @@ impl Render for Explorer {
     /// The panel: the virtual tree with its drop target, context menu and the
     /// fade into the footer.
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::platform::watchdog::activity("explorer.render");
         #[cfg(test)]
         {
             self.renders += 1;

@@ -476,6 +476,7 @@ fn label(name: &str) -> String {
 
 impl Render for DocumentEditor {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::platform::watchdog::activity("editor.render");
         use crate::editor::workbench::pane;
         let weak = cx.entity().downgrade();
         let measure = canvas(

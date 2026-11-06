@@ -1360,6 +1360,7 @@ impl Workbench {
 }
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::platform::watchdog::activity("workbench.render");
         let t = cx.palette();
         self.persist(cx);
         self.sync_agent_presentation(window, cx);
