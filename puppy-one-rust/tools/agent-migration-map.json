@@ -1045,6 +1045,89 @@
         "src/features/desktop_agent/infrastructure/cloud/projection.rs"
       ],
       "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain. The hosted Agent (CloudAgentConversation over CloudAgentController and cloudAgentProjection) renders through the same panel with its own status; its History reads the target's locators. The pixel lab's chat scenarios run on the panel fixture."
+    },
+    {
+      "name": "Renderer panel support",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/useAgentStreamPresentation.ts",
+        "src/features/desktop-agent/ui/agent-stream-frame-scheduler.ts",
+        "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
+        "src/features/desktop-agent/ui/agent-picker-limits.ts",
+        "src/features/desktop-agent/ui/agent-picker-presentation.ts",
+        "src/features/desktop-agent/ui/useAgentReferenceIngestion.ts",
+        "src/features/desktop-agent/ui/agentReferenceDropEvent.ts",
+        "src/features/desktop-agent/ui/composer/AgentPromptEditor.tsx",
+        "src/features/desktop-agent/ui/composer/agent-reference-presentation.ts",
+        "src/features/desktop-agent/ui/AgentConnectionStatus.tsx",
+        "src/features/desktop-agent/ui/AgentToolGroupContext.ts",
+        "src/features/desktop-agent/ui/transcript/useTranscriptScope.ts",
+        "src/features/desktop-agent/ui/transcript/useTranscriptViewport.ts",
+        "src/features/desktop-agent/ui/AgentActivityRenderBoundary.tsx",
+        "src/features/desktop-agent/ui/AgentBrandMark.tsx",
+        "src/features/desktop-agent/ui/AgentRuntimePicker.tsx",
+        "src/features/desktop-agent/ui/AgentSurfaceHeader.tsx",
+        "src/features/desktop-agent/ui/built-in-agent/built-in-agent-compute.css",
+        "src/features/desktop-agent/ui/desktop-agent.css",
+        "src/features/desktop-agent/ui/styles/activities.css",
+        "src/features/desktop-agent/ui/styles/agent-prompt-editor.css",
+        "src/features/desktop-agent/ui/styles/blocking.css",
+        "src/features/desktop-agent/ui/styles/composer.css",
+        "src/features/desktop-agent/ui/styles/foundation.css",
+        "src/features/desktop-agent/ui/styles/launcher.css",
+        "src/features/desktop-agent/ui/styles/pickers.css",
+        "src/features/desktop-agent/ui/styles/responsive.css",
+        "src/features/desktop-agent/ui/styles/theme.css",
+        "src/features/desktop-agent/ui/styles/tool-results.css",
+        "src/features/desktop-agent/ui/styles/transcript.css"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/panel/composer.rs",
+        "src/features/desktop_agent/ui/panel/elements.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/panel/compute.rs",
+        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/features/desktop_agent/ui/agent_theme.rs",
+        "src/ui/form_input.rs"
+      ],
+      "remaining": "Streaming answers catch up a bounded grapheme step per 16 ms frame (useAgentStreamPresentation over nextAgentStreamText) and re-measure their row. The session-control picker follows AgentPickerPopover's limits (120 options, 360 px, search above six). Dropped Finder files and directories, Explorer resources and pasted images or files become references (useAgentReferenceIngestion); failed references show localizedReferenceError. The prompt editor's mentions are TextInput tokens. The live tail renders AgentConnectionStatus; a tool group's single open step is the panel's group selection (AgentToolGroupContext). The transcript keeps its follow, unread and jump-to-latest state for the panel's lifetime, which in GPUI spans hiding and moving the tab (useTranscriptViewport's remount memory). Activity views are total functions over display values, so no render-time error boundary exists (AgentActivityRenderBoundary). The CSS is expressed in the GPUI views and AgentTheme. AgentRuntimePicker and AgentSurfaceHeader are rendered only by the product's smoke harnesses, not by its chat. Remaining: mention-chip error styling, the announcement live region and pixel parity."
+    },
+    {
+      "name": "Renderer module surface and harnesses",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/agentTypes.ts",
+        "src/features/desktop-agent/domain/agent-contract.ts",
+        "src/features/desktop-agent/domain/agent-projection-types.ts",
+        "src/features/desktop-agent/domain/agent-reference-capabilities.ts",
+        "src/features/desktop-agent/index.ts",
+        "src/features/desktop-agent/lazy.ts",
+        "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx",
+        "src/features/desktop-agent/ui/AgentToolStabilitySmokeHarness.tsx",
+        "src/features/desktop-agent/ui/AgentVisualSmokeHarness.tsx",
+        "src/features/desktop-agent/visual-smoke.ts"
+      ],
+      "targets": [
+        "src/agent/contract/display_types.rs",
+        "src/agent/contract/reference_input.rs",
+        "src/features/workbench/agent_chat.rs",
+        "src/features/desktop_agent/ui/panel/fixture.rs",
+        "src/features/workbench/lab.rs"
+      ],
+      "remaining": "The type modules are the Rust display and reference-input contracts; lazy.ts's preparation, restore, discard and close entry points are the Workbench's Agent chat contribution. The smoke harnesses are the dev-capture panel fixture and the pixel lab's chat scenarios (recorded events through Main's reducers); the render-stability harnesses' long-stream timing checks are not ported."
+    },
+    {
+      "name": "Agent activity bridge",
+      "status": "partial",
+      "sources": [
+        "electron/main/ipc/agent-activity-ipc.mjs"
+      ],
+      "targets": [
+        "src/platform/agent_activity/host.rs",
+        "src/platform/agent_activity/service.rs"
+      ],
+      "remaining": "Terminal Agent file activity (subscribe, enrollment snapshot and toggle) is served by the native agent activity host without an IPC hop."
     }
   ]
 }

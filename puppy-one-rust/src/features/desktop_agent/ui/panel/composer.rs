@@ -44,6 +44,55 @@ pub(super) fn token_renderer() -> crate::ui::form_input::TokenRenderer {
     })
 }
 
+/// `localizedReferenceError(reference, t)`.
+pub(super) fn localized_reference_error(reference: &Value) -> String {
+    const LOCALIZED: [&str; 10] = [
+        "capability-unreported",
+        "reference-size",
+        "workspace-directory-unsupported",
+        "workspace-file-unsupported",
+        "image-unsupported",
+        "file-unsupported",
+        "mime-unsupported",
+        "reference-limit",
+        "reference-total-size",
+        "workspace-resolution-failed",
+    ];
+    match reference["error"]["code"].as_str() {
+        Some(code) if LOCALIZED.contains(&code) => {
+            t(&format!("agent.reference.error.{code}")).into()
+        }
+        _ => reference["error"]["message"]
+            .as_str()
+            .filter(|m| !m.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| t("agent.reference.failed").into()),
+    }
+}
+
+/// `AgentVisualAttachment`'s status details: the localized state, then the
+/// raw error when it says more.
+fn reference_details(reference: &Value) -> Vec<String> {
+    let status = match reference["status"].as_str() {
+        Some("resolving") => t("agent.reference.resolving").to_string(),
+        Some("error") => localized_reference_error(reference),
+        _ => String::new(),
+    };
+    let raw = if reference["status"] == "error" {
+        reference["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    } else {
+        String::new()
+    };
+    let raw = if raw != status { raw } else { String::new() };
+    [status, raw]
+        .into_iter()
+        .filter(|d| !d.is_empty())
+        .collect()
+}
+
 /// `canSubmit` of `AgentComposer`.
 pub(super) fn can_submit(state: &AgentControllerState, view: &AgentChatViewModel) -> bool {
     let attachment_only = view
@@ -196,6 +245,46 @@ impl AgentChatTabPanel {
         }
         if !files.is_empty() {
             drop(self.controller.stage_external_files(files));
+        }
+        cx.notify();
+    }
+
+    /// `onPaste`: images and files from the clipboard (`stageExternalFiles`).
+    pub(super) fn paste_files(
+        &mut self,
+        pasted: &crate::ui::form_input::PastedFiles,
+        cx: &mut Context<Self>,
+    ) {
+        if self.hosted().is_some() {
+            return;
+        }
+        let files: Vec<AgentFile> = pasted
+            .images
+            .iter()
+            .enumerate()
+            .map(|(index, image)| {
+                let (extension, mime) = match image.format {
+                    ImageFormat::Jpeg => ("jpg", "image/jpeg"),
+                    ImageFormat::Gif => ("gif", "image/gif"),
+                    ImageFormat::Webp => ("webp", "image/webp"),
+                    ImageFormat::Svg => ("svg", "image/svg+xml"),
+                    ImageFormat::Bmp => ("bmp", "image/bmp"),
+                    ImageFormat::Tiff => ("tiff", "image/tiff"),
+                    _ => ("png", "image/png"),
+                };
+                AgentFile {
+                    name: format!("pasted-image-{}.{extension}", index + 1),
+                    mime: mime.into(),
+                    size: image.bytes.len() as f64,
+                    source: AgentFileSource::Bytes(std::rc::Rc::new(image.bytes.clone())),
+                }
+            })
+            .collect();
+        if !files.is_empty() {
+            drop(self.controller.stage_external_files(files));
+        }
+        if !pasted.paths.is_empty() {
+            self.add_external_paths(pasted.paths.clone(), cx);
         }
         cx.notify();
     }
@@ -567,7 +656,12 @@ impl AgentChatTabPanel {
                     .border_1()
                     .border_color(if failed { t_.danger } else { a.border_subtle })
                     .bg(a.row_hover)
-                    .tooltip(tooltip(name.clone()))
+                    .tooltip(tooltip(
+                        std::iter::once(name.clone())
+                            .chain(reference_details(&reference))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    ))
                     .child(
                         div()
                             .size_full()

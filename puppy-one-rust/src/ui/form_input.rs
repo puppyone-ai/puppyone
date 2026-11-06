@@ -39,6 +39,8 @@ pub struct TextInput {
     /// Kit's disabled field: no editing or focus, muted.
     pub disabled: bool,
     pub submit_on_enter: bool,
+    /// A paste of images or files is the host's ([`PastedFiles`]), not text.
+    pub paste_files: bool,
     pub min_height: f32,
     /// Prompt editors: Kit's smallest editor padding (4px inline, 0 block) so
     /// the host owns the inset, with an explicit text size and line height.
@@ -53,6 +55,13 @@ pub struct TextInput {
     _subscriptions: Vec<Subscription>,
 }
 impl EventEmitter<InputEvent> for TextInput {}
+
+/// Images or files pasted into an input with `paste_files`.
+pub struct PastedFiles {
+    pub images: Vec<gpui::Image>,
+    pub paths: Vec<std::path::PathBuf>,
+}
+impl EventEmitter<PastedFiles> for TextInput {}
 impl TextInput {
     pub fn new(
         placeholder: impl Into<SharedString>,
@@ -115,6 +124,7 @@ impl TextInput {
             appearance: true,
             disabled: false,
             submit_on_enter: false,
+            paste_files: false,
             prompt_text: None,
             placeholder_color: None,
             min_height: 22.,
@@ -354,6 +364,28 @@ impl Render for TextInput {
                 w.dispatch_action(Box::new(gpui_kit::base::input::SelectAll), cx)
             })
             .capture_action(cx.listener(|s, _: &gpui_kit::base::input::Paste, w, cx| {
+                if s.paste_files
+                    && let Some(item) = cx.read_from_clipboard()
+                {
+                    let mut pasted = PastedFiles {
+                        images: Vec::new(),
+                        paths: Vec::new(),
+                    };
+                    for entry in item.entries() {
+                        match entry {
+                            ClipboardEntry::Image(image) => pasted.images.push(image.clone()),
+                            ClipboardEntry::ExternalPaths(paths) => {
+                                pasted.paths.extend(paths.paths().iter().cloned())
+                            }
+                            ClipboardEntry::String(_) => {}
+                        }
+                    }
+                    if !pasted.images.is_empty() || !pasted.paths.is_empty() {
+                        cx.emit(pasted);
+                        cx.stop_propagation();
+                        return;
+                    }
+                }
                 if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
                     let text = s.bounded(None, &text, w, cx);
                     dispatch!(&s.field, |field| field

@@ -130,6 +130,10 @@ pub struct AgentChatTabPanel {
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
     routing: AgentRouting,
+    /// `useAgentStreamPresentation`: each streaming answer's displayed text,
+    /// and the frame driver that catches it up.
+    stream_text: HashMap<String, String>,
+    stream_frames: Option<Task<()>>,
     /// The pixel lab's UI state, until its conversation shows.
     #[cfg(feature = "dev-capture")]
     lab: Option<fixture::LabState>,
@@ -232,8 +236,17 @@ impl AgentChatTabPanel {
             input.min_height = size * 1.5;
             input.appearance = false;
             input.submit_on_enter = true;
+            input.paste_files = true;
             input.token_renderer = Some(composer::token_renderer());
         });
+        // `onPaste`: pasted images and files become references.
+        cx.subscribe(
+            &composer,
+            |s: &mut Self, _, pasted: &crate::ui::form_input::PastedFiles, cx| {
+                s.paste_files(pasted, cx)
+            },
+        )
+        .detach();
         cx.subscribe_in(
             &composer,
             window,
@@ -303,6 +316,8 @@ impl AgentChatTabPanel {
             compute_access_prompt: false,
             payments: false,
             routing: AgentRouting::default(),
+            stream_text: HashMap::new(),
+            stream_frames: None,
             #[cfg(feature = "dev-capture")]
             lab: None,
             _store: store,
@@ -394,6 +409,7 @@ impl AgentChatTabPanel {
                 cx.emit(AgentChatPanelEvent::Presentation(presentation));
             }
             self.refresh_transcript(&state, &view);
+            self.sync_stream_presentation(cx);
             cx.notify();
             return;
         }
@@ -427,6 +443,7 @@ impl AgentChatTabPanel {
             cx.emit(AgentChatPanelEvent::Presentation(presentation));
         }
         self.refresh_transcript(&state, &view);
+        self.sync_stream_presentation(cx);
         #[cfg(feature = "dev-capture")]
         self.apply_lab_state(cx);
         cx.notify();
