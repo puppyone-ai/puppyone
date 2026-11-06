@@ -78,6 +78,12 @@ impl Session {
         Ok(session)
     }
 
+    /// The session's file once it is on disk (`state.sessionFile`).
+    pub fn file(&self, profile: &Path) -> Option<PathBuf> {
+        let path = file(profile, &self.cwd, &self.id);
+        (!self.in_memory && path.is_file()).then_some(path)
+    }
+
     /// Persists the session (atomically, owner-only).
     pub fn save(&mut self, profile: &Path) -> Result<(), String> {
         if self.in_memory {

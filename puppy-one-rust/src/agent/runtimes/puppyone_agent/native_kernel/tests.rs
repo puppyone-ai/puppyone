@@ -109,6 +109,16 @@ fn adapter(
     complete: Complete,
     generation: Rc<RefCell<String>>,
 ) -> (PuppyOneAgentAdapter, Events) {
+    adapter_reporting(workspace, data, complete, generation, Rc::default())
+}
+
+fn adapter_reporting(
+    workspace: &Path,
+    data: &Path,
+    complete: Complete,
+    generation: Rc<RefCell<String>>,
+    persisted: Events,
+) -> (PuppyOneAgentAdapter, Events) {
     let events: Events = Rc::default();
     let readiness = native_kernel_readiness(&data.to_string_lossy(), "/bin/sh").unwrap();
     let mut options = PiAdapterOptions::new(
@@ -121,6 +131,9 @@ fn adapter(
     options.on_event = Rc::new(move |event| sink.borrow_mut().push(event));
     options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
     options.spawner = Some(native_kernel_spawner(complete));
+    options.on_session_persisted = Some(Rc::new(move |identity| {
+        persisted.borrow_mut().push(identity)
+    }));
     (
         PuppyOneAgentAdapter::new(options, Some(port(generation))).unwrap(),
         events,
@@ -166,7 +179,14 @@ fn a_prompt_streams_through_the_kernel_and_settles() {
             },
         )]);
         let generation = Rc::new(RefCell::new("g1".to_string()));
-        let (adapter, events) = adapter(&root(&workspace), data.path(), complete, generation);
+        let persisted: Events = Rc::default();
+        let (adapter, events) = adapter_reporting(
+            &root(&workspace),
+            data.path(),
+            complete,
+            generation,
+            persisted.clone(),
+        );
         let inspection = adapter.inspect().await.unwrap();
         assert_eq!(inspection["models"][0]["model"], route());
         assert_eq!(inspection["account"]["requiresRuntimeSetup"], false);
@@ -182,6 +202,17 @@ fn a_prompt_streams_through_the_kernel_and_settles() {
             .unwrap();
         let completed = until(&events, "turn.completed").await;
         assert_eq!(completed["turnId"], turn["turnId"]);
+        // The saved session confirms its native persistence (`sessionFile`).
+        for _ in 0..200 {
+            if !persisted.borrow().is_empty() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        assert_eq!(
+            persisted.borrow()[0]["providerSessionId"],
+            session["providerSessionId"]
+        );
         let all = events.borrow().clone();
         let deltas: Vec<&str> = all
             .iter()

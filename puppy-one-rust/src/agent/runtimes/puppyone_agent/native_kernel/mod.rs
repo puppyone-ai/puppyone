@@ -389,6 +389,7 @@ impl Kernel {
         json!({
             "sessionId": session.id,
             "sessionName": session.name,
+            "sessionFile": session.file(&self.launch.profile),
             "model": *self.model.borrow(),
             "thinkingLevel": *self.thinking_level.borrow(),
             "isStreaming": self.run.borrow().is_some(),
