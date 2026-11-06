@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, Check, History, Unlink } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudIcon, CloudUploadIcon, LocalIcon } from "@puppyone/shared-ui";
@@ -25,6 +25,8 @@ export type ProjectPlaceHandlers = Readonly<{
 export type ProjectPlaceMenuProps = Readonly<{
   menu: ProjectPlaceMenu;
   handlers: ProjectPlaceHandlers;
+  /** Who else may open this folder: the owner's other computers. Absent where that is off. */
+  hostRows?: (dismiss: () => void) => ReactNode;
 }>;
 
 /**
@@ -35,7 +37,7 @@ export type ProjectPlaceMenuProps = Readonly<{
  * organization that holds a Cloud project. A small cloud after a folder's
  * address says the folder is linked to a Cloud project.
  */
-export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
+export function ProjectPlaceMenuControl({ menu, handlers, hostRows, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
   projectMenuOpen?: boolean;
   onOpen?: () => void;
 }) {
@@ -65,9 +67,9 @@ export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = fals
     </button>
     <DesktopTitlebarMenuLayer anchorRef={anchor} open={open} onDismiss={() => setOpen(false)}
       dismissOnFocusExit={false} className="desktop-project-place-menu" gap={2}
-      preferredWidth={280} preferredMaxHeight={200} widthMode="content" alignment="start" role="dialog"
+      preferredWidth={280} preferredMaxHeight={260} widthMode="content" alignment="start" role="dialog"
       ariaLabel={t("cloud.placeMenu.label")}>
-      <ProjectPlaceRows menu={menu} handlers={handlers} onDismiss={() => setOpen(false)} />
+      <ProjectPlaceRows menu={menu} handlers={handlers} hostRows={hostRows} onDismiss={() => setOpen(false)} />
     </DesktopTitlebarMenuLayer>
   </div>;
 }
@@ -77,7 +79,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = fals
  * folder's Cloud link and the way to end it. Invitations belong to the Cloud
  * project, never to this local folder.
  */
-export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
+export function ProjectPlaceRows({ menu, handlers, hostRows, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
   const placeLabel = useProjectPlaceLabel(menu.place);
   const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
@@ -96,6 +98,10 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
     {menu.link && <>
       <DesktopMenuSeparator />
       <ProjectPlaceCloudLinkRows link={menu.link} handlers={handlers} onDismiss={onDismiss} />
+    </>}
+    {hostRows && menu.place === "local" && <>
+      <DesktopMenuSeparator />
+      {hostRows(onDismiss)}
     </>}
     {handlers.onOpenHistory && <>
       <DesktopMenuSeparator />

@@ -32,9 +32,8 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
-import { HomepageDeviceFolders } from "./features/hosts/ui/HomepageDeviceFolders";
+import { HomepageComputers, useHostFolderPlace } from "./features/hosts";
 import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
-import { ShareFolderControl } from "./features/hosts/ui/ShareFolderControl";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
 import { useWindowProjectNavigation, type ProjectDesktopView } from "./app/useWindowProjectNavigation";
@@ -1488,6 +1487,10 @@ function AppContent() {
   });
   useHostFolderRestore({ enabled: hostDevicesEnabled, session: activeCloudSession, apiBase: desktopCloudApiBaseUrl,
     restoring: restoringWorkspace || cloudSessionRestoring || !homepageReady, open: selectHostFolder });
+  const hostFolderPlace = useHostFolderPlace({
+    enabled: hostDevicesEnabled && Boolean(window.puppyoneDesktop && desktopCloudApiBaseUrl) && !cloudWorkspaceActive,
+    session: activeCloudSession, rootPath: workspace?.path, recordedFolderId: workspace?.hostFolderId,
+    name: workspace?.name ?? "" });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1623,9 +1626,10 @@ function AppContent() {
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        remoteFoldersSlot={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
-          ? <HomepageDeviceFolders key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
-              session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
+        projectGroups={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
+          ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
+              session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
+              onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
@@ -1737,6 +1741,7 @@ function AppContent() {
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
       ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
     },
+    hostRows: hostFolderPlace.placeRows,
   } : null;
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext
@@ -1780,8 +1785,7 @@ function AppContent() {
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
-      {hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl && !cloudWorkspaceActive &&
-        <ShareFolderControl key={workspace.path} rootPath={workspace.path} sharedFolderId={workspace.hostFolderId} />}
+      {hostFolderPlace.dialog}
       <DesktopTitlebarActions {...chromeActionProps} />
     </>
   );

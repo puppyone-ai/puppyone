@@ -31,6 +31,11 @@ export type ProjectHomeItem = {
   cloudActions?: Readonly<{ rename: boolean; delete: boolean }>;
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
+  /**
+   * The id this local folder was opened to the owner's other computers under, as
+   * recorded when it was shared. Whether it still is comes from this computer's catalog.
+   */
+  hostFolderId?: string;
 };
 
 export function projectHomeItemLocation(item: ProjectHomeItem): "local" | "cloud" {

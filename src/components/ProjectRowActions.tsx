@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { LocalIcon, Tooltip } from "@puppyone/shared-ui";
 import {
   useEffect,
   useLayoutEffect,
@@ -60,6 +60,8 @@ export type ProjectRowActionsProps = Readonly<{
   onRename?: (name: string) => Promise<void>;
   onUnlink?: () => Promise<void>;
   onDelete?: () => Promise<void>;
+  /** What the owner's other computers may do with this folder; only where it is open to them. */
+  onSharingSettings?: () => void;
   disabled?: boolean;
   triggerClassName?: string;
   /** For a list that keeps its rows out of the way of the Tab key. */
@@ -74,6 +76,7 @@ export function ProjectRowActions({
   onRename,
   onUnlink,
   onDelete,
+  onSharingSettings,
   disabled = false,
   triggerClassName = "desktop-project-switcher-row-action",
   triggerTabIndex,
@@ -247,7 +250,17 @@ export function ProjectRowActions({
                 }}
               />
             )}
-            {onRename && (onUnlink || onDelete) && <DesktopMenuSeparator />}
+            {onSharingSettings && (
+              <DesktopMenuItem
+                icon={<LocalIcon size={14} />}
+                label={t("hosts.home.sharingSettings")}
+                onClick={() => {
+                  onSurfaceChange(null);
+                  onSharingSettings();
+                }}
+              />
+            )}
+            {(onRename || onSharingSettings) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
             {onUnlink && (
               <DesktopMenuItem
                 destructive
