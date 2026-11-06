@@ -208,6 +208,23 @@ describe("host IPC", () => {
     expect((await app.status()).state).toBe("online");
   });
 
+  it("reports and changes starting at login, and refuses anything but a yes or no", async () => {
+    const handlers = new Map();
+    let enabled = false;
+    const hostAutostart = { supported: true, status: async () => ({ supported: true, enabled }),
+      set: async (on) => { enabled = on; return enabled; } };
+    const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+      app: { getPath: () => "/unused" }, auth: { readSession: async () => null, subscribe: () => () => {} },
+      apiBase: "https://api.puppyone.ai/api/v1", logger: { warn() {} }, hostAutostart,
+      BrowserWindow: { getAllWindows: () => [] }, t: (id) => id });
+    cleanup.push(async () => ipc.dispose?.());
+    expect(await handlers.get("host:autostart")()).toEqual({ supported: true, enabled: false });
+    expect(await handlers.get("host:set-autostart")({}, { enabled: true })).toEqual({ supported: true, enabled: true });
+    expect(await handlers.get("host:autostart")()).toEqual({ supported: true, enabled: true });
+    await expect(handlers.get("host:set-autostart")({}, { enabled: "yes" })).rejects.toThrow("Invalid autostart setting.");
+    expect(enabled).toBe(true);
+  });
+
   it("lets the host service run only host routes with the person's session, and only for this deployment", async () => {
     const userData = await temporaryRoot();
     const stateDir = path.join(userData, "host-service");
