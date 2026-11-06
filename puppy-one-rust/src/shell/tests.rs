@@ -1304,8 +1304,15 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     draw(cx);
     let pushed = renders(cx);
     assert!(pushed > before, "a host change renders the Explorer");
-    // So does a preference change: appearance is process-wide.
-    view.update_in(cx, |s, w, cx| s.apply_preferences(w, cx));
+    // A preference the Explorer does not read leaves it alone…
+    let store = view.read_with(cx, |s, _| s.preferences.clone());
+    store.update(cx, |p, cx| p.change(|p| p.right_sidebar_width = 400., cx));
+    draw(cx);
+    assert_eq!(renders(cx), pushed, "a pane width is not the Explorer's");
+    // …while an appearance change is process-wide: the window renders again.
+    store.update(cx, |p, cx| {
+        p.change(|p| p.pointer_cursors = !p.pointer_cursors, cx)
+    });
     draw(cx);
     assert!(renders(cx) > pushed, "the window refreshed");
 }

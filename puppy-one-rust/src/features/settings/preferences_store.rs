@@ -5,6 +5,47 @@ use crate::platform::preference_storage::{self, Event, Write};
 use gpui::*;
 #[derive(Clone)]
 pub struct PreferencesChanged;
+
+/// A selected part of the preferences (`useDesktopPreference(selector)`): it
+/// reports a change only when the selected value differs from the last one
+/// it saw, so a write to another field does not reach its owner.
+pub struct Slice<T> {
+    last: Option<T>,
+}
+impl<T: PartialEq> Default for Slice<T> {
+    fn default() -> Self {
+        Self { last: None }
+    }
+}
+impl<T: PartialEq> Slice<T> {
+    /// The new value when it differs from the last one (always the first
+    /// time); it is remembered either way.
+    pub fn changed(&mut self, next: T) -> Option<&T> {
+        if self.last.as_ref() == Some(&next) {
+            return None;
+        }
+        self.last = Some(next);
+        self.last.as_ref()
+    }
+}
+
+/// Runs `on_change` when the part `select` reads changes; writes to other
+/// fields (and the writer's acknowledgements) do not reach it.
+pub fn observe_slice<V: 'static, T: PartialEq + 'static>(
+    store: &Entity<PreferencesStore>,
+    select: impl Fn(&PreferencesStore) -> T + 'static,
+    mut on_change: impl FnMut(&mut V, &T, &mut Context<V>) + 'static,
+    cx: &mut Context<V>,
+) -> Subscription {
+    let mut slice = Slice::default();
+    cx.subscribe(store, move |this, store, _: &PreferencesChanged, cx| {
+        let next = select(store.read(cx));
+        if let Some(value) = slice.changed(next) {
+            on_change(this, value, cx);
+        }
+    })
+}
+
 pub struct PreferencesStore {
     pub state: Preferences,
     pub loaded: bool,
@@ -180,6 +221,33 @@ mod tests {
         let retry = rx.try_recv().unwrap();
         assert_eq!(retry.revision, first.revision);
         assert_eq!(retry.value["dark"], false);
+    }
+    #[gpui::test]
+    fn a_slice_hears_only_changes_to_what_it_selects(cx: &mut TestAppContext) {
+        struct Owner {
+            heard: Vec<bool>,
+        }
+        let store = cx.new(|_| PreferencesStore::memory());
+        let owner = cx.new(|cx| {
+            observe_slice(
+                &store,
+                |s| s.state.sidebar_collapsed,
+                |o: &mut Owner, collapsed, _| o.heard.push(*collapsed),
+                cx,
+            )
+            .detach();
+            Owner { heard: vec![] }
+        });
+        // Events arrive after each update, reading the state then.
+        let change = |edit: fn(&mut Preferences), cx: &mut TestAppContext| {
+            store.update(cx, |s, cx| s.change(edit, cx));
+        };
+        change(|p| p.sidebar_collapsed = true, cx);
+        // Other fields are not heard.
+        change(|p| p.locale = "zh-Hans".into(), cx);
+        change(|p| p.explorer_width = 260., cx);
+        change(|p| p.sidebar_collapsed = false, cx);
+        owner.read_with(cx, |o, _| assert_eq!(o.heard, vec![true, false]));
     }
     #[test]
     fn preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields() {

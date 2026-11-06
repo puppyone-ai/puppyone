@@ -43,6 +43,7 @@ pub(crate) mod tasks;
 mod window_cloud;
 mod window_project;
 pub mod windows;
+use crate::features::settings::preferences_store::Slice;
 use command::on_shell_actions;
 pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
@@ -59,6 +60,38 @@ use tasks::TaskUi;
 /// rebuild the Explorer or the right sidebar.
 fn fill() -> StyleRefinement {
     StyleRefinement::default().size_full()
+}
+
+/// What the process-wide appearance is projected from: a change to any of
+/// these renders the whole window again; nothing else does.
+#[derive(Clone, PartialEq)]
+struct AppearanceInputs {
+    theme_mode: crate::features::settings::preference_types::ThemeMode,
+    sub_theme_ids: crate::features::settings::preference_types::SubThemeIds,
+    text_scale: crate::typography::Scale,
+    fonts: crate::typography::fonts::Selection,
+    pointer_cursors: bool,
+    loading_style: crate::ui::loading::LoadingStyle,
+    locale: String,
+}
+impl AppearanceInputs {
+    fn of(p: &crate::features::settings::preference_types::Preferences) -> Self {
+        Self {
+            theme_mode: p.theme_mode,
+            sub_theme_ids: p.sub_theme_ids.clone(),
+            text_scale: p.text_scale,
+            fonts: p.fonts.clone(),
+            pointer_cursors: p.pointer_cursors,
+            loading_style: p.loading_style,
+            locale: p.locale.clone(),
+        }
+    }
+}
+/// The parts of the preferences the shell projects only when they change.
+#[derive(Default)]
+struct PreferenceSlices {
+    appearance: Slice<AppearanceInputs>,
+    panes: Slice<StoredPanes>,
 }
 
 /// Header popovers owned by the shell.
@@ -109,6 +142,7 @@ pub struct Shell {
     feedback: Entity<crate::features::feedback::Feedback>,
     cloud_services: Entity<crate::features::cloud_services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
+    preference_slices: PreferenceSlices,
     pending: bool,
     files: Documents,
     /// The editor area's hosts, drops, resizes and save notices.
@@ -267,6 +301,7 @@ impl Shell {
             cloud_services: cx
                 .new(|cx| crate::features::cloud_services::CloudServices::new(window, cx)),
             preferences,
+            preference_slices: Default::default(),
             pending: false,
             files: if fixture {
                 Documents::default()
@@ -305,7 +340,7 @@ impl Shell {
             &s.preferences,
             window,
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
-                s.apply_preferences(w, cx);
+                s.preferences_changed(w, cx);
                 s.refresh_cloud_catalog(false, cx);
                 if s.window.restore_last && s.preferences.read(cx).loaded {
                     s.window.restore_last = false;
@@ -321,11 +356,11 @@ impl Shell {
             },
         )
         .detach();
-        cx.observe_window_appearance(window, |s, w, cx| s.apply_preferences(w, cx))
+        cx.observe_window_appearance(window, |s, w, cx| s.apply_appearance(w, cx))
             .detach();
         // An installed Sub Theme can change on disk (`useSubThemeCatalog`).
         if let Some(catalog) = crate::features::sub_theme_catalog::global(cx) {
-            cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_preferences(w, cx))
+            cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_appearance(w, cx))
                 .detach();
         }
         // What the Explorer asks for.
@@ -700,16 +735,26 @@ impl Shell {
             .apply(Some(window), cx);
         s
     }
+    /// The preferences changed. Only a change to appearance, type scale or
+    /// locale renders the whole window again; every other reader takes its
+    /// own part, and the pane layout arrives only when it changed.
+    fn preferences_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let appearance = AppearanceInputs::of(&self.preferences.read(cx).state);
+        if self
+            .preference_slices
+            .appearance
+            .changed(appearance)
+            .is_some()
+        {
+            self.apply_appearance(window, cx);
+        }
+        self.apply_projections(window, cx);
+    }
     /// Project persisted appearance/locale preferences onto the process-wide
     /// theme, type scale and catalog. `System` follows the window appearance.
-    fn apply_preferences(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         use crate::features::settings::preference_types::ThemeMode;
         let p = self.preferences.read(cx).state.clone();
-        // The built-in Agent offers PuppyOne compute only while Payments is on.
-        crate::cloud_auth::set_payments(p.experimental.payments);
-        crate::editor::markdown::core::commands::block_move::set_enabled(
-            p.experimental.markdown_block_drag,
-        );
         self.dark = match p.theme_mode {
             ThemeMode::Dark => true,
             ThemeMode::Light => false,
@@ -743,32 +788,6 @@ impl Shell {
             .with_loading(p.loading_style)
             .with_fonts(p.fonts.normalized())
             .apply(Some(window), cx);
-        self.homepage.recent = p.recent_projects.clone();
-        let hidden = p.local_agents.hidden_agent_ids.clone();
-        let (routing, payments) = (p.agent_routing.clone(), p.experimental.payments);
-        self.sidebar
-            .workbench
-            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
-        let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
-        let history_icons = icons.clone();
-        self.sidebar
-            .cloud_history
-            .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
-        self.sidebar
-            .source_control
-            .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
-        self.rail = p.project_switcher_rail;
-        // The pane layout (`useDesktopExplorerFrame`).
-        self.panes.restore(StoredPanes {
-            explorer_collapsed: p.sidebar_collapsed,
-            explorer_width: p.explorer_width,
-            right_width: p.right_sidebar_width,
-        });
-        // The surface the closed sidebar opens on (`rightSidebarSurface`).
-        if self.preferences.read(cx).loaded {
-            let open = self.panes.right().open;
-            self.sidebar.restore(p.right_sidebar_surface, open, cx);
-        }
         let code = crate::localization::resolve_preference(
             &p.locale,
             crate::platform::environment::system_languages(),
@@ -786,6 +805,47 @@ impl Shell {
         // panes (Explorer, workbench, Changes) read them while rendering, so
         // the whole window renders again.
         window.refresh();
+    }
+    /// The parts of the preferences other owners read, handed to them; each
+    /// takes only a change (nothing here renders the window again).
+    fn apply_projections(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let p = self.preferences.read(cx).state.clone();
+        // The built-in Agent offers PuppyOne compute only while Payments is on.
+        crate::cloud_auth::set_payments(p.experimental.payments);
+        crate::editor::markdown::core::commands::block_move::set_enabled(
+            p.experimental.markdown_block_drag,
+        );
+        self.homepage.recent = p.recent_projects.clone();
+        let hidden = p.local_agents.hidden_agent_ids.clone();
+        let (routing, payments) = (p.agent_routing.clone(), p.experimental.payments);
+        self.sidebar
+            .workbench
+            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
+        let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
+        let history_icons = icons.clone();
+        self.sidebar
+            .cloud_history
+            .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
+        self.sidebar
+            .source_control
+            .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
+        self.rail = p.project_switcher_rail;
+        // The pane layout (`useDesktopExplorerFrame`), only when it changed:
+        // this window's own commits arrive back here as no change.
+        let stored = StoredPanes {
+            explorer_collapsed: p.sidebar_collapsed,
+            explorer_width: p.explorer_width,
+            right_width: p.right_sidebar_width,
+        };
+        if let Some(stored) = self.preference_slices.panes.changed(stored) {
+            self.panes.restore(*stored);
+        }
+        // The surface the closed sidebar opens on (`rightSidebarSurface`).
+        if self.preferences.read(cx).loaded {
+            let open = self.panes.right().open;
+            self.sidebar.restore(p.right_sidebar_surface, open, cx);
+        }
+        let _ = window;
     }
     /// A dialog takes the window: the modal layer, or the Documents error.
     fn modal(&self) -> bool {

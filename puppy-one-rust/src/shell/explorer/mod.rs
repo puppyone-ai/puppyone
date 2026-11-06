@@ -18,7 +18,10 @@
 use crate::{
     features::{
         create_new::create_entry_menu_registry::Entry,
-        settings::preferences_store::{PreferencesChanged, PreferencesStore},
+        settings::{
+            preference_types::{ExplorerPins, FilesVisibility},
+            preferences_store::{PreferencesStore, observe_slice},
+        },
     },
     geometry::Rect,
     localization::t as tr,
@@ -64,6 +67,39 @@ pub(in crate::shell) struct Host {
     pub folder_busy: bool,
     /// The folder picker is open.
     pub picking: bool,
+}
+
+/// What the Explorer reads from the preferences while it paints and acts:
+/// a write to anything else does not render it again.
+#[derive(PartialEq)]
+struct PaintedPreferences {
+    loaded: bool,
+    files: FilesVisibility,
+    file_icon_theme: String,
+    show_file_icons: bool,
+    create_new: crate::features::create_new::create_entry_menu_registry::MenuSettings,
+    puppy_flow_files: bool,
+    cloud_workspace: bool,
+    share_onboarding: bool,
+    agent_file_activity_indicators: bool,
+    explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
+}
+impl PaintedPreferences {
+    fn of(store: &PreferencesStore) -> Self {
+        let p = &store.state;
+        Self {
+            loaded: store.loaded,
+            files: p.files.clone(),
+            file_icon_theme: p.file_icon_theme.clone(),
+            show_file_icons: p.show_file_icons,
+            create_new: p.create_new.clone(),
+            puppy_flow_files: p.experimental.puppy_flow_files,
+            cloud_workspace: p.experimental.cloud_workspace,
+            share_onboarding: p.experimental.share_onboarding,
+            agent_file_activity_indicators: p.agent_file_activity_indicators,
+            explorer_pins: p.explorer_pins.clone(),
+        }
+    }
 }
 
 /// What the Explorer asks of the shell.
@@ -161,13 +197,18 @@ impl Explorer {
         preferences: Entity<PreferencesStore>,
         cx: &mut Context<Self>,
     ) -> Self {
-        // Hidden files and exclude patterns follow the preference.
-        cx.subscribe(&preferences, |s, _, _: &PreferencesChanged, cx| {
-            s.apply_visibility(cx)
-        })
+        // Only the preferences it paints and acts with render it again:
+        // hidden files and exclude patterns also refilter the tree.
+        observe_slice(
+            &preferences,
+            PaintedPreferences::of,
+            |s: &mut Self, _, cx| {
+                s.apply_visibility(cx);
+                cx.notify();
+            },
+            cx,
+        )
         .detach();
-        // Icon theme and Create New configuration are read when painting.
-        cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
         }
