@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
+import type { OnboardingGroupsBase } from "../../../../src/components/onboarding/OnboardingProjectGroups";
 import type { ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
@@ -37,37 +38,50 @@ function renderHome(overrides: Partial<HomeWithEntryFlowProps> = {}) {
   return container;
 }
 
-/** Each group heading with the names listed under it, in page order. */
+/** Each group's title with the names listed under it, in page order. */
 function groups(container: HTMLElement) {
-  const result: Array<{ title: string; names: string[] }> = [];
-  for (const node of container.querySelectorAll(".onboarding-host-groups > *")) {
-    if (node.classList.contains("onboarding-host-group-title")) result.push({ title: node.textContent ?? "", names: [] });
-    else if (result.length) {
-      const other = node.getAttribute("data-test-other-computers");
-      result.at(-1)!.names.push(other ?? node.textContent ?? "");
-    }
-  }
-  return result;
+  return [...container.querySelectorAll(".onboarding-project-group")].map((group) => ({
+    title: group.querySelector(".onboarding-project-group-title")?.textContent ?? "",
+    names: [...group.querySelectorAll(".onboarding-project-row-wrap")].map((row) => row.textContent ?? ""),
+  }));
 }
 
-describe("homepage grouped by machine", () => {
-  it("shows this computer, the owner's other computers, then the Cloud as one group", () => {
-    const container = renderHome({
-      remoteFoldersSlot: <div data-test-other-computers="other computers">other computers</div>,
-    });
-    const shown = groups(container);
-    expect(shown.map((group) => group.title)).toEqual(["This computer", "Cloud"]);
-    // Local folders (with or without a Cloud link) are this computer's; Cloud projects are the Cloud's.
-    expect(shown[0].names.join(" ")).toMatch(/notes/);
-    expect(shown[0].names.join(" ")).toMatch(/site/);
-    expect(shown[0].names).toContain("other computers");
-    expect(shown[1].names.join(" ")).toMatch(/shared/);
-    expect(shown[1].names.join(" ")).not.toMatch(/notes/);
+describe("homepage grouped by where each project is", () => {
+  it("puts the Cloud's projects first, then this computer's folders", () => {
+    const shown = groups(renderHome());
+    expect(shown.map((group) => group.title)).toEqual(["Cloud", "This computer"]);
+    expect(shown[0].names.join(" ")).toMatch(/shared/);
+    expect(shown[0].names.join(" ")).not.toMatch(/notes/);
+    // A folder with its own Cloud project is still this computer's folder.
+    expect(shown[1].names.join(" ")).toMatch(/notes/);
+    expect(shown[1].names.join(" ")).toMatch(/site/);
   });
 
-  it("keeps the single list when no other computer shares anything here", () => {
+  it("scrolls the page as one, so no group can cut off its own last row", () => {
     const container = renderHome();
-    expect(container.querySelector(".onboarding-host-groups")).toBeNull();
+    const page = container.querySelectorAll(".onboarding-project-groups");
+    expect(page).toHaveLength(1);
+    expect(page[0].querySelectorAll(".onboarding-project-list")).toHaveLength(2);
+  });
+
+  it("shows just the list, with no heading, when every project is in one place", () => {
+    const container = renderHome({ projectItems: [local] });
+    expect(container.querySelector(".onboarding-project-groups")).toBeNull();
+    expect(container.querySelector(".onboarding-project-group-title")).toBeNull();
     expect(container.querySelectorAll(".onboarding-project-list")).toHaveLength(1);
+  });
+
+  it("hands the Cloud's and this computer's groups, in that order, to whoever adds other computers", () => {
+    let handed: OnboardingGroupsBase | null = null;
+    const container = renderHome({
+      projectGroups: (base) => {
+        handed = base;
+        return <div data-test-other-computers="">other computers</div>;
+      },
+    });
+    expect(container.querySelector("[data-test-other-computers]")).not.toBeNull();
+    expect(handed!.cloud?.id).toBe("cloud");
+    expect(handed!.local?.title).toBe("This computer");
+    expect(handed!.showOtherComputers).toBe(true);
   });
 });

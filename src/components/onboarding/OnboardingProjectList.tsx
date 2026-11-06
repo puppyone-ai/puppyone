@@ -1,4 +1,4 @@
-import { LoadingMark, Tooltip } from "@puppyone/shared-ui";
+import { LoadingMark, LocalIcon, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
@@ -21,7 +21,14 @@ type ProjectChanges = {
   onDeleteCloudProject?: (projectId: string) => Promise<void>;
 };
 
+/** Which of this computer's folders its owner's other computers can open, and where that is changed. */
+export type ProjectListSharing = Readonly<{
+  sharedFolderIds: ReadonlySet<string>;
+  onSharingSettings: (folder: Readonly<{ folderId: string; name: string; rootPath: string }>) => void;
+}>;
+
 type OnboardingProjectListProps = ProjectChanges & {
+  sharing?: ProjectListSharing;
   /** The rows are not settled yet, so the mark stands in for them. */
   held?: boolean;
   items: ProjectHomeItem[];
@@ -46,6 +53,7 @@ export function OnboardingProjectList({
   onOpen,
   onDragStart,
   onDragEnd,
+  sharing,
   ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
@@ -76,6 +84,8 @@ export function OnboardingProjectList({
         const dragging = draggingPath === item.localPath;
         const linked = item.linkedCloudProject;
         const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+        const sharedId = item.localPath && item.hostFolderId && sharing?.sharedFolderIds.has(item.hostFolderId)
+          ? item.hostFolderId : null;
         const tabIndex = item.id === navigation.stopId ? 0 : -1;
         const open = {
           "data-project-open": true,
@@ -95,11 +105,16 @@ export function OnboardingProjectList({
             data-cloud-project-id={item.cloudProjectId}
             data-linked-cloud-project-id={linked?.id}
             onFocus={() => navigation.setFocusedId(item.id)}>
-            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} {...open} /> : <DesktopMenuItem
+            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
               icon={<HomeProjectIcon item={item} filled />}
-              label={<bdi>{name}</bdi>}
+              label={<>
+                <bdi>{name}</bdi>
+                {sharedId && <Tooltip content={t("hosts.home.shared")}>
+                  <span className="onboarding-project-shared-mark"><LocalIcon size={12} strokeWidth={1.85} aria-hidden="true" /></span>
+                </Tooltip>}
+              </>}
               detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
                 : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
               trailing={modified}
@@ -109,6 +124,8 @@ export function OnboardingProjectList({
               className="onboarding-project-cloud-link" tabIndex={tabIndex}
               onOpen={() => onOpenCloudProject(linked.id)} />}
             <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
+              onSharingSettings={sharedId && sharing
+                ? () => sharing.onSharingSettings({ folderId: sharedId, name, rootPath: item.localPath }) : undefined}
               onSurfaceChange={(next) => {
                 if (!next) navigation.handOffFocusIfGone(item.id);
                 setActions(next && { id: item.id, surface: next });
@@ -139,15 +156,16 @@ function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: Proj
 }
 
 /** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
-function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, ...changes }: ProjectChanges & {
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, onSharingSettings, ...changes }: ProjectChanges & {
   item: ProjectHomeItem;
+  onSharingSettings?: () => void;
   name: string;
   busy: boolean;
   surface: ProjectActionSurface;
   tabIndex: number;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
 }) {
-  const offered = offeredProjectChanges(item, changes);
+  const offered = { ...offeredProjectChanges(item, changes), onSharingSettings };
   if (!Object.values(offered).some(Boolean)) return null;
   return (
     <ProjectRowActions
@@ -167,11 +185,13 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
  * One project on the Grid: a folder and one line of name. The tooltip adds where it
  * lives and when it last changed, and the name itself only when the line has cut it.
  */
-function ProjectTile({ item, name, modified, ...button }: {
+function ProjectTile({ item, name, modified, shared, ...button }: {
   item: ProjectHomeItem;
   name: string;
   modified: string | null;
+  shared: boolean;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { t } = useLocalization();
   const caption = useProjectHomeItemCaption(item);
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
   const nameRef = useRef<HTMLElement>(null);
@@ -181,9 +201,9 @@ function ProjectTile({ item, name, modified, ...button }: {
     setNameCut(Boolean(shown && shown.scrollWidth > shown.clientWidth));
   };
   return (
-    <Tooltip content={[nameCut && name, place, modified].filter(Boolean).join(" · ")}>
+    <Tooltip content={[nameCut && name, place, shared && t("hosts.home.shared"), modified].filter(Boolean).join(" · ")}>
       <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
-        <ProjectFolder item={item} />
+        <ProjectFolder item={item} shared={shared} />
         <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
       </button>
     </Tooltip>

@@ -1095,16 +1095,177 @@ span.homepage-cloud-feedback {
   color: var(--po-brand-blue);
 }
 
-/* Folders grouped by the machine they are on (this computer, other computers, Cloud). */
-.onboarding-host-groups {
+/* The projects by where they are: the Cloud, this computer, each other computer.
+   The page scrolls as one, with the single list's lane and fades; the lists inside
+   lie flat in it, so a group never scrolls on its own or cuts off its last row. */
+.onboarding-project-groups {
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
+  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
   display: grid;
-  gap: 12px;
+  width: calc(100% + var(--po-scrollbar-size));
   min-width: 0;
+  min-height: 0;
+  align-content: start;
+  gap: 18px;
+  padding-block: 4px 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  /* A focused project scrolls clear of the next group's head as well as the fades. */
+  scroll-padding-block: 36px 16px;
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 20px), transparent);
 }
 
-.onboarding-host-group-title {
-  margin: 8px 0 0;
-  font-size: var(--onboarding-caption-font-size);
-  font-weight: var(--po-text-weight-medium, 500);
+.onboarding-project-groups .onboarding-project-list {
+  width: 100%;
+  overflow: visible;
+  padding-block: 0;
+  scrollbar-gutter: auto;
+  mask-image: none;
+}
+
+.onboarding-project-group {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+/* A group's head is the page's caption: its icon, its name, one quiet fact, and its
+   menu, which shows only when the group is reached for. */
+.onboarding-project-group-head {
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 8px 4px;
   color: var(--po-text-muted);
+  font-family: var(--po-font-sans);
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 16px;
+}
+
+.onboarding-project-group-title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--po-text-muted);
+  font: inherit;
+  font-weight: var(--po-text-weight-medium, 500);
+}
+
+.onboarding-project-group-title bdi {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-group-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--po-text-subtle);
+}
+
+/* Blue belongs to the Cloud alone. */
+.onboarding-project-group[data-project-group="cloud"] .onboarding-project-group-icon {
+  color: var(--po-brand-blue);
+}
+
+.onboarding-project-group-detail {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-group-presence[data-online]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background: var(--po-success);
+  vertical-align: 1px;
+}
+
+.onboarding-project-group-actions {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.desktop-menu-icon-button.onboarding-project-group-menu {
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.onboarding-project-group:hover .onboarding-project-group-menu,
+.onboarding-project-group-head:focus-within .onboarding-project-group-menu,
+.onboarding-project-group-menu[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .desktop-menu-icon-button.onboarding-project-group-menu {
+    opacity: 1;
+  }
+}
+
+/* An offline computer keeps its folders in view, quieter, until it is back. */
+.onboarding-project-group[data-inactive] .onboarding-project-list {
+  opacity: 0.5;
+}
+
+.onboarding-project-group-empty,
+.onboarding-project-groups-note {
+  margin: 0;
+  padding: 2px 8px 6px;
+  color: var(--po-text-subtle);
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 18px;
+}
+
+.onboarding-project-groups-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* A folder the owner's other computers can open: a small computer on its corner,
+   cut out from the folder by the page, in ink rather than the Cloud's blue. */
+.onboarding-project-shared-badge {
+  position: absolute;
+  inset-block-end: -4px;
+  inset-inline-end: -5px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--po-canvas);
+  color: var(--po-text);
+}
+
+.onboarding-project-shared-badge.is-beside-cloud {
+  inset-inline-end: 16px;
+}
+
+.onboarding-project-icon .onboarding-project-shared-badge {
+  display: none;
+}
+
+.onboarding-project-shared-mark {
+  display: inline-flex;
+  margin-inline-start: 6px;
+  color: var(--po-text-subtle);
+  vertical-align: -1px;
 }
