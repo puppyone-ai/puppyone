@@ -2040,6 +2040,43 @@
         "artifact:office-native/rtf-converted-light.png"
       ],
       "remaining": "The product's OfficeViewer (with its security preflight, validation and text-fallback workers) is bundled from the pinned sources and runs in WKWebView; .doc/.rtf conversion is the macOS textutil bridge. WebKit, not Chromium, renders the documents, and the bundle adapts TextDecoder on resizable buffers and DOMParser with a leading BOM. The editor task scheduler, host leases and worker host run inside the page rather than sharing the workbench's document barriers, and Office editor actions (unused by the product) are not offered."
+    },
+    {
+      "name": "PuppyFlow editor",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/puppyflow/**"
+      ],
+      "targets": [
+        "src/editor/viewers/structured.rs",
+        "tools/structured-viewer-entry.tsx",
+        "tools/import-structured-viewers.mjs",
+        "assets/web/structured-viewers.json"
+      ],
+      "evidence": [
+        "test:page_edits_become_the_document_text_and_read_only_refuses_them",
+        "test:the_page_carries_the_document_and_serves_the_agent_marks",
+        "artifact:structured-native/puppyflow-light.png"
+      ],
+      "remaining": "The product's PuppyFlowViewer and StructuredDocumentModel are bundled from the pinned sources and run in WKWebView; the native surface owns the text, saves, reloads, menu undo/redo and read-only input. Run validates enabled steps only, as in the product. The theme switch rebuilds the page on the current text, which resets its history."
+    },
+    {
+      "name": "Context Map viewer",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/context-map/**"
+      ],
+      "targets": [
+        "src/editor/viewers/structured.rs",
+        "tools/structured-viewer-entry.tsx",
+        "src/editor/host/chrome.rs",
+        "assets/web/structured-viewers.json"
+      ],
+      "evidence": [
+        "test:the_context_map_lists_the_workspace_and_drives_the_pane_menu",
+        "artifact:structured-native/context-map-light.png"
+      ],
+      "remaining": "The product's ContextMapViewer (graph loading, radial/canvas/layered layouts, routing, wheel navigation, line filters) runs in WKWebView over native workspace reads, with its layout switch and filters in the native pane menu and workspace changes bumping its revision. Its retained view state (layout mode) lives for the page, not the document model owner, and document dependency tracking is the root watch rather than per-path."
     }
   ],
   "retired_sources": {
