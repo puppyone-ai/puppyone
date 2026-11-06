@@ -12,13 +12,15 @@ import { loadMacosResourceDrag } from "../../../../electron/main/platform/macos/
 import { registerResourceTransferIpcHandlers } from "../../../../electron/main/ipc/resource-transfer-ipc.mjs";
 
 import { runExplicitSplitDomAcceptance } from "../../../support/electron/explicit-split-dom-acceptance.mjs";
+import { runImageDropDomAcceptance } from "../../../support/electron/image-drop-dom-acceptance.mjs";
 import { runNativeResourceAcceptance } from "../../../support/electron/native-resource-acceptance.mjs";
 
 // Manual OS smoke: drag the three source rows to the other native window, Finder
 // or Terminal. The separate receiver records genuine native File objects.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "puppyone-resource-smoke-"));
-const domMode = process.argv.includes("--dom");
+const imageDropMode = process.argv.includes("--image-drop");
+const domMode = process.argv.includes("--dom") || imageDropMode;
 const automated = process.argv.includes("--automated") || domMode;
 const editorMode = process.argv.includes("--editor") || domMode;
 const imageMode = process.argv.includes("--images");
@@ -84,7 +86,8 @@ app.whenReady().then(async () => {
   if (automated) {
     let failed = false;
     try {
-      if (domMode) await runExplicitSplitDomAcceptance({ window: windows[0], entries, temporaryRoot, repoRoot });
+      if (imageDropMode) await runImageDropDomAcceptance({ window: windows[0], entries, temporaryRoot, repoRoot });
+      else if (domMode) await runExplicitSplitDomAcceptance({ window: windows[0], entries, temporaryRoot, repoRoot });
       else await runNativeResourceAcceptance({ windows, entries, temporaryRoot, repoRoot, editorMode, imageMode });
     } catch (error) { console.error(error); failed = true; }
     finally {

@@ -349,11 +349,6 @@
       "count": 1
     }
   },
-  "src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/shared-ui/editor/markdown/core/commands/markdownBlockCommands.ts": {
     "no-nested-ternary": {
       "count": 2

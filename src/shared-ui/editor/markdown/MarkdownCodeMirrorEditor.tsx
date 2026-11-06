@@ -2,6 +2,9 @@
 
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { isolateHistory } from "@codemirror/commands";
+import { isMarkdownInsertBoundary } from "./core/syntax/markdownInsertBoundaries";
+import { markdownImageDropPreview } from "./features/image/markdownImageDropPreview";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -307,6 +310,7 @@ export function MarkdownCodeMirrorEditor({
       },
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
+          markdownImageDropPreview,
           taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
@@ -476,9 +480,9 @@ export function MarkdownCodeMirrorEditor({
       if (!isCurrent()) return;
       const languageStartedAt = performance.now();
       try {
-        const languageExtension = livePreview
-          ? markdownCodeMirrorLanguageExtension(resolvedDialect)
-          : [];
+        // Source mode also needs semantic block boundaries for image drops.
+        // Keep parsing deferred, and retain its existing unhighlighted surface.
+        const languageExtension = markdownCodeMirrorLanguageExtension(resolvedDialect, livePreview);
         view.dispatch({
           effects: languageCompartmentRef.current.reconfigure(languageExtension),
         });
@@ -680,12 +684,22 @@ export function MarkdownCodeMirrorEditor({
         return clientX >= rect.left && clientX <= rect.right
           && clientY >= rect.top && clientY <= rect.bottom;
       },
+      previewInsert(point) {
+        return viewRef.current?.plugin(markdownImageDropPreview)?.preview(point) ?? false;
+      },
+      clearInsertPreview() {
+        viewRef.current?.plugin(markdownImageDropPreview)?.clear();
+      },
       prepareInsert(point) {
         const view = viewRef.current;
         if (!view) return async () => false;
+        const drop = view.plugin(markdownImageDropPreview)?.capture(point);
+        // A hidden/offscreen boundary consumes the gesture without falling back
+        // to the old caret, opening another document or importing an asset.
+        if (!drop) return async () => true;
         const lifetime = dropLifetimeRef.current;
         const focusAtRelease = view.dom.ownerDocument.activeElement;
-        const anchor = { view, position: resolveDropInsertPosition(view, point) };
+        const anchor = { view, position: drop.position };
         const pending = pendingImageDropsRef.current;
         pending.add(anchor);
         const isCurrent = () => lifetime.active && viewRef.current === view && !view.state.readOnly;
@@ -701,7 +715,7 @@ export function MarkdownCodeMirrorEditor({
               escapeMarkdownDestination(destination),
               target.name.replace(/\.[^.]+$/, ""),
             );
-            insertMarkdownImageAt(view, anchor.position, snippet);
+            if (!insertMarkdownImageAt(view, anchor.position, snippet)) return false;
             if (view.dom.ownerDocument.activeElement === focusAtRelease) view.focus();
             return true;
           } catch (error) {
@@ -716,11 +730,9 @@ export function MarkdownCodeMirrorEditor({
   }, [assets, documentPath, readOnly, workspaceRoot]);
   useRegisterDocumentDropTarget(dropRegistration);
 
-  const previewMessage = previewState === "error"
-    ? t("editor.markdown.previewUnavailable")
-    : previewState === "pending" && showPendingMessage
-      ? t("editor.markdown.preparingPreview")
-      : null;
+  let previewMessage: string | null = null;
+  if (previewState === "error") previewMessage = t("editor.markdown.previewUnavailable");
+  else if (previewState === "pending" && showPendingMessage) previewMessage = t("editor.markdown.preparingPreview");
   // The source stays editable when Live Preview fails, so its notice can be put away.
   const [previewFailureNotice, dismissPreviewFailure] = useDismissibleNotice(
     previewState === "error" ? previewMessage : null,
@@ -761,20 +773,6 @@ export function MarkdownCodeMirrorEditor({
   );
 }
 
-/** Drops below the last line land at the end of the document; drops without a
- * recorded point keep the caret. */
-export function resolveDropInsertPosition(
-  view: EditorView,
-  point: { x: number; y: number } | null,
-): number {
-  if (!point) return view.state.selection.main.from;
-  const position = view.posAtCoords(point);
-  if (position !== null) return position;
-  return point.y > view.contentDOM.getBoundingClientRect().bottom
-    ? view.state.doc.length
-    : view.state.selection.main.from;
-}
-
 type ResolvedDropTarget = Readonly<{ path: string; name: string }>;
 
 /** Workspace entries are already stored; Finder/paste files land next to the
@@ -792,24 +790,23 @@ async function resolveDropTarget(
   return { path: imported.path, name: payload.file.name };
 }
 
-/**
- * Insert an image snippet at a character position. A drop that lands inside a
- * word must not glue the image to the surrounding text; a drop at the start of
- * a line inserts bare, so the image can open the line.
- */
-export function insertMarkdownImageAt(view: EditorView, position: number, snippet: string): void {
+/** One source transaction and undo step; existing paragraph spacing survives. */
+export function insertMarkdownImageAt(view: EditorView, position: number, snippet: string): boolean {
+  if (view.state.readOnly || !isMarkdownInsertBoundary(view.state, position)) return false;
   const { doc } = view.state;
-  const atLineStart = position === doc.lineAt(position).from;
-  const before = position > 0 ? doc.sliceString(position - 1, position) : "";
-  const after = position < doc.length ? doc.sliceString(position, position + 1) : "";
-  let insert = snippet;
-  if (!atLineStart && before && !/\s/u.test(before)) insert = ` ${insert}`;
-  if (!atLineStart && after && !/\s/u.test(after)) insert = `${insert} `;
+  const before = doc.sliceString(Math.max(0, position - 2), position);
+  const after = doc.sliceString(position, Math.min(doc.length, position + 2));
+  let prefix = "", suffix = "";
+  if (before && !before.endsWith("\n\n")) prefix = before.endsWith("\n") ? "\n" : "\n\n";
+  if (after && !after.startsWith("\n\n")) suffix = after.startsWith("\n") ? "\n" : "\n\n";
+  const insert = prefix + snippet + suffix;
   view.dispatch({
     changes: { from: position, insert },
-    selection: { anchor: position + insert.length },
+    selection: { anchor: position + prefix.length + snippet.length },
+    annotations: isolateHistory.of("full"),
     userEvent: "input.drop",
   });
+  return true;
 }
 
 function getEditableExtensions(readOnly: boolean): Extension[] {

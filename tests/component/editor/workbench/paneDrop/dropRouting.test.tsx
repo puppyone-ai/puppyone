@@ -71,6 +71,7 @@ function harness(target: Partial<DocumentDropTargetRegistration> = {}) {
           data-kind={drop.insertTargetPaneId === "pane-1" ? "insert" : ""}
           onDragOver={(event) => drop.over(event, "pane-1")}
           onDrop={(event) => drop.drop(event, "pane-1")}
+          onDragLeave={(event) => drop.leave(event, "pane-1")}
         >
           <div data-file-split-targets>
             <div data-file-split-edge="left" />
@@ -146,4 +147,29 @@ describe("image drops into the reading area", () => {
     expect(f.open).not.toHaveBeenCalled();
     expect(f.output()).toBe("image");
   });
+  it("forwards the hover point and clears the document line on entering a split card", () => {
+    const previewInsert = vi.fn(() => true);
+    const clearInsertPreview = vi.fn();
+    const f = harness({ previewInsert, clearInsertPreview });
+    act(() => f.pane.dispatchEvent(drag("dragover", transfer(), 400, 300)));
+    expect(previewInsert).toHaveBeenCalledWith({ x: 400, y: 300 });
+    act(() => f.pane.dispatchEvent(drag("dragover", transfer(), 10, 300)));
+    expect(clearInsertPreview).toHaveBeenCalledOnce();
+    expect(f.pane.dataset.edge).toBe("left");
+  });
+  it.each(["dragleave", "dragend", "drop"])("clears the insertion line on %s", async (type) => {
+    const clearInsertPreview = vi.fn();
+    const f = harness({ previewInsert: () => true, clearInsertPreview });
+    act(() => f.pane.dispatchEvent(drag("dragover", transfer(), 400, 300)));
+    await act(async () => { f.pane.dispatchEvent(drag(type, transfer(), 400, 300)); });
+    expect(clearInsertPreview).toHaveBeenCalledOnce();
+  });
+  it("does not advertise an insertion when the real boundary is outside the viewport", () => {
+    const f = harness({ previewInsert: () => false, clearInsertPreview: vi.fn() });
+    const data = transfer();
+    act(() => f.pane.dispatchEvent(drag("dragover", data, 400, 300)));
+    expect(f.pane.dataset.kind).toBe("");
+    expect(data.dropEffect).toBe("none");
+  });
+
 });

@@ -68,7 +68,7 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
         <section data-pane data-insert-pane={controller.insertTargetPaneId}
           onDragOverCapture={(event) => controller.over(event, "pane")}
           onDropCapture={(event) => controller.drop(event, "pane")}>
-          <MarkdownCodeMirrorEditor value={"alpha\nbeta\n"} readOnly={readOnly} livePreview={false}
+          <MarkdownCodeMirrorEditor value={"alpha\n\nbeta\n"} readOnly={readOnly} livePreview={false}
             documentPath={path} workspaceRoot={resourceRoot} workspaceId="workspace" />
           <div data-file-split-targets>
             <div data-file-split-edge="left" />
@@ -83,6 +83,7 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
   }
   const render = async (path?: string, readOnly?: boolean) => {
     await act(async () => root.render(withTestLocalization(<Harness path={path} readOnly={readOnly} />)));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
     host.querySelector<HTMLElement>("[data-pane]")!.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
     host.querySelector<HTMLElement>(".cm-scroller")!.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
     host.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(12, 160, 120, 280);
@@ -92,7 +93,16 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
   };
   await render();
   const view = EditorView.findFromDOM(host.querySelector(".cm-content")!)!;
-  vi.spyOn(view, "posAtCoords").mockReturnValue(6);
+  vi.spyOn(view, "documentTop", "get").mockReturnValue(0);
+  vi.spyOn(view, "scaleX", "get").mockReturnValue(1);
+  vi.spyOn(view, "scaleY", "get").mockReturnValue(1);
+  view.dom.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+  view.contentDOM.getBoundingClientRect = () => new DOMRect(50, 100, 700, 400);
+  vi.spyOn(view, "lineBlockAt").mockImplementation(position => {
+    const line = view.state.doc.lineAt(position);
+    const top = line.number * 100;
+    return { from: line.from, to: line.to, top, bottom: top + 60, height: 60 } as ReturnType<EditorView["lineBlockAt"]>;
+  });
   return {
     open, view, render,
     preview: (state: ResourceDragState) => act(() => publish(state)),
@@ -108,8 +118,7 @@ describe("Markdown image insertion through the pane capture handler", () => {
   it("inserts a root-qualified image at release coordinates without prior editor dragover", async () => {
     const f = await fixture();
     await f.drop();
-    expect(f.view.posAtCoords).toHaveBeenCalledWith({ x: 400, y: 300 });
-    expect(f.view.state.doc.toString()).toBe("alpha\n![p](../assets/p.png)beta\n");
+    expect(f.view.state.doc.toString()).toBe("alpha\n\n![p](../assets/p.png)\n\nbeta\n");
     expect(f.open).not.toHaveBeenCalled();
     expect(f.view.hasFocus).toBe(true);
   });
@@ -122,7 +131,7 @@ describe("Markdown image insertion through the pane capture handler", () => {
     const f = await fixture();
     await f.drop(imageTransfer(), x, y);
     expect(f.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ path: `${resourceRoot}/assets/p.png` }), "pane", direction, placement);
-    expect(f.view.state.doc.toString()).toBe("alpha\nbeta\n");
+    expect(f.view.state.doc.toString()).toBe("alpha\n\nbeta\n");
   });
   it("previews insertion using native session metadata while Files is protected", async () => {
     window.puppyoneDesktop = { resourceDragSessionSupported: true } as unknown as NonNullable<typeof window.puppyoneDesktop>;
@@ -132,6 +141,20 @@ describe("Markdown image insertion through the pane capture handler", () => {
     Object.defineProperty(protectedTransfer, "types", { value: ["Files"] });
     act(() => host.querySelector(".cm-content")!.dispatchEvent(drag("dragover", protectedTransfer)));
     expect(host.querySelector<HTMLElement>("[data-pane]")!.dataset.insertPane).toBe("pane");
+    expect(host.querySelector<HTMLElement>(".cm-md-image-drop-indicator")!.hidden).toBe(false);
+    expect(f.view.state.doc.toString()).toBe("alpha\n\nbeta\n");
+  });
+  it("keeps the painted anchor when window capture resets native metadata before the pane drop", async () => {
+    window.puppyoneDesktop = { resourceDragSessionSupported: true, claimResourceDrop: vi.fn(async () => ({ entries: [
+      { path: `${resourceRoot}/assets/p.png`, name: "p.png", entryType: "file" },
+    ] })) } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const f = await fixture();
+    f.preview({ id: "drag-1", entries: [{ path: `${resourceRoot}/assets/p.png`, name: "p.png", entryType: "file" }] });
+    act(() => host.querySelector(".cm-content")!.dispatchEvent(drag("dragover", nativeFiles())));
+    expect(host.querySelector<HTMLElement>(".cm-md-image-drop-indicator")!.hidden).toBe(false);
+    vi.mocked(f.view.lineBlockAt).mockReturnValue({ from: 0, to: 12, top: 400, bottom: 500, height: 100 } as ReturnType<EditorView["lineBlockAt"]>);
+    await f.drop(nativeFiles());
+    expect(f.view.state.doc.toString()).toBe("alpha\n\n![p](../assets/p.png)\n\nbeta\n");
   });
   it("claims native workspace images before referencing their canonical path", async () => {
     const claim = vi.fn(async () => ({ entries: [{ path: `${resourceRoot}/assets/p.png`, name: "p.png", entryType: "file" }] }));
@@ -161,7 +184,7 @@ describe("Markdown image insertion through the pane capture handler", () => {
     const f = await fixture({ importImage });
     await f.drop(nativeFiles());
     expect(importImage).not.toHaveBeenCalled();
-    expect(f.view.state.doc.toString()).toBe("alpha\nbeta\n");
+    expect(f.view.state.doc.toString()).toBe("alpha\n\nbeta\n");
     expect(f.open).not.toHaveBeenCalled();
   });
   it("imports a genuine external file once using its original File handle", async () => {
@@ -180,7 +203,7 @@ describe("Markdown image insertion through the pane capture handler", () => {
     const f = await fixture({ importImage });
     await f.drop(nativeFiles(2));
     expect(importImage).not.toHaveBeenCalled();
-    expect(f.view.state.doc.toString()).toBe("alpha\nbeta\n");
+    expect(f.view.state.doc.toString()).toBe("alpha\n\nbeta\n");
   });
   it("maps the release position through edits while the native receipt is pending", async () => {
     let finish!: (value: { entries: { path: string; name: string; entryType: "file" }[] }) => void;
@@ -189,7 +212,7 @@ describe("Markdown image insertion through the pane capture handler", () => {
     await f.drop(nativeFiles());
     act(() => f.view.dispatch({ changes: { from: 0, insert: "prefix\n" } }));
     await act(async () => finish({ entries: [{ path: `${resourceRoot}/assets/p.png`, name: "p.png", entryType: "file" }] }));
-    expect(f.view.state.doc.toString()).toBe("prefix\nalpha\n![p](../assets/p.png)beta\n");
+    expect(f.view.state.doc.toString()).toBe("prefix\nalpha\n\n![p](../assets/p.png)\n\nbeta\n");
     expect(f.open).not.toHaveBeenCalled();
   });
   it("retires pending insertion when another document replaces the target", async () => {
@@ -227,4 +250,26 @@ describe("Markdown image insertion through the pane capture handler", () => {
     expect(f.text()).toContain("![p0](imported.png)");
     expect(document.activeElement).toBe(input);
   });
+  it("inserts exactly at the previewed paragraph boundary and retires the line", async () => {
+    const f = await fixture();
+    act(() => host.querySelector(".cm-content")!.dispatchEvent(drag("dragover", imageTransfer())));
+    const marker = host.querySelector<HTMLElement>(".cm-md-image-drop-indicator")!;
+    expect(marker.hidden).toBe(false);
+    expect(marker.style.transform).toContain("230px");
+    await f.drop();
+    expect(f.view.state.doc.toString()).toBe("alpha\n\n![p](../assets/p.png)\n\nbeta\n");
+    expect(marker.hidden).toBe(true);
+  });
+  it("rejects a delayed insertion if an intervening edit joins the two paragraphs", async () => {
+    let finish!: (value: { entries: { path: string; name: string; entryType: "file" }[] }) => void;
+    window.puppyoneDesktop = { resourceDragSessionSupported: true, claimResourceDrop: vi.fn(() => new Promise(resolve => { finish = resolve; })) } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const f = await fixture();
+    await f.drop(nativeFiles());
+    act(() => f.view.dispatch({ changes: { from: 5, to: 7, insert: " " } }));
+    await act(async () => finish({ entries: [{ path: `${resourceRoot}/assets/p.png`, name: "p.png", entryType: "file" }] }));
+    expect(f.view.state.doc.toString()).toBe("alpha beta\n");
+    expect(f.error()).toBe("image");
+    expect(f.open).not.toHaveBeenCalled();
+  });
+
 });

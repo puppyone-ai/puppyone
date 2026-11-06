@@ -1,4 +1,5 @@
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { EditorView } from "@codemirror/view";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { canonicalizeResourceUri, createWorkspaceFolder, EMPTY_MARKDOWN_LINK_COMMANDS, ExplorerTree, getEditorPanes, resolveMarkdownAssetPath, type DataPort, type DocumentDataNode, type MarkdownWorkspaceEnvironment } from "@puppyone/shared-ui";
 import "@puppyone/shared-ui/shared-ui.css";
@@ -76,3 +77,10 @@ function Harness() {
   </main>;
 }
 createRoot(document.getElementById("root")!).render(<TestLocalizationProvider messages={englishCatalog}><Harness /></TestLocalizationProvider>);
+
+// Isolated acceptance fixture only: inspect the production source model,
+// without relying on live-preview DOM text as the saved document truth.
+Object.assign(window, { imageDropFixture: {
+  source: () => EditorView.findFromDOM(document.querySelector(".cm-content")!)?.state.doc.toString(),
+  selection: () => EditorView.findFromDOM(document.querySelector(".cm-content")!)?.state.selection.toJSON(),
+} });

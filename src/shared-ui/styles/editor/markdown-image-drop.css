@@ -1,0 +1,23 @@
+/* Outside contentDOM and the scroller: this line cannot change document height
+   or introduce scrollable overflow, even at the final paragraph boundary. */
+.markdown-codemirror-editor .cm-md-image-drop-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-image-drop-indicator {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--po-accent);
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-image-drop-indicator[hidden] {
+  display: none;
+}

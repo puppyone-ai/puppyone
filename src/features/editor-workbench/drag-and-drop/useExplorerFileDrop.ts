@@ -13,6 +13,7 @@ import {
   type DocumentDataNode,
   type DocumentDropPayload,
   type DocumentDropRegistry,
+  type DocumentDropTargetRegistration,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
   type ReferenceDataTransferSource,
@@ -100,6 +101,11 @@ export function useExplorerFileDrop(
   const clearCardsFrame = useRef<number | null>(null);
   const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
+  const insertPreviewRef = useRef<{ paneId: string; target: DocumentDropTargetRegistration } | null>(null);
+  const clearInsertPreview = useCallback(() => {
+    insertPreviewRef.current?.target.clearInsertPreview?.();
+    insertPreviewRef.current = null;
+  }, []);
   // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
   const targetsRef = useRef(new Map<string, object>());
   const openRef = useRef(onOpenAtPaneEdge);
@@ -135,7 +141,13 @@ export function useExplorerFileDrop(
     return session;
   }, []);
 
-  const finishFileDrag = useCallback((reason: InteractionTerminationReason): boolean => {
+  const finishFileDrag = useCallback((reason: InteractionTerminationReason, deferInsertCleanup = reason === "drop"): boolean => {
+    if (deferInsertCleanup) {
+      // Window capture runs before the pane can freeze the painted anchor.
+      // Also clean up drops outside every pane after synchronous dispatch ends.
+      const pending = insertPreviewRef.current;
+      queueMicrotask(() => { if (insertPreviewRef.current === pending) clearInsertPreview(); });
+    } else clearInsertPreview();
     if (reason === "unmount" && clearCardsFrame.current !== null) window.cancelAnimationFrame(clearCardsFrame.current);
     const session = sessionRef.current;
     if (!session) return false;
@@ -153,7 +165,7 @@ export function useExplorerFileDrop(
       });
     }
     return true;
-  }, []);
+  }, [clearInsertPreview]);
 
   useInteractionTermination({
     finish: finishFileDrag,
@@ -180,7 +192,10 @@ export function useExplorerFileDrop(
         beginFileDrag();
         setDropFailure(null);
       } else {
-        finishFileDrag("dragend");
+        // The preview store also clears in window drop capture. Let the pane
+        // freeze the painted anchor before retiring presentation. Admission
+        // still uses its independent receipt, never this preview metadata.
+        finishFileDrag("dragend", true);
       }
     };
     const unsubscribe = resourceDragPreviewStore.subscribe(sync);
@@ -210,10 +225,15 @@ export function useExplorerFileDrop(
       hasTarget: true,
     })) {
       // No split preview: the release will edit the document.
+      if (insertPreviewRef.current?.target !== target) clearInsertPreview();
+      insertPreviewRef.current = { paneId, target };
+      const accepts = target.previewInsert?.({ x: event.clientX, y: event.clientY }) ?? true;
+      event.dataTransfer.dropEffect = accepts ? "copy" : "none";
       setPreview(null);
-      setInsertTargetPaneId(paneId);
+      setInsertTargetPaneId(accepts ? paneId : null);
       return;
     }
+    clearInsertPreview();
     setInsertTargetPaneId(null);
     setPreview(edge ? {
       sessionId: session.id,
@@ -222,14 +242,15 @@ export function useExplorerFileDrop(
         edge,
       },
     } : null);
-  }, [beginFileDrag, registry, workspaceId]);
+  }, [beginFileDrag, clearInsertPreview, registry, workspaceId]);
 
   const leave = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    if (insertPreviewRef.current?.paneId === paneId) clearInsertPreview();
     setInsertTargetPaneId((current) => current === paneId ? null : current);
     setSplitTargetPaneId((current) => current === paneId ? null : current);
     setPreview((current) => current?.intent.targetPaneId === paneId ? null : current);
-  }, []);
+  }, [clearInsertPreview]);
 
   const drop = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (!hasExplorerFileDrag(event.dataTransfer) && !hasNativeFiles(event.dataTransfer)) return;

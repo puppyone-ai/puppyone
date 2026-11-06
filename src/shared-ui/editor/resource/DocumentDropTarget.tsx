@@ -17,6 +17,10 @@ export type DocumentDropInsertion = (payload: DocumentDropPayload | null) => Pro
 export type DocumentDropTargetRegistration = Readonly<{
   /** Hit test in client coordinates. Only the document surface may answer. */
   containsPoint(clientX: number, clientY: number): boolean;
+  /** Display a document-owned insertion marker. False means no visible, valid
+   * boundary at this point. Preview never changes document source or selection. */
+  previewInsert?(point: DocumentDropPoint): boolean;
+  clearInsertPreview?(): void;
   /** Capture the document and anchor synchronously at release, before native
    * admission/import. Completion returns false only for an unsupported payload;
    * retired documents consume the drop without editing or splitting. */
@@ -41,6 +45,8 @@ export function createDocumentDropRegistry(): DocumentDropRegistry {
       let active = true;
       registrations.set(key, {
         containsPoint: (x, y) => active && registration.containsPoint(x, y),
+        previewInsert: (point) => active && (registration.previewInsert?.(point) ?? true),
+        clearInsertPreview: () => registration.clearInsertPreview?.(),
         prepareInsert(point) {
           if (!active) return async () => true;
           const complete = registration.prepareInsert(point);
@@ -49,7 +55,9 @@ export function createDocumentDropRegistry(): DocumentDropRegistry {
       });
       // Idempotent: a second dispose never removes a newer registration.
       return () => {
+        if (!active) return;
         active = false;
+        registration.clearInsertPreview?.();
         registrations.delete(key);
       };
     },

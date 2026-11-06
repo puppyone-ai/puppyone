@@ -39,9 +39,11 @@ async function mount(readOnly: boolean) {
       />
     </DocumentDropTargetProvider>,
   )));
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
   const scroller = host.querySelector<HTMLElement>(".cm-scroller");
   scroller!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 400);
-  vi.spyOn(EditorView.prototype, "posAtCoords").mockReturnValue(0);
+  const view = EditorView.findFromDOM(host.querySelector(".cm-content")!)!;
+  vi.spyOn(view, "documentTop", "get").mockReturnValue(0);
   return { registry, scroller: scroller! };
 }
 
