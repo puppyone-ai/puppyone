@@ -1,3 +1,4 @@
+pub mod agent_routing_preferences;
 mod electron_preferences;
 mod main;
 pub mod preference_types;

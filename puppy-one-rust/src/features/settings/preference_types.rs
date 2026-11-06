@@ -306,6 +306,8 @@ pub struct Preferences {
     /// `agentFileActivityIndicatorsEnabled`: show which files a Hooked
     /// terminal Agent reads and writes. Turned on when a Hook is installed.
     pub agent_file_activity_indicators: bool,
+    /// `puppyone.desktop.agentRoutingPreferences.v1`.
+    pub agent_routing: super::agent_routing_preferences::AgentRoutingPreferences,
     /// `puppyone.desktop.headerCoachmarks.v1`: introductions acknowledged.
     pub header_coachmarks: HeaderCoachmarks,
     pub experimental: Experimental,
@@ -420,6 +422,7 @@ impl Default for Preferences {
             files: FilesVisibility::default(),
             local_agents: LocalAgents::default(),
             agent_file_activity_indicators: false,
+            agent_routing: Default::default(),
             header_coachmarks: HeaderCoachmarks::default(),
             experimental: Experimental::default(),
             recent_projects: vec![],
@@ -470,6 +473,7 @@ impl Preferences {
         p.create_new.normalize();
         p.local_agents.setup_suggestions =
             std::mem::take(&mut p.local_agents.setup_suggestions).normalized();
+        p.agent_routing = p.agent_routing.normalized();
         p.file_icon_theme = crate::file_kind::parse_theme(Some(&p.file_icon_theme))
             .unwrap_or(crate::file_kind::default_theme())
             .into();

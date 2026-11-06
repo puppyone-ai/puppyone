@@ -28,6 +28,9 @@ mod keys {
     pub const EXPERIMENTAL: &str = "puppyone.desktop.experimental";
     pub const FILES: &str = "puppyone.desktop.filesVisibility";
     pub const LOCAL_AGENTS: &str = "puppyone.desktop.localAgents";
+    pub const AGENT_ROUTING: &str = "puppyone.desktop.agentRoutingPreferences.v1";
+    pub const AGENT_PREFERRED_RUNTIME: &str = "puppyone.desktop.agentPreferredRuntime";
+    pub const AGENT_PREFERRED_MODEL: &str = "puppyone.desktop.agentPreferredModel";
     pub const AGENT_FILE_ACTIVITY: &str = "puppyone.desktop.agentFileActivityIndicators";
     pub const HEADER_COACHMARKS: &str = "puppyone.desktop.headerCoachmarks.v1";
     pub const GIT_SIDEBAR_LAYOUT: &str = "puppyone.desktop.gitSidebarLayout";
@@ -114,6 +117,15 @@ pub fn import(data: &ElectronData) -> Preferences {
                 .collect();
         }
     }
+    // `parseAgentRoutingPreferences(stored, { legacyRuntimeId, legacyModelId })`.
+    p.agent_routing =
+        crate::features::settings::agent_routing_preferences::AgentRoutingPreferences::parse(
+            get(keys::AGENT_ROUTING),
+            get(keys::AGENT_PREFERRED_RUNTIME),
+            get(keys::AGENT_PREFERRED_MODEL)
+                .map(|m| m.trim())
+                .filter(|m| !m.is_empty()),
+        );
     // `parseLocalAgentsSettings`: the legacy `enabledAgentIds` meant Editor
     // provider visibility and never hides a launcher.
     if let Some(agents) = object(keys::LOCAL_AGENTS) {
