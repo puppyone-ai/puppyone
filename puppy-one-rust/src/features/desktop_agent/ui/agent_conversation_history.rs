@@ -1,24 +1,26 @@
-//! Port of `workbench/AgentChatHistoryBrowser` + `AgentConversationHistory`
-//! (`styles/launcher.css`): the launcher's cross-runtime History. Discovery
-//! waits for the explicit permission; rows are locators only, and opening one
-//! is the workbench's job (`HistoryBrowserEvent::Open`).
-use super::agent_brand_mark::monochrome_mark;
+//! Port of `workbench/AgentChatHistoryBrowser`, `AgentConversationHistory`
+//! and `useAgentConversationHistory` (`styles/launcher.css`): the launcher's
+//! cross-runtime History over the project's `ConversationHistoryController`.
+//! Discovery waits for the explicit permission; rows are locators only, and
+//! opening one is the workbench's job (`HistoryBrowserEvent::Open`).
+use super::agent_brand_mark::{monochrome_mark, runtime_for_icon_key};
 use super::agent_theme::AgentTheme;
+use crate::features::desktop_agent::application::conversation_history_controller::{
+    ConversationHistoryController, ConversationHistoryState,
+};
+use crate::features::desktop_agent::domain::agent_chat_history_target::{
+    AuxiliaryWorkbenchHistoryTarget, create_agent_chat_history_target,
+};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, tooltip};
 use crate::{
-    agent::connections::legacy_local_agent_inventory::Installation,
-    features::desktop_agent::application::conversation_history::{
-        ConversationHistory, HistorySession, SourceStatus,
-    },
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::form_input::TextInput,
-    wake::Wake,
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
-use std::path::PathBuf;
+use serde_json::Value;
 
 /// `--desktop-chrome-height` in the right sidebar.
 const TOOLBAR: f32 = 40.;
@@ -31,16 +33,140 @@ pub enum HistoryBrowserEvent {
     Back,
     /// "I understand": persist `chatHistoryDiscoveryEnabled`.
     Allow,
-    Open {
-        installation: Installation,
-        id: String,
-    },
+    /// `onOpen(createAgentChatHistoryTarget(session))`.
+    Open(AuxiliaryWorkbenchHistoryTarget),
+}
+
+/// `useAgentConversationHistory(...)`: the controller's state with the
+/// sessions already open in a tab left out.
+struct History {
+    state: ConversationHistoryState,
+    sessions: Vec<Value>,
+    excluded_count: usize,
+    has_more: bool,
+}
+
+impl History {
+    fn new(state: ConversationHistoryState, excluded: &[String]) -> Self {
+        let sessions: Vec<Value> = state
+            .sessions
+            .iter()
+            .filter(|s| !excluded.iter().any(|id| s["id"] == id.as_str()))
+            .cloned()
+            .collect();
+        Self {
+            excluded_count: state.sessions.len() - sessions.len(),
+            has_more: state.catalog_next_cursor.is_some() || !state.next_cursors.is_empty(),
+            sessions,
+            state,
+        }
+    }
+
+    fn runtime_label(&self, session: &Value) -> String {
+        let id = runtime_id(session);
+        session["runtime"]["displayName"]
+            .as_str()
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .or_else(|| self.runtime_name(&id))
+            .unwrap_or(id)
+    }
+
+    fn runtime_name(&self, id: &str) -> Option<String> {
+        self.state
+            .runtimes
+            .iter()
+            .find(|entry| entry["descriptor"]["id"] == id)
+            .and_then(|entry| entry["descriptor"]["displayName"].as_str())
+            .map(str::to_string)
+    }
+
+    fn icon_key(&self, session: &Value) -> String {
+        let id = runtime_id(session);
+        session["runtime"]["iconKey"]
+            .as_str()
+            .filter(|k| !k.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.state
+                    .runtimes
+                    .iter()
+                    .find(|entry| entry["descriptor"]["id"] == id.as_str())
+                    .and_then(|entry| entry["descriptor"]["iconKey"].as_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or(id)
+    }
+
+    fn source_failed(&self) -> bool {
+        self.state
+            .sources
+            .iter()
+            .any(|(_, source)| source["status"] == "failed")
+    }
+
+    /// Every source listed to its end: an empty projection is not proof of
+    /// an empty native history.
+    fn complete(&self) -> bool {
+        let truncated = self
+            .state
+            .catalog_coverage
+            .as_ref()
+            .is_some_and(|c| c["truncated"] == true);
+        !self.state.sources.is_empty()
+            && !truncated
+            && !self.has_more
+            && self
+                .state
+                .sources
+                .iter()
+                .all(|(_, s)| s["status"] == "complete" && s["coverage"] == "complete")
+            && self.state.runtimes.iter().all(|runtime| {
+                runtime["descriptor"]["id"]
+                    .as_str()
+                    .and_then(|id| self.state.source(id))
+                    .is_some_and(|s| s["coverage"] == "complete")
+            })
+    }
+
+    /// `sourceNotes`.
+    fn source_notes(&self) -> Vec<(String, &'static str)> {
+        self.state
+            .sources
+            .iter()
+            .filter_map(|(id, source)| {
+                let status = source["status"].as_str().unwrap_or_default();
+                let message = match status {
+                    "unsupported" => Some("agent.history.sourceUnsupported"),
+                    "partial" => Some("agent.history.sourcePartial"),
+                    "failed" => None,
+                    _ if source["coverage"] != "complete" => Some("agent.history.sourceUnverified"),
+                    _ => None,
+                }?;
+                Some((id.clone(), message))
+            })
+            .collect()
+    }
+
+    fn label_for(&self, runtime_id: &str) -> String {
+        self.runtime_name(runtime_id)
+            .unwrap_or_else(|| runtime_id.to_string())
+    }
+}
+
+fn runtime_id(session: &Value) -> String {
+    session["runtimeId"]
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .or_else(|| session["runtime"]["id"].as_str())
+        .unwrap_or_default()
+        .to_string()
 }
 
 pub struct HistoryBrowser {
-    installations: Vec<Installation>,
-    root: PathBuf,
-    history: Option<ConversationHistory>,
+    controller: ConversationHistoryController,
+    /// Discovery has the user's permission (`historyDiscoveryEnabled`).
+    enabled: bool,
     excluded: Vec<String>,
     search_open: bool,
     search: Entity<TextInput>,
@@ -51,15 +177,15 @@ pub struct HistoryBrowser {
     /// The locator being opened (`openingTargetId`).
     pub opening: Option<String>,
     list_scroll: ScrollHandle,
-    _poll: Option<Task<()>>,
+    _subscription: Box<dyn FnOnce()>,
 }
 
 impl EventEmitter<HistoryBrowserEvent> for HistoryBrowser {}
 
 impl HistoryBrowser {
+    /// The browser over the project's `controller` (retained while hidden).
     pub fn new(
-        installations: Vec<Installation>,
-        root: PathBuf,
+        controller: ConversationHistoryController,
         enabled: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -70,10 +196,22 @@ impl HistoryBrowser {
             input
         });
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
+        let (notify, mut changes) = tokio::sync::mpsc::unbounded_channel::<()>();
+        let unsubscribe = controller.subscribe(std::rc::Rc::new(move || {
+            let _ = notify.send(());
+        }));
+        cx.spawn(async move |this, cx| {
+            while changes.recv().await.is_some() {
+                while changes.try_recv().is_ok() {}
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
         let mut browser = Self {
-            installations,
-            root,
-            history: None,
+            controller,
+            enabled: false,
             excluded: vec![],
             search_open: false,
             search,
@@ -82,64 +220,39 @@ impl HistoryBrowser {
             search_focused: false,
             opening: None,
             list_scroll: ScrollHandle::new(),
-            _poll: None,
+            _subscription: Box::new(unsubscribe),
         };
         if enabled {
             browser.enable(cx);
         }
         browser
     }
-    /// Dev-capture: a fixed listing (`tools/reference-workbench-entry.tsx`).
-    #[cfg(feature = "dev-capture")]
-    pub fn lab_fixture(&mut self, history: ConversationHistory) {
-        self.history = Some(history);
-    }
     pub fn enabled(&self) -> bool {
-        self.history.is_some()
+        self.enabled
     }
     /// Start discovery once permission exists (`useAgentConversationHistory active`).
     pub fn enable(&mut self, cx: &mut Context<Self>) {
-        if self.history.is_some() {
+        if self.enabled {
             return;
         }
-        let (wake, rx) = Wake::channel();
-        let installations = self
-            .installations
-            .iter()
-            .filter(|i| i.chat)
-            .cloned()
-            .collect();
-        let mut history = ConversationHistory::new(
-            installations,
-            self.root.clone(),
-            wake,
-            crate::features::desktop_agent::infrastructure::native::native_agent_client::create_listing,
-        );
-        history.set_excluded(self.excluded.clone());
-        self.history = Some(history);
-        self._poll = Some(cx.spawn(async move |this, cx| {
-            while rx.recv().await.is_ok() {
-                if this
-                    .update(cx, |s, cx| {
-                        if let Some(history) = s.history.as_mut() {
-                            history.poll();
-                        }
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        }));
+        self.enabled = true;
+        self.controller.activate();
         cx.notify();
     }
     /// Sessions already open in a tab (`excludedResourceIds`).
     pub fn set_excluded(&mut self, ids: Vec<String>) {
-        if let Some(history) = self.history.as_mut() {
-            history.set_excluded(ids.clone());
-        }
         self.excluded = ids;
+    }
+    /// Dev captures: the first listed chat's target.
+    #[cfg(feature = "dev-capture")]
+    pub fn capture_first_target(&self) -> Option<AuxiliaryWorkbenchHistoryTarget> {
+        self.history()
+            .sessions
+            .first()
+            .map(create_agent_chat_history_target)
+    }
+    fn history(&self) -> History {
+        History::new(self.controller.get_snapshot(), &self.excluded)
     }
     fn back(&mut self, cx: &mut Context<Self>) {
         if self.opening.is_none() {
@@ -204,11 +317,11 @@ impl HistoryBrowser {
         if permission {
             return bar;
         }
-        let history = self.history.as_ref();
-        let busy = history.is_none_or(|h| {
-            (h.sessions().is_empty() && h.loading()) || h.refreshing() || h.loading_more()
-        });
-        let refreshing = history.is_some_and(ConversationHistory::refreshing);
+        let state = self.controller.get_snapshot();
+        let busy = (state.sessions.is_empty() && (state.loading || !state.loaded))
+            || state.refreshing
+            || state.loading_more;
+        let refreshing = state.refreshing;
         let slot = div().flex_1().min_w_0().flex().justify_end().map(|slot| {
             if self.search_open {
                 // `.desktop-agent-history-search`.
@@ -290,9 +403,7 @@ impl HistoryBrowser {
             )
             .when(!busy, |d| {
                 d.on_click(cx.listener(|s, _, _, cx| {
-                    if let Some(history) = s.history.as_mut() {
-                        history.refresh();
-                    }
+                    drop(s.controller.refresh());
                     cx.notify();
                 }))
             });
@@ -382,16 +493,22 @@ impl HistoryBrowser {
     fn row(
         &self,
         index: usize,
-        session: &HistorySession,
+        session: &Value,
+        history: &History,
         a: AgentTheme,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let history = self.history.as_ref().unwrap();
-        let installation = history.installation(session.installation).cloned();
-        let runtime = installation.as_ref().map(|i| i.runtime);
+        let runtime = runtime_for_icon_key(&history.icon_key(session));
         let disabled = self.opening.is_some();
-        let id = session.id.clone();
+        let title = session["title"].as_str().unwrap_or_default().to_string();
+        let updated = (session["updatedAtKnown"] != false)
+            .then(|| session["updatedAt"].as_str())
+            .flatten()
+            .and_then(crate::agent::contract::js::date_parse)
+            .map(format_history_date)
+            .unwrap_or_default();
+        let target = create_agent_chat_history_target(session);
         let hover = t.hover;
         let text = a.text;
         div()
@@ -416,43 +533,27 @@ impl HistoryBrowser {
                     .children(runtime.map(|runtime| {
                         monochrome_mark(runtime, t.dark, 14., a.text_subtle, t.canvas)
                     }))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .child(session.title.clone()),
-                    )
+                    .child(div().flex_1().min_w_0().truncate().child(title.clone()))
                     .child(
                         div()
                             .flex_shrink_0()
                             .text_color(a.text_subtle)
                             .text_size(px(theme::ty().right.caption))
                             .line_height(px(theme::ty().right.meta_line_height))
-                            .child(
-                                session
-                                    .updated_at
-                                    .map(format_history_date)
-                                    .unwrap_or_default(),
-                            ),
+                            .child(updated),
                     )
                     .tooltip(tooltip(tf(
                         "agent.history.open",
-                        &[("title", session.title.clone().into())],
+                        &[("title", title.into())],
                     )))
                     .when(!disabled, |d| {
                         d.on_click(cx.listener(move |s, _, _, cx| {
                             if s.opening.is_some() {
                                 return;
                             }
-                            if let Some(installation) = installation.clone() {
-                                s.opening = Some(id.clone());
-                                cx.emit(HistoryBrowserEvent::Open {
-                                    installation,
-                                    id: id.clone(),
-                                });
-                                cx.notify();
-                            }
+                            s.opening = Some(target.id.clone());
+                            cx.emit(HistoryBrowserEvent::Open(target.clone()));
+                            cx.notify();
                         }))
                     }),
             )
@@ -460,33 +561,34 @@ impl HistoryBrowser {
     }
 
     fn list(&mut self, a: AgentTheme, t: Theme, cx: &mut Context<Self>) -> Div {
-        let history = self.history.as_ref().unwrap();
-        let sessions = history.sessions();
+        let history = self.history();
         let failed = history.source_failed();
         let query = self.search.read(cx).text().trim().to_lowercase();
-        let matching: Vec<HistorySession> = sessions
+        let matching: Vec<Value> = history
+            .sessions
             .iter()
             .filter(|session| {
-                query.is_empty() || {
-                    let label = history
-                        .installation(session.installation)
-                        .map(|i| i.label.as_str())
-                        .unwrap_or("");
-                    format!("{}\n{}", session.title, label)
-                        .to_lowercase()
-                        .contains(&query)
-                }
+                query.is_empty()
+                    || format!(
+                        "{}\n{}",
+                        session["title"].as_str().unwrap_or_default(),
+                        history.runtime_label(session)
+                    )
+                    .to_lowercase()
+                    .contains(&query)
             })
             .cloned()
             .collect();
-        let loading = sessions.is_empty() && (history.loading() || history.refreshing());
+        let state = &history.state;
+        let loading =
+            history.sessions.is_empty() && (state.loading || !state.loaded || state.refreshing);
         let body: AnyElement = if loading {
             Self::message("loader-circle", tr("agent.history.loading").into(), true, a)
                 .into_any_element()
-        } else if sessions.is_empty() {
-            let key = if failed {
+        } else if history.sessions.is_empty() {
+            let key = if state.error.is_some() || failed {
                 "agent.history.refreshFailed"
-            } else if history.excluded_count() > 0 {
+            } else if history.excluded_count > 0 {
                 "agent.history.alreadyOpen"
             } else if history.complete() {
                 "agent.history.empty"
@@ -501,7 +603,7 @@ impl HistoryBrowser {
             let rows: Vec<AnyElement> = matching
                 .iter()
                 .enumerate()
-                .map(|(i, s)| self.row(i, s, a, t, cx))
+                .map(|(i, s)| self.row(i, s, &history, a, t, cx))
                 .collect();
             div()
                 .id("history-list")
@@ -520,14 +622,6 @@ impl HistoryBrowser {
                 ))
                 .into_any_element()
         };
-        let history = self.history.as_ref().unwrap();
-        let label = |index: usize| {
-            history
-                .installation(index)
-                .map(|i| i.label.clone())
-                .unwrap_or_default()
-        };
-        let statuses = history.statuses();
         let warning = |text: String| {
             div()
                 .text_center()
@@ -536,17 +630,9 @@ impl HistoryBrowser {
                 .line_height(px(theme::ty().right.micro_line_height))
                 .child(text)
         };
-        let notes: Vec<(usize, &'static str)> = statuses
-            .iter()
-            // More pages (`nextCursor`) is `hasMore`, not partial coverage.
-            .filter_map(|(i, status)| match status {
-                SourceStatus::Unsupported => Some((*i, "agent.history.sourceUnsupported")),
-                _ => None,
-            })
-            .collect();
-        let has_more = history.has_more();
-        let more_disabled = history.loading_more() || history.refreshing();
-        let more_label = if history.loading_more() {
+        let notes = history.source_notes();
+        let more_disabled = state.loading_more || state.refreshing;
+        let more_label = if state.loading_more {
             tr("agent.history.loadingMore")
         } else {
             tr("agent.history.loadMore")
@@ -559,11 +645,11 @@ impl HistoryBrowser {
             .gap(px(3.))
             .px(px(12.))
             .pb(px(8.));
-        for (i, status) in &statuses {
-            if *status == SourceStatus::Failed {
+        for (id, source) in &state.sources {
+            if source["status"] == "failed" {
                 footer = footer.child(warning(format!(
                     "{}: {}",
-                    label(*i),
+                    history.label_for(id),
                     tr("agent.history.refreshFailed")
                 )));
             }
@@ -588,17 +674,24 @@ impl HistoryBrowser {
                         })),
                 );
             if open {
-                for (i, key) in notes {
+                for (id, key) in &notes {
                     details = details.child(div().text_center().child(format!(
                         "{}: {}",
-                        label(i),
+                        history.label_for(id),
                         tr(key)
                     )));
                 }
             }
             footer = footer.child(details);
         }
-        if has_more {
+        if state
+            .catalog_coverage
+            .as_ref()
+            .is_some_and(|c| c["truncated"] == true)
+        {
+            footer = footer.child(warning(tr("agent.history.catalogTruncated").into()));
+        }
+        if history.has_more {
             let row_hover = a.row_hover;
             let muted = a.text_muted;
             footer = footer.child(
@@ -614,14 +707,15 @@ impl HistoryBrowser {
                     .when(!more_disabled, |d| {
                         d.hover(move |s| s.bg(row_hover).text_color(muted))
                             .on_click(cx.listener(|s, _, _, cx| {
-                                if let Some(history) = s.history.as_mut() {
-                                    history.load_more();
-                                }
+                                drop(s.controller.load_more());
                                 cx.notify();
                             }))
                     })
                     .child(more_label),
             );
+        }
+        if state.error.is_some() && !history.sessions.is_empty() && !failed {
+            footer = footer.child(warning(tr("agent.history.refreshFailed").into()));
         }
         div()
             .size_full()
@@ -650,7 +744,7 @@ impl Render for HistoryBrowser {
             ));
             s.placeholder_color = Some(a.launcher_placeholder_text);
         });
-        let content = if self.history.is_some() {
+        let content = if self.enabled {
             self.list(a, t, cx)
         } else {
             self.permission(a, t, cx)

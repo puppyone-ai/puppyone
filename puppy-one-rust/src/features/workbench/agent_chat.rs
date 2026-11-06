@@ -7,7 +7,12 @@ use crate::agent::contract::js;
 use crate::agent::host::agent_host::AgentHostHandle;
 use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
+use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
+use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
 use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
+use crate::features::desktop_agent::domain::agent_chat_history_target::{
+    AuxiliaryWorkbenchHistoryTarget, parse_agent_chat_history_target,
+};
 use crate::features::desktop_agent::infrastructure::host::{
     agent_host_client::AgentHostClient, agent_host_global::agent_host,
     project_agent_client::create_project_agent_client_provider, window_runtime::WindowUiRuntime,
@@ -147,14 +152,17 @@ impl Drop for WindowAgent {
     }
 }
 
-/// `projectAgentControllers(project)`: one registry per open project.
+/// `projectAgentControllers(project)`: one registry per open project, and
+/// its `agent-history` resource.
 pub(super) struct ProjectAgents {
     registry: Rc<AgentControllerRegistry>,
+    history: ConversationHistoryController,
 }
 
 impl Drop for ProjectAgents {
     fn drop(&mut self) {
         self.registry.dispose();
+        self.history.dispose();
     }
 }
 
@@ -189,6 +197,20 @@ impl Workbench {
         agent.handle.authorize_roots(agent.window, roots);
     }
 
+    /// The project's `ConversationHistoryController` (`agent-history`).
+    pub(super) fn project_history(
+        &mut self,
+        root: &Path,
+        cx: &mut Context<Self>,
+    ) -> Result<ConversationHistoryController, String> {
+        self.project_agents(root, cx)?;
+        self.projects
+            .get(root)
+            .and_then(|p| p.agents.as_ref())
+            .map(|agents| agents.history.clone())
+            .ok_or_else(|| String::from("This project is closing."))
+    }
+
     /// `projectAgentControllers(project)` for `root`.
     fn project_agents(
         &mut self,
@@ -207,6 +229,15 @@ impl Workbench {
             "generation": uuid::Uuid::new_v4().to_string(),
             "rootPath": root_path,
         });
+        let history_port = port.clone();
+        let history = ConversationHistoryController::new(
+            &root_path,
+            create_project_agent_client_provider(
+                context.clone(),
+                Rc::new(move || Some(history_port.clone())),
+            ),
+            runtime.clone(),
+        );
         let registry = Rc::new(AgentControllerRegistry::new(
             &root_path,
             Rc::new(move |_item| {
@@ -225,6 +256,7 @@ impl Workbench {
             .ok_or_else(|| String::from("This project is closing."))?;
         project.agents = Some(ProjectAgents {
             registry: registry.clone(),
+            history,
         });
         Ok(registry)
     }
@@ -239,6 +271,16 @@ impl Workbench {
     ) -> Result<Entity<AgentChatTabPanel>, String> {
         let registry = self.project_agents(root, cx)?;
         let controller = registry.get(item).map_err(|error| error.message)?;
+        Ok(self.agent_panel_for(controller, window, cx))
+    }
+
+    /// The panel of `controller`, wired to this Workbench.
+    fn agent_panel_for(
+        &mut self,
+        controller: AgentSessionController,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<AgentChatTabPanel> {
         let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
         let payments = self.payments_experience(cx);
         let view = cx.new(|cx| {
@@ -247,7 +289,88 @@ impl Workbench {
             panel
         });
         cx.subscribe(&view, Self::agent_panel_event).detach();
-        Ok(view)
+        view
+    }
+
+    /// `restoreAgentChatWorkbenchItem` for a History target: the launcher
+    /// tab becomes the chat only once its saved session opened; otherwise it
+    /// stays and the failure is retryable (`recordCreationFailure`).
+    pub(super) fn restore_history_target(
+        &mut self,
+        group: Id,
+        tab: Id,
+        target: AuxiliaryWorkbenchHistoryTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        let prepared = parse_agent_chat_history_target(&target)
+            .ok_or_else(|| String::from("Invalid Agent chat history target."))
+            .and_then(|payload| {
+                let registry = self.project_agents(&root, cx)?;
+                let item = uuid::Uuid::new_v4().to_string();
+                let controller = registry.get(&item).map_err(|error| error.message)?;
+                let opening =
+                    controller.open_saved_session(&payload.session_id, &payload.runtime_id);
+                Ok((registry, item, controller, opening))
+            });
+        let (registry, item, controller, opening) = match prepared {
+            Ok(prepared) => prepared,
+            Err(_) => {
+                self.history_restore_failed(tab, target, cx);
+                return;
+            }
+        };
+        cx.spawn_in(window, async move |this, cx| {
+            let opened = matches!(opening.await, Ok(true));
+            this.update_in(cx, |s, window, cx| {
+                let launcher = s.root.as_ref() == Some(&root)
+                    && matches!(
+                        s.project().and_then(|p| p.content.get(&tab)),
+                        Some(Content::Launcher)
+                    );
+                if opened && launcher {
+                    let view = s.agent_panel_for(controller, window, cx);
+                    s.history.remove(&tab);
+                    if let Some(p) = s.project_mut() {
+                        p.content.insert(tab, Content::Agent(view, item));
+                        p.layout.activate(group, tab);
+                    }
+                    cx.notify();
+                    return;
+                }
+                // The abandoned reservation releases its native session.
+                cx.foreground_executor()
+                    .spawn(async move { registry.discard(&item).await })
+                    .detach();
+                if launcher {
+                    s.history_restore_failed(tab, target, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn history_restore_failed(
+        &mut self,
+        tab: Id,
+        target: AuxiliaryWorkbenchHistoryTarget,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(browser) = self.history.get(&tab) {
+            browser.update(cx, |browser, cx| {
+                browser.opening = None;
+                cx.notify();
+            });
+        }
+        self.creation_failure = Some(CreationFailure {
+            tab,
+            retry: CreationRetry::Agent(target),
+        });
+        cx.notify();
     }
 
     /// `prepareAgentChatWorkbenchItem(project, itemId, runtimeId)` or, with

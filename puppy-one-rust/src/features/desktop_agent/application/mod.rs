@@ -15,7 +15,6 @@ pub mod agent_session_lifecycle;
 pub mod agent_session_preparer;
 pub mod agent_session_replica;
 pub mod agent_turn_submission_coordinator;
-pub mod conversation_history;
 pub mod conversation_history_controller;
 pub mod legacy_agent_session_controller;
 pub mod local_agent_connection_loader;

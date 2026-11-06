@@ -241,8 +241,17 @@ pub struct Workbench {
 }
 struct CreationFailure {
     tab: Id,
-    installation: Installation,
-    id: String,
+    retry: CreationRetry,
+}
+/// What `retryCreation` opens again.
+enum CreationRetry {
+    /// A hosted conversation on the native chat view.
+    Native {
+        installation: Installation,
+        id: String,
+    },
+    /// A History target on the Agent service.
+    Agent(crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget),
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -1218,8 +1227,7 @@ impl Workbench {
         project.content.insert(tab, Content::Launcher);
         self.creation_failure = Some(CreationFailure {
             tab,
-            installation,
-            id,
+            retry: CreationRetry::Native { installation, id },
         });
         cx.notify();
     }
@@ -1239,18 +1247,30 @@ impl Workbench {
             cx.notify();
             return;
         };
-        self.chat_mode = true;
-        self.launch(
-            group,
-            Some(failure.tab),
-            Some(failure.installation),
-            true,
-            window,
-            cx,
-        );
-        if let Some(Content::Chat(view)) = self.project().and_then(|p| p.content.get(&failure.tab))
-        {
-            view.update(cx, |view, _| view.resume_when_ready(failure.id));
+        match failure.retry {
+            CreationRetry::Agent(target) => {
+                if let Some(browser) = self.history.get(&failure.tab) {
+                    let id = target.id.clone();
+                    browser.update(cx, |browser, _| browser.opening = Some(id));
+                }
+                self.restore_history_target(group, failure.tab, target, window, cx);
+            }
+            CreationRetry::Native { installation, id } => {
+                self.chat_mode = true;
+                self.launch(
+                    group,
+                    Some(failure.tab),
+                    Some(installation),
+                    true,
+                    window,
+                    cx,
+                );
+                if let Some(Content::Chat(view)) =
+                    self.project().and_then(|p| p.content.get(&failure.tab))
+                {
+                    view.update(cx, |view, _| view.resume_when_ready(id));
+                }
+            }
         }
         cx.notify();
     }
@@ -1704,7 +1724,8 @@ mod tests {
                 Content::Launcher
             ));
             let failure = s.creation_failure.as_ref().unwrap();
-            assert_eq!((failure.tab, failure.id.as_str()), (tab, "thread-1"));
+            assert_eq!(failure.tab, tab);
+            assert!(matches!(&failure.retry, CreationRetry::Native { id, .. } if id == "thread-1"));
             assert!(s.creation_notice(cx).is_some());
             s.creation_failure = None;
             assert!(s.creation_notice(cx).is_none());

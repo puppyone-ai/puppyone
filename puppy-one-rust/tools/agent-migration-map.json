@@ -142,7 +142,8 @@
         "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
         "src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx",
         "src/features/desktop-agent/workbench/agentChatCloseAdapter.ts",
-        "src/features/desktop-agent/workbench/projectAgentControllers.ts"
+        "src/features/desktop-agent/workbench/projectAgentControllers.ts",
+        "src/features/desktop-agent/ui/useAgentConversationHistory.ts"
       ],
       "targets": [
         "src/features/workbench/agent_chat.rs",
@@ -150,9 +151,10 @@
         "src/features/workbench/persistence.rs",
         "src/features/workbench/history.rs",
         "src/features/desktop_agent/infrastructure/host/agent_host_global.rs",
-        "src/features/desktop_agent/ui/panel/mod.rs"
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/agent_conversation_history.rs"
       ],
-      "remaining": "Every local Agent chat, the Built-in Agent included, is an AgentChatTabPanel item over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session (one retained before the switch reopens new), close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, chat file links open in the editor, and compute prompts open Account or Model Connections. The process host starts on first use and drains on quit. AgentChatHistoryBrowser over ConversationHistoryController, history-target restore with creation failure, routing preferences and the item-host process service remain; the hosted Agent still uses the native chat view."
+      "remaining": "Every local Agent chat, the Built-in Agent included, is an AgentChatTabPanel item over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session (one retained before the switch reopens new), close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, chat file links open in the editor, and compute prompts open Account or Model Connections. The process host starts on first use and drains on quit. History is AgentChatHistoryBrowser over the project's ConversationHistoryController (permission gate, catalog plus native pages, exclusions, source notes, load more), and a History target opens as restoreAgentChatWorkbenchItem does: the launcher becomes the chat only once its saved session opened, otherwise a retryable creation failure. Routing preferences and the item-host process service remain; the hosted Agent still uses the native chat view."
     },
     {
       "name": "Codex runtime and protocol",

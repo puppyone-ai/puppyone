@@ -29,9 +29,26 @@ impl Workbench {
         if self.history.contains_key(&tab) {
             return;
         }
+        let controller = match self.project_history(&root, cx) {
+            Ok(controller) => controller,
+            Err(error) => {
+                self.launch_errors.insert(group, error);
+                cx.notify();
+                return;
+            }
+        };
         let enabled = self.history_discovery(cx);
-        let installations = self.installations.clone();
-        let browser = cx.new(|cx| HistoryBrowser::new(installations, root, enabled, window, cx));
+        let browser = cx.new(|cx| HistoryBrowser::new(controller, enabled, window, cx));
+        self.install_history(tab, browser, window, cx);
+    }
+    /// Hosts `browser` in the launcher tab `tab`.
+    pub(super) fn install_history(
+        &mut self,
+        tab: Id,
+        browser: Entity<HistoryBrowser>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         cx.observe(&browser, |_, _, cx| cx.notify()).detach();
         cx.subscribe_in(&browser, window, move |s, _, event, window, cx| {
             s.history_event(tab, event, window, cx)
@@ -61,7 +78,8 @@ impl Workbench {
                     browser.update(cx, |b, cx| b.enable(cx));
                 }
             }
-            HistoryBrowserEvent::Open { installation, id } => {
+            // `prepareAgentChatWorkbenchItem({ historyTarget })`.
+            HistoryBrowserEvent::Open(target) => {
                 let group = self.project().and_then(|p| {
                     p.layout
                         .groups
@@ -70,29 +88,15 @@ impl Workbench {
                         .map(|(group, _)| *group)
                 });
                 if let Some(group) = group {
-                    self.history.remove(&tab);
-                    self.chat_mode = true;
-                    self.launch(
-                        group,
-                        Some(tab),
-                        Some(installation.clone()),
-                        true,
-                        window,
-                        cx,
-                    );
-                    if let Some(Content::Chat(view)) =
-                        self.project().and_then(|p| p.content.get(&tab))
-                    {
-                        let id = id.clone();
-                        view.update(cx, |view, _| view.resume_when_ready(id));
-                    }
+                    self.creation_failure = None;
+                    self.restore_history_target(group, tab, target.clone(), window, cx);
                 }
             }
         }
         cx.notify();
     }
     /// `localAgentsSettings.chatHistoryDiscoveryEnabled`.
-    fn history_discovery(&self, cx: &App) -> bool {
+    pub(super) fn history_discovery(&self, cx: &App) -> bool {
         self.preferences
             .as_ref()
             .is_some_and(|p| p.read(cx).state.local_agents.chat_history_discovery)
@@ -137,5 +141,38 @@ impl Workbench {
             }
         });
         Some(div().size_full().child(browser).into_any_element())
+    }
+}
+
+#[cfg(feature = "dev-capture")]
+impl Workbench {
+    /// Dev captures: History in the active group, discovery allowed.
+    pub(crate) fn capture_history(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.project().is_none_or(|p| p.loading) {
+            return false;
+        }
+        let group = self.project().map_or(0, |p| p.layout.active_group);
+        self.open_history(group, None, window, cx);
+        for browser in self.history.values() {
+            browser.update(cx, |b, cx| b.enable(cx));
+        }
+        true
+    }
+
+    /// Dev captures: History opens its first listed chat once listed.
+    pub(crate) fn capture_history_open(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some((tab, browser)) = self.history.iter().next().map(|(t, b)| (*t, b.clone())) else {
+            return false;
+        };
+        let Some(target) = browser.read(cx).capture_first_target() else {
+            return false;
+        };
+        browser.update(cx, |b, _| b.opening = Some(target.id.clone()));
+        self.history_event(tab, &HistoryBrowserEvent::Open(target), window, cx);
+        true
     }
 }

@@ -22,8 +22,9 @@
 //! allowed or not), `agents:<more|invite|agent id>` (their card),
 //! `manage-agents`, `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
-//! `agent-prompt:<text>` (the chat sends it) and `agent-idle` (no turn
-//! running), and in a file window `file-menu:<view|settings>` (a
+//! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
+//! running), `agent-history` (History with discovery allowed) and
+//! `agent-history-open` (its first chat opens), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
 //! for the homepage's project activity and an open diff.
@@ -74,6 +75,10 @@ enum Step {
     AgentPrompt(String),
     /// `agent-idle`: no chat has a running turn.
     AgentIdle,
+    /// `agent-history`: the History browser, with discovery allowed.
+    AgentHistory,
+    /// `agent-history-open`: History opens its first chat.
+    AgentHistoryOpen,
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -129,6 +134,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agent-settled" => Step::AgentSettled,
                 "agent-prompt" => Step::AgentPrompt(arg.to_string()),
                 "agent-idle" => Step::AgentIdle,
+                "agent-history" => Step::AgentHistory,
+                "agent-history-open" => Step::AgentHistoryOpen,
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -355,6 +362,24 @@ impl Shell {
             }
             Step::AgentIdle => {
                 if !self.sidebar.workbench.read(cx).capture_agent_idle(cx) {
+                    return false;
+                }
+            }
+            Step::AgentHistory => {
+                if !self
+                    .sidebar
+                    .workbench
+                    .update(cx, |w, cx| w.capture_history(window, cx))
+                {
+                    return false;
+                }
+            }
+            Step::AgentHistoryOpen => {
+                if !self
+                    .sidebar
+                    .workbench
+                    .update(cx, |w, cx| w.capture_history_open(window, cx))
+                {
                     return false;
                 }
             }

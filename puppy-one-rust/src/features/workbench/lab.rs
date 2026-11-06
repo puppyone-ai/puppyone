@@ -29,10 +29,7 @@ impl Workbench {
                 project.loading = false;
                 self.projects.insert(root.clone(), project);
                 self.root = Some(root);
-                self.open_history(0, Some(id), window, cx);
-                if scenario == "history-list" {
-                    self.lab_history(id, cx);
-                }
+                self.lab_history(id, scenario == "history-list", window, cx);
                 cx.notify();
                 return;
             }
@@ -130,65 +127,138 @@ impl Workbench {
     }
     /// `FixtureHistory` in the reference entry: four runtimes, five sessions;
     /// Codex has another page, so "Load more" shows.
-    fn lab_history(&mut self, tab: Id, cx: &mut Context<Self>) {
-        use crate::agent::domain::legacy_session_model::HistoryEntry;
-        use crate::agent::runtime::legacy_runtime_registry::Runtime;
-        use crate::features::desktop_agent::application::conversation_history::{
-            ConversationHistory, SourceStatus,
-        };
-        const NOW: i64 = 1_800_000_000_000;
-        let entry = |index: usize, title: &str, age: i64| HistoryEntry {
-            id: format!("history-{index}"),
-            title: title.into(),
-            updated_at: Some(NOW - age),
-        };
-        let installation = |runtime: Runtime, label: &str| Installation {
-            runtime,
-            id: "lab",
-            label: label.into(),
-            executable: PathBuf::new(),
-            chat: true,
-        };
-        let history = ConversationHistory::fixture(vec![
-            (
-                installation(Runtime::Codex, "Codex"),
-                SourceStatus::Partial,
-                vec![
-                    entry(0, "Make the terminal colours follow the theme", 5 * 60_000),
-                    entry(2, "Port the approval dock to GPUI", 26 * 3_600_000),
-                ],
-            ),
-            (
-                installation(Runtime::Claude, "Claude Code"),
-                SourceStatus::Complete,
-                vec![entry(
-                    1,
-                    "Refactor the workbench split constraints",
-                    2 * 3_600_000,
-                )],
-            ),
-            (
-                installation(Runtime::Pi, "Pi"),
-                SourceStatus::Complete,
-                vec![entry(
-                    3,
-                    "Investigate the flaky terminal resize test after the PTY host moved",
-                    3 * 86_400_000,
-                )],
-            ),
-            (
-                installation(Runtime::OpenCode, "OpenCode"),
-                SourceStatus::Complete,
-                vec![entry(4, "Audit markdown table rendering", 9 * 86_400_000)],
-            ),
-        ]);
-        if let Some(browser) = self.history.get(&tab) {
-            browser.update(cx, |b, _| b.lab_fixture(history));
-        }
+    fn lab_history(
+        &mut self,
+        tab: Id,
+        populated: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
+        use crate::features::desktop_agent::infrastructure::host::window_runtime::WindowUiRuntime;
+        use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
+        let client: std::rc::Rc<
+            dyn crate::features::desktop_agent::application::agent_client_port::AgentClientPort,
+        > = std::rc::Rc::new(LabHistoryClient { populated });
+        let controller = ConversationHistoryController::new(
+            "/reference/project",
+            std::rc::Rc::new(move || Some(client.clone())),
+            WindowUiRuntime::create(cx),
+        );
+        let enabled = populated || self.history_discovery(cx);
+        let browser = cx.new(|cx| HistoryBrowser::new(controller, enabled, window, cx));
+        self.install_history(tab, browser, window, cx);
     }
     /// An inactive shell tab; its PTY lives in a scratch directory.
     fn lab_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Content {
         let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), None, "shell", window, cx));
         Content::Terminal(view, crate::localization::t("terminal.title").into(), None)
+    }
+}
+
+/// The reference entry's History: four runtimes and five saved chats.
+struct LabHistoryClient {
+    populated: bool,
+}
+
+impl crate::features::desktop_agent::application::agent_client_port::AgentClientPort
+    for LabHistoryClient
+{
+    fn implements(&self, method: &str) -> bool {
+        matches!(method, "discoverAgentRuntimes" | "listAgentSessions")
+    }
+
+    fn call(
+        &self,
+        method: &str,
+        request: serde_json::Value,
+    ) -> crate::features::desktop_agent::application::agent_client_port::ClientFuture {
+        use serde_json::json;
+        const NOW: i64 = 1_800_000_000_000;
+        let runtimes = [
+            ("codex", "Codex"),
+            ("claude", "Claude Code"),
+            ("pi", "Pi"),
+            ("opencode-native", "OpenCode"),
+        ];
+        let runtime = |id: &str| {
+            let (id, label) = runtimes
+                .iter()
+                .find(|(r, _)| *r == id)
+                .copied()
+                .unwrap_or((id, id));
+            let icon = if id == "opencode-native" {
+                "opencode"
+            } else {
+                id
+            };
+            json!({ "id": id, "displayName": label, "iconKey": icon, "ownership": { "session": "runtime" } })
+        };
+        let session = |id: usize, runtime_id: &str, title: &str, age: i64| {
+            json!({
+                "id": format!("history-{id}"), "title": title, "runtimeId": runtime_id,
+                "runtime": runtime(runtime_id),
+                "updatedAt": crate::agent::contract::js::iso_string(NOW - age),
+            })
+        };
+        let sessions: Vec<serde_json::Value> = if self.populated {
+            vec![
+                session(
+                    0,
+                    "codex",
+                    "Make the terminal colours follow the theme",
+                    5 * 60_000,
+                ),
+                session(
+                    1,
+                    "claude",
+                    "Refactor the workbench split constraints",
+                    2 * 3_600_000,
+                ),
+                session(2, "codex", "Port the approval dock to GPUI", 26 * 3_600_000),
+                session(
+                    3,
+                    "pi",
+                    "Investigate the flaky terminal resize test after the PTY host moved",
+                    3 * 86_400_000,
+                ),
+                session(
+                    4,
+                    "opencode-native",
+                    "Audit markdown table rendering",
+                    9 * 86_400_000,
+                ),
+            ]
+        } else {
+            vec![]
+        };
+        let result = match method {
+            "discoverAgentRuntimes" => json!({
+                "runtimes": runtimes.iter().map(|(id, _)| json!({
+                    "descriptor": runtime(id),
+                    "readiness": { "runtimeId": id, "status": "ready", "code": "READY", "selectable": true },
+                })).collect::<Vec<_>>(),
+            }),
+            _ if request["discoverNative"] == true => {
+                let runtime_id = request["runtimeId"].as_str().unwrap_or_default();
+                let more = runtime_id == "codex";
+                json!({
+                    "sessions": sessions.iter().filter(|s| s["runtimeId"] == runtime_id).collect::<Vec<_>>(),
+                    "discovery": {
+                        "runtimeId": runtime_id,
+                        "status": if more { "partial" } else { "complete" },
+                        "coverage": if more { "partial" } else { "complete" },
+                        "nextCursor": more.then_some("page-2"),
+                        "scanId": more.then_some("scan-1"),
+                    },
+                })
+            }
+            _ => json!({
+                "sessions": sessions,
+                "catalogCoverage": { "truncated": false },
+                "catalogNextCursor": null,
+            }),
+        };
+        Box::pin(async move { Ok(result) })
     }
 }
