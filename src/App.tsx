@@ -1539,7 +1539,7 @@ function AppContent() {
     )}
   </DesktopOverlayPortal>;
   const projectNavigationOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
-    {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message}
+    {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message} diagnostic={projectOpenFailure.diagnostic}
       title={projectOpenFailure.target.kind === "cloud" ? t("cloud.opening.failedTitle") : undefined}
       onClose={dismissProjectOpenFailure}
       action={projectOpenFailure.recovery === "account" ? { label: t("settings.sidebar.account"),

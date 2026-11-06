@@ -28,6 +28,9 @@ export type CloudMessageCode =
   | "workspace-plan-required"
   | "workspace-recovery-required"
   | "workspace-preparing"
+  | "workspace-start-timeout"
+  | "workspace-changed"
+  | "workspace-disk-lost"
   | "project-sign-in-required"
   | "project-access-denied"
   | "project-response-mismatch"
@@ -75,7 +78,7 @@ export type CloudMessageDescriptor = Readonly<{
   /** Sanitized server/provider detail. It is preserved, not presented as translated product copy. */
   detail?: string;
   /** Allowlisted machine diagnostics, shown separately from product copy. */
-  diagnostic?: Readonly<{ status?: number; code?: string }>;
+  diagnostic?: Readonly<{ status?: number; code?: string; requestId?: string }>;
 }>;
 
 export function cloudMessage(
@@ -95,6 +98,21 @@ export function formatCloudMessage(message: CloudMessageDescriptor, t: MessageFo
     : undefined;
   const productMessage = t(`cloud.message.${message.code}`, values);
   return message.detail ? `${productMessage} ${bidiIsolate(message.detail)}` : productMessage;
+}
+
+/**
+ * The line a person can read out or paste when reporting a failure: the code
+ * the server named and the id its log knows this request by. Null when there
+ * is nothing to report beyond the message.
+ */
+export function formatCloudDiagnostic(message: CloudMessageDescriptor, t: MessageFormatter): string | null {
+  const diagnostic = message.diagnostic;
+  const code = diagnostic?.code ?? (diagnostic?.status ? `HTTP ${diagnostic.status}` : undefined);
+  const parts = [
+    code ? t("cloud.opening.diagnosticCode", { code: bidiIsolate(code) }) : null,
+    diagnostic?.requestId ? t("cloud.opening.diagnosticRequest", { requestId: bidiIsolate(diagnostic.requestId) }) : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length ? parts.join(" · ") : null;
 }
 
 export function formatCloudPublishFailure(

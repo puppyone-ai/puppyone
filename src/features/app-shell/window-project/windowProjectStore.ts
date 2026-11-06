@@ -18,6 +18,8 @@ export type ProjectOpenFailure = Readonly<{
   target: ProjectTarget;
   message: string;
   recovery: "retry" | "account" | "none";
+  /** The server's code and request id for a Cloud failure, for a report. */
+  diagnostic?: string | null;
 }>;
 
 /**
