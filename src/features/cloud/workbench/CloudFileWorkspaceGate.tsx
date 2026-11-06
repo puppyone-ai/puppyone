@@ -28,6 +28,7 @@ export function CloudFileWorkspaceGate(props: CloudProjectPreparationProps) {
       cloudPublishProgress={props.cloudPublishProgress} cloudPublishState={cloudPublishState}
       cloudPublishStateLoading={cloudPublishStateLoading} onSessionChange={onCloudSessionChange}
       onAbandonPublish={props.onAbandonPuppyoneBackup} onRefresh={onRefresh}
+      publishOrganizationId={props.publishOrganizationId}
       onPublishWorkspace={props.onStartPuppyoneBackup} />;
   }
   return <div className="desktop-cloud-main-view" data-cloud-file-provider-state={projectContext?.status ?? "resolving"}>

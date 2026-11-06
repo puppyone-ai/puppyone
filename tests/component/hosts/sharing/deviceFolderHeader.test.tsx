@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createResourceUri, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import { DesktopWindowChrome } from "../../../../src/components/DesktopWindowChrome";
-import { DeviceFolderHeader, DeviceFolderHeaderActions } from "../../../../src/features/hosts/ui/DeviceFolderHeader";
+import { DeviceFolderHeader, DeviceFolderHeaderActions } from "../../../../src/app/DeviceFolderHeader";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 

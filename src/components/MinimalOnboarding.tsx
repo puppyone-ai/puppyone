@@ -1,6 +1,5 @@
 import { useDesktopPreference } from "../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
-import { CloudIcon } from "@puppyone/shared-ui";
 import { AlertTriangle } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
@@ -13,7 +12,7 @@ import {
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
-import { projectHomeItemLocation, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
+import { projectHomeItemLocation, type CloudSpace, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
@@ -25,6 +24,7 @@ import {
 } from "./onboarding/OnboardingEntryActions";
 import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
 import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
+import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
@@ -62,6 +62,10 @@ export type MinimalOnboardingProps = {
    * Cloud's and this computer's groups, in that order. Absent, the page draws those two.
    */
   projectGroups?: (base: OnboardingGroupsBase) => ReactNode;
+  cloudSpaces?: readonly CloudSpace[];
+  cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
+  onRetryCloudSpaces?: () => void;
+  onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -98,6 +102,10 @@ export function MinimalOnboarding({
   listHeld = false,
   cloudAccountStatus,
   projectGroups,
+  cloudSpaces = [],
+  cloudSpacesStatus = "signed-out",
+  onRetryCloudSpaces,
+  onPublishToSpace,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
@@ -166,7 +174,7 @@ export function MinimalOnboarding({
   });
 
   // Account/auth controls are page chrome, never synthetic Project rows.
-  const hasProjects = items.length > 0 || listHeld;
+  const hasProjects = items.length > 0 || cloudSpaces.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(!hasProjects);
   // The intro belongs to a page that has just become empty, and ends if it fills.
@@ -224,15 +232,16 @@ export function MinimalOnboarding({
   // By where each project is: the Cloud's projects are the primary entries
   // (product philosophy), then this computer's, then each of the owner's other
   // computers. A held list is one wait, not a wait per group.
+  const cloudGroups = useCloudProjectGroups({
+    spaces: projectView.places.size === 0 || projectView.places.has("cloud") ? cloudSpaces : [],
+    cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
+    onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
+    onDragEnd: () => setDraggingPath(null),
+  });
   const groupsBase: OnboardingGroupsBase = {
     label: t("onboarding.projects.title"),
     layout: projectLayout,
-    cloud: cloudItems.length > 0 ? {
-      id: "cloud",
-      icon: <CloudIcon size={14} strokeWidth={1.85} />,
-      title: t("onboarding.projects.groups.cloud"),
-      children: projectList(cloudItems),
-    } : null,
+    cloud: cloudGroups,
     local: localItems.length > 0 ? {
       title: t(platform?.platform === "macos"
         ? "shell.workspaceSwitcher.location.thisMac"
@@ -291,8 +300,12 @@ export function MinimalOnboarding({
           )}
           actions={entry.actions}
         />
-        {!hasProjects && projectGroups?.({ ...groupsBase, cloud: null, local: null })}
+        {!hasProjects && projectGroups?.({ ...groupsBase, cloud: [], local: null })}
 
+        {cloudSpacesStatus === "error" && <p className="onboarding-project-groups-note" role="status">
+          {t("onboarding.spaces.unavailable")} {onRetryCloudSpaces && <button type="button" onClick={onRetryCloudSpaces}>
+            {t("onboarding.spaces.retry")}</button>}
+        </p>}
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>
       {onboardingState === "empty" && (

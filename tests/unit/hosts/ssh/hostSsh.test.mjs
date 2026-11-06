@@ -72,7 +72,7 @@ function tunnelSocketTo(server, folder, refusal = null) {
 }
 
 describe("host SSH: certificate login, files, terminals and commands, end to end", () => {
-  let root, ca, hostKey, folders, server, sshOptions, terminalsSeen, makeServer, tunnelsOpened;
+  let root, ca, hostKey, folders, server, sshOptions, terminalsSeen, makeServer, tunnelsOpened, watchStarted;
 
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "host-ssh-")));
@@ -101,11 +101,19 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
       },
       enforce: async () => {},
     };
+    let notifyWatchStarted;
+    watchStarted = new Promise((resolve) => { notifyWatchStarted = resolve; });
+    const fileService = createHostFileService({ resolveFolder });
+    const watchedFileService = { ...fileService, async watch(...args) {
+      const stop = await fileService.watch(...args);
+      notifyWatchStarted();
+      return stop;
+    } };
     makeServer = (overrides = {}) => createHostSshServer({
       hostKey: async () => openSshPrivateKey(hostKey),
       authorities: async () => [ed25519PublicBlob(ed25519Raw(ca).publicKey)],
       active: () => ({ accountId: account, deviceId }),
-      resolveFolder, fileService: createHostFileService({ resolveFolder }), execService,
+      resolveFolder, fileService: watchedFileService, execService,
       executionPolicy: async () => ({ tier: "folder", sandbox: { mechanism: "bubblewrap", path: "/usr/bin/bwrap" }, appDataDirs: [] }),
       // The test runs the command itself; the sandbox wrapping is covered by the sandbox tests.
       spawn: (_file, args, options) => spawn("/bin/sh", ["-c", args.at(-1)], options),
@@ -161,7 +169,8 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
     const events = [];
     const controller = new AbortController();
     void files.watch(folderId, null, async (event) => { events.push(event); }, controller.signal);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for the actual watcher, not an arbitrary delay that races a loaded CI worker.
+    await watchStarted;
     await fs.writeFile(path.join(root, "new.md"), "x");
     const sawNew = () => events.some((event) => event.type === "change" && (event.reset || event.paths.includes("new.md")));
     for (let i = 0; i < 50 && !sawNew(); i++) await new Promise((resolve) => setTimeout(resolve, 100));

@@ -37,7 +37,7 @@ async function render({ showOtherComputers = true, bridge = {} }: { showOtherCom
   } as never);
   let sharing: ProjectListSharing | undefined;
   const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", showOtherComputers,
-    cloud: { id: "cloud", title: "Cloud", children: <ul className="onboarding-project-list" /> },
+    cloud: [{ id: "cloud", title: "Cloud", children: <ul className="onboarding-project-list" /> }],
     local: { title: "This computer", render: (given) => { sharing = given; return <ul className="onboarding-project-list" />; } } };
   const onOpen = vi.fn();
   const host = document.createElement("div");

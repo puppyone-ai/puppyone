@@ -46,6 +46,8 @@ export type CloudProjectPreparationProps = {
   cloudPublishProgress?: CloudPublishProgress | null;
   cloudPublishState: CloudPublishState | null;
   cloudPublishStateLoading: boolean;
+  /** A Homepage destination; durable recovery always retains its original target. */
+  publishOrganizationId?: string;
   onAbandonPuppyoneBackup: () => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
   onRefresh: () => void;

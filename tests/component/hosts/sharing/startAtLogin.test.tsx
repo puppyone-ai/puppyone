@@ -10,7 +10,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const device = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const session = { user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session_generation: "one" };
-const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", cloud: null, showOtherComputers: true,
+const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", cloud: [], showOtherComputers: true,
   local: { title: "This computer", render: () => <ul className="onboarding-project-list" /> } };
 let root: Root | null = null;
 

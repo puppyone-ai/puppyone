@@ -80,7 +80,7 @@ describe("homepage grouped by where each project is", () => {
       },
     });
     expect(container.querySelector("[data-test-other-computers]")).not.toBeNull();
-    expect(handed!.cloud?.id).toBe("cloud");
+    expect(handed!.cloud[0]?.id).toBe("cloud");
     expect(handed!.local?.title).toBe("This computer");
     expect(handed!.showOtherComputers).toBe(true);
   });

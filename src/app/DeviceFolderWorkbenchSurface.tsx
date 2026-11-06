@@ -13,7 +13,7 @@ import type { HostFolderSelection } from "../features/hosts";
 import { createDeviceDataService, type DeviceDataService, type DeviceFolderAvailability } from "../features/hosts/data/deviceDataPort";
 import { RemoteTerminalPanel } from "../features/hosts/ui/RemoteTerminalPanel";
 import { RemoteGitPanel } from "../features/hosts/ui/RemoteGitPanel";
-import { DeviceFolderHeader, DeviceFolderHeaderActions, type DeviceFolderTool } from "../features/hosts/ui/DeviceFolderHeader";
+import { DeviceFolderHeader, DeviceFolderHeaderActions, type DeviceFolderTool } from "./DeviceFolderHeader";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
 
 const AGENT_LAUNCHERS: readonly HostLauncher[] = ["claude", "codex", "cursor", "opencode", "pi", "hermes"];

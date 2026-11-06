@@ -87,6 +87,9 @@ export type DesktopCloudRepositoryContext = {
 
 export type DesktopCloudOrganization = {
   id: string;
+  /** Absent on older deployments: never infer personal identity from a name. */
+  kind?: "personal" | "team";
+  can_create_projects?: boolean;
   name: string;
   slug: string;
   avatar_url?: string | null;
@@ -741,6 +744,13 @@ export function listCloudOrganizations(
   apiBaseUrl?: string | null,
 ): Promise<DesktopCloudOrganization[]> {
   return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, {}, apiBaseUrl);
+}
+
+export function ensurePersonalCloudSpace(
+  session: DesktopCloudSession,
+  apiBaseUrl: string,
+): Promise<DesktopCloudOrganization> {
+  return cloudApiRequest<DesktopCloudOrganization>("/auth/personal-space", session, undefined, { method: "POST" }, apiBaseUrl);
 }
 
 export function listCloudOrganizationMembers(

@@ -2,6 +2,13 @@ import type { HomepageProjectSort } from "../preferenceStorage";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { getRecentWorkspaces } from "./localFiles";
 
+export type CloudSpace = Readonly<{
+  id: string;
+  name: string;
+  kind: "personal" | "team";
+  canCreateProjects: boolean;
+}>;
+
 export type RecentWorkspaceHomeItem = {
   workspace: Workspace;
   lastOpenedAt?: string | null;
