@@ -51,12 +51,15 @@ of Chromium's PDF viewer), loaded at runtime from the app bundle's
 (`chromium/8125`, pinned with its SHA-256 by `tools/fetch-pdfium.py`); the
 license ships as `PDFIUM_LICENSE.txt`. `pdfium-render` (MIT/Apache-2.0) binds it.
 
-## Browser renderers for Office previews
+## Office preview bundle
 
-`assets/web/vendor/` carries the exact builds the Electron product uses,
-copied by `tools/import-web-vendor.py`: docx-preview 0.4.0 (Apache-2.0),
-JSZip 3.10.1 (MIT), @aiden0z/pptx-renderer 1.2.4 (Apache-2.0) and SheetJS
-xlsx 0.20.3 (Apache-2.0). They run only inside the sandboxed preview WebView.
+`assets/web/office-viewer.js`, its CSS and its three workers are the
+product's own Office preview, bundled from the pinned product checkout by
+`tools/import-office-viewer.mjs` (receipt: `assets/web/office-viewer.json`).
+They include the renderers the Electron product uses — docx-preview 0.4.0
+(Apache-2.0), JSZip 3.10.1 (MIT), @aiden0z/pptx-renderer 1.2.4 (Apache-2.0)
+and SheetJS xlsx 0.20.3 (Apache-2.0) — with their license comments kept at
+the end of each file. They run only inside the preview WebView.
 
 ## HTML visual editor bundle
 

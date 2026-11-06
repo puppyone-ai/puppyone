@@ -348,7 +348,7 @@ fn post(frame: &Entity<WebFrame>, message: &serde_json::Value, cx: &mut App) {
 }
 
 /// JSON safe inside a `<script>` element and script source.
-fn script_json(value: &serde_json::Value) -> String {
+pub(super) fn script_json(value: &serde_json::Value) -> String {
     value
         .to_string()
         .replace('<', "\\u003c")

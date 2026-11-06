@@ -189,6 +189,26 @@ fn percent_decode(value: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+/// `Range: bytes=0-0` under [`LOCAL_SCHEME`] (`probeLocalResourceSize`):
+/// a granted file's size and first byte, answered without reading the file,
+/// so an oversized resource is refused before it is buffered.
+pub fn probe_local(content: &Content, path: &str) -> Option<(u64, Vec<u8>)> {
+    use std::io::Read;
+    let trimmed = path.trim_start_matches('/');
+    if trimmed == ENTRY || trimmed.is_empty() || trimmed.starts_with("__assets__/") {
+        return None;
+    }
+    let file = resolve(content.root.as_deref()?, path)?;
+    let size = std::fs::metadata(&file).ok()?.len();
+    let mut first = Vec::new();
+    std::fs::File::open(&file)
+        .ok()?
+        .take(1)
+        .read_to_end(&mut first)
+        .ok()?;
+    // An empty file has no byte to range over: it is served whole.
+    (!first.is_empty()).then_some((size, first))
+}
 /// The response for `path` under [`LOCAL_SCHEME`]: resources only.
 pub fn respond_local(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
     let trimmed = path.trim_start_matches('/');
