@@ -1,20 +1,35 @@
-//! The product's structured document viewers (`PuppyFlowViewer`), bundled
-//! from its sources by `tools/import-structured-viewers.mjs` and running in
-//! the system web engine with their own `StructuredDocumentModel`.
+//! The product's structured document viewers (`PuppyFlowViewer`,
+//! `ContextMapViewer`), bundled from its sources by
+//! `tools/import-structured-viewers.mjs` and running in the system web
+//! engine with their own `StructuredDocumentModel`.
 //!
 //! This side owns the document text the host saves: the page sends the
 //! serialized document after every local edit, undo or redo; a disk reload
 //! or external edit resets the page's model; the menu's Undo / Redo move the
 //! model's history; read-only input disables it.
+//!
+//! The Context Map reads the workspace through this side
+//! (`contextMapEnvironment`: folder listings and Markdown sources, read off
+//! the main thread) and its layout and line filters are the pane menu's
+//! (`EditorPaneMenuContribution`).
 use super::{html_visual::script_json, web::WebFrame};
 use crate::{
-    editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::{
+        registry::{
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+        },
+        workbench::pane::{Item, ItemKind, Segment, Segmented},
+    },
     platform::webview::{Content, Entry, Ipc},
     typography::Scale,
+    workspace::Workspace,
 };
 use gpui::{prelude::*, *};
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 const SCRIPT: &[u8] = include_bytes!("../../../assets/web/structured-viewers.js");
 const STYLE: &[u8] = include_bytes!("../../../assets/web/structured-viewers.css");
@@ -27,7 +42,48 @@ const BRAND_PREFIX: &str = "public/assets/icons/agents/";
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Inbound {
     Ready,
-    Content { text: String },
+    Content {
+        text: String,
+    },
+    /// `listChildren(path)`.
+    List {
+        request: u64,
+        path: Option<String>,
+    },
+    /// `readFile(path)`.
+    Read {
+        request: u64,
+        path: String,
+    },
+    /// The page's `EditorPaneMenuContribution`.
+    Pane {
+        items: Vec<PaneWire>,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum PaneWire {
+    Segmented {
+        id: String,
+        label: String,
+        value: String,
+        options: Vec<OptionWire>,
+    },
+    Toggle {
+        id: String,
+        label: String,
+        checked: bool,
+    },
+    Command {
+        id: String,
+        label: String,
+        disabled: bool,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+struct OptionWire {
+    id: String,
+    label: String,
 }
 
 /// `puppyflow`: the PuppyFlow step editor.
@@ -36,30 +92,79 @@ pub fn open_puppyflow(
     _: &mut Window,
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
+    open(request, "puppyflow", cx)
+}
+/// `context-map`: the workspace relationship map.
+pub fn open_context_map(
+    request: &SurfaceRequest,
+    _: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
+    open(request, "context-map", cx)
+}
+fn open(request: &SurfaceRequest, kind: &'static str, cx: &mut App) -> Box<dyn ViewerSurface> {
     let text = match request.input {
         SurfaceInput::Text(text) => text.to_owned(),
         _ => String::new(),
     };
-    let root = request
-        .workspace
-        .as_ref()
-        .and_then(|w| w.local_root().map(Path::to_path_buf));
+    let workspace = request.workspace.clone();
     let view = cx.new(|cx| {
         let mut view = StructuredView {
-            kind: "puppyflow",
+            kind,
             name: request.name.to_owned(),
-            root,
+            workspace,
             text,
             enabled: true,
             dark: request.dark,
             ready: false,
+            pane: Vec::new(),
+            revision: 0,
+            _watch: None,
             frame: None,
             _inbox: None,
         };
+        if kind == "context-map" {
+            view.watch(cx);
+        }
         view.show(cx);
         view
     });
     Box::new(StructuredSurface { view })
+}
+
+/// Product icons for the Context Map's layout options.
+fn option_icon(id: &str) -> &'static str {
+    match id {
+        "radial" => "context-map-radial",
+        "canvas" => "context-map-canvas",
+        "layered" => "context-map-layered",
+        _ => "circle",
+    }
+}
+/// Pane ids are static in the native menu; the page's are few and fixed.
+fn intern(id: &str) -> &'static str {
+    static IDS: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+    let mut ids = IDS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(known) = ids.iter().find(|known| **known == id) {
+        return known;
+    }
+    let leaked: &'static str = Box::leak(id.to_owned().into_boxed_str());
+    ids.push(leaked);
+    leaked
+}
+/// A workspace entry as the product's `DataNode`.
+fn data_node(workspace: &Workspace, node: &crate::model::Node) -> serde_json::Value {
+    let path = node.path.to_string_lossy().replace('\\', "/");
+    let kind = if node.folder {
+        "folder".to_owned()
+    } else {
+        crate::formats::semantic_kind(&node.name, None, None)
+    };
+    serde_json::json!({
+        "id": path, "name": node.name, "path": path, "type": kind,
+        "source": if workspace.local_root().is_some() { "local" } else { "cloud" },
+        "hasChildren": node.folder,
+    })
 }
 
 /// The page reported a local edit.
@@ -68,13 +173,18 @@ pub struct Changed;
 struct StructuredView {
     kind: &'static str,
     name: String,
-    root: Option<PathBuf>,
+    workspace: Option<Arc<Workspace>>,
     /// The document text, mirrored from the page's model.
     text: String,
     enabled: bool,
     dark: bool,
     /// The page answers messages (its receiver is installed).
     ready: bool,
+    /// The page's pane menu contribution.
+    pane: Vec<PaneWire>,
+    /// `contextMapEnvironment.revision`: workspace changes reread the map.
+    revision: u64,
+    _watch: Option<(crate::workspace::Subscription, Task<()>)>,
     frame: Option<Entity<WebFrame>>,
     _inbox: Option<Task<()>>,
 }
@@ -89,11 +199,12 @@ impl StructuredView {
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
             "canEdit": self.enabled,
-            "workspaceRoot": self.root.as_ref().map(|r| r.to_string_lossy().into_owned()),
+            "workspaceRoot": self.workspace.as_ref().and_then(|w| w.local_root()).map(|r| r.to_string_lossy().into_owned()),
+            "hasWorkspace": self.workspace.is_some(),
             "locale": crate::localization::current_code(),
             "direction": "ltr",
             "messages": crate::localization::messages(&[
-                "editor.puppyflow.", "editor.contextMap.", "editor.preview.", "common.", "shared-ui.",
+                "editor.puppyflow.", "workspace.relationships.", "editor.preview.", "common.", "shared-ui.",
             ]),
         });
         let mut assets: Vec<(&'static str, &'static [u8])> = vec![
@@ -112,6 +223,7 @@ impl StructuredView {
             policy: None,
         };
         self.ready = false;
+        self.pane.clear();
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
@@ -132,21 +244,217 @@ impl StructuredView {
                     cx.emit(Changed);
                 }
             }
+            Inbound::List { request, path } => {
+                let Some(workspace) = self.workspace.clone() else {
+                    return self.reply(request, Err("The workspace is unavailable.".into()), cx);
+                };
+                let task = cx.background_executor().spawn(async move {
+                    let folder = PathBuf::from(path.unwrap_or_default());
+                    workspace
+                        .list(&folder)
+                        .map(|nodes| {
+                            serde_json::Value::Array(
+                                nodes
+                                    .iter()
+                                    .map(|node| data_node(&workspace, node))
+                                    .collect(),
+                            )
+                        })
+                        .map_err(|error| error.to_string())
+                });
+                self.answer(request, task, cx);
+            }
+            Inbound::Read { request, path } => {
+                let Some(workspace) = self.workspace.clone() else {
+                    return self.reply(request, Err("The workspace is unavailable.".into()), cx);
+                };
+                let task = cx.background_executor().spawn(async move {
+                    let relative = PathBuf::from(&path);
+                    let name = relative
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    workspace
+                        .read(&relative)
+                        .map(|document| {
+                            serde_json::json!({
+                                "path": path, "name": name,
+                                "type": crate::formats::semantic_kind(&name, None, None),
+                                "content": document.text,
+                            })
+                        })
+                        .map_err(|error| error.to_string())
+                });
+                self.answer(request, task, cx);
+            }
+            Inbound::Pane { items } => {
+                self.pane = items;
+                cx.notify();
+            }
         }
     }
-    /// A message to the page's receiver; before it is ready the next page
-    /// starts from the current state instead.
-    fn post(&mut self, message: serde_json::Value, cx: &mut Context<Self>) {
+    /// External changes (Agents, terminals, other apps) bump the
+    /// environment's revision; one per coalesced burst.
+    fn watch(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.clone() else {
+            return;
+        };
+        let (tx, rx) = async_channel::bounded::<()>(1);
+        let notify: crate::workspace::ports::Notify = Arc::new(move || {
+            let _ = tx.try_send(());
+        });
+        let Ok(subscription) = workspace.watch_root(notify) else {
+            return;
+        };
+        let task = cx.spawn(async move |this, cx| {
+            while rx.recv().await.is_ok() {
+                let alive = this.update(cx, |view, cx| {
+                    view.revision += 1;
+                    let message = serde_json::json!({ "type": "revision", "value": view.revision });
+                    // A page that is not ready yet reads the workspace anew.
+                    if view.ready {
+                        view.post(message, cx);
+                    }
+                });
+                if alive.is_err() {
+                    break;
+                }
+            }
+        });
+        self._watch = Some((subscription, task));
+    }
+    fn answer(
+        &mut self,
+        request: u64,
+        task: Task<Result<serde_json::Value, String>>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |view, cx| view.reply(request, result, cx));
+        })
+        .detach();
+    }
+    /// A workspace read's answer; a page that was rebuilt meanwhile has
+    /// already forgotten it.
+    fn reply(
+        &mut self,
+        request: u64,
+        result: Result<serde_json::Value, String>,
+        cx: &mut Context<Self>,
+    ) {
+        let message = match result {
+            Ok(value) => {
+                serde_json::json!({ "type": "reply", "request": request, "ok": true, "value": value })
+            }
+            Err(error) => {
+                serde_json::json!({ "type": "reply", "request": request, "ok": false, "error": error })
+            }
+        };
         let script = format!(
             "window.__puppyoneStructured&&window.__puppyoneStructured({})",
             script_json(&message)
         );
-        let sent = self.ready
+        if let Some(frame) = &self.frame {
+            frame.read(cx).evaluate(&script);
+        }
+    }
+    /// `EditorPaneMenuContribution` in the native pane menu.
+    fn pane_entries(&self) -> PaneEntries {
+        let mut entries = PaneEntries::default();
+        for item in &self.pane {
+            match item {
+                PaneWire::Segmented {
+                    label,
+                    value,
+                    options,
+                    ..
+                } => {
+                    entries.segmented = Some(Segmented {
+                        label: label.clone().into(),
+                        options: options
+                            .iter()
+                            .map(|option| Segment {
+                                id: intern(&option.id),
+                                icon: option_icon(&option.id),
+                                label: option.label.clone().into(),
+                            })
+                            .collect(),
+                        value: intern(value),
+                    });
+                }
+                PaneWire::Toggle { id, label, checked } => entries.items.push(Item {
+                    id: intern(id),
+                    label: label.clone().into(),
+                    kind: ItemKind::Toggle(*checked),
+                }),
+                PaneWire::Command {
+                    id,
+                    label,
+                    disabled,
+                } => entries.items.push(Item {
+                    id: intern(id),
+                    label: label.clone().into(),
+                    kind: ItemKind::Command {
+                        disabled: *disabled,
+                    },
+                }),
+            }
+        }
+        entries
+    }
+    /// A segment chosen in the pane menu; shown at once, then confirmed by
+    /// the page's next contribution.
+    fn pane_segment(&mut self, option: &str, cx: &mut Context<Self>) {
+        let Some(PaneWire::Segmented { id, value, .. }) = self
+            .pane
+            .iter_mut()
+            .find(|item| matches!(item, PaneWire::Segmented { .. }))
+        else {
+            return;
+        };
+        *value = option.to_owned();
+        let message = serde_json::json!({ "type": "paneSegment", "id": id, "value": option });
+        self.post(message, cx);
+        cx.notify();
+    }
+    fn pane_item(&mut self, chosen: &str, cx: &mut Context<Self>) {
+        let message = match self.pane.iter_mut().find(|item| match item {
+            PaneWire::Toggle { id, .. } | PaneWire::Command { id, .. } => id == chosen,
+            PaneWire::Segmented { .. } => false,
+        }) {
+            Some(PaneWire::Toggle { id, checked, .. }) => {
+                *checked = !*checked;
+                serde_json::json!({ "type": "paneToggle", "id": id, "checked": *checked })
+            }
+            Some(PaneWire::Command {
+                id,
+                disabled: false,
+                ..
+            }) => {
+                serde_json::json!({ "type": "paneCommand", "id": id })
+            }
+            _ => return,
+        };
+        self.post(message, cx);
+        cx.notify();
+    }
+    /// A message to the page's receiver; `false` before it is ready.
+    fn post(&mut self, message: serde_json::Value, cx: &mut Context<Self>) -> bool {
+        let script = format!(
+            "window.__puppyoneStructured&&window.__puppyoneStructured({})",
+            script_json(&message)
+        );
+        self.ready
             && self
                 .frame
                 .as_ref()
-                .is_some_and(|frame| frame.read(cx).evaluate(&script));
-        if !sent {
+                .is_some_and(|frame| frame.read(cx).evaluate(&script))
+    }
+    /// State the page must hold: a page that cannot take it yet is rebuilt
+    /// from the current state instead.
+    fn post_state(&mut self, message: serde_json::Value, cx: &mut Context<Self>) {
+        if !self.post(message, cx) {
             self.show(cx);
         }
     }
@@ -155,7 +463,7 @@ impl StructuredView {
             return;
         }
         self.text = text.to_owned();
-        self.post(serde_json::json!({ "type": "reset", "text": text }), cx);
+        self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
     }
     fn history(&mut self, redo: bool, cx: &mut Context<Self>) {
         if self.ready && self.enabled {
@@ -175,7 +483,7 @@ impl StructuredView {
             self.show(cx);
         } else if enabled != self.enabled {
             self.enabled = enabled;
-            self.post(
+            self.post_state(
                 serde_json::json!({ "type": "enabled", "value": enabled }),
                 cx,
             );
@@ -248,6 +556,15 @@ impl ViewerSurface for StructuredSurface {
     fn replace_text(&self, text: &str, _: &mut Window, cx: &mut App) {
         self.view.update(cx, |view, cx| view.replace_text(text, cx));
     }
+    fn pane(&self, cx: &App) -> PaneEntries {
+        self.view.read(cx).pane_entries()
+    }
+    fn pane_segment(&self, id: &'static str, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |view, cx| view.pane_segment(id, cx));
+    }
+    fn pane_item(&self, id: &'static str, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |view, cx| view.pane_item(id, cx));
+    }
     fn rebind_name(&self, name: &str, cx: &mut App) {
         let name = name.to_owned();
         self.view.update(cx, |view, _| view.name = name);
@@ -295,11 +612,14 @@ mod tests {
             let mut view = StructuredView {
                 kind: "puppyflow",
                 name: "flows/release.puppyflow".into(),
-                root: None,
+                workspace: None,
                 text: "{}".into(),
                 enabled: true,
                 dark: false,
                 ready: true,
+                pane: Vec::new(),
+                revision: 0,
+                _watch: None,
                 frame: None,
                 _inbox: None,
             };
@@ -342,5 +662,58 @@ mod tests {
         // A disk reload is the new mirror; the page is reset to it.
         cx.update(|window, cx| surface.replace_text("{}", window, cx));
         assert_eq!(cx.update(|_, cx| surface.text(cx)).as_deref(), Some("{}"));
+    }
+
+    #[gpui::test]
+    fn the_context_map_lists_the_workspace_and_drives_the_pane_menu(cx: &mut TestAppContext) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("notes")).unwrap();
+        std::fs::write(dir.path().join("plan.md"), "# Plan").unwrap();
+        let workspace = Workspace::open(dir.path()).unwrap();
+        let nodes = workspace.list(Path::new("")).unwrap();
+        let mut listed: Vec<_> = nodes.iter().map(|n| data_node(&workspace, n)).collect();
+        listed.sort_by_key(|n| n["path"].as_str().unwrap_or_default().to_owned());
+        assert_eq!(listed[0]["type"], "folder");
+        assert_eq!(listed[1]["type"], "markdown");
+        assert_eq!(listed[1]["source"], "local");
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = StructuredView {
+                kind: "context-map",
+                name: "overview.contextmap".into(),
+                workspace: Some(workspace.clone()),
+                text: "{}".into(),
+                enabled: true,
+                dark: false,
+                ready: true,
+                pane: Vec::new(),
+                revision: 0,
+                _watch: None,
+                frame: None,
+                _inbox: None,
+            };
+            view.show(cx);
+            view
+        });
+        let items: Vec<PaneWire> = serde_json::from_str(
+            r#"[{"kind":"segmented","id":"context-map-layout","label":"Layout","value":"radial",
+                 "options":[{"id":"radial","label":"Radial"},{"id":"canvas","label":"Canvas"}]},
+                {"kind":"toggle","id":"context-map-filter-one-way-links","label":"One-way","checked":true}]"#,
+        )
+        .unwrap();
+        view.update(cx, |v, cx| {
+            v.ready = true;
+            v.receive(Inbound::Pane { items }, cx);
+            let entries = v.pane_entries();
+            let segmented = entries.segmented.unwrap();
+            assert_eq!(segmented.value, "radial");
+            assert_eq!(segmented.options[1].icon, "context-map-canvas");
+            assert_eq!(entries.items[0].kind, ItemKind::Toggle(true));
+            // Chosen in the menu, shown at once.
+            v.pane_segment("canvas", cx);
+            v.pane_item("context-map-filter-one-way-links", cx);
+            let entries = v.pane_entries();
+            assert_eq!(entries.segmented.unwrap().value, "canvas");
+            assert_eq!(entries.items[0].kind, ItemKind::Toggle(false));
+        });
     }
 }

@@ -1,16 +1,12 @@
-//! Text surfaces on the editor view: Markdown live preview (`markdown`) and
-//! source text with the Markdown body typography (`text`, `json`, and the
-//! source of formats whose canvas the native build does not have yet).
+//! Text surfaces on the editor view: Markdown live preview (`markdown`).
 use crate::{
     editor::{
         markdown::MarkdownExtension,
         registry::{PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface},
         view::{
             EditorView,
-            decoration::Decorations,
             editor::EditorEvent,
-            extension::{EditIntent, EditorExtension, PlainText},
-            style::{Edges, LineHeight, LineStyle, TextStyle},
+            extension::{EditIntent, EditorExtension},
         },
         workbench::{
             find::FindEvent,
@@ -21,27 +17,6 @@ use crate::{
     typography::Scale,
 };
 use gpui::{prelude::*, *};
-
-/// Source text: the Markdown body typography without syntax.
-fn plain_text(dark: bool, scale: Scale) -> PlainText {
-    let theme = crate::editor::markdown::style::MarkdownTheme::resolve(dark, scale);
-    let body = &theme.body;
-    let text = TextStyle {
-        line_height: LineHeight::Factor(body.text.line_height_px() / body.text.size),
-        ..body.text.clone()
-    };
-    let line = LineStyle {
-        padding: Edges::new(0., 0., body.source_line_gap, 0.),
-        ..LineStyle::new(text)
-    };
-    PlainText {
-        line: std::rc::Rc::new(line),
-        decorations: Decorations {
-            surface: crate::editor::markdown::core::decorations::surface(&theme),
-            ..Default::default()
-        },
-    }
-}
 
 fn open(
     request: &SurfaceRequest,
@@ -71,19 +46,6 @@ pub fn open_markdown(
     markdown.assets = crate::editor::registry::document_assets(request.id);
     open(request, Box::new(markdown), cx)
 }
-/// Source text.
-pub fn open_source(
-    request: &SurfaceRequest,
-    _: &mut Window,
-    cx: &mut App,
-) -> Box<dyn ViewerSurface> {
-    open(
-        request,
-        Box::new(plain_text(request.dark, request.scale)),
-        cx,
-    )
-}
-
 pub struct TextSurface {
     pub editor: Entity<EditorView>,
 }

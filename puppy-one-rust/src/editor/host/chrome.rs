@@ -21,10 +21,13 @@ impl DocumentEditor {
         let entries = surface.pane(cx);
         // The product's pane menu has no split commands (`EditorPaneActionsMenu`
         // ignores `onSplit`); panes split by dropping onto an edge.
-        // The live / source toggle is the contribution's to declare.
-        let segmented = entries
-            .segmented
-            .filter(|_| session.viewer.policy.source_toggle);
+        // The live / source switch shows only where the provider policy
+        // declares it; a viewer's own view switch (the Context Map layout)
+        // is a plain view item.
+        let segmented = entries.segmented.filter(|segmented| {
+            session.viewer.policy.source_toggle
+                || !segmented.options.iter().any(|option| option.id == "source")
+        });
         Contribution {
             segmented,
             items: entries.items,

@@ -2,9 +2,8 @@
 //! (`builtinViewerContributions.ts`) — the only list of them. Matching is the
 //! product's; each viewer's surface lives in `editor::viewers`.
 //!
-//! Viewers the product renders with a canvas or app runtime the native build
-//! does not have yet edit their source as text (context map) or show an
-//! honest "preview unavailable" placeholder (app preview).
+//! The app preview, whose runtime the native build does not have yet, shows
+//! an honest "preview unavailable" placeholder.
 use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
@@ -30,7 +29,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| m.format.id == "context-map",
             editable: Some(yes),
-            presentation: Native(text::open_source),
+            presentation: Native(structured::open_context_map),
         },
         ViewerImplementation {
             id: "app-preview",
