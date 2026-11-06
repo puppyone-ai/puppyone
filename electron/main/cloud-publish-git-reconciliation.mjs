@@ -5,12 +5,23 @@ export const CLOUD_INITIAL_PUSH_TIMEOUT_MS = 30 * 60_000;
 // Checking a failed push must not start another minute-long network wait.
 export const CLOUD_PUSH_STATUS_TIMEOUT_MS = 10_000;
 
+// Processing budgets the server reports when a push is too large to accept.
+// Retrying the same content cannot succeed, so these are size refusals, not
+// transient failures. The native Version Engine wording comes first; the
+// `incoming ... budget` forms are what servers before it reported.
+const PROCESSING_LIMIT_DIAGNOSTICS = [
+  /Git (?:single-object|graph|object count|temporary disk|output) budget exceeded/i,
+  /published object count budget exceeded/i,
+  /completed Git pack exceeds the storage processing budget/i,
+  /incoming (?:pack (?:expansion|byte)|expanded pack) budget exceeded/i,
+];
+
 export function isPushLimitFailure(error) {
   const diagnostic = [error?.stderr, error?.stdout, error?.message]
     .filter((value) => typeof value === "string" || Buffer.isBuffer(value))
     .map(String).join(" ");
   return isPushPackLimitFailure(error)
-    || /incoming (?:pack (?:expansion|byte)|expanded pack) budget exceeded|Git (?:single-object|graph) budget exceeded|completed Git pack exceeds the storage processing budget/i.test(diagnostic);
+    || PROCESSING_LIMIT_DIAGNOSTICS.some((pattern) => pattern.test(diagnostic));
 }
 
 export function isPushPackLimitFailure(error) {
