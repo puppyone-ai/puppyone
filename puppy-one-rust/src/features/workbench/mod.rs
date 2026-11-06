@@ -1614,6 +1614,36 @@ mod tests {
         });
     }
     #[gpui::test]
+    fn a_history_chat_that_cannot_resume_goes_back_to_the_launcher(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        view.update_in(cx, |s, window, cx| {
+            s.set_workspace(PathBuf::from("/project"), cx);
+            let p = s.project_mut().unwrap();
+            let tab = p.layout.add(0);
+            p.content.insert(tab, Content::Launcher);
+            let target = crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget {
+                id: "agent:thread-1".into(),
+                title: "Saved chat".into(),
+                icon_key: None,
+                payload: serde_json::json!({ "kind": "agent-session", "runtimeId": "codex" }),
+            };
+            s.restore_history_target(0, tab, target, window, cx);
+            // The tab stays the launcher; the failure keeps its target to retry.
+            assert!(matches!(
+                s.project().unwrap().content[&tab],
+                Content::Launcher
+            ));
+            let failure = s.creation_failure.as_ref().unwrap();
+            assert_eq!(failure.tab, tab);
+            assert_eq!(failure.target.id, "agent:thread-1");
+            assert!(s.creation_notice(cx).is_some());
+            s.creation_failure = None;
+            assert!(s.creation_notice(cx).is_none());
+        });
+    }
+    #[gpui::test]
     fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
         cx.executor().allow_parking();
         cx.update(gpui_kit::init);
