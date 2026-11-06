@@ -119,6 +119,12 @@ export async function requestCloudApi(apiBase, apiPath, init) {
     error.status = response.status;
     const businessCode = getCloudApiBusinessErrorCode(payload);
     if (businessCode) error.code = businessCode;
+    // Whether the same request can later succeed is the server's decision, and
+    // the request id is how a report of this failure is found in its logs.
+    const retryable = getCloudApiRetryable(payload);
+    if (retryable !== null) error.retryable = retryable;
+    const requestId = getCloudApiRequestId(response.headers);
+    if (requestId) error.requestId = requestId;
     throw error;
   }
 
@@ -144,6 +150,16 @@ export function getCloudApiBusinessErrorCode(payload) {
     ) return candidate;
   }
   return null;
+}
+
+export function getCloudApiRetryable(payload) {
+  const value = payload?.data?.retryable ?? payload?.detail?.retryable;
+  return typeof value === "boolean" ? value : null;
+}
+
+export function getCloudApiRequestId(headers) {
+  const value = headers?.get?.("x-request-id");
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : null;
 }
 
 export function getCloudApiErrorMessage(payload, fallback) {

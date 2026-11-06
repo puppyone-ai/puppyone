@@ -3,9 +3,15 @@ import { cloudMessage, type CloudMessageDescriptor } from "./cloudPresentation";
 export type CloudOpeningFailure = Readonly<{
   message: CloudMessageDescriptor;
   action: "retry" | "account" | "none";
+  /**
+   * The workspace moved while it was opening (replaced, paused, fenced, or the
+   * authorization revision changed). Opening it again is the remedy, so the
+   * window does that once by itself before saying anything.
+   */
+  reopen?: boolean;
 }>;
-type FailureInput = { status?: unknown; code?: unknown; retryable?: unknown };
-type FailureSpec = readonly [CloudMessageDescriptor["code"], CloudOpeningFailure["action"]];
+type FailureInput = { status?: unknown; code?: unknown; retryable?: unknown; requestId?: unknown };
+type FailureSpec = readonly [CloudMessageDescriptor["code"], CloudOpeningFailure["action"], boolean?];
 
 /** Carries the failed opening stage through the shared project navigation queue. */
 export class CloudOpeningError extends Error {
@@ -37,8 +43,18 @@ const openingReasons = new Map<string, FailureSpec>([
   ["workbench_access_denied", ["workspace-access-denied", "none"]],
   ["workbench_requires_recovery", ["workspace-recovery-required", "none"]],
   ["workbench_preparing", ["workspace-preparing", "retry"]],
+  ["workbench_start_timeout", ["workspace-start-timeout", "retry"]],
+  ["workbench_connection_timeout", ["workspace-start-timeout", "retry"]],
+  ["workbench_disk_lost", ["workspace-disk-lost", "retry"]],
+  ["workbench_unavailable", ["project-unavailable", "none"]],
+  ["workbench_generation_changed", ["workspace-changed", "retry", true]],
+  ["workbench_not_running", ["workspace-changed", "retry", true]],
+  ["workbench_not_ready", ["workspace-changed", "retry", true]],
+  ["workbench_operation_replaced", ["workspace-changed", "retry", true]],
+  ["workbench_context_changed", ["workspace-changed", "retry", true]],
 ]);
-const failure = ([code, action]: FailureSpec): CloudOpeningFailure => ({ message: cloudMessage(code), action });
+const failure = ([code, action, reopen]: FailureSpec): CloudOpeningFailure => (
+  { message: cloudMessage(code), action, ...(reopen ? { reopen } : {}) });
 function input(cause: unknown): FailureInput {
   return cause && typeof cause === "object" ? cause as FailureInput : {};
 }
@@ -74,9 +90,30 @@ function accessFailure(status: unknown, stage: "project" | "workspace"): CloudOp
   return null;
 }
 
+/**
+ * What a report of this failure needs to be found in the server's log. Shown
+ * beside the message, never instead of it.
+ */
+function openingDiagnostic(error: FailureInput): CloudMessageDescriptor["diagnostic"] | undefined {
+  const status = responseStatus(error.status);
+  // Only codes this app knows, or the server's own workspace namespace (the
+  // same pattern the server enforces); an arbitrary server string stays out.
+  const code = typeof error.code === "string" && (connectionReasons.has(error.code) || openingReasons.has(error.code)
+    || /^workbench_[a-z_]{1,80}$/.test(error.code)) ? error.code : undefined;
+  const requestId = typeof error.requestId === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(error.requestId)
+    ? error.requestId : undefined;
+  return status || code || requestId ? { status, code, requestId } : undefined;
+}
+
 /** Project authorization and runtime availability are independent facts. */
 export function describeCloudOpeningFailure(cause: unknown, stage: "project" | "workspace" = "project"): CloudOpeningFailure {
   if (cause instanceof CloudOpeningError) return cause.failure;
+  const described = classifyCloudOpeningFailure(cause, stage);
+  const diagnostic = openingDiagnostic(input(cause));
+  return diagnostic ? { ...described, message: { ...described.message, diagnostic } } : described;
+}
+
+function classifyCloudOpeningFailure(cause: unknown, stage: "project" | "workspace"): CloudOpeningFailure {
   const error = input(cause);
   const access = accessFailure(error.status, stage);
   if (access) return access;

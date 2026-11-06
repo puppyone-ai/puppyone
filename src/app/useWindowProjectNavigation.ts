@@ -5,7 +5,7 @@ import type { MessageValue } from "@puppyone/localization";
 import type { WorkspaceEntryKind } from "../features/app-shell/workspaceEntryBootstrap";
 import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surfaces/workspaceSurfaceTypes";
 import { CloudOpeningError, describeCloudOpeningFailure } from "../features/cloud/cloudOpeningFailure";
-import { formatCloudMessage } from "../features/cloud/cloudPresentation";
+import { formatCloudDiagnostic, formatCloudMessage } from "../features/cloud/cloudPresentation";
 import { useCallback, useEffect, useRef } from "react";
 import { useProjectNavigation } from "../features/app-shell/window-project/useProjectNavigation";
 import { closeHostFolder, hostFolderTarget, showHostFolder, useWindowProject, windowProjectStore,
@@ -109,7 +109,8 @@ export function useWindowProjectNavigation({
       const failure = target.kind === "cloud" ? describeCloudOpeningFailure(error) : null;
       const message = error instanceof Error ? error.message : String(error);
       windowProjectStore.setState({ failure: { target, recovery: failure?.action ?? "retry",
-        message: failure ? formatCloudMessage(failure.message, t) : message } });
+        message: failure ? formatCloudMessage(failure.message, t) : message,
+        diagnostic: failure ? formatCloudDiagnostic(failure.message, t) : null } });
     },
   });
   cancelProjectNavigationRef.current = projectNavigation.cancel;

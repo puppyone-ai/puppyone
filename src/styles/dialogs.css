@@ -183,6 +183,29 @@
   line-height: 18px;
 }
 
+.desktop-dialog-diagnostic {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.desktop-dialog-diagnostic-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.desktop-dialog-diagnostic-copy {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--po-text-muted);
+  font: inherit;
+  text-decoration: underline;
+}
+
 .desktop-git-error-dialog-message {
   margin: 0;
   color: var(--po-text-muted);
