@@ -152,7 +152,7 @@
         "src/features/desktop_agent/infrastructure/host/agent_host_global.rs",
         "src/features/desktop_agent/ui/panel/mod.rs"
       ],
-      "remaining": "Local Agent chats are AgentChatTabPanel items over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session, close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, and chat file links open in the editor. The process host starts on first use and drains on quit. The Built-in Agent keeps the native harness (AgentChat) and is hidden from panel runtime choices. AgentChatHistoryBrowser over ConversationHistoryController, history-target restore with creation failure, routing preferences and the item-host process service remain."
+      "remaining": "Every local Agent chat, the Built-in Agent included, is an AgentChatTabPanel item over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session (one retained before the switch reopens new), close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, chat file links open in the editor, and compute prompts open Account or Model Connections. The process host starts on first use and drains on quit. AgentChatHistoryBrowser over ConversationHistoryController, history-target restore with creation failure, routing preferences and the item-host process service remain; the hosted Agent still uses the native chat view."
     },
     {
       "name": "Codex runtime and protocol",
@@ -362,9 +362,16 @@
         "src/agent/runtimes/puppyone_agent/session_store.rs",
         "src/agent/runtimes/puppyone_agent/tools.rs",
         "src/agent/runtimes/puppyone_agent/mod.rs",
-        "src/model_connections/schema.rs"
+        "src/model_connections/schema.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/mod.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/session.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/tools.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/turn.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/tests.rs",
+        "src/agent/runtimes/puppyone_agent/native_model_connections.rs",
+        "src/agent/host/agent_host.rs"
       ],
-      "remaining": "The Main-side modules are ported 1:1 over the shared Pi RPC adapter (model-connection lease binding, private fd-3 configuration bootstrap, read-only history resume, image capability gate, worker discovery and probe contract, narrow worker environment, versioned approval envelope) with the Main-side kernel tests. The JS worker on the pinned Pi SDK (worker/*.mjs) is neither bundled nor reimplemented: by decision (2026-11-06) the Built-in Agent keeps running on the legacy native Rust harness (adapter.rs, model_client.rs, session_store.rs, tools.rs) until the kernel question is revisited."
+      "remaining": "The Main-side Built-in Agent modules are ported 1:1. Its worker is the in-process native kernel: the native inference loop and workspace tools serve the bundled worker's puppyone-pi-rpc-v1 protocol (state, models, prompt, steer, abort, compact, get_messages, extension_ui confirm approvals under the product policy, Pi-shaped sessions under the managed profile) over in-memory pipes, so PuppyOneAgentAdapter, the model-connection binding and the Pi RPC client and normalizer run unchanged. Leases come from this app's model connections (mc_ ids, no secret in the bootstrap envelope). The Pi SDK itself (extensions, skills, prompt templates, thinking levels, auto-retry, jsonl sessions) is not reimplemented, and the legacy harness adapter remains only for the hosted Agent's native chat view."
     },
     {
       "name": "Reference ingestion",
@@ -1032,7 +1039,8 @@
         "src/features/desktop-agent/ui/transcript/TranscriptRow.tsx",
         "src/features/desktop-agent/ui/useAgentRunActiveElapsed.ts",
         "src/features/desktop-agent/ui/useAgentSessionPreparation.ts",
-        "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx"
+        "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx",
+        "src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx"
       ],
       "targets": [
         "src/features/desktop_agent/ui/activity/agent_activity_views.rs",
@@ -1043,9 +1051,10 @@
         "src/features/desktop_agent/ui/panel/docks.rs",
         "src/features/desktop_agent/ui/panel/composer.rs",
         "src/features/desktop_agent/ui/panel/fixture.rs",
-        "src/features/workbench/mod.rs"
+        "src/features/workbench/mod.rs",
+        "src/features/desktop_agent/ui/panel/compute.rs"
       ],
-      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. The workbench still opens the legacy chat for real sessions: the AgentHost composition, per-project controller registry, history browser, routing preferences, stream frame smoothing, runtime picker popover and pixel parity remain."
+      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. The history browser, routing preferences, stream frame smoothing, runtime picker popover and pixel parity remain."
     }
   ]
 }

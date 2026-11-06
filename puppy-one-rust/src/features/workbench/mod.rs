@@ -144,6 +144,8 @@ pub enum WorkbenchEvent {
     OpenModelConnections,
     /// A hosted Agent run's changes were accepted (`onPublication`).
     CloudPublished,
+    /// A chat asked for the account (`onOpenAccount`).
+    OpenAccount,
     /// A chat opened `path` of the project at `root` (`onOpenFile`).
     OpenAgentFile {
         root: PathBuf,
@@ -645,11 +647,10 @@ impl Workbench {
                 thread,
                 runtime_id,
                 ..
-            } if runtime != Runtime::PuppyOne
-                || runtime_id
-                    .as_deref()
-                    .is_some_and(|id| id != agent_chat::BUILT_IN_AGENT_RUNTIME_ID) =>
-            {
+            } => {
+                // A chat retained before it ran on the Agent service names a
+                // provider thread, not an Agent session: it reopens new.
+                let thread = thread.filter(|_| runtime_id.is_some());
                 let runtime_id = runtime_id.or_else(|| {
                     self.installations
                         .iter()
@@ -672,33 +673,6 @@ impl Workbench {
                     }
                 }
             }
-            RetainedItem::Chat {
-                runtime, thread, ..
-            } => {
-                let Some(installation) = self
-                    .installations
-                    .iter()
-                    .find(|i| i.runtime == runtime)
-                    .cloned()
-                else {
-                    if let Some(p) = self.project_mut() {
-                        p.storage_error =
-                            Some(crate::localization::t("native.agent.uninstalled").into());
-                    }
-                    cx.notify();
-                    return;
-                };
-                let view = cx.new(|cx| {
-                    let mut view = AgentChat::new(installation, root, thread.is_some(), window, cx);
-                    if let Some(id) = thread {
-                        view.resume_when_ready(id);
-                    }
-                    view
-                });
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                cx.subscribe(&view, Self::chat_event).detach();
-                Content::Chat(view)
-            }
             RetainedItem::Terminal { .. } => {
                 let label = super::terminal::path_label(&root);
                 let view = cx.new(|cx| TerminalView::new(root, None, "shell", window, cx));
@@ -714,6 +688,7 @@ impl Workbench {
         cx.notify();
     }
     pub fn reload_agent_configuration(&mut self, cx: &mut Context<Self>) {
+        self.reload_agent_model_connections(cx);
         for project in self.projects.values() {
             for content in project.content.values() {
                 if let Content::Chat(view) = content {
@@ -855,21 +830,11 @@ impl Workbench {
         if !self.can_create(chat) {
             return;
         }
-        let native_chat = chat && installation.as_ref().is_some_and(|i| i.bundled());
-        // `launchError`: a refused creation stays on the launcher with its reason.
-        if native_chat && !crate::agent::runtime::session_lease::Lease::available(&root) {
-            self.launch_errors.insert(
-                group,
-                crate::localization::t("native.agent.capacity").into(),
-            );
-            cx.notify();
-            return;
-        }
         self.launch_errors.remove(&group);
-        let content = if let Some(installation) =
-            installation.clone().filter(|i| chat && !i.bundled())
-        {
-            // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`.
+        let content = if let Some(installation) = installation.clone().filter(|_| chat) {
+            // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`;
+            // `launchError`: a refused creation stays on the launcher with
+            // its reason.
             match self.agent_chat_content(
                 &agent_chat::agent_chat_runtime_id(&installation),
                 None,
@@ -883,12 +848,6 @@ impl Workbench {
                     return;
                 }
             }
-        } else if let Some(installation) = installation.clone().filter(|i| i.chat && self.chat_mode)
-        {
-            let view = cx.new(|cx| AgentChat::new(installation, root, history, window, cx));
-            cx.observe(&view, |_, _, cx| cx.notify()).detach();
-            cx.subscribe(&view, Self::chat_event).detach();
-            Content::Chat(view)
         } else {
             // `TerminalWorkbenchContribution`: the tab is titled by the
             // project folder; the launcher shows as its icon.

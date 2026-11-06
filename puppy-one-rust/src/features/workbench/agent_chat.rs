@@ -2,9 +2,6 @@
 //! `projectAgentControllers.ts` and `lazy.ts`'s preparation): a chat tab is
 //! an [`AgentChatTabPanel`] over a controller its project owns, so hiding
 //! or moving the tab never ends its session.
-//!
-//! The Built-in Agent is the exception: its kernel is still the native
-//! harness, so its chats stay on [`AgentChat`] and the panel never offers it.
 use super::*;
 use crate::agent::contract::js;
 use crate::agent::host::agent_host::AgentHostHandle;
@@ -57,8 +54,8 @@ pub(super) fn agent_chat_runtime_id(installation: &Installation) -> String {
         .into()
 }
 
-/// `resolveAgentChatRuntimeVisibility(...).hiddenRuntimeIds`, plus the
-/// Built-in Agent, whose chats stay on the native harness.
+/// `resolveAgentChatRuntimeVisibility(...).hiddenRuntimeIds`: the Built-in
+/// Agent is never hidden.
 pub(super) fn hidden_agent_chat_runtime_ids(hidden_local_agent_ids: &[String]) -> Vec<String> {
     LOCAL_AGENT_CHAT_RUNTIME_IDS
         .into_iter()
@@ -67,7 +64,6 @@ pub(super) fn hidden_agent_chat_runtime_ids(hidden_local_agent_ids: &[String]) -
                 .iter()
                 .any(|hidden| hidden == local_agent_id_for_agent_chat_runtime(id))
         })
-        .chain([BUILT_IN_AGENT_RUNTIME_ID])
         .map(str::to_string)
         .collect()
 }
@@ -244,7 +240,12 @@ impl Workbench {
         let registry = self.project_agents(root, cx)?;
         let controller = registry.get(item).map_err(|error| error.message)?;
         let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
-        let view = cx.new(|cx| AgentChatTabPanel::new(controller, hidden, window, cx));
+        let payments = self.payments_experience(cx);
+        let view = cx.new(|cx| {
+            let mut panel = AgentChatTabPanel::new(controller, hidden, window, cx);
+            panel.set_payments(payments, cx);
+            panel
+        });
         cx.subscribe(&view, Self::agent_panel_event).detach();
         Ok(view)
     }
@@ -318,6 +319,10 @@ impl Workbench {
     ) {
         match event {
             AgentChatPanelEvent::Presentation(_) => cx.notify(),
+            AgentChatPanelEvent::OpenModelConnections => {
+                cx.emit(WorkbenchEvent::OpenModelConnections)
+            }
+            AgentChatPanelEvent::OpenAccount => cx.emit(WorkbenchEvent::OpenAccount),
             AgentChatPanelEvent::OpenFile(path) => {
                 if let Some(root) = self.root.clone() {
                     cx.emit(WorkbenchEvent::OpenAgentFile {
@@ -377,19 +382,80 @@ impl Workbench {
         })
     }
 
-    /// Hidden local Agents leave every open panel's runtime choices.
-    pub(super) fn sync_agent_hidden_runtimes(&mut self, cx: &mut Context<Self>) {
-        let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
-        let panels: Vec<Entity<AgentChatTabPanel>> = self
-            .projects
+    /// Dev captures: the first chat sends `text`; `false` until it can.
+    #[cfg(feature = "dev-capture")]
+    pub(crate) fn capture_agent_prompt(&self, text: &str, cx: &App) -> bool {
+        let Some(controller) = self.capture_agent_controller(cx) else {
+            return false;
+        };
+        let state = controller.get_snapshot();
+        if state.session.is_none() || state.running_turn_id().is_some() {
+            return false;
+        }
+        drop(controller.submit(text));
+        true
+    }
+
+    /// Dev captures: the first chat's turn has settled.
+    #[cfg(feature = "dev-capture")]
+    pub(crate) fn capture_agent_idle(&self, cx: &App) -> bool {
+        self.capture_agent_controller(cx).is_some_and(|controller| {
+            let state = controller.get_snapshot();
+            state.running_turn_id().is_none()
+                && state
+                    .projection
+                    .messages
+                    .iter()
+                    .any(|m| m["role"] == "assistant" && m["streaming"] != true)
+        })
+    }
+
+    #[cfg(feature = "dev-capture")]
+    fn capture_agent_controller(
+        &self,
+        cx: &App,
+    ) -> Option<crate::features::desktop_agent::application::agent_session_controller::AgentSessionController>
+    {
+        self.project()?.content.values().find_map(|c| match c {
+            Content::Agent(view, _) => Some(view.read(cx).controller().clone()),
+            _ => None,
+        })
+    }
+
+    /// `usePaymentsExperience()` (Settings → Experimental).
+    fn payments_experience(&self, cx: &App) -> bool {
+        self.preferences
+            .as_ref()
+            .is_some_and(|p| p.read(cx).state.experimental.payments)
+    }
+
+    /// Model connections changed: every chat rereads them, and the payments
+    /// experience follows its setting.
+    pub(super) fn reload_agent_model_connections(&mut self, cx: &mut Context<Self>) {
+        let payments = self.payments_experience(cx);
+        for panel in self.agent_panels() {
+            panel.update(cx, |panel, cx| {
+                panel.set_payments(payments, cx);
+                panel.reload_model_connections(cx);
+            });
+        }
+    }
+
+    fn agent_panels(&self) -> Vec<Entity<AgentChatTabPanel>> {
+        self.projects
             .values()
             .flat_map(|p| p.content.values())
             .filter_map(|c| match c {
                 Content::Agent(view, _) => Some(view.clone()),
                 _ => None,
             })
-            .collect();
-        for panel in panels {
+            .collect()
+    }
+
+    /// Hidden local Agents leave every open panel's runtime choices.
+    pub(super) fn sync_agent_hidden_runtimes(&mut self, cx: &mut Context<Self>) {
+        let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
+        for panel in self.agent_panels() {
             panel.update(cx, |panel, cx| {
                 panel.set_hidden_runtime_ids(hidden.clone(), cx)
             });
@@ -444,15 +510,16 @@ mod tests {
     }
 
     #[test]
-    fn hidden_local_agents_hide_their_chat_runtimes_and_the_built_in_stays_native() {
+    fn hidden_local_agents_hide_their_chat_runtimes_but_never_the_built_in() {
         assert_eq!(
-            hidden_agent_chat_runtime_ids(&["opencode".into(), "codex".into()]),
-            ["codex", "opencode-native", BUILT_IN_AGENT_RUNTIME_ID]
+            hidden_agent_chat_runtime_ids(&[
+                "opencode".into(),
+                "codex".into(),
+                BUILT_IN_AGENT_RUNTIME_ID.into()
+            ]),
+            ["codex", "opencode-native"]
         );
-        assert_eq!(
-            hidden_agent_chat_runtime_ids(&[]),
-            [BUILT_IN_AGENT_RUNTIME_ID]
-        );
+        assert!(hidden_agent_chat_runtime_ids(&[]).is_empty());
         assert_eq!(
             local_agent_id_for_agent_chat_runtime("workbuddy-china"),
             "workbuddy-china"

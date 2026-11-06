@@ -406,6 +406,13 @@ impl Shell {
                     });
                     s.command(Command::Settings, w, cx);
                 }
+                // `openSettingsDialog("account")`.
+                crate::features::workbench::WorkbenchEvent::OpenAccount => {
+                    s.task_ui.settings.update(cx, |settings, cx| {
+                        settings.select_page(crate::features::settings::Page::Account, cx)
+                    });
+                    s.command(Command::Settings, w, cx);
+                }
                 // `handleAgentOpenFile`: a path inside the chat's project
                 // opens in the editor.
                 crate::features::workbench::WorkbenchEvent::OpenAgentFile { root, path } => {

@@ -625,6 +625,18 @@ impl AgentChatTabPanel {
             .px(px(12.))
             .pb(px(12.))
             .gap(px(8.));
+        if view.model_connections {
+            let compute = self.compute_view(
+                &view.runtime.runtime_models,
+                state.selected_model.as_deref(),
+            );
+            dock = dock.child(self.render_compute(
+                &compute,
+                state.selected_model.as_deref(),
+                view.compute_disabled,
+                cx,
+            ));
+        }
         if view.read_only {
             dock = dock.child(
                 div()

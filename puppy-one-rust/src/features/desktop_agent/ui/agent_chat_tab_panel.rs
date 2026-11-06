@@ -107,6 +107,9 @@ pub struct AgentChat {
     drafts: super::super::application::session_draft_store::SessionDraftStore,
 }
 impl AgentChat {
+    /// A native-harness chat (local chats now run on the Agent service; the
+    /// hosted Agent still uses this view).
+    #[cfg(test)]
     pub fn new(
         installation: Installation,
         root: PathBuf,

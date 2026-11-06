@@ -21,7 +21,9 @@
 //! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
 //! allowed or not), `agents:<more|invite|agent id>` (their card),
 //! `manage-agents`, `agent-chat:<runtime id>` (a new chat on a detected
-//! Agent) and `agent-settled` (its session prepared or failed), and in a file window `file-menu:<view|settings>` (a
+//! Agent), `agent-settled` (its session prepared or failed),
+//! `agent-prompt:<text>` (the chat sends it) and `agent-idle` (no turn
+//! running), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
 //! for the homepage's project activity and an open diff.
@@ -68,6 +70,10 @@ enum Step {
     AgentChat(String),
     /// `agent-settled`: the chat's session is prepared, or failed.
     AgentSettled,
+    /// `agent-prompt:<text>`: the active chat sends `text`.
+    AgentPrompt(String),
+    /// `agent-idle`: no chat has a running turn.
+    AgentIdle,
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -121,6 +127,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "blur" => Step::Blur,
                 "agent-chat" => Step::AgentChat(arg.to_string()),
                 "agent-settled" => Step::AgentSettled,
+                "agent-prompt" => Step::AgentPrompt(arg.to_string()),
+                "agent-idle" => Step::AgentIdle,
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -332,6 +340,21 @@ impl Shell {
             }
             Step::AgentSettled => {
                 if !self.sidebar.workbench.read(cx).capture_agent_settled(cx) {
+                    return false;
+                }
+            }
+            Step::AgentPrompt(text) => {
+                if !self
+                    .sidebar
+                    .workbench
+                    .read(cx)
+                    .capture_agent_prompt(text, cx)
+                {
+                    return false;
+                }
+            }
+            Step::AgentIdle => {
+                if !self.sidebar.workbench.read(cx).capture_agent_idle(cx) {
                     return false;
                 }
             }

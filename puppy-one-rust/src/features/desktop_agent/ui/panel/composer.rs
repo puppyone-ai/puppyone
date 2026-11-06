@@ -230,7 +230,7 @@ impl AgentChatTabPanel {
     }
 
     /// `AgentSessionControlPicker`.
-    fn session_picker(
+    pub(super) fn session_picker(
         &self,
         control: &AgentSessionControl,
         width: f32,

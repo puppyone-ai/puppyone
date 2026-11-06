@@ -3,6 +3,7 @@
 //! policy comes from the chat view model of the controller's snapshot; this
 //! view only owns presentation memory (disclosures, pickers, scroll).
 mod composer;
+mod compute;
 mod docks;
 pub mod elements;
 #[cfg(feature = "dev-capture")]
@@ -55,6 +56,10 @@ pub enum AgentChatPanelEvent {
     Presentation(AgentChatTabPresentation),
     /// `onOpenFile(path)`.
     OpenFile(String),
+    /// `onOpenModelConnections`.
+    OpenModelConnections,
+    /// `onOpenAccount`.
+    OpenAccount,
 }
 
 impl EventEmitter<AgentChatPanelEvent> for AgentChatTabPanel {}
@@ -101,6 +106,13 @@ pub struct AgentChatTabPanel {
     logo_turns: u32,
     provider_notices_open: bool,
     last_presentation: Option<AgentChatTabPresentation>,
+    /// `useModelConnections()`'s snapshot, its last revision, and whether a
+    /// send asked for compute access (`computeAccessPrompt`).
+    compute: Option<compute::ComputeSnapshot>,
+    compute_revision: Option<String>,
+    compute_access_prompt: bool,
+    /// `usePaymentsExperience()`.
+    payments: bool,
     _store: Box<dyn FnOnce()>,
 }
 
@@ -209,8 +221,13 @@ impl AgentChatTabPanel {
             logo_turns: 0,
             provider_notices_open: false,
             last_presentation: None,
+            compute: None,
+            compute_revision: None,
+            compute_access_prompt: false,
+            payments: false,
             _store: Box::new(unsubscribe),
         };
+        panel.reload_model_connections(cx);
         panel.on_state_change(window, cx);
         panel
     }
@@ -241,6 +258,14 @@ impl AgentChatTabPanel {
         self.on_state_change(window, cx);
     }
 
+    /// `usePaymentsExperience()`: whether PuppyOne compute is a route.
+    pub fn set_payments(&mut self, payments: bool, cx: &mut Context<Self>) {
+        if self.payments != payments {
+            self.payments = payments;
+            cx.notify();
+        }
+    }
+
     /// `hiddenRuntimeIds`.
     pub fn set_hidden_runtime_ids(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
         self.hidden_runtime_ids = hidden;
@@ -257,14 +282,15 @@ impl AgentChatTabPanel {
 
     fn view_model(&self, state: &AgentControllerState) -> AgentChatViewModel {
         let runtime = self.runtime_view(state);
+        let compute = self.compute_view(&runtime.runtime_models, state.selected_model.as_deref());
         derive_agent_chat_view_model(
             state,
             runtime,
             &AgentChatViewOptions {
                 presented: self.presented,
                 pending_connection_model: self.pending_connection_model.clone(),
-                compute_ready: false,
-                compute_access_required: None,
+                compute_ready: compute.ready,
+                compute_access_required: compute.access_required.map(str::to_string),
                 preferences_ready: true,
             },
         )
@@ -317,9 +343,15 @@ impl AgentChatTabPanel {
         }
         let state = self.state();
         let view = self.view_model(&state);
+        if !view.routing_ready && view.can_request_compute_access {
+            self.compute_access_prompt = true;
+            cx.notify();
+            return;
+        }
         if !composer::can_submit(&state, &view) || !view.routing_ready {
             return;
         }
+        self.compute_access_prompt = false;
         self.follow = true;
         drop(self.controller.submit(&state.draft));
         cx.notify();
