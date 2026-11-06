@@ -614,6 +614,12 @@ impl Shell {
             if surface == "changes" {
                 s.panes.set_right_open(true);
             }
+            if surface == "agent-panel" || surface == "agent-panel-empty" {
+                s.panes.set_right_open(true);
+                s.sidebar.workbench.update(cx, |workbench, cx| {
+                    workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
+                });
+            }
             if surface == "agent-empty"
                 || surface == "agent-transcript"
                 || surface == "agent-failed"

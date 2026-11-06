@@ -40,6 +40,20 @@ fn asset(runtime: Runtime, dark: bool) -> &'static str {
         Runtime::WorkBuddy => "workbuddy.png",
     }
 }
+/// The brand a runtime's `iconKey` names (`agentBrandCatalog`).
+pub fn runtime_for_icon_key(key: &str) -> Option<Runtime> {
+    Some(match key {
+        "built-in-agent" | "puppyone-agent" => Runtime::PuppyOne,
+        "codex" => Runtime::Codex,
+        "claude" => Runtime::Claude,
+        "cursor" => Runtime::Cursor,
+        "opencode" => Runtime::OpenCode,
+        "pi" => Runtime::Pi,
+        "hermes" => Runtime::Hermes,
+        "workbuddy" => Runtime::WorkBuddy,
+        _ => return None,
+    })
+}
 /// The ChatGPT mark Codex uses (`agentBrandCatalog`), drawn as an alpha mask
 /// in the surrounding colour like `AgentMonochromeBrandImage`.
 const CHATGPT_MARK: &str = "agents/chatgpt-mark.svg";

@@ -35,6 +35,8 @@ enum Content {
     Launcher,
     Retained(RetainedItem),
     Chat(Entity<AgentChat>),
+    /// `AgentChatWorkbenchItem` over its project-owned controller.
+    Agent(Entity<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>),
     /// A PTY, its tab title and the CLI it launched (`None` for the shell).
     Terminal(Entity<TerminalView>, String, Option<Runtime>),
 }
@@ -42,6 +44,7 @@ impl Content {
     fn busy(&self, cx: &App) -> bool {
         match self {
             Self::Chat(e) => e.read(cx).busy(),
+            Self::Agent(e) => e.read(cx).presentation().is_some_and(|p| p.running),
             Self::Terminal(e, ..) => e.read(cx).running,
             _ => false,
         }
@@ -49,7 +52,7 @@ impl Content {
     /// Whether this item counts against the chat (`true`) or terminal cap.
     fn is_kind(&self, chat: bool) -> bool {
         match self {
-            Self::Chat(_) | Self::Retained(RetainedItem::Chat { .. }) => chat,
+            Self::Chat(_) | Self::Agent(_) | Self::Retained(RetainedItem::Chat { .. }) => chat,
             Self::Terminal(..) | Self::Retained(RetainedItem::Terminal { .. }) => !chat,
             _ => false,
         }
@@ -69,6 +72,11 @@ impl Content {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
             Self::Retained(item) => item.title(),
             Self::Chat(e) => e.read(cx).session.snapshot().title.clone(),
+            Self::Agent(e) => e
+                .read(cx)
+                .presentation()
+                .map(|p| p.title.clone())
+                .unwrap_or_else(|| crate::localization::t("agent.header.newChat").into()),
             Self::Terminal(_, name, _) => name.clone(),
         }
     }
@@ -309,6 +317,25 @@ impl Workbench {
         self.root = Some(root);
         cx.notify();
     }
+    /// The Agent panel over a recorded conversation (`agent-panel*`).
+    #[cfg(feature = "dev-capture")]
+    pub(crate) fn visual_fixture_panel(
+        &mut self,
+        populated: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::features::desktop_agent::ui::panel::AgentChatTabPanel;
+        let root = PathBuf::from("/visual-reference-only");
+        let mut project = Project::default();
+        let id = project.layout.add(0);
+        let view = cx.new(|cx| AgentChatTabPanel::visual_fixture(populated, window, cx));
+        cx.observe(&view, |_, _, cx| cx.notify()).detach();
+        project.content.insert(id, Content::Agent(view));
+        self.projects.insert(root.clone(), project);
+        self.root = Some(root);
+        cx.notify();
+    }
     pub fn set_preferences(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
         if self.hidden_agents != hidden {
             self.hidden_agents = hidden;
@@ -509,6 +536,19 @@ impl Workbench {
                                         .then(|| view.session.snapshot().thread.clone())
                                         .flatten(),
                                     title: view.session.snapshot().title.clone(),
+                                }
+                            }
+                            Content::Agent(view) => {
+                                let panel = view.read(cx);
+                                let presentation = panel.presentation().cloned();
+                                RetainedItem::Chat {
+                                    runtime: presentation
+                                        .as_ref()
+                                        .and_then(|p| p.runtime_icon_key.as_deref())
+                                        .and_then(crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key)
+                                        .unwrap_or(Runtime::PuppyOne),
+                                    thread: presentation.as_ref().and_then(|p| p.session_id.clone()),
+                                    title: presentation.map(|p| p.title).unwrap_or_default(),
                                 }
                             }
                             Content::Terminal(_, title, runtime) => RetainedItem::Terminal {
@@ -839,6 +879,10 @@ impl Workbench {
                     .into_any_element()
             }
             Some(Content::Chat(view)) => {
+                let view = view.clone();
+                div().size_full().child(view).into_any_element()
+            }
+            Some(Content::Agent(view)) => {
                 let view = view.clone();
                 div().size_full().child(view).into_any_element()
             }

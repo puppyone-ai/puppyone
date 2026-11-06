@@ -16,6 +16,8 @@ pub mod agent_rich_text;
 pub mod agent_theme;
 #[allow(dead_code)]
 pub mod agent_tool_group_presentation;
+#[allow(dead_code)]
+pub mod panel;
 #[cfg(test)]
 mod tests;
 #[allow(dead_code)]

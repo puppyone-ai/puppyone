@@ -66,6 +66,22 @@ impl Workbench {
                     })
                     .into_any_element()
             }
+            Content::Agent(view) => {
+                let presentation = view.read(cx).presentation().cloned();
+                let running = presentation.as_ref().is_some_and(|p| p.running);
+                let runtime = presentation
+                    .as_ref()
+                    .and_then(|p| p.runtime_icon_key.as_deref())
+                    .and_then(
+                        crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key,
+                    );
+                div()
+                    .relative()
+                    .size(px(14.))
+                    .child(launcher_icon(identity(runtime), true, t.dark, t.muted))
+                    .when(running, |d| d.child(running_dot(tab, t)))
+                    .into_any_element()
+            }
             Content::Chat(view) => {
                 let view = view.read(cx);
                 let running = view.busy();

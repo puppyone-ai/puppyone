@@ -86,7 +86,7 @@
         "src/features/desktop_agent/application/tests/reference_drafts.rs",
         "src/features/desktop_agent/domain/tests.rs"
       ],
-      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent\u2192reconnecting\u2192degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
+      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent→reconnecting→degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
     },
     {
       "name": "Native platform client",
@@ -994,7 +994,54 @@
         "src/features/desktop_agent/ui/tests/tool_presentation.rs",
         "src/features/desktop_agent/ui/tests/chat_view_model.rs"
       ],
-      "remaining": "Pure presentation policy is ported over the display contract with its product suites: activity/tool/command classification and output, bounded tool evidence (UTF-16 budgets), streaming Markdown stable/tail splitting and grapheme catch-up, transcript rows (pending submissions, visibility), deterministic vertical rhythm and virtualization ranges, viewport anchors, tool grouping, readiness/session/error/history wording and the chat view model. The GPUI views still render the legacy message model (legacy_agent_* modules) until they move onto these."
+      "remaining": "Pure presentation policy is ported over the display contract with its product suites: activity/tool/command classification and output, bounded tool evidence (UTF-16 budgets), streaming Markdown stable/tail splitting and grapheme catch-up, transcript rows (pending submissions, visibility), deterministic vertical rhythm and virtualization ranges, viewport anchors, tool grouping, readiness/session/error/history wording and the chat view model. The native panel (Native GPUI Agent panel) renders through these; the legacy chat still uses legacy_agent_* until the workbench moves onto the panel."
+    },
+    {
+      "name": "Native GPUI Agent panel",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentPanelLayout.tsx",
+        "src/features/desktop-agent/ui/AgentPanelStatus.tsx",
+        "src/features/desktop-agent/ui/AgentEmptyState.tsx",
+        "src/features/desktop-agent/ui/AgentRuntimeLauncher.tsx",
+        "src/features/desktop-agent/ui/AgentHistoryNotice.tsx",
+        "src/features/desktop-agent/ui/AgentMessagePart.tsx",
+        "src/features/desktop-agent/ui/AgentPartRenderer.tsx",
+        "src/features/desktop-agent/ui/AgentPartRendererRegistry.tsx",
+        "src/features/desktop-agent/ui/AgentToolRendererRegistry.tsx",
+        "src/features/desktop-agent/ui/AgentTurnSummary.tsx",
+        "src/features/desktop-agent/ui/AgentRunFeedback.tsx",
+        "src/features/desktop-agent/ui/AgentPlanItem.tsx",
+        "src/features/desktop-agent/ui/AgentPromptInlineContent.tsx",
+        "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx",
+        "src/features/desktop-agent/ui/activity/AgentCommandActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentFileChangeActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentGenericActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentPlanActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentReasoningActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentSystemActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolEvidenceTree.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolTextEvidence.tsx",
+        "src/features/desktop-agent/ui/activity/index.ts",
+        "src/features/desktop-agent/ui/transcript/TranscriptRow.tsx",
+        "src/features/desktop-agent/ui/useAgentRunActiveElapsed.ts",
+        "src/features/desktop-agent/ui/useAgentSessionPreparation.ts",
+        "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/activity/agent_activity_views.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/panel/elements.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/panel/docks.rs",
+        "src/features/desktop_agent/ui/panel/composer.rs",
+        "src/features/desktop_agent/ui/panel/fixture.rs",
+        "src/features/workbench/mod.rs"
+      ],
+      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. The workbench still opens the legacy chat for real sessions: the AgentHost composition, per-project controller registry, history browser, routing preferences, stream frame smoothing, runtime picker popover and pixel parity remain."
     }
   ]
 }

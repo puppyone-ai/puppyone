@@ -213,6 +213,15 @@ impl TextInput {
             .map(|span| span.token().id().to_string())
             .collect())
     }
+    /// The tokens in the text with their UTF-8 byte ranges, in order.
+    pub fn token_spans(&self, cx: &App) -> Vec<(String, std::ops::Range<usize>)> {
+        dispatch!(&self.field, |s| s
+            .read(cx)
+            .tokens()
+            .iter()
+            .map(|span| (span.token().id().to_string(), span.range()))
+            .collect())
+    }
     /// Replace the value with text that carries tokens; the caret ends it.
     pub fn restore_content(&mut self, content: InputContent, cx: &mut Context<Self>) {
         self.pending = None;
