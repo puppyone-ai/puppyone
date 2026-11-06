@@ -71,3 +71,10 @@ export function useCloudEnabled(): boolean {
   const enabled = useDesktopPreference((state) => state.experimentalSettings.enableCloudWorkspace);
   return available && enabled;
 }
+
+/** Shows the owner's other computers and per-folder sharing controls; it grants no folder access. */
+export function useHostDevicesEnabled(): boolean {
+  const available = useAccountAvailable();
+  const enabled = useDesktopPreference((state) => state.experimentalSettings.enableHostDevices);
+  return available && enabled;
+}

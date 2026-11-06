@@ -128,7 +128,7 @@ import {
   canDisconnectCloudLink,
   CloudLinkDisconnectDialog,
 } from "./features/cloud/project/CloudLinkDisconnectDialog";
-import { useAccountAvailable, useCloudEnabled } from "./features/flags";
+import { useAccountAvailable, useCloudEnabled, useHostDevicesEnabled } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
   DesktopNodeActionMenu,
@@ -276,8 +276,7 @@ function AppContent() {
   // it pays for are available whenever the build has accounts. Cloud projects
   // and the Cloud Computer stay hidden until the user opts into the experiment.
   const accountAvailable = useAccountAvailable();
-  // Hidden until the gateway deployment and two-device acceptance are complete.
-  const hostDevicesEnabled = import.meta.env.VITE_HOST_DEVICES_ENABLED === "true";
+  const hostDevicesEnabled = useHostDevicesEnabled();
   const cloudEnabled = useCloudEnabled();
   // The remaining experiment only changes the presentation of incoming Git work.
   const projectReachEnabled = useProjectReachExperience();
@@ -1722,8 +1721,9 @@ function AppContent() {
     ? accountCloud.context.projectId : null;
   const linkedFolder = openCloudProjectId
     ? projectCatalog.items.find((item) => item.localPath && item.linkedCloudProject?.id === openCloudProjectId) : undefined;
-  const placeMenu = cloudEnabled ? {
+  const placeMenu = cloudEnabled || hostDevicesEnabled ? {
     menu: resolveProjectPlaceMenu({
+      cloudEnabled,
       place: workspaceLocation,
       address: workspaceLocation === "cloud" ? cloudProjectAddress(openCloudOrganizationName) : localProjectAddress(workspace?.path),
       unhosted: projectCloudContext.status === "local-only",

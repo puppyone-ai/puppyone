@@ -50,6 +50,7 @@ export function ExperimentalSettingsView() {
       id: "cloud",
       rows: [
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+        ...(accountAvailable ? [{ messageKey: "hostDevices", settingKey: "enableHostDevices" as const }] : []),
         // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
         // Paid compute needs a PuppyOne account, not Cloud, so it is offered whenever accounts are.
         ...(accountAvailable ? [{ messageKey: "payments", settingKey: "enablePayments" as const }] : []),

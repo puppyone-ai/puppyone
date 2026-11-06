@@ -96,6 +96,7 @@ export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudWorkspace: boolean;
+  enableHostDevices: boolean;
   enableEditorTabsInHeader: boolean;
   enableProjectReach: boolean;
   enableWorkbenchTabsInHeader: boolean;
@@ -184,6 +185,7 @@ export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudWorkspace: false,
+  enableHostDevices: false,
   enableEditorTabsInHeader: false,
   /**
    * The remaining review-first incoming Git changes comparison. Sharing and
@@ -424,19 +426,20 @@ export function parseAiEditAssistEnabled(value: string | null | undefined): bool
   return DEFAULT_AI_EDIT_ASSIST_ENABLED;
 }
 
-export function parseExperimentalSettings(value: string | null | undefined): ExperimentalSettings {
-  if (!value) return DEFAULT_EXPERIMENTAL_SETTINGS;
+export function parseExperimentalSettings(value: string | null | undefined, defaults = DEFAULT_EXPERIMENTAL_SETTINGS): ExperimentalSettings {
+  if (!value) return defaults;
 
   try {
     const parsed = JSON.parse(value) as (Partial<ExperimentalSettings> & Partial<Record<
       "enableNotionImport" | "enableGoogleDriveImport" | "enableAirtableImport" | "enableObsidianImport",
       boolean
     >>) | null;
-    if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
+    if (!parsed || typeof parsed !== "object") return defaults;
 
     return {
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
+      enableHostDevices: typeof parsed.enableHostDevices === "boolean" ? parsed.enableHostDevices : defaults.enableHostDevices,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
       enableProjectReach: parsed.enableProjectReach === true,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
@@ -459,7 +462,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableViewerPlugins: parsed.enableViewerPlugins === true,
     };
   } catch {
-    return DEFAULT_EXPERIMENTAL_SETTINGS;
+    return defaults;
   }
 }
 

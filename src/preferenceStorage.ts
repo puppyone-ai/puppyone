@@ -12,6 +12,7 @@ import {
 AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY,
 AI_EDIT_ASSIST_STORAGE_KEY,
 CREATE_NEW_MENU_STORAGE_KEY,
+DEFAULT_EXPERIMENTAL_SETTINGS,
 DIFF_MARKERS_STORAGE_KEY,
 EXPERIMENTAL_SETTINGS_STORAGE_KEY,
 FILES_VISIBILITY_STORAGE_KEY,
@@ -109,7 +110,10 @@ export function readInitialAiEditAssistEnabled(storage: Pick<Storage, "getItem">
 
 export function readInitialExperimentalSettings(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): ExperimentalSettings {
   if (typeof window === "undefined") return parseExperimentalSettings(null);
-  return parseExperimentalSettings(storage.getItem(EXPERIMENTAL_SETTINGS_STORAGE_KEY));
+  return parseExperimentalSettings(storage.getItem(EXPERIMENTAL_SETTINGS_STORAGE_KEY), {
+    ...DEFAULT_EXPERIMENTAL_SETTINGS,
+    enableHostDevices: import.meta.env?.VITE_HOST_DEVICES_ENABLED === "true",
+  });
 }
 
 export function readInitialExplorerWidth(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): number {

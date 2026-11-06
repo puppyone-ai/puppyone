@@ -9,6 +9,7 @@ import {
   resolveProjectPlaceMenu,
   type ProjectPlaceMenu,
 } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
+import { ProjectPlaceRows } from "../../../../src/features/app-shell/project-place/ProjectPlaceMenu";
 import type { LocalFolderCloudNotice } from "../../../../src/features/cloud/project/localFolderCloudNoticeState";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -51,6 +52,17 @@ function click(kind: string) {
 }
 
 describe("the Header place menu (ADR-001)", () => {
+  it("offers other-computer folders without exposing Cloud actions while Cloud is off", async () => {
+    const menu = local({ cloudEnabled: false, unhosted: true, publishPending: true,
+      notice: { kind: "linked", projectId: "p1", projectName: "Vault", openable: true }, disconnectable: true });
+    await act(async () => root.render(withTestLocalization(<ProjectPlaceRows menu={menu} handlers={handlers}
+      onDismiss={noOp} hostRows={() => <button data-project-place-row="other-computers">Other computers</button>} />)));
+    expect(menu.action).toBeNull();
+    expect(menu.link).toBeUndefined();
+    expect(document.querySelector('[data-project-place-row="other-computers"]')).not.toBeNull();
+    expect(document.querySelector('[data-project-place-row="put-in-cloud"], [data-project-place-row="cloud-link"]')).toBeNull();
+  });
+
   it("puts an unlinked folder in the Cloud, and shows a linked folder's Cloud link instead", () => {
     const linked: LocalFolderCloudNotice = { kind: "linked", projectId: "p1", projectName: "Vault", openable: true };
     expect(local({ unhosted: true })).toMatchObject({ action: { kind: "put-in-cloud", continuing: false } });

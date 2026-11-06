@@ -68,9 +68,11 @@ export function cloudProjectAddress(organizationName: string | null | undefined)
   return name ? { short: name, full: name } : null;
 }
 
-export function resolveProjectPlaceMenu({ place, address = null, unhosted, publishPending, notice, disconnectable, linkedFolder }: {
+export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = true, unhosted, publishPending, notice, disconnectable, linkedFolder }: {
   place: "local" | "cloud";
   address?: ProjectPlaceAddress | null;
+  /** Other-computer folders have a place menu even when Cloud is off. */
+  cloudEnabled?: boolean;
   /** The open local folder has no Cloud association at all. */
   unhosted: boolean;
   /** A first publish is running or saved for the open local folder. */
@@ -82,6 +84,7 @@ export function resolveProjectPlaceMenu({ place, address = null, unhosted, publi
   /** For an open Cloud project: the local folder linked to it, if any. */
   linkedFolder?: Readonly<{ path: string; name: string }> | null;
 }): ProjectPlaceMenu {
+  if (!cloudEnabled) return { place: "local", address, action: null };
   if (place === "cloud") {
     return { place, address, action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
   }

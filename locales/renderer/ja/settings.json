@@ -272,6 +272,8 @@
   "experimental.gitAutoCommit.title": "Git 自動コミット",
   "experimental.gitAutoCommit.detail": "ワークスペース単位の自動コミットを許可します。各ワークスペースは Git 設定で明示的に有効にするまでオフのままです。",
   "experimental.cloudWorkspace.title": "Puppyone Cloud",
+  "experimental.hostDevices.title": "他のコンピューター",
+  "experimental.hostDevices.detail": "ホームページに他のコンピューターと、このコンピューターのフォルダーを他のコンピューターで開くための項目を表示します。フォルダーごとに許可が必要です。",
   "experimental.cloudWorkspace.detail": "このプロジェクトの Puppyone Cloud での公開状態を確認・管理します。",
   "experimental.editorTabsInHeader.title": "ファイルナビゲーション",
   "experimental.editorTabsInHeader.detail": "ペインベースのエディターを使うか、ヘッダーにファイルタブを追加します。ヘッダーではファイルタブがチャットタブより優先されます。",

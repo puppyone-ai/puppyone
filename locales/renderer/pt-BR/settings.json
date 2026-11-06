@@ -272,6 +272,8 @@
   "experimental.gitAutoCommit.title": "Commits automáticos do Git",
   "experimental.gitAutoCommit.detail": "Permite commits automáticos por espaço de trabalho. Cada espaço permanece desativado até ser habilitado nas configurações do Git.",
   "experimental.cloudWorkspace.title": "Puppyone Cloud",
+  "experimental.hostDevices.title": "Outros computadores",
+  "experimental.hostDevices.detail": "Mostra seus outros computadores na página inicial e opções para abrir neles as pastas deste computador. Cada pasta precisa de autorização separada.",
   "experimental.cloudWorkspace.detail": "Ver e gerenciar o status de publicação deste projeto no Puppyone Cloud.",
   "experimental.editorTabsInHeader.title": "Navegação de arquivos",
   "experimental.editorTabsInHeader.detail": "Use o editor por painéis ou adicione abas de arquivos no cabeçalho. Elas têm prioridade sobre as abas de chat.",

@@ -272,6 +272,8 @@
   "experimental.gitAutoCommit.title": "Git 자동 커밋",
   "experimental.gitAutoCommit.detail": "작업 공간별 자동 커밋을 허용합니다. 각 작업 공간은 Git 설정에서 명시적으로 켜기 전까지 비활성화됩니다.",
   "experimental.cloudWorkspace.title": "Puppyone Cloud",
+  "experimental.hostDevices.title": "다른 컴퓨터",
+  "experimental.hostDevices.detail": "홈페이지에 다른 컴퓨터와 이 컴퓨터의 폴더를 다른 컴퓨터에서 여는 옵션을 표시합니다. 각 폴더는 별도로 허용해야 합니다.",
   "experimental.cloudWorkspace.detail": "이 프로젝트의 Puppyone Cloud 게시 상태를 확인하고 관리합니다.",
   "experimental.editorTabsInHeader.title": "파일 탐색 방식",
   "experimental.editorTabsInHeader.detail": "패널 기반 편집기를 사용하거나 헤더에 파일 탭을 추가합니다. 헤더에서는 파일 탭이 채팅 탭보다 우선합니다.",
