@@ -225,6 +225,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.desktop-agent-tool-header .desktop-agent-tool-summary::before {
+  content: "·";
+  flex: 0 0 auto;
+  margin-inline-end: 8px;
+  color: var(--agent-text-subtle);
+}
 /* The object (file, pattern, command) is the most useful word on the line;
  * folder or scope context gives way first when space runs out. */
 .desktop-agent-tool-subject {

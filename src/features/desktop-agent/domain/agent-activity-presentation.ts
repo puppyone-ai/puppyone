@@ -1,6 +1,7 @@
 import type { AgentActivity } from "./agent-projection-types";
 import type { LocaleFormatters, MessageFormatter } from "@puppyone/localization/core";
 import { stringifyAgentToolInput } from "./agent-tool-evidence";
+import { informativeToolLabel, inputForActivity, purposeForActivity } from "./agent-tool-input";
 
 export type AgentFileChangeSummary = {
   path: string;
@@ -18,6 +19,8 @@ export function agentActivityToolId(activity: AgentActivity): AgentActivityToolI
   const known: Record<string, AgentActivityToolId> = {
     bash: "bash",
     shell: "bash",
+    exec_command: "bash",
+    "functions.exec_command": "bash",
     command: "bash",
     read: "read",
     write: "write",
@@ -64,7 +67,7 @@ export function formatAgentActivityLabel(activity: AgentActivity, t: MessageForm
 export function agentActivitySummary(activity: AgentActivity) {
   if (activity.kind === "command") return commandForActivity(activity) || activity.label;
   if (activity.kind === "file-change") return pathForActivity(activity) || activity.label;
-  const input = record(activity.detail.input);
+  const input = inputForActivity(activity);
   const tool = agentActivityToolId(activity);
   if (["grep", "glob", "search"].includes(tool)) {
     return firstText(input.pattern, activity.detail.query, input.query, activity.detail.path, input.path, activity.label);
@@ -84,7 +87,7 @@ export function agentActivitySummary(activity: AgentActivity) {
 }
 
 export function isContextCompactionActivity(activity: AgentActivity) {
-  const input = record(activity.detail.input);
+  const input = inputForActivity(activity);
   const values = [
     activity.detail.tool,
     activity.detail.kind,
@@ -97,14 +100,31 @@ export function isContextCompactionActivity(activity: AgentActivity) {
 }
 
 export function commandForActivity(activity: AgentActivity) {
-  const input = record(activity.detail.input);
+  const input = inputForActivity(activity);
   const metadata = record(activity.detail.metadata);
-  return firstText(activity.detail.command, input.command, input.cmd, metadata.command, typeof activity.detail.input === "string" ? activity.detail.input : "");
+  const raw = typeof activity.detail.input === "string" ? activity.detail.input.trim() : "";
+  // Encoded arguments are not themselves an executable command.
+  let rawCommand = raw;
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    if (raw.length > 64 * 1024) rawCommand = "";
+    else {
+      try { JSON.parse(raw); rawCommand = ""; } catch { /* Shell blocks and test expressions remain literal commands. */ }
+    }
+  }
+  return firstText(activity.detail.command, input.command, input.cmd, metadata.command, rawCommand);
 }
 
 /** The command as the user would have typed it, without a login-shell wrapper. */
 export function visibleCommandForActivity(activity: AgentActivity) {
   return unwrapLoginShell(commandForActivity(activity));
+}
+
+export function commandPurposeForActivity(activity: AgentActivity) {
+  const explicit = purposeForActivity(activity);
+  if (explicit) return explicit;
+  const label = informativeToolLabel(activity);
+  if ([activity.detail.tool, agentActivityToolId(activity)].some(value => typeof value === "string" && value.trim().toLowerCase() === label.toLowerCase())) return "";
+  return label !== commandForActivity(activity) && label !== visibleCommandForActivity(activity) ? label : "";
 }
 
 export type AgentCommandPresentation = {
@@ -148,7 +168,7 @@ export function commandPresentationForActivity(activity: AgentActivity): AgentCo
 }
 
 export function pathForActivity(activity: AgentActivity) {
-  const input = record(activity.detail.input);
+  const input = inputForActivity(activity);
   const firstChange = fileChangesForActivity(activity)[0];
   return firstText(activity.detail.path, input.path, input.file, input.filepath, input.file_path, input.filePath, firstChange?.path);
 }
@@ -249,10 +269,9 @@ export function fileChangeTotals(changes: AgentFileChangeSummary[]) {
 }
 
 export function structuredInputForActivity(activity: AgentActivity) {
-  const input = activity.detail.input;
-  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const visible = Object.fromEntries(Object.entries(input as Record<string, unknown>)
-    .filter(([key]) => !["command", "cmd", "patch", "diff", "content"].includes(key))
+  const input = inputForActivity(activity);
+  const visible = Object.fromEntries(Object.entries(input)
+    .filter(([key]) => !["patch", "diff", "content"].includes(key))
     .slice(0, 20));
   return stringifyAgentToolInput(visible);
 }
