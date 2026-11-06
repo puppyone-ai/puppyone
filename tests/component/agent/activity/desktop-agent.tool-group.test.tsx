@@ -105,6 +105,44 @@ describe("Desktop Agent tool step lists", () => {
       .map((segment) => segment.type)).toEqual(["settled", "step", "step", "step"]);
   });
 
+  it("bounds a stream of unfinished tools without pretending they succeeded", () => {
+    const parts = Array.from({ length: 12 }, (_, i) => ({ ...toolPart(`tool:${i}`, "turn:live", "tool", i, "read", "file.md", ""), status: "running" }) as AgentPart);
+    const segments = agentToolStepSegments(parts);
+    expect(segments.map(segment => segment.type)).toEqual(["working", "step"]);
+    expect(segments[0]).toMatchObject({ parts: parts.slice(0, -1) });
+    expect(segments[1]).toMatchObject({ part: parts.at(-1) });
+    expect(parts.every(part => "status" in part && part.status === "running")).toBe(true);
+  });
+
+  it("renders unfinished history as one disclosure and keeps failures and user waits visible", () => {
+    const parts = Array.from({ length: 10 }, (_, i) => ({ ...toolPart(`tool:${i}`, "turn:live", "tool", i, "read", "file.md", "contents"), status: "running" }) as AgentPart);
+    const waiting = { ...toolPart("wait", "turn:live", "tool", 11, "read", "wait.md", ""), status: "waiting-for-user" } as AgentPart;
+    const failed = { ...toolPart("failed", "turn:live", "tool", 12, "read", "failed.md", ""), status: "failed" } as AgentPart;
+    const container = render(<AgentToolActivityGroup parts={[...parts, waiting, failed]} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />);
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(2);
+    const fold = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!;
+    expect(fold.textContent).toBe("Working");
+    expect(fold.getAttribute("aria-expanded")).toBe("false");
+    act(() => fold.click());
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(12);
+  });
+
+  it("automatically closes inspected work when the last tool finishes, then permits reopening", () => {
+    const done = Array.from({ length: 3 }, (_, i) => toolPart(`tool:${i}`, "turn:live", "tool", i, "read", "file.md", "contents"));
+    const live = [...done.slice(0, 2), { ...done[2], status: "running" } as AgentPart];
+    const group = (parts: AgentPart[]) => <AgentToolActivityGroup parts={parts} rowId="row:live" runtimeLabel="Agent" onRowHeightChange={() => {}} />;
+    const container = render(group(live));
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!.click());
+    expect(container.querySelector(".desktop-agent-tool-fold-body")).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-group-item .desktop-agent-tool-row")!.click());
+    expect(container.querySelector(".desktop-agent-tool-branch")).not.toBeNull();
+    act(() => root!.render(withTestLocalization(group(done))));
+    expect(container.querySelector(".desktop-agent-tool-fold-body")).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row")!.click());
+    expect(container.querySelectorAll(".desktop-agent-tool-group-item")).toHaveLength(3);
+    expect(container.querySelector(".desktop-agent-tool-branch")).toBeNull();
+  });
+
   it("removes resolved approval rows and rejoins the surrounding tool flow", () => {
     const projection = createAgentProjection();
     projection.parts = [

@@ -117,8 +117,14 @@ async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTas
   const railErrors: number[] = [];
   const elbowErrors: number[] = [];
   const commandResultGaps: number[] = [];
+  // A completed group starts collapsed. Open the group before collecting its
+  // step buttons; closing it while iterating would exercise detached DOM nodes.
+  const fold = document.querySelector<HTMLButtonElement>(".desktop-agent-tool-fold-row");
+  if (!fold || fold.getAttribute("aria-expanded") !== "false") throw new Error("Finished tools were not collapsed");
+  fold.click();
+  await frames(1);
   for (let cycle = 0; cycle < 11; cycle += 1) {
-    const disclosures = Array.from(document.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-row:not(:disabled)"));
+    const disclosures = Array.from(document.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-group-item .desktop-agent-tool-row:not(:disabled)"));
     for (const [index, disclosure] of disclosures.entries()) {
       disclosure.click();
       await frames(1);
