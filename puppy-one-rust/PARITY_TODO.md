@@ -290,7 +290,8 @@
   - 证据：`patches_parse_like_parse_git_patch`、`long_patches_are_capped_per_file`、`working_tree_diffs_cover_each_scope`、`each_file_resolves_to_the_products_renderer`、`the_list_lays_out_cards_with_their_hunks`、`logs_merge_like_read_git_history`、`a_repository_reads_its_history_and_head`、`commits_group_by_day_newest_first`、`changes_open_file_opens_it_in_the_editor`；截图步骤 `git-diff:` / `git-diff-staged:` / `git-history` / `git-commit:`
 - [x] P2-8 侧栏动效（移植 `explorerMotionPlan.ts` / `explorerMotionAnimation.ts` / `CollapsiblePaneFrame`）：
   - 文件夹展开 / 收起 220ms，产品的「平滑起步 → 匀速 → 平滑刹停」曲线（ramp 0.22）：新出现的行按连续段依次自上而下露出，消失的行留在原位作为幽灵行、最后一行先收起，其余行与列表末尾 New 行从旧位置平移（FLIP），展开箭头同步旋转；项目首次载入和换项目不播放（`src/shell/explorer/motion.rs`）
-  - 侧栏开合 360ms `cubic-bezier(0.42, 0, 0.58, 1)`：只有外框宽度在动，内容保持展开宽度并贴住外侧边裁切，主区跟随；窗口缩放与拖动分隔条不播放，动画中途反向从当前画面开始（`src/shell/panes/motion.rs`）
+  - 侧栏开合 360ms `cubic-bezier(0.42, 0, 0.58, 1)`：只有外框宽度在动，内容保持展开宽度、贴外侧边缘，由画在其上的编辑区遮住而不裁切（裁切会让缓存的 Explorer / 右栏每帧重渲染），主区跟随；窗口缩放与拖动分隔条不播放，动画中途反向从当前画面开始；动画按帧推进，迟到的一帧最多推进 33ms（`src/shell/panes/{mod,motion,stack}.rs`、`src/ui/motion.rs` 的 `FrameTimeline`）。证据：`a_closing_explorer_moves_without_rendering_its_rows_again`；基准 `shell::bench::pane_motion_frame_cost`：每次开合 Explorer 由约 40 次渲染降到 1 次，拖窄 60 个采样由 61 次降到 3 次
+  - 边缘键盘调宽（`SidebarResizeHandle` 的 `onKeyboardResize`）：聚焦的边缘 ←/→ 12px（⇧ 24px），Home 收起，End 展开到最宽；聚焦时显示 hover 描边（产品为 2px focus outline），收起的右侧边缘不接受按键。证据：`keys_on_an_edge_step_the_width_and_close_below_the_minimum`
   - 系统「减少动态效果」开启时两者都不播放。证据：`opening_a_folder_animates_its_rows_unless_motion_is_reduced`、`closing_the_explorer_moves_its_frame_unless_motion_is_reduced` 及两模块的单元测试
   - 逐帧核对：`dev-capture` 构建加 `PUPPYONE_MOTION_AT=<0..1>` 把动画定格在该进度截图（场景步骤 `expand:` / `collapse:` / `toggle-explorer` / `agent`）
 

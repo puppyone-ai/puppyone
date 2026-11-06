@@ -68,13 +68,17 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 ## Shell 结构（`src/shell/`）
 
-`Shell` 是窗口的组合根：持有文档会话（`Documents`）、偏好、Git / 工作台等实体，把命令分发给各部分，并按帧布局。界面各部分有自己的 owner，Shell 不替它们保存状态：
+`Shell` 是窗口的组合根：持有文档会话（`Documents`）、偏好、Git / 工作台等实体，把命令分发给各部分，并组装界面。界面各部分有自己的 owner，Shell 不替它们保存状态：
 
-- `panes/`：左右侧栏。`Panes` 持有两侧的开合与宽度（`SidePane`）、右侧显示什么（`RightContent`：工作台 / Changes）、边缘拖拽和开合动画，每帧交出 `PaneFrame`；`layout` 是 `desktopPaneLayout.ts` 的宽度策略与窗口矩形，`gesture` 是拖拽状态机，`motion` 是开合动画。
-- `explorer/`：独立的 `Entity<Explorer>`，持有文件树、选择、剪贴板、菜单、文件操作和展开动画。Shell 每帧推送 `Host`（所在矩形、当前文档、忙碌状态），并转交目录列表；Explorer 通过 `ExplorerEvent` 请求打开文件、读取目录、先关闭文档、新建 / 重命名对话框和错误提示。
+- `panes/`：左右侧栏的外框。`PaneLayout` 是一个 entity，持有两侧的开合与宽度、边缘拖拽（`gesture`，`collapsiblePaneGesture.ts`）、边缘键盘调宽（←/→ 12px、⇧ 24px，Home 收起，End 展开到最宽）、开合动画（`motion`）和窗口最小宽度；它自己接收边缘的指针与按键、拖拽中的 Escape 和窗口失焦，通过 `PaneEvent` 告诉 Shell：`Committed`（Shell 只写布局偏好）、`OpenChanged`（Shell 更新窗口最小宽度和 Explorer 的宿主信息）、`PulledOut`。`layout` 是 `desktopPaneLayout.ts` 的宽度策略。`stack` 的 `PaneStack` 负责绘制：每侧内容是一块保持展开宽度、贴外侧边缘的平面，画在编辑区下面；编辑区不透明并遮挡指针，盖住外框还没到的部分。**不裁剪**——GPUI 缓存视图的复用条件包含裁剪区域，裁剪会让 Explorer 和右栏在动画的每一帧都重新渲染。只有外框宽度在动，动画跑在 `ui::motion::FrameTimeline` 上：第一帧显示起点，迟到的一帧最多推进 33ms。
+- `explorer_column.rs`：左栏的组合（`DataWorkspaceFrame` 的 `explorer()` + `explorerFooter()`）：Explorer 视图（缓存）在上，footer 在下（macOS 没有 footer）。
+- `explorer/`：两个 entity。`ExplorerSession`（`session.rs`）是模型：项目的树、选择、滚动、文件剪贴板、运行中的操作、目录订阅、置顶，并按项目保活；不绘制，通过 `SessionEvent` 请求读取目录、执行文件操作、提示错误。`Explorer`（`mod.rs`）是视图：焦点、打开的菜单、展开动画、Shell 给它的 `Host`；把指针和按键转成 session 的命令，通过 `ExplorerEvent` 请求打开文件、新建 / 重命名、复制链接、分享。Shell 只在文档、文件夹选择器、面板开合或窗口尺寸变化时交出 `Host`，不在 render 里推送。
 - `modals.rs`：窗口级弹层栈（Settings / Help 共用一个槽位、新建条目、新建项目、重命名、退出确认、错误）。Esc 回答最上层；Documents 的保存错误是动态状态，显示在栈之上。
 - `header.rs`、`footer.rs`：Header（`TitleBar`、`ChangesButton` 等）和侧栏底部栏是只负责展示的组件，由 `Shell::header` / `Shell::footer` 按状态组装。
-- 缓存的面板：Explorer、右侧工作台与 Changes 以 GPUI 缓存视图（`Entity::cached`）嵌入，只在自身被 notify 时重新渲染；编辑器滚动、输入只重绘编辑器与 Shell 本身。Shell 推送给 Explorer 的 `Host` 变化或展开动画进行中时由 `Explorer::sync` notify；外观、字号与语言是进程级状态，`apply_preferences` 以 `window.refresh()` 让整个窗口重新渲染。
+- 缓存的面板：Explorer、右侧工作台与 Changes 以 GPUI 缓存视图（`Entity::cached`）嵌入，只在自身被 notify 时重新渲染；编辑器滚动、输入、侧栏开合动画只重绘编辑器与 Shell 本身。偏好按切片订阅（`preferences_store::observe_slice`，对应 `useDesktopPreference(selector)`）：外观、字号与语言是进程级状态，只有它们变化时 Shell 才 `window.refresh()` 整窗重绘；布局偏好只在变化时 restore；Explorer 只在它绘制用到的字段变化时重绘。
+- render 不写状态：在 GPUI 的绘制阶段 notify 不会派发给观察者，所以状态变化放在事件处理里（截图场景的步骤也在帧后运行）。Shell 的 Cloud、首页、引导等 `sync_*` 仍在 render 里，是下一步要迁出的部分。
+- 主线程卡顿日志（`diagnostics/main-thread-stalls.jsonl`）按正在运行的工作记录标签：`shell.render`、`shell.command`、`shell.receive`、`explorer.render`、`editor.render`、`workbench.render`，其余是 `foreground`。
+- 侧栏开合的帧开销：`cargo test --release --locked --no-run` 后运行 `shell::bench::pane_motion_frame_cost --exact --ignored --nocapture`（`PUPPYONE_BENCH_FILE` 可换成自己的文档）。
 
 ## Workspace Provider 底座（Cloud 接入第一步）
 
