@@ -1129,6 +1129,24 @@
         "src/platform/agent_activity/service.rs"
       ],
       "remaining": "Terminal Agent file activity (subscribe, enrollment snapshot and toggle) is served by the native agent activity host without an IPC hop."
+    },
+    {
+      "name": "Agent item host",
+      "status": "partial",
+      "sources": [
+        "electron/main/item-hosts/agent-host-authority.mjs",
+        "electron/main/item-hosts/agent-process-service.mjs",
+        "electron/utility/agent/item-host.mjs",
+        "electron/utility/agent/main.mjs"
+      ],
+      "targets": [
+        "src/agent/host/agent_host.rs",
+        "src/agent/application/agent_service.rs",
+        "src/agent/application/session/agent_session_lifecycle.rs",
+        "src/agent/runtimes/puppyone_agent/native_model_connections.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_binding.rs"
+      ],
+      "remaining": "GPUI has no per-item utility process: the Agent host thread composes one AgentService, so the item host's service, catalog and attachment calls are in-process. Main's ownership fences are the service's own: sessions are owned by window and root with instance fences, concurrent creations and history opens of one locator are refused, an exited provider is retired and resumed on the next open, and closing a window or project closes its sessions, revokes its attachments and releases their model leases. The Built-in Agent's lease cannot change connection (NEW_SESSION_REQUIRED) and a changed connection fails validation (MODEL_BINDING_CHANGED) before the next turn; the main process's eager shutdown of a session whose connection is revoked mid-turn, host-process recovery and per-host pid diagnostics have no counterpart."
     }
   ]
 }
