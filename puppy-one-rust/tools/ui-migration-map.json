@@ -1003,9 +1003,12 @@
       ],
       "evidence": [
         "test:find_marks_and_selects_matches_in_text_editors",
-        "test:typing_motion_deletion_and_history"
+        "test:typing_motion_deletion_and_history",
+        "test:code_language_rebind_keeps_entity_selection_and_history",
+        "test:code_multicursor_edits_are_one_undo_transaction",
+        "artifact:code-native/typescript-light.png"
       ],
-      "remaining": "Text, JSON and code files open in the native plain-text editor (find, pane menu, undo, IME). No syntax highlighting, folding, JSON validation or language services outside Markdown code blocks."
+      "remaining": "Text, JSON and code files open in the native code editor: tree-sitter highlighting per the product's language resolution, indent guides, bracket matching, selection matches, trailing whitespace, folds, find, IME, multi-cursor, JSON formatting (normalizeContent) and the conflict banner. Like the product's CodeMirror viewer there is no JSON validation or language service; CodeMirror's exact token palette and metrics are not pixel-compared."
     },
     {
       "name": "CSV table viewer",
