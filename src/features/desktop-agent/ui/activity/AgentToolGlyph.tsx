@@ -42,8 +42,7 @@ export function AgentToolGlyph({ tool, status }: AgentToolGlyphProps) {
 
   const sharedProps = {
     className,
-    size: 15,
-    strokeWidth: 1.85,
+    size: 16,
     "aria-hidden": true,
   } as const;
   if (kind === "command") return <TerminalSquare {...sharedProps} />;

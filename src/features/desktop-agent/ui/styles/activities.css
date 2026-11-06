@@ -147,15 +147,17 @@
   height: 16px;
   flex: 0 0 16px;
   overflow: visible;
+  color: var(--agent-tool-glyph-foreground);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.8;
-  vector-effect: non-scaling-stroke;
+  stroke-width: 1.25;
 }
-.desktop-agent-tool-glyph.is-active {
-  color: var(--agent-tool-active-foreground);
+/* Custom glyphs use an 18-unit viewBox, Lucide uses 24. Apply this to the
+ * painted shapes (not the SVG root) so both render the same fine stroke. */
+.desktop-agent-tool-glyph :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
 }
 .desktop-agent-tool-glyph-motion,
 .desktop-agent-tool-glyph-scan,
