@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { DesktopCloudSession } from "../../lib/cloudApi";
-import { windowProjectStore, type HostFolderSelection } from "../app-shell/window-project/windowProjectStore";
+import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import type { HostFolderSelection } from "../../hosts";
+import { windowProjectStore } from "./windowProjectStore";
 
 /**
  * Reopen the other computer's folder this account last had open, once per

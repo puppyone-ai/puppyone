@@ -9,10 +9,8 @@ import {
 } from "@puppyone/shared-ui";
 import type { DataPort, ResourceUri, Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import type { FilesVisibilitySettings } from "../../preferences";
-import { createExplorerDataPort } from "../data-workspace/explorer";
-import { useProjectExplorerSelection } from "../data-workspace/useProjectExplorerSession";
-import { useDesktopEditorWorkbench } from "../editor-workbench/controller/useDesktopEditorWorkbench";
-import { useDataNodeActions } from "../data-workspace/useDataNodeActions";
+import { createExplorerDataPort, useDataNodeActions, useProjectExplorerSelection } from "../data-workspace";
+import { useDesktopEditorWorkbench } from "../editor-workbench";
 
 /** What any remote folder provider gives the shared workbench: Cloud project or another computer. */
 export type RemoteFolderService = {

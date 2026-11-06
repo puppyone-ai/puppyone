@@ -5,7 +5,7 @@ import type { ProjectCloudContext } from "../project/context/projectCloudContext
 import { createCloudDataService, type NativeCloudDataService } from "../files/cloudDataPort";
 import type { CloudWorkspaceHandoff } from "../files/cloudWorkspaceHandoff";
 import { createPendingCloudDataService } from "./pendingCloudDataService";
-import { useRemoteFolderWorkbench, type RemoteFolderWorkbench } from "../../remote-workbench/useRemoteFolderWorkbench";
+import { useRemoteFolderWorkbench, type RemoteFolderWorkbench } from "../../remote-workbench";
 
 /** A Cloud project in the shared remote workbench. */
 export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, filesVisibilitySettings, prepared }: {

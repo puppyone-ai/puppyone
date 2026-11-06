@@ -8,7 +8,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
 import type { HostFileEntry, HostFileOperation, HostFolderEvent, HostFolderResult } from "../../../../shared/host-contract/types";
 import { deviceFolderRootUri, type DeviceFolderRef } from "../model/deviceFolderIdentity";
-import { decodeWorkspaceBytes, encodeWorkspaceBytes } from "../../cloud/files/cloudWorkspaceClient";
+import { decodeWorkspaceBytes, encodeWorkspaceBytes } from "../../cloud";
 
 /** Why a remote folder cannot serve right now; the surface words it for the user. */
 export type DeviceFolderAvailability = "online" | "offline" | "revoked" | "denied";

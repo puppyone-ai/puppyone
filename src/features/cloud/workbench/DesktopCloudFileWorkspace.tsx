@@ -6,7 +6,7 @@ import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/work
 import { formatFileOperationNotice } from "../../data-workspace/useFileClipboard";
 import { DesktopCreateEntryMenu, DesktopNodeActionMenu, toDesktopNodeActionError } from "../../data-workspace/nodeActions";
 import { resolveVisibleCreateNewMenuItems } from "../../../preferences";
-import type { RemoteFolderWorkbench } from "../../remote-workbench/useRemoteFolderWorkbench";
+import type { RemoteFolderWorkbench } from "../../remote-workbench";
 import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";

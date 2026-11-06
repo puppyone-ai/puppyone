@@ -33,7 +33,7 @@ import {
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { HomepageDeviceFolders } from "./features/hosts/ui/HomepageDeviceFolders";
-import { DeviceFolderWorkbenchSurface } from "./features/hosts/ui/DeviceFolderWorkbenchSurface";
+import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
 import { ShareFolderControl } from "./features/hosts/ui/ShareFolderControl";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
@@ -83,7 +83,7 @@ import {
   showHomepage,
 } from "./lib/localFiles";
 import { closeHostFolder, showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
-import { useHostFolderRestore } from "./features/hosts/useHostFolderRestore";
+import { useHostFolderRestore } from "./features/app-shell/window-project/useHostFolderRestore";
 import { normalizeCloudApiBaseUrl } from "../shared/cloudEndpoint.js";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
 import {

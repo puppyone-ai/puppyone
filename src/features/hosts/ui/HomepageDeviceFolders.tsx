@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { HostCatalogDevice, HostSharingStatus, RecentHostFolder } from "../../../../shared/host-contract/types";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { HostFolderSelection } from "../../app-shell/window-project/windowProjectStore";
+import type { HostFolderSelection } from "../model/hostFolderSelection";
 
 type RelativeTime = (value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions) => string;
 
