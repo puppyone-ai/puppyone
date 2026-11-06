@@ -934,11 +934,6 @@
       "count": 1
     }
   },
-  "src/features/project-import/ImportLocationField.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/settings/main/RepositorySettingsViews.tsx": {
     "no-nested-ternary": {
       "count": 5
