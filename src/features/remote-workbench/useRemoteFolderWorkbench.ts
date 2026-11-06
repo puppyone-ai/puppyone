@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   closeDocumentWorkingCopy,
   appendWorkspaceContentChange,
@@ -45,7 +45,9 @@ export function useRemoteFolderWorkbench<S extends RemoteFolderService>({ servic
   const lease = useMemo(() => ({ key: serviceKey, dependency }), [serviceKey, dependency]);
   const currentLeaseRef = useRef<typeof lease | null>(lease);
   currentLeaseRef.current = lease;
-  useEffect(() => {
+  // Child explorer effects read immediately. Restore admission before passive
+  // effects replay, and revoke it synchronously when the folder really leaves.
+  useLayoutEffect(() => {
     currentLeaseRef.current = lease;
     return () => { if (currentLeaseRef.current === lease) currentLeaseRef.current = null; };
   }, [lease]);
