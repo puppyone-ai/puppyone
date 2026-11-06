@@ -49,16 +49,12 @@ function challengeRoute() {
 const signer = (seen = []) => ({ signForDevice: async (who, payload) => { seen.push({ who, payload }); return "signature"; } });
 
 describe("host connector", () => {
-  it("makes an outbound connection with only the device key, dispatches only registered files and stops", async () => {
+  it("makes an outbound connection with only the device key, never serves plaintext files and stops", async () => {
     const route = challengeRoute();
     const signed = [];
     const registry = { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null };
-    const fileService = { run: async (message) => {
-      expect(message).toMatchObject({ action: "read", path: "note.md", folder_id: folder });
-      return { revision: "abc", content_base64: "bm90ZQ==" };
-    } };
     const bootId = "abababab-abab-4bab-8bab-abababababab";
-    const connector = createHostConnector({ apiBase, identity: signer(signed), registry, fileService,
+    const connector = createHostConnector({ apiBase, identity: signer(signed), registry,
       WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl, now: () => 1_800_000_000_500,
       appVersion: "1.4.0-beta.2", bootId });
     expect(await connector.connect(device, owner)).toEqual({ deviceId: device, epoch });
@@ -79,14 +75,17 @@ describe("host connector", () => {
     expect(socket.url).toBe(`wss://api.puppyone.ai/api/v1/hosts/devices/${device}/connect`);
     socket.emit("message", { data: JSON.stringify({ type: "file", id: request, folder_id: folder, action: "read", path: "note.md" }) });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(socket.sent.at(-1)).toEqual({ type: "reply", id: request, result: { revision: "abc", content_base64: "bm90ZQ==" } });
+    // Files only travel inside SSH, end to end; a relayed plaintext request is refused.
+    expect(socket.sent.at(-1)).toEqual({ type: "reply", id: request, error: "not_allowed" });
+    socket.emit("message", { data: JSON.stringify({ type: "exec_open", session: "s1", folder_id: folder, kind: "shell", launcher: "shell" }) });
+    expect(socket.sent.at(-1)).toEqual({ type: "exec_failed", session: "s1", error: "not_allowed" });
     expect(connector.accountId()).toBe(owner);
     connector.stop();
     expect(socket.readyState).toBe(3);
   });
 
   it("refuses to connect without a registered account and device", async () => {
-    const connector = createHostConnector({ apiBase, identity: signer(), registry: {}, fileService: {},
+    const connector = createHostConnector({ apiBase, identity: signer(), registry: {},
       WebSocketImpl: FakeWebSocket, fetchImpl: challengeRoute().fetchImpl });
     await expect(connector.connect(device)).rejects.toThrow("unavailable");
     await expect(connector.connect("not-a-device", owner)).rejects.toThrow("unavailable");
@@ -98,7 +97,7 @@ describe("host connector", () => {
     route.refusal = (count) => count === 1
       ? { status: 401, body: { detail: { code: "device_clock_skew", server_time: 2_000_000_000 } } } : null;
     const signed = [];
-    const connector = createHostConnector({ apiBase, identity: signer(signed), registry: {}, fileService: {},
+    const connector = createHostConnector({ apiBase, identity: signer(signed), registry: {},
       WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl, now: () => 1_000_000_000_000 });
     await connector.connect(device, owner);
     expect(route.requests.map(({ body }) => body.timestamp)).toEqual([1_000_000_000, 2_000_000_000]);
@@ -115,7 +114,7 @@ describe("host connector", () => {
       const route = challengeRoute();
       route.refusal = refusal;
       const revoked = [];
-      const connector = createHostConnector({ apiBase, identity: signer(), registry: {}, fileService: {},
+      const connector = createHostConnector({ apiBase, identity: signer(), registry: {},
         logger: { warn() {} }, onRevoked: (lost) => revoked.push(lost), WebSocketImpl: FakeWebSocket,
         fetchImpl: route.fetchImpl });
       await expect(connector.connect(device, owner)).rejects.toThrow("refused");
@@ -151,32 +150,60 @@ describe("host connector", () => {
     expect(connector.isActive()).toBe(false);
   });
 
-  it("serves watch subscriptions and releases them on unwatch and on close", async () => {
-    const stopped = [];
-    let emit;
-    const fileService = { watch: async (folderId, onEvent) => {
-      expect(folderId).toBe(folder);
-      emit = onEvent;
-      return () => stopped.push(folderId);
+  it("hands each admitted tunnel to the SSH server as a byte stream, and refuses others", async () => {
+    const accepted = [];
+    const sshServer = { list: () => [], accept: async (stream, context) => {
+      accepted.push(context);
+      stream.on("data", (chunk) => stream.write(Buffer.concat([Buffer.from("echo:"), chunk])));
+      return true;
     } };
-    const connector = createHostConnector({ apiBase, fileService, logger: { warn() {} }, identity: signer(),
+    const connector = createHostConnector({ apiBase, sshServer, logger: { warn() {} }, identity: signer(),
       registry: { resolve: async (id) => id === folder ? { rootPath: "/unused" } : null },
       WebSocketImpl: FakeWebSocket, fetchImpl: challengeRoute().fetchImpl });
     await connector.connect(device, owner);
     const socket = FakeWebSocket.last;
-    const subscription = "abababab-abab-4bab-8bab-abababababab";
-    socket.emit("message", { data: JSON.stringify({ type: "watch", subscription, folder_id: folder }) });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(connector.status()).toMatchObject({ state: "online", watching: 1 });
-    emit({ paths: ["note.md"], reset: false });
-    expect(socket.sent.at(-1)).toEqual({ type: "event", subscription, paths: ["note.md"], reset: false });
-    socket.emit("message", { data: JSON.stringify({ type: "unwatch", subscription }) });
-    expect(stopped).toEqual([folder]);
-    socket.emit("message", { data: JSON.stringify({ type: "watch", subscription, folder_id: folder }) });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_open", stream: "t1", folder_id: folder }) });
+    await tick();
+    expect(socket.sent.at(-1)).toEqual({ type: "tunnel_opened", stream: "t1" });
+    expect(accepted).toEqual([{ folderId: folder }]);
+    expect(connector.status()).toMatchObject({ state: "online", tunnels: 1 });
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_data", stream: "t1", data: Buffer.from("ssh").toString("base64") }) });
+    await tick();
+    expect(socket.sent.at(-1)).toEqual({ type: "tunnel_data", stream: "t1", data: Buffer.from("echo:ssh").toString("base64") });
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_close", stream: "t1" }) });
+    await tick();
+    expect(connector.status().tunnels).toBe(0);
+    // A folder this computer does not share never reaches the SSH server.
+    socket.emit("message", { data: JSON.stringify({ type: "tunnel_open", stream: "t2", folder_id: request }) });
+    await tick();
+    expect(socket.sent.at(-1)).toEqual({ type: "tunnel_refused", stream: "t2", error: "folder_unavailable" });
+    expect(accepted).toHaveLength(1);
     connector.stop();
-    expect(stopped).toEqual([folder, folder]);
     expect(connector.status().state).toBe("off");
+  });
+
+  it("reconnects when the gateway stops answering heartbeats", async () => {
+    let clock = 1_800_000_000_000;
+    const timers = [];
+    const realSetInterval = globalThis.setInterval;
+    globalThis.setInterval = (fn) => { timers.push(fn); return timers.length; };
+    try {
+      const route = challengeRoute();
+      const connector = createHostConnector({ apiBase, logger: { warn() {} }, identity: signer(), registry: {},
+        WebSocketImpl: FakeWebSocket, fetchImpl: route.fetchImpl, now: () => clock });
+      await connector.connect(device, owner);
+      const first = FakeWebSocket.last;
+      clock += 10_000; timers.at(-1)();
+      expect(first.sent.at(-1)).toEqual({ type: "heartbeat" });
+      first.emit("message", { data: JSON.stringify({ type: "heartbeat_ack" }) });
+      clock += 25_000; timers.at(-1)();
+      expect(first.readyState).toBe(1);
+      clock += 31_000; timers.at(-1)();
+      expect(first.readyState).toBe(3);
+      expect(connector.status().state).toBe("offline");
+      connector.stop();
+    } finally { globalThis.setInterval = realSetInterval; }
   });
 
   it("follows system sleep: drops the socket on suspend and reconnects at once on wake", async () => {

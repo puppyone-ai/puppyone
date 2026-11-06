@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
+import { openSshPrivateKey } from "./ssh/openssh.mjs";
 
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -128,6 +129,13 @@ export function createDeviceIdentityService({ filePath, secureStorage, auth, api
      * Signs for a registered identity with nobody signed in: the device key is the
      * host's own credential. Who may start sharing is decided before this is called.
      */
+    /** This device's key as an SSH host key (OpenSSH format), in memory only. */
+    async sshHostKey({ accountId, deviceId }) {
+      const record = (await load()).find((item) => item.deployment === deployment &&
+        item.accountId === accountId && item.deviceId === deviceId);
+      if (!record) throw new Error("This device is not registered.");
+      return openSshPrivateKey(crypto.createPrivateKey(secureStorage.decryptString(Buffer.from(record.encryptedPrivateKey, "base64"))));
+    },
     async signForDevice({ accountId, deviceId }, payload) {
       if (!UUID.test(accountId) || !UUID.test(deviceId)) throw new Error("Invalid device identity.");
       return sign(accountId, deviceId, payload, "This device is not registered.");

@@ -80,5 +80,7 @@
   "execution.running": "En cours ici : {count}",
   "execution.stopAll": "Tout arrêter",
   "execution.sandboxed": "Les exécutions à distance se font ici dans un bac à sable : elles ne peuvent modifier que le dossier partagé.",
-  "execution.noSandbox": "Cet ordinateur n’a pas de bac à sable : les autres ordinateurs ne peuvent rien y exécuter, mais peuvent toujours ouvrir et modifier les fichiers."
+  "execution.noSandbox": "Cet ordinateur n’a pas de bac à sable : les autres ordinateurs ne peuvent rien y exécuter, mais peuvent toujours ouvrir et modifier les fichiers.",
+  "sharing.startAtLogin": "Continuer le partage après le redémarrage de cet ordinateur",
+  "sharing.startAtLoginFailure": "Impossible de modifier ce réglage."
 }

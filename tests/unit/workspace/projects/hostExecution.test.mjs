@@ -10,6 +10,7 @@ import { createSandboxedGit } from "../../../../electron/host-service/sandboxed-
 
 const SEATBELT = { mechanism: "seatbelt", path: "/usr/bin/sandbox-exec" };
 import { createRemoteExecClient } from "../../../../electron/main/hosts/remote-exec-client.mjs";
+import { HostSshError } from "../../../../electron/main/hosts/ssh/host-ssh-client.mjs";
 
 const folderId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const session = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -187,48 +188,52 @@ describe("host Git service", () => {
 });
 
 describe("remote terminal client", () => {
-  class FakeSocket {
-    static OPEN = 1;
-    static last;
-    constructor(url, protocols) {
-      this.url = url; this.protocols = protocols; this.readyState = 1; this.sent = []; this.listeners = {};
-      FakeSocket.last = this;
-      queueMicrotask(() => this.emit("open", {}));
-    }
-    addEventListener(type, fn) { this.listeners[type] = fn; }
-    emit(type, event) { this.listeners[type]?.(event); }
-    send(data) { this.sent.push(JSON.parse(data)); }
-    close() { this.readyState = 3; this.emit("close", {}); }
+  /** An SSH channel with a pty, as ssh2 gives it. */
+  function fakeChannel() {
+    const listeners = new Map();
+    const channel = {
+      writable: true, written: [], window: null, stderr: { on() {} },
+      on(type, fn) { listeners.set(type, fn); return channel; },
+      emit(type, ...args) { listeners.get(type)?.(...args); },
+      write(data) { channel.written.push(Buffer.from(data).toString()); return true; },
+      setWindow(rows, cols) { channel.window = { rows, cols }; },
+      close() { channel.writable = false; channel.emit("close"); },
+    };
+    return channel;
   }
 
-  it("starts by launcher, relays input as bytes, and reports how it ended", async () => {
-    const opened = [];
-    const auth = {
-      requestSessionApi: async () => ({ gateway_url: "https://devices.puppyone.ai" }),
-      openHostExecSocket: async (base, url, expected, WebSocketImpl) => {
-        opened.push({ base, url, expected });
-        return new WebSocketImpl(url, ["version.bearer.token"]);
-      },
-    };
-    const client = createRemoteExecClient({ auth, apiBase: "https://api.puppyone.ai/api/v1", WebSocketImpl: FakeSocket });
+  it("starts a shell or an Agent by launcher inside SSH, relays input as bytes, and reports how it ended", async () => {
+    const asked = [];
+    let channel;
+    const ssh = { get: async (id, expected) => ({ terminal: async (request) => {
+      asked.push({ id, expected, ...request });
+      if (request.launcher === "cursor") throw new HostSshError("not_allowed");
+      channel = fakeChannel();
+      return channel;
+    } }) };
+    const client = createRemoteExecClient({ auth: {}, apiBase: "https://api.puppyone.ai/api/v1", ssh });
     const events = [];
     const expectedSession = { userId: "u", generation: "g" };
     await expect(client.open({ id: "t1", folderId, kind: "shell", launcher: "bash -c x", expectedSession }, () => {}))
       .rejects.toThrow("Invalid terminal request");
     await client.open({ id: "t1", folderId, kind: "agent", launcher: "codex", cols: 90, rows: 25, expectedSession },
       (event) => events.push(event));
-    expect(opened[0].url).toBe(`wss://devices.puppyone.ai/api/v1/hosts/folders/${folderId}/exec`);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const socket = FakeSocket.last;
-    expect(socket.sent[0]).toEqual({ type: "start", kind: "agent", launcher: "codex", cols: 90, rows: 25 });
+    expect(asked).toEqual([{ id: folderId, expected: expectedSession, launcher: "codex", cols: 90, rows: 25 }]);
     expect(client.input("t1", "ä")).toBe(true);
-    expect(socket.sent.at(-1)).toEqual({ type: "input", data: Buffer.from("ä").toString("base64") });
+    expect(channel.written).toEqual(["ä"]);
     expect(client.input("other", "x")).toBe(false);
-    socket.emit("message", { data: JSON.stringify({ type: "started", session }) });
-    socket.emit("message", { data: JSON.stringify({ type: "output", data: "b2s=" }) });
-    socket.emit("message", { data: JSON.stringify({ type: "error", code: "not_allowed" }) });
-    socket.close();
-    expect(events).toEqual([{ type: "started" }, { type: "output", data: "b2s=" }, { type: "error", code: "not_allowed" }]);
+    expect(client.resize("t1", 100, 40)).toBe(true);
+    expect(channel.window).toEqual({ rows: 40, cols: 100 });
+    expect(client.interrupt("t1")).toBe(true);
+    expect(channel.written.at(-1)).toBe("\u0003");
+    channel.emit("data", Buffer.from("ok"));
+    channel.emit("exit", 0);
+    channel.emit("close");
+    expect(events).toEqual([{ type: "started" }, { type: "output", data: "ok" }, { type: "exit", status: 0 }]);
     expect(client.input("t1", "x")).toBe(false);
+
+    const refused = [];
+    await client.open({ id: "t2", folderId, kind: "agent", launcher: "cursor", expectedSession }, (event) => refused.push(event));
+    expect(refused).toEqual([{ type: "error", code: "not_allowed" }]);
   });
 });

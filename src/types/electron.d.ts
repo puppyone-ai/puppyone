@@ -1142,6 +1142,8 @@ declare global {
         { revoked: boolean } | { cancelled: true }>;
       getHostStatus: () => Promise<HostSharingStatus>;
       setHostSharingPaused: (request: { paused: boolean; expectedSession: HostSession }) => Promise<{ paused: boolean }>;
+      getHostAutostart?: () => Promise<{ supported: boolean; enabled: boolean }>;
+      setHostAutostart?: (request: { enabled: boolean }) => Promise<{ supported: boolean; enabled: boolean }>;
       onHostStatus: (callback: (status: HostSharingStatus) => void) => () => void;
       requestHostFolder: <T>(request: { folderId: string; operation: HostFileOperation;
         expectedSession: HostSession }) => Promise<HostFolderResult<T>>;

@@ -80,5 +80,7 @@
   "execution.running": "正在这里运行：{count}",
   "execution.stopAll": "全部停止",
   "execution.sandboxed": "远程运行在这台电脑的沙箱中进行：只能修改共享的文件夹。",
-  "execution.noSandbox": "这台电脑没有沙箱，所以其他电脑不能在这里运行任何东西；它们仍然可以打开和编辑文件。"
+  "execution.noSandbox": "这台电脑没有沙箱，所以其他电脑不能在这里运行任何东西；它们仍然可以打开和编辑文件。",
+  "sharing.startAtLogin": "电脑重启后继续共享",
+  "sharing.startAtLoginFailure": "无法更改这项设置。"
 }

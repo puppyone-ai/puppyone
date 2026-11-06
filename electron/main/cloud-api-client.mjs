@@ -4,7 +4,6 @@ import {
 } from "../../shared/cloudEndpoint.js";
 import { readCloudWorkspaceEvents } from "./cloud-workspace-events.mjs";
 import { readCloudAgentEventBatch } from "./cloud-agent-event-reader.mjs";
-import { readHostFolderEvents } from "./hosts/remote-host-client.mjs";
 
 export function buildCloudApiBaseCandidates(remoteUrl, apiBaseUrl) {
   const candidates = [];
@@ -81,7 +80,6 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   const fetchInit = { ...init };
   delete fetchInit.responseType;
   delete fetchInit.onWorkspaceEvent;
-  delete fetchInit.onHostFolderEvent;
   let response;
   try {
     response = await fetch(`${apiBase}${apiPath}`, fetchInit);
@@ -93,7 +91,6 @@ export async function requestCloudApi(apiBase, apiPath, init) {
     return new Uint8Array(await response.arrayBuffer());
   }
   if (response.ok && responseType === "workspace-events") return readCloudWorkspaceEvents(response, init.onWorkspaceEvent);
-  if (response.ok && responseType === "host-folder-events") return readHostFolderEvents(response, init.onHostFolderEvent);
   if (response.ok && responseType === "agent-events") {
     return readCloudAgentEventBatch(response);
   }

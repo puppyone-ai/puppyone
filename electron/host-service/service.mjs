@@ -11,6 +11,8 @@
  * person's credential never enters this process.
  */
 import crypto from "node:crypto";
+import { createHostSshServer } from "./ssh/host-ssh-server.mjs";
+import { parsePublicKeyLine } from "../main/hosts/ssh/openssh.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createDeviceIdentityService } from "../main/hosts/device-identity.mjs";
@@ -143,11 +145,28 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     const execService = terminalFactory ? createHostExecService({ resolveFolder, logger, executionPolicy,
       createTerminalService: terminalFactory, onChange: () => notify() }) : null;
     const gitService = createHostGitService({ resolveFolder, gitFor });
-    const connector = createHostConnector({ apiBase: deployment, identity, registry, fileService, logger,
-      WebSocketImpl, fetchImpl, gitService, execService, appVersion, bootId,
+    // The Cloud's SSH certificate authority: public, fetched here, refreshed when it rotates.
+    let trusted = null;
+    async function authorities({ refresh = false } = {}) {
+      if (trusted && !refresh) return trusted;
+      const response = await fetchImpl(`${deployment}/hosts/ssh-authority`);
+      if (!response.ok) throw new Error(`SSH authority unavailable (${response.status}).`);
+      const keys = (await response.json())?.keys;
+      if (!Array.isArray(keys) || !keys.length) throw new Error("No SSH authority.");
+      trusted = keys.map((line) => parsePublicKeyLine(line));
+      return trusted;
+    }
+    const sshServer = createHostSshServer({
+      hostKey: (owner) => identity.sshHostKey(owner),
+      authorities,
+      active: () => (state?.active && !state.paused ? state.active : null),
+      resolveFolder, fileService, gitService, execService, executionPolicy, logger,
+      onChange: () => notify() });
+    const connector = createHostConnector({ apiBase: deployment, identity, registry, sshServer, logger,
+      WebSocketImpl, fetchImpl, execService, appVersion, bootId,
       onStatus: () => notify(),
       onRevoked: (lost) => { void forgetRevoked(lost); } });
-    return { deployment, identity, registry, fileService, execService, gitService, connector };
+    return { deployment, identity, registry, fileService, execService, gitService, sshServer, connector };
   }
 
   async function forgetRevoked(lost) {
@@ -175,6 +194,7 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
   }
 
   function dispose() {
+    services?.sshServer.closeAll();
     void services?.execService?.stopAll().catch(() => {});
     services?.connector.stop();
     services?.fileService.dispose?.();
@@ -231,18 +251,20 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
     registrySetAccess: async (request) => {
       await ready().registry.setAccess(request);
       // Narrowing to view-only ends everything that may run there.
-      if (!request.writable) await services.execService?.enforce(request.folderId);
+      if (!request.writable) await services.sshServer.enforce(request.folderId);
       return true;
     },
     registrySetExecution: async (request) => {
       await ready().registry.setExecution(request);
-      await services.execService?.enforce(request.folderId);
+      await services.sshServer.enforce(request.folderId);
       return true;
     },
     registryRemove: ({ deviceId, folderId }) => serial(async () => {
-      const { registry, fileService, connector } = ready();
+      const { registry, fileService, connector, sshServer } = ready();
       fileService.forget?.(folderId);
       const removed = await registry.remove(deviceId, folderId);
+      // Sessions in a folder that is no longer shared end now.
+      await sshServer.enforce(folderId);
       if (state.active?.deviceId === deviceId && !await registry.hasActive(state.active.accountId, deviceId)) {
         connector.stop();
       }
@@ -279,8 +301,8 @@ export function createHostService({ stateDir, secureStorage, desktop = () => nul
       notify();
       return { paused: state.paused };
     }),
-    execEnforce: async ({ folderId }) => { await services?.execService?.enforce(folderId); return true; },
-    execStopAll: async () => { await services?.execService?.stopAll(); return true; },
+    execEnforce: async ({ folderId }) => { await services?.sshServer.enforce(folderId); return true; },
+    execStopAll: async () => { services?.sshServer.closeAll(); await services?.execService?.stopAll(); return true; },
   };
 
   return Object.freeze({

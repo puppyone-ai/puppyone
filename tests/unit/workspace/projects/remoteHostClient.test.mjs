@@ -1,107 +1,99 @@
 import { describe, expect, it } from "vitest";
-import { createRemoteHostClient, readHostFolderEvents } from "../../../../electron/main/hosts/remote-host-client.mjs";
+import { createRemoteHostClient } from "../../../../electron/main/hosts/remote-host-client.mjs";
+import { HostSshError } from "../../../../electron/main/hosts/ssh/host-ssh-client.mjs";
 
 const apiBase = "https://api.puppyone.ai/api/v1";
 const folder = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const session = { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", generation: "one" };
 const wait = async () => {};
 
-function httpError(status, detail) {
-  const error = new Error(`Request failed (${status}): ${JSON.stringify(detail)}`);
-  error.status = status;
-  return error;
+/** The folder's SSH connection as the client sees it: a files channel. */
+function fakeSsh({ request = async () => ({ ok: true }), watch, get } = {}) {
+  const ssh = { requests: [], closed: 0, gets: 0 };
+  ssh.get = async (folderId, expected) => {
+    ssh.gets++;
+    if (get) await get(ssh.gets);
+    expect(folderId).toBe(folder);
+    expect(expected).toBe(session);
+    return { files: async () => ({
+      request: async (body, options) => { ssh.requests.push({ body, options }); return request(body, ssh.requests.length); },
+      watch: watch ?? (async () => () => {}),
+    }) };
+  };
+  ssh.close = () => { ssh.closed++; };
+  return ssh;
 }
 
 describe("remote host client", () => {
-  it("maps protocol operations to the folder API with credentials kept in Main", async () => {
-    const calls = [];
-    const client = createRemoteHostClient({ apiBase, wait, auth: { requestSessionApi: async (base, path, init, expected) => {
-      calls.push({ base, path, method: init.method, body: init.body && JSON.parse(init.body), expected });
-      return { ok: true };
-    } } });
+  it("sends protocol operations inside the folder's SSH session, never other fields", async () => {
+    const ssh = fakeSsh();
+    const client = createRemoteHostClient({ apiBase, wait, auth: {}, ssh });
     await client.request(folder, { action: "list", path: "" }, session);
-    await client.request(folder, { action: "read", path: "a b.md" }, session);
-    await client.request(folder, { action: "write", path: "n.md", content_base64: "bmV3", expected_revision: null }, session);
+    await client.request(folder, { action: "write", path: "n.md", content_base64: "bmV3", expected_revision: null, folder_id: "x" }, session);
     await client.request(folder, { action: "move", path: "a.md", destination: "b/a.md" }, session);
-    await client.request(folder, { action: "remove", path: "b" }, session);
-    expect(calls.map(({ path, method }) => `${method} ${path}`)).toEqual([
-      `GET /hosts/folders/${folder}/files?path=`,
-      `GET /hosts/folders/${folder}/file?path=a%20b.md`,
-      `PUT /hosts/folders/${folder}/file`,
-      `POST /hosts/folders/${folder}/files`,
-      `POST /hosts/folders/${folder}/files`,
+    await client.request(folder, { action: "git", op: "status" }, session);
+    expect(ssh.requests.map(({ body }) => body)).toEqual([
+      { action: "list", path: "" },
+      { action: "write", path: "n.md", content_base64: "bmV3", expected_revision: null },
+      { action: "move", path: "a.md", destination: "b/a.md" },
+      { action: "git", op: "status" },
     ]);
-    expect(calls[2].body).toEqual({ path: "n.md", content_base64: "bmV3", expected_revision: null });
-    expect(calls[3].body).toEqual({ action: "move", path: "a.md", destination: "b/a.md" });
-    expect(calls.every((call) => call.base === apiBase && call.expected === session)).toBe(true);
+    expect(ssh.requests.map(({ options }) => options.mutating)).toEqual([false, true, true, false]);
     expect(await client.request("not-a-folder", { action: "list", path: "" }, session)).toMatchObject({ ok: false, status: 400 });
     expect(await client.request(folder, { action: "chmod", path: "x" }, session)).toMatchObject({ ok: false, status: 400 });
   });
 
-  it("retries a read through a transport hiccup, but sends a write exactly once", async () => {
-    let reads = 0;
-    let writes = 0;
-    const client = createRemoteHostClient({ apiBase, wait, auth: { requestSessionApi: async (_base, path, init) => {
-      if (init.method === "GET") {
-        reads++;
-        if (reads < 3) throw reads === 1 ? Object.assign(new Error("fetch failed"), {}) : httpError(502, { detail: {} });
-        return { entries: [] };
-      }
-      writes++;
-      throw Object.assign(new Error("socket hang up"), {});
-    } } });
-    expect(await client.request(folder, { action: "list", path: "" }, session)).toEqual({ ok: true, result: { entries: [] } });
-    expect(reads).toBe(3);
-    const write = await client.request(folder, { action: "write", path: "n.md", content_base64: "", expected_revision: null }, session);
-    expect(writes).toBe(1);
-    expect(write).toMatchObject({ ok: false, status: 0, outcomeUnknown: true });
+  it("retries a read through a lost connection, but sends a write exactly once", async () => {
+    const lost = () => { throw new HostSshError("network_unavailable", { status: 0 }); };
+    const reads = fakeSsh({ request: async (_body, count) => (count < 3 ? lost() : { revision: "r" }) });
+    const client = createRemoteHostClient({ apiBase, wait, auth: {}, ssh: reads });
+    expect(await client.request(folder, { action: "read", path: "a.md" }, session)).toEqual({ ok: true, result: { revision: "r" } });
+    expect(reads.requests).toHaveLength(3);
+    expect(reads.closed).toBe(2);
+
+    const writes = fakeSsh({ request: async () => { throw new HostSshError("network_unavailable", { status: 0, outcomeUnknown: true }); } });
+    const writer = createRemoteHostClient({ apiBase, wait, auth: {}, ssh: writes });
+    expect(await writer.request(folder, { action: "write", path: "a.md", content_base64: "", expected_revision: null }, session))
+      .toEqual({ ok: false, status: 0, code: "network_unavailable", outcomeUnknown: true });
+    expect(writes.requests).toHaveLength(1);
   });
 
   it("returns structured failures that survive IPC", async () => {
-    const client = createRemoteHostClient({ apiBase, wait, auth: { requestSessionApi: async () => {
-      throw httpError(503, { detail: { code: "device_disconnected", outcome_unknown: true } });
-    } } });
-    expect(await client.request(folder, { action: "write", path: "n.md", content_base64: "", expected_revision: null }, session))
-      .toEqual({ ok: false, status: 503, code: "device_disconnected", outcomeUnknown: true });
-    const offline = createRemoteHostClient({ apiBase, wait, auth: { requestSessionApi: async () => {
-      throw httpError(503, { detail: { code: "device_offline" } });
-    } } });
-    expect(await offline.request(folder, { action: "read", path: "n.md" }, session))
+    const conflict = createRemoteHostClient({ apiBase, wait, auth: {}, ssh: fakeSsh({ request: async () => { throw new HostSshError("conflict"); } }) });
+    expect(await conflict.request(folder, { action: "write", path: "a", content_base64: "", expected_revision: null }, session))
+      .toEqual({ ok: false, status: 409, code: "conflict", outcomeUnknown: false });
+    const offline = createRemoteHostClient({ apiBase, wait, auth: {}, ssh: fakeSsh({ get: async () => { throw new HostSshError("device_offline"); } }) });
+    expect(await offline.request(folder, { action: "list", path: "" }, session))
       .toEqual({ ok: false, status: 503, code: "device_offline", outcomeUnknown: false });
+    // A session API refusal (the certificate route) keeps its status and code.
+    const revoked = createRemoteHostClient({ apiBase, wait, auth: {}, ssh: fakeSsh({ get: async () => {
+      throw Object.assign(new Error('Request failed (404): {"detail":{"code":"device_unavailable"}}'), { status: 404 });
+    } }) });
+    expect(await revoked.request(folder, { action: "list", path: "" }, session))
+      .toMatchObject({ ok: false, status: 404, code: "device_unavailable" });
   });
 
-  it("parses folder change events and stops at an unavailable event", async () => {
-    const body = [
-      ": keepalive\n\n",
-      "event: change\ndata: {\"paths\": [], \"reset\": true}\n\n",
-      "event: change\ndata: {\"paths\": [\"sub/a.md\"], \"reset\": false}\n\n",
-      "event: unavailable\ndata: {\"retryable\": true}\n\n",
-      "event: change\ndata: {\"paths\": [\"never.md\"], \"reset\": false}\n\n",
-    ].join("");
-    const response = new Response(body, { headers: { "content-type": "text/event-stream" } });
+  it("watch delivers changes, reports offline, reconnects with a rescan, and ends on a definite denial", async () => {
     const events = [];
-    const end = await readHostFolderEvents(response, async (event) => { events.push(event); });
-    expect(events).toEqual([{ type: "change", paths: [], reset: true }, { type: "change", paths: ["sub/a.md"], reset: false }]);
-    expect(end).toEqual({ type: "unavailable", retryable: true });
-    await expect(readHostFolderEvents(new Response("event: change\ndata: {\"paths\": [1]}\n\n",
-      { headers: { "content-type": "text/event-stream" } }), async () => {})).rejects.toThrow("Invalid folder notification");
-  });
-
-  it("watch reports offline and reconnects, and ends on a definite denial", async () => {
-    let attempts = 0;
-    const emitted = [];
-    const controller = new AbortController();
-    const client = createRemoteHostClient({ apiBase, wait, auth: { requestSessionApi: async (_base, _path, init) => {
-      attempts++;
-      if (attempts === 1) return { type: "unavailable", retryable: true };
-      if (attempts === 2) { await init.onHostFolderEvent({ type: "change", paths: ["a.md"], reset: false }); throw httpError(503, {}); }
-      throw httpError(403, { detail: { code: "folder_unavailable" } });
-    } } });
-    await client.watch(folder, session, async (event) => { emitted.push(event); }, controller.signal);
-    expect(emitted).toEqual([
-      { type: "offline", code: "device_offline" },
+    let watches = 0;
+    const ssh = fakeSsh({
+      get: async (count) => { if (count === 3) throw new HostSshError("folder_unavailable"); },
+      watch: async (onEvent, ended) => {
+        watches++;
+        setTimeout(() => { onEvent({ paths: ["a.md"], reset: false }); ended(); }, 0);
+        return () => {};
+      },
+    });
+    const client = createRemoteHostClient({ apiBase, wait, auth: {}, ssh });
+    await client.watch(folder, session, async (event) => { events.push(event); }, new AbortController().signal);
+    expect(watches).toBe(2);
+    expect(events).toEqual([
       { type: "change", paths: ["a.md"], reset: false },
-      { type: "offline", code: "file_operation_failed" },
+      { type: "offline", code: "device_offline" },
+      // After an outage the editor rescans: it may have missed changes.
+      { type: "change", paths: [], reset: true },
+      { type: "change", paths: ["a.md"], reset: false },
+      { type: "offline", code: "device_offline" },
       { type: "unavailable", retryable: false, code: "folder_unavailable" },
     ]);
   });

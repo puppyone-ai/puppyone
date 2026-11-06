@@ -34,6 +34,7 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
   const [devices, setDevices] = useState<HostCatalogDevice[]>([]);
   const [recents, setRecents] = useState<RecentHostFolder[]>([]);
   const [sharing, setSharing] = useState<HostSharingStatus | null>(null);
+  const [autostart, setAutostart] = useState<{ supported: boolean; enabled: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const expectedSession = useMemo(() => ({ userId: session.user_id, generation: session.session_generation }),
@@ -53,6 +54,7 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
     finally { setLoading(false); }
   }, [expectedSession, t]);
   useEffect(() => { void refresh(); }, [refresh, apiBase]);
+  useEffect(() => { void window.puppyoneDesktop?.getHostAutostart?.().then(setAutostart).catch(() => setAutostart(null)); }, []);
   useEffect(() => window.puppyoneDesktop?.onHostStatus?.((status) => setSharing((previous) =>
     ({ ...(previous ?? {}), ...status }) as HostSharingStatus)), []);
   const thisComputer = sharing?.deviceId ?? null;
@@ -96,6 +98,12 @@ export function HomepageDeviceFolders({ session, apiBase, onOpen }: {
             <button type="button" onClick={() => act(window.puppyoneDesktop?.stopRemoteHostSessions?.(),
               "hosts.catalog.updateFailure")}>{t("hosts.execution.stopAll")}</button>
           </>}
+          {mine && autostart?.supported && <label style={{ display: "inline-flex", gap: 4 }}>
+            <input type="checkbox" checked={autostart.enabled} onChange={() => {
+              void window.puppyoneDesktop?.setHostAutostart?.({ enabled: !autostart.enabled }).then(setAutostart)
+                .catch(() => setError(t("hosts.sharing.startAtLoginFailure")));
+            }} />
+            {t("hosts.sharing.startAtLogin")}</label>}
           {mine && <button type="button" onClick={() => act(window.puppyoneDesktop?.setHostSharingPaused?.({
             paused: !sharing?.paused, expectedSession }), "hosts.catalog.updateFailure")}>
             {sharing?.paused ? t("hosts.sharing.resume") : t("hosts.sharing.pause")}</button>}

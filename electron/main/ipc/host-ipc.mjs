@@ -3,6 +3,8 @@ import path from "node:path";
 import { createRemoteHostClient } from "../hosts/remote-host-client.mjs";
 import { createHostRecents } from "../hosts/host-recents.mjs";
 import { createRemoteExecClient } from "../hosts/remote-exec-client.mjs";
+import { createHostSshClient } from "../hosts/ssh/host-ssh-client.mjs";
+import { createHostAutostart } from "../../host-service/autostart.mjs";
 import { isHostServiceRoute } from "../../host-service/service.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -184,6 +186,18 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     return { ...status, folders: (status.folders ?? []).map(({ folderId, name, writable }) => ({ folderId, name, writable })) };
   });
 
+  // Start the host service at login, so shared folders come back after a restart.
+  let autostart = null;
+  const loginItem = () => {
+    autostart ??= createHostAutostart({ execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged, app });
+    return autostart;
+  };
+  ipcMain.handle("host:autostart", async () => loginItem().status());
+  ipcMain.handle("host:set-autostart", async (_event, request) => {
+    if (typeof request?.enabled !== "boolean") throw new Error("Invalid autostart setting.");
+    return { supported: loginItem().supported, enabled: await loginItem().set(request.enabled) };
+  });
+
   ipcMain.handle("host:set-sharing-paused", async (_event, request) => {
     const session = requireSession(request?.expectedSession);
     const running = await host();
@@ -324,10 +338,16 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
 
   // Opening another computer's folder needs no device key: it works even where
   // this computer cannot store one (and so cannot share its own folders).
+  // One SSH connection per remote folder carries its files, terminals and Agents.
+  let ssh = null;
+  function sshClient() {
+    if (!apiBase) throw new Error("Cloud is not configured.");
+    ssh ??= createHostSshClient({ auth, apiBase });
+    return ssh;
+  }
   let remote = null;
   function remoteClient() {
-    if (!apiBase) throw new Error("Cloud is not configured.");
-    remote ??= createRemoteHostClient({ auth, apiBase });
+    remote ??= createRemoteHostClient({ auth, apiBase, ssh: sshClient() });
     return remote;
   }
 
@@ -372,8 +392,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
   let remoteExec = null;
   const remoteTerminals = new Map();
   function remoteExecClient() {
-    if (!apiBase) throw new Error("Cloud is not configured.");
-    remoteExec ??= createRemoteExecClient({ auth, apiBase });
+    remoteExec ??= createRemoteExecClient({ auth, apiBase, ssh: sshClient() });
     return remoteExec;
   }
   ipcMain.handle("host:exec-open", async (event, request) => {

@@ -80,5 +80,7 @@
   "execution.running": "En ejecución aquí: {count}",
   "execution.stopAll": "Detener todo",
   "execution.sandboxed": "Las ejecuciones remotas se hacen aquí en un entorno aislado: solo pueden modificar la carpeta compartida.",
-  "execution.noSandbox": "Este ordenador no tiene un entorno aislado, así que otros ordenadores no pueden ejecutar nada aquí; aún pueden abrir y editar archivos."
+  "execution.noSandbox": "Este ordenador no tiene un entorno aislado, así que otros ordenadores no pueden ejecutar nada aquí; aún pueden abrir y editar archivos.",
+  "sharing.startAtLogin": "Seguir compartiendo después de reiniciar este equipo",
+  "sharing.startAtLoginFailure": "No se pudo cambiar este ajuste."
 }

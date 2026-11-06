@@ -187,6 +187,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "semver": "^7.7.3",
+    "ssh2": "^1.17.0",
     "tar": "7.5.22",
     "yauzl": "3.4.0",
     "zustand": "^5.0.15"

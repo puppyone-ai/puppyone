@@ -300,11 +300,12 @@ export function createCloudAuthService({
   }
 
   /**
-   * Main-only: a WebSocket to a terminal on the owner's other computer. The
-   * address must be in the PuppyOne host family and match the API path; the
-   * access token travels as a subprotocol and never reaches a renderer.
+   * Main-only: the byte tunnel to a folder on the owner's other computer. The
+   * SSH session inside it is end to end. The address must be in the PuppyOne
+   * host family and match the API path; the access token travels as a
+   * subprotocol and never reaches a renderer.
    */
-  async function openHostExecSocket(apiBase, socketUrl, expectedSession, WebSocketImpl = globalThis.WebSocket) {
+  async function openHostTunnelSocket(apiBase, socketUrl, expectedSession, WebSocketImpl = globalThis.WebSocket) {
     const normalized = normalizeCloudApiBaseUrl(apiBase);
     // A session request first: refreshes an expiring token and checks the account.
     await requestSessionApi(normalized, "/hosts", { method: "GET" }, expectedSession);
@@ -314,11 +315,12 @@ export function createCloudAuthService({
       || expectedSession.generation !== sessionGeneration)) throw createSessionChangedError();
     const url = new URL(socketUrl);
     const origin = normalizeCloudApiBaseUrl(`${url.protocol === "wss:" ? "https:" : "http:"}//${url.host}`);
-    if (!origin || !/^wss?:$/.test(url.protocol) || !/^\/api\/v1\/hosts\/folders\/[0-9a-f-]{36}\/exec$/.test(url.pathname)
-      || url.search || url.hash || url.username || url.password) throw new Error("Invalid terminal address.");
+    if (!origin || !/^wss?:$/.test(url.protocol) || !/^\/api\/v1\/hosts\/folders\/[0-9a-f-]{36}\/tunnel$/.test(url.pathname)
+      || url.search || url.hash || url.username || url.password) throw new Error("Invalid tunnel address.");
     // version.v1 is what the server answers with; the token is offered but never echoed back.
     return new WebSocketImpl(url.toString(), ["version.v1", `version.bearer.${captured.access_token}`]);
   }
+
 
   // Main-only, fixed-origin template authorization. No renderer can supply a
   // destination or receive an access token through this method.
@@ -755,7 +757,7 @@ export function createCloudAuthService({
     requestSessionApi,
     requestTemplateDownload,
     openAgentStream,
-    openHostExecSocket,
+    openHostTunnelSocket,
     subscribe(listener) { stateSubscribers.add(listener); return () => stateSubscribers.delete(listener); },
     clearSession,
     dispose,

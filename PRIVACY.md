@@ -43,22 +43,27 @@ installation as a new first run.
 
 A future, separately gated feature lets you explicitly register a folder on
 one signed-in computer for access from your other signed-in computers. Local
-folder use does not enable it. When enabled, the host makes an outbound TLS
-connection; file bytes travel through the Puppyone API/gateway, which can see
-them in transit. The planned relay must not persist file bodies or the host's absolute
-path. Its current prototype stores device and folder identifiers, display names
-(the computer's host name and the folder's name), permissions and connection
-metadata including when the computer was last online, the PuppyOne version it
-runs and a random identifier that changes on every launch. File operations on
-your computers are not recorded one by one. Connections are: which of your
-computers and which shared folder was opened, when, and how it ended (opening a
-folder, a relayed connection, a terminal or Agent session), without file names,
-paths or content, kept 30 days. Change notifications carry folder-relative names
-of changed files through the relay without storing them. Only your own sign-in
-reaches your computers; PuppyOne's cloud Agents and other runtime credentials
-cannot. Audit retention and privacy
-review remain rollout gates. It is **not end-to-end
-encrypted**, not an automatic Cloud publish, and not product analytics.
+folder use does not enable it. When enabled, the sharing computer keeps an
+outbound TLS connection to the PuppyOne gateway; your other computers reach the
+folder only inside an SSH session that ends on the sharing computer. File
+contents, change notifications, terminal and Agent input and output, and Git
+results are encrypted end to end between your two computers: the gateway relays
+bytes it cannot read. For each connection your other computer makes a fresh key
+and gets a five-minute certificate from the Cloud for that one computer; the
+sharing computer checks the certificate and its own permission for the folder,
+and identifies itself with its device key, which your other computer checks.
+
+The Cloud stores device and folder identifiers, display names (the computer's
+host name and the folder's name), permissions and connection metadata
+including when the computer was last online, the PuppyOne version it runs and a
+random identifier that changes on every launch. It never sees what happens
+inside a connection, so nothing is recorded per file or per command. It records
+connections: which of your computers and which shared folder was opened, when,
+and how it ended, without file names, paths or content, kept 30 days. Only your
+own sign-in reaches your computers; PuppyOne's cloud Agents and other runtime
+credentials cannot. The PuppyOne CLI (`puppyone hosts`) uses the same
+certificates with standard OpenSSH. It is not an automatic Cloud publish and
+not product analytics.
 
 On the computer that shares a folder, a separate PuppyOne Host process (the
 same program, without windows) keeps the folder's location, the device key
@@ -77,10 +82,9 @@ operating-system sandbox (macOS and Linux) that can change only that folder and
 cannot read SSH keys, the keychain, browser data or PuppyOne's own data. Where no
 sandbox is available (for example Windows), nothing can be run there remotely.
 
-For a planned end-to-end encrypted transport, the Cloud can also sign
-five-minute SSH certificates for your own computers and relay connection bytes
-it cannot read; it records only that a connection opened and how it ended. That
-transport is not used by PuppyOne yet.
+You can choose to start the PuppyOne Host process when you log in (a login
+item on macOS and Windows, an autostart entry on Linux) so shared folders come
+back after a restart without opening the App. It is off unless you turn it on.
 
 This experiment remains off until privacy review, retention policy, security
 and two-device acceptance are complete. Do not treat this section as notice

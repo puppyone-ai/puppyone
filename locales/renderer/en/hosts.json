@@ -80,5 +80,7 @@
   "execution.running": "Running here: {count}",
   "execution.stopAll": "Stop all",
   "execution.sandboxed": "Remote runs happen in a sandbox here: they can change only the shared folder.",
-  "execution.noSandbox": "This computer has no sandbox, so other computers cannot run anything here; they can still open and edit files."
+  "execution.noSandbox": "This computer has no sandbox, so other computers cannot run anything here; they can still open and edit files.",
+  "sharing.startAtLogin": "Share after this computer restarts",
+  "sharing.startAtLoginFailure": "Unable to change this setting."
 }

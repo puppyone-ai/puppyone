@@ -80,5 +80,7 @@
   "execution.running": "여기서 실행 중: {count}",
   "execution.stopAll": "모두 중지",
   "execution.sandboxed": "원격 실행은 이 컴퓨터의 샌드박스에서 이루어지며 공유 폴더만 변경할 수 있습니다.",
-  "execution.noSandbox": "이 컴퓨터에는 샌드박스가 없으므로 다른 컴퓨터는 여기서 아무것도 실행할 수 없습니다. 파일을 열고 편집하는 것은 가능합니다."
+  "execution.noSandbox": "이 컴퓨터에는 샌드박스가 없으므로 다른 컴퓨터는 여기서 아무것도 실행할 수 없습니다. 파일을 열고 편집하는 것은 가능합니다.",
+  "sharing.startAtLogin": "이 컴퓨터를 다시 시작한 후에도 공유",
+  "sharing.startAtLoginFailure": "이 설정을 변경할 수 없습니다."
 }

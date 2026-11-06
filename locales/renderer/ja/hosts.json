@@ -80,5 +80,7 @@
   "execution.running": "ここで実行中：{count}",
   "execution.stopAll": "すべて停止",
   "execution.sandboxed": "リモートでの実行はこのコンピュータのサンドボックス内で行われ、共有フォルダだけを変更できます。",
-  "execution.noSandbox": "このコンピュータにはサンドボックスがないため、他のコンピュータはここで何も実行できません。ファイルを開いて編集することはできます。"
+  "execution.noSandbox": "このコンピュータにはサンドボックスがないため、他のコンピュータはここで何も実行できません。ファイルを開いて編集することはできます。",
+  "sharing.startAtLogin": "このコンピュータの再起動後も共有する",
+  "sharing.startAtLoginFailure": "この設定を変更できませんでした。"
 }

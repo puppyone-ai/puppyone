@@ -225,6 +225,8 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   revokeHostDevice: (request) => ipcRenderer.invoke("host:revoke-device", request),
   getHostStatus: () => ipcRenderer.invoke("host:status"),
   setHostSharingPaused: (request) => ipcRenderer.invoke("host:set-sharing-paused", request),
+  getHostAutostart: () => ipcRenderer.invoke("host:autostart"),
+  setHostAutostart: (request) => ipcRenderer.invoke("host:set-autostart", request),
   onHostStatus: (callback) => {
     const listener = (_event, value) => callback(value);
     ipcRenderer.on("host:status-changed", listener);

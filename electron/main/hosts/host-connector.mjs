@@ -1,10 +1,18 @@
 import { randomUUID } from "node:crypto";
+import { Duplex } from "node:stream";
 import { normalizeCloudApiBaseUrl, resolveCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FRAME_CHARACTERS = 12 * 1024 * 1024;
 const HEARTBEAT_MS = 10_000;
-const MAX_WATCHES = 64;
+// The gateway answers every heartbeat. A socket that stays silent this long is
+// dead even if the OS has not noticed (sleep, a NAT that dropped it): reconnect.
+const SILENT_MS = 30_000;
+const MAX_RETRY_MS = 15_000;
+const MAX_TUNNELS = 16;
+// Raw bytes per tunnel_data frame (the gateway accepts up to 64 KiB).
+const TUNNEL_CHUNK = 48 * 1024;
+const STREAM_ID = /^[0-9A-Za-z_-]{1,64}$/;
 
 /** Server close codes (host file protocol v1). */
 export const CLOSE_REVOKED = 4004;
@@ -12,8 +20,6 @@ export const CLOSE_UNSUPPORTED = 4005;
 /** Host file protocol version this App speaks. */
 export const HOST_PROTOCOL_VERSION = 1;
 const APP_VERSION = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$/;
-const FILE_ERRORS = new Set(["invalid_path", "not_found", "already_exists", "not_empty", "folder_unavailable",
-  "root_changed", "unsupported_file", "too_many_entries", "invalid_content", "revision_required", "conflict"]);
 
 /**
  * The challenge may name a dedicated gateway origin. Accept it only inside the
@@ -45,14 +51,19 @@ export function deviceChallengeRequestPayload(accountId, deviceId, timestamp) {
  * device-signed request, so it stays online with nobody signed in on this
  * computer. Whoever owns the connector decides when sharing stops.
  *
+ * What it serves: byte tunnels, each one SSH session that ends on this
+ * computer's SSH server (`sshServer`). The Cloud admits a tunnel for a folder
+ * and relays its bytes; it never sees file content, commands or output. The
+ * earlier plaintext file, watch and execution frames are refused.
+ *
  * Lifecycle: `connect` starts serving; transport loss retries with backoff;
  * `suspend`/`wake` follow system sleep; `stop` ends it; a definite revocation
  * (close 4004 or a `device_revoked` refusal) stops for good and calls `onRevoked`.
  */
-export function createHostConnector({ apiBase, identity, registry, fileService,
+export function createHostConnector({ apiBase, identity, registry, sshServer = null,
   WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, now = () => Date.now(),
   logger = console, onRevoked = () => {}, onStatus = () => {},
-  appVersion = "unknown", bootId = randomUUID(), gitService = null, execService = null }) {
+  appVersion = "unknown", bootId = randomUUID(), execService = null }) {
   // Sent with every proof; an unexpected App version string never blocks connecting.
   const hello = { protocol: HOST_PROTOCOL_VERSION, boot_id: bootId,
     app_version: APP_VERSION.test(String(appVersion)) ? String(appVersion) : "unknown" };
@@ -69,8 +80,8 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
   let retryDelay = 1000;
   let state = "off";
   let lastAccessAt = null;
-  let activeRequests = 0;
-  const watches = new Map();
+  const tunnels = new Map();
+  let lastHeard = 0;
 
   function notify() {
     try { onStatus(status()); } catch { /* Status observers never control the connection. */ }
@@ -83,21 +94,19 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
   }
 
   function status() {
-    return { state, deviceId, activeRequests, watching: watches.size, lastAccessAt,
-      running: execService?.list() ?? [] };
+    return { state, deviceId, activeRequests: 0, watching: 0, tunnels: tunnels.size, lastAccessAt,
+      sessions: sshServer?.list() ?? [], running: execService?.list() ?? [] };
   }
 
-  function stopWatches() {
-    for (const stop of watches.values()) {
-      try { stop(); } catch { /* A watcher that already ended has nothing to release. */ }
-    }
-    watches.clear();
+  function endTunnels() {
+    for (const tunnel of tunnels.values()) tunnel.end({ tell: false });
+    tunnels.clear();
   }
 
   function close() {
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
-    stopWatches();
+    endTunnels();
     // Remote terminals end with the connection that carried them.
     void execService?.stopAll().catch(() => {});
     const previous = socket;
@@ -133,7 +142,7 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
     if (!wantsConnection || retryTimer) return;
     setState("offline");
     const delay = retryDelay;
-    retryDelay = Math.min(retryDelay * 2, 30_000);
+    retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS);
     retryTimer = setTimeout(() => {
       retryTimer = null;
       if (wantsConnection && stopped) void connect(deviceId, accountId).catch(() => retry());
@@ -169,47 +178,60 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
     if (ws === socket && ws.readyState === WebSocketImpl.OPEN) ws.send(JSON.stringify(frame));
   }
 
-  async function handleFile(message, ws) {
-    if (!UUID.test(message?.folder_id) || !UUID.test(message?.id)) {
-      stop(); return;
-    }
-    const folder = await registry.resolve(message.folder_id, accountId, deviceId);
-    if (!folder) { send(ws, { type: "reply", id: message.id, error: "folder_unavailable" }); return; }
-    activeRequests++; lastAccessAt = new Date().toISOString(); notify();
-    try {
-      if (message.action === "git" && !gitService) throw Object.assign(new Error("git"), { code: "folder_unavailable" });
-      const result = message.action === "git" ? await gitService.run(message) : await fileService.run(message);
-      // A reply for a socket that was replaced or closed meanwhile is dropped by send().
-      send(ws, { type: "reply", id: message.id, result });
-    } catch (error) {
-      send(ws, { type: "reply", id: message.id,
-        error: FILE_ERRORS.has(error?.code) ? error.code : "file_operation_failed" });
-    } finally {
-      activeRequests--; notify();
-    }
+  /** One tunnel from the gateway: a Duplex whose bytes are an SSH session for this computer's SSH server. */
+  async function openTunnel(message, ws) {
+    const stream = message?.stream;
+    if (typeof stream !== "string" || !STREAM_ID.test(stream) || !UUID.test(message?.folder_id)) { close(); return; }
+    const refuse = (error) => send(ws, { type: "tunnel_refused", stream, error });
+    if (tunnels.has(stream)) { close(); return; }
+    if (!sshServer) { refuse("tunnel_unavailable"); return; }
+    if (tunnels.size >= MAX_TUNNELS) { refuse("tunnel_limit"); return; }
+    if (!await registry.resolve(message.folder_id, accountId, deviceId)) { refuse("folder_unavailable"); return; }
+    if (ws !== socket) return;
+    let ended = false;
+    const duplex = new Duplex({
+      read() {},
+      write(chunk, _encoding, callback) {
+        for (let offset = 0; offset < chunk.length; offset += TUNNEL_CHUNK) {
+          send(ws, { type: "tunnel_data", stream, data: chunk.subarray(offset, offset + TUNNEL_CHUNK).toString("base64") });
+        }
+        callback();
+      },
+      final(callback) { tunnel.end({ tell: true }); callback(); },
+      destroy(error, callback) { tunnel.end({ tell: true }); callback(error); },
+    });
+    const tunnel = {
+      push: (bytes) => { if (!ended) duplex.push(bytes); },
+      end({ tell }) {
+        if (ended) return;
+        ended = true;
+        tunnels.delete(stream);
+        if (tell) send(ws, { type: "tunnel_close", stream });
+        duplex.push(null);
+        duplex.destroy();
+        notify();
+      },
+    };
+    tunnels.set(stream, tunnel);
+    send(ws, { type: "tunnel_opened", stream });
+    lastAccessAt = new Date().toISOString(); notify();
+    if (!await sshServer.accept(duplex, { folderId: message.folder_id })) tunnel.end({ tell: true });
   }
 
-  async function handleWatch(message, ws) {
-    const subscription = message?.subscription;
-    if (!UUID.test(message?.folder_id) || !UUID.test(subscription)) { stop(); return; }
-    const ended = () => send(ws, { type: "event", subscription, paths: [], reset: true });
-    if (watches.has(subscription) || watches.size >= MAX_WATCHES ||
-        !await registry.resolve(message.folder_id, accountId, deviceId)) { ended(); return; }
-    try {
-      const stopWatch = await fileService.watch(message.folder_id, (event) => {
-        send(ws, { type: "event", subscription, paths: event.paths, reset: event.reset });
-      }, ended);
-      if (ws !== socket) { stopWatch(); return; }
-      watches.set(subscription, stopWatch);
-      lastAccessAt = new Date().toISOString(); notify();
-    } catch { ended(); }
+  function tunnelData(message) {
+    const tunnel = tunnels.get(message?.stream);
+    if (!tunnel || typeof message.data !== "string") return;
+    tunnel.push(Buffer.from(message.data, "base64"));
   }
 
-  function handleUnwatch(message) {
-    const stopWatch = watches.get(message?.subscription);
-    watches.delete(message?.subscription);
-    stopWatch?.();
-    notify();
+  /** Plaintext file, watch and execution frames are no longer served: only SSH, end to end. */
+  function refuseRelay(message, ws) {
+    if (message.type === "file" && UUID.test(message.id)) send(ws, { type: "reply", id: message.id, error: "not_allowed" });
+    else if (message.type === "watch" && UUID.test(message.subscription)) {
+      send(ws, { type: "event", subscription: message.subscription, paths: [], reset: true });
+    } else if (message.type === "exec_open" && typeof message.session === "string") {
+      send(ws, { type: "exec_failed", session: message.session, error: "not_allowed" });
+    }
   }
 
   async function connect(registeredDeviceId, registeredAccountId) {
@@ -243,6 +265,7 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
       });
       ws.addEventListener("message", (event) => {
         if (ws !== socket) return;
+        lastHeard = now();
         let message;
         try {
           if (typeof event.data !== "string" || event.data.length > MAX_FRAME_CHARACTERS) throw new Error("Frame too large");
@@ -251,17 +274,23 @@ export function createHostConnector({ apiBase, identity, registry, fileService,
         if (message?.type === "ready" && message.epoch === challenge.epoch && !ready) {
           ready = true; retryDelay = 1000; clearTimeout(timeout); setState("online");
           resolve({ deviceId, epoch: challenge.epoch });
-          heartbeat = setInterval(() => send(ws, { type: "heartbeat" }), HEARTBEAT_MS);
+          heartbeat = setInterval(() => {
+            if (now() - lastHeard <= SILENT_MS) { send(ws, { type: "heartbeat" }); return; }
+            logger.warn("Device connection went silent; reconnecting");
+            close(); stopped = true;
+            retryDelay = 1000;
+            retry();
+          }, HEARTBEAT_MS);
         } else if (!ready) {
           close();
-        } else if (message?.type === "file") {
-          void handleFile(message, ws).catch(() => close());
-        } else if (message?.type === "watch") {
-          void handleWatch(message, ws).catch(() => close());
-        } else if (message?.type === "unwatch") {
-          handleUnwatch(message);
-        } else if (execService?.receive(message, (frame) => send(ws, frame))) {
-          lastAccessAt = new Date().toISOString(); notify();
+        } else if (message?.type === "tunnel_open") {
+          void openTunnel(message, ws).catch(() => close());
+        } else if (message?.type === "tunnel_data") {
+          tunnelData(message);
+        } else if (message?.type === "tunnel_close") {
+          tunnels.get(message.stream)?.end({ tell: false });
+        } else if (message?.type !== "heartbeat_ack") {
+          refuseRelay(message ?? {}, ws);
         }
       });
       ws.addEventListener("close", (event) => {
