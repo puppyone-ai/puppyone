@@ -4,10 +4,10 @@
   "entryHash": "26b78596f25f5d20164ac26ec09f734020c9022248fd3ee7397a0c4158ac81ef",
   "outputs": {
     "office-viewer.js": "ead6f493631ed5497082bbe04fb0e24231ee83ca04106a41ab6a69674602d8ab",
-    "office-viewer.css": "17ac88e8fbbaae696d21e8452f0640c1b3fa32439210b65753610d109d12994c",
     "office-validation.worker.js": "6468f088fc639db7e310b7a7d659b19d5079ff820ae2f03263de833373f4e6ba",
     "office-spreadsheet.worker.js": "590841773edcd640c2e74af3eebeddba38c81a36f3748a3f146e600a8fda2179",
-    "office-text.worker.js": "2a10c81e4ca4c7875648f767ca87e3dc4fc646a76cb600efede3bcc4739c233c"
+    "office-text.worker.js": "2a10c81e4ca4c7875648f767ca87e3dc4fc646a76cb600efede3bcc4739c233c",
+    "office-viewer.css": "17ac88e8fbbaae696d21e8452f0640c1b3fa32439210b65753610d109d12994c"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
