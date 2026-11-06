@@ -4,7 +4,8 @@ import { useLocalization } from "@puppyone/localization/react";
 import type { AgentPart } from "../domain/agent-projection-types";
 import { AgentPartRenderer } from "./AgentPartRenderer";
 import { AgentToolGroupContext } from "./AgentToolGroupContext";
-import { agentToolStepSegments, type AgentToolStepSegment } from "./activity/agent-tool-steps";
+import { agentToolStepSegments, isActiveToolStatus, type AgentToolStepSegment } from "./activity/agent-tool-steps";
+import { isAgentToolActivity } from "../../../../shared/agent-contract/activity-semantics.mjs";
 
 type AgentToolActivityGroupProps = Readonly<{
   parts: readonly AgentPart[];
@@ -31,6 +32,15 @@ function AgentToolActivityGroupView({
   const [openFolds, setOpenFolds] = useState<ReadonlySet<string>>(() => new Set());
   const groupRef = useRef<HTMLDivElement>(null);
   const segments = useMemo(() => agentToolStepSegments(parts), [parts]);
+  const active = parts.some(part => isAgentToolActivity(part) && isActiveToolStatus(part.status));
+  const wasActive = useRef(active);
+  useLayoutEffect(() => {
+    if (wasActive.current && !active) {
+      setOpenFolds(new Set());
+      setExpandedId(null);
+    }
+    wasActive.current = active;
+  }, [active]);
   const partIds = useMemo(() => new Set(parts.map((part) => part.id)), [parts]);
   const toggleFold = useCallback((foldId: string) => {
     setOpenFolds((current) => {
@@ -92,7 +102,8 @@ function AgentToolActivityGroupView({
                 </>
               ) : (
                 <strong className="desktop-agent-tool-name">
-                  {t("agent.toolStep.settled", { count: segment.steps, value: formatNumber(segment.steps) })}
+                  {segment.type === "working" ? t("agent.activity.working")
+                    : t("agent.toolStep.settled", { count: segment.steps, value: formatNumber(segment.steps) })}
                 </strong>
               )}
             </button>

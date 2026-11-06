@@ -25,6 +25,7 @@ type AgentToolActivity = Extract<AgentPart, { kind: "tool" | "command" | "file-c
 
 export type AgentToolStepSegment =
   | Readonly<{ type: "step"; id: string; part: AgentPart }>
+  | Readonly<{ type: "working"; id: string; parts: readonly AgentToolActivity[] }>
   | Readonly<{ type: "explored"; id: string; parts: readonly AgentToolActivity[]; files: number; searches: number }>
   | Readonly<{ type: "settled"; id: string; parts: readonly AgentToolActivity[]; steps: number }>;
 
@@ -34,8 +35,8 @@ export const AGENT_TOOL_EXPLORATION_FOLD_MIN = 4;
 /** Two settled steps already read better as one count than as two lines. */
 export const AGENT_TOOL_SETTLED_FOLD_MIN = 2;
 
-const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "pending", "in-progress"]);
-const FAILED_STATUSES = new Set<AgentActivityStatus>(["failed", "warning", "blocked"]);
+const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["queued", "running", "pending", "in-progress", "waiting-for-user"]);
+const FAILED_STATUSES = new Set<AgentActivityStatus>(["failed", "warning", "blocked", "waiting-for-user"]);
 
 export function isActiveToolStatus(status: AgentActivityStatus) {
   return ACTIVE_STATUSES.has(status);
@@ -62,15 +63,19 @@ export function isExplorationStep(kind: AgentToolStepKind) {
 /**
  * Splits one tool group into visible lines. Every settled, successful step is
  * folded once it stops being current: a finished run reads as one "Explored"
- * or "N steps done" line. Running work and failures always stay on their own
- * line so the user never has to open a fold to find what needs attention.
+ * or "N steps done" line. Older unfinished tools share a Working disclosure; only the latest active
+ * step stays visible. Failures and user waits always keep their own line.
+ * Folding is presentation only and never infers successful completion.
  */
 export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolStepSegment[] {
   const segments: AgentToolStepSegment[] = [];
+  const latestActive = parts.findLast(part => isAgentToolActivity(part) && ACTIVE_STATUSES.has(part.status));
   let run: AgentToolActivity[] = [];
   const flush = () => {
     if (run.length === 0) return;
-    if (run.length >= AGENT_TOOL_EXPLORATION_FOLD_MIN && run.every(isExploration)) {
+    if (run.some(part => ACTIVE_STATUSES.has(part.status))) {
+      segments.push({ type: "working", id: `working:${run[0].id}`, parts: run });
+    } else if (run.length >= AGENT_TOOL_EXPLORATION_FOLD_MIN && run.every(isExploration)) {
       segments.push({ type: "explored", id: `explored:${run[0].id}`, parts: run, ...explorationCounts(run) });
     } else if (run.length >= AGENT_TOOL_SETTLED_FOLD_MIN) {
       segments.push({ type: "settled", id: `settled:${run[0].id}`, parts: run, steps: run.length });
@@ -80,7 +85,7 @@ export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolSte
     run = [];
   };
   for (const part of parts) {
-    if (isSettledStep(part)) {
+    if (isAgentToolActivity(part) && part !== latestActive && !FAILED_STATUSES.has(part.status)) {
       run.push(part);
       continue;
     }
@@ -89,12 +94,6 @@ export function agentToolStepSegments(parts: readonly AgentPart[]): AgentToolSte
   }
   flush();
   return segments;
-}
-
-function isSettledStep(part: AgentPart): part is AgentToolActivity {
-  return isAgentToolActivity(part)
-    && !ACTIVE_STATUSES.has(part.status)
-    && !FAILED_STATUSES.has(part.status);
 }
 
 function isExploration(part: AgentToolActivity) {
