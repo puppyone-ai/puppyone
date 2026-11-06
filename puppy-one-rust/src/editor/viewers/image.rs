@@ -106,7 +106,12 @@ impl ImagePreview {
     }
 }
 /// `.editor-state.editor-state--stacked.danger`: the reason over Retry.
-fn failure(message: String, view: WeakEntity<ImagePreview>, p: theme::Theme) -> AnyElement {
+pub(super) fn resource_failure(
+    id: &'static str,
+    message: String,
+    p: theme::Theme,
+    on_retry: impl Fn(&mut Window, &mut App) + 'static,
+) -> AnyElement {
     let m = theme::ty();
     v_flex_centered()
         .gap(px(7.))
@@ -116,7 +121,7 @@ fn failure(message: String, view: WeakEntity<ImagePreview>, p: theme::Theme) -> 
         .child(message)
         .child(
             div()
-                .id("image-retry")
+                .id(id)
                 .mt(px(6.))
                 .h(px(theme::control()))
                 .px(px(11.))
@@ -131,11 +136,14 @@ fn failure(message: String, view: WeakEntity<ImagePreview>, p: theme::Theme) -> 
                 .text_color(p.text)
                 .font_weight(FontWeight(650.))
                 .child(t("common.action.retry"))
-                .on_click(move |_, _, cx| {
-                    let _ = view.update(cx, |v, cx| v.retry(cx));
-                }),
+                .on_click(move |_, window, cx| on_retry(window, cx)),
         )
         .into_any_element()
+}
+fn failure(message: String, view: WeakEntity<ImagePreview>, p: theme::Theme) -> AnyElement {
+    resource_failure("image-retry", message, p, move |_, cx| {
+        let _ = view.update(cx, |v, cx| v.retry(cx));
+    })
 }
 fn v_flex_centered() -> Div {
     div().flex().flex_col().items_center().justify_center()
