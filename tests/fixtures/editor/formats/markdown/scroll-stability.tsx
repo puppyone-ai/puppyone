@@ -11,6 +11,11 @@ import { createSubThemeCatalogSnapshot } from "../../../../../src/features/theme
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../../src/localization/catalog-loaders/en";
+import { DataWorkspace } from "../../../../../src/shared-ui/data/DataWorkspace";
+import { createWorkbenchWorkspace } from "../../../../../src/shared-ui/core/workbenchWorkspace";
+import { createWorkbenchDataService } from "../../../../../src/features/data-workspace/workbenchDataPort";
+import type { DataNode, DataPort, Workspace } from "../../../../../src/shared-ui/core/types";
+import { captureReadingAnchor, restoreReadingAnchor } from "../../../../../src/shared-ui/editor/codemirror/readingAnchor";
 
 const parameters = new URLSearchParams(location.search);
 const delay = parameters.get("slow") === "1" ? 450 : 0;
@@ -21,6 +26,8 @@ const note = [
 ].join("\n\n");
 let failImages = false;
 let realAssets: Record<string, { mime: string; base64: string }> | null = null;
+let realWorkspace: { workspace: Workspace; dataPort: DataPort; documentPath: string } | null = null;
+const workspaceAssetPaths: string[] = [];
 const resolver = async (_documentPath: string, href: string, signal?: AbortSignal) => {
   if (delay) await new Promise<void>(resolve => setTimeout(resolve, delay));
   if (signal?.aborted || failImages || href.includes("broken")) return null;
@@ -55,7 +62,13 @@ function Harness() {
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <main {...surface.rootProps} style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", display: "flex", width: "100vw", height: "100vh" }}>
       <section id="primary" style={{ width: second ? "65%" : "100%", minWidth: 0 }}>
-        <MarkdownCodeMirrorEditor value={value} livePreview readOnly documentPath={documentPath} markdownAssetUrlResolver={resolver} markdownAssetResolverRevision={revision} />
+        {realWorkspace ? <DataWorkspace workspace={realWorkspace.workspace} dataPort={realWorkspace.dataPort}
+          enableMarkdownLinkContentIndexing={false} loadActiveFileSource={false} showHeader={false} explorerCollapsed
+          mainSlot={state => <MarkdownCodeMirrorEditor value={value} livePreview readOnly documentPath={realWorkspace!.documentPath}
+            markdownLinkGraph={state.markdownEnvironment.linkGraph}
+            markdownAssetUrlResolver={state.markdownEnvironment.assetUrlResolver}
+            markdownAssetResolverRevision={state.markdownEnvironment.assetResolverRevision} />}
+        /> : <MarkdownCodeMirrorEditor value={value} livePreview readOnly documentPath={documentPath} markdownAssetUrlResolver={resolver} markdownAssetResolverRevision={revision} />}
       </section>
       {second && <section id="secondary" style={{ width: "35%", minWidth: 0 }}>
         <MarkdownCodeMirrorEditor value={value} livePreview readOnly documentPath={documentPath} markdownAssetUrlResolver={resolver} markdownAssetResolverRevision={revision} />
@@ -82,6 +95,40 @@ Object.assign(window, { scrollFixture: {
   configure(next: Parameters<typeof configure>[0]) { configure(next); },
   originalNote: note,
   realAssets(assets: NonNullable<typeof realAssets>) { realAssets = assets; },
+  realWorkspace(options: { sourcePath: string; targets: { path: string; name: string }[]; assets: NonNullable<typeof realAssets> }) {
+    const workspace: Workspace = { id: "scroll-real-workspace", name: "Read-only note", path: "/scroll-real-workspace", status: "recording" };
+    const workbench = createWorkbenchWorkspace([workspace]);
+    // Root nodes only. Attachment children stay unloaded, exactly as they do
+    // in a freshly opened production workspace. URLs require exact paths.
+    const roots = [...new Set(options.targets.map(target => target.path.split("/")[0]))];
+    const provider: DataPort = {
+      listChildren: async () => roots.map(name => ({ id: name, path: name, name, type: "folder", children: null }) satisfies DataNode),
+      listReferenceTargets: async () => options.targets,
+      getFileUrl: async path => {
+        workspaceAssetPaths.push(path);
+        const asset = options.assets[path];
+        if (!asset) throw new Error(`Unresolved workspace asset: ${path}`);
+        const bytes = Uint8Array.from(atob(asset.base64), c => c.charCodeAt(0));
+        return URL.createObjectURL(new Blob([bytes], { type: asset.mime }));
+      },
+      revokeFileUrl: url => URL.revokeObjectURL(url),
+    };
+    const service = createWorkbenchDataService(workbench, { createProvider: () => provider });
+    realWorkspace = { workspace, dataPort: service.dataPort, documentPath: service.resolveResource(options.sourcePath).resourceUri };
+  },
+  workspaceAssetPaths() { return workspaceAssetPaths; },
+  async tallImageAnchorRoundTrip() {
+    const v = view();
+    const line = Array.from({ length: v.state.doc.lines }, (_, i) => v.state.doc.line(i + 1)).find(line => line.text.startsWith("!["))!;
+    v.scrollDOM.scrollTop = v.lineBlockAt(line.from).top + v.scrollDOM.clientHeight + 80;
+    await wait(200);
+    const before = v.scrollDOM.scrollTop;
+    const anchor = captureReadingAnchor(v)!;
+    restoreReadingAnchor(v, anchor);
+    v.coordsAtPos(anchor.position, 1);
+    await wait(100);
+    return { before, after: v.scrollDOM.scrollTop, offset: anchor.offset, viewport: v.scrollDOM.offsetHeight };
+  },
   geometry(pane = "primary") { const s = view(pane).scrollDOM; return { scrollTop: s.scrollTop, scrollHeight: s.scrollHeight, clientHeight: s.clientHeight, maxScroll: s.scrollHeight - s.clientHeight }; },
   setScrollTop(top: number, pane = "primary") { view(pane).scrollDOM.scrollTop = top; },
   startSampling(pane = "primary") {

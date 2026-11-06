@@ -1302,6 +1302,7 @@ declare global {
         rootPath: string;
         path: string;
       }) => Promise<DataNode>;
+      listReferenceTargets: (request: { rootPath: string }) => Promise<Array<Pick<DataNode, "path" | "name">>>;
       readFile: (request: {
         rootPath: string;
         path: string;

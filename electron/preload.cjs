@@ -347,6 +347,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   }),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
+  listReferenceTargets: (request) => ipcRenderer.invoke("workspace:list-reference-targets", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),
   openDatabasePreview: (request) => ipcRenderer.invoke("database-preview:open", request),
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),

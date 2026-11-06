@@ -50,6 +50,23 @@ function provider(name: string): DataPort {
 }
 
 describe("WorkbenchDataService", () => {
+  it("qualifies reference metadata by its owning Folder without loading the Explorer", async () => {
+    const workbench = createWorkbenchWorkspace([workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta")]);
+    const providers: DataPort[] = [];
+    const service = createWorkbenchDataService(workbench, { createProvider() {
+      const result = { listChildren: vi.fn(async () => []), listReferenceTargets: vi.fn(async () => [{ path: "assets/photo.jpg", name: "photo.jpg" }]) };
+      providers.push(result); return result;
+    } });
+    const signal = new AbortController().signal;
+    expect(await service.dataPort.listReferenceTargets?.({ signal })).toEqual(workbench.folders.map(folder => ({
+      path: createWorkspaceResourceUri(folder.uri, "assets/photo.jpg"), name: "photo.jpg",
+    })));
+    for (const port of providers) {
+      expect(port.listReferenceTargets).toHaveBeenCalledWith({ signal });
+      expect(port.listChildren).not.toHaveBeenCalled();
+    }
+  });
+
   it("copies readable absolute paths from the owning root, preserving decoded file names", () => {
     const workbench = createWorkbenchWorkspace([
       workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta"),

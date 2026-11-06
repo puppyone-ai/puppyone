@@ -40,6 +40,7 @@ import {
   type MarkdownLinkGraphIndexSnapshot,
 } from "../editor/markdown/linkIndex";
 import { createDataPortMarkdownAssetResolver } from "../editor/markdown/dataPortAssetResolver";
+import { useWorkspaceReferenceTargets } from "./useWorkspaceReferenceTargets";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
 import { requestDocumentAnchorReveal } from "../editor/navigation/documentAnchorReveal";
 import {
@@ -906,7 +907,8 @@ export function DataWorkspace({
       return openExternalMarkdownUrlCommand(href);
     },
   }), [openExternalMarkdownUrlCommand, openMarkdownLinkCandidatesCommand]);
-  const markdownLinkWorkspaceIndex = useStableMarkdownLinkWorkspaceIndex(tree);
+  const referenceTargets = useWorkspaceReferenceTargets(dataPort, refreshKey);
+  const markdownLinkWorkspaceIndex = useStableMarkdownLinkWorkspaceIndex(tree, referenceTargets);
   const markdownLinkMetadataDocuments = markdownLinkWorkspaceIndex.metadataDocuments;
   useEffect(() => {
     const coordinator = markdownLinkIndexCoordinatorRef.current!;
@@ -1655,7 +1657,7 @@ function joinDataPath(folderPath: string | null, name: string): string {
   return joinDataResourcePath(folderPath, name);
 }
 
-function useStableMarkdownLinkWorkspaceIndex(nodes: DataNode[]): {
+function useStableMarkdownLinkWorkspaceIndex(nodes: DataNode[], referenceTargets: readonly Pick<DataNode, "path" | "name">[]): {
   metadataDocuments: readonly MarkdownLinkGraphDocument[];
   sourcePaths: readonly string[];
 } {
@@ -1666,7 +1668,8 @@ function useStableMarkdownLinkWorkspaceIndex(nodes: DataNode[]): {
   } | null>(null);
   const next = useMemo(() => {
     const linkableNodes = collectLinkableNodes(nodes);
-    const metadataDocuments = linkableNodes.map((node) => ({
+    const metadataDocuments = [...new Map([...referenceTargets, ...linkableNodes].map(node => [node.path, node])).values()]
+      .sort((a, b) => a.path.localeCompare(b.path)).map((node) => ({
       path: node.path,
       name: node.name,
       content: null,
@@ -1676,9 +1679,9 @@ function useStableMarkdownLinkWorkspaceIndex(nodes: DataNode[]): {
       .map((node) => node.path);
     const key = metadataDocuments
       .map((document) => `${document.path}\u0000${document.name}`)
-      .join("\u0001");
+      .join("\u0001") + `\u0002${sourcePaths.join("\u0001")}`;
     return { key, metadataDocuments, sourcePaths };
-  }, [nodes]);
+  }, [nodes, referenceTargets]);
 
   if (previousRef.current?.key !== next.key) previousRef.current = next;
   return previousRef.current;

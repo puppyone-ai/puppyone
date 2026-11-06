@@ -9,6 +9,7 @@ import { app, BrowserWindow } from "electron";
 import { createServer } from "vite";
 import { readSourceIdentity } from "../../../../../../scripts/release-checks/execution.mjs";
 import { createHash } from "node:crypto";
+import { listWorkspaceReferenceTargets } from "../../../../../../electron/local-api/files/reference-targets.mjs";
 const root = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-scroll-stability-"));
 const artifactRoot = path.join(root, "artifacts/tests/scroll-stability");
@@ -21,6 +22,7 @@ let window, vite;
 const results = [];
 let source;
 const failures = [];
+const rendererDiagnostics = [];
 const evaluate = source => window.webContents.executeJavaScript(source);
 const call = (method, ...args) => evaluate(`window.scrollFixture[${JSON.stringify(method)}](...${JSON.stringify(args)})`);
 async function scenario(name, test) {
@@ -31,10 +33,12 @@ async function wheelToEnd(pane = "primary") {
   const point = await evaluate(`(() => { const r = document.querySelector('#${pane} .cm-scroller').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
   await call("startSampling", pane);
   let stalled = 0, previous = -1;
+  const decodedImages = new Map();
   for (let step = 0; step < 400; step++) {
     window.webContents.sendInputEvent({ type: "mouseWheel", ...point, deltaY: -120, canScroll: true });
     await wait(90);
     const now = await call("geometry", pane);
+    for (const image of await call("images", pane)) decodedImages.set(image.alt, image);
     stalled = Math.abs(now.scrollTop - previous) < 1 ? stalled + 1 : 0; previous = now.scrollTop;
     if (stalled >= 10 && now.scrollTop >= now.maxScroll - 1) break;
     if (stalled >= 30) break;
@@ -49,7 +53,7 @@ async function wheelToEnd(pane = "primary") {
   }
   const maxBackward = Math.max(0, ...samples.slice(1).map((s, i) => samples[i].scrollTop - s.scrollTop));
   const maxHeightDrop = Math.max(0, ...samples.slice(1).map((s, i) => samples[i].scrollHeight - s.scrollHeight));
-  return { samples, geometry, maxBackward, maxHeightDrop, scrollWrites: await call("scrollWrites") };
+  return { samples, geometry, maxBackward, maxHeightDrop, decodedImages: [...decodedImages.values()], scrollWrites: await call("scrollWrites") };
 }
 app.whenReady().then(async () => {
   try {
@@ -58,6 +62,9 @@ app.whenReady().then(async () => {
     const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } }); await vite.listen();
     window = new BrowserWindow({ width: 1100, height: 760, show: true, webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+    window.webContents.on("console-message", details => {
+      if (details.level === "error" || details.level === "warning") rendererDiagnostics.push(details.message);
+    });
     for (const slow of [false, true]) {
       await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/formats/markdown/scroll-stability.html${slow ? "?slow=1" : ""}`);
       await evaluate("(async () => { for(let i=0;i<800&&!window.scrollFixture;i++) await new Promise(r=>setTimeout(r,10)); if(!window.scrollFixture)throw Error('Missing fixture'); await window.scrollFixture.ready(); })()");
@@ -70,6 +77,12 @@ app.whenReady().then(async () => {
       await scenario(`${label}: offscreen image lines retain geometry`, async () => { const after = await call("lineHeights"); const ratio = Math.min(...after.map((row, i) => row.inMap / measured[i].inMap)); assert(ratio >= .95, `offscreen height retained only ${ratio}`); return { measured, after, ratio }; });
       const second = await wheelToEnd(); await fs.writeFile(path.join(directory, `${label}-second.json`), JSON.stringify(second));
       await scenario(`${label}: second pass stays smooth`, () => { assert(second.maxBackward <= 2 && second.maxHeightDrop <= 8, `second pass reversed ${second.maxBackward}px; height dropped ${second.maxHeightDrop}px`); return { maxBackward: second.maxBackward, maxHeightDrop: second.maxHeightDrop }; });
+      await scenario(`${label}: a tall image retains reading offsets beyond one viewport`, async () => {
+        const result = await call("tallImageAnchorRoundTrip");
+        assert(Math.abs(result.offset) > result.viewport, `Did not exercise a deep image anchor: ${JSON.stringify(result)}`);
+        assert(Math.abs(result.after - result.before) <= 2, `Restoring an unchanged image moved ${result.after - result.before}px`);
+        return result;
+      });
     }
     await scenario("a final image without a newline can reach and stay at the end", async () => {
       await evaluate("window.scrollFixture.configure({ documentPath: 'no-newline.md', value: window.scrollFixture.originalNote.trimEnd() })"); await wait(700);
@@ -123,29 +136,51 @@ app.whenReady().then(async () => {
       const names = [...new Set([...content.matchAll(/!\[\[([^|\]]+)(?:\|[^\]]*)?\]\]/g)].map(match => path.basename(match[1])))];
       assert(names.length >= 5, "Real-note scenario requires the reported image sequence");
       const assets = {}, hashes = {};
+      const workspaceRoot = path.dirname(assetRoot);
+      const targets = await listWorkspaceReferenceTargets(workspaceRoot);
       for (const name of names) {
         const bytes = await fs.readFile(path.join(assetRoot, name)); hashes[name] = hash(bytes);
-        assets[name] = { mime: "image/jpeg", base64: bytes.toString("base64") };
+        assets[path.relative(workspaceRoot, path.join(assetRoot, name)).split(path.sep).join("/")] = { mime: "image/jpeg", base64: bytes.toString("base64") };
       }
-      await call("realAssets", assets);
+      await call("realWorkspace", { sourcePath: path.relative(workspaceRoot, notePath).split(path.sep).join("/"), targets, assets });
       window.setContentSize(1100, 760);
       await call("configure", { documentPath: "read-only-real-note.md", value: content, failed: false, revision: 2, second: false }); await wait(700);
       await call("setScrollTop", 0); await wait(300);
+      const decodedImages = [];
       for (const passName of ["first", "second"]) {
         const pass = await wheelToEnd(); await fs.writeFile(path.join(directory, `real-note-${passName}.json`), JSON.stringify(pass));
+        for (const name of names) {
+          const image = pass.decodedImages.find(image => image.alt === name);
+          assert(image && image.naturalWidth > 0 && image.naturalHeight > 0 && image.width > 0 && image.height > 0,
+            `Workspace image did not decode and render on ${passName} pass: ${name}`);
+        }
+        decodedImages.push(...pass.decodedImages);
         assert(pass.maxBackward <= 2 && pass.maxHeightDrop <= 8, `Real note ${passName} reversed ${pass.maxBackward}px; height dropped ${pass.maxHeightDrop}px`);
         if (passName === "first") { await call("setScrollTop", 0); await wait(600); }
       }
       assert.equal(hash(await fs.readFile(notePath)), hash(original), "Original note was changed");
       for (const name of names) assert.equal(hash(await fs.readFile(path.join(assetRoot, name))), hashes[name], "Original asset was changed");
-      return { noteSha256: hash(original), assets: hashes, noteReadOnly: true };
+      const requestedPaths = await call("workspaceAssetPaths");
+      for (const asset of Object.keys(assets)) assert(requestedPaths.includes(asset), `Workspace did not resolve ${asset}`);
+      return { noteSha256: hash(original), assets: hashes, noteReadOnly: true, workspaceMetadataCount: targets.length, requestedPaths, decodedImages };
     });
     await fs.writeFile(path.join(directory, "final.png"), (await window.webContents.capturePage()).toPNG());
-  } catch (error) { failures.push(error.stack); }
+  } catch (error) {
+    failures.push(error.stack);
+    if (window && !window.isDestroyed()) {
+      await fs.writeFile(path.join(directory, "failure.png"), (await window.webContents.capturePage()).toPNG());
+      await fs.writeFile(path.join(directory, "failure-dom.json"), JSON.stringify(await evaluate(`({
+        readyState: document.readyState, fixture: !!window.scrollFixture,
+        editorCount: document.querySelectorAll('.cm-editor').length,
+        readiness: [...document.querySelectorAll('[data-preview-state]')].map(el => ({ state: el.dataset.previewState, tag: el.tagName })),
+        body: document.body.innerText.slice(0, 1000)
+      })`), null, 2));
+    }
+  }
   finally {
     const sourceAfter = await readSourceIdentity(root);
     if (source?.fingerprint !== sourceAfter.fingerprint) failures.push("Source changed during scroll stability verification");
-    await fs.writeFile(path.join(directory, "result.json"), JSON.stringify({ passed: !failures.length, source, sourceAfter, system: { electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform }, results, failures }, null, 2));
+    await fs.writeFile(path.join(directory, "result.json"), JSON.stringify({ passed: !failures.length, source, sourceAfter, system: { electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform }, results, failures, rendererDiagnostics }, null, 2));
     console.log(`SCROLL_STABILITY_ARTIFACTS ${directory}`);
     for (const failure of failures) console.error(failure);
     window?.destroy(); await vite?.close(); await fs.rm(temporary, { recursive: true, force: true }); app.exit(failures.length ? 1 : 0);

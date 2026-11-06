@@ -140,6 +140,14 @@ export function createWorkbenchDataService(
   };
 
   const dataPort: DataPort = {
+    listReferenceTargets: async (options) => {
+      const targets = await Promise.all(workbench.folders.map(async (folder) => {
+        const metadata = await requireProvider(folder).listReferenceTargets?.(options) ?? [];
+        return metadata.map((target) => ({ ...target, path: toResourcePath(folder, target.path) }));
+      }));
+      options?.signal?.throwIfAborted();
+      return targets.flat();
+    },
     listChildren: async (folderPath) => {
       if (folderPath === null) {
         if (workbench.folders.length === 1) {

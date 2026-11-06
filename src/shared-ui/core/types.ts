@@ -305,6 +305,9 @@ export type DataPort = {
   getCachedChildren?: (folderPath: string | null) => DataNode[] | undefined;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;
+  /** Complete filename metadata for link resolution, without loading previews
+   * or expanding the Explorer. Reject rather than return a truncated index. */
+  listReferenceTargets?: (options?: DataReadOptions) => Promise<readonly Pick<DataNode, "path" | "name">[]>;
   readFile?: (path: string, options?: DataReadOptions) => Promise<FileContent>;
   getFileUrl?: (path: string, options?: DataFileUrlOptions) => string | Promise<string>;
   revokeFileUrl?: (url: string) => void | Promise<void>;
