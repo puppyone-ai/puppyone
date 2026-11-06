@@ -123,6 +123,8 @@
   background: transparent;
   color: var(--agent-text-muted);
   font: inherit;
+  font-size: var(--agent-font-size-meta);
+  line-height: var(--agent-meta-line-height);
   text-align: start;
 }
 .desktop-agent-tool-row:not(:disabled) { cursor: var(--po-clickable-cursor, default); }
@@ -133,10 +135,8 @@
 .desktop-agent-tool-fold-row {
   width: fit-content;
   max-width: 100%;
-  font-size: var(--agent-font-size-meta);
-  line-height: var(--agent-meta-line-height);
 }
-.desktop-agent-tool-fold-row :is(.desktop-agent-tool-name, .desktop-agent-tool-summary, .desktop-agent-tool-subject-code) {
+.desktop-agent-tool-row :is(.desktop-agent-tool-name, .desktop-agent-tool-summary, .desktop-agent-tool-subject-code) {
   font-size: inherit;
 }
 .desktop-agent-tool-live-summary { align-items: center; gap: 6px; }
