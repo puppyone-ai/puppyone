@@ -504,9 +504,13 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
 }
 /// How soon after a change a frame still shows the motion's early part.
 const MOTION_EARLY: std::time::Duration = std::time::Duration::from_millis(40);
-/// The shell's Explorer entity.
+/// The shell's Explorer view.
 fn explorer_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<Explorer> {
     view.read_with(cx, |s, _| s.explorer.clone())
+}
+/// The shell's Explorer session (the tree, selection and clipboard).
+fn session_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<ExplorerSession> {
+    view.read_with(cx, |s, _| s.explorer_session.clone())
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|w, cx| {
@@ -518,15 +522,16 @@ fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
     use explorer::{MenuAt, RowTrigger};
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
-    let (index, path) = explorer.read_with(cx, |e, _| {
+    let session = session_of(&view, cx);
+    let (index, path) = session.read_with(cx, |e, _| {
         let index = e.tree().rows.iter().position(|r| !r.folder).unwrap();
         (index, e.tree().rows[index].path.clone())
     });
     // "⋮" leaves the selection alone and lights its own trigger.
     explorer.update(cx, |e, cx| {
-        let before = e.tree().selected.clone();
+        let before = session.read(cx).tree().selected.clone();
         e.open_node_menu(index, MenuAt::Row(path.clone(), RowTrigger::More), cx);
-        assert_eq!(e.tree().selected, before);
+        assert_eq!(session.read(cx).tree().selected, before);
         let menu = e.menu().unwrap();
         assert_eq!(menu.row_trigger(&path), Some(RowTrigger::More));
     });
@@ -537,8 +542,9 @@ fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
     // A right click selects the row and pins the menu at the pointer.
     explorer.update(cx, |e, cx| {
         e.open_node_menu(index, MenuAt::Pointer(point(px(100.), px(100.))), cx);
-        assert_eq!(e.tree().selected, path);
-        assert!(e.tree().selection.contains(&path));
+        let tree = session.read(cx).tree();
+        assert_eq!(tree.selected, path);
+        assert!(tree.selection.contains(&path));
     });
     draw(cx);
     cx.simulate_keystrokes("escape");
@@ -548,22 +554,23 @@ fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
 fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
-    explorer.update_in(cx, |e, w, cx| {
+    let session = session_of(&view, cx);
+    session.update(cx, |e, cx| {
         let first = e.tree().rows[0].path.clone();
-        e.tree_mut().select(&first, false, false);
-        e.focus_handle(cx).focus(w, cx);
+        e.select(&first, false, false, cx);
     });
+    explorer.update_in(cx, |e, w, cx| e.focus_handle(cx).focus(w, cx));
     draw(cx);
     cx.simulate_keystrokes("down");
-    explorer.read_with(cx, |e, _| {
+    session.read_with(cx, |e, _| {
         assert_eq!(e.tree().selected, e.tree().rows[1].path)
     });
     cx.simulate_keystrokes("end");
-    explorer.read_with(cx, |e, _| {
+    session.read_with(cx, |e, _| {
         assert_eq!(e.tree().selected, e.tree().rows.last().unwrap().path)
     });
     cx.simulate_keystrokes("secondary-x");
-    explorer.read_with(cx, |e, _| {
+    session.read_with(cx, |e, _| {
         let selected = e.tree().selected.clone();
         assert_eq!(
             e.clipboard(),
@@ -575,7 +582,7 @@ fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppConte
 fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        let path = s.explorer.read(cx).tree().rows[0].path.clone();
+        let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
         s.begin_rename(path, false, w, cx);
     });
     draw(cx);
@@ -590,7 +597,7 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
 fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        let path = s.explorer.read(cx).tree().rows[0].path.clone();
+        let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
         s.begin_rename(path, false, w, cx);
     });
     draw(cx);
@@ -712,17 +719,19 @@ fn locale_changes_catalog_without_document_work(cx: &mut TestAppContext) {
 fn folder_selection_expands_tree_without_resetting_to_editor(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
-    let path = explorer.update(cx, |e, cx| {
+    let session = session_of(&view, cx);
+    let (index, path, before) = session.read_with(cx, |e, _| {
         let index = e.tree().rows.iter().position(|r| r.folder).unwrap();
-        let path = e.tree().rows[index].path.clone();
-        let before = e.tree().rows[index].expanded;
-        e.open_row(index, cx);
+        let row = &e.tree().rows[index];
+        (index, row.path.clone(), row.expanded)
+    });
+    explorer.update(cx, |e, cx| e.open_row(index, cx));
+    session.update(cx, |e, _| {
         assert_eq!(e.tree().selected, path);
         assert_eq!(e.tree_mut().find_mut(&path).unwrap().expanded, !before);
-        path
     });
     view.update_in(cx, |s, w, cx| s.receive(w, cx));
-    explorer.read_with(cx, |e, _| assert_eq!(e.tree().selected, path));
+    session.read_with(cx, |e, _| assert_eq!(e.tree().selected, path));
 }
 #[gpui::test]
 fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
@@ -733,7 +742,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
     std::fs::write(temp.path().join("unrelated.md"), "# Other\n").unwrap();
     let (view, cx) = setup(cx);
-    let explorer = explorer_of(&view, cx);
+    let explorer = session_of(&view, cx);
     // Real workers answer: pump the shell (and its frames, where the
     // Explorer hears about the documents) until `done`.
     let settle = |cx: &mut VisualTestContext, done: &dyn Fn(&Shell, &App) -> bool| {
@@ -752,7 +761,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     let root = temp.path().to_path_buf();
     view.update(cx, |s, _| s.files.begin(Intent::OpenFolder(root), &s.wake));
     settle(cx, &|s, cx| {
-        s.explorer
+        s.explorer_session
             .read(cx)
             .tree()
             .index_of(Path::new("notes.md"))
@@ -797,7 +806,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
         e.rename("notes.md".into(), "renamed.md".into(), cx)
     });
     settle(cx, &|s, cx| {
-        !s.explorer.read(cx).busy()
+        !s.explorer_session.read(cx).busy()
             && s.files.slot(slot).is_some_and(|f| {
                 f.opened()
                     .is_some_and(|(_, p)| p == Path::new("renamed.md"))
@@ -836,7 +845,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
 fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
-    explorer.update(cx, |e, cx| {
+    session_of(&view, cx).update(cx, |e, cx| {
         e.tree_mut().rows = (0..100_000)
             .map(|i| crate::model::Row {
                 path: format!("{i}.txt").into(),
@@ -878,7 +887,7 @@ fn sidebar_tree_fade_follows_use_scroll_edge_state() {
 #[gpui::test]
 fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    let explorer = explorer_of(&view, cx);
+    let explorer = session_of(&view, cx);
     explorer.update(cx, |e, cx| {
         e.tree_mut().rows = (0..500)
             .map(|i| crate::model::Row {
@@ -898,7 +907,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    let fade = |explorer: &Entity<Explorer>, cx: &mut VisualTestContext| {
+    let fade = |explorer: &Entity<ExplorerSession>, cx: &mut VisualTestContext| {
         explorer.read_with(cx, |e, _| {
             let state = e.scroll().0.borrow();
             explorer::bottom_fade(
@@ -946,8 +955,9 @@ fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
 fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
     // A collapsed fixture folder whose children are already loaded.
-    let folder = explorer.read_with(cx, |e, _| {
+    let folder = session.read_with(cx, |e, _| {
         e.tree()
             .rows
             .iter()
@@ -955,7 +965,7 @@ fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppC
             .unwrap()
     });
     let started = std::time::Instant::now();
-    explorer.update(cx, |e, cx| {
+    session.update(cx, |e, cx| {
         let path = e.tree().rows[folder].path.clone();
         assert!(!e.tree_mut().toggle(&path));
         cx.notify();
@@ -971,7 +981,7 @@ fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppC
     }
     // With reduced motion the same disclosure lands at once.
     cx.update(|_, cx| cx.set_reduce_motion(true));
-    explorer.update(cx, |e, cx| {
+    session.update(cx, |e, cx| {
         let path = e.tree().rows[folder].path.clone();
         e.tree_mut().toggle(&path);
         cx.notify();
@@ -1435,7 +1445,7 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
     settle(&view, cx, |s, _| s.files.state().is_some());
     view.update(cx, |s, _| s.files.load_children("dir".into(), &s.wake));
     settle(&view, cx, |s, cx| {
-        s.explorer
+        s.explorer_session
             .read(cx)
             .tree()
             .rows
@@ -1468,11 +1478,11 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("dir/Target.md"))
     });
-    let explorer = view.read_with(cx, |s, _| s.explorer.clone());
+    let explorer = view.read_with(cx, |s, _| s.explorer_session.clone());
     explorer.update(cx, |e, cx| e.rename("dir".into(), "moved".into(), cx));
     settle(&view, cx, |s, cx| {
         !s.files.busy()
-            && !s.explorer.read(cx).busy()
+            && !s.explorer_session.read(cx).busy()
             && path(&csv, cx, 1).as_deref() == Some("moved/Target.md")
     });
     assert!(first.path().join("moved/table.csv").exists());
@@ -2690,7 +2700,7 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
     while view.read_with(vcx, |s, cx| {
         s.workspace_root().is_none()
             || !s
-                .explorer
+                .explorer_session
                 .read(cx)
                 .tree()
                 .is_folder(std::path::Path::new("docs"))
@@ -3586,11 +3596,11 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     });
     let explorer = explorer_of(&view, cx);
     settle_cloud(&view, cx, "the rows", &|s, cx| {
-        let rows = &s.explorer.read(cx).tree().rows;
+        let rows = &s.explorer_session.read(cx).tree().rows;
         rows.iter().any(|r| r.folder) && rows.iter().any(|r| !r.folder)
     });
     let share = crate::localization::t("workspace.node.shareWith").to_owned();
-    let (folder, file, path) = explorer.read_with(cx, |e, _| {
+    let (folder, file, path) = session_of(&view, cx).read_with(cx, |e, _| {
         let rows = &e.tree().rows;
         let folder = rows.iter().position(|r| r.folder).unwrap();
         (

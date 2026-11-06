@@ -1,18 +1,20 @@
 //! Native Explorer: port of `shared-ui/data/ExplorerTree.tsx` with the row
 //! actions and menus of `data-workspace/nodeActions.tsx`.
 //!
-//! The Explorer is its own entity. It owns the workspace tree it shows, the
-//! selection, the file clipboard, its menus, file operations and the
-//! disclosure motion. The shell tells it where it is painted and what the
-//! documents are doing ([`Host`]), hands it folder listings, and acts on what
-//! it asks for ([`ExplorerEvent`]): open a file, read a folder, prepare retained
-//! documents for a resource operation, show the create or rename dialog,
-//! show a notice.
+//! Two entities. [`ExplorerSession`] is the model: the project's tree,
+//! selection, clipboard, running operation, directory subscription and pins,
+//! kept per project. [`Explorer`] is the view: it paints the session, holds
+//! what only the view has (focus, the open menu, the disclosure motion, what
+//! the shell shows it in [`Host`]), and turns pointer and keys into the
+//! session's commands. The shell hands the session listings and outcomes,
+//! hands the view its host when it changes, and acts on what each asks for
+//! ([`SessionEvent`], [`ExplorerEvent`]).
 //!
+//! - [`session`]: the model
 //! - [`rows`]: tree rows and the list-end "New" row, built from
 //!   [`SidebarRow`](crate::ui::components::SidebarRow)
 //! - [`menus`]: the create and node-action menus on GPUI Kit popovers
-//! - [`file_ops`]: rename, move, copy, import and delete on a worker
+//! - [`pins`]: the pinned files above the tree
 //! - [`keyboard`]: Explorer key bindings
 //! - [`motion`]: the disclosure motion
 use crate::{
@@ -25,30 +27,25 @@ use crate::{
     },
     geometry::Rect,
     localization::t as tr,
-    model::{Node, Tree, Visibility},
     theme::{self, Theme, metric},
     ui::appearance::ActiveAppearance,
-    workspace::Workspace,
 };
 use gpui::{prelude::*, *};
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
-mod file_ops;
 mod keyboard;
 mod menus;
 mod motion;
 mod pins;
 mod rows;
+mod session;
 
-pub(super) use file_ops::FileClipboard;
-use file_ops::FileOp;
 pub use keyboard::bind_keys;
 use menus::ExplorerMenu;
 pub(super) use menus::{MenuAt, RowTrigger};
 pub(in crate::shell) use rows::DragNodes;
+use session::FileOp;
+pub(in crate::shell) use session::{Activation, ExplorerSession, FileClipboard, SessionEvent};
 
 /// What the Explorer reads from the shell, pushed when it changes.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -102,19 +99,11 @@ impl PaintedPreferences {
     }
 }
 
-/// What the Explorer asks of the shell.
+/// What the person asked of the shell through the Explorer.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::shell) enum ExplorerEvent {
-    /// Background revalidation changed the metadata used by document links.
-    ReferencesChanged,
     /// Open a workspace file in the editor.
     Open(PathBuf),
-    /// Read a folder's children; they come back through
-    /// [`Explorer::children_loaded`].
-    LoadChildren(PathBuf),
-    /// The workbench drains and rebinds affected Working Copies without
-    /// replacing their editor entities.
-    ResourceOperation(FileOp),
     /// The create form for `entry` in `parent`.
     Create { entry: Entry, parent: PathBuf },
     /// The rename (or change file type) dialog for `path`.
@@ -123,48 +112,23 @@ pub(in crate::shell) enum ExplorerEvent {
     CopyLink { path: PathBuf, folder: bool },
     /// "Share with…" on a folder: the share starts from `path`.
     Share { path: PathBuf },
-    /// The directory subscription failed (`service.watch`'s failure): the
-    /// workspace notice offers Retry.
-    WatchFailed(String),
-    /// A later change arrived: the subscription works again.
-    WatchRecovered,
-    /// The working tree changed under the granted root (the root watcher's
-    /// invalidation, `.git` internals excluded): repository status is stale.
-    ContentChanged,
     /// A notice.
     Error(String),
 }
 
 pub(in crate::shell) struct Explorer {
-    tree: Tree,
-    /// The workspace the tree lists (`None` before a folder opens).
-    workspace: Option<Arc<Workspace>>,
-    /// Showing the built-in fixture rows (visual captures and tests).
-    fixture: bool,
+    session: Entity<ExplorerSession>,
     preferences: Entity<PreferencesStore>,
     /// The window whose terminals' Agent file activity rows show.
     presence_owner: String,
     host: Host,
     weak: WeakEntity<Self>,
     focus: FocusHandle,
-    scroll: UniformListScrollHandle,
-    clipboard: Option<FileClipboard>,
     /// The open create or node-action menu.
     menu: Option<ExplorerMenu>,
-    /// The running file operation.
-    op: bool,
-    /// The running operation reports its failure above the tree
-    /// (`DataWorkspace` import and move), not in a dialog.
-    op_inline: bool,
-    /// `operationError`: a failed import or move, shown above the tree;
-    /// folder load failures stay on their own rows.
-    operation_error: Option<SharedString>,
-    /// Directory subscription of the shown workspace (dropped on switch).
-    watch: Option<(crate::workspace::Subscription, Task<()>)>,
-    retained: std::collections::BTreeMap<String, RetainedExplorer>,
-    refresh: Option<Task<()>>,
-    references:
-        std::collections::BTreeMap<String, (u64, Arc<crate::editor::navigation::ReferenceIndex>)>,
+    /// The tree the view last showed: a new one (another project) closes
+    /// the menu.
+    shown_tree: u64,
     /// The disclosure motion of the visible rows.
     motion: motion::TreeMotion,
     #[cfg(test)]
@@ -172,12 +136,6 @@ pub(in crate::shell) struct Explorer {
     /// Times the Explorer rendered (it is a cached view in the shell).
     #[cfg(test)]
     pub renders: usize,
-}
-struct RetainedExplorer {
-    tree: Tree,
-    scroll: UniformListScrollHandle,
-    clipboard: Option<FileClipboard>,
-    op: bool,
 }
 impl EventEmitter<ExplorerEvent> for Explorer {}
 impl Focusable for Explorer {
@@ -191,125 +149,52 @@ fn parent_of(path: &Path) -> PathBuf {
 }
 
 impl Explorer {
-    /// An empty Explorer, or the fixture rows for captures and tests.
+    /// The view of `session`.
     pub fn new(
-        fixture: bool,
+        session: Entity<ExplorerSession>,
         preferences: Entity<PreferencesStore>,
         cx: &mut Context<Self>,
     ) -> Self {
-        // Only the preferences it paints and acts with render it again:
-        // hidden files and exclude patterns also refilter the tree.
+        // Only the preferences it paints and acts with render it again.
         observe_slice(
             &preferences,
             PaintedPreferences::of,
-            |s: &mut Self, _, cx| {
-                s.apply_visibility(cx);
-                cx.notify();
-            },
+            |_: &mut Self, _, cx| cx.notify(),
             cx,
         )
+        .detach();
+        cx.observe(&session, |s, session, cx| {
+            let tree = session.read(cx).tree().id;
+            if std::mem::replace(&mut s.shown_tree, tree) != tree {
+                s.menu = None;
+            }
+            cx.notify()
+        })
         .detach();
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
         }
-        let mut explorer = Self {
-            tree: if fixture {
-                Tree::fixture()
-            } else {
-                Tree::new()
-            },
-            workspace: None,
-            fixture,
+        let shown_tree = session.read(cx).tree().id;
+        Self {
+            session,
             preferences,
             presence_owner: String::new(),
             host: Host::default(),
             weak: cx.weak_entity(),
             focus: cx.focus_handle(),
-            scroll: UniformListScrollHandle::new(),
-            clipboard: None,
             menu: None,
-            op: false,
-            op_inline: false,
-            operation_error: None,
-            watch: None,
-            retained: Default::default(),
-            refresh: None,
-            references: Default::default(),
+            shown_tree,
             motion: motion::TreeMotion::default(),
             #[cfg(test)]
             painted_rows: 0,
             #[cfg(test)]
             renders: 0,
-        };
-        explorer.apply_visibility(cx);
-        explorer
+        }
     }
     /// The owner window (`agent_presence::owner`).
     pub fn with_presence_owner(mut self, owner: String) -> Self {
         self.presence_owner = owner;
         self
-    }
-    fn apply_visibility(&mut self, cx: &mut Context<Self>) {
-        let files = &self.preferences.read(cx).state.files;
-        let visibility = Visibility {
-            show_hidden: files.show_hidden_files,
-            patterns: files.exclude_patterns.clone(),
-        };
-        if self.tree.visibility != visibility {
-            self.tree.visibility = visibility;
-            self.tree.rebuild();
-            cx.notify();
-        }
-    }
-
-    // ---------------------------------------------------------- from the shell
-    /// Metadata uses every hydrated node, including collapsed descendants.
-    /// Retained editors resolve against their owner, never the active project.
-    pub fn reference_context(
-        &mut self,
-        workspace: &Workspace,
-        path: &Path,
-    ) -> Option<crate::editor::navigation::ReferenceContext> {
-        use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
-        let key = |workspace: &Workspace| {
-            crate::editor::workbench::catalog::resource_key(
-                &workspace
-                    .resource_id(Path::new(""))
-                    .expect("workspace root"),
-            )
-        };
-        let owner = key(workspace);
-        let tree = if self.workspace.as_ref().is_some_and(|ws| key(ws) == owner) {
-            &self.tree
-        } else {
-            &self.retained.get(&owner)?.tree
-        };
-        let cached = self.references.get(&owner);
-        if cached.is_none_or(|(revision, _)| *revision != tree.revision) {
-            fn collect(nodes: &[Node], out: &mut Vec<Document>) {
-                for node in nodes {
-                    if !node.folder {
-                        out.push(Document {
-                            path: node.path.to_string_lossy().into_owned(),
-                            name: node.name.clone(),
-                        });
-                    }
-                    collect(&node.children, out);
-                }
-            }
-            let mut documents = Vec::new();
-            collect(&tree.roots, &mut documents);
-            let index = cached
-                .filter(|(_, index)| index.matches(&documents))
-                .map(|(_, index)| index.clone())
-                .unwrap_or_else(|| Arc::new(ReferenceIndex::new(documents)));
-            self.references
-                .insert(owner.clone(), (tree.revision, index));
-        }
-        Some(ReferenceContext {
-            source: path.to_string_lossy().into_owned(),
-            index: self.references[&owner].1.clone(),
-        })
     }
     /// What the shell holds that the Explorer shows: pushed when it changes
     /// (a document opens, a pane opens or closes, the window resizes), not
@@ -325,235 +210,17 @@ impl Explorer {
     /// cached view renders again only when notified).
     fn advance_motion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let animate = self.host.open && !cx.reduce_motion();
+        let tree = self.session.read(cx).tree();
         let moving = self.motion.sync(
-            self.tree.id,
-            self.tree.revision,
-            &self.tree.rows,
+            tree.id,
+            tree.revision,
+            &tree.rows,
             theme::sidebar_stride(),
             animate,
         );
         if moving {
             window.request_animation_frame();
         }
-    }
-    /// Restore the workspace's Explorer session, then revalidate its listings.
-    pub fn load_workspace(
-        &mut self,
-        workspace: Arc<Workspace>,
-        roots: Vec<Node>,
-        cx: &mut Context<Self>,
-    ) {
-        let key = |ws: &Workspace| {
-            crate::editor::workbench::catalog::resource_key(
-                &ws.resource_id(Path::new("")).expect("workspace root"),
-            )
-        };
-        let next = key(&workspace);
-        if let Some(current) = self.workspace.clone()
-            && key(&current) == next
-        {
-            // The same storage under a new lease: keep the tree, bind it to
-            // the new provider and revalidate what is loaded.
-            if !Arc::ptr_eq(&current, &workspace) {
-                self.workspace = Some(workspace.clone());
-                self.watch = None;
-                if !self.fixture || cfg!(test) {
-                    self.subscribe_tree(&workspace, cx);
-                }
-                self.refresh_loaded_folders(cx);
-                cx.notify();
-            }
-            return;
-        }
-        let visibility = self.tree.visibility.clone();
-        // The banner belongs to the project whose operation failed.
-        self.operation_error = None;
-        self.op_inline = false;
-        let empty = RetainedExplorer {
-            tree: Tree {
-                roots,
-                visibility,
-                ..Tree::new()
-            },
-            scroll: UniformListScrollHandle::new(),
-            clipboard: None,
-            op: false,
-        };
-        let cached = self.retained.remove(&next);
-        let revalidate = cached.is_some();
-        let restored = cached.unwrap_or(empty);
-        self.refresh = None;
-        let previous = RetainedExplorer {
-            tree: std::mem::replace(&mut self.tree, restored.tree),
-            scroll: std::mem::replace(&mut self.scroll, restored.scroll),
-            clipboard: std::mem::replace(&mut self.clipboard, restored.clipboard),
-            op: std::mem::replace(&mut self.op, restored.op),
-        };
-        self.watch = None;
-        if !self.fixture || cfg!(test) {
-            self.subscribe_tree(&workspace, cx);
-        }
-        if let Some(old) = self.workspace.replace(workspace) {
-            self.retained.insert(key(&old), previous);
-        }
-        self.tree.rebuild();
-        self.apply_visibility(cx);
-        self.fixture = false;
-        self.menu = None;
-        if revalidate {
-            self.refresh_loaded_folders(cx);
-        }
-        cx.notify();
-    }
-    /// Directory subscription: external changes (Agents, terminals, other
-    /// apps) reread the loaded folders; one reset per coalesced burst.
-    fn subscribe_tree(&mut self, workspace: &Arc<Workspace>, cx: &mut Context<Self>) {
-        let (tx, rx) = async_channel::bounded::<()>(1);
-        let notify: crate::workspace::ports::Notify = Arc::new(move || {
-            let _ = tx.try_send(());
-        });
-        let Ok(subscription) = workspace.watch_root(notify) else {
-            return;
-        };
-        let task = cx.spawn(async move |this, cx| {
-            while rx.recv().await.is_ok() {
-                let alive = this.update(cx, |s, cx| {
-                    use crate::workspace::ports::WatchEvent;
-                    match s.watch.as_ref().and_then(|(sub, _)| sub.next()) {
-                        Some(WatchEvent::Invalidated) => {
-                            cx.emit(ExplorerEvent::WatchRecovered);
-                            cx.emit(ExplorerEvent::ContentChanged);
-                            if !s.op {
-                                s.refresh_loaded_folders(cx);
-                            }
-                        }
-                        Some(WatchEvent::Failed(error)) => {
-                            cx.emit(ExplorerEvent::WatchFailed(error.to_string()))
-                        }
-                        None => {}
-                    }
-                });
-                if alive.is_err() {
-                    break;
-                }
-            }
-        });
-        self.watch = Some((subscription, task));
-    }
-    /// Retry after a failed subscription: subscribe again and reread what is
-    /// loaded.
-    pub fn resubscribe(&mut self, cx: &mut Context<Self>) {
-        let Some(workspace) = self.workspace.clone() else {
-            return;
-        };
-        self.watch = None;
-        self.subscribe_tree(&workspace, cx);
-        self.refresh_loaded_folders(cx);
-    }
-    /// A Cloud publication: reread what is loaded (`onPublication`).
-    pub fn refresh_published(&mut self, cx: &mut Context<Self>) {
-        self.refresh_loaded_folders(cx);
-    }
-    fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
-        let Some(workspace) = self.workspace.clone() else {
-            return;
-        };
-        let tree_id = self.tree.id;
-        let paths = self.tree.loaded_folders();
-        let read = cx.background_executor().spawn(async move {
-            paths
-                .into_iter()
-                .map(|path| {
-                    let result = workspace.list(&path);
-                    (path, result)
-                })
-                .collect::<Vec<_>>()
-        });
-        self.refresh = Some(cx.spawn(async move |this, cx| {
-            let listings = read.await;
-            let _ = this.update(cx, |s, cx| {
-                if s.tree.id != tree_id {
-                    return;
-                }
-                for (path, listing) in listings {
-                    match listing {
-                        Ok(nodes) => s.tree.refresh_children(&path, nodes),
-                        Err(error) if path.as_os_str().is_empty() => {
-                            cx.emit(ExplorerEvent::Error(error.to_string()))
-                        }
-                        Err(error) => {
-                            if let Some(node) = s.tree.find_mut(&path) {
-                                node.error = Some(error.to_string());
-                            }
-                        }
-                    }
-                }
-                s.tree.rebuild();
-                cx.emit(ExplorerEvent::ReferencesChanged);
-                cx.notify();
-            });
-        }));
-    }
-    /// A folder's listing came back ([`ExplorerEvent::LoadChildren`]).
-    pub fn children_loaded(
-        &mut self,
-        path: &Path,
-        children: crate::workspace::Result<Vec<Node>>,
-        cx: &mut Context<Self>,
-    ) {
-        match children {
-            // The root reread of `retry_root`.
-            Ok(nodes) if path.as_os_str().is_empty() => self.tree.refresh_children(path, nodes),
-            Err(error) if path.as_os_str().is_empty() => {
-                self.operation_error = Some(error.to_string().into())
-            }
-            Ok(nodes) => self.tree.attach_children(path, nodes),
-            Err(error) => self.tree.fail_children(path, error.to_string()),
-        }
-        cx.notify();
-    }
-    /// The editor opened `path`: the selection follows it.
-    pub fn reveal(&mut self, path: &Path, cx: &mut Context<Self>) {
-        let mut changed = false;
-        for parent in path.ancestors().skip(1) {
-            if let Some(node) = self.tree.find_mut(parent)
-                && node.folder
-                && node.loaded
-                && !node.expanded
-            {
-                node.expanded = true;
-                changed = true;
-            }
-        }
-        if changed {
-            self.tree.rebuild();
-        }
-        self.tree.selected = path.to_path_buf();
-        cx.notify();
-    }
-    /// The create form made `path` in `parent`; `listing` is the parent's
-    /// fresh listing (`None` when it could not be read). The new entry is
-    /// selected either way.
-    pub fn entry_created(
-        &mut self,
-        parent: &Path,
-        listing: Option<Vec<Node>>,
-        path: &Path,
-        cx: &mut Context<Self>,
-    ) {
-        match listing {
-            Some(nodes) if parent.as_os_str().is_empty() => {
-                self.tree.refresh_children(parent, nodes)
-            }
-            Some(nodes) => self.tree.attach_children(parent, nodes),
-            None => {}
-        }
-        self.tree.select(path, false, false);
-        cx.notify();
-    }
-    /// The rename dialog's answer.
-    pub fn rename(&mut self, path: PathBuf, name: String, cx: &mut Context<Self>) {
-        self.run_op(FileOp::Rename { path, name }, cx);
     }
     /// Closes the open menu; `false` when none was open.
     pub fn dismiss_menu(&mut self, cx: &mut Context<Self>) -> bool {
@@ -563,90 +230,65 @@ impl Explorer {
         }
         open
     }
-    /// A file operation is running.
-    pub fn busy(&self) -> bool {
-        self.op
-    }
-    #[cfg(any(test, feature = "dev-capture"))]
-    pub fn tree(&self) -> &Tree {
-        &self.tree
-    }
-    /// The listed entry at `path` is a folder.
-    pub fn is_folder(&self, path: &std::path::Path) -> bool {
-        self.tree.is_folder(path)
-    }
-
-    // ------------------------------------------------------------------ rows
     /// `onActivate`: a folder opens or closes, a file opens in the editor.
     /// Nothing opens while the documents or the folder picker are busy.
     pub fn open_row(&mut self, index: usize, cx: &mut Context<Self>) {
-        if self.host.picking || self.host.documents_busy || self.host.folder_busy {
+        let host = self.host.clone();
+        let activated = self
+            .session
+            .update(cx, |s, cx| s.activate(index, &host, cx));
+        if let Some(Activation::File(path)) = activated {
+            cx.emit(ExplorerEvent::Open(path));
+        }
+    }
+    /// Delete asks first (`confirmDelete`), then runs on the session.
+    fn confirm_delete(&mut self, paths: Vec<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
+        use crate::localization::tf;
+        if paths.is_empty() {
             return;
         }
-        let Some(item) = self.tree.rows.get(index).cloned().filter(|r| !r.status) else {
-            return;
+        let message = if paths.len() == 1 {
+            tf(
+                "workspace.node.confirmDeleteOne",
+                &[(
+                    "name",
+                    paths[0]
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default()
+                        .into(),
+                )],
+            )
+        } else {
+            tf(
+                "workspace.node.confirmDeleteMany",
+                &[("count", paths.len().into())],
+            )
         };
-        self.tree.selected = item.path.clone();
-        if item.folder {
-            if self.tree.toggle(&item.path) {
-                cx.emit(ExplorerEvent::LoadChildren(item.path));
+        let delete = tf(
+            "workspace.node.deleteItems",
+            &[("count", paths.len().into())],
+        );
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            &message,
+            None,
+            &[delete.as_str(), tr("common.action.cancel")],
+            cx,
+        );
+        let session = self.session.downgrade();
+        cx.spawn_in(window, async move |_, cx| {
+            if answer.await == Ok(0) {
+                let _ = session.update(cx, |s, cx| s.run_op(FileOp::Delete(paths), cx));
             }
-        } else if !self.fixture {
-            cx.emit(ExplorerEvent::Open(item.path));
-        }
-        cx.notify();
-    }
-    /// The selected folder (Share's folder target), if a folder is selected.
-    pub(in crate::shell) fn selected_folder(&self) -> Option<PathBuf> {
-        let selected = &self.tree.selected;
-        if selected.as_os_str().is_empty() {
-            return None;
-        }
-        self.tree
-            .rows
-            .iter()
-            .find(|r| &r.path == selected && r.folder)
-            .map(|r| r.path.clone())
-    }
-    /// `onRetryFolder`: read a failed folder again.
-    pub fn retry_folder(&mut self, path: &Path, cx: &mut Context<Self>) {
-        if self.tree.retry_folder(path) {
-            cx.emit(ExplorerEvent::LoadChildren(path.to_owned()));
-        }
-        cx.notify();
-    }
-    /// Expands or collapses `path`, reading it first if it never was.
-    pub fn set_expanded(&mut self, path: &Path, expanded: bool, cx: &mut Context<Self>) {
-        if self.tree.set_expanded(path, expanded) {
-            cx.emit(ExplorerEvent::LoadChildren(path.to_owned()));
-        }
-        cx.notify();
+        })
+        .detach();
     }
 }
 
-/// Dev-capture scenario steps (`PUPPYONE_CAPTURE_SCENARIO`); `false` while
-/// a step cannot run yet.
+/// Dev-capture scenario steps (`PUPPYONE_CAPTURE_SCENARIO`).
 #[cfg(feature = "dev-capture")]
 impl Explorer {
-    pub fn capture_select(&mut self, path: &Path, cx: &mut Context<Self>) -> bool {
-        if self.tree.index_of(path).is_none() {
-            return false;
-        }
-        self.tree.select(path, false, false);
-        cx.notify();
-        true
-    }
-    /// Done once `path` shows expanded (its listing may still be loading).
-    pub fn capture_expand(&mut self, path: &Path, cx: &mut Context<Self>) -> bool {
-        let Some(index) = self.tree.index_of(path) else {
-            return false;
-        };
-        if self.tree.rows[index].expanded {
-            return true;
-        }
-        self.set_expanded(path, true, cx);
-        false
-    }
     /// The Custom files submenu opens without a hover.
     pub fn capture_open_submenu(&mut self, cx: &mut Context<Self>) {
         if let Some(menu) = &mut self.menu {
@@ -656,36 +298,28 @@ impl Explorer {
     }
     /// The tree row under a window point (rows stack from the list's 12px
     /// top padding, one stride each).
-    pub fn row_at(&self, position: Point<Pixels>) -> Option<usize> {
+    pub fn row_at(&self, position: Point<Pixels>, cx: &App) -> Option<usize> {
         let (x, y) = (f32::from(position.x), f32::from(position.y));
         let list = self.host.frame;
         if x < list.x || x >= list.right() {
             return None;
         }
-        let offset = f32::from(self.scroll.0.borrow().base_handle.offset().y);
+        let session = self.session.read(cx);
+        let offset = f32::from(session.scroll().0.borrow().base_handle.offset().y);
         let row = (y - list.y - 12. - offset) / theme::sidebar_stride();
         (row >= 0.)
             .then_some(row as usize)
-            .filter(|index| *index < self.tree.rows.len())
+            .filter(|index| *index < session.tree().rows.len())
     }
 }
 /// Tests look inside.
 #[cfg(test)]
 impl Explorer {
-    pub fn tree_mut(&mut self) -> &mut Tree {
-        &mut self.tree
-    }
     pub fn menu(&self) -> Option<&ExplorerMenu> {
         self.menu.as_ref()
     }
-    pub fn clipboard(&self) -> Option<&FileClipboard> {
-        self.clipboard.as_ref()
-    }
     pub fn motion(&self) -> &motion::TreeMotion {
         &self.motion
-    }
-    pub fn scroll(&self) -> &UniformListScrollHandle {
-        &self.scroll
     }
 }
 
@@ -700,11 +334,15 @@ impl Render for Explorer {
         }
         self.advance_motion(window, cx);
         let t = cx.palette();
-        let loading = self.tree.rows.is_empty() && (self.host.folder_busy || self.host.picking);
-        let empty = self.tree.rows.is_empty() && !loading && self.workspace.is_some();
-        let operation_error = self.operation_error.clone().filter(|_| !loading);
-        let count = self.tree.rows.len() + usize::from(self.workspace.is_some() || self.fixture);
-        let pins = self.pins(cx);
+        let session = self.session.read(cx);
+        let rows = session.tree().rows.len();
+        let listed = session.workspace().is_some();
+        let loading = rows == 0 && (self.host.folder_busy || self.host.picking);
+        let empty = rows == 0 && !loading && listed;
+        let operation_error = session.operation_error().cloned().filter(|_| !loading);
+        let count = rows + usize::from(listed || session.fixture());
+        let scroll = session.scroll().clone();
+        let pins = session.pins(cx);
         let pinned = !pins.files.is_empty();
         let folded = pinned && pins.files_collapsed;
         let tree = div()
@@ -723,21 +361,16 @@ impl Render for Explorer {
             .drag_over::<rows::DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
             .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
             .on_drop(cx.listener(|s, drag: &rows::DragNodes, _, cx| {
-                if !drag.belongs_to(&s.workspace) {
-                    return;
-                }
-                let paths: Vec<PathBuf> = drag
-                    .paths
-                    .iter()
-                    .filter(|p| !parent_of(p).as_os_str().is_empty())
-                    .cloned()
-                    .collect();
-                if !paths.is_empty() {
-                    s.run_op(FileOp::Move(paths, PathBuf::new()), cx)
-                }
+                s.session.update(cx, |session, cx| {
+                    if drag.belongs_to(&session.workspace().cloned()) {
+                        session.move_into(&drag.paths, Path::new(""), cx)
+                    }
+                })
             }))
             .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
-                s.run_op(FileOp::Import(paths.paths().to_vec(), PathBuf::new()), cx)
+                let import = FileOp::Import(paths.paths().to_vec(), PathBuf::new());
+                s.session
+                    .update(cx, |session, cx| session.run_op(import, cx))
             }))
             .child(
                 uniform_list(
@@ -761,7 +394,7 @@ impl Render for Explorer {
                 .pt(px(if pinned { 2. } else { 12. }))
                 .pb(px(6.))
                 .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
-                .track_scroll(&self.scroll),
+                .track_scroll(&scroll),
             );
         div()
             .size_full()
@@ -800,11 +433,11 @@ impl Render for Explorer {
                     .when(folded, |d| d.invisible()),
             )
             .when(theme::footer() > 0. && !folded, |d| {
-                d.child(self.tree_bottom_fade(t))
+                d.child(self.tree_bottom_fade(t, cx))
             })
             .child(crate::ui::scrollbar::vertical(
                 "explorer-scrollbar",
-                &self.scroll,
+                &scroll,
             ))
             .children(self.context_menu(cx))
     }
@@ -828,7 +461,7 @@ impl Explorer {
             .child(tr("common.action.retry"))
             .on_click(cx.listener(|s, _, _, cx| {
                 cx.stop_propagation();
-                s.retry_root(cx);
+                s.session.update(cx, |session, cx| session.retry_root(cx));
             }));
         let text = div().min_w_0().child(error);
         if empty {
@@ -871,8 +504,8 @@ impl Explorer {
     /// `.explorer-tree-shell::after` with the navigation at the bottom: while rows
     /// remain below the viewport the tree fades into the footer, which has no
     /// divider. Read at paint time so the fade follows every scroll frame.
-    fn tree_bottom_fade(&self, t: Theme) -> impl IntoElement {
-        let scroll = self.scroll.clone();
+    fn tree_bottom_fade(&self, t: Theme, cx: &App) -> impl IntoElement {
+        let scroll = self.session.read(cx).scroll().clone();
         let sidebar = t.sidebar;
         canvas(
             |_, _, _| {},

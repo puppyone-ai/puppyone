@@ -101,11 +101,7 @@ impl Explorer {
         at: MenuAt,
         cx: &mut Context<Self>,
     ) {
-        if !self
-            .workspace
-            .as_ref()
-            .is_some_and(|ws| ws.capabilities().create)
-        {
+        if !self.session.read(cx).capabilities().create {
             return;
         }
         self.menu = Some(ExplorerMenu {
@@ -124,19 +120,21 @@ impl Explorer {
         at: MenuAt,
         cx: &mut Context<Self>,
     ) {
-        let Some(row) = self.tree.rows.get(index).cloned() else {
+        let Some(row) = self.session.read(cx).tree().rows.get(index).cloned() else {
             return;
         };
         let select = matches!(at, MenuAt::Pointer(_));
-        let in_selection = self.tree.selection.contains(&row.path);
-        if select && !in_selection {
-            self.tree.select(&row.path, false, false);
-        }
-        let paths = if in_selection || select {
-            self.tree.selected_roots()
-        } else {
-            vec![row.path.clone()]
-        };
+        let paths = self.session.update(cx, |session, cx| {
+            let in_selection = session.tree().selection.contains(&row.path);
+            if select && !in_selection {
+                session.select(&row.path, false, false, cx);
+            }
+            if in_selection || select {
+                session.tree().selected_roots()
+            } else {
+                vec![row.path.clone()]
+            }
+        });
         self.menu = Some(ExplorerMenu {
             kind: MenuKind::Node {
                 paths,
@@ -247,14 +245,13 @@ impl Explorer {
                 };
                 let share = crate::features::flags::share_enabled(&self.preferences, cx);
                 // `showPin`: one file of a project.
-                let pinned = (paths.len() == 1 && !self.tree.is_folder(primary))
-                    .then(|| self.pins_key())
-                    .flatten()
-                    .map(|_| {
-                        self.pins(cx)
-                            .is_pinned(&primary.to_string_lossy().replace('\\', "/"))
-                    });
-                self.node_menu(paths.clone(), primary.clone(), create_at, share, pinned)
+                let session = self.session.read(cx);
+                let pinned = (paths.len() == 1 && session.pinnable(primary)).then(|| {
+                    session
+                        .pins(cx)
+                        .is_pinned(&primary.to_string_lossy().replace('\\', "/"))
+                });
+                self.node_menu(paths.clone(), primary.clone(), create_at, share, pinned, cx)
             }
         }
     }
@@ -361,6 +358,7 @@ impl Explorer {
         create_at: MenuAt,
         share: bool,
         pinned: Option<bool>,
+        cx: &App,
     ) -> MenuFill {
         let host = self.weak.clone();
         let act = move |f: Action| {
@@ -373,18 +371,13 @@ impl Explorer {
                 });
             }
         };
+        let session = self.session.read(cx);
         let count = paths.len();
         let single = count == 1;
-        let folder = self.tree.is_folder(&primary);
-        let capabilities = self
-            .workspace
-            .as_ref()
-            .map(|ws| ws.capabilities())
-            .unwrap_or_default();
-        let absolute = self
-            .workspace
-            .as_ref()
-            .and_then(|ws| ws.absolute(&primary).ok());
+        let folder = session.is_folder(&primary);
+        let capabilities = session.capabilities();
+        let workspace = session.workspace();
+        let absolute = workspace.and_then(|ws| ws.absolute(&primary).ok());
         // `None` is a separator.
         let mut rows: Vec<Option<MenuItem>> = vec![];
         if let Some(pinned) = pinned {
@@ -396,7 +389,10 @@ impl Explorer {
                     "workspace.node.pin"
                 }))
                 .icon(if pinned { "pin-off" } else { "pin" })
-                .on_click(act(Box::new(move |s, _, cx| s.toggle_pin(&path, cx)))),
+                .on_click(act(Box::new(move |s, _, cx| {
+                    s.session
+                        .update(cx, |session, cx| session.toggle_pin(&path, cx))
+                }))),
             ));
             rows.push(None);
         }
@@ -411,10 +407,7 @@ impl Explorer {
         // Cloud Explorer: Copy Link beside Copy Path (`workspaceResourceUrl`);
         // local-only actions (reveal, default app, copy/duplicate) are not
         // presented for hosted files.
-        let hosted = self
-            .workspace
-            .as_ref()
-            .is_some_and(|ws| ws.local_root().is_none());
+        let hosted = workspace.is_some_and(|ws| ws.local_root().is_none());
         if hosted && single {
             let (path, is_folder) = (primary.clone(), folder);
             rows.push(Some(
@@ -444,13 +437,15 @@ impl Explorer {
                 MenuItem::new(tr("workspace.node.pasteIntoFolder"))
                     .icon("clipboard-paste")
                     .shortcut(shortcut("V"))
-                    .disabled(match &self.clipboard {
+                    .disabled(match session.clipboard() {
                         Some(FileClipboard::Copy(_)) => !capabilities.copy,
                         Some(FileClipboard::Cut(_)) => !capabilities.move_entry,
                         None => true,
                     })
                     .on_click(act(Box::new(move |s, _, cx| {
-                        s.paste_into(target.clone(), cx)
+                        let target = target.clone();
+                        s.session
+                            .update(cx, |session, cx| session.paste_into(target, cx))
                     }))),
             ));
             rows.push(None);
@@ -462,8 +457,10 @@ impl Explorer {
                     .icon("copy")
                     .shortcut(shortcut("C"))
                     .disabled(!capabilities.copy)
-                    .on_click(act(Box::new(move |s, _, _| {
-                        s.clipboard = Some(FileClipboard::Copy(copy.clone()))
+                    .on_click(act(Box::new(move |s, _, cx| {
+                        let copy = FileClipboard::Copy(copy.clone());
+                        s.session
+                            .update(cx, |session, cx| session.set_clipboard(copy, cx))
                     }))),
             ));
             let cut = paths.clone();
@@ -472,8 +469,10 @@ impl Explorer {
                     .icon("scissors")
                     .shortcut(shortcut("X"))
                     .disabled(!capabilities.move_entry)
-                    .on_click(act(Box::new(move |s, _, _| {
-                        s.clipboard = Some(FileClipboard::Cut(cut.clone()))
+                    .on_click(act(Box::new(move |s, _, cx| {
+                        let cut = FileClipboard::Cut(cut.clone());
+                        s.session
+                            .update(cx, |session, cx| session.set_clipboard(cut, cx))
                     }))),
             ));
             let duplicate = paths.clone();
@@ -486,7 +485,9 @@ impl Explorer {
                 .shortcut(shortcut("D"))
                 .disabled(!capabilities.copy)
                 .on_click(act(Box::new(move |s, _, cx| {
-                    s.duplicate(duplicate.clone(), cx)
+                    let paths = duplicate.clone();
+                    s.session
+                        .update(cx, |session, cx| session.duplicate(paths, cx))
                 }))),
             ));
             rows.push(None);

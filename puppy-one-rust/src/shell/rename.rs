@@ -71,8 +71,8 @@ impl Shell {
         } else if name == "." || name == ".." || name.contains(['/', '\\']) {
             self.show_error(tr("workspace.node.error.nameInvalid"));
         } else {
-            self.explorer
-                .update(cx, |explorer, cx| explorer.rename(path, name, cx));
+            self.explorer_session
+                .update(cx, |session, cx| session.rename(path, name, cx));
         }
         self.focus.focus(window, cx);
         cx.notify();

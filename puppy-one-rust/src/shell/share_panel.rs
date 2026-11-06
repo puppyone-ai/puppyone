@@ -105,7 +105,7 @@ impl Shell {
         let targets = (|| {
             let (_, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
             let project = self.hosted_project()?;
-            let resource = match self.explorer.read(cx).selected_folder() {
+            let resource = match self.explorer_session.read(cx).selected_folder() {
                 Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
                 None => self
                     .files

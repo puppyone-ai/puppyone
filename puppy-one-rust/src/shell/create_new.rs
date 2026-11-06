@@ -45,7 +45,7 @@ impl Shell {
                             ));
                         }
                         let listing = nodes.as_ref().ok().cloned();
-                        s.explorer
+                        s.explorer_session
                             .update(cx, |e, cx| e.entry_created(parent, listing, path, cx));
                         s.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
                         if !folder && !s.files.allow_quit {

@@ -677,12 +677,43 @@
       "remaining": "The Grid folder wall and List with their remembered switch, filters and sort, row actions, the New project split button, template links (pasted or opened) and dragging a project out as its path are native. The homepage has not been pixel-compared at qubits@671143f2a."
     },
     {
+      "name": "Pane frames, edges and the Explorer column",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/sidebar/CollapsiblePaneFrame.tsx",
+        "src/shared-ui/sidebar/SidebarResizeHandle.tsx",
+        "src/shared-ui/sidebar/collapsible-pane.css",
+        "src/shared-ui/primitives/collapsiblePaneGesture.ts",
+        "src/shared-ui/primitives/useCollapsiblePaneResize.ts",
+        "src/shared-ui/data/DataWorkspaceFrame.tsx",
+        "src/features/app-shell/layout/useDesktopExplorerFrame.ts",
+        "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx"
+      ],
+      "targets": [
+        "src/shell/panes/mod.rs",
+        "src/shell/panes/stack.rs",
+        "src/shell/panes/motion.rs",
+        "src/shell/panes/gesture.rs",
+        "src/shell/panes/layout.rs",
+        "src/shell/explorer_column.rs",
+        "src/ui/components/resize_handle.rs",
+        "src/ui/motion.rs"
+      ],
+      "evidence": [
+        "test:a_closing_explorer_moves_without_rendering_its_rows_again",
+        "test:a_moving_frame_keeps_its_content_at_the_open_width",
+        "test:keys_on_an_edge_step_the_width_and_close_below_the_minimum",
+        "test:dragging_the_explorer_edge_past_half_its_minimum_collapses_it",
+        "test:a_frame_timeline_starts_at_its_first_frame_and_absorbs_a_late_one"
+      ],
+      "remaining": "One PaneLayout entity owns both panes (open state, widths, edge drag, keyboard resize, the 360ms frame motion and the window minimum); PaneStack paints each pane's content plane at its open width under the editor, which covers instead of clipping it, so the cached panes are reused through the motion. The frame motion runs on a FrameTimeline (a late frame advances it by at most 33ms). The focused edge shows its hover stroke instead of the product's 2px focus outline, and the collapsed right edge takes no keys."
+    },
+    {
       "name": "Explorer tree and file actions",
       "status": "partial",
       "sources": [
         "src/shared-ui/data/ExplorerTree.tsx",
         "src/shared-ui/data/DataWorkspace.tsx",
-        "src/shared-ui/data/DataWorkspaceFrame.tsx",
         "src/shared-ui/data/explorer/explorerVisibleModel.ts",
         "src/shared-ui/data/explorer/explorerRowInteraction.ts",
         "src/shared-ui/data/explorer/explorerTreeReconciliation.ts",
@@ -711,7 +742,7 @@
         "tools/import-file-icons.mjs",
         "src/ui/components/menu.rs",
         "src/ui/components/popover.rs",
-        "src/shell/explorer/file_ops.rs",
+        "src/shell/explorer/session.rs",
         "src/editor/workbench/resource_operations.rs",
         "src/editor/workbench/runtime/operations.rs",
         "src/shell/explorer/pins.rs"

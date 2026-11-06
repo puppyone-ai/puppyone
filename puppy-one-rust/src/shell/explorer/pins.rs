@@ -3,7 +3,8 @@
 //! whatever the tree below is showing. The tree can fold away under them,
 //! behind a chevron on a hairline. Pins belong to the project
 //! (`Preferences::explorer_pins`, shared by its windows), follow a rename
-//! or move, and go with a deletion.
+//! or move, and go with a deletion. The session keeps them; this paints
+//! them.
 use super::*;
 use crate::{
     features::settings::preference_types::ExplorerPins,
@@ -25,66 +26,6 @@ fn relative(path: &Path) -> String {
 }
 
 impl Explorer {
-    /// `getExplorerPinsProjectKey`: the project's folder, or its Cloud
-    /// storage.
-    pub(super) fn pins_key(&self) -> Option<String> {
-        let workspace = self.workspace.as_ref()?;
-        Some(match workspace.local_root() {
-            Some(root) => root.to_string_lossy().into_owned(),
-            None => workspace
-                .resource_id(Path::new(""))
-                .ok()?
-                .storage
-                .as_str()
-                .to_owned(),
-        })
-    }
-    pub(in crate::shell) fn pins(&self, cx: &App) -> ExplorerPins {
-        self.pins_key()
-            .and_then(|key| {
-                self.preferences
-                    .read(cx)
-                    .state
-                    .explorer_pins
-                    .get(&key)
-                    .cloned()
-            })
-            .unwrap_or_default()
-    }
-    fn change_pins(&self, change: impl FnOnce(&mut ExplorerPins), cx: &mut App) {
-        let Some(key) = self.pins_key() else {
-            return;
-        };
-        self.preferences
-            .update(cx, |p, cx| p.change(|p| p.change_pins(&key, change), cx));
-    }
-    /// The node menu's Pin / Unpin.
-    pub(in crate::shell) fn toggle_pin(&mut self, path: &Path, cx: &mut Context<Self>) {
-        let path = relative(path);
-        self.change_pins(|pins| pins.toggle(&path), cx);
-    }
-    pub(super) fn set_files_collapsed(&mut self, collapsed: bool, cx: &mut Context<Self>) {
-        self.change_pins(|pins| pins.set_files_collapsed(collapsed), cx);
-    }
-    /// A file operation's moves and deletions carry their pins.
-    pub(super) fn carry_pins(
-        &self,
-        moved: &[(PathBuf, PathBuf)],
-        removed: &[PathBuf],
-        cx: &mut App,
-    ) {
-        let mut pins = self.pins(cx);
-        let mut changed = false;
-        for (from, to) in moved {
-            changed |= pins.rebase(&relative(from), &relative(to));
-        }
-        for path in removed {
-            changed |= pins.remove_under(&relative(path));
-        }
-        if changed {
-            self.change_pins(|stored| *stored = pins, cx);
-        }
-    }
     /// `onContextMenu` on a pin: the node menu for that file alone.
     fn open_pin_menu(&mut self, path: PathBuf, at: Point<Pixels>, cx: &mut Context<Self>) {
         self.menu = Some(ExplorerMenu {
@@ -213,7 +154,11 @@ impl Explorer {
                     ),
             )
             .child(div().flex_1().h(px(1.)).mx(px(2.)).bg(t.sidebar_divider))
-            .on_click(cx.listener(move |s, _, _, cx| s.set_files_collapsed(!collapsed, cx)));
+            .on_click(cx.listener(move |s, _, _, cx| {
+                s.session.update(cx, |session, cx| {
+                    session.set_files_collapsed(!collapsed, cx)
+                })
+            }));
         v_flex()
             .flex_none()
             .gap(px(6.))

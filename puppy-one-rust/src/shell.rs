@@ -49,7 +49,7 @@ use command::on_shell_actions;
 pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
 };
-use explorer::{Explorer, ExplorerEvent, Host};
+use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
 use explorer_column::ExplorerColumn;
 use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
@@ -137,7 +137,9 @@ pub struct Shell {
     weak: WeakEntity<Shell>,
     /// Header introductions (`useHeaderCoachmarks`).
     coachmarks: coachmarks::Coachmarks,
-    /// The workspace tree on the left.
+    /// The project's Explorer session (its tree, selection, clipboard and
+    /// pins, kept per project) and its view on the left.
+    explorer_session: Entity<ExplorerSession>,
     explorer: Entity<Explorer>,
     homepage: home::Homepage,
     task_ui: TaskUi,
@@ -234,6 +236,7 @@ impl Shell {
         // One preference owner for every window; per-window state stays here.
         let launch = windows::take_launch(cx);
         let preferences = windows::shared_preferences(fixture, cx);
+        let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let mut s = Self {
             window_key: crate::features::agent_presence::owner(window),
             cloud: window_cloud::WindowCloud::new(
@@ -279,10 +282,12 @@ impl Shell {
             popover: None,
             weak: cx.weak_entity(),
             coachmarks: Default::default(),
+            explorer_session: explorer_session.clone(),
             explorer: {
                 let owner = crate::features::agent_presence::owner(window);
                 cx.new(|cx| {
-                    Explorer::new(fixture, preferences.clone(), cx).with_presence_owner(owner)
+                    Explorer::new(explorer_session, preferences.clone(), cx)
+                        .with_presence_owner(owner)
                 })
             },
             homepage: Default::default(),
@@ -353,18 +358,36 @@ impl Shell {
             cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_appearance(w, cx))
                 .detach();
         }
-        // What the Explorer asks for.
-        cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
+        // What the Explorer's session needs from the workspace.
+        cx.subscribe_in(&s.explorer_session, window, |s, _, event, window, cx| {
             match event {
-                ExplorerEvent::ReferencesChanged => {}
-                ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
-                ExplorerEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
-                ExplorerEvent::ResourceOperation(operation) => {
+                SessionEvent::ReferencesChanged => {}
+                SessionEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
+                SessionEvent::ResourceOperation(operation) => {
                     if let Err(error) = s.files.resource_operation(operation.clone(), &s.wake) {
-                        s.explorer.update(cx, |e, cx| e.operation_failed(cx));
+                        s.explorer_session
+                            .update(cx, |e, cx| e.operation_failed(cx));
                         s.show_error(error);
                     }
                 }
+                SessionEvent::Error(error) => s.show_error(error.clone()),
+                SessionEvent::WatchFailed(error) => s.window.notice = Some(error.clone()),
+                SessionEvent::WatchRecovered => s.window.notice = None,
+                // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
+                SessionEvent::ContentChanged => {
+                    s.sidebar
+                        .source_control
+                        .update(cx, |sc, cx| sc.invalidate(cx));
+                }
+            }
+            s.receive(window, cx);
+            cx.notify();
+        })
+        .detach();
+        // What the person asks for through the Explorer.
+        cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
+            match event {
+                ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
                 ExplorerEvent::Create { entry, parent } => {
                     s.start_create(*entry, parent.clone(), window, cx)
                 }
@@ -372,14 +395,6 @@ impl Shell {
                     s.begin_rename(path.clone(), *change_type, window, cx)
                 }
                 ExplorerEvent::Error(error) => s.show_error(error.clone()),
-                ExplorerEvent::WatchFailed(error) => s.window.notice = Some(error.clone()),
-                ExplorerEvent::WatchRecovered => s.window.notice = None,
-                // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
-                ExplorerEvent::ContentChanged => {
-                    s.sidebar
-                        .source_control
-                        .update(cx, |sc, cx| sc.invalidate(cx));
-                }
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
                 ExplorerEvent::Share { path } => s.share_folder(path, window, cx),
             }
@@ -468,7 +483,8 @@ impl Shell {
                 // revalidate the open document (a draft is kept).
                 crate::features::workbench::WorkbenchEvent::CloudPublished => {
                     if s.hosted_project().is_some() {
-                        s.explorer.update(cx, |e, cx| e.refresh_published(cx));
+                        s.explorer_session
+                            .update(cx, |e, cx| e.refresh_published(cx));
                         s.files.observe_publication();
                         s.receive(w, cx);
                     }
@@ -1379,14 +1395,14 @@ impl Shell {
             self.modal_focus.focus(window, cx);
         }
         for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
-            self.explorer
+            self.explorer_session
                 .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
         }
         if let Some(nodes) = self.files.tree_update.take() {
             self.editor.drop = None;
             self.end_editor_resize(false, cx);
             let ws = self.files.workspace.clone().unwrap();
-            self.explorer
+            self.explorer_session
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
             if self.file_mode() {
                 // A lone file has no Agent, Git or Terminal.
@@ -1424,14 +1440,15 @@ impl Shell {
             }
         }
         if let Some((path, result)) = self.files.children_update.take() {
-            self.explorer
+            self.explorer_session
                 .update(cx, |e, cx| e.children_loaded(&path, result, cx));
         }
         if let Some((id, relative)) = self.files.opened()
             && previous.as_deref() != Some(id)
         {
             let relative = relative.to_path_buf();
-            self.explorer.update(cx, |e, cx| e.reveal(&relative, cx));
+            self.explorer_session
+                .update(cx, |e, cx| e.reveal(&relative, cx));
         }
         if self.files.workspace.is_some()
             && !self.files.busy()
@@ -1549,9 +1566,8 @@ impl Shell {
                 let references = self.files.slot(slot).filter(|_| !file).and_then(|files| {
                     let workspace = files.workspace.as_ref()?;
                     let (_, path) = files.opened()?;
-                    self.explorer.update(cx, |explorer, _| {
-                        explorer.reference_context(workspace, path)
-                    })
+                    self.explorer_session
+                        .update(cx, |session, _| session.reference_context(workspace, path))
                 });
                 let workspace = self
                     .files
@@ -1583,9 +1599,8 @@ impl Shell {
             let references = self.files.slot(*slot).filter(|_| !file).and_then(|files| {
                 let workspace = files.workspace.as_ref()?;
                 let (_, path) = files.opened()?;
-                self.explorer.update(cx, |explorer, _| {
-                    explorer.reference_context(workspace, path)
-                })
+                self.explorer_session
+                    .update(cx, |session, _| session.reference_context(workspace, path))
             });
             let blocked = modal
                 || home
@@ -1917,7 +1932,7 @@ impl Shell {
         let busy = self.pending
             || self.files.busy()
             || self.files.folder_busy
-            || self.explorer.read(cx).busy();
+            || self.explorer_session.read(cx).busy();
         let shell = cx.weak_entity();
         SidebarFooter::new(move |command, window, cx| {
             let _ = shell.update(cx, |s, cx| s.command(command, window, cx));
@@ -2418,7 +2433,7 @@ impl Shell {
         self.window.notice = None;
         match self.hosted_project() {
             Some(project) => self.open_cloud(project, cx),
-            None => self.explorer.update(cx, |e, cx| e.resubscribe(cx)),
+            None => self.explorer_session.update(cx, |e, cx| e.resubscribe(cx)),
         }
         cx.notify();
     }

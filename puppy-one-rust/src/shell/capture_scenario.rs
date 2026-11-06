@@ -150,6 +150,8 @@ pub(super) struct CaptureScenario {
     waiting: Option<std::time::Instant>,
     /// Frames painted since the last step, so anchors and layout settle.
     frames: u32,
+    /// The next step is waiting to run after this frame.
+    applying: bool,
     started: std::time::Instant,
 }
 impl CaptureScenario {
@@ -159,6 +161,7 @@ impl CaptureScenario {
             steps: parse(&text),
             waiting: None,
             frames: 0,
+            applying: false,
             started: std::time::Instant::now(),
         })
     }
@@ -197,7 +200,7 @@ impl Shell {
         let workspace_ready = file_settled
             || self.files.workspace.is_some()
                 && !self.window.fixture
-                && (file || !self.explorer.read(cx).tree().rows.is_empty())
+                && (file || !self.explorer_session.read(cx).tree().rows.is_empty())
                 && (!file || self.files.opened().is_some())
                 && !self.files.busy()
                 && !self.files.folder_busy;
@@ -223,13 +226,25 @@ impl Shell {
             scenario.steps.pop_front();
             return false;
         }
-        if !self.apply_capture_step(&step, window, cx) && !timed_out {
-            // Wait for the state the step needs (a loaded folder, a painted row).
-            return false;
+        // A step changes state, so it runs after the frame, not while it
+        // renders: what it changes then reaches every view that shows it.
+        if !std::mem::replace(&mut scenario.applying, true) {
+            cx.defer_in(window, move |s, window, cx| {
+                let Some(mut scenario) = s.capture_scenario.take() else {
+                    return;
+                };
+                scenario.applying = false;
+                if !s.apply_capture_step(&step, window, cx) && !timed_out {
+                    // Wait for the state the step needs (a loaded folder, a
+                    // painted row).
+                } else {
+                    scenario.steps.pop_front();
+                    scenario.frames = 0;
+                }
+                s.capture_scenario = Some(scenario);
+                cx.notify();
+            });
         }
-        scenario.steps.pop_front();
-        scenario.frames = 0;
-        cx.notify();
         false
     }
     /// `false` while the step cannot run yet.
@@ -241,12 +256,18 @@ impl Shell {
     ) -> bool {
         match step {
             Step::Select(path) => {
-                if !self.explorer.update(cx, |e, cx| e.capture_select(path, cx)) {
+                if !self
+                    .explorer_session
+                    .update(cx, |e, cx| e.capture_select(path, cx))
+                {
                     return false;
                 }
             }
             Step::Expand(path) => {
-                if !self.explorer.update(cx, |e, cx| e.capture_expand(path, cx)) {
+                if !self
+                    .explorer_session
+                    .update(cx, |e, cx| e.capture_expand(path, cx))
+                {
                     return false;
                 }
             }
@@ -306,15 +327,21 @@ impl Shell {
                 }
             }
             Step::Collapse(path) => {
-                if self.explorer.read(cx).tree().index_of(path).is_none() {
+                if self
+                    .explorer_session
+                    .read(cx)
+                    .tree()
+                    .index_of(path)
+                    .is_none()
+                {
                     return false;
                 }
-                self.explorer
+                self.explorer_session
                     .update(cx, |e, cx| e.set_expanded(path, false, cx));
             }
             Step::Open(path) => self.files.begin(Intent::OpenFile(path.clone()), &self.wake),
             Step::NodeMenu(path) => {
-                let Some(index) = self.explorer.read(cx).tree().index_of(path) else {
+                let Some(index) = self.explorer_session.read(cx).tree().index_of(path) else {
                     return false;
                 };
                 let at = MenuAt::Row(path.clone(), RowTrigger::More);
@@ -331,10 +358,11 @@ impl Shell {
             }),
             Step::Context(x, y) => {
                 let position = point(px(*x), px(*y));
-                self.explorer.update(cx, |e, cx| match e.row_at(position) {
-                    Some(index) => e.open_node_menu(index, MenuAt::Pointer(position), cx),
-                    None => e.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
-                });
+                self.explorer
+                    .update(cx, |e, cx| match e.row_at(position, cx) {
+                        Some(index) => e.open_node_menu(index, MenuAt::Pointer(position), cx),
+                        None => e.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
+                    });
             }
             Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
@@ -423,7 +451,8 @@ impl Shell {
             }
             Step::Pin(path) => {
                 let path = path.clone();
-                self.explorer.update(cx, |e, cx| e.toggle_pin(&path, cx));
+                self.explorer_session
+                    .update(cx, |e, cx| e.toggle_pin(&path, cx));
             }
             Step::Template => self.open_template_link(
                 "https://www.puppyone.ai/t/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),

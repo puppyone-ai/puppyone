@@ -40,8 +40,10 @@ impl Shell {
         let normal = relative
             .components()
             .all(|c| matches!(c, std::path::Component::Normal(_)));
-        (normal && !relative.as_os_str().is_empty() && !self.explorer.read(cx).is_folder(relative))
-            .then(|| relative.to_path_buf())
+        (normal
+            && !relative.as_os_str().is_empty()
+            && !self.explorer_session.read(cx).is_folder(relative))
+        .then(|| relative.to_path_buf())
     }
     /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
     /// Retry everywhere; hosted documents and file windows also show

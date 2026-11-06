@@ -25,7 +25,8 @@ impl Explorer {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let stride = theme::sidebar_stride();
-        let (row, frame) = match self.tree.rows.get(index).cloned() {
+        let item = self.session.read(cx).tree().rows.get(index).cloned();
+        let (row, frame) = match item {
             Some(item) => (self.tree_row(index, item, cx), self.motion.row(index)),
             None => (self.list_end_row(cx), self.motion.list_end()),
         };
@@ -91,7 +92,7 @@ impl Explorer {
         let t = cx.palette();
         let icon_theme = self.preferences.read(cx).state.file_icon_theme.clone();
         let width = self.host.frame.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP;
-        let cut = matches!(&self.clipboard, Some(FileClipboard::Cut(p)) if p.contains(&item.path));
+        let cut = matches!(self.session.read(cx).clipboard(), Some(FileClipboard::Cut(p)) if p.contains(&item.path));
         let mut row = SidebarRow::new(id)
             .dimmed(cut)
             .indent((item.depth as f32 * metric::TREE_INDENT).min((width - 64.).max(0.)));
@@ -197,7 +198,8 @@ impl Explorer {
                     .child(tr("common.action.retry"))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         cx.stop_propagation();
-                        s.retry_folder(&folder, cx);
+                        s.session
+                            .update(cx, |session, cx| session.retry_folder(&folder, cx));
                     })),
             )
             .into_any_element()
@@ -217,7 +219,7 @@ impl Explorer {
         {
             return None;
         }
-        let root = self.workspace.as_ref()?.local_root()?;
+        let root = self.session.read(cx).workspace()?.local_root()?;
         let store = crate::features::agent_presence::store(cx)?;
         let projection = store
             .read(cx)
@@ -243,7 +245,20 @@ impl Explorer {
             return self.status_row(index, item, cx);
         }
         let t = cx.palette();
-        let selected = self.tree.selected == item.path || self.tree.selection.contains(&item.path);
+        let session = self.session.read(cx);
+        let tree = session.tree();
+        let selected = tree.selected == item.path || tree.selection.contains(&item.path);
+        let drag_paths = if tree.selection.contains(&item.path) {
+            tree.selected_roots()
+        } else {
+            vec![item.path.clone()]
+        };
+        let single_file = drag_paths.len() == 1
+            && tree
+                .rows
+                .iter()
+                .any(|row| row.path == drag_paths[0] && !row.folder);
+        let workspace = session.workspace().cloned();
         let lit = self
             .menu
             .as_ref()
@@ -292,11 +307,6 @@ impl Explorer {
             ),
         );
 
-        let drag_paths = if self.tree.selection.contains(&item.path) {
-            self.tree.selected_roots()
-        } else {
-            vec![item.path.clone()]
-        };
         let drag_label: SharedString = if drag_paths.len() > 1 {
             tf(
                 "workspace.node.copyItems",
@@ -324,50 +334,34 @@ impl Explorer {
         )
         .on_drag(
             DragNodes {
-                single_file: drag_paths.len() == 1
-                    && self
-                        .tree
-                        .rows
-                        .iter()
-                        .any(|row| row.path == drag_paths[0] && !row.folder),
+                single_file,
                 paths: drag_paths,
                 label: drag_label,
-                workspace: self.workspace.clone(),
+                workspace,
             },
             |drag, _, _, cx| cx.new(|_| drag.clone()),
         )
         .drag_over::<DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .on_drop(cx.listener(move |s, drag: &DragNodes, _, cx| {
-            if !drag.belongs_to(&s.workspace) {
-                return;
-            }
-            let paths: Vec<PathBuf> = drag
-                .paths
-                .iter()
-                .filter(|p| !drop_target.starts_with(p) && parent_of(p) != drop_target)
-                .cloned()
-                .collect();
-            if !paths.is_empty() {
-                s.run_op(FileOp::Move(paths, drop_target.clone()), cx)
-            }
+            s.session.update(cx, |session, cx| {
+                if drag.belongs_to(&session.workspace().cloned()) {
+                    session.move_into(&drag.paths, &drop_target, cx)
+                }
+            })
         }))
         .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
-            s.run_op(
-                FileOp::Import(paths.paths().to_vec(), import_target.clone()),
-                cx,
-            )
+            let import = FileOp::Import(paths.paths().to_vec(), import_target.clone());
+            s.session
+                .update(cx, |session, cx| session.run_op(import, cx))
         }))
         .into_any_element()
     }
     /// The quiet "New" row after the last item; it opens the create menu for
     /// the workspace root, end aligned under the row.
     fn list_end_row(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let enabled = self
-            .workspace
-            .as_ref()
-            .is_some_and(|ws| ws.capabilities().create)
-            && self.preferences.read(cx).loaded;
+        let enabled =
+            self.session.read(cx).capabilities().create && self.preferences.read(cx).loaded;
         let row = SidebarRow::new("explorer-new")
             .variant(RowVariant::Launcher)
             .icon(Icon::new("plus").small().stroke(2.2).opacity(0.76))
@@ -393,17 +387,16 @@ impl Explorer {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(row) = self.tree.rows.get(index).cloned() else {
+        let Some(row) = self.session.read(cx).tree().rows.get(index).cloned() else {
             return;
         };
         self.focus.focus(window, cx);
-        if modifiers.platform || modifiers.shift {
-            self.tree
-                .select(&row.path, modifiers.platform, modifiers.shift);
-            cx.notify();
-            return;
+        let (additive, range) = (modifiers.platform, modifiers.shift);
+        self.session.update(cx, |session, cx| {
+            session.select(&row.path, additive, range, cx)
+        });
+        if !additive && !range {
+            self.open_row(index, cx);
         }
-        self.tree.select(&row.path, false, false);
-        self.open_row(index, cx);
     }
 }
