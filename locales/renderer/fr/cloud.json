@@ -1036,6 +1036,8 @@
   "message.project-unavailable": "Ce projet n’est pas disponible sur le service actuel.",
   "opening.failedTitle": "Impossible d’ouvrir l’ordinateur cloud",
   "message.project-publish-size-limit": "Cet envoi dépasse une limite de taille. Chaque envoi peut atteindre au maximum 2 GiB. Réduisez le contenu à envoyer avant de réessayer. Vos fichiers sur ce Mac restent inchangés.",
+  "message.project-publish-lfs-unsupported": "Ce projet utilise Git LFS, que Puppyone Cloud ne prend pas encore en charge : il ne peut donc pas être envoyé. Vos fichiers sur ce Mac restent inchangés.",
+  "message.project-publish-finalize-failed": "Votre projet est prêt dans Puppyone Cloud, mais ce Mac n’a pas pu terminer la liaison. Réessayez.",
   "initialize.progress.title": "Envoi de {project} vers le cloud",
   "initialize.progress.titleFallback": "Envoi de ce projet vers le cloud",
   "initialize.progress.lead": "Vous pouvez fermer cette fenêtre : cela continue tant que PuppyOne reste ouvert. La progression s’affiche dans la barre du haut ; un clic vous ramène ici.",
