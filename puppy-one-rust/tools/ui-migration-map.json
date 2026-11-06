@@ -2077,6 +2077,28 @@
         "artifact:structured-native/context-map-light.png"
       ],
       "remaining": "The product's ContextMapViewer (graph loading, radial/canvas/layered layouts, routing, wheel navigation, line filters) runs in WKWebView over native workspace reads, with its layout switch and filters in the native pane menu and workspace changes bumping its revision. Its retained view state (layout mode) lives for the page, not the document model owner, and document dependency tracking is the root watch rather than per-path."
+    },
+    {
+      "name": "App Preview viewer and runtime",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/app/**"
+      ],
+      "targets": [
+        "src/editor/viewers/app_preview.rs",
+        "src/platform/app_preview/runtime.rs",
+        "src/platform/app_preview/manifest.rs",
+        "tools/app-preview-entry.tsx",
+        "assets/web/app-preview.json"
+      ],
+      "evidence": [
+        "test:static_files_and_local_servers_run_once_trusted",
+        "test:manifests_follow_the_product_contract",
+        "test:requests_are_typed_and_the_frame_admits_only_the_running_app",
+        "artifact:app-preview-native/static-running-light.png",
+        "artifact:app-preview-native/setup-light.png"
+      ],
+      "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port)."
     }
   ],
   "retired_sources": {
