@@ -1079,7 +1079,8 @@
         "src/features/desktop-agent/ui/styles/responsive.css",
         "src/features/desktop-agent/ui/styles/theme.css",
         "src/features/desktop-agent/ui/styles/tool-results.css",
-        "src/features/desktop-agent/ui/styles/transcript.css"
+        "src/features/desktop-agent/ui/styles/transcript.css",
+        "src/features/desktop-agent/ui/agent-runtime-geometry.ts"
       ],
       "targets": [
         "src/features/desktop_agent/ui/panel/transcript.rs",
@@ -1091,7 +1092,7 @@
         "src/features/desktop_agent/ui/agent_theme.rs",
         "src/ui/form_input.rs"
       ],
-      "remaining": "Streaming answers catch up a bounded grapheme step per 16 ms frame (useAgentStreamPresentation over nextAgentStreamText) and re-measure their row. The session-control picker follows AgentPickerPopover's limits (120 options, 360 px, search above six). Dropped Finder files and directories, Explorer resources and pasted images or files become references (useAgentReferenceIngestion); failed references show localizedReferenceError. The prompt editor's mentions are TextInput tokens. The live tail renders AgentConnectionStatus; a tool group's single open step is the panel's group selection (AgentToolGroupContext). The transcript keeps its follow, unread and jump-to-latest state for the panel's lifetime, which in GPUI spans hiding and moving the tab (useTranscriptViewport's remount memory). Activity views are total functions over display values, so no render-time error boundary exists (AgentActivityRenderBoundary). The CSS is expressed in the GPUI views and AgentTheme. AgentRuntimePicker and AgentSurfaceHeader are rendered only by the product's smoke harnesses, not by its chat. Remaining: mention-chip error styling, the announcement live region and pixel parity."
+      "remaining": "Streaming answers catch up a bounded grapheme step per 16 ms frame (useAgentStreamPresentation over nextAgentStreamText) and re-measure their row. The session-control picker follows AgentPickerPopover's limits (120 options, 360 px, search above six). Dropped Finder files and directories, Explorer resources and pasted images or files become references (useAgentReferenceIngestion); failed references show localizedReferenceError. The prompt editor's mentions are TextInput tokens. The live tail renders AgentConnectionStatus; a tool group's single open step is the panel's group selection (AgentToolGroupContext). The transcript keeps its follow, unread and jump-to-latest state for the panel's lifetime, which in GPUI spans hiding and moving the tab (useTranscriptViewport's remount memory). Activity views are total functions over display values, so no render-time error boundary exists (AgentActivityRenderBoundary). The CSS is expressed in the GPUI views and AgentTheme. AgentRuntimePicker and AgentSurfaceHeader are rendered only by the product's smoke harnesses, not by its chat. Remaining: mention-chip error styling, the announcement live region and pixel parity. agent-runtime-geometry's CSS variables are direct GPUI geometry: the transcript's top edge fade (topFade over 24 px, 18 px band, canvas to 78% at 46%) is painted per scroll frame, the virtual canvas and row offsets are the GPUI list's, the empty logo's turns rotate the brand mark and the picker overlay is an anchored popover."
     },
     {
       "name": "Renderer module surface and harnesses",

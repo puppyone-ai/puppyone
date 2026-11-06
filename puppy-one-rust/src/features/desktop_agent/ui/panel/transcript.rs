@@ -535,6 +535,7 @@ impl AgentChatTabPanel {
                     .absolute()
                     .size_full(),
                 )
+                .child(transcript_top_fade(&self.transcript, a.canvas))
                 .child(crate::ui::scrollbar::vertical(
                     "agent-transcript-scrollbar",
                     &self.transcript,
@@ -1267,5 +1268,77 @@ impl AgentChatTabPanel {
             }
         }
         column.into_any_element()
+    }
+}
+
+/// `.desktop-agent-transcript-wrap::before` (`agentTranscriptFadeGeometry`):
+/// once the transcript scrolls, its top edge fades into the canvas. Read at
+/// paint time so the fade follows every scroll frame.
+fn transcript_top_fade(transcript: &ListState, canvas_color: Rgba) -> impl IntoElement {
+    let transcript = transcript.clone();
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let offset = transcript.scroll_px_offset_for_scrollbar();
+            let max = transcript.max_offset_for_scrollbar();
+            let fade = top_fade(f32::from(offset.y), f32::from(max.y));
+            if fade <= 0. {
+                return;
+            }
+            // linear-gradient(to bottom, canvas 0%, canvas/78% 46%, transparent
+            // 100%) at height 18px x fade and opacity fade. GPUI gradients have
+            // two stops, so the curve is two quads joined on a device-pixel row.
+            let scale = window.scale_factor();
+            let top = f32::from(bounds.top());
+            let bottom = top + theme::metric::SIDEBAR_NAVIGATION_FADE_SIZE * fade;
+            let mid = ((top + (bottom - top) * 0.46) * scale).round() / scale;
+            let left = bounds.origin.x;
+            let width = (bounds.size.width - px(TRANSCRIPT_FADE_SCROLLBAR_INSET)).max(px(0.));
+            let band = |from: f32, to: f32, y0: f32, y1: f32| {
+                fill(
+                    Bounds::new(point(left, px(y0)), size(width, px(y1 - y0))),
+                    linear_gradient(
+                        180.,
+                        linear_color_stop(theme::alpha(canvas_color, from * fade), 0.),
+                        linear_color_stop(theme::alpha(canvas_color, to * fade), 1.),
+                    ),
+                )
+            };
+            window.paint_quad(band(1., 0.78, top, mid));
+            window.paint_quad(band(0.78, 0., mid, bottom));
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .right_0()
+    .h(px(theme::metric::SIDEBAR_NAVIGATION_FADE_SIZE))
+}
+
+/// `--desktop-sidebar-navigation-fade-scrollbar-inset`: the scrollbar's 12px
+/// and 8px of air stay clear of the fade.
+const TRANSCRIPT_FADE_SCROLLBAR_INSET: f32 = 20.;
+
+/// `useTranscriptViewport.updateEdges`' `topFade`: the scrolled distance over
+/// 24px, zero unless the transcript overflows by more than 1px. `offset_y` is
+/// GPUI's (non-positive) scroll offset, `max_y` the maximum scroll distance.
+pub(super) fn top_fade(offset_y: f32, max_y: f32) -> f32 {
+    if max_y <= 1. {
+        return 0.;
+    }
+    (-offset_y).clamp(0., max_y).min(24.) / 24.
+}
+
+#[cfg(test)]
+mod tests {
+    use super::top_fade;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn the_top_fade_follows_the_first_24px_of_scroll() {
+        assert_eq!(top_fade(0., 400.), 0.);
+        assert_eq!(top_fade(-12., 400.), 0.5);
+        assert_eq!(top_fade(-300., 400.), 1.);
+        assert_eq!(top_fade(-12., 1.), 0.);
     }
 }
