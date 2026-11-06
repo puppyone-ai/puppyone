@@ -307,6 +307,7 @@
   "toolStep.fetch.done": "Fetched",
   "toolStep.fetch.active": "Fetching",
   "toolStep.explored": "Explored",
+  "toolStep.count": "{count, plural, one {{value} step} other {{value} steps}}",
   "toolStep.settled": "{count, plural, one {{value} step done} other {{value} steps done}}",
   "toolStep.files": "{count, plural, one {{value} file} other {{value} files}}",
   "toolStep.searches": "{count, plural, one {{value} search} other {{value} searches}}",

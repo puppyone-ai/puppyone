@@ -307,6 +307,7 @@
   "toolStep.fetch.done": "가져옴",
   "toolStep.fetch.active": "가져오는 중",
   "toolStep.explored": "탐색함",
+  "toolStep.count": "{count, plural, other {{value}단계}}",
   "toolStep.settled": "{count, plural, other {{value}단계 완료}}",
   "toolStep.files": "{count, plural, other {파일 {value}개}}",
   "toolStep.searches": "{count, plural, other {검색 {value}회}}",

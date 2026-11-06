@@ -6,6 +6,7 @@ import { AgentPartRenderer } from "./AgentPartRenderer";
 import { AgentToolGroupContext } from "./AgentToolGroupContext";
 import { agentToolStepSegments, isActiveToolStatus, type AgentToolStepSegment } from "./activity/agent-tool-steps";
 import { isAgentToolActivity } from "../../../../shared/agent-contract/activity-semantics.mjs";
+import { AgentToolWorkingSummary } from "./activity/AgentToolWorkingSummary";
 
 type AgentToolActivityGroupProps = Readonly<{
   parts: readonly AgentPart[];
@@ -16,9 +17,8 @@ type AgentToolActivityGroupProps = Readonly<{
 }>;
 
 /**
- * One line per current step: what the Agent did, to what, and the outcome.
- * Every settled step folds into one "Explored" or "N steps done" line, so a
- * finished run leaves a single line behind; details open inline, one at a time.
+ * One quiet summary per run. Active details stay inline with its count;
+ * finished runs collapse, and original tool details remain available on demand.
  */
 function AgentToolActivityGroupView({
   parts,
@@ -91,7 +91,8 @@ function AgentToolActivityGroupView({
               <span className="desktop-agent-tool-icon" aria-hidden="true">
                 <ChevronRight className="desktop-agent-tool-fold-chevron" size={13} strokeWidth={2} />
               </span>
-              {segment.type === "explored" ? (
+              {segment.type === "working" && <AgentToolWorkingSummary parts={segment.parts} />}
+              {segment.type === "explored" && (
                 <>
                   <strong className="desktop-agent-tool-name">{t("agent.toolStep.explored")}</strong>
                   <span className="desktop-agent-tool-summary">
@@ -100,10 +101,10 @@ function AgentToolActivityGroupView({
                     </span>
                   </span>
                 </>
-              ) : (
+              )}
+              {segment.type === "settled" && (
                 <strong className="desktop-agent-tool-name">
-                  {segment.type === "working" ? t("agent.activity.working")
-                    : t("agent.toolStep.settled", { count: segment.steps, value: formatNumber(segment.steps) })}
+                  {t("agent.toolStep.settled", { count: segment.steps, value: formatNumber(segment.steps) })}
                 </strong>
               )}
             </button>
