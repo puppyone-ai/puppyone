@@ -53,7 +53,7 @@ export type EditorFileDropController = Readonly<{
   dropFailure: EditorDropFailure | null;
   /** The pointer is over a document drop target: releasing inserts, not splits. */
   insertTargetPaneId: string | null;
-  /** The hovered file-drop pane exposes both explicit split cards. */
+  /** The hovered file-drop pane exposes all four explicit split cards. */
   splitTargetPaneId: string | null;
   dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;

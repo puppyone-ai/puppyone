@@ -61,10 +61,10 @@ function Harness() {
   }, []);
   const exportNodes = useResourceDragExport((resource) => ({ folder: createWorkspaceFolder({ ...workspace, id: "smoke-root" }), resourceUri: canonicalizeResourceUri(resource), providerPath: parseWorkspaceResourceReference(resource).relativePath }),
     (failed) => window.resourceSmoke.record({ exportFailed: failed }));
-  return <main style={{ display: "grid", gridTemplateColumns: "230px 1fr", width: "100vw", height: "100vh", background: "white", color: "#222" }}>
-    <aside style={{ padding: 16 }}><h2>Explorer</h2><ExplorerTree nodes={nodes} activePath={selected} expandedPaths={new Set()} dragWorkspaceId={workspace.id}
+  return <main style={{ display: "grid", gridTemplateColumns: "230px 1fr", gridTemplateRows: "minmax(0, 1fr)", width: "100vw", height: "100vh", background: "white", color: "#222" }}>
+    <aside style={{ padding: 16, overflow: "auto" }}><h2>Explorer</h2><ExplorerTree nodes={nodes} activePath={selected} expandedPaths={new Set()} dragWorkspaceId={workspace.id}
       onSelectNode={(node) => setSelected(node?.path ?? null)} onExportNodes={exportNodes} />
-      <p>Drag onto a left or right card to split. Drop an image into the text to insert it.</p></aside>
+      <p>Drag onto a left, right, top or bottom card to split. Drop an image into the text to insert it.</p></aside>
     <section style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
       <DesktopEditorSplitView aiEditRequest={null} dataPort={port} editorGroup={editor.state} layout={editor.paneLayout}
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}  editorTree={nodes}

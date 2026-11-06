@@ -73,6 +73,8 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
           <div data-file-split-targets>
             <div data-file-split-edge="left" />
             <div data-file-split-edge="right" />
+            <div data-file-split-edge="top" />
+            <div data-file-split-edge="bottom" />
           </div>
         </section>
         <output>{controller.dropFailure ?? "ok"}</output>
@@ -85,6 +87,8 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
     host.querySelector<HTMLElement>(".cm-scroller")!.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
     host.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(12, 160, 120, 280);
     host.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(668, 160, 120, 280);
+    host.querySelector<HTMLElement>('[data-file-split-edge="top"]')!.getBoundingClientRect = () => new DOMRect(260, 12, 280, 72);
+    host.querySelector<HTMLElement>('[data-file-split-edge="bottom"]')!.getBoundingClientRect = () => new DOMRect(260, 516, 280, 72);
   };
   await render();
   const view = EditorView.findFromDOM(host.querySelector(".cm-content")!)!;
@@ -92,8 +96,8 @@ async function fixture(assets: DocumentAssetImportPort | null = null) {
   return {
     open, view, render,
     preview: (state: ResourceDragState) => act(() => publish(state)),
-    drop: async (data = imageTransfer(), x = 400) => {
-      await act(async () => { host.querySelector(".cm-content")!.dispatchEvent(drag("drop", data, x)); });
+    drop: async (data = imageTransfer(), x = 400, y = 300) => {
+      await act(async () => { host.querySelector(".cm-content")!.dispatchEvent(drag("drop", data, x, y)); });
     },
     text: () => host.querySelector(".cm-content")!.textContent,
     error: () => host.querySelector("output")!.textContent,
@@ -109,10 +113,15 @@ describe("Markdown image insertion through the pane capture handler", () => {
     expect(f.open).not.toHaveBeenCalled();
     expect(f.view.hasFocus).toBe(true);
   });
-  it("splits only on an explicit card", async () => {
+  it.each([
+    { edge: "left", x: 50, y: 300, direction: "horizontal", placement: "first" },
+    { edge: "right", x: 750, y: 300, direction: "horizontal", placement: "second" },
+    { edge: "top", x: 400, y: 40, direction: "vertical", placement: "first" },
+    { edge: "bottom", x: 400, y: 560, direction: "vertical", placement: "second" },
+  ])("splits an image on the $edge card without editing the document", async ({ x, y, direction, placement }) => {
     const f = await fixture();
-    await f.drop(imageTransfer(), 50);
-    expect(f.open).toHaveBeenCalledOnce();
+    await f.drop(imageTransfer(), x, y);
+    expect(f.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ path: `${resourceRoot}/assets/p.png` }), "pane", direction, placement);
     expect(f.view.state.doc.toString()).toBe("alpha\nbeta\n");
   });
   it("previews insertion using native session metadata while Files is protected", async () => {

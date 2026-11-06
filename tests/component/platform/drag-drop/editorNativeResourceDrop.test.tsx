@@ -53,7 +53,7 @@ function fixture() {
     return <><div draggable data-source onDragStart={(event) => exportNodes([{ id: uri, path: uri, name: entry.name, type: "file" }], event)} />
       {panes.map((id) => <section key={id} data-pane={id} data-edge={drop.dropIntent?.edge}
         onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)}>
-        {drop.splitTargetPaneId === id && <div data-file-split-targets><div data-file-split-edge="left" /><div data-file-split-edge="right" /></div>}
+        {drop.splitTargetPaneId === id && <div data-file-split-targets>{["left", "right", "top", "bottom"].map(edge => <div key={edge} data-file-split-edge={edge} />)}</div>}
       </section>)}
       <output>{drop.dropFailure ?? "ok"}</output></>;
   }
@@ -74,14 +74,21 @@ function exposeCards(pane: HTMLElement, transfer: DataTransfer) {
   act(() => pane.dispatchEvent(drag("dragover", transfer)));
   pane.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(0, 120, 120, 360);
   pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="top"]')!.getBoundingClientRect = () => new DOMRect(260, 12, 280, 72);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="bottom"]')!.getBoundingClientRect = () => new DOMRect(260, 516, 280, 72);
 }
-function drag(type: string, transfer: DataTransfer) {
-  const event = new DragEvent(type, { bubbles: true, cancelable: true, clientX: 790, clientY: 300 });
-  Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: 790 }, clientY: { value: 300 } });
+function drag(type: string, transfer: DataTransfer, x = 790, y = 300) {
+  const event = new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y });
+  Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: x }, clientY: { value: y } });
   return event;
 }
 
-it("connects the ordinary native source to Editor using Files and the canonical root-qualified identity", async () => {
+it.each([
+  { edge: "left", x: 50, y: 300, direction: "horizontal", placement: "first" },
+  { edge: "right", x: 750, y: 300, direction: "horizontal", placement: "second" },
+  { edge: "top", x: 400, y: 40, direction: "vertical", placement: "first" },
+  { edge: "bottom", x: 400, y: 560, direction: "vertical", placement: "second" },
+])("routes native Files on the $edge card through canonical admission", async ({ edge, x, y, direction, placement }) => {
   const f = fixture();
   const startEvent = drag("dragstart", new DataTransfer());
   await act(async () => { f.container.querySelector("[data-source]")!.dispatchEvent(startEvent); });
@@ -90,11 +97,11 @@ it("connects the ordinary native source to Editor using Files and the canonical 
   expect(f.pointer).toHaveBeenLastCalledWith({ active: true });
   const transfer = nativeFiles();
   exposeCards(f.pane, transfer);
-  act(() => f.pane.dispatchEvent(drag("dragover", transfer)));
-  expect(f.pane.dataset.edge).toBe("right");
-  await act(async () => { f.pane.dispatchEvent(drag("drop", transfer)); });
+  act(() => f.pane.dispatchEvent(drag("dragover", transfer, x, y)));
+  expect(f.pane.dataset.edge).toBe(edge);
+  await act(async () => { f.pane.dispatchEvent(drag("drop", transfer, x, y)); });
   expect(f.claim).toHaveBeenCalledWith({ files: [transfer.files[0]], intent: "editor-open", targetResource: undefined });
-  expect(f.open).toHaveBeenCalledExactlyOnceWith({ id: uri, path: uri, name: "same.md", type: "markdown" }, "pane-1", "horizontal", "second");
+  expect(f.open).toHaveBeenCalledExactlyOnceWith({ id: uri, path: uri, name: "same.md", type: "markdown" }, "pane-1", direction, placement);
   expect(f.pane.dataset.edge).toBeUndefined();
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
 });

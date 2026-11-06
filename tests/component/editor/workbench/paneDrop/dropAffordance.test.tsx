@@ -104,12 +104,14 @@ describe("editor pane insert affordance", () => {
     const shell = await render(dropController({ insertTargetPaneId: "another-pane" }));
     expect(shell.getAttribute("data-drop-kind")).toBeNull();
   });
-  it("shows two explicit split cards only on the pane under the file drag", async () => {
+  it("shows four explicit split cards on the pane under the file drag", async () => {
     const shell = await render(dropController({ splitTargetPaneId: pane.id }));
     const cards = shell.querySelectorAll("[data-file-split-edge]");
-    expect([...cards].map((card) => card.getAttribute("data-file-split-edge"))).toEqual(["left", "right"]);
+    expect([...cards].map((card) => card.getAttribute("data-file-split-edge"))).toEqual(["left", "right", "top", "bottom"]);
     expect(cards[0]?.textContent).toContain("Split editor left");
     expect(cards[1]?.textContent).toContain("Split editor right");
+    expect(cards[2]?.textContent).toContain("Split editor up");
+    expect(cards[3]?.textContent).toContain("Split editor down");
   });
   it("highlights the chosen split card", async () => {
     const shell = await render(dropController({ splitTargetPaneId: pane.id,

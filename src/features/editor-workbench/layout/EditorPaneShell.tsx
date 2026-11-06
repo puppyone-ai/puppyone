@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { PanelLeft, PanelRight } from "lucide-react";
+import { PanelBottom, PanelLeft, PanelRight, PanelTop } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type {
   EditorFindCommand,
@@ -18,6 +18,13 @@ import {
   AgentFilePresence,
   desktopAgentActivityStore,
 } from "../../desktop-agent-presence";
+
+const FILE_SPLIT_CARDS = [
+  { edge: "left", Icon: PanelLeft, label: "editor.panes.splitLeft" },
+  { edge: "right", Icon: PanelRight, label: "editor.panes.splitRight" },
+  { edge: "top", Icon: PanelTop, label: "editor.panes.splitUp" },
+  { edge: "bottom", Icon: PanelBottom, label: "editor.panes.splitDown" },
+] as const;
 
 function resolveDropKind(
   insertIntent: boolean,
@@ -149,11 +156,11 @@ export function EditorPaneShell({
       </div>
       {fileDrop.splitTargetPaneId === pane.id && (
         <div className="desktop-editor-file-split-targets" data-file-split-targets aria-hidden="true">
-          {(["left", "right"] as const).map((edge) => (
+          {FILE_SPLIT_CARDS.map(({ edge, Icon, label }) => (
             <div key={edge} className="desktop-editor-file-split-card" data-file-split-edge={edge}
               data-active={fileDropEdge === edge ? "true" : undefined}>
-              {edge === "left" ? <PanelLeft size={20} /> : <PanelRight size={20} />}
-              <span>{t(edge === "left" ? "editor.panes.splitLeft" : "editor.panes.splitRight")}</span>
+              <Icon size={20} />
+              <span>{t(label)}</span>
             </div>
           ))}
         </div>

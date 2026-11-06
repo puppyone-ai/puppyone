@@ -452,6 +452,44 @@
 .desktop-editor-file-split-card[data-file-split-edge="left"] { left: min(12px, 4%); }
 .desktop-editor-file-split-card[data-file-split-edge="right"] { right: min(12px, 4%); }
 
+/* Side cards occupy the middle 60% of the pane height. Keep each horizontal
+ * card within the outer 18%, including its inset, so all four targets remain
+ * separate even in small nested panes and leave the center free for insertion. */
+.desktop-editor-file-split-card[data-file-split-edge="top"],
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] {
+  top: auto;
+  left: 50%;
+  width: min(60%, 280px);
+  height: min(16%, 72px);
+  max-height: none;
+  transform: translateX(-50%);
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 min(12px, 2%);
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] > svg,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] > svg {
+  flex-shrink: 0;
+  max-height: 100%;
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] > span,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"]::before,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"]::before {
+  inset-block: min(8px, 15%);
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] { top: min(12px, 2%); }
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] { bottom: min(12px, 2%); }
+
 .desktop-editor-file-split-card[data-active="true"] {
   border-color: var(--po-accent);
   color: var(--po-accent);
