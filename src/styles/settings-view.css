@@ -121,6 +121,10 @@
   overflow: hidden;
 }
 
+.desktop-settings-dialog-layout {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
 .desktop-settings-dialog-navigation,
 .desktop-settings-dialog-content,
 .desktop-plugins-dialog-navigation,
@@ -142,19 +146,6 @@
 
 .desktop-settings-dialog-navigation .desktop-settings-sidebar {
   background: transparent;
-}
-
-.desktop-settings-sidebar .po-sidebar-row {
-  height: auto;
-  min-height: var(--desktop-sidebar-row-height);
-  padding-block: 6px;
-  line-height: max(var(--desktop-sidebar-line-height, 18px), 1.35em);
-}
-
-.desktop-settings-sidebar .po-sidebar-row__label {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
 }
 
 .desktop-plugins-dialog-navigation .desktop-plugins-sidebar {
