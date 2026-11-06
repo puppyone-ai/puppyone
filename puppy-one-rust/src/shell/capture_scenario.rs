@@ -278,9 +278,12 @@ impl Shell {
             Step::ProjectEntry => self.open_project_entry(cx),
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
-                self.begin_pane_drag(super::Side::Start, at(self.layout.editor.x), cx);
-                self.move_pane_drag(at(*x), cx);
-                self.end_pane_drag(true, cx);
+                let (from, to) = (at(self.layout.editor.x), at(*x));
+                self.panes.update(cx, |p, cx| {
+                    p.begin_drag(super::Side::Start, from, cx);
+                    p.move_drag(to, cx);
+                    p.end_drag(true, cx);
+                });
             }
             Step::GitCommit(index) => {
                 let index = *index;

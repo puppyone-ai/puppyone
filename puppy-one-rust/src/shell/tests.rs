@@ -254,13 +254,13 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
 #[gpui::test]
 fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    // ⌘B collapses the Explorer; the Header then offers the expand button.
+    // Collapsed, the Explorer's expand button is in the Header.
     command(&view, cx, Command::ToggleExplorer);
-    view.update(cx, |s, _| assert!(!s.panes.explorer().open));
+    view.update(cx, |s, cx| assert!(!s.panes.read(cx).explorer().open));
     cx.simulate_click(point(px(100.), px(20.)), Modifiers::none());
-    view.update(cx, |s, _| assert!(s.panes.explorer().open));
+    view.update(cx, |s, cx| assert!(s.panes.read(cx).explorer().open));
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| assert!(s.panes.right().open));
+    view.update(cx, |s, cx| assert!(s.panes.read(cx).right().open));
     command(&view, cx, Command::Settings);
     view.update(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
     let retained = view.update(cx, |s, cx| {
@@ -294,23 +294,23 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
 ) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Changes);
-    view.update(cx, |s, _| assert!(!s.panes.right().open));
+    view.update(cx, |s, cx| assert!(!s.panes.read(cx).right().open));
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, _| {
         s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
     });
     command(&view, cx, Command::Changes);
-    view.update(cx, |s, _| {
-        assert!(s.right_shows(Surface::Git));
+    view.update(cx, |s, cx| {
+        assert!(s.right_shows(Surface::Git, cx));
         assert!(!s.modal());
     });
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| assert!(s.right_shows(Surface::Agent)));
+    view.update(cx, |s, cx| assert!(s.right_shows(Surface::Agent, cx)));
     command(&view, cx, Command::Changes);
     command(&view, cx, Command::Changes);
     // Closing keeps Changes on screen while the frame closes, and stored.
     view.update(cx, |s, cx| {
-        assert!(!s.panes.right().open && s.sidebar.is(Surface::Git));
+        assert!(!s.panes.read(cx).right().open && s.sidebar.is(Surface::Git));
         assert_eq!(
             s.preferences.read(cx).state.right_sidebar_surface,
             crate::features::settings::preference_types::RightSidebarSurface::Changes
@@ -368,21 +368,21 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     assert_eq!(stored(&view, cx), RightSidebarSurface::History);
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
-        assert!(!s.panes.right().open && s.sidebar.is(Surface::Git));
+        assert!(!s.panes.read(cx).right().open && s.sidebar.is(Surface::Git));
         assert!(s.sidebar.source_control.read(cx).history_open());
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::History);
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
-        assert!(s.right_shows(Surface::Git));
+        assert!(s.right_shows(Surface::Git, cx));
         assert!(!s.sidebar.source_control.read(cx).history_open());
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::Changes);
     // The Agent is Chat; closing it keeps Chat.
     command(&view, cx, Command::ToggleRightSidebar);
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| {
-        assert!(!s.panes.right().open && s.sidebar.is(Surface::Agent))
+    view.update(cx, |s, cx| {
+        assert!(!s.panes.read(cx).right().open && s.sidebar.is(Surface::Agent))
     });
     assert_eq!(stored(&view, cx), RightSidebarSurface::Chat);
     // A new window starts closed on the stored surface, once.
@@ -1003,6 +1003,40 @@ fn closing_the_explorer_moves_its_frame_unless_motion_is_reduced(cx: &mut TestAp
 }
 
 #[gpui::test]
+fn a_closing_explorer_moves_without_rendering_its_rows_again(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    draw(cx);
+    let explorer = explorer_of(&view, cx);
+    let renders = |cx: &mut VisualTestContext| explorer.read_with(cx, |e, _| e.renders);
+    let edge = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.layout.editor.x);
+    assert_eq!(edge(cx), 320.);
+    // The toggle tells the Explorer once that it is closing…
+    command(&view, cx, Command::ToggleExplorer);
+    let closing = renders(cx);
+    // …then its frame moves over many frames while the rows stay as they
+    // were: the editor covers them, nothing clips them.
+    let mut moving = 0;
+    for _ in 0..200 {
+        std::thread::sleep(std::time::Duration::from_millis(8));
+        draw(cx);
+        let x = edge(cx);
+        if x == 0. {
+            break;
+        }
+        assert!(x < 320.);
+        moving += 1;
+    }
+    assert_eq!(edge(cx), 0., "the frame closed");
+    assert!(moving >= 3, "the frame moved over {moving} frames");
+    assert_eq!(
+        renders(cx),
+        closing,
+        "the Explorer was reused at every frame"
+    );
+}
+
+#[gpui::test]
 fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     cx.simulate_resize(size(px(760.), px(700.)));
@@ -1014,7 +1048,9 @@ fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestA
     // Explorer + right sidebar need 320 + 8 + 220 + 320.
     command(&view, cx, Command::ToggleRightSidebar);
     assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 868.);
-    view.update(cx, |s, _| assert_eq!(s.panes.window_minimum(), 868.));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.panes.read(cx).window_minimum(), 868.)
+    });
 }
 
 #[gpui::test]
@@ -1092,9 +1128,12 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     // The divider is the Explorer's last column; its lane runs 8px on.
     // Narrowing within range follows the pointer.
     drag(&view, cx, (322., 400.), &[(280., 400.)], true);
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(
-            (s.panes.explorer().open, s.panes.explorer().width),
+            (
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width
+            ),
             (true, 278.)
         )
     });
@@ -1106,8 +1145,11 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
         &[(200., 400.), (100., 400.)],
         false,
     );
-    view.read_with(cx, |s, _| {
-        assert!(s.panes.explorer().open, "nothing is committed mid-drag");
+    view.read_with(cx, |s, cx| {
+        assert!(
+            s.panes.read(cx).explorer().open,
+            "nothing is committed mid-drag"
+        );
         assert_eq!(s.layout.editor.x, 0., "the preview is closed");
     });
     // …and releasing commits it, reopening later at the minimum.
@@ -1116,9 +1158,12 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
         MouseButton::Left,
         Modifiers::default(),
     );
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(
-            (s.panes.explorer().open, s.panes.explorer().width),
+            (
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width
+            ),
             (false, 220.)
         )
     });
@@ -1151,12 +1196,12 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(
             (
-                s.panes.explorer().open,
-                s.panes.explorer().width,
-                s.panes.right().width
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width,
+                s.panes.read(cx).right().width
             ),
             (false, 260., 400.)
         );
@@ -1167,7 +1212,10 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
     command(&view, cx, Command::ToggleExplorer);
     view.read_with(cx, |s, cx| {
         assert_eq!(
-            (s.panes.explorer().open, s.panes.explorer().width),
+            (
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width
+            ),
             (true, 260.)
         );
         assert!(!s.preferences.read(cx).state.sidebar_collapsed);
@@ -1201,9 +1249,12 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         MouseButton::Left,
         Modifiers::default(),
     );
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(
-            (s.panes.explorer().open, s.panes.explorer().width),
+            (
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width
+            ),
             (true, 220.)
         )
     });
@@ -1215,8 +1266,8 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.read_with(cx, |s, _| {
-        assert!(s.panes.dragging().is_none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.panes.read(cx).dragging().is_none());
         assert_eq!(s.layout.editor.x, 220.);
     });
     cx.simulate_mouse_up(
@@ -1224,9 +1275,12 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         MouseButton::Left,
         Modifiers::default(),
     );
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(
-            (s.panes.explorer().open, s.panes.explorer().width),
+            (
+                s.panes.read(cx).explorer().open,
+                s.panes.read(cx).explorer().width
+            ),
             (true, 220.)
         )
     });
@@ -1240,10 +1294,10 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.read_with(cx, |s, _| assert!(!s.panes.right().open));
+    view.read_with(cx, |s, cx| assert!(!s.panes.read(cx).right().open));
     // A short pull snaps back closed…
     drag(&view, cx, (1275., 400.), &[(1200., 400.)], true);
-    view.read_with(cx, |s, _| assert!(!s.panes.right().open));
+    view.read_with(cx, |s, cx| assert!(!s.panes.read(cx).right().open));
     // …one past the 160px threshold opens it.
     drag(
         &view,
@@ -1252,8 +1306,14 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
         &[(1000., 400.), (900., 400.)],
         true,
     );
-    view.read_with(cx, |s, _| {
-        assert_eq!((s.panes.right().open, s.panes.right().width), (true, 375.))
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            (
+                s.panes.read(cx).right().open,
+                s.panes.read(cx).right().width
+            ),
+            (true, 375.)
+        )
     });
 }
 
@@ -1296,11 +1356,15 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     }
     assert!(frames(cx) > shell_before, "the scroll rendered frames");
     assert_eq!(renders(cx), before, "the Explorer was reused");
-    // What the shell pushes renders it again.
+    // Rendering the shell does not push anything into the Explorer…
     view.update(cx, |s, cx| {
         s.pending = true;
         cx.notify();
     });
+    draw(cx);
+    assert_eq!(renders(cx), before, "a shell frame is not a host change");
+    // …a host change, handed over when it happens, renders it again.
+    view.update_in(cx, |s, w, cx| s.push_explorer_host(w, cx));
     draw(cx);
     let pushed = renders(cx);
     assert!(pushed > before, "a host change renders the Explorer");
@@ -1697,17 +1761,19 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // No hosted Project: the Header command does nothing.
     command(&view, cx, Command::CloudHistory);
-    view.read_with(cx, |s, _| assert!(!s.right_shows(Surface::CloudHistory)));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.right_shows(Surface::CloudHistory, cx))
+    });
     // A History sidebar left without its scope closes on the next frame.
     view.update(cx, |s, cx| {
         assert!(!s.sidebar.toggle_cloud_history(false, "project", cx));
-        s.panes.set_right_open(true);
+        s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
     view.read_with(cx, |s, cx| {
-        assert!(!s.panes.right().open);
+        assert!(!s.panes.read(cx).right().open);
         assert!(!s.sidebar.cloud_history.read(cx).is_open());
     });
 }

@@ -44,7 +44,7 @@ impl Shell {
         if self.sidebar.is(Surface::CloudHistory) {
             self.sidebar.close_cloud_history(cx);
         }
-        self.panes.set_right_open(false);
+        self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
         self.popover = None;
         self.focus.focus(window, cx);
     }

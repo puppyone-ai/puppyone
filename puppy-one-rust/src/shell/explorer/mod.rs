@@ -50,11 +50,11 @@ use menus::ExplorerMenu;
 pub(super) use menus::{MenuAt, RowTrigger};
 pub(in crate::shell) use rows::DragNodes;
 
-/// What the Explorer reads from the shell, pushed every frame.
+/// What the Explorer reads from the shell, pushed when it changes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::shell) struct Host {
-    /// The panel in window coordinates, at its open width (the shell clips it
-    /// while the pane moves).
+    /// The panel in window coordinates, at its open width: it keeps it
+    /// while its frame moves or a drag narrows it.
     pub frame: Rect,
     /// The pane is open: rows animate only then.
     pub open: bool,
@@ -311,17 +311,19 @@ impl Explorer {
             index: self.references[&owner].1.clone(),
         })
     }
-    /// The shell's state this frame; also commits the visible rows to the
-    /// disclosure motion and keeps frames coming while it runs. A file
-    /// operation waiting on the open document resumes once nothing is open.
-    ///
-    /// The shell embeds the Explorer as a cached view, so the Explorer
-    /// renders again only when notified: when what the shell pushes
-    /// changes, and on every frame of the disclosure motion (the frame it
-    /// requests is the shell's, which is rendering).
-    pub fn sync(&mut self, host: Host, window: &mut Window, cx: &mut Context<Self>) {
-        let changed = self.host != host;
-        self.host = host;
+    /// What the shell holds that the Explorer shows: pushed when it changes
+    /// (a document opens, a pane opens or closes, the window resizes), not
+    /// every frame. Only a change renders the Explorer again.
+    pub fn set_host(&mut self, host: Host, cx: &mut Context<Self>) {
+        if self.host != host {
+            self.host = host;
+            cx.notify();
+        }
+    }
+    /// The disclosure motion's frame: the visible rows are committed to it,
+    /// and while it runs the Explorer asks for the next frame (its own: a
+    /// cached view renders again only when notified).
+    fn advance_motion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let animate = self.host.open && !cx.reduce_motion();
         let moving = self.motion.sync(
             self.tree.id,
@@ -332,9 +334,6 @@ impl Explorer {
         );
         if moving {
             window.request_animation_frame();
-        }
-        if changed || moving {
-            cx.notify();
         }
     }
     /// Restore the workspace's Explorer session, then revalidate its listings.
@@ -693,12 +692,13 @@ impl Explorer {
 impl Render for Explorer {
     /// The panel: the virtual tree with its drop target, context menu and the
     /// fade into the footer.
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         #[cfg(test)]
         {
             self.renders += 1;
             self.painted_rows = 0;
         }
+        self.advance_motion(window, cx);
         let t = cx.palette();
         let loading = self.tree.rows.is_empty() && (self.host.folder_busy || self.host.picking);
         let empty = self.tree.rows.is_empty() && !loading && self.workspace.is_some();

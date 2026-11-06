@@ -169,8 +169,8 @@ impl Shell {
             .as_ref()
             .map(|s| format!("{s}#{}", self.window.entries));
         let inputs = Inputs {
-            agent_open: self.right_shows(Surface::Agent),
-            changes_open: self.right_shows(Surface::Git),
+            agent_open: self.right_shows(Surface::Agent, cx),
+            changes_open: self.right_shows(Surface::Git, cx),
             local: repository.then_some(status.local),
             entry: entry.as_deref().filter(|_| !self.homepage.open),
             scope: scope.as_deref().filter(|_| !self.homepage.open),
@@ -262,10 +262,10 @@ impl Shell {
         let primary = cx.listener(move |s, _, w, cx| {
             s.acknowledge_coachmark(id, cx);
             match id {
-                Coachmark::Agent if !s.right_shows(Surface::Agent) => {
+                Coachmark::Agent if !s.right_shows(Surface::Agent, cx) => {
                     s.command(Command::ToggleRightSidebar, w, cx)
                 }
-                Coachmark::Changes if !s.right_shows(Surface::Git) => {
+                Coachmark::Changes if !s.right_shows(Surface::Git, cx) => {
                     s.command(Command::Changes, w, cx)
                 }
                 _ => {}

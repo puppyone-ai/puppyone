@@ -96,6 +96,10 @@ impl Config {
             hysteresis: clamp(24f32.min(threshold * 0.25), 0., threshold),
         }
     }
+    /// The widths the pane may take while open.
+    pub fn range(&self) -> (f32, f32) {
+        (self.min, self.max)
+    }
 }
 
 impl Gesture {

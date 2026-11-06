@@ -1,6 +1,8 @@
 //! Timed motion shared by every animated surface: a [`Timeline`] that owners
 //! sample once per painted frame (requesting the next frame while it runs),
-//! and the dev-capture freeze that holds all of them at one point.
+//! a [`FrameTimeline`] for motion that must show every step even when a frame
+//! comes late (the pane frames), and the dev-capture freeze that holds all of
+//! them at one point.
 //!
 //! Owners keep their own curve and plan (the pane frames ease in and out, the
 //! Explorer disclosure uses the product's trapezoid); the timeline only says
@@ -35,6 +37,53 @@ impl Timeline {
     #[cfg(test)]
     pub fn advance(&mut self, by: Duration) {
         self.started -= by;
+    }
+}
+
+/// A motion that advances with the frames that show it: the first frame
+/// shows its start, and each later frame advances it by the time since the
+/// previous one, at most [`FrameTimeline::MAX_STEP`]. A frame that came late
+/// slows the motion down instead of skipping to its end, so a busy frame at
+/// the start never turns a 360ms close into a stall and a jump.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FrameTimeline {
+    duration: Duration,
+    elapsed: Duration,
+    last: Option<Instant>,
+}
+impl FrameTimeline {
+    /// The most one frame advances: two 60 Hz frames.
+    pub const MAX_STEP: Duration = Duration::from_millis(33);
+    pub fn new(duration: Duration) -> Self {
+        Self {
+            duration,
+            elapsed: Duration::ZERO,
+            last: None,
+        }
+    }
+    /// One painted frame at `now`: linear progress from `0` to `1`, or the
+    /// frozen point.
+    pub fn tick(&mut self, now: Instant) -> f32 {
+        if let Some(last) = self.last {
+            self.elapsed += now.saturating_duration_since(last).min(Self::MAX_STEP);
+        }
+        self.last = Some(now);
+        self.time()
+    }
+    /// Progress so far, or the frozen point.
+    pub fn time(&self) -> f32 {
+        frozen_time().unwrap_or_else(|| {
+            (self.elapsed.as_secs_f32() / self.duration.as_secs_f32()).clamp(0., 1.)
+        })
+    }
+    /// The motion is over (never while frozen).
+    pub fn finished(&self) -> bool {
+        frozen_time().is_none() && self.elapsed >= self.duration
+    }
+    /// Tests: let `by` pass on the motion's clock.
+    #[cfg(test)]
+    pub fn advance(&mut self, by: Duration) {
+        self.elapsed += by;
     }
 }
 
@@ -92,6 +141,25 @@ mod tests {
         timeline.advance(Duration::from_millis(150));
         assert_eq!(timeline.time(), 1.);
         assert!(timeline.finished());
+    }
+
+    #[test]
+    fn a_frame_timeline_starts_at_its_first_frame_and_absorbs_a_late_one() {
+        let start = Instant::now();
+        let mut timeline = FrameTimeline::new(Duration::from_millis(360));
+        // However late the first frame is, it shows the start.
+        assert_eq!(timeline.tick(start + Duration::from_millis(400)), 0.);
+        // A 300ms hitch advances it by one step only.
+        let late = start + Duration::from_millis(700);
+        let after = timeline.tick(late);
+        assert!((after - 33. / 360.).abs() < 1e-3, "{after}");
+        // Frames on time advance by their own interval, to the end.
+        let mut now = late;
+        while !timeline.finished() {
+            now += Duration::from_millis(16);
+            timeline.tick(now);
+        }
+        assert_eq!(timeline.time(), 1.);
     }
 
     #[test]

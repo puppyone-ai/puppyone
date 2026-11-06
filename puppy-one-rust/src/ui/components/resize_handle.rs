@@ -29,6 +29,7 @@ pub struct ResizeHandle {
     hover: Option<Rgba>,
     cursor: Option<CursorStyle>,
     resizing: bool,
+    focused: bool,
     disabled: bool,
     on_drag_start: Option<DragStart>,
 }
@@ -48,6 +49,7 @@ impl ResizeHandle {
             hover: None,
             cursor: None,
             resizing: false,
+            focused: false,
             disabled: false,
             on_drag_start: None,
         }
@@ -82,6 +84,12 @@ impl ResizeHandle {
     /// stays grabbable even when disabled.
     pub fn resizing(mut self, resizing: bool) -> Self {
         self.resizing = resizing;
+        self
+    }
+    /// Holding keyboard focus: the stroke shows as under the pointer
+    /// (`:focus-visible`).
+    pub fn focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
         self
     }
     /// A primary press on the lane starts the owner's drag.
@@ -156,6 +164,7 @@ impl RenderOnce for ResizeHandle {
                             spread_radius: px(1.),
                         }])
                     })
+                    .when(!self.resizing && self.focused, |d| d.bg(hover))
                     .when(!self.resizing && !self.disabled, |d| {
                         d.group_hover(group, move |s| s.bg(hover))
                     }),

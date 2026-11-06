@@ -154,19 +154,22 @@ impl Shell {
                 .h(px((h - top).max(0.)))
                 .occlude()
                 .bg(t.canvas)
-                .when(self.panes.explorer().open && explorer.w > 0., |d| {
-                    d.child(
-                        div()
-                            .absolute()
-                            .left(px(explorer.x))
-                            .top(px(explorer.y - top))
-                            .w(px(explorer.w))
-                            .h(px(explorer.h))
-                            .bg(t.sidebar)
-                            .overflow_hidden()
-                            .child(Self::explorer_skeleton(explorer.w, cx)),
-                    )
-                })
+                .when(
+                    self.panes.read(cx).explorer().open && explorer.w > 0.,
+                    |d| {
+                        d.child(
+                            div()
+                                .absolute()
+                                .left(px(explorer.x))
+                                .top(px(explorer.y - top))
+                                .w(px(explorer.w))
+                                .h(px(explorer.h))
+                                .bg(t.sidebar)
+                                .overflow_hidden()
+                                .child(Self::explorer_skeleton(explorer.w, cx)),
+                        )
+                    },
+                )
                 .child(opening)
                 .into_any_element(),
         )

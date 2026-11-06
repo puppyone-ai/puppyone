@@ -7,7 +7,7 @@ use crate::{
     ui::{
         self,
         appearance::ActiveAppearance,
-        components::{ButtonVariant, IconButton, ResizeHandle},
+        components::{ButtonVariant, IconButton},
     },
     wake::Wake,
 };
@@ -26,6 +26,7 @@ mod create_new;
 mod editor_area;
 mod editor_workbench;
 mod explorer;
+mod explorer_column;
 mod file_mode;
 mod footer;
 mod header;
@@ -49,9 +50,10 @@ pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
 };
 use explorer::{Explorer, ExplorerEvent, Host};
+use explorer_column::ExplorerColumn;
 use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
-use panes::{Layout, Panes, Side, StoredPanes};
+use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side, StoredPanes};
 use right_sidebar::Surface;
 use tasks::TaskUi;
 /// The layout of a pane embedded as a cached view: it fills the frame the
@@ -116,8 +118,9 @@ pub struct Shell {
     project_actions: Option<project_actions::ActionsMenu>,
     dark: bool,
     locale: Locale,
-    /// The Explorer and the right sidebar.
-    panes: Panes,
+    /// The Explorer's and the right sidebar's frames: open, width, edge
+    /// drags and motion.
+    panes: Entity<PaneLayout>,
     /// The project rail (`ProjectSwitcherRail`) replaces the Header's project
     /// button.
     rail: bool,
@@ -166,22 +169,6 @@ fn at(r: Rect) -> Div {
         .top(px(r.y))
         .w(px(r.w))
         .h(px(r.h))
-}
-/// `content` (laid out in window coordinates) shown only inside `clip`, a
-/// moving pane frame; unclipped when the pane is settled.
-fn clipped(clip: Option<Rect>, w: f32, h: f32, content: Div) -> Div {
-    match clip {
-        None => content,
-        Some(r) => at(r).overflow_hidden().child(
-            div()
-                .absolute()
-                .left(px(-r.x))
-                .top(px(-r.y))
-                .w(px(w))
-                .h(px(h))
-                .child(content),
-        ),
-    }
 }
 impl Shell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -272,7 +259,10 @@ impl Shell {
             project_actions: None,
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
-            panes: Panes::new(std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1")),
+            panes: {
+                let right = std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1");
+                cx.new(|cx| PaneLayout::new(right, window, cx))
+            },
             rail: false,
             modals: Default::default(),
             sidebar: right_sidebar::RightSidebar::new(
@@ -402,6 +392,21 @@ impl Shell {
             cx.notify()
         })
         .detach();
+        // The panes move and resize on their own input; the shell stores what
+        // the person committed and keeps the window large enough for them.
+        cx.observe(&s.panes, |_, _, cx| cx.notify()).detach();
+        cx.subscribe_in(&s.panes, window, |s, _, event, window, cx| match event {
+            PaneEvent::Committed => s.persist_panes(cx),
+            PaneEvent::OpenChanged => {
+                s.constrain_window(window, cx);
+                s.push_explorer_host(window, cx);
+            }
+            PaneEvent::PulledOut => s.sidebar.pulled_out(),
+        })
+        .detach();
+        // The Explorer's frame follows the window.
+        cx.observe_window_bounds(window, |s, window, cx| s.push_explorer_host(window, cx))
+            .detach();
         cx.subscribe_in(&s.task_ui.settings, window, |s, _, event, w, cx| {
             use crate::features::settings::SettingsEvent;
             match event {
@@ -480,7 +485,7 @@ impl Shell {
                 let _ = agents.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
             })
             .detach();
-        // Leaving the window abandons a pane drag (`blur` cancels).
+        // Leaving the window abandons an editor drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
             let active = window.is_window_active();
             s.sidebar
@@ -488,7 +493,6 @@ impl Shell {
                 .update(cx, |sc, cx| sc.set_focused(active, cx));
             if !active {
                 s.editor.drop = None;
-                s.end_pane_drag(false, cx);
                 s.end_editor_resize(false, cx);
             } else {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
@@ -508,7 +512,7 @@ impl Shell {
             }
         })
         .detach();
-        // Escape rolls a pane drag back wherever focus is (TS listens on
+        // Escape rolls an editor drag back wherever focus is (TS listens on
         // `window` in the capture phase): intercepted before any binding.
         let shell = cx.weak_entity();
         let own = window.window_handle();
@@ -524,10 +528,6 @@ impl Shell {
                 }
                 if s.editor.resize.is_some() {
                     s.end_editor_resize(false, cx);
-                    cx.stop_propagation();
-                }
-                if s.panes.dragging().is_some() {
-                    s.end_pane_drag(false, cx);
                     cx.stop_propagation();
                 }
             });
@@ -665,16 +665,16 @@ impl Shell {
         if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
             if surface == "changes" {
-                s.panes.set_right_open(true);
+                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
             }
             if surface == "agent-panel" || surface == "agent-panel-empty" {
-                s.panes.set_right_open(true);
+                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
                 s.sidebar.workbench.update(cx, |workbench, cx| {
                     workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
                 });
             }
             if surface == "agent-empty" || surface == "agent-transcript" {
-                s.panes.set_right_open(true);
+                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
                 s.sidebar.workbench.update(cx, |workbench, cx| {
                     workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
                 });
@@ -733,6 +733,8 @@ impl Shell {
         crate::ui::appearance::Appearance::default()
             .with_dark(s.dark)
             .apply(Some(window), cx);
+        s.constrain_window(window, cx);
+        s.push_explorer_host(window, cx);
         s
     }
     /// The preferences changed. Only a change to appearance, type scale or
@@ -829,7 +831,6 @@ impl Shell {
         self.sidebar
             .source_control
             .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
-        self.rail = p.project_switcher_rail;
         // The pane layout (`useDesktopExplorerFrame`), only when it changed:
         // this window's own commits arrive back here as no change.
         let stored = StoredPanes {
@@ -838,14 +839,21 @@ impl Shell {
             right_width: p.right_sidebar_width,
         };
         if let Some(stored) = self.preference_slices.panes.changed(stored) {
-            self.panes.restore(*stored);
+            let stored = *stored;
+            self.panes.update(cx, |p, cx| p.restore(stored, cx));
         }
         // The surface the closed sidebar opens on (`rightSidebarSurface`).
         if self.preferences.read(cx).loaded {
-            let open = self.panes.right().open;
+            let open = self.panes.read(cx).right().open;
             self.sidebar.restore(p.right_sidebar_surface, open, cx);
         }
-        let _ = window;
+        // The project rail takes room from the panes.
+        let rail_changed = self.rail != p.project_switcher_rail;
+        self.rail = p.project_switcher_rail;
+        if rail_changed {
+            self.constrain_window(window, cx);
+            self.push_explorer_host(window, cx);
+        }
     }
     /// A dialog takes the window: the modal layer, or the Documents error.
     fn modal(&self) -> bool {
@@ -931,6 +939,7 @@ impl Shell {
             return;
         }
         self.pending = true;
+        self.push_explorer_host(window, cx);
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -1176,14 +1185,12 @@ impl Shell {
                     .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
             }
             Command::ToggleExplorer => {
-                self.panes.toggle_explorer();
-                self.persist_panes(cx);
+                self.panes.update(cx, |p, cx| p.toggle_explorer(cx));
             }
             Command::ToggleRightSidebar => {
-                let open =
-                    self.sidebar
-                        .toggle_agent(self.panes.right().open, &self.preferences, cx);
-                self.panes.set_right_open(open);
+                let open = self.panes.read(cx).right().open;
+                let open = self.sidebar.toggle_agent(open, &self.preferences, cx);
+                self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
             }
             Command::Settings => {
                 self.popover = None;
@@ -1228,7 +1235,7 @@ impl Shell {
             }
             // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
             Command::Escape
-                if self.right_shows(Surface::CloudHistory)
+                if self.right_shows(Surface::CloudHistory, cx)
                     && self
                         .sidebar
                         .cloud_history
@@ -1293,10 +1300,9 @@ impl Shell {
                     return;
                 };
                 self.popover = None;
-                let open = self
-                    .sidebar
-                    .toggle_cloud_history(self.panes.right().open, &project, cx);
-                self.panes.set_right_open(open);
+                let open = self.panes.read(cx).right().open;
+                let open = self.sidebar.toggle_cloud_history(open, &project, cx);
+                self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
                 if open {
                     let history = self.sidebar.cloud_history.read(cx).focus_handle().clone();
                     history.focus(window, cx);
@@ -1322,10 +1328,9 @@ impl Shell {
                 if self.files.workspace.is_none() {
                     return;
                 }
-                let open = self
-                    .sidebar
-                    .toggle_git(self.panes.right().open, &self.preferences, cx);
-                self.panes.set_right_open(open);
+                let open = self.panes.read(cx).right().open;
+                let open = self.sidebar.toggle_git(open, &self.preferences, cx);
+                self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
                 self.focus.focus(window, cx);
             }
             _ => {}
@@ -1434,6 +1439,7 @@ impl Shell {
         {
             self.files.begin(Intent::OpenFile(path), &self.wake);
         }
+        self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
         if self.files.allow_quit
             && self
@@ -1677,7 +1683,7 @@ impl Shell {
     /// History closed itself (Close, Back): the sidebar closes on it.
     fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
         if self.sidebar.is(Surface::CloudHistory) {
-            self.panes.set_right_open(false);
+            self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
         }
         self.sidebar.close_cloud_history(cx);
     }
@@ -1695,18 +1701,18 @@ impl Shell {
         Some((editors, active))
     }
     /// The right sidebar is open on `surface`.
-    fn right_shows(&self, surface: Surface) -> bool {
-        self.panes.right().open && self.sidebar.is(surface)
+    fn right_shows(&self, surface: Surface, cx: &App) -> bool {
+        self.panes.read(cx).right().open && self.sidebar.is(surface)
     }
     /// History out of its scope closes (`useCloudWorkspaceSidebar`).
     fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
         let project = self.hosted_project();
-        let open = self.panes.right().open;
+        let open = self.panes.read(cx).right().open;
         if self
             .sidebar
             .guard_cloud_history(open, project.as_deref(), cx)
         {
-            self.panes.set_right_open(false);
+            self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
         }
     }
     /// Explicit Cloud opening of a hosted Project root in this window.
@@ -1874,62 +1880,6 @@ impl Shell {
                 .on_click(cx.listener(|s, _, w, cx| s.command(Command::CreateNew, w, cx))),
         )
     }
-    /// `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
-    /// transparent hit lane whose only paint is the 1px divider — the
-    /// Explorer's own last column, the right sidebar's first — plus the
-    /// adjacent hover / active stroke (and ring while dragging).
-    fn sash(&self, left: bool, cx: &mut Context<Self>) -> ResizeHandle {
-        use gpui_kit::base::Disableable as _;
-        let t = cx.palette();
-        // The frames' edges, also mid-motion: the main pane follows them.
-        let x = if left {
-            self.layout.editor.x - 1.
-        } else {
-            self.layout.editor.right()
-        };
-        let side = if left { Side::Start } else { Side::End };
-        // A pane that is closing (or previewing closed) keeps its edge
-        // painted but cannot be grabbed (`onPointerDown` while collapsed).
-        let grabbable = self.panes.pane(side).open;
-        ResizeHandle::new(
-            if left { "left-sash" } else { "right-sash" },
-            Axis::Horizontal,
-        )
-        .divider(t.sidebar_divider)
-        .stroke_at(1.)
-        .resizing(self.panes.dragging() == Some(side))
-        .disabled(!grabbable)
-        .on_drag_start(
-            cx.listener(move |s, e: &MouseDownEvent, _, cx| {
-                s.begin_pane_drag(side, e.position, cx)
-            }),
-        )
-        .absolute()
-        .left(px(x))
-        .top(px(self.layout.editor.y))
-        .w(px(theme::metric::PANE_SASH))
-        .h(px(self.layout.editor.h))
-    }
-    /// `.po-collapsed-pane-edge-handle--inline-end`: a closed right
-    /// sidebar keeps a 12px lane at the window edge to pull it back out,
-    /// marked by a faint line that firms up on hover.
-    fn collapsed_right_edge(&self, w: f32, cx: &mut Context<Self>) -> ResizeHandle {
-        let t = cx.palette();
-        let lane = theme::pane::COLLAPSED_EDGE_HIT;
-        ResizeHandle::new("right-collapsed-edge", Axis::Horizontal)
-            .stroke_at(lane - 1.)
-            .rest(theme::alpha(t.shell_divider, 0.72))
-            .hover(t.border_strong)
-            .cursor(CursorStyle::ResizeLeft)
-            .on_drag_start(cx.listener(|s, e: &MouseDownEvent, _, cx| {
-                s.begin_pane_drag(Side::End, e.position, cx)
-            }))
-            .absolute()
-            .left(px(w - lane))
-            .top(px(self.layout.editor.y))
-            .w(px(lane))
-            .h(px(self.layout.editor.h))
-    }
     /// The width the panes share: the window, less the project rail.
     fn rail_width(&self) -> f32 {
         if self.rail {
@@ -1938,11 +1888,18 @@ impl Shell {
             0.
         }
     }
-    /// What the Explorer needs from the shell this frame (`Host`).
-    fn sync_explorer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// What the Explorer shows of the shell (`Host`), handed over when it
+    /// changes: a document opens or closes, the folder picker opens, a pane
+    /// opens or closes, the window resizes. The frame is the Explorer's open
+    /// plane, which it keeps while its frame moves.
+    fn push_explorer_host(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let size = window.viewport_size();
+        let (w, h) = (f32::from(size.width), f32::from(size.height));
+        let rail = self.rail_width();
+        let panes = self.panes.read(cx);
         let host = Host {
-            frame: self.layout.explorer,
-            open: self.panes.explorer().open,
+            frame: panes.open_plane(Side::Start, w, h, rail),
+            open: panes.explorer().open,
             opened: self
                 .files
                 .opened()
@@ -1953,7 +1910,7 @@ impl Shell {
             picking: self.pending,
         };
         self.explorer
-            .update(cx, |explorer, cx| explorer.sync(host, window, cx));
+            .update(cx, |explorer, cx| explorer.set_host(host, cx));
     }
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
@@ -2070,7 +2027,7 @@ impl Shell {
         let project =
             !self.rail && (self.files.workspace.is_some() || self.window.fixture || opening);
         let mut bar = header::TitleBar::new().cloud(hosted);
-        if !self.panes.explorer().open {
+        if !self.panes.read(cx).explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
                     .label(tr("shared-ui.explorer.expandSidebar"))
@@ -2112,7 +2069,7 @@ impl Shell {
                 let status = header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
                 let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
                 let button = header::ChangesButton::new(status)
-                    .selected(self.right_shows(Surface::Git))
+                    .selected(self.right_shows(Surface::Git, cx))
                     .coachmark(introduced)
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
                     .into_any_element();
@@ -2124,7 +2081,7 @@ impl Shell {
         }
         if agent {
             let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Agent);
-            let button = header::agent_entry(self.right_shows(Surface::Agent))
+            let button = header::agent_entry(self.right_shows(Surface::Agent, cx))
                 .when(introduced, |b| b.variant(ButtonVariant::TitlebarCoachmark))
                 .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
                 .into_any_element();
@@ -2132,38 +2089,10 @@ impl Shell {
         }
         bar
     }
-    /// Start dragging a pane edge (`useCollapsiblePaneResize`).
-    fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {
-        let available = self.layout.header.w - self.rail_width();
-        self.panes.begin_drag(side, position, available);
-        cx.stop_propagation();
-        cx.notify();
-    }
-    /// The pointer moved during a pane drag: only the preview changes.
-    fn move_pane_drag(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
-        if self.panes.move_drag(position) {
-            cx.notify();
-        }
-    }
-    /// Release commits the gesture once; Escape (or losing the window)
-    /// rolls the preview back.
-    fn end_pane_drag(&mut self, commit: bool, cx: &mut Context<Self>) {
-        let was_open = self.panes.right().open;
-        let Some(changed) = self.panes.end_drag(commit) else {
-            return;
-        };
-        if !was_open && self.panes.right().open {
-            self.sidebar.pulled_out();
-        }
-        if changed {
-            self.persist_panes(cx);
-        }
-        cx.notify();
-    }
     /// Store the committed pane layout (`setExplorerWidth`,
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).
     fn persist_panes(&mut self, cx: &mut Context<Self>) {
-        let stored = self.panes.stored();
+        let stored = self.panes.read(cx).stored();
         self.preferences.update(cx, |store, cx| {
             store.change(
                 |p| {
@@ -2181,12 +2110,13 @@ impl Shell {
     /// window already narrower (a pane opened in a small window) widens to
     /// fit, like the product's `setMinimumSize` + `setSize`. Full screen
     /// cannot grow, so the layout keeps its minimum width there.
-    fn constrain_window(&mut self, window: &mut Window) {
+    fn constrain_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         // A file window has no panes: the window's own 720 × 520 holds.
         if self.file_mode() {
             return;
         }
-        let Some(minimum) = self.panes.take_window_minimum(self.rail_width()) else {
+        let rail = self.rail_width();
+        let Some(minimum) = self.panes.update(cx, |p, _| p.take_window_minimum(rail)) else {
             return;
         };
         let floor = size(px(minimum), px(theme::pane::WINDOW_MIN_HEIGHT));
@@ -2215,8 +2145,10 @@ impl Render for Shell {
         let w = f32::from(size.width);
         let h = f32::from(size.height);
         let rail = self.rail_width();
-        self.constrain_window(window);
-        let panes = self.panes.frame(w, h, rail, cx.reduce_motion());
+        let reduce_motion = cx.reduce_motion();
+        let panes = self
+            .panes
+            .update(cx, |p, _| p.frames(w, h, rail, reduce_motion));
         self.layout = if self.file_mode() {
             // `.file-mode-window`: the title bar over the document alone.
             Layout::new(w, h, 0., 0., 0.)
@@ -2227,7 +2159,6 @@ impl Render for Shell {
             window.request_animation_frame();
         }
         self.sync_editor(window, cx);
-        self.sync_explorer(window, cx);
         self.guard_cloud_history(cx);
         self.sync_cloud_agents(cx);
         self.sync_repository_cloud(cx);
@@ -2271,7 +2202,6 @@ impl Render for Shell {
             .text_color(t.text)
             .track_focus(&self.focus)
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
-                s.move_pane_drag(e.position, cx);
                 s.move_editor_resize(e.position, cx);
             }))
             .on_mouse_up(
@@ -2281,50 +2211,48 @@ impl Render for Shell {
                         s.move_editor_resize(e.position, cx);
                         s.end_editor_resize(true, cx);
                     }
-                    if s.panes.dragging().is_some() {
-                        s.move_pane_drag(e.position, cx);
-                        s.end_pane_drag(true, cx);
-                    }
                 }),
-            )
-            .child(if self.file_mode() {
-                self.file_document(cx)
-            } else {
-                self.editor(cx)
-            });
+            );
+        let file = self.file_mode();
+        let home = self.home_visible();
+        // The panes' frames under the editor; the Homepage and a file window
+        // show none.
+        root = root.child(if file {
+            self.file_document(cx).into_any_element()
+        } else {
+            let mut stack = PaneStack::new();
+            if !home && panes.start.is_some() {
+                let (explorer, footer) = (self.layout.explorer, self.layout.footer);
+                let plane = Rect::new(
+                    explorer.x,
+                    explorer.y,
+                    explorer.w,
+                    footer.bottom() - explorer.y,
+                );
+                let column = ExplorerColumn::new(self.explorer.clone()).footer(self.footer(cx));
+                stack = stack.start(plane, column);
+            }
+            if !home && panes.end.is_some() {
+                // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
+                // content starts at the divider like the product's.
+                let content = div()
+                    .size_full()
+                    .bg(t.auxiliary())
+                    .child(self.sidebar.content());
+                stack = stack.end(self.layout.auxiliary, content);
+            }
+            stack.main(self.editor(cx)).into_any_element()
+        });
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
         });
-        let home = self.home_visible();
         if home {
             root = root.child(if self.first_run_sign_in(cx) {
                 self.first_run_view(cx).into_any_element()
             } else {
                 self.home_view(window, cx)
             });
-        }
-        // A closing pane stays painted, clipped to its frame, until it has closed.
-        let file = self.file_mode();
-        if (self.panes.explorer().open || panes.left_clip.is_some()) && !home && !file {
-            let explorer = div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
-                .child(at(self.layout.explorer).child(self.explorer.clone().cached(fill())))
-                .when(self.layout.footer.h > 0., |d| {
-                    d.child(at(self.layout.footer).child(self.footer(cx)))
-                });
-            root = root.child(clipped(panes.left_clip, w, h, explorer));
-        }
-        if (self.panes.right().open || panes.right_clip.is_some()) && !home && !file {
-            // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
-            // content starts at the divider like the product's.
-            let auxiliary = at(self.layout.auxiliary)
-                .bg(t.auxiliary())
-                .child(self.sidebar.content());
-            root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
         if self.rail && !home && !file {
             root = root.child(self.project_rail(h, cx));
@@ -2343,17 +2271,8 @@ impl Render for Shell {
         } else {
             root.child(at(self.layout.header).child(self.header(cx)))
         };
-        // Each frame owns its edge while it is on screen; a closed right
-        // sidebar keeps its lane at the window edge.
-        if !home && !opening && !file && self.layout.editor.x > rail + 0.5 {
-            root = root.child(self.sash(true, cx));
-        }
         if !home && !opening && !file {
-            if self.layout.editor.right() < w - 0.5 {
-                root = root.child(self.sash(false, cx));
-            } else if !self.panes.right().open {
-                root = root.child(self.collapsed_right_edge(w, cx));
-            }
+            root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         if !home && !opening {
             root = root.children(self.notices(w, cx));
