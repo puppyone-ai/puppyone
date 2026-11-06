@@ -1,608 +1,567 @@
-//! Port of `domain/agent-activity-presentation.ts`, `AgentToolRendererRegistry`
-//! and `AgentToolGlyph`'s classification, over the native message model
-//! (`role` names the tool, `input` is its request, `text` its result).
-use crate::agent::domain::legacy_session_model::Message;
-use serde_json::Value;
+//! `domain/agent-activity-presentation.ts`: how a display activity
+//! (`AgentActivity`) reads as a tool, command, file change or output.
+use super::agent_tool_evidence::stringify_agent_tool_input;
+use crate::agent::contract::js;
+use crate::localization::{Arg, format_number, t, tf};
+use regex::Regex;
+use serde_json::{Map, Value};
+use std::sync::LazyLock;
 
-/// Transcript part kinds (`AgentPart["kind"]`) the native model can express.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PartKind {
-    User,
-    Assistant,
-    Reasoning,
-    Plan,
-    /// Context compaction; `from_tool` keeps a tool part's compact rhythm.
-    Compaction {
-        from_tool: bool,
-    },
-    /// Provider status outside the transcript (`StatusPart`).
-    System,
-    Tool,
-}
-impl PartKind {
-    /// `isGroupableToolRow`: tool parts that join the tool rail.
-    pub fn groupable(self) -> bool {
-        self == Self::Tool
-    }
+/// `AgentFileChangeSummary`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AgentFileChangeSummary {
+    pub path: String,
+    pub additions: Option<i64>,
+    pub deletions: Option<i64>,
+    pub diff: String,
+    /// `{ removed?, added? }` blocks.
+    pub blocks: Vec<(Option<String>, Option<String>)>,
+    pub truncated: bool,
 }
 
-/// `AgentToolRenderer`: which evidence shape a tool part renders.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Renderer {
-    Command,
-    FileChange,
-    FileQuery,
-    Generic,
+/// `record(value)`: an object, or an empty one.
+fn record(value: &Value) -> Map<String, Value> {
+    value.as_object().cloned().unwrap_or_default()
 }
 
-/// `agentToolGlyphKind`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Glyph {
-    Command,
-    Edit,
-    Fetch,
-    Generic,
-    /// `list`: ListTree for `list`, FolderSearch for other list-like tools.
-    List {
-        tree: bool,
-    },
-    Read,
-    Search,
-    Write,
-}
-
-pub fn part_kind(message: &Message, assistant_roles: &[&str]) -> PartKind {
-    match message.role.as_str() {
-        "You" => PartKind::User,
-        "Reasoning" => PartKind::Reasoning,
-        "Plan" => PartKind::Plan,
-        "System" => {
-            if is_compaction_text(&message.text) {
-                PartKind::Compaction { from_tool: false }
-            } else {
-                PartKind::System
-            }
-        }
-        role if assistant_roles.contains(&role) => PartKind::Assistant,
-        role if is_compaction_text(role) => PartKind::Compaction { from_tool: true },
-        _ => PartKind::Tool,
-    }
-}
-
-/// `isContextCompactionActivity`.
-pub fn is_compaction_text(value: &str) -> bool {
-    let lower = value.trim().to_lowercase();
-    if lower == "compaction" || lower == "context-compaction" {
-        return true;
-    }
-    let words: Vec<&str> = lower.split_whitespace().collect();
-    words
-        .windows(2)
-        .any(|w| w[0].starts_with("compact") && w[1] == "context")
-        || words
-            .windows(3)
-            .any(|w| w[0].starts_with("compact") && w[1] == "the" && w[2] == "context")
-        || words
-            .windows(2)
-            .any(|w| w[0] == "context" && w[1].starts_with("compact"))
-}
-
-/// Provider tool names → the product's canonical activity tool (providers
-/// normalize names before the renderer; `agentActivityToolId` then maps aliases).
-pub fn tool_id(role: &str) -> String {
-    let lower = role.trim().to_lowercase();
-    let squashed: String = lower
-        .chars()
-        .filter(|c| !matches!(c, ' ' | '_' | '-'))
-        .collect();
-    let id = match squashed.as_str() {
-        "bash" | "shell" | "command" | "execute" | "exec" | "terminal" | "localshell" => "bash",
-        "read" | "readfile" | "view" | "openfile" => "read",
-        "write" | "writefile" | "create" | "createfile" => "write",
-        "edit" | "multiedit" | "notebookedit" | "applypatch" | "patch" | "strreplace"
-        | "strreplaceeditor" | "filechanges" | "filechange" => "edit",
-        "glob" | "find" => "glob",
-        "grep" => "grep",
-        "search" | "websearch" => "search",
-        "list" | "ls" | "listfiles" => "list",
-        "fetch" | "webfetch" => "fetch",
-        "reasoning" | "thinking" => "thinking",
-        "plan" | "todowrite" => "plan",
-        "tool" => "tool",
-        _ => return lower,
-    };
-    id.into()
-}
-
-/// The request as structured JSON when the provider sent JSON, else the raw text.
-pub fn input_value(message: &Message) -> Value {
-    match message.input.as_deref().map(str::trim) {
-        None | Some("") => Value::Null,
-        Some(raw) => serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.into())),
-    }
-}
-
-fn first_text<'a>(values: impl IntoIterator<Item = Option<&'a Value>>) -> String {
-    values
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .find(|s| !s.is_empty())
-        .map(|s| s.chars().take(64 * 1024).collect())
+/// `text(value)`.
+fn text(value: &Value) -> String {
+    value
+        .as_str()
+        .map(|s| js::trim(s).to_string())
         .unwrap_or_default()
 }
 
-/// `commandForActivity`.
-pub fn command(message: &Message) -> String {
-    let input = input_value(message);
-    if let Value::String(s) = &input {
-        return s.trim().into();
-    }
-    first_text([input.get("command"), input.get("cmd")])
-}
-
-/// `commandPresentationForActivity`: read-only shell commands show the glyph
-/// of the tool they stand for (rg → Grep, ls → List, cat → Read…).
-pub fn command_tool(command: &str) -> &'static str {
-    let visible = unwrap_login_shell(command);
-    let simple =
-        !visible.contains([';', '&', '|', '<', '>', '`', '\n', '\r']) && !visible.contains("$(");
-    if !simple {
-        return "bash";
-    }
-    let executable = shell_executable(&visible);
-    let has_flag = |flag: &str| {
-        visible
-            .split_whitespace()
-            .any(|w| w == flag || w.starts_with(&format!("{flag}=")))
-    };
-    match executable.as_str() {
-        "rg" if has_flag("--pre") || has_flag("--pre-glob") => "bash",
-        "rg" if has_flag("--files") => "glob",
-        "rg" | "grep" | "git-grep" => "grep",
-        "find"
-            if [
-                "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls",
-            ]
-            .iter()
-            .any(|f| visible.split_whitespace().any(|w| w == *f)) =>
+/// `firstText(...values)`.
+fn first_text(values: &[&Value]) -> String {
+    for value in values {
+        if let Some(string) = value.as_str()
+            && !js::trim(string).is_empty()
         {
-            "bash"
+            return js::head16(js::trim(string), 64 * 1024).to_string();
         }
-        "find" | "fd" => "glob",
-        "ls" => "list",
-        "cat" | "head" | "tail" | "bat" | "sed-read" | "nl-read" => "read",
-        _ => "bash",
     }
+    String::new()
 }
 
-fn unwrap_login_shell(command: &str) -> String {
-    let trimmed = command.trim();
-    for shell in ["zsh", "bash", "sh"] {
-        let Some(at) = trimmed.find(&format!("{shell} -lc ")) else {
-            continue;
-        };
-        let prefix = &trimmed[..at];
-        if !(prefix.is_empty() || (prefix.starts_with('/') && prefix.ends_with('/'))) {
-            continue;
-        }
-        let rest = trimmed[at + shell.len() + 5..].trim();
-        for quote in ['"', '\''] {
-            if rest.len() >= 2 && rest.starts_with(quote) && rest.ends_with(quote) {
-                return rest[1..rest.len() - 1].trim().into();
-            }
-        }
-    }
-    trimmed.into()
+/// A string property as is (`activity.label`).
+fn text_of(value: &Value) -> String {
+    value.as_str().unwrap_or_default().to_string()
 }
 
-fn shell_executable(source: &str) -> String {
-    let source = source.trim();
-    let mut words = source.split_whitespace().peekable();
-    if words.peek() == Some(&"command") {
-        words.next();
-    }
-    if words.peek() == Some(&"git") {
-        let mut probe = words.clone();
-        probe.next();
-        if probe.next() == Some("grep") {
-            return "git-grep".into();
-        }
-    }
-    if words.peek() == Some(&"env") {
-        words.next();
-    }
-    let word = words.find(|w| {
-        !(w.contains('=')
-            && w.chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_'))
-    });
-    let Some(word) = word else {
-        return String::new();
-    };
-    let executable = word.rsplit('/').next().unwrap_or(word).to_lowercase();
-    let flag = |f: &str| source.split_whitespace().any(|w| w == f);
-    if executable == "sed" && flag("-n") {
-        return "sed-read".into();
-    }
-    if executable == "nl" && flag("-ba") {
-        return "nl-read".into();
-    }
-    executable
+fn get<'a>(map: &'a Map<String, Value>, key: &str) -> &'a Value {
+    map.get(key).unwrap_or(&Value::Null)
 }
 
-/// The tool this part presents as: commands that stand for a read-only tool
-/// borrow its identity (`commandPresentationForActivity`).
-pub fn presented_tool(message: &Message) -> String {
-    let id = tool_id(&message.role);
-    if id == "bash" {
-        command_tool(&command(message)).into()
+/// `agentActivityToolId(activity)`.
+pub fn agent_activity_tool_id(activity: &Value) -> String {
+    let detail_tool = &activity["detail"]["tool"];
+    let source = if js::truthy(detail_tool) {
+        detail_tool
     } else {
-        id
-    }
-}
-
-pub fn renderer(message: &Message) -> Renderer {
-    match tool_id(&message.role).as_str() {
-        "bash" => Renderer::Command,
-        "write" | "edit" => Renderer::FileChange,
-        "read" | "glob" | "grep" | "search" | "list" => Renderer::FileQuery,
-        _ => Renderer::Generic,
-    }
-}
-
-/// `agentToolGlyphKind` (on the presented tool).
-pub fn glyph(tool: &str) -> Glyph {
-    let n: String = tool
-        .trim()
-        .to_lowercase()
-        .chars()
-        .filter(|c| !matches!(c, ' ' | '_' | '-'))
-        .collect();
-    match n.as_str() {
-        "grep" | "search" | "find" | "filesearch" => Glyph::Search,
-        "read" | "readfile" | "view" | "openfile" => Glyph::Read,
-        "edit" | "patch" | "applypatch" | "replace" => Glyph::Edit,
-        "write" | "writefile" | "create" | "createfile" => Glyph::Write,
-        "glob" | "list" | "listfiles" | "foldersearch" => Glyph::List { tree: n == "list" },
-        "fetch" | "webfetch" | "browse" => Glyph::Fetch,
-        "bash" | "shell" | "command" | "terminal" => Glyph::Command,
-        _ => Glyph::Generic,
-    }
-}
-
-/// `formatAgentToolName`: a catalog key for known tools, else title case.
-pub enum ToolName {
-    Key(&'static str),
-    Literal(String),
-}
-pub fn tool_name(tool: &str) -> ToolName {
-    match tool {
-        "bash" => ToolName::Key("agent.tool.bash"),
-        "read" => ToolName::Key("agent.tool.read"),
-        "write" => ToolName::Key("agent.tool.write"),
-        "edit" => ToolName::Key("agent.tool.edit"),
-        "glob" => ToolName::Key("agent.tool.glob"),
-        "grep" => ToolName::Key("agent.tool.grep"),
-        "search" => ToolName::Key("agent.tool.search"),
-        "list" => ToolName::Key("agent.tool.list"),
-        "fetch" => ToolName::Key("agent.tool.fetch"),
-        "thinking" => ToolName::Key("agent.tool.thinking"),
-        "plan" => ToolName::Key("agent.tool.plan"),
-        "tool" => ToolName::Key("agent.tool.tool"),
-        other => ToolName::Literal(title_case(other)),
-    }
-}
-fn title_case(value: &str) -> String {
-    let spaced: String = value
-        .chars()
-        .map(|c| if c == '_' || c == '-' { ' ' } else { c })
-        .collect();
-    spaced
-        .split(' ')
-        .map(|w| {
-            let mut c = w.chars();
-            c.next().map_or(String::new(), |f| {
-                f.to_uppercase().collect::<String>() + c.as_str()
-            })
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// `structuredInputForActivity`: object input minus fields shown elsewhere.
-pub fn structured_input(message: &Message) -> Option<String> {
-    let Value::Object(object) = input_value(message) else {
-        return None;
+        &activity["kind"]
     };
-    let visible: serde_json::Map<String, Value> = object
-        .into_iter()
-        .filter(|(k, _)| !["command", "cmd", "patch", "diff", "content"].contains(&k.as_str()))
-        .take(20)
-        .collect();
-    super::agent_tool_evidence::stringify_input(&Value::Object(visible))
-}
-
-/// One edited file (`AgentFileChangeSummary`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct FileChange {
-    pub path: String,
-    pub additions: Option<usize>,
-    pub deletions: Option<usize>,
-    pub diff: String,
-    pub blocks: Vec<(Option<String>, Option<String>)>,
-}
-
-/// One removed/added run of a unified diff.
-type DiffBlock = (Option<String>, Option<String>);
-
-/// Removed/added runs of a unified diff, with line counts.
-fn diff_blocks(diff: &str) -> (Vec<DiffBlock>, usize, usize) {
-    let (mut blocks, mut removed, mut added) = (Vec::new(), Vec::<&str>::new(), Vec::<&str>::new());
-    let (mut additions, mut deletions) = (0, 0);
-    let flush = |blocks: &mut Vec<_>, removed: &mut Vec<&str>, added: &mut Vec<&str>| {
-        if !removed.is_empty() || !added.is_empty() {
-            blocks.push((
-                (!removed.is_empty()).then(|| removed.join("\n")),
-                (!added.is_empty()).then(|| added.join("\n")),
-            ));
-            removed.clear();
-            added.clear();
-        }
+    let tool = text(source).to_lowercase();
+    let known = match tool.as_str() {
+        "bash" | "shell" | "command" => "bash",
+        "read" => "read",
+        "write" => "write",
+        "edit" | "apply_patch" | "patch" | "file-change" => "edit",
+        "glob" => "glob",
+        "grep" => "grep",
+        "search" | "websearch" => "search",
+        "list" => "list",
+        "webfetch" => "fetch",
+        "reasoning" => "thinking",
+        "plan" => "plan",
+        _ => "",
     };
-    for line in diff.lines() {
-        if line.starts_with("+++") || line.starts_with("---") {
-            continue;
-        }
-        if let Some(text) = line.strip_prefix('-') {
-            if !added.is_empty() {
-                flush(&mut blocks, &mut removed, &mut added);
-            }
-            removed.push(text);
-            deletions += 1;
-        } else if let Some(text) = line.strip_prefix('+') {
-            added.push(text);
-            additions += 1;
+    if !known.is_empty() {
+        return known.into();
+    }
+    if tool.is_empty() { "tool".into() } else { tool }
+}
+
+/// `agentActivityToolName(activity)`: the legacy English presentation the
+/// classification suites read. Product UI uses [`format_agent_tool_name`].
+pub fn agent_activity_tool_name(activity: &Value) -> String {
+    let id = agent_activity_tool_id(activity);
+    let known = match id.as_str() {
+        "bash" => "Bash",
+        "read" => "Read",
+        "write" => "Write",
+        "edit" => "Edit",
+        "glob" => "Glob",
+        "grep" => "Grep",
+        "search" => "Search",
+        "list" => "List",
+        "fetch" => "Fetch",
+        "thinking" => "Thinking",
+        "plan" => "Plan",
+        "tool" => "Tool",
+        _ => "",
+    };
+    if known.is_empty() {
+        title_case(&id)
+    } else {
+        known.into()
+    }
+}
+
+const KNOWN_TOOLS: &[&str] = &[
+    "bash", "read", "write", "edit", "glob", "grep", "search", "list", "fetch", "thinking", "plan",
+    "tool",
+];
+
+/// `formatAgentToolName(tool, t)`.
+pub fn format_agent_tool_name(tool: &str) -> String {
+    if KNOWN_TOOLS.contains(&tool) {
+        t(&format!("agent.tool.{tool}")).to_string()
+    } else {
+        title_case(tool)
+    }
+}
+
+/// `formatAgentActivityLabel(activity, t)`.
+pub fn format_agent_activity_label(activity: &Value) -> String {
+    if let Some(label) = activity["label"].as_str().filter(|l| !l.is_empty()) {
+        return label.to_string();
+    }
+    if activity["labelCode"] == "file-changes" {
+        let count = activity["detail"]["changes"].as_array().map_or(0, Vec::len) as i64;
+        return tf(
+            "agent.activity.fileChanges",
+            &[("count", Arg::Number(count))],
+        );
+    }
+    let code = activity["labelCode"].as_str().unwrap_or("tool-activity");
+    t(&format!("agent.activity.{code}")).to_string()
+}
+
+/// `agentActivitySummary(activity)`.
+pub fn agent_activity_summary(activity: &Value) -> String {
+    let label = &activity["label"];
+    if activity["kind"] == "command" {
+        let command = command_for_activity(activity);
+        return if command.is_empty() {
+            text_of(label)
         } else {
-            flush(&mut blocks, &mut removed, &mut added);
-        }
+            command
+        };
     }
-    flush(&mut blocks, &mut removed, &mut added);
-    (blocks, additions, deletions)
+    if activity["kind"] == "file-change" {
+        let path = path_for_activity(activity);
+        return if path.is_empty() {
+            text_of(label)
+        } else {
+            path
+        };
+    }
+    let detail = &activity["detail"];
+    let input = record(&detail["input"]);
+    let tool = agent_activity_tool_id(activity);
+    if ["grep", "glob", "search"].contains(&tool.as_str()) {
+        return first_text(&[
+            get(&input, "pattern"),
+            &detail["query"],
+            get(&input, "query"),
+            &detail["path"],
+            get(&input, "path"),
+            label,
+        ]);
+    }
+    first_text(&[
+        &detail["description"],
+        &detail["path"],
+        get(&input, "path"),
+        get(&input, "file"),
+        get(&input, "file_path"),
+        get(&input, "filePath"),
+        &detail["query"],
+        get(&input, "query"),
+        get(&input, "pattern"),
+        label,
+    ])
 }
 
-fn line_count(text: &str) -> usize {
-    if text.is_empty() {
-        0
+/// `isContextCompactionActivity(activity)`.
+pub fn is_context_compaction_activity(activity: &Value) -> bool {
+    static EXACT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(?:compaction|context-compaction)$").expect("exact"));
+    static PHRASE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)(?:compact(?:ed|ing|ion)?\s+(?:the\s+)?context|context\s+compact)")
+            .expect("phrase")
+    });
+    let detail = &activity["detail"];
+    let input = record(&detail["input"]);
+    [
+        &detail["tool"],
+        &detail["kind"],
+        &detail["description"],
+        get(&input, "action"),
+        &activity["label"],
+    ]
+    .into_iter()
+    .map(text)
+    .filter(|value| !value.is_empty())
+    .any(|value| EXACT.is_match(&value.to_lowercase()) || PHRASE.is_match(&value))
+}
+
+/// `commandForActivity(activity)`.
+pub fn command_for_activity(activity: &Value) -> String {
+    let detail = &activity["detail"];
+    let input = record(&detail["input"]);
+    let metadata = record(&detail["metadata"]);
+    let raw_input = if detail["input"].is_string() {
+        detail["input"].clone()
     } else {
-        text.lines().count().max(1)
-    }
+        Value::from("")
+    };
+    first_text(&[
+        &detail["command"],
+        get(&input, "command"),
+        get(&input, "cmd"),
+        get(&metadata, "command"),
+        &raw_input,
+    ])
 }
 
-/// `fileChangesForActivity` for the native shapes: Codex `File changes`
-/// (`path\ndiff` per file) and edit/write tools with old/new or content input.
-pub fn file_changes(message: &Message) -> Vec<FileChange> {
-    if message.role == "File changes" {
-        let mut changes: Vec<FileChange> = Vec::new();
-        let mut current: Option<(String, Vec<&str>)> = None;
-        for line in message.text.lines() {
-            let diff_line = line.starts_with(['+', '-', ' ', '@', '\\']) || line.is_empty();
-            match &mut current {
-                Some((_, body)) if diff_line => body.push(line),
-                _ => {
-                    if let Some((path, body)) = current.take() {
-                        changes.push(change_from_diff(path, &body.join("\n")));
-                    }
-                    current = Some((line.trim().into(), Vec::new()));
-                }
+/// `visibleCommandForActivity(activity)`: the command as the user would have
+/// typed it, without a login-shell wrapper.
+pub fn visible_command_for_activity(activity: &Value) -> String {
+    unwrap_login_shell(&command_for_activity(activity))
+}
+
+/// `AgentCommandPresentation`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentCommandPresentation {
+    pub tool: &'static str,
+    pub title: &'static str,
+    pub summary: String,
+    pub via_shell: bool,
+}
+
+/// `commandPresentationForActivity(activity)`.
+pub fn command_presentation_for_activity(activity: &Value) -> AgentCommandPresentation {
+    static UNSAFE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[;&|<>`\n\r]").expect("unsafe"));
+    static PRE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|\s)--pre(?:-glob)?(?:\s|=|$)").expect("pre"));
+    static FILES: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|\s)--files(?:\s|$)").expect("files"));
+    static FIND_ACTION: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?:^|\s)-(?:delete|exec|execdir|ok|okdir|fprint|fprintf|fls)(?:\s|$)")
+            .expect("find")
+    });
+    let command = command_for_activity(activity);
+    let visible = unwrap_login_shell(&command);
+    let executable = read_shell_executable(&visible);
+    let bash = || AgentCommandPresentation {
+        tool: "bash",
+        title: "Bash",
+        summary: if command.is_empty() {
+            text_of(&activity["label"])
+        } else {
+            command.clone()
+        },
+        via_shell: false,
+    };
+    let shell = |tool: &'static str, title: &'static str| AgentCommandPresentation {
+        tool,
+        title,
+        summary: visible.clone(),
+        via_shell: true,
+    };
+    let simple_read_only = !UNSAFE.is_match(&visible) && !visible.contains("$(");
+    if !simple_read_only {
+        return bash();
+    }
+    match executable.as_str() {
+        "rg" => {
+            if PRE.is_match(&visible) {
+                return bash();
+            }
+            if FILES.is_match(&visible) {
+                shell("glob", "Glob")
+            } else {
+                shell("grep", "Grep")
             }
         }
-        if let Some((path, body)) = current {
-            changes.push(change_from_diff(path, &body.join("\n")));
+        "grep" | "git-grep" => shell("grep", "Grep"),
+        "find" | "fd" => {
+            if executable == "find" && FIND_ACTION.is_match(&visible) {
+                return bash();
+            }
+            shell("glob", "Glob")
         }
-        return changes
-            .into_iter()
-            .filter(|c| !c.path.is_empty())
-            .take(100)
-            .collect();
+        "ls" => shell("list", "List"),
+        "cat" | "head" | "tail" | "bat" | "sed-read" | "nl-read" => shell("read", "Read"),
+        _ => bash(),
     }
-    let input = input_value(message);
-    let path = first_text(
-        ["path", "file", "filepath", "file_path", "filePath"]
-            .iter()
-            .map(|k| input.get(k)),
-    );
-    if path.is_empty() {
-        return vec![];
-    }
-    let text = |keys: &[&str]| {
-        keys.iter()
-            .find_map(|k| input.get(*k).and_then(Value::as_str))
-            .map(str::to_owned)
+}
+
+/// `pathForActivity(activity)`.
+pub fn path_for_activity(activity: &Value) -> String {
+    let detail = &activity["detail"];
+    let input = record(&detail["input"]);
+    let first_change = file_changes_for_activity(activity)
+        .into_iter()
+        .next()
+        .map_or(Value::Null, |change| Value::from(change.path));
+    first_text(&[
+        &detail["path"],
+        get(&input, "path"),
+        get(&input, "file"),
+        get(&input, "filepath"),
+        get(&input, "file_path"),
+        get(&input, "filePath"),
+        &first_change,
+    ])
+}
+
+/// `outputForActivity(activity)`.
+pub fn output_for_activity(activity: &Value) -> String {
+    let detail = &activity["detail"];
+    let result = Value::from(canonical_tool_result_text(&detail["result"]));
+    let nested = if detail["detail"].is_string() {
+        detail["detail"].clone()
+    } else {
+        Value::from("")
     };
-    let old = text(&["old_string", "oldText", "old_str", "old"]);
-    let new = text(&["new_string", "newText", "new_str", "new"]).or_else(|| text(&["content"]));
-    if let Some(patch) = text(&["patch", "diff"]) {
-        return vec![change_from_diff(path, &patch)];
-    }
-    if old.is_none() && new.is_none() {
-        return vec![FileChange {
-            path,
-            ..Default::default()
-        }];
-    }
-    vec![FileChange {
-        path,
-        deletions: Some(old.as_deref().map_or(0, line_count)),
-        additions: Some(new.as_deref().map_or(0, line_count)),
-        diff: String::new(),
-        blocks: vec![(old, new)],
-    }]
+    first_text(&[
+        &activity["output"],
+        &detail["outputPreview"],
+        &result,
+        &detail["content"],
+        &detail["error"],
+        &nested,
+    ])
 }
 
-fn change_from_diff(path: String, diff: &str) -> FileChange {
-    let (blocks, additions, deletions) = diff_blocks(diff);
-    FileChange {
-        path,
-        additions: Some(additions),
-        deletions: Some(deletions),
-        diff: diff.into(),
-        blocks,
-    }
+fn canonical_tool_result_text(value: &Value) -> String {
+    let result = record(value);
+    let content = get(&result, "content")
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let rendered: Vec<String> = content
+        .iter()
+        .take(100)
+        .flat_map(|entry| {
+            let item = record(entry);
+            match get(&item, "type").as_str() {
+                Some("text") => vec![text(get(&item, "text"))],
+                Some("artifact") => vec![first_text(&[get(&item, "text"), get(&item, "uri")])],
+                Some("json") if item.contains_key("value") => {
+                    serde_json::to_string_pretty(get(&item, "value"))
+                        .into_iter()
+                        .collect()
+                }
+                _ => Vec::new(),
+            }
+        })
+        .filter(|entry| !entry.is_empty())
+        .collect();
+    let rendered = Value::from(rendered.join("\n"));
+    first_text(&[&rendered, get(&result, "error")])
 }
 
-/// `fileChangeTotals`: only when every file reports both counts.
-pub fn file_change_totals(changes: &[FileChange]) -> Option<(usize, usize)> {
-    if changes.is_empty() {
-        return None;
-    }
-    changes.iter().try_fold((0, 0), |(a, d), c| {
-        Some((a + c.additions?, d + c.deletions?))
-    })
+/// `commandMetadata(activity)`: `{ exitCode, durationMs }`.
+pub fn command_metadata(activity: &Value) -> (Option<f64>, Option<f64>) {
+    let detail = &activity["detail"];
+    let metadata = record(&detail["metadata"]);
+    let finite = |values: &[&Value]| values.iter().find_map(|value| js::finite_number(value));
+    (
+        finite(&[
+            &detail["exitCode"],
+            get(&metadata, "exitCode"),
+            get(&metadata, "exit"),
+            get(&metadata, "code"),
+        ]),
+        finite(&[
+            &detail["duration"],
+            &detail["durationMs"],
+            &detail["elapsedMs"],
+            get(&metadata, "duration"),
+            get(&metadata, "durationMs"),
+            get(&metadata, "elapsed"),
+        ]),
+    )
 }
 
-/// `formatAgentDuration`: catalog key and value parts ("< 1s", "2m 5s").
-pub fn duration_parts(ms: u64) -> Vec<(&'static str, u64)> {
-    if ms < 1_000 {
-        return vec![("agent.duration.lessThanSecond", 0)];
+/// `formatAgentDuration(value, t, formatNumber)`.
+pub fn format_agent_duration(value: f64) -> String {
+    let bounded = if value.is_finite() { value.max(0.) } else { 0. };
+    if bounded < 1_000. {
+        return t("agent.duration.lessThanSecond").to_string();
     }
-    let mut seconds = ((ms as f64) / 1_000.).round().max(1.) as u64;
+    let mut seconds = ((bounded / 1_000.).round() as i64).max(1);
     let days = seconds / 86_400;
     seconds %= 86_400;
     let hours = seconds / 3_600;
     seconds %= 3_600;
     let minutes = seconds / 60;
     seconds %= 60;
-    let mut parts = vec![];
+    let unit = |key: &str, value: i64| tf(key, &[("value", Arg::Text(format_number(value)))]);
+    let mut parts = Vec::new();
     if days > 0 {
-        parts.push(("agent.duration.days", days));
+        parts.push(unit("agent.duration.days", days));
     }
     if hours > 0 {
-        parts.push(("agent.duration.hours", hours));
+        parts.push(unit("agent.duration.hours", hours));
     }
     if minutes > 0 {
-        parts.push(("agent.duration.minutes", minutes));
+        parts.push(unit("agent.duration.minutes", minutes));
     }
     if seconds > 0 || (days == 0 && hours == 0 && minutes == 0) {
-        parts.push(("agent.duration.seconds", seconds));
+        parts.push(unit("agent.duration.seconds", seconds));
     }
-    parts
+    parts.join(" ")
 }
 
-/// Status families of `AgentActivityShell`'s trailing icon.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActivityStatus {
-    Running,
-    Completed,
-    Failed,
-    Stopped,
-    Waiting,
-    Unknown,
-}
-pub fn activity_status(status: &str) -> ActivityStatus {
-    match status {
-        "running" | "pending" | "in-progress" | "in_progress" | "inProgress" => {
-            ActivityStatus::Running
-        }
-        "failed" | "warning" | "blocked" | "error" | "declined" => ActivityStatus::Failed,
-        "completed" | "succeeded" | "success" | "" => ActivityStatus::Completed,
-        "cancelled" | "canceled" | "interrupted" => ActivityStatus::Stopped,
-        "queued" | "waiting-for-user" => ActivityStatus::Waiting,
-        _ => ActivityStatus::Unknown,
-    }
+/// `fileChangesForActivity(activity)`.
+pub fn file_changes_for_activity(activity: &Value) -> Vec<AgentFileChangeSummary> {
+    let Some(changes) = activity["detail"]["changes"].as_array() else {
+        return Vec::new();
+    };
+    changes
+        .iter()
+        .take(100)
+        .filter_map(|entry| {
+            let value = record(entry);
+            let path = first_text(&[
+                get(&value, "path"),
+                get(&value, "file"),
+                get(&value, "filepath"),
+            ]);
+            if path.is_empty() {
+                return None;
+            }
+            let count = |key: &str| js::finite_number(get(&value, key)).map(bounded_count);
+            Some(AgentFileChangeSummary {
+                path: js::head16(&path, 4_096).to_string(),
+                additions: count("additions"),
+                deletions: count("deletions"),
+                diff: get(&value, "diff").as_str().unwrap_or_default().to_string(),
+                blocks: get(&value, "blocks")
+                    .as_array()
+                    .map(|blocks| {
+                        blocks
+                            .iter()
+                            .take(100)
+                            .filter_map(|block| {
+                                let removed = block["removed"].as_str().map(str::to_string);
+                                let added = block["added"].as_str().map(str::to_string);
+                                (removed.is_some() || added.is_some()).then_some((removed, added))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                truncated: get(&value, "truncated") == &Value::Bool(true),
+            })
+        })
+        .collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn tool(role: &str, input: Option<&str>, text: &str) -> Message {
-        Message {
-            id: "t".into(),
-            role: role.into(),
-            text: text.into(),
-            status: "completed".into(),
-            input: input.map(Into::into),
-        }
+/// `fileChangeTotals(changes)`: `(additions, deletions)` when every change
+/// reports both.
+pub fn file_change_totals(changes: &[AgentFileChangeSummary]) -> Option<(i64, i64)> {
+    if changes.is_empty()
+        || changes
+            .iter()
+            .any(|c| c.additions.is_none() || c.deletions.is_none())
+    {
+        return None;
     }
-    #[test]
-    fn read_only_shell_commands_present_as_their_tool() {
-        assert_eq!(command_tool("rg -n padding src"), "grep");
-        assert_eq!(command_tool("rg --files src"), "glob");
-        assert_eq!(command_tool("/bin/zsh -lc \"rg -n x dev\""), "grep");
-        assert_eq!(command_tool("ls -la"), "list");
-        assert_eq!(command_tool("sed -n 1,10p a.rs"), "read");
-        assert_eq!(command_tool("cat a | wc -l"), "bash");
-        assert_eq!(command_tool("find . -delete"), "bash");
-        assert_eq!(command_tool("cargo test"), "bash");
-        let rg = tool("Command", Some("rg -n padding src"), "");
-        assert_eq!(presented_tool(&rg), "grep");
-        assert_eq!(glyph(&presented_tool(&rg)), Glyph::Search);
-        assert_eq!(renderer(&rg), Renderer::Command);
+    Some(changes.iter().fold((0, 0), |(added, removed), change| {
+        (
+            added + change.additions.unwrap_or(0),
+            removed + change.deletions.unwrap_or(0),
+        )
+    }))
+}
+
+/// `structuredInputForActivity(activity)`.
+pub fn structured_input_for_activity(activity: &Value) -> Option<String> {
+    let input = activity["detail"]["input"].as_object()?;
+    let visible: Map<String, Value> = input
+        .iter()
+        .filter(|(key, _)| !["command", "cmd", "patch", "diff", "content"].contains(&key.as_str()))
+        .take(20)
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    stringify_agent_tool_input(&Value::Object(visible))
+}
+
+fn bounded_count(value: f64) -> i64 {
+    value.trunc().clamp(0., 1_000_000.) as i64
+}
+
+/// `titleCase(value)`: `_`/`-` runs become spaces and each ASCII word starts
+/// upper-case.
+fn title_case(value: &str) -> String {
+    static SEPARATORS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"[_-]+").expect("separators"));
+    let spaced = SEPARATORS.replace_all(value, " ");
+    let mut previous_word = false;
+    spaced
+        .chars()
+        .map(|c| {
+            let word = c.is_ascii_alphanumeric() || c == '_';
+            let next = if word && !previous_word {
+                c.to_ascii_uppercase()
+            } else {
+                c
+            };
+            previous_word = word;
+            next
+        })
+        .collect()
+}
+
+/// `unwrapLoginShell(command)`.
+fn unwrap_login_shell(command: &str) -> String {
+    static LOGIN: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"^(?:/[^\s]+/)?(?:zsh|bash|sh)\s+-lc\s+(?:"([\s\S]*)"|'([\s\S]*)')$"#)
+            .expect("login")
+    });
+    let trimmed = js::trim(command);
+    LOGIN
+        .captures(trimmed)
+        .and_then(|captures| captures.get(1).or_else(|| captures.get(2)))
+        .map(|inner| inner.as_str())
+        .filter(|inner| !inner.is_empty())
+        .map_or_else(|| trimmed.to_string(), |inner| js::trim(inner).to_string())
+}
+
+/// `readShellExecutable(command)`.
+fn read_shell_executable(command: &str) -> String {
+    static GIT_GREP: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(?:command\s+)?git\s+grep(?:\s|$)").expect("git"));
+    static EXECUTABLE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^(?:command\s+)?(?:env\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*(?:/[^\s]+/)?([A-Za-z0-9._+-]+)(?:\s|$)")
+            .expect("executable")
+    });
+    static N_FLAG: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|\s)-n(?:\s|$)").expect("n"));
+    static BA_FLAG: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|\s)-ba(?:\s|$)").expect("ba"));
+    let source = js::trim(command);
+    if source.is_empty() {
+        return String::new();
     }
-    #[test]
-    fn provider_tool_names_map_to_product_tools() {
-        assert_eq!(tool_id("Bash"), "bash");
-        assert_eq!(tool_id("MultiEdit"), "edit");
-        assert_eq!(tool_id("File changes"), "edit");
-        assert_eq!(tool_id("WebFetch"), "fetch");
-        assert_eq!(tool_id("mcp__linear"), "mcp__linear");
-        assert_eq!(glyph("read"), Glyph::Read);
-        assert_eq!(glyph("list"), Glyph::List { tree: true });
-        assert_eq!(glyph("glob"), Glyph::List { tree: false });
-        assert!(matches!(
-            tool_name("grep"),
-            ToolName::Key("agent.tool.grep")
-        ));
-        assert!(matches!(tool_name("mcp_tool"), ToolName::Literal(ref s) if s == "Mcp Tool"));
+    if GIT_GREP.is_match(source) {
+        return "git-grep".into();
     }
-    #[test]
-    fn file_changes_come_from_codex_diffs_and_edit_inputs() {
-        let codex = tool(
-            "File changes",
-            None,
-            "src/a.css\n@@ -1,1 +1,1 @@\n-  padding: 12px;\n+  padding: 24px;\nsrc/b.css\n@@ -3 +3 @@\n+x",
-        );
-        let changes = file_changes(&codex);
-        assert_eq!(changes.len(), 2);
-        assert_eq!(changes[0].path, "src/a.css");
-        assert_eq!(
-            changes[0].blocks,
-            vec![(
-                Some("  padding: 12px;".into()),
-                Some("  padding: 24px;".into())
-            )]
-        );
-        assert_eq!(file_change_totals(&changes), Some((2, 1)));
-        let edit = tool(
-            "Edit",
-            Some(r#"{"file_path":"a.rs","old_string":"a","new_string":"b\nc"}"#),
-            "ok",
-        );
-        assert_eq!(file_changes(&edit)[0].additions, Some(2));
-        assert_eq!(file_changes(&edit)[0].path, "a.rs");
+    let executable = EXECUTABLE
+        .captures(source)
+        .and_then(|captures| captures.get(1))
+        .map(|m| m.as_str().to_lowercase())
+        .unwrap_or_default();
+    if executable == "sed" && N_FLAG.is_match(source) {
+        return "sed-read".into();
     }
-    #[test]
-    fn durations_follow_the_product_format() {
-        assert_eq!(
-            duration_parts(400),
-            vec![("agent.duration.lessThanSecond", 0)]
-        );
-        assert_eq!(duration_parts(2_400), vec![("agent.duration.seconds", 2)]);
-        assert_eq!(
-            duration_parts(125_000),
-            vec![("agent.duration.minutes", 2), ("agent.duration.seconds", 5)]
-        );
-        assert_eq!(duration_parts(3_600_000), vec![("agent.duration.hours", 1)]);
+    if executable == "nl" && BA_FLAG.is_match(source) {
+        return "nl-read".into();
     }
-    #[test]
-    fn compaction_is_recognised_from_tools_and_system_text() {
-        assert!(is_compaction_text("Compacted context"));
-        assert!(is_compaction_text("compaction"));
-        assert!(is_compaction_text("Conversation context compacted"));
-        assert!(!is_compaction_text("Compact"));
-        let m = tool("compaction", None, "");
-        assert_eq!(part_kind(&m, &[]), PartKind::Compaction { from_tool: true });
-    }
+    executable
 }

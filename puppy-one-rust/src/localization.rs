@@ -122,6 +122,45 @@ pub fn messages(prefixes: &[&str]) -> serde_json::Map<String, Value> {
         .map(|(key, _)| (key.clone(), Value::String(locale.text(key).to_owned())))
         .collect()
 }
+/// `bidiIsolate(value)`: an interpolated value isolated from the message's
+/// direction (U+2068 … U+2069).
+pub fn bidi_isolate(value: &str) -> String {
+    if value.starts_with('\u{2068}') && value.ends_with('\u{2069}') {
+        return value.to_string();
+    }
+    format!("\u{2068}{value}\u{2069}")
+}
+
+/// `formatNumber(value)` (`Intl.NumberFormat`) for an integer in the current
+/// locale.
+pub fn format_number(value: i64) -> String {
+    let code = current_code();
+    let digits = value.unsigned_abs().to_string();
+    let (separator, minimum) = match code.as_str() {
+        "en" => (',', 4),
+        // Spanish groups only five digits and more.
+        "es" => ('.', 5),
+        _ => ('.', 4),
+    };
+    let grouped = if digits.len() < minimum {
+        digits
+    } else {
+        let mut grouped = String::new();
+        for (index, digit) in digits.chars().enumerate() {
+            if index > 0 && (digits.len() - index).is_multiple_of(3) {
+                grouped.push(separator);
+            }
+            grouped.push(digit);
+        }
+        grouped
+    };
+    if value < 0 {
+        format!("-{grouped}")
+    } else {
+        grouped
+    }
+}
+
 /// Parameter-free message in the current locale.
 pub fn t(key: &str) -> &'static str {
     current().text(key)

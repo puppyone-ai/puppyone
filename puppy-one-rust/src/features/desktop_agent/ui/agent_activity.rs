@@ -4,11 +4,11 @@
 //! FileChange, FileQuery and Generic tool renderers, reasoning, plan, the
 //! context divider and `AgentRunFeedback`, with `styles/activities.css`.
 use super::super::super::domain::{
-    agent_activity_presentation::{
+    legacy_agent_activity_presentation::{
         self as presentation, ActivityStatus, Glyph, Renderer, ToolName,
     },
-    agent_timeline::Row,
-    agent_tool_evidence, agent_tool_steps as steps,
+    legacy_agent_timeline::Row,
+    legacy_agent_tool_evidence, legacy_agent_tool_steps as steps,
 };
 use super::agent_theme::AgentTheme;
 use super::*;
@@ -239,7 +239,7 @@ pub(super) fn tool_title(message: &Message) -> String {
 
 /// `AgentToolTextEvidence`: bounded monospace text (head … marker … tail).
 fn text_evidence(text: &str, a: &AgentTheme) -> AnyElement {
-    let preview = agent_tool_evidence::preview(text);
+    let preview = legacy_agent_tool_evidence::preview(text);
     let visible = if preview.truncated {
         let marker = tf(
             "agent.activity.outputOmitted",
@@ -368,7 +368,7 @@ fn evidence_tree(nodes: Vec<(Option<&'static str>, AnyElement)>, a: &AgentTheme)
 
 /// `SearchResults` (FileQuery for grep/glob/search/list).
 fn search_results(output: &str, a: &AgentTheme) -> AnyElement {
-    let (lines, omitted) = agent_tool_evidence::result_lines(output, 80);
+    let (lines, omitted) = legacy_agent_tool_evidence::result_lines(output, 80);
     let line_height = mono_size() * 1.45;
     let mut list = v_flex()
         .id(SharedString::from(format!("results-{}", output.len())))
@@ -870,7 +870,8 @@ impl AgentChat {
                         if none {
                             0
                         } else {
-                            let (lines, omitted) = agent_tool_evidence::result_lines(output, 80);
+                            let (lines, omitted) =
+                                legacy_agent_tool_evidence::result_lines(output, 80);
                             lines.len() + omitted
                         }
                     });

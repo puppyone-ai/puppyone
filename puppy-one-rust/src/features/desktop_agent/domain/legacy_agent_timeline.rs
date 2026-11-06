@@ -2,7 +2,7 @@
 //! `agent-tool-group-presentation.ts` (`groupAgentToolRows`), the turn
 //! summaries of `display-control.mjs`
 //! and the vertical rhythm of `transcript-layout.ts`. Pure; no GPUI.
-use super::agent_activity_presentation::{PartKind, part_kind};
+use super::legacy_agent_activity_presentation::{PartKind, part_kind};
 use crate::agent::domain::legacy_session_model::Message;
 use crate::features::desktop_agent::application::legacy_agent_session_controller::TurnTiming;
 use std::collections::HashMap;

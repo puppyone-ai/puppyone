@@ -67,8 +67,8 @@ pub struct AgentChat {
     question_choices: HashMap<String, Vec<String>>,
     transcript: ListState,
     follow: bool,
-    /// Timeline rows (`domain::agent_timeline`) and their list signatures.
-    rows: Vec<super::super::domain::agent_timeline::Row>,
+    /// Timeline rows (`domain::legacy_agent_timeline`) and their list signatures.
+    rows: Vec<super::super::domain::legacy_agent_timeline::Row>,
     row_signatures: Vec<(String, blake3::Hash)>,
     /// Open standalone disclosures (reasoning, plan, overflow tools).
     expanded: std::collections::HashSet<String>,

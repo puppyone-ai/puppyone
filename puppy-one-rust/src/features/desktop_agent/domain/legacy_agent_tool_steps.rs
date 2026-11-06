@@ -4,7 +4,7 @@
 //! collapse into one small vocabulary, so every Harness reads the same.
 //! Runs of four or more settled, successful exploration steps fold into one
 //! "Explored" line; running work and failures always keep their own line.
-use super::agent_activity_presentation::{
+use super::legacy_agent_activity_presentation::{
     self as presentation, ActivityStatus, Renderer, command, command_tool, file_changes,
     input_value, tool_id,
 };

@@ -414,6 +414,7 @@
         "src/features/desktop-agent/ui/transcript/transcript-viewport.ts"
       ],
       "targets": [
+        "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
         "src/features/desktop_agent/ui/agent_markdown.rs",
         "src/features/desktop_agent/ui/agent_markdown.rs",
         "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
@@ -445,7 +446,8 @@
         "src/features/desktop-agent/ui/activity/agent-tool-steps.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/domain/agent_tool_steps.rs",
+        "src/features/desktop_agent/ui/activity/agent_tool_steps.rs",
+        "src/features/desktop_agent/domain/legacy_agent_tool_steps.rs",
         "src/features/desktop_agent/ui/agent_activity.rs",
         "src/features/desktop_agent/ui/agent_theme.rs"
       ],
@@ -956,6 +958,43 @@
         "src/agent/host/tests.rs"
       ],
       "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
+    },
+    {
+      "name": "Renderer presentation policy",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/domain/agent-activity-presentation.ts",
+        "src/features/desktop-agent/domain/agent-tool-evidence.ts",
+        "src/features/desktop-agent/domain/agent-stream-presentation.ts",
+        "src/features/desktop-agent/ui/transcript/transcript-rows.ts",
+        "src/features/desktop-agent/ui/transcript/transcript-layout.ts",
+        "src/features/desktop-agent/ui/agent-tool-group-presentation.ts",
+        "src/features/desktop-agent/ui/agentChatViewModel.ts",
+        "src/features/desktop-agent/ui/agentPanelPresentation.ts",
+        "src/features/desktop-agent/ui/agentErrorPresentation.ts",
+        "src/features/desktop-agent/ui/agent-history-presentation.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/domain/agent_activity_presentation.rs",
+        "src/features/desktop_agent/domain/agent_tool_evidence.rs",
+        "src/features/desktop_agent/domain/agent_stream_presentation.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_rows.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_layout.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
+        "src/features/desktop_agent/ui/transcript/mod.rs",
+        "src/features/desktop_agent/ui/agent_tool_group_presentation.rs",
+        "src/features/desktop_agent/ui/activity/agent_tool_steps.rs",
+        "src/features/desktop_agent/ui/activity/mod.rs",
+        "src/features/desktop_agent/ui/agent_chat_view_model.rs",
+        "src/features/desktop_agent/ui/agent_panel_presentation.rs",
+        "src/features/desktop_agent/ui/agent_error_presentation.rs",
+        "src/features/desktop_agent/ui/agent_history_presentation.rs",
+        "src/features/desktop_agent/ui/tests/mod.rs",
+        "src/features/desktop_agent/ui/tests/timeline.rs",
+        "src/features/desktop_agent/ui/tests/tool_presentation.rs",
+        "src/features/desktop_agent/ui/tests/chat_view_model.rs"
+      ],
+      "remaining": "Pure presentation policy is ported over the display contract with its product suites: activity/tool/command classification and output, bounded tool evidence (UTF-16 budgets), streaming Markdown stable/tail splitting and grapheme catch-up, transcript rows (pending submissions, visibility), deterministic vertical rhythm and virtualization ranges, viewport anchors, tool grouping, readiness/session/error/history wording and the chat view model. The GPUI views still render the legacy message model (legacy_agent_* modules) until they move onto these."
     }
   ]
 }

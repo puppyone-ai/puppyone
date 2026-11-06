@@ -1,10 +1,10 @@
 //! Port of `AgentTranscript`, `TranscriptRow`, `AgentMessagePart`,
 //! `AgentTurnSummary` and the live tail (`AgentRunStatus`) with
-//! `styles/transcript.css`. Rows come from `domain::agent_timeline`; the list is
+//! `styles/transcript.css`. Rows come from `domain::legacy_agent_timeline`; the list is
 //! top-aligned and follows the end while pinned, like the product viewport.
 use super::super::super::domain::{
-    agent_activity_presentation::duration_parts,
-    agent_timeline::{self, Row, RowKind},
+    legacy_agent_activity_presentation::duration_parts,
+    legacy_agent_timeline::{self, Row, RowKind},
 };
 use super::agent_activity::{context_divider, run_feedback};
 use super::agent_theme::AgentTheme;
@@ -178,7 +178,7 @@ impl AgentChat {
     pub(super) fn refresh_transcript(&mut self) {
         let roles = self.assistant_roles();
         let roles: Vec<&str> = roles.iter().map(String::as_str).collect();
-        let rows = agent_timeline::build(
+        let rows = legacy_agent_timeline::build(
             &self.session.snapshot().messages,
             &roles,
             &self.session.turn_timings,
