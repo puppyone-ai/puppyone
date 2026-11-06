@@ -2099,6 +2099,118 @@
         "artifact:app-preview-native/setup-light.png"
       ],
       "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port)."
+    },
+    {
+      "name": "Editor document host",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/host/DocumentSurfaceHost.tsx",
+        "src/shared-ui/editor/host/EditorDocumentHost.tsx",
+        "src/shared-ui/editor/host/FilePreview.tsx",
+        "src/shared-ui/editor/host/PresetViewerRuntimeHost.tsx",
+        "src/shared-ui/editor/host/DataNodeEditorHost.tsx",
+        "src/shared-ui/editor/host/sourceAdmission.ts",
+        "src/shared-ui/editor/documentSource.ts",
+        "src/shared-ui/editor/editorAccess.ts",
+        "src/shared-ui/editor/htmlPreviewInteraction.ts"
+      ],
+      "targets": [
+        "src/editor/host/mod.rs",
+        "src/editor/host/chrome.rs",
+        "src/documents.rs",
+        "src/editor/registry/surface.rs",
+        "src/editor/viewers/html.rs",
+        "assets/web/html-preview-interaction.css"
+      ],
+      "evidence": [
+        "test:a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
+      ],
+      "remaining": "The native DocumentEditor opens the resolved contribution's surface with its input (text within MAX_TEXT_BYTES, a lease-checked resource, or none), read-only and appearance, pane menu entries and find, and hands surfaces their workspace. The React suspense, lazy viewer loading and DOM readiness signals are GPUI's own rendering; the AI edit overlay (aiEditFile) is not passed to surfaces."
+    },
+    {
+      "name": "Editor resource and runtime plumbing",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/resource/**",
+        "src/shared-ui/editor/runtime/**"
+      ],
+      "targets": [
+        "src/documents.rs",
+        "src/workspace.rs",
+        "src/editor/workbench/runtime.rs",
+        "tools/product-web-bundle.mjs"
+      ],
+      "evidence": [
+        "test:next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
+        "test:the_page_boots_the_product_bundle_and_reads_only_typed_messages"
+      ],
+      "remaining": "Document inputs, resource leases and change matching are the native document sessions and PreviewResource leases; background work runs on GPUI's executors. The renderer task scheduler, host leases and worker host run inside the bundled product pages (Office), and the per-path dependency index is replaced by document and root watches. DocumentAssetImport is the HTML visual editor's native image import."
+    },
+    {
+      "name": "Editor registry contracts",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/registry/viewerCapability.ts",
+        "src/shared-ui/editor/registry/viewerContract.ts",
+        "src/shared-ui/editor/registry/viewerHostAdapters.ts",
+        "src/shared-ui/editor/registry/viewerHostApi.ts",
+        "src/shared-ui/editor/registry/viewerPackAdapter.tsx",
+        "src/shared-ui/editor/registry/viewerPackTypes.ts"
+      ],
+      "targets": [
+        "src/editor/registry/mod.rs",
+        "src/editor/registry/manifest.rs",
+        "src/editor/registry/contribution.rs",
+        "src/editor/registry/packs/mod.rs",
+        "src/editor/registry/packs/manifest.rs",
+        "src/editor/registry/packs/route.rs"
+      ],
+      "evidence": [],
+      "remaining": "Viewer capability, contract and manifest checks and Viewer Pack routing and manifest validation are native; the pack host API has no runtime to serve (see Viewer Packs)."
+    },
+    {
+      "name": "Viewer Packs",
+      "status": "partial",
+      "sources": [
+        "src/features/viewer-packs/**"
+      ],
+      "targets": [
+        "src/editor/registry/packs/mod.rs",
+        "src/editor/viewers/external.rs"
+      ],
+      "evidence": [],
+      "remaining": "The product ships with externalViewerPacks disabled (package.json puppyoneCapabilities), so no pack runtime runs: the native build keeps the same eligibility, routing, chooser and strict manifest validation, without the signed package store, isolated pack surface or resource broker."
+    },
+    {
+      "name": "Editor conflict banner and save chip",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/ConflictMarkerBanner.tsx",
+        "src/shared-ui/editor/conflictMarkers.ts",
+        "src/shared-ui/editor/EditorSaveButton.tsx"
+      ],
+      "targets": [
+        "src/editor/viewers/code/conflicts.rs",
+        "src/editor/viewers/code/mod.rs",
+        "src/shell/editor_workbench.rs"
+      ],
+      "evidence": [
+        "test:conflict_banner_resolves_blocks_as_an_undoable_local_edit"
+      ],
+      "remaining": "Conflict blocks resolve as one undoable local edit (keep current / incoming, all or one block; read-only shows the banner without actions), and the save chip with its failure overlay follows EditorSaveButton; the chip's pixel parity is not separately verified."
+    },
+    {
+      "name": "Document navigation",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/navigation/**"
+      ],
+      "targets": [
+        "src/editor/navigation.rs",
+        "src/editor/navigation/index.rs"
+      ],
+      "evidence": [],
+      "remaining": "Workspace and external references (URLs, Markdown and wiki links, workspace paths) resolve through the native reference index; the Markdown-specific link graph belongs to the advanced Markdown phase."
     }
   ],
   "retired_sources": {
