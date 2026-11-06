@@ -8,6 +8,7 @@ mod docks;
 pub mod elements;
 #[cfg(feature = "dev-capture")]
 mod fixture;
+mod routing;
 mod status;
 mod transcript;
 
@@ -29,6 +30,8 @@ use gpui_kit::base::v_flex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+
+pub use routing::AgentRouting;
 
 actions!(agent_panel, [SubmitPrompt]);
 
@@ -60,6 +63,10 @@ pub enum AgentChatPanelEvent {
     OpenModelConnections,
     /// `onOpenAccount`.
     OpenAccount,
+    /// `onPreferredRuntimeChange(runtimeId)`.
+    PreferredRuntime(Option<String>),
+    /// `onPreferredRouteChange(route)`.
+    PreferredRoute(crate::features::settings::agent_routing_preferences::AgentRoutePatch),
 }
 
 impl EventEmitter<AgentChatPanelEvent> for AgentChatTabPanel {}
@@ -113,6 +120,8 @@ pub struct AgentChatTabPanel {
     compute_access_prompt: bool,
     /// `usePaymentsExperience()`.
     payments: bool,
+    /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
+    routing: AgentRouting,
     _store: Box<dyn FnOnce()>,
 }
 
@@ -225,6 +234,7 @@ impl AgentChatTabPanel {
             compute_revision: None,
             compute_access_prompt: false,
             payments: false,
+            routing: AgentRouting::default(),
             _store: Box::new(unsubscribe),
         };
         panel.reload_model_connections(cx);
@@ -283,6 +293,8 @@ impl AgentChatTabPanel {
     fn view_model(&self, state: &AgentControllerState) -> AgentChatViewModel {
         let runtime = self.runtime_view(state);
         let compute = self.compute_view(&runtime.runtime_models, state.selected_model.as_deref());
+        let preferences_ready =
+            routing::pending_preferences(state, &runtime.runtime_models, &self.routing).ready();
         derive_agent_chat_view_model(
             state,
             runtime,
@@ -291,7 +303,7 @@ impl AgentChatTabPanel {
                 pending_connection_model: self.pending_connection_model.clone(),
                 compute_ready: compute.ready,
                 compute_access_required: compute.access_required.map(str::to_string),
-                preferences_ready: true,
+                preferences_ready,
             },
         )
     }
@@ -306,6 +318,7 @@ impl AgentChatTabPanel {
         if self.command_target && !state.initialized && state.phase == AgentControllerPhase::Idle {
             drop(self.controller.initialize(false));
         }
+        self.apply_routing_preferences(cx);
         // `useAgentSessionPreparation`: prepare an empty native session only
         // while the active panel is routable.
         if self.command_target
@@ -376,11 +389,7 @@ impl AgentChatTabPanel {
             cx.notify();
             return;
         }
-        match id {
-            AgentSessionControlId::Model => self.controller.select_model(Some(&value)),
-            AgentSessionControlId::Effort => self.controller.select_effort(Some(&value)),
-            AgentSessionControlId::Mode => self.controller.select_mode(Some(&value)),
-        }
+        self.select_routed_control(id, value, cx);
     }
 }
 

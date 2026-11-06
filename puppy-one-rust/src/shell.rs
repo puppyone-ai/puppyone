@@ -748,9 +748,10 @@ impl Shell {
             .apply(Some(window), cx);
         self.homepage.recent = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
+        let (routing, payments) = (p.agent_routing.clone(), p.experimental.payments);
         self.sidebar
             .workbench
-            .update(cx, |w, cx| w.set_preferences(hidden, cx));
+            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
         let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
         let history_icons = icons.clone();
         self.sidebar

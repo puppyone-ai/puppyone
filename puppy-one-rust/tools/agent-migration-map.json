@@ -1042,7 +1042,9 @@
         "src/features/desktop-agent/ui/useAgentRunActiveElapsed.ts",
         "src/features/desktop-agent/ui/useAgentSessionPreparation.ts",
         "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx",
-        "src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx"
+        "src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx",
+        "src/features/desktop-agent/ui/useAgentRoutingPreferences.ts",
+        "src/features/desktop-agent/domain/agent-route-preference.ts"
       ],
       "targets": [
         "src/features/desktop_agent/ui/activity/agent_activity_views.rs",
@@ -1054,9 +1056,11 @@
         "src/features/desktop_agent/ui/panel/composer.rs",
         "src/features/desktop_agent/ui/panel/fixture.rs",
         "src/features/workbench/mod.rs",
-        "src/features/desktop_agent/ui/panel/compute.rs"
+        "src/features/desktop_agent/ui/panel/compute.rs",
+        "src/features/desktop_agent/ui/panel/routing.rs",
+        "src/features/settings/agent_routing_preferences.rs"
       ],
-      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. The history browser, routing preferences, stream frame smoothing, runtime picker popover and pixel parity remain."
+      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain."
     }
   ]
 }

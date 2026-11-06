@@ -528,7 +528,7 @@ impl AgentChatTabPanel {
                     .cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(a.row_hover))
                     .on_click(cx.listener(move |s, _, _, cx| {
-                        drop(s.controller.select_runtime(&runtime_id));
+                        s.select_routed_runtime(runtime_id.clone(), cx);
                         cx.notify();
                     }))
                     .children(

@@ -175,6 +175,9 @@ pub struct Workbench {
     installations: Vec<Installation>,
     /// Local agent ids hidden in Settings → Local Agents.
     hidden_agents: Vec<String>,
+    /// `agentRoutingPreferences` and the Payments experience, for chats.
+    agent_routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
+    payments: bool,
     /// Appearance → Loading animation preset.
     scanning: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
@@ -302,6 +305,8 @@ impl Workbench {
             root: None,
             installations: vec![],
             hidden_agents: vec![],
+            agent_routing: Default::default(),
+            payments: false,
             scanning: true,
             scan_started: Some(std::time::Instant::now()),
             scan_rx,
@@ -376,10 +381,23 @@ impl Workbench {
         self.root = Some(root);
         cx.notify();
     }
-    pub fn set_preferences(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
-        if self.hidden_agents != hidden {
-            self.hidden_agents = hidden;
+    pub fn set_preferences(
+        &mut self,
+        hidden: Vec<String>,
+        routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
+        payments: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let hidden_changed = self.hidden_agents != hidden;
+        let routing_changed = self.agent_routing != routing || self.payments != payments;
+        self.hidden_agents = hidden;
+        self.agent_routing = routing;
+        self.payments = payments;
+        if hidden_changed {
             self.sync_agent_hidden_runtimes(cx);
+        }
+        if hidden_changed || routing_changed {
+            self.sync_agent_routing(cx);
             cx.notify();
         }
     }
@@ -1448,6 +1466,7 @@ impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         self.persist(cx);
+        self.sync_agent_presentation(window, cx);
         // The close dialog follows its item: a vanished item takes it down.
         if let Some(tab) = self.confirm
             && self.close_copy(tab, cx).is_none()

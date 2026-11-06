@@ -18,8 +18,9 @@ use crate::features::desktop_agent::infrastructure::host::{
     project_agent_client::create_project_agent_client_provider, window_runtime::WindowUiRuntime,
 };
 use crate::features::desktop_agent::ui::panel::{
-    AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation,
+    AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation, AgentRouting,
 };
+use crate::features::settings::agent_routing_preferences::AgentRoutingPreferences;
 use serde_json::json;
 use std::path::Path;
 use std::rc::Rc;
@@ -282,10 +283,12 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> Entity<AgentChatTabPanel> {
         let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
-        let payments = self.payments_experience(cx);
+        let payments = self.payments;
+        let routing = self.panel_routing();
         let view = cx.new(|cx| {
             let mut panel = AgentChatTabPanel::new(controller, hidden, window, cx);
             panel.set_payments(payments, cx);
+            panel.set_routing(routing, cx);
             panel
         });
         cx.subscribe(&view, Self::agent_panel_event).detach();
@@ -446,6 +449,17 @@ impl Workbench {
                 cx.emit(WorkbenchEvent::OpenModelConnections)
             }
             AgentChatPanelEvent::OpenAccount => cx.emit(WorkbenchEvent::OpenAccount),
+            // `setAgentPreferredRuntime` / `setAgentPreferredRoute`.
+            AgentChatPanelEvent::PreferredRuntime(runtime) => {
+                let runtime = runtime.clone();
+                self.change_agent_routing(cx, move |routing| {
+                    routing.select_runtime(runtime.as_deref())
+                });
+            }
+            AgentChatPanelEvent::PreferredRoute(patch) => {
+                let patch = patch.clone();
+                self.change_agent_routing(cx, move |routing| routing.set_preferred_route(&patch));
+            }
             AgentChatPanelEvent::OpenFile(path) => {
                 if let Some(root) = self.root.clone() {
                     cx.emit(WorkbenchEvent::OpenAgentFile {
@@ -545,23 +559,78 @@ impl Workbench {
         })
     }
 
-    /// `usePaymentsExperience()` (Settings → Experimental).
-    fn payments_experience(&self, cx: &App) -> bool {
-        self.preferences
-            .as_ref()
-            .is_some_and(|p| p.read(cx).state.experimental.payments)
+    /// Model connections changed: every chat rereads them.
+    pub(super) fn reload_agent_model_connections(&mut self, cx: &mut Context<Self>) {
+        for panel in self.agent_panels() {
+            panel.update(cx, |panel, cx| panel.reload_model_connections(cx));
+        }
     }
 
-    /// Model connections changed: every chat rereads them, and the payments
-    /// experience follows its setting.
-    pub(super) fn reload_agent_model_connections(&mut self, cx: &mut Context<Self>) {
-        let payments = self.payments_experience(cx);
+    /// `preferredRuntimeId` (unless hidden) and `selectAgentPreferredRoute`.
+    fn panel_routing(&self) -> AgentRouting {
+        let hidden = hidden_agent_chat_runtime_ids(&self.hidden_agents);
+        AgentRouting {
+            preferred_runtime_id: self
+                .agent_routing
+                .selected_runtime_id
+                .clone()
+                .filter(|id| !hidden.contains(id)),
+            preferred_route: self.agent_routing.preferred_route(),
+        }
+    }
+
+    /// `presented` (the shown tab of its group) and `commandTarget` (that
+    /// tab in the active group) for every chat; other projects' chats are
+    /// hidden.
+    pub(super) fn sync_agent_presentation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = self.root.clone();
+        let mut updates = Vec::new();
+        for (root, project) in &self.projects {
+            for (tab, content) in &project.content {
+                let Content::Agent(view, _) = content else {
+                    continue;
+                };
+                let group = project
+                    .layout
+                    .groups
+                    .iter()
+                    .find(|(_, g)| g.tabs.contains(tab));
+                let presented = current.as_ref() == Some(root)
+                    && group.is_some_and(|(_, g)| g.active == Some(*tab));
+                let command_target =
+                    presented && group.is_some_and(|(id, _)| *id == project.layout.active_group);
+                updates.push((view.clone(), presented, command_target));
+            }
+        }
+        for (view, presented, command_target) in updates {
+            view.update(cx, |panel, cx| {
+                panel.set_presentation(presented, command_target, window, cx)
+            });
+        }
+    }
+
+    /// Routing and Payments reach every open chat.
+    pub(super) fn sync_agent_routing(&mut self, cx: &mut Context<Self>) {
+        let (routing, payments) = (self.panel_routing(), self.payments);
         for panel in self.agent_panels() {
             panel.update(cx, |panel, cx| {
                 panel.set_payments(payments, cx);
-                panel.reload_model_connections(cx);
+                panel.set_routing(routing.clone(), cx);
             });
         }
+    }
+
+    fn change_agent_routing(
+        &mut self,
+        cx: &mut Context<Self>,
+        edit: impl FnOnce(&AgentRoutingPreferences) -> AgentRoutingPreferences + 'static,
+    ) {
+        let Some(store) = self.preferences.clone() else {
+            return;
+        };
+        store.update(cx, |store, cx| {
+            store.change(|p| p.agent_routing = edit(&p.agent_routing), cx)
+        });
     }
 
     fn agent_panels(&self) -> Vec<Entity<AgentChatTabPanel>> {
