@@ -696,3 +696,6 @@ export { subscribeDocumentRetirements } from "./editor/document-session/document
 export { createDocumentAssetImportPort } from "./editor/resource/DocumentAssetImport";
 
 export { commitEditorLayout } from "./editor/runtime/editorLayout";
+export * from "./editor/conversion/types";
+export { tableToCsv } from "./editor/conversion/output";
+export { DocumentConversionProvider } from "./editor/conversion/DocumentConversionProvider";

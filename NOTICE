@@ -24,6 +24,8 @@ parties. Each such component is distributed under its own license. Notable
 third-party components include, but are not limited to:
 
   - React                              (MIT License)
+  - Mammoth.js                          (BSD-2-Clause)
+  - PDF.js                             (Apache License 2.0; bundled data notices in licenses/document-conversion)
   - docx-preview / docxjs              (Apache License 2.0)
   - @aiden0z/pptx-renderer             (Apache License 2.0)
   - SheetJS Community Edition          (Apache License 2.0)

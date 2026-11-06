@@ -53,6 +53,7 @@ describe("workspace file IPC authorization", () => {
       ["workspace:convert-office-docx", { rootPath: otherRoot, path: "secret.rtf" }],
       ["workspace:write-file", { rootPath: otherRoot, path: "secret.txt", content: "changed" }],
       ["workspace:create-entry", { rootPath: otherRoot, parentPath: null, name: "new.txt", kind: "file" }],
+      ["workspace:save-document-conversion", { rootPath: otherRoot, path: "secret.docx", files: [] }],
       ["workspace:instantiate-template", { rootPath: otherRoot, parentPath: null, name: "Deck", templateId: "slides.default" }],
       ["workspace:rename-entry", { rootPath: otherRoot, path: "secret.txt", nextName: "renamed.txt" }],
       ["workspace:move-entry", { rootPath: otherRoot, fromPath: "secret.txt", toPath: "moved.txt" }],

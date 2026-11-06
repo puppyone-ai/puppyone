@@ -4,6 +4,8 @@ import { useLocalization } from "@puppyone/localization";
 import { PageLoading } from "../../../components/loading";
 import {
   FilePreview,
+  DocumentConversionProvider,
+  getDataResourceName,
   getEditorProviderPolicy,
   isDocumentDataNode,
   type AiEditFile,
@@ -12,6 +14,7 @@ import {
   type DocumentDataNode,
   type DocumentSourceKind,
   type DocumentNavigationPort,
+  type DocumentConversionPort,
   type ContextMapWorkspaceEnvironment,
   type EditorGroupState,
   type EditorInteractionPreferences,
@@ -23,8 +26,10 @@ import {
   workspaceContentChangeMatchesResource,
 } from "@puppyone/shared-ui";
 import { useEditorPaneSource } from "./useEditorPaneSource";
+import { saveDocumentConversion } from "../conversion/saveDocumentConversion";
 
 export type EditorPaneDocumentRuntimeProps = Readonly<{
+  onOpenCreatedDocument?: (node: DocumentDataNode) => void;
   aiEditFile: AiEditFile | null;
   dataPort: DataPort;
   documentSourceKind?: DocumentSourceKind;
@@ -43,6 +48,7 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
 /** Expensive source and Viewer boundary. Active-pane routing lives above this
  * component so focus changes do not reconcile document content. */
 export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime({
+  onOpenCreatedDocument,
   aiEditFile,
   dataPort,
   documentSourceKind = "local",
@@ -59,6 +65,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
 }: EditorPaneDocumentRuntimeProps) {
   return (
     <RegularEditorPaneDocumentRuntime
+      onOpenCreatedDocument={onOpenCreatedDocument}
       aiEditFile={aiEditFile}
       dataPort={dataPort}
       documentSourceKind={documentSourceKind}
@@ -79,6 +86,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
 type RegularEditorPaneDocumentRuntimeProps = EditorPaneDocumentRuntimeProps;
 
 function RegularEditorPaneDocumentRuntime({
+  onOpenCreatedDocument,
   aiEditFile,
   dataPort,
   documentSourceKind = "local",
@@ -111,6 +119,18 @@ function RegularEditorPaneDocumentRuntime({
     readFile: dataPort.readFile,
   }), [dataPort.listChildren, dataPort.readFile]);
   const hideSourceView = !providerPolicy(node, editor?.resource ?? null).sourceToggle;
+  const conversionPort = useMemo<DocumentConversionPort | null>(() => {
+    if (documentSourceKind !== "local" || !dataPort.saveDocumentConversion) return null;
+    return {
+      save: request => saveDocumentConversion(dataPort, request),
+      open: async path => {
+        const resolved = await dataPort.resolveNode?.(path);
+        onOpenCreatedDocument?.(isDocumentDataNode(resolved) ? resolved : {
+          id: path, path, name: getDataResourceName(path), type: path.endsWith(".csv") ? "spreadsheet" : "markdown",
+        });
+      },
+    };
+  }, [dataPort, onOpenCreatedDocument, documentSourceKind]);
 
   // A directory discovered after an editor was restored is invalid workbench
   // state. Never route it through the unknown-file fallback viewer or reduce
@@ -124,6 +144,7 @@ function RegularEditorPaneDocumentRuntime({
   }
 
   return (
+    <DocumentConversionProvider port={conversionPort}>
     <FilePreview
       editorAssets={dataPort.editorAssets}
       previewServices={dataPort.previewServices}
@@ -167,6 +188,7 @@ function RegularEditorPaneDocumentRuntime({
         dataPort.documentPersistence && node ? source.applyPersistedCommit : undefined
       }
     />
+    </DocumentConversionProvider>
   );
 }
 
@@ -174,7 +196,8 @@ export function areEditorPaneDocumentRuntimePropsEqual(
   previous: EditorPaneDocumentRuntimeProps,
   next: EditorPaneDocumentRuntimeProps,
 ): boolean {
-  return previous.aiEditFile === next.aiEditFile
+  return previous.onOpenCreatedDocument === next.onOpenCreatedDocument
+    && previous.aiEditFile === next.aiEditFile
     && previous.dataPort === next.dataPort
     && previous.documentSourceKind === next.documentSourceKind
     && sameEditor(previous.editor, next.editor)

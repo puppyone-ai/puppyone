@@ -271,3 +271,23 @@ Redistributions in binary form must reproduce the above copyright notice, this l
 
 THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## Document conversion
+
+DOCX semantic extraction uses Mammoth.js 1.13.0 (BSD-2-Clause):
+https://github.com/mwilliamson/mammoth.js/tree/1.13.0
+
+PDF text extraction uses Mozilla PDF.js / pdfjs-dist 6.5.438 (Apache-2.0):
+https://github.com/mozilla/pdf.js
+
+The PDF conversion Worker also bundles the upstream Adobe CMaps and standard
+Foxit/PDFium and Liberation font data, unchanged, to resolve document encodings
+without loading document-selected network resources. Their separate notices and
+licenses are reproduced in `licenses/document-conversion/`. The font data and
+its upstream source distribution are available in the matching pdfjs-dist
+package and https://github.com/mozilla/pdf.js/tree/master/external .
+No PDF.js wasm decoders or OCR models are included by this feature.
+
+Mammoth's browser distribution includes its own third-party dependency notices.
+The complete top-level licenses and bundled PDF data licenses ship alongside
+the app under `licenses/document-conversion/`.

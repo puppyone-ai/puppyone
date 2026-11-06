@@ -174,6 +174,7 @@ export function createLocalDataPort(rootPath: string): DataPort {
       const { parentPath, name } = splitDataPath(path);
       return getDesktopBridge().createEntry({ rootPath, parentPath, name, kind: "file", content }).then(() => undefined);
     },
+    saveDocumentConversion: request => getDesktopBridge().saveDocumentConversion({ ...request, rootPath }),
     instantiateTemplate: ({ templateId, parentPath, name }) => getDesktopBridge().instantiateTemplate({
       rootPath,
       templateId,

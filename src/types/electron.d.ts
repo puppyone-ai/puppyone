@@ -3,6 +3,8 @@ import type {
   AppPreviewResult,
   DataNode,
   FileContent,
+  ConvertedDocumentOutputRequest,
+  ConvertedDocumentOutputResult,
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
@@ -1382,6 +1384,7 @@ declare global {
         expectedVersion?: string | null;
       }) => Promise<WorkspaceWriteFileResult>;
       createEntry: (request: WorkspaceCreateEntryRequest) => Promise<WorkspaceCreateEntryResult>;
+      saveDocumentConversion: (request: ConvertedDocumentOutputRequest & { rootPath: string }) => Promise<ConvertedDocumentOutputResult>;
       instantiateTemplate: (
         request: WorkspaceInstantiateTemplateRequest,
       ) => Promise<WorkspaceInstantiateTemplateResult>;

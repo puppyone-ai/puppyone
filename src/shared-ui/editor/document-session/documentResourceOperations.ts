@@ -56,6 +56,13 @@ export function withEditorDocumentOperations(port: DataPort): DataPort {
   if (previous) return previous;
   const result: DataPort = {
     ...port,
+    ...(port.saveDocumentConversion ? { saveDocumentConversion: request => {
+      const storageIdentity = getEditorStorageIdentity(port);
+      return documentOperationQueue.run([
+        { storageIdentity, resource: request.path },
+        { storageIdentity, resource: getDataResourceParent(request.path) },
+      ], () => port.saveDocumentConversion!(request));
+    } } satisfies Pick<DataPort, "saveDocumentConversion"> : {}),
     ...(port.copyNode ? { copyNode: async (from, folder, options) => {
       const storageIdentity = getEditorStorageIdentity(port);
       return documentOperationQueue.run([{ storageIdentity, resource: from }, { storageIdentity, resource: folder }], async () => {

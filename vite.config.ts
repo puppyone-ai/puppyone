@@ -96,7 +96,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["docx-preview"],
+    include: ["docx-preview", "mammoth/mammoth.browser", "pdfjs-dist/build/pdf.mjs", "pdfjs-dist/build/pdf.worker.mjs"],
   },
   worker: {
     format: "es",

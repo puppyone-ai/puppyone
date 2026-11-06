@@ -433,6 +433,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  onOpenCreatedDocument={editorWorkbench.openDocument}
                   entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
