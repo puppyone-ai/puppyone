@@ -3,15 +3,14 @@
 //! product's; each viewer's surface lives in `editor::viewers`.
 //!
 //! Viewers the product renders with a canvas or app runtime the native build
-//! does not have yet edit their source as text (context map, PuppyFlow,
-//! HTML) or show an honest "preview unavailable" placeholder (app preview,
-//! PDF, database, Office, audio, video).
+//! does not have yet edit their source as text (context map) or show an
+//! honest "preview unavailable" placeholder (app preview).
 use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
 use crate::editor::viewers::{
-    code, csv, database, html, image, media, office, pdf, placeholder, text,
+    code, csv, database, html, image, media, office, pdf, placeholder, structured, text,
 };
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
@@ -57,7 +56,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| m.format.id == "puppyflow",
             editable: Some(yes),
-            presentation: Native(text::open_source),
+            presentation: Native(structured::open_puppyflow),
         },
         ViewerImplementation {
             id: "json",

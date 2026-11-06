@@ -5,7 +5,7 @@ use gpui::{AssetSource, SharedString};
 use std::borrow::Cow;
 macro_rules! embedded {
     ($($dir:literal / $name:literal),* $(,)?) => {
-        fn embedded(path: &str) -> Option<&'static [u8]> {
+        pub fn embedded(path: &str) -> Option<&'static [u8]> {
             match path {
                 $(concat!($dir, "/", $name) => Some(include_bytes!(concat!("../assets/", $dir, "/", $name)).as_slice()),)*
                 _ => None,

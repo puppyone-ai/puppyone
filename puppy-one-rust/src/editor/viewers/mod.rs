@@ -13,5 +13,6 @@ pub mod media;
 pub mod office;
 pub mod pdf;
 pub mod placeholder;
+pub mod structured;
 pub mod text;
 pub mod web;

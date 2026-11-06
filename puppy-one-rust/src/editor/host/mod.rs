@@ -73,6 +73,9 @@ pub struct DocumentEditor {
     /// pack runtime is not part of the build.
     extensions: Option<ExtensionHost>,
     references: Option<crate::editor::navigation::ReferenceContext>,
+    /// The workspace surfaces read beyond their document; `None` for a
+    /// lone file.
+    workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
     /// `normalizeContent`: the text the surface was given and the raw text
     /// it stands for, until the person edits.
     displayed: Option<(String, String)>,
@@ -104,6 +107,7 @@ impl DocumentEditor {
             bounds: None,
             extensions: None,
             references: None,
+            workspace: None,
             displayed: None,
         }
     }
@@ -112,6 +116,14 @@ impl DocumentEditor {
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_extension_host(&mut self, host: Option<ExtensionHost>) {
         self.extensions = host;
+    }
+
+    /// The workspace of the next documents this host opens.
+    pub fn set_workspace(
+        &mut self,
+        workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+    ) {
+        self.workspace = workspace;
     }
 
     pub fn set_reference_context(
@@ -176,6 +188,7 @@ impl DocumentEditor {
             resolved_extension: resolved.resolved_extension.as_deref(),
             dark: self.dark,
             scale: self.scale,
+            workspace: self.workspace.clone(),
         };
         let surface = match self.extension_surface(&document, &request, window, cx) {
             Some(surface) => surface,

@@ -26,6 +26,9 @@ pub struct SurfaceRequest<'a> {
     pub resolved_extension: Option<&'a str>,
     pub dark: bool,
     pub scale: Scale,
+    /// The document's workspace (`workspaceRoot`, `contextMapEnvironment`);
+    /// `None` for a lone file.
+    pub workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
 }
 
 /// The viewer's input, as its manifest `source` asks.

@@ -75,6 +75,7 @@ impl Chooser {
             resolved_extension: None,
             dark: self.dark,
             scale: self.scale,
+            workspace: None,
         };
         self.opened = Some((self.render)(&request, &self.candidates[index], window, cx));
         cx.notify();

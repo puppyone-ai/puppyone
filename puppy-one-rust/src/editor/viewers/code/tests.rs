@@ -34,6 +34,7 @@ fn setup<'a>(
                 resolved_extension: None,
                 dark: true,
                 scale: Scale::Medium,
+                workspace: None,
             },
             w,
             cx,

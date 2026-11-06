@@ -1487,8 +1487,14 @@ impl Shell {
                         explorer.reference_context(workspace, path)
                     })
                 });
+                let workspace = self
+                    .files
+                    .slot(slot)
+                    .filter(|_| !file)
+                    .and_then(|files| files.workspace.clone());
                 let replies = self.editor.hosts[&slot].update(cx, |s, cx| {
                     s.set_reference_context(references, cx);
+                    s.set_workspace(workspace);
                     s.receive(&message, window, cx)
                 });
                 for reply in replies {
