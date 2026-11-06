@@ -24,6 +24,8 @@ const deviceId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const folderId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const hasOpenSsh = ["ssh", "ssh-keygen"].every((tool) => spawnSync("which", [tool]).status === 0);
 const sandbox = await detectSandbox().catch(() => null);
+// CI sets PUPPYONE_REQUIRE_SANDBOX so a missing sandbox fails instead of skipping the sandboxed cases.
+if (process.env.PUPPYONE_REQUIRE_SANDBOX === "1" && !sandbox) throw new Error("This runner has no folder sandbox.");
 
 describe.skipIf(!hasOpenSsh)("host SSH server with the OpenSSH client", () => {
   let work, root, appData, server, tcp, port, ssh;
