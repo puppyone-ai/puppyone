@@ -10,6 +10,7 @@ import { FilesSettingsView } from "./main/FileSettingsViews";
 import { GeneralSettingsView } from "./main/GeneralSettingsView";
 import { LocalProjectSettingsView } from "./main/LocalProjectSettingsView";
 import { PrivacySettingsView } from "./main/PrivacySettingsView";
+import { KeyboardShortcutsSettingsView } from "./main/KeyboardShortcutsSettingsView";
 import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
 import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
@@ -104,6 +105,8 @@ export function SettingsView({
       />
     );
   }
+
+  if (activeSection === "keyboard-shortcuts") return <KeyboardShortcutsSettingsView />;
 
   if (activeSection === "privacy") {
     return <PrivacySettingsView />;
