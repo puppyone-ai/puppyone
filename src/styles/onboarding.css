@@ -1171,7 +1171,7 @@ span.homepage-cloud-feedback {
 }
 
 /* Blue belongs to the Cloud alone. */
-.onboarding-project-group[data-project-group="cloud"] .onboarding-project-group-icon {
+.onboarding-project-group[data-project-group^="cloud"] .onboarding-project-group-icon {
   color: var(--po-brand-blue);
 }
 
@@ -1223,6 +1223,26 @@ span.homepage-cloud-feedback {
 /* An offline computer keeps its folders in view, quieter, until it is back. */
 .onboarding-project-group[data-inactive] .onboarding-project-list {
   opacity: 0.5;
+}
+
+.onboarding-project-group[data-drop-available] {
+  outline: 1px dashed var(--po-brand-blue);
+  border-radius: 8px;
+}
+
+.onboarding-project-group[data-drop-over] {
+  background: var(--po-hover);
+  outline-style: solid;
+}
+
+.onboarding-cloud-space-empty {
+  margin: 0;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  color: var(--po-text-subtle);
+  font-size: var(--onboarding-caption-font-size);
 }
 
 .onboarding-project-group-empty,

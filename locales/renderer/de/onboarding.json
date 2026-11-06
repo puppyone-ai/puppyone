@@ -1,4 +1,11 @@
 {
+  "spaces.personal": "Persönliche Cloud",
+  "spaces.organization": "Organisations-Cloud",
+  "spaces.addProject": "Projekt zu {name} hinzufügen",
+  "spaces.empty": "Ein Projekt hierher ziehen oder im Menü auswählen.",
+  "spaces.readOnly": "Keine Projekte. Du kannst diesem Bereich keine Projekte hinzufügen.",
+  "spaces.unavailable": "Cloud-Bereiche sind nicht verfügbar. Deine Projekte bleiben an ihrem bisherigen Ort.",
+  "spaces.retry": "Erneut versuchen",
   "projects.title": "Projekte",
   "brand.name": "puppyone",
   "brand.agentReadyMessage": "Deine Dateien. Für Agents bereit.",

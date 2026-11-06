@@ -1,4 +1,11 @@
 {
+  "spaces.personal": "個人クラウド",
+  "spaces.organization": "組織クラウド",
+  "spaces.addProject": "{name} にプロジェクトを追加",
+  "spaces.empty": "ここにプロジェクトをドラッグするか、メニューから選択してください。",
+  "spaces.readOnly": "プロジェクトはありません。このスペースには追加できません。",
+  "spaces.unavailable": "クラウドスペースを取得できません。プロジェクトは元の場所に残ります。",
+  "spaces.retry": "再試行",
   "projects.title": "プロジェクト",
   "brand.name": "puppyone",
   "brand.agentReadyMessage": "自分のファイルから。Agent 対応。",

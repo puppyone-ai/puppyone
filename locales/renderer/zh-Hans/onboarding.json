@@ -1,4 +1,11 @@
 {
+  "spaces.personal": "个人云空间",
+  "spaces.organization": "组织云空间",
+  "spaces.addProject": "向 {name} 添加项目",
+  "spaces.empty": "将项目拖到这里，或从菜单中选择。",
+  "spaces.readOnly": "暂无项目。你无法向此空间添加项目。",
+  "spaces.unavailable": "暂时无法获取云空间，项目仍保留在原处。",
+  "spaces.retry": "重试",
   "projects.title": "项目",
   "brand.name": "puppyone",
   "brand.agentReadyMessage": "从你的文件开始。为 Agent 就绪。",

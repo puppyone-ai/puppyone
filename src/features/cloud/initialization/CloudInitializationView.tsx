@@ -102,6 +102,7 @@ export function CloudLocalOnlyWorkspace(input: CloudLocalOnlyWorkspaceProps) {
       <CloudGitPrerequisite
         activeSection={props.activeSection}
         projectName={props.workspace.name}
+        hasHeadCommit={props.hasHeadCommit}
         publishBusy={view.publishBusy}
         publishEnabled={view.organizationReady}
         publishError={props.publishError}

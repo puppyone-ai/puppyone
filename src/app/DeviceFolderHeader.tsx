@@ -2,11 +2,11 @@ import { Tooltip, type Workspace, type WorkspaceFolder } from "@puppyone/shared-
 import { useLocalization } from "@puppyone/localization";
 import { useRef, useState } from "react";
 import { SquareTerminal } from "lucide-react";
-import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
-import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
-import type { ProjectPlaceMenuProps } from "../../app-shell/project-place/ProjectPlaceMenu";
-import { VersionControlIcon } from "../../source-control/VersionControlIcon";
-import type { ProjectHomeItem } from "../../../lib/workspaceHomeModel";
+import { AgentEntryIcon } from "../components/brand/AgentEntryIcon";
+import { DesktopTitlebarContext } from "../features/app-shell/DesktopTitlebarContext";
+import type { ProjectPlaceMenuProps } from "../features/app-shell/project-place/ProjectPlaceMenu";
+import { VersionControlIcon } from "../features/source-control";
+import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
 
 const noop = () => {};
 const placeHandlers: ProjectPlaceMenuProps["handlers"] = {

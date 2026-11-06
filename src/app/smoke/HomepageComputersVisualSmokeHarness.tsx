@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { CloudPublishDialog } from "../../features/cloud/initialization/CloudPublishDialog";
+import { CloudGitPrerequisite } from "../../features/cloud/initialization/CloudGitPrerequisite";
 import { useLocalization } from "@puppyone/localization";
 import type { HostCatalogDevice, HostSharingStatus } from "../../../shared/host-contract/types";
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
@@ -83,6 +86,10 @@ export function HomepageComputersVisualSmokeHarness() {
 }
 
 function HomepageComputersFixture() {
+  const [target, setTarget] = useState<{ path: string; spaceId: string } | null>(null);
+  const spaces = [{ id: "personal", name: "Alex", kind: "personal" as const, canCreateProjects: true },
+    { id: "team", name: "Design team", kind: "team" as const, canCreateProjects: true },
+    { id: "empty", name: "New team", kind: "team" as const, canCreateProjects: true }];
   useDesktopPreferenceEffects();
   const { resolvedAppearance, lightThemePreset, darkThemePreset } = useDesktopAppearance();
   const setTheme = useDesktopPreference((s) => s.setThemeMode);
@@ -95,12 +102,22 @@ function HomepageComputersFixture() {
   const appearance = resolveSurfaceAppearance({ appearance: resolvedAppearance, typography, lightThemePreset, darkThemePreset,
     markdownPresentation, pointerCursors, diffMarkers });
   const projectEntry = useProjectEntryFlow();
-  if (params.get("theme") === "light" && resolvedAppearance.effectiveColorMode !== "light") setTheme("light");
+  const requestedTheme = params.get("theme");
+  if ((requestedTheme === "light" || requestedTheme === "dark") && resolvedAppearance.effectiveColorMode !== requestedTheme) setTheme(requestedTheme);
   return <SurfaceAppearanceProvider value={appearance}>
-    <MinimalOnboarding appearance={appearance} projectItems={items} projectEntryController={projectEntry}
+    <MinimalOnboarding appearance={appearance} projectItems={params.has("spaces")
+      ? items.map((item) => item.cloudProjectId ? { ...item, cloudOrganizationId: item.cloudProjectId === "issues" ? "team" : "personal" } : item)
+      : items} projectEntryController={projectEntry}
+      cloudSpaces={params.has("spaces") ? spaces : []}
+      onPublishToSpace={async (path, spaceId) => setTarget({ path, spaceId })}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={() => {}}
       projectGroups={(base) => <HomepageComputers session={session} apiBase={API} base={base} onOpen={() => {}} />} />
+    {target && <CloudPublishDialog onClose={() => setTarget(null)}><CloudGitPrerequisite
+      activeSection="initialize" projectName={target.path.split("/").pop()} publishBusy={false} publishEnabled
+      publishError={null} progressStage={null} organizations={spaces} selectedOrganizationId={target.spaceId}
+      organizationStatus="ready" organizationError={null} onPublishWorkspace={() => setTarget(null)} />
+    </CloudPublishDialog>}
     {params.get("dialog") && <FixtureDialog kind={params.get("dialog") === "share" ? "share" : "settings"} />}
     {params.get("place") && <FixturePlaceMenu shared={params.get("place") === "shared"} />}
   </SurfaceAppearanceProvider>;

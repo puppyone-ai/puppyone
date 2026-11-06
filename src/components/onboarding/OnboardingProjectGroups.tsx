@@ -1,5 +1,5 @@
 import { LocalIcon } from "@puppyone/shared-ui";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import type { ProjectListSharing } from "./OnboardingProjectList";
 
@@ -14,6 +14,9 @@ export type OnboardingProjectGroup = Readonly<{
   actions?: ReactNode;
   /** The group cannot be used right now, as when its computer is offline. */
   inactive?: boolean;
+  alwaysShowHeading?: boolean;
+  /** Present only for a trusted in-page drag, never dataTransfer paths. */
+  dropTarget?: { enabled: boolean; onDrop: () => void };
   children: ReactNode;
 }>;
 
@@ -24,7 +27,7 @@ export type OnboardingProjectGroup = Readonly<{
 export type OnboardingGroupsBase = Readonly<{
   label: string;
   layout: HomepageProjectLayout;
-  cloud: OnboardingProjectGroup | null;
+  cloud: readonly OnboardingProjectGroup[];
   local: Readonly<{ title: string; render: (sharing?: ProjectListSharing) => ReactNode }> | null;
   /** False while the page is narrowed to some places; other computers are not one of them. */
   showOtherComputers: boolean;
@@ -33,7 +36,7 @@ export type OnboardingGroupsBase = Readonly<{
 /** The Cloud, then this computer: the order every Homepage keeps. */
 export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: ProjectListSharing): OnboardingProjectGroup[] {
   const groups: OnboardingProjectGroup[] = [];
-  if (base.cloud) groups.push(base.cloud);
+  groups.push(...base.cloud);
   if (base.local) {
     groups.push({ id: "this-computer", icon: <LocalIcon size={14} strokeWidth={1.85} />, title: base.local.title,
       children: base.local.render(sharing) });
@@ -57,7 +60,7 @@ export function OnboardingProjectGroups({ groups, label, note }: {
 }) {
   if (groups.length === 0 && note === undefined) return null;
   const [only] = groups;
-  const plain = groups.length === 1 && only.detail === undefined && only.actions === undefined;
+  const plain = groups.length === 1 && !only.alwaysShowHeading && only.detail === undefined && only.actions === undefined;
   if (plain && note === undefined) return <>{only.children}</>;
   return (
     <div className="onboarding-project-groups" data-po-scrollbar="menu" data-po-scrollbar-visibility="always"
@@ -70,8 +73,25 @@ export function OnboardingProjectGroups({ groups, label, note }: {
 
 function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
   const titleId = useId();
+  const [over, setOver] = useState(false);
   return (
     <section className="onboarding-project-group" data-project-group={group.id}
+      data-drop-available={group.dropTarget?.enabled || undefined}
+      data-drop-over={(over && group.dropTarget?.enabled) || undefined}
+      onDragOver={(event) => {
+        if (!group.dropTarget) return;
+        event.preventDefault(); event.stopPropagation();
+        event.dataTransfer.dropEffect = group.dropTarget.enabled ? "copy" : "none";
+        setOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setOver(false);
+      }}
+      onDrop={(event) => {
+        if (!group.dropTarget) return;
+        event.preventDefault(); event.stopPropagation(); setOver(false);
+        group.dropTarget.onDrop();
+      }}
       data-inactive={group.inactive || undefined} aria-labelledby={titleId}>
       <header className="onboarding-project-group-head">
         <h2 id={titleId} className="onboarding-project-group-title">

@@ -42,6 +42,8 @@ import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudW
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
+import { useCloudSpaces } from "./features/cloud/spaces/useCloudSpaces";
+import { useCloudSpacePublishIntent, type CloudSpacePublishTarget } from "./features/cloud/spaces/useCloudSpacePublishIntent";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { useCloudOrganizationName } from "./features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
@@ -408,6 +410,9 @@ function AppContent() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
+  const [cloudPublishTarget, setCloudPublishTarget] = useState<CloudSpacePublishTarget | null>(null);
+  const cloudSpaces = useCloudSpaces({ enabled: cloudEnabled, visible: !workspace && !restoringWorkspace,
+    session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -642,6 +647,7 @@ function AppContent() {
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
   const openCloudPublish = useCallback(() => {
     if (!cloudEnabled) return;
+    setCloudPublishTarget(null);
     setActiveView("data");
     setCloudDialogOpen(true);
     setSettingsDialogOpen(false);
@@ -650,7 +656,10 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
-  const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
+  const closeCloudDialog = useCallback(() => {
+    setCloudPublishTarget(null);
+    setCloudDialogOpen(false);
+  }, []);
 
   useEffect(() => {
     const handleSettingsShortcut = (event: KeyboardEvent) => {
@@ -1392,6 +1401,16 @@ function AppContent() {
     navigateDesktopView, openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow,
     restoringWorkspace, selectCloudProjectRef, setSwitcherOpen, t,
   });
+  const publishToCloudSpace = useCloudSpacePublishIntent({ authority: cloudSpaces.authority,
+    workspacePath: workspace?.path ?? null, openProject: selectProject,
+    onReady: (target) => { openCloudPublish(); setCloudPublishTarget(target); },
+  });
+  useEffect(() => {
+    if (cloudPublishTarget && (cloudPublishTarget.authority !== cloudSpaces.authority || cloudPublishTarget.path !== workspace?.path)) {
+      setCloudPublishTarget(null);
+      setCloudDialogOpen(false);
+    }
+  }, [cloudPublishTarget, cloudSpaces.authority, workspace?.path]);
   const renderProjectRail = (activeWorkspace: Workspace, expanded: boolean, activeCloudProjectId?: string | null) => (
     <ProjectSwitcherRail
       activeView={activeView}
@@ -1623,6 +1642,10 @@ function AppContent() {
         onRenameCloudProject={projectCatalog.renameProject}
         onDeleteCloudProject={projectCatalog.deleteProject}
         projectItems={projectCatalog.items}
+        cloudSpaces={cloudSpaces.spaces}
+        cloudSpacesStatus={cloudSpaces.status}
+        onRetryCloudSpaces={cloudSpaces.refresh}
+        onPublishToSpace={publishToCloudSpace}
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
@@ -1904,6 +1927,8 @@ function AppContent() {
               publishProgress: cloudPublishProgress,
               publishState: cloudPublishState,
               publishStateLoading: cloudPublishStateLoading,
+              publishOrganizationId: cloudPublishTarget?.authority === cloudSpaces.authority
+                && cloudPublishTarget.path === workspace.path ? cloudPublishTarget.organizationId : undefined,
               cloudApiBaseUrl: desktopCloudApiBaseUrl,
               storedCloudSession: cloudSession,
               enabled: cloudEnabled,

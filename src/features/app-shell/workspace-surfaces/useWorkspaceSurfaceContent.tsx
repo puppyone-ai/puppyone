@@ -43,6 +43,7 @@ export type DesktopWorkspaceCloudSurfaceController = {
   publishProgress: CloudPublishProgress | null;
   publishState: CloudPublishState | null;
   publishStateLoading: boolean;
+  publishOrganizationId?: string;
   cloudApiBaseUrl: string | null;
   storedCloudSession: DesktopCloudSession | null;
   enabled: boolean;
@@ -193,6 +194,7 @@ export function useWorkspaceSurfaceContent({
     cloudPublishProgress: cloud.publishProgress,
     cloudPublishState: cloud.publishState,
     cloudPublishStateLoading: cloud.publishStateLoading,
+    publishOrganizationId: cloud.publishOrganizationId,
     onAbandonPuppyoneBackup: cloud.onAbandonPuppyoneBackup,
     onStartPuppyoneBackup: cloud.onStartPuppyoneBackup,
     onRefresh: git.refreshGitStatus,
