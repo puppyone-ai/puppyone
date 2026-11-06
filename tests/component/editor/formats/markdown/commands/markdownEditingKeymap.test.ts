@@ -14,6 +14,29 @@ afterEach(() => {
 });
 
 describe("Markdown editing shortcuts", () => {
+  it.each([
+    ["Mod-Alt-q", "> hello"],
+    ["Mod-Alt-o", "1. hello"],
+    ["Mod-Alt-u", "- hello"],
+    ["Mod-Alt-x", "- [ ] hello"],
+    ["Mod-Alt-c", "```\nhello\n```"],
+    ["Mod-Alt-b", "$$\nhello\n$$"],
+    ["Mod-Alt--", "---"],
+  ])("executes the added %s command on the selected source", (key, expected) => {
+    const view = createView("hello", true);
+    view.dispatch({ selection: EditorSelection.range(0, 5) });
+    const binding = markdownEditingKeymap.find(item => item.key === key || item.mac === key);
+    expect(binding?.run?.(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(expected);
+  });
+
+  it("requests a table picker without modifying the selected prose", () => {
+    const view = createView("hello", true);
+    const binding = markdownEditingKeymap.find(item => item.key === "Mod-Alt-t" || item.mac === "Mod-Alt-t");
+    expect(binding?.run?.(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("hello");
+  });
+
   it("includes heading, bold, italic, strikethrough, and underline keybindings", () => {
     const keys = new Set(markdownEditingKeymap.map((binding) => binding.key));
     expect(keys.has("Mod-b")).toBe(true);

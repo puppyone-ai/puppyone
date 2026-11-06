@@ -704,3 +704,5 @@ export type {
 } from "./editor/resource/DocumentDropTarget";
 
 export { commitEditorLayout } from "./editor/runtime/editorLayout";
+
+export { MARKDOWN_SHORTCUT_DEFINITIONS, isMarkdownShortcutCommand, type MarkdownShortcutDefinition } from "./editor/markdown";

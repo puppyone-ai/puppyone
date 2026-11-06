@@ -57,6 +57,11 @@ import {
   resolveMarkdownContentLanguage,
   type MarkdownContentLanguageResolution,
 } from "./core/presentation/markdownContentLanguage";
+import { MarkdownTableInsertDialog } from "./MarkdownTableInsertDialog";
+import { requestMarkdownTableEffect, insertMarkdownTable } from "./core/commands/markdownInsertCommands";
+import { MARKDOWN_SHORTCUT_DEFINITIONS } from "./core/commands/markdownShortcutDefinitions";
+import { runMarkdownCommand } from "./core/commands/markdownCommandRegistry";
+import type { EditorPaneMenuItem } from "../editorPaneMenuContribution";
 import { bindMarkdownFormatHotkeys } from "./core/commands/markdownFormatHotkeys";
 import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
@@ -85,6 +90,7 @@ export type MarkdownCodeMirrorEditorProps = {
   readOnly: boolean;
   livePreview: boolean;
   blockDragEnabled?: boolean;
+  onMenuCommandsChange?: (items: readonly EditorPaneMenuItem[]) => void;
   headingOutlineEnabled?: boolean;
   aiEditFile?: AiEditFile | null;
   htmlTrustMode?: MarkdownHtmlTrustMode;
@@ -115,6 +121,7 @@ export function MarkdownCodeMirrorEditor({
   readOnly,
   livePreview,
   blockDragEnabled = false,
+  onMenuCommandsChange,
   headingOutlineEnabled = false,
   aiEditFile = null,
   htmlTrustMode = "safe",
@@ -134,6 +141,7 @@ export function MarkdownCodeMirrorEditor({
   onPreviewReady,
   onPreviewError,
 }: MarkdownCodeMirrorEditorProps) {
+  const [tableInsertionOpen, setTableInsertionOpen] = useState(false);
   const appearanceRevision = useEditorAppearanceRevision();
   const taskOwner = useEditorTaskOwner();
   // The view is created once per model; later owners are reconfigured below.
@@ -311,6 +319,11 @@ export function MarkdownCodeMirrorEditor({
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
           markdownImageDropPreview,
+          EditorView.updateListener.of(update => {
+            if (update.transactions.some(transaction => transaction.effects.some(effect => effect.is(requestMarkdownTableEffect)))) {
+              setTableInsertionOpen(true);
+            }
+          }),
           taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
@@ -730,6 +743,19 @@ export function MarkdownCodeMirrorEditor({
   }, [assets, documentPath, readOnly, workspaceRoot]);
   useRegisterDocumentDropTarget(dropRegistration);
 
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !onMenuCommandsChange) return;
+    onMenuCommandsChange(MARKDOWN_SHORTCUT_DEFINITIONS.filter(command => command.menu && !readOnly).map(command => ({
+      kind: "command", id: `markdown-${command.id}`, label: t(command.labelId), disabled: readOnly,
+      run: () => {
+        const currentView = viewRef.current;
+        if (currentView) { currentView.focus(); runMarkdownCommand(currentView, command.id); }
+      },
+    })));
+    return () => onMenuCommandsChange([]);
+  }, [onMenuCommandsChange, readOnly, t]);
+
   let previewMessage: string | null = null;
   if (previewState === "error") previewMessage = t("editor.markdown.previewUnavailable");
   else if (previewState === "pending" && showPendingMessage) previewMessage = t("editor.markdown.preparingPreview");
@@ -754,6 +780,14 @@ export function MarkdownCodeMirrorEditor({
         data-readonly={readOnly ? "true" : "false"}
         aria-busy={previewState === "pending"}
       />
+      {tableInsertionOpen && !readOnly && <MarkdownTableInsertDialog
+        onCancel={() => { setTableInsertionOpen(false); viewRef.current?.focus(); }}
+        onInsert={shape => {
+          const view = viewRef.current;
+          if (view) { insertMarkdownTable(view, shape); view.focus(); }
+          setTableInsertionOpen(false);
+        }}
+      />}
       <span
         className="markdown-preview-announcer"
         role="status"

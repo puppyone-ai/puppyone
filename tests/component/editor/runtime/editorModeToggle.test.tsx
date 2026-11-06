@@ -23,6 +23,23 @@ afterEach(() => {
 });
 
 describe("editor mode toggle", () => {
+  it("keeps editor commands alongside mode controls in the pane menu", () => {
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    const current: { value: EditorPaneMenuContribution | null } = { value: null };
+    let called = false;
+    act(() => root?.render(withTestLocalization(
+      <EditorPaneMenuContributionProvider onContributionChange={value => { current.value = value; }}>
+        <TextEditorFrame documentId="menu.md" content="text" nodeName="menu.md" defaultMode="live"
+          canEdit hideSourceView={false} modeControlPlacement="pane-menu" renderLive={() => <div />}
+          additionalMenuItems={[{ kind: "command", id: "insert-table", label: "Insert table", run: () => { called = true; } }]} />
+      </EditorPaneMenuContributionProvider>,
+    )));
+    const item = current.value?.viewItems.find(item => item.id === "insert-table");
+    expect(item?.kind).toBe("command");
+    if (item?.kind === "command") item.run();
+    expect(called).toBe(true);
+    expect(current.value?.viewItems[0].kind).toBe("segmented");
+  });
   it("publishes the editor modes as a segmented pane-menu control", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

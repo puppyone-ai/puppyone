@@ -19,11 +19,8 @@ import {
   continueMarkdownListItem,
   indentMarkdownListItem,
   outdentMarkdownListItem,
-  setMarkdownHeadingLevel,
-  toggleMarkdownList,
-  toggleMarkdownQuote,
 } from "./markdownBlockCommands";
-import { toggleMarkdownHtmlTag, toggleMarkdownInline, wrapMarkdownLink } from "./markdownInlineCommands";
+import { markdownCommandKeymap } from "./markdownCommandRegistry";
 
 export const markdownEditingKeymap: readonly KeyBinding[] = [
   { key: "Escape", run: collapseMarkdownRevealedSource },
@@ -35,24 +32,7 @@ export const markdownEditingKeymap: readonly KeyBinding[] = [
   { key: "Mod-ArrowLeft", run: moveMarkdownCaretToVisibleLineStart },
   { key: "Tab", run: indentMarkdownListItem },
   { key: "Shift-Tab", run: outdentMarkdownListItem },
-  { key: "Mod-0", run: setMarkdownHeadingLevel(0), preventDefault: true },
-  { key: "Mod-1", run: setMarkdownHeadingLevel(1), preventDefault: true },
-  { key: "Mod-2", run: setMarkdownHeadingLevel(2), preventDefault: true },
-  { key: "Mod-3", run: setMarkdownHeadingLevel(3), preventDefault: true },
-  { key: "Mod-4", run: setMarkdownHeadingLevel(4), preventDefault: true },
-  { key: "Mod-5", run: setMarkdownHeadingLevel(5), preventDefault: true },
-  { key: "Mod-6", run: setMarkdownHeadingLevel(6), preventDefault: true },
-  { key: "Mod-Shift-7", run: toggleMarkdownList("ordered"), preventDefault: true },
-  { key: "Mod-Shift-8", run: toggleMarkdownList("bullet"), preventDefault: true },
-  { key: "Mod-Shift-9", run: toggleMarkdownList("task"), preventDefault: true },
-  { key: "Mod-Shift-.", run: toggleMarkdownQuote, preventDefault: true },
-  { key: "Mod-b", run: toggleMarkdownInline("**"), preventDefault: true },
-  { key: "Mod-i", run: toggleMarkdownInline("*"), preventDefault: true },
-  { key: "Mod-u", run: toggleMarkdownHtmlTag("u"), preventDefault: true },
-  { key: "Mod-e", run: toggleMarkdownInline("`"), preventDefault: true },
-  { key: "Mod-d", run: toggleMarkdownInline("~~"), preventDefault: true },
-  { key: "Mod-Shift-x", run: toggleMarkdownInline("~~"), preventDefault: true },
-  { key: "Mod-k", run: wrapMarkdownLink, preventDefault: true },
+  ...markdownCommandKeymap,
 ];
 
 function collapseMarkdownRevealedSource(view: EditorView): boolean {

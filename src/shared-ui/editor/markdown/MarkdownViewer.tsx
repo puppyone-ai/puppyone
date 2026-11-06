@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import type { EditorPaneMenuItem } from "../editorPaneMenuContribution";
 import { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
 import type { PresetViewerRenderContext } from "../registry/viewerTypes";
 import { TextEditorFrame, type TextEditorControls } from "../viewers/shared/TextEditorFrame";
@@ -19,12 +21,14 @@ type MarkdownViewerProps = Pick<
 >;
 
 export function MarkdownViewer(context: MarkdownViewerProps) {
+  const [menuCommands, setMenuCommands] = useState<readonly EditorPaneMenuItem[]>([]);
   const renderEditor = (
     value: string,
     controls: TextEditorControls,
     livePreview: boolean,
   ) => (
     <MarkdownCodeMirrorEditor
+      onMenuCommandsChange={setMenuCommands}
       value={value}
       readOnly={!controls.canEdit}
       livePreview={livePreview}
@@ -59,6 +63,7 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
       hideSourceView={context.hideSourceView}
       enableModeToggleShortcut
       modeControlPlacement="pane-menu"
+      additionalMenuItems={menuCommands}
       sourceSnapshotMode
       renderLive={(value, controls) => renderEditor(value, controls, true)}
       renderSource={(value, controls) => renderEditor(value, controls, false)}

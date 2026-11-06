@@ -3,8 +3,24 @@
  */
 import { describe, expect, it } from "vitest";
 import { matchMarkdownFormatHotkey } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownFormatHotkeys";
+import { bindMarkdownFormatHotkeys, MARKDOWN_FORMAT_SHORTCUT_EVENT } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownFormatHotkeys";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 
 describe("Markdown format hotkeys", () => {
+  it("routes native commands to the focused text editor and leaves embedded inputs alone", () => {
+    const host = document.createElement("div"); document.body.append(host);
+    const view = new EditorView({ parent: host, state: EditorState.create({ doc: "hello" }) });
+    const unbind = bindMarkdownFormatHotkeys(view);
+    try {
+      view.focus();
+      window.dispatchEvent(new CustomEvent(MARKDOWN_FORMAT_SHORTCUT_EVENT, { detail: { type: "heading2" } }));
+      expect(view.state.doc.toString()).toBe("## hello");
+      const input = document.createElement("input"); view.dom.append(input); input.focus();
+      window.dispatchEvent(new CustomEvent(MARKDOWN_FORMAT_SHORTCUT_EVENT, { detail: { type: "strong" } }));
+      expect(view.state.doc.toString()).toBe("## hello");
+    } finally { unbind(); view.destroy(); host.remove(); }
+  });
   it("matches the product inline-format shortcut contract", () => {
     expect(matchMarkdownFormatHotkey(createHotkey({ key: "b", metaKey: true }))).toBe("strong");
     expect(matchMarkdownFormatHotkey(createHotkey({ key: "i", metaKey: true }))).toBe("emphasis");

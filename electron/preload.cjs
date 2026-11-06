@@ -135,12 +135,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => {
       const type = payload?.type;
-      if (
-        type === "strong"
-        || type === "emphasis"
-        || type === "underline"
-        || type === "strike"
-      ) {
+      if (typeof type === "string" && /^[A-Za-z][A-Za-z0-9]{0,47}$/.test(type)) {
         callback({ type });
       }
     };
