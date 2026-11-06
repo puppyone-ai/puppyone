@@ -13,9 +13,10 @@ import type { HostFolderSelection } from "../features/hosts";
 import { createDeviceDataService, type DeviceDataService, type DeviceFolderAvailability } from "../features/hosts/data/deviceDataPort";
 import { RemoteTerminalPanel } from "../features/hosts/ui/RemoteTerminalPanel";
 import { RemoteGitPanel } from "../features/hosts/ui/RemoteGitPanel";
+import { DeviceFolderHeader, DeviceFolderHeaderActions, type DeviceFolderTool } from "../features/hosts/ui/DeviceFolderHeader";
+import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
 
 const AGENT_LAUNCHERS: readonly HostLauncher[] = ["claude", "codex", "cursor", "opencode", "pi", "hermes"];
-type Tool = "terminal" | "agent" | "git";
 
 /**
  * Another computer's folder in the same workbench as a Cloud project: explorer,
@@ -23,14 +24,21 @@ type Tool = "terminal" | "agent" | "git";
  * the folder. Terminal, Agent and Git appear only when that computer allows them
  * for this folder, and they run there. No reveal, open-with or local Git here.
  */
-export function DeviceFolderWorkbenchSurface({ selection, session, apiBase, appearance, onClose, onOpenSettings }: {
+export function DeviceFolderWorkbenchSurface({ selection, session, apiBase, appearance, onClose, onOpenSettings,
+  projectItems, onSelectProject, onSelectCloudProject, onCreateProject }: {
   selection: HostFolderSelection; session: DesktopCloudSession; apiBase: string;
   appearance: ResolvedSurfaceAppearance; onClose: () => void | Promise<void>; onOpenSettings: () => void;
+  projectItems?: readonly ProjectHomeItem[];
+  onSelectProject?: (path: string) => void | Promise<unknown>;
+  onSelectCloudProject?: (id: string) => void | Promise<unknown>;
+  onCreateProject?: () => void;
 }) {
   const { t } = useLocalization();
   const filesVisibilitySettings = useDesktopPreference((s) => s.filesVisibilitySettings);
   const rightSidebarWidth = useDesktopPreference((s) => s.rightSidebarWidth);
   const setRightSidebarWidth = useDesktopPreference((s) => s.setRightSidebarWidth);
+  const editorTabsInHeader = useDesktopPreference((s) => s.experimentalSettings.enableEditorTabsInHeader);
+  const [closeError, setCloseError] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<readonly HostFolderCapability[]>(
     selection.capabilities ?? (selection.writable ? ["folder.read", "folder.write"] : ["folder.read"]));
   const writable = capabilities.includes("folder.write");
@@ -51,7 +59,8 @@ export function DeviceFolderWorkbenchSurface({ selection, session, apiBase, appe
   const workbench = useRemoteFolderWorkbench<RemoteFolderService>({ serviceKey, createService, pendingService,
     active: true, filesVisibilitySettings });
   useEffect(() => () => created.current?.dispose(), [serviceKey]);
-  const presentation = useAccountCloudWorkspacePresentation({ workbench, onOpenSettings });
+  const presentation = useAccountCloudWorkspacePresentation({
+    workbench: closeError ? { ...workbench, error: closeError } : workbench, onOpenSettings });
 
   // What this folder allows can change on its computer at any time; read it fresh.
   useEffect(() => {
@@ -72,36 +81,34 @@ export function DeviceFolderWorkbenchSurface({ selection, session, apiBase, appe
     capabilities.includes("folder.shell") ? "terminal" : null,
     capabilities.includes("folder.agent") ? "agent" : null,
     capabilities.includes("folder.git") ? "git" : null,
-  ].filter(Boolean) as Tool[]), [capabilities]);
-  const [tool, setTool] = useState<Tool | null>(null);
+  ].filter(Boolean) as DeviceFolderTool[]), [capabilities]);
+  const [tool, setTool] = useState<DeviceFolderTool | null>(null);
   const [launcher, setLauncher] = useState<HostLauncher>("claude");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const shownTool = tool && tools.includes(tool) ? tool : tools[0] ?? null;
-  const [closeError, setCloseError] = useState<string | null>(null);
-  const close = async () => {
+  const leave = async (navigate: () => void | Promise<unknown>, home = false) => {
     try {
       const service = workbench.service;
       if (service) await closeDocumentWorkingCopiesUnderResource(service.workspace.id, service.folder.uri);
-      void window.puppyoneDesktop?.closeRecentHostFolder?.({
+      if (home) await window.puppyoneDesktop?.closeRecentHostFolder?.({
         expectedSession: { userId: session.user_id, generation: session.session_generation } }).catch(() => {});
-      await onClose();
+      await navigate();
     } catch (cause) { setCloseError(cause instanceof Error ? cause.message : t("hosts.folder.closeFailure")); }
   };
 
-  const titlebar = <div className="desktop-device-folder-title" data-host-folder={selection.ref.folderId}
-    style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-    <button type="button" onClick={() => void close()}>← {t("hosts.folder.home")}</button>
-    <strong dir="auto">{selection.name}</strong>
-    <span>{t("hosts.folder.onHost", { host: selection.hostName })}</span>
-    <span>{writable ? t("hosts.folder.editing") : t("hosts.folder.readOnly")}</span>
-    {closeError && <span role="alert">{closeError}</span>}
-  </div>;
-  const titlebarActions = tools.length > 0 ? <button type="button" aria-pressed={sidebarOpen}
-    onClick={() => setSidebarOpen((open) => !open)}>{t("hosts.tools.title")}</button> : null;
+  const titlebar = <DeviceFolderHeader workspace={workbench.surfaceService.workspace} folder={workbench.surfaceService.folder}
+    hostName={selection.hostName} writable={writable} projectItems={projectItems}
+    onHome={() => void leave(onClose, true)}
+    onSelectProject={onSelectProject ? path => { void leave(() => onSelectProject(path)); } : undefined}
+    onSelectCloudProject={onSelectCloudProject ? id => { void leave(() => onSelectCloudProject(id)); } : undefined}
+    onCreateProject={onCreateProject ? () => { void leave(onCreateProject); } : undefined} />;
+  const titlebarActions = <DeviceFolderHeaderActions tools={tools} activeTool={sidebarOpen ? shownTool : null}
+    onToggle={next => { setTool(next); setSidebarOpen(open => shownTool === next ? !open : true); }} />;
 
-  return <ProjectWindow location="cloud" hosted active appearance={appearance}
+  return <ProjectWindow location="local" hosted active appearance={appearance}
     rootAttributes={{ "data-host-folder-window": selection.ref.folderId }}
     titlebarSidebarSlot={titlebar} titlebarActions={titlebarActions}
+    titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined} alignTitlebarTabsToExplorer={editorTabsInHeader}
     locationBar={presentation.locationBar}
     rightSidebarOpen={sidebarOpen && Boolean(shownTool)} rightSidebarWidth={rightSidebarWidth} resizableRightSidebar
     onRightSidebarOpenChange={setSidebarOpen} onRightSidebarWidthChange={setRightSidebarWidth}

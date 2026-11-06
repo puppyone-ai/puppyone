@@ -44,7 +44,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, hostRows, projectMenuO
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
-  const placeLabel = useProjectPlaceLabel(menu.place);
+  const placeLabel = useProjectPlaceLabel(menu.place, menu.label);
   const address = menu.address;
   useEffect(() => { if (projectMenuOpen) setOpen(false); }, [projectMenuOpen]);
   return <div className="desktop-titlebar-place-wrap">
@@ -52,7 +52,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, hostRows, projectMenuO
       data-project-place={menu.place} data-place-action={menu.action?.kind}
       data-cloud-link={cloudLinkState(menu.link)}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={[placeLabel, address?.full, menu.link && t("cloud.placeMenu.link.linked"),
+      aria-label={[placeLabel, address?.full !== placeLabel && address?.full, menu.link && t("cloud.placeMenu.link.linked"),
         t("cloud.placeMenu.label")].filter(Boolean).join(", ")}
       onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}>
       <span className="desktop-titlebar-workspace-mark" aria-hidden="true">
@@ -81,7 +81,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, hostRows, projectMenuO
  */
 export function ProjectPlaceRows({ menu, handlers, hostRows, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
-  const placeLabel = useProjectPlaceLabel(menu.place);
+  const placeLabel = useProjectPlaceLabel(menu.place, menu.label);
   const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
   return <section className="desktop-project-place-rows" aria-label={t("cloud.placeMenu.label")}>
     <DesktopMenuItem className="desktop-project-place-row" role="button" aria-current="true" aria-disabled="true"
@@ -89,7 +89,7 @@ export function ProjectPlaceRows({ menu, handlers, hostRows, onDismiss }: Projec
       icon={<span className="desktop-project-place-mark" aria-hidden="true">
         {menu.place === "cloud" ? <CloudIcon size={15} strokeWidth={1.75} /> : <LocalIcon size={15} strokeWidth={1.75} />}
       </span>}
-      label={placeLabel} detail={menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined}
+      label={placeLabel} detail={menu.detail ?? (menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined)}
       trailing={<Check size={14} aria-hidden="true" />} />
     {menu.action && <>
       <DesktopMenuSeparator />
@@ -214,9 +214,10 @@ function PlaceAddress({ place, text }: { place: ProjectPlaceMenu["place"]; text:
   return place === "local" ? <bdi dir="ltr">{text}</bdi> : <bdi>{text}</bdi>;
 }
 
-function useProjectPlaceLabel(place: "local" | "cloud") {
+function useProjectPlaceLabel(place: ProjectPlaceMenu["place"], computerName?: string) {
   const { t } = useLocalization();
   const platform = useDesktopPlatformCapabilities();
+  if (place === "computer") return computerName ?? "";
   if (place === "cloud") return t("cloud.home.location.cloud");
   return t(platform?.platform === "macos"
     ? "shell.workspaceSwitcher.location.thisMac"

@@ -1600,8 +1600,9 @@ function AppContent() {
     <DeviceFolderWorkbenchSurface key={shownHostFolder.ref.folderId} selection={shownHostFolder} session={activeCloudSession}
       apiBase={desktopCloudApiBaseUrl} appearance={surfaceAppearance} onOpenSettings={() => openSettingsDialog()} onClose={() => {
         closeHostFolder();
-        if (!workspace) void goToHomepage();
-      }} />,
+        void goToHomepage();
+      }} projectItems={projectCatalog.items} onSelectProject={selectProject}
+      onSelectCloudProject={selectCloudProject} onCreateProject={openProjectLauncher} />,
   );
 
   if (!workspace) {

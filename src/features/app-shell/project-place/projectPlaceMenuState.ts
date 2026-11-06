@@ -32,7 +32,11 @@ export type ProjectPlaceCloudLink = Readonly<{
 export type ProjectPlaceAddress = Readonly<{ short: string; full: string }>;
 
 export type ProjectPlaceMenu = Readonly<{
-  place: "local" | "cloud";
+  place: "local" | "cloud" | "computer";
+  /** A named computer, rather than this computer or a Cloud organization. */
+  label?: string;
+  /** Access to a folder on another computer belongs in its place menu. */
+  detail?: string;
   /** Absent while it is unknown; the Header then names the kind of place instead. */
   address?: ProjectPlaceAddress | null;
   action: ProjectPlaceAction | null;
