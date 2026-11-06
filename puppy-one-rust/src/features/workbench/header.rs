@@ -82,21 +82,6 @@ impl Workbench {
                     .when(running, |d| d.child(running_dot(tab, t)))
                     .into_any_element()
             }
-            Content::Chat(view) => {
-                let view = view.read(cx);
-                let running = view.busy();
-                div()
-                    .relative()
-                    .size(px(14.))
-                    .child(launcher_icon(
-                        LauncherIdentity::Runtime(view.runtime()),
-                        true,
-                        t.dark,
-                        t.muted,
-                    ))
-                    .when(running, |d| d.child(running_dot(tab, t)))
-                    .into_any_element()
-            }
         }
     }
 

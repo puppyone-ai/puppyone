@@ -48,9 +48,18 @@ impl Workbench {
             } else {
                 scenario
             };
-            let view = cx.new(|cx| AgentChat::lab_fixture(chat_scenario, codex, window, cx));
+            let _ = codex;
+            let view = cx.new(|cx| {
+                crate::features::desktop_agent::ui::panel::AgentChatTabPanel::lab_fixture(
+                    chat_scenario,
+                    window,
+                    cx,
+                )
+            });
             cx.observe(&view, |_, _, cx| cx.notify()).detach();
-            project.content.insert(chat, Content::Chat(view));
+            project
+                .content
+                .insert(chat, Content::Agent(view, "lab-chat".into()));
             let terminal = project.layout.add(0);
             project
                 .content
@@ -60,9 +69,15 @@ impl Workbench {
             if scenario == "tabs-narrow" {
                 let claude = project.layout.add(0);
                 let view = cx.new(|cx| {
-                    AgentChat::lab_fixture("chat-empty", installation("claude"), window, cx)
+                    crate::features::desktop_agent::ui::panel::AgentChatTabPanel::lab_fixture(
+                        "chat-empty",
+                        window,
+                        cx,
+                    )
                 });
-                project.content.insert(claude, Content::Chat(view));
+                project
+                    .content
+                    .insert(claude, Content::Agent(view, "lab-claude".into()));
                 let shell = project.layout.add(0);
                 project.content.insert(shell, self.lab_terminal(window, cx));
             }
@@ -146,7 +161,16 @@ impl Workbench {
             WindowUiRuntime::create(cx),
         );
         let enabled = populated || self.history_discovery(cx);
-        let browser = cx.new(|cx| HistoryBrowser::new(controller, enabled, window, cx));
+        let browser = cx.new(|cx| {
+            HistoryBrowser::new(
+                crate::features::desktop_agent::ui::agent_conversation_history::HistorySource::Agent(
+                    controller,
+                ),
+                enabled,
+                window,
+                cx,
+            )
+        });
         self.install_history(tab, browser, window, cx);
     }
     /// An inactive shell tab; its PTY lives in a scratch directory.

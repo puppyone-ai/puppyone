@@ -201,9 +201,18 @@ impl AgentChatTabPanel {
                 &[("agent", Arg::Text(bidi_isolate(&runtime_label)))],
             )));
         }
+        let request_id = approval["requestId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         let resolve = |decision: &'static str| {
+            let request_id = request_id.clone();
             cx.listener(move |s: &mut Self, _, _, cx| {
-                drop(s.controller.resolve_approval(Value::from(decision)));
+                match s.hosted() {
+                    // `controller.approve(approval.requestId, decision === "accept")`.
+                    Some(chat) => chat.approve(request_id.clone(), decision == "accept"),
+                    None => drop(s.controller.resolve_approval(Value::from(decision))),
+                }
                 cx.notify();
             })
         };

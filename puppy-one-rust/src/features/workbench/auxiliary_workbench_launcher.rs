@@ -100,7 +100,7 @@ impl Workbench {
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
-                    s.launch(group, tab, Some(installation.clone()), false, w, cx)
+                    s.launch(group, tab, Some(installation.clone()), w, cx)
                 }))
                 .on_mouse_down(
                     MouseButton::Right,
@@ -132,7 +132,7 @@ impl Workbench {
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
-                    s.launch(group, tab, Some(installation.clone()), false, w, cx)
+                    s.launch(group, tab, Some(installation.clone()), w, cx)
                 })),
             );
         }
@@ -145,7 +145,7 @@ impl Workbench {
                 terminals,
                 cx,
             )
-            .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, false, w, cx)));
+            .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, w, cx)));
 
         // `.desktop-terminal-launcher-scan` / `-history`: 18px quiet controls.
         let quiet = |id: &'static str, icon: Icon, label: &'static str| {
@@ -172,13 +172,8 @@ impl Workbench {
         )
         .bg(t.auxiliary())
         .on_click(cx.listener(move |s, _, window, cx| {
-            // Cloud: the hosted Agent's own history (`CloudAgentHistory`).
-            if s.cloud.is_some() {
-                s.chat_mode = true;
-                s.launch(group, tab, Some(cloud_installation()), true, window, cx);
-            } else {
-                s.open_history(group, tab, window, cx)
-            }
+            // Cloud reads the hosted Agent's own history (`CloudAgentHistory`).
+            s.open_history(group, tab, window, cx)
         }));
         let cloud = self.cloud.is_some();
 

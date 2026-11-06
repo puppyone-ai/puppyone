@@ -385,7 +385,7 @@ impl AgentChatTabPanel {
     }
 
     /// Re-measure one row after its disclosure state changed.
-    fn splice_row(&mut self, row_id: &str) {
+    pub(super) fn splice_row(&mut self, row_id: &str) {
         if let Some(index) = self.rows.iter().position(|r| r.row.id == row_id) {
             self.transcript.splice(index..index + 1, 1);
             let signature = self.row_signature(&self.rows[index]);

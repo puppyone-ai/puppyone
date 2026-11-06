@@ -16,9 +16,7 @@ pub mod agent_session_preparer;
 pub mod agent_session_replica;
 pub mod agent_turn_submission_coordinator;
 pub mod conversation_history_controller;
-pub mod legacy_agent_session_controller;
 pub mod local_agent_connection_loader;
-pub mod session_draft_store;
 pub mod session_ui_state_store;
 #[cfg(test)]
 mod tests;

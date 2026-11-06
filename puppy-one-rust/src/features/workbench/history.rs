@@ -3,7 +3,7 @@
 //! "Chat history" and hosts the cross-runtime browser until Back or Open.
 use super::*;
 use crate::features::desktop_agent::ui::agent_conversation_history::{
-    HistoryBrowser, HistoryBrowserEvent,
+    HistoryBrowser, HistoryBrowserEvent, HistorySource,
 };
 
 impl Workbench {
@@ -29,16 +29,20 @@ impl Workbench {
         if self.history.contains_key(&tab) {
             return;
         }
-        let controller = match self.project_history(&root, cx) {
-            Ok(controller) => controller,
-            Err(error) => {
-                self.launch_errors.insert(group, error);
-                cx.notify();
-                return;
-            }
+        // `CloudAgentHistory` reads the hosted target's locators; it asks
+        // no discovery permission.
+        let (source, enabled) = match &self.cloud {
+            Some(cloud) => (HistorySource::Hosted(cloud.hub.clone()), true),
+            None => match self.project_history(&root, cx) {
+                Ok(controller) => (HistorySource::Agent(controller), self.history_discovery(cx)),
+                Err(error) => {
+                    self.launch_errors.insert(group, error);
+                    cx.notify();
+                    return;
+                }
+            },
         };
-        let enabled = self.history_discovery(cx);
-        let browser = cx.new(|cx| HistoryBrowser::new(controller, enabled, window, cx));
+        let browser = cx.new(|cx| HistoryBrowser::new(source, enabled, window, cx));
         self.install_history(tab, browser, window, cx);
     }
     /// Hosts `browser` in the launcher tab `tab`.
@@ -89,7 +93,11 @@ impl Workbench {
                 });
                 if let Some(group) = group {
                     self.creation_failure = None;
-                    self.restore_history_target(group, tab, target.clone(), window, cx);
+                    if self.cloud.is_some() {
+                        self.open_hosted_history_target(group, tab, target.id.clone(), window, cx);
+                    } else {
+                        self.restore_history_target(group, tab, target.clone(), window, cx);
+                    }
                 }
             }
         }
@@ -108,7 +116,6 @@ impl Workbench {
                 p.content
                     .values()
                     .filter_map(|c| match c {
-                        Content::Chat(view) => view.read(cx).session.snapshot().thread.clone(),
                         Content::Agent(view, _) => view
                             .read(cx)
                             .presentation()
@@ -141,6 +148,44 @@ impl Workbench {
             }
         });
         Some(div().size_full().child(browser).into_any_element())
+    }
+}
+
+impl Workbench {
+    /// `prepare(item.id, historyTarget.payload)` for a hosted conversation:
+    /// the launcher becomes its chat, unless another tab has it open.
+    fn open_hosted_history_target(
+        &mut self,
+        group: Id,
+        tab: Id,
+        session_id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let session = self.cloud.as_ref().and_then(|cloud| {
+            cloud
+                .hub
+                .history()
+                .sessions
+                .into_iter()
+                .find(|s| s.id == session_id)
+        });
+        match self.hosted_chat(tab, session, window, cx) {
+            Ok(content) => {
+                self.history.remove(&tab);
+                if let Some(p) = self.project_mut() {
+                    p.content.insert(tab, content);
+                    p.layout.activate(group, tab);
+                }
+            }
+            Err(error) => {
+                if let Some(browser) = self.history.get(&tab) {
+                    browser.update(cx, |browser, _| browser.opening = None);
+                }
+                self.launch_errors.insert(group, error);
+            }
+        }
+        cx.notify();
     }
 }
 

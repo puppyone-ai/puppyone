@@ -163,7 +163,10 @@ impl AgentChatTabPanel {
         for removed in previous.iter().filter(|id| !next.contains(id)) {
             self.controller.remove_reference(removed);
         }
-        self.controller.set_draft_document(&document.0, &document.1);
+        match self.hosted() {
+            Some(chat) => chat.set_draft(document.0.clone()),
+            None => self.controller.set_draft_document(&document.0, &document.1),
+        }
     }
 
     /// Files dropped from outside the workspace (`useAgentReferenceIngestion`).
@@ -797,7 +800,10 @@ impl AgentChatTabPanel {
             .tooltip(tooltip(action_label))
             .on_click(cx.listener(move |s, _, window, cx| {
                 if running {
-                    drop(s.controller.stop());
+                    match s.hosted() {
+                        Some(chat) => chat.stop(),
+                        None => drop(s.controller.stop()),
+                    }
                     cx.notify();
                 } else {
                     s.submit(window, cx);

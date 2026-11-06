@@ -10,7 +10,7 @@ mod lab;
 mod layout;
 mod menus;
 mod persistence;
-use super::{desktop_agent::AgentChat, terminal::TerminalView};
+use super::terminal::TerminalView;
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
 use crate::ui::{
@@ -35,7 +35,6 @@ use std::{collections::HashMap, path::PathBuf, sync::mpsc};
 enum Content {
     Launcher,
     Retained(RetainedItem),
-    Chat(Entity<AgentChat>),
     /// `AgentChatWorkbenchItem` over its project-owned controller, and its
     /// Item id.
     Agent(
@@ -48,7 +47,6 @@ enum Content {
 impl Content {
     fn busy(&self, cx: &App) -> bool {
         match self {
-            Self::Chat(e) => e.read(cx).busy(),
             Self::Agent(e, _) => e.read(cx).presentation().is_some_and(|p| p.running),
             Self::Terminal(e, ..) => e.read(cx).running,
             _ => false,
@@ -57,7 +55,7 @@ impl Content {
     /// Whether this item counts against the chat (`true`) or terminal cap.
     fn is_kind(&self, chat: bool) -> bool {
         match self {
-            Self::Chat(_) | Self::Agent(..) | Self::Retained(RetainedItem::Chat { .. }) => chat,
+            Self::Agent(..) | Self::Retained(RetainedItem::Chat { .. }) => chat,
             Self::Terminal(..) | Self::Retained(RetainedItem::Terminal { .. }) => !chat,
             _ => false,
         }
@@ -83,7 +81,6 @@ impl Content {
         match self {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
             Self::Retained(item) => item.title(),
-            Self::Chat(e) => e.read(cx).session.snapshot().title.clone(),
             Self::Agent(e, _) => e
                 .read(cx)
                 .presentation()
@@ -244,17 +241,8 @@ pub struct Workbench {
 }
 struct CreationFailure {
     tab: Id,
-    retry: CreationRetry,
-}
-/// What `retryCreation` opens again.
-enum CreationRetry {
-    /// A hosted conversation on the native chat view.
-    Native {
-        installation: Installation,
-        id: String,
-    },
-    /// A History target on the Agent service.
-    Agent(crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget),
+    /// The History target `retryCreation` opens again.
+    target: crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -343,22 +331,6 @@ impl Workbench {
             agent_window: None,
             closing_agents: Default::default(),
         }
-    }
-    #[cfg(feature = "dev-capture")]
-    pub(crate) fn visual_fixture(
-        &mut self,
-        populated: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let root = PathBuf::from("/visual-reference-only");
-        let mut project = Project::default();
-        let id = project.layout.add(0);
-        let view = cx.new(|cx| AgentChat::visual_fixture(populated, window, cx));
-        project.content.insert(id, Content::Chat(view));
-        self.projects.insert(root.clone(), project);
-        self.root = Some(root);
-        cx.notify();
     }
     /// The Agent panel over a recorded conversation (`agent-panel*`).
     #[cfg(feature = "dev-capture")]
@@ -479,33 +451,29 @@ impl Workbench {
     pub fn cloud_location(&self) -> bool {
         self.cloud.is_some()
     }
-    /// A hosted chat for `tab`: its receipts persist under the tab id.
-    fn cloud_chat(
-        &self,
+    /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat for `tab`,
+    /// its receipts persisted under the tab id; a History `session` opens it
+    /// unless another tab has it open.
+    fn hosted_chat(
+        &mut self,
         tab: Id,
-        root: PathBuf,
-        history: bool,
+        session: Option<crate::workspace::cloud::agent::Session>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<Entity<AgentChat>> {
-        let hub = self.cloud.as_ref()?.hub.clone();
-        let key = format!("tab:{tab}");
-        Some(cx.new(|cx| {
-            AgentChat::with_client_factory(
-                cloud_installation(),
-                root,
-                history,
-                window,
-                cx,
-                move |_, _, history, wake| {
-                    Box::new(
-                        crate::features::desktop_agent::infrastructure::cloud::CloudAgentRuntime::new(
-                            hub.clone(), &key, history, wake,
-                        ),
-                    )
-                },
-            )
-        }))
+    ) -> Result<Content, String> {
+        use crate::features::desktop_agent::infrastructure::cloud::CloudAgentController;
+        use crate::features::desktop_agent::ui::panel::AgentChatTabPanel;
+        let hub = self
+            .cloud
+            .as_ref()
+            .ok_or_else(|| String::from("The hosted Agent is not open."))?
+            .hub
+            .clone();
+        let (wake, changes) = Wake::channel();
+        let chat = CloudAgentController::new(hub, &format!("tab:{tab}"), session, wake)?;
+        let view = cx.new(|cx| AgentChatTabPanel::new_hosted(chat, changes, window, cx));
+        cx.subscribe(&view, Self::agent_panel_event).detach();
+        Ok(Content::Agent(view, format!("hosted:{tab}")))
     }
     fn attach(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if !self.projects.contains_key(&root) {
@@ -588,17 +556,6 @@ impl Workbench {
                         match content {
                             Content::Launcher => RetainedItem::Launcher,
                             Content::Retained(item) => item.clone(),
-                            Content::Chat(view) => {
-                                let view = view.read(cx);
-                                RetainedItem::Chat {
-                                    runtime: view.runtime(),
-                                    thread: (!view.session.snapshot().messages.is_empty())
-                                        .then(|| view.session.snapshot().thread.clone())
-                                        .flatten(),
-                                    title: view.session.snapshot().title.clone(),
-                                    runtime_id: None,
-                                }
-                            }
                             Content::Agent(view, _) => {
                                 let panel = view.read(cx);
                                 let presentation = panel.presentation().cloned();
@@ -657,16 +614,18 @@ impl Workbench {
     ) {
         let root = self.root.clone().unwrap();
         let content = match item {
-            RetainedItem::Chat { thread, .. } if self.cloud.is_some() => {
-                let Some(view) = self.cloud_chat(tab, root, thread.is_some(), window, cx) else {
-                    return;
-                };
-                if let Some(id) = thread {
-                    view.update(cx, |v, _| v.resume_when_ready(id));
+            // The tab's saved receipts reopen its conversation.
+            RetainedItem::Chat { .. } if self.cloud.is_some() => {
+                match self.hosted_chat(tab, None, window, cx) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        if let Some(p) = self.project_mut() {
+                            p.storage_error = Some(error);
+                        }
+                        cx.notify();
+                        return;
+                    }
                 }
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                cx.subscribe(&view, Self::chat_event).detach();
-                Content::Chat(view)
             }
             // `restoreAgentChatWorkbenchItem` / `prepareAgentChatWorkbenchItem`.
             RetainedItem::Chat {
@@ -716,16 +675,6 @@ impl Workbench {
     }
     pub fn reload_agent_configuration(&mut self, cx: &mut Context<Self>) {
         self.reload_agent_model_connections(cx);
-        for project in self.projects.values() {
-            for content in project.content.values() {
-                if let Content::Chat(view) = content {
-                    view.update(cx, |s, cx| {
-                        s.session.reload_configuration();
-                        cx.notify();
-                    });
-                }
-            }
-        }
     }
     pub fn has_running(&self, cx: &App) -> bool {
         self.projects
@@ -767,8 +716,11 @@ impl Workbench {
         // submission keeps the tab until its receipt is recovered.
         if self.cloud.is_some() {
             let content = self.project().and_then(|p| p.content.get(&id));
-            if let Some(Content::Chat(chat)) = content
-                && !chat.read(cx).can_release()
+            if let Some(Content::Agent(view, _)) = content
+                && view
+                    .read(cx)
+                    .hosted()
+                    .is_some_and(|chat| !chat.can_release())
             {
                 self.close_blocked = true;
                 self.request_close_confirmation(id, cx);
@@ -783,7 +735,10 @@ impl Workbench {
             self.request_close_confirmation(id, cx);
             return;
         }
-        if let Some(Content::Agent(_, item)) = self.project().and_then(|p| p.content.get(&id)) {
+        // A hosted chat releases only its view (`release(id)`).
+        if let Some(Content::Agent(view, item)) = self.project().and_then(|p| p.content.get(&id))
+            && view.read(cx).hosted().is_none()
+        {
             let item = item.clone();
             self.confirm = None;
             self.close_agent_chat(id, item, cx);
@@ -811,7 +766,6 @@ impl Workbench {
         group: Id,
         tab: Option<Id>,
         installation: Option<Installation>,
-        history: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -839,13 +793,16 @@ impl Workbench {
             else {
                 return;
             };
-            let Some(view) = self.cloud_chat(id, root, history, window, cx) else {
-                return;
+            let content = match self.hosted_chat(id, None, window, cx) {
+                Ok(content) => content,
+                Err(error) => {
+                    self.launch_errors.insert(group, error);
+                    cx.notify();
+                    return;
+                }
             };
-            cx.observe(&view, |_, _, cx| cx.notify()).detach();
-            cx.subscribe(&view, Self::chat_event).detach();
             if let Some(p) = self.project_mut() {
-                p.content.insert(id, Content::Chat(view));
+                p.content.insert(id, content);
                 p.layout.activate(group, id);
             }
             cx.notify();
@@ -967,10 +924,6 @@ impl Workbench {
                         ),
                     )
                     .into_any_element()
-            }
-            Some(Content::Chat(view)) => {
-                let view = view.clone();
-                div().size_full().child(view).into_any_element()
             }
             Some(Content::Agent(view, _)) => {
                 let view = view.clone();
@@ -1212,43 +1165,6 @@ impl Workbench {
             self.split(group, axis, Some(tab), after, cx);
         }
     }
-    fn chat_event(
-        &mut self,
-        view: Entity<AgentChat>,
-        event: &super::desktop_agent::AgentChatEvent,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            super::desktop_agent::AgentChatEvent::OpenModelConnections => {
-                cx.emit(WorkbenchEvent::OpenModelConnections)
-            }
-            super::desktop_agent::AgentChatEvent::ResumeFailed { id } => {
-                self.resume_failed(view, id.clone(), cx)
-            }
-        }
-    }
-    /// `recordCreationFailure`: the History item was never opened, so its
-    /// tab goes back to the launcher and a retryable notice says so.
-    fn resume_failed(&mut self, view: Entity<AgentChat>, id: String, cx: &mut Context<Self>) {
-        let installation = view.read(cx).installation().clone();
-        let Some(project) = self.project_mut() else {
-            return;
-        };
-        let Some(tab) = project
-            .content
-            .iter()
-            .find(|(_, c)| matches!(c, Content::Chat(v) if *v == view))
-            .map(|(tab, _)| *tab)
-        else {
-            return;
-        };
-        project.content.insert(tab, Content::Launcher);
-        self.creation_failure = Some(CreationFailure {
-            tab,
-            retry: CreationRetry::Native { installation, id },
-        });
-        cx.notify();
-    }
     /// `retryCreation`: open the same conversation in the same tab again.
     fn retry_creation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(failure) = self.creation_failure.take() else {
@@ -1265,31 +1181,11 @@ impl Workbench {
             cx.notify();
             return;
         };
-        match failure.retry {
-            CreationRetry::Agent(target) => {
-                if let Some(browser) = self.history.get(&failure.tab) {
-                    let id = target.id.clone();
-                    browser.update(cx, |browser, _| browser.opening = Some(id));
-                }
-                self.restore_history_target(group, failure.tab, target, window, cx);
-            }
-            CreationRetry::Native { installation, id } => {
-                self.chat_mode = true;
-                self.launch(
-                    group,
-                    Some(failure.tab),
-                    Some(installation),
-                    true,
-                    window,
-                    cx,
-                );
-                if let Some(Content::Chat(view)) =
-                    self.project().and_then(|p| p.content.get(&failure.tab))
-                {
-                    view.update(cx, |view, _| view.resume_when_ready(id));
-                }
-            }
+        if let Some(browser) = self.history.get(&failure.tab) {
+            let id = failure.target.id.clone();
+            browser.update(cx, |browser, _| browser.opening = Some(id));
         }
+        self.restore_history_target(group, failure.tab, failure.target, window, cx);
         cx.notify();
     }
     /// `AuxiliaryWorkbenchCreationFailure` in the panel's top notice stack.
@@ -1619,7 +1515,7 @@ mod tests {
                 cx,
             );
             s.project_mut().unwrap().loading = false;
-            s.launch(0, None, Some(cloud_installation()), false, w, cx);
+            s.launch(0, None, Some(cloud_installation()), w, cx);
         });
         let (tab, chat) = view.read_with(cx, |s, _| {
             s.project()
@@ -1627,7 +1523,7 @@ mod tests {
                 .content
                 .iter()
                 .find_map(|(id, c)| match c {
-                    Content::Chat(chat) => Some((*id, chat.clone())),
+                    Content::Agent(view, _) => Some((*id, view.clone())),
                     _ => None,
                 })
                 .expect("a hosted chat")
@@ -1643,8 +1539,17 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
         };
-        chat.update(cx, |c, _| c.session.send("hello".into()));
-        settle(cx, "the lost receipt", &|cx| !chat.read(cx).can_release());
+        let hosted = |cx: &App,
+                      f: &dyn Fn(
+            &crate::features::desktop_agent::infrastructure::cloud::CloudAgentController,
+        ) -> bool| { chat.read(cx).hosted().is_some_and(f) };
+        chat.update(cx, |c, _| c.hosted().unwrap().submit("hello".into()));
+        settle(cx, "the lost receipt", &|cx| {
+            hosted(cx, &|c| {
+                let state = c.snapshot();
+                state.error.is_some() && !state.submitting && !c.can_release()
+            })
+        });
         view.update(cx, |s, cx| {
             s.close(tab, false, cx);
             assert_eq!(s.confirm, Some(tab));
@@ -1656,11 +1561,10 @@ mod tests {
         });
         // The retry confirms; the running tab now closes without asking.
         script.accept.store(true, Ordering::SeqCst);
-        chat.update(cx, |c, _| {
-            c.session.poll();
-            c.session.send("hello".into());
+        chat.update(cx, |c, _| c.hosted().unwrap().retry());
+        settle(cx, "the confirmation", &|cx| {
+            hosted(cx, &|c| c.can_release())
         });
-        settle(cx, "the confirmation", &|cx| chat.read(cx).can_release());
         view.update(cx, |s, cx| {
             s.close(tab, false, cx);
             assert_eq!(s.confirm, None);
@@ -1709,47 +1613,6 @@ mod tests {
             let _ = w.draw(cx);
         });
     }
-    #[cfg(feature = "dev-capture")]
-    #[gpui::test]
-    fn a_history_chat_that_cannot_resume_goes_back_to_the_launcher(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        cx.update(gpui_kit::init);
-        let (view, cx) = cx.add_window_view(Workbench::new);
-        let tab = view.update_in(cx, |s, window, cx| {
-            s.set_workspace(PathBuf::from("/project"), cx);
-            let installation = Installation {
-                runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::PuppyOne,
-                id: "puppyone-agent",
-                label: "Built-in Agent".into(),
-                executable: PathBuf::new(),
-                chat: true,
-            };
-            let chat = cx.new(|cx| AgentChat::lab_fixture("chat-empty", installation, window, cx));
-            cx.subscribe(&chat, Workbench::chat_event).detach();
-            let p = s.project_mut().unwrap();
-            let tab = p.layout.add(0);
-            p.content.insert(tab, Content::Chat(chat.clone()));
-            chat.update(cx, |_, cx| {
-                cx.emit(super::super::desktop_agent::AgentChatEvent::ResumeFailed {
-                    id: "thread-1".into(),
-                })
-            });
-            tab
-        });
-        cx.run_until_parked();
-        view.update(cx, |s, cx| {
-            assert!(matches!(
-                s.project().unwrap().content[&tab],
-                Content::Launcher
-            ));
-            let failure = s.creation_failure.as_ref().unwrap();
-            assert_eq!(failure.tab, tab);
-            assert!(matches!(&failure.retry, CreationRetry::Native { id, .. } if id == "thread-1"));
-            assert!(s.creation_notice(cx).is_some());
-            s.creation_failure = None;
-            assert!(s.creation_notice(cx).is_none());
-        });
-    }
     #[gpui::test]
     fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
         cx.executor().allow_parking();
@@ -1771,7 +1634,7 @@ mod tests {
             assert!(!s.can_create(false), "32 terminals per project");
             assert!(s.can_create(true));
             // The shell launcher refuses rather than starting a 33rd PTY.
-            s.launch(0, None, None, false, window, cx);
+            s.launch(0, None, None, window, cx);
             assert_eq!(s.project().unwrap().content.len(), 32);
             let p = s.project_mut().unwrap();
             for n in 0..8 {

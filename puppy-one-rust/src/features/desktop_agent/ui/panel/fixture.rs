@@ -29,11 +29,300 @@ fn event(
     turn: Option<&str>,
     item: Option<&str>,
 ) -> Value {
+    event_at(
+        1_767_225_600_000 + sequence * 1_000,
+        sequence,
+        kind,
+        payload,
+        turn,
+        item,
+    )
+}
+
+fn event_at(
+    at: i64,
+    sequence: i64,
+    kind: &str,
+    payload: Value,
+    turn: Option<&str>,
+    item: Option<&str>,
+) -> Value {
     json!({
         "schemaVersion": 1, "sequence": sequence, "sessionId": "fixture-session", "runtimeId": "codex",
         "provider": "codex", "providerSessionId": "fixture-thread", "turnId": turn, "itemId": item,
-        "emittedAt": js::iso_string(1_767_225_600_000 + sequence * 1_000), "type": kind, "payload": payload,
+        "emittedAt": js::iso_string(at), "type": kind, "payload": payload,
     })
+}
+
+/// The reference entry's prompts and answers (`tools/reference-workbench-entry.tsx`).
+const LAB_USER_1: &str = "Make the terminal colours follow the theme.";
+const LAB_ANSWER_1: &str = "Two follow-ups:\n\n- Keep a soft divider beside the transcript.\n- Colours stay theme-owned.\n\n| Layer | Owner |\n| --- | --- |\n| Terminal | Theme pack |\n| Chat | Agent UI |";
+const LAB_USER_2: &str = "Give the editor equal padding.";
+const LAB_ANSWER_2: &str = "Changed `padding` to `24px` so both axes match.";
+
+/// One reference chat scenario's events.
+fn lab_conversation(scenario: &str) -> Vec<Value> {
+    let empty = matches!(
+        scenario,
+        "chat-empty" | "chat-references" | "chat-picker" | "chat-activities"
+    );
+    let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
+    let mut events = vec![event(
+        0,
+        "session.resumed",
+        json!({ "title": "Codex" }),
+        None,
+        None,
+    )];
+    let push = |events: &mut Vec<Value>,
+                at: i64,
+                kind: &str,
+                payload: Value,
+                turn: Option<&str>,
+                item: Option<&str>| {
+        let sequence = events.len() as i64;
+        events.push(event_at(at, sequence, kind, payload, turn, item));
+    };
+    let t0 = 1_767_225_600_000;
+    if scenario == "chat-activities" {
+        for (id, kind, label, status, category, source) in [
+            (
+                "a1",
+                "provider.activity",
+                "Signing in to Codex…",
+                "running",
+                Some("authentication"),
+                None,
+            ),
+            (
+                "a2",
+                "provider.notification",
+                "The lint-rules extension failed to load.",
+                "failed",
+                None,
+                Some("Pi extension"),
+            ),
+            (
+                "a3",
+                "provider.notification",
+                "Formatter installed.",
+                "completed",
+                None,
+                Some("Pi extension"),
+            ),
+            (
+                "a4",
+                "provider.notification",
+                "Workspace indexed: 128 files.",
+                "completed",
+                None,
+                Some("Pi extension"),
+            ),
+        ] {
+            push(
+                &mut events,
+                t0,
+                kind,
+                json!({
+                    "label": label, "message": label, "status": status, "category": category, "source": source,
+                }),
+                None,
+                Some(id),
+            );
+        }
+    }
+    if empty {
+        return events;
+    }
+    let one = Some("turn-1");
+    push(
+        &mut events,
+        t0,
+        "turn.started",
+        json!({ "prompt": LAB_USER_1 }),
+        one,
+        None,
+    );
+    push(
+        &mut events,
+        t0 + 2_000,
+        "assistant.completed",
+        json!({ "text": LAB_ANSWER_1 }),
+        one,
+        Some("assistant-1"),
+    );
+    push(
+        &mut events,
+        t0 + 2_400,
+        "turn.completed",
+        json!({ "status": "completed" }),
+        one,
+        None,
+    );
+    let t1 = if running {
+        js::now_ms() - 12_000
+    } else {
+        t0 + 60_000
+    };
+    let two = Some("turn-2");
+    let status = if running { "running" } else { "completed" };
+    let settles = if running {
+        "tool.started"
+    } else {
+        "tool.completed"
+    };
+    push(
+        &mut events,
+        t1,
+        "turn.started",
+        json!({ "prompt": LAB_USER_2 }),
+        two,
+        None,
+    );
+    push(
+        &mut events,
+        t1 + 1_000,
+        "reasoning.summary.delta",
+        json!({
+            "delta": "Located the editor surface padding and compared both axes.", "completed": true,
+        }),
+        two,
+        Some("reasoning-1"),
+    );
+    push(
+        &mut events,
+        t1 + 1_500,
+        "tool.completed",
+        json!({ "tool": "compaction", "status": "completed" }),
+        two,
+        Some("compaction-1"),
+    );
+    push(
+        &mut events,
+        t1 + 2_000,
+        settles,
+        json!({
+            "kind": "search", "tool": "grep", "status": status, "input": { "pattern": "padding", "path": "src" },
+            "output": "src/markdown-editor.css:42:padding: 12px 24px;\nsrc/editor-shell.css:18:padding-inline: 24px;",
+        }),
+        two,
+        Some("tool-grep"),
+    );
+    push(
+        &mut events,
+        t1 + 3_000,
+        "tool.completed",
+        json!({
+            "kind": "command", "tool": "bash", "command": "rg -n padding src/markdown-editor.css",
+            "output": "42:  padding: 12px 24px;", "exitCode": 0,
+        }),
+        two,
+        Some("tool-command"),
+    );
+    push(
+        &mut events,
+        t1 + 4_000,
+        settles,
+        json!({
+            "kind": "read", "tool": "read", "status": status, "input": { "file_path": "src/markdown-editor.css" },
+            "output": ".markdown-editor {\n  padding: 12px 24px;\n}",
+        }),
+        two,
+        Some("tool-read"),
+    );
+    push(
+        &mut events,
+        t1 + 5_000,
+        "tool.completed",
+        json!({
+            "kind": "file-change", "tool": "edit",
+            "changes": [{ "path": "src/markdown-editor.css", "additions": 1, "deletions": 1,
+                "diff": "@@ -42,1 +42,1 @@\n-  padding: 12px 24px;\n+  padding: 24px;" }],
+        }),
+        two,
+        Some("tool-edit"),
+    );
+    if !running {
+        push(
+            &mut events,
+            t1 + 30_000,
+            "assistant.completed",
+            json!({ "text": LAB_ANSWER_2 }),
+            two,
+            Some("assistant-2"),
+        );
+        push(
+            &mut events,
+            t1 + 31_000,
+            "turn.completed",
+            json!({ "status": "completed" }),
+            two,
+            None,
+        );
+    }
+    if scenario == "chat-approval" {
+        push(
+            &mut events,
+            t1 + 6_000,
+            "approval.requested",
+            json!({
+                "requestId": "reference-approval", "title": "Run rg -n padding src", "kind": "command",
+                "command": "rg -n padding src", "cwd": "/reference/project",
+                "reason": "Search the project for padding declarations",
+                "availableDecisions": ["accept", "acceptForSession", "decline", "cancel"],
+            }),
+            two,
+            Some("approval-1"),
+        );
+    }
+    if scenario == "chat-question" {
+        push(
+            &mut events,
+            t1 + 6_000,
+            "question.requested",
+            json!({
+                "requestId": "reference-question",
+                "questions": [{
+                    "id": "padding", "header": "Padding", "question": "Which padding should the editor use?",
+                    "options": [
+                        { "label": "24px on every side", "description": "Match the horizontal padding" },
+                        { "label": "Keep 12px vertical", "description": "Only widen the sides" },
+                    ],
+                    "multiSelect": false, "isOther": true,
+                }],
+            }),
+            two,
+            Some("question-1"),
+        );
+    }
+    events
+}
+
+/// `PICKER_MODELS`: eight models in the picker scenario, so it searches.
+fn lab_models(scenario: &str) -> Value {
+    let mut models = vec![("gpt-5.4", "GPT-5.4"), ("gpt-5.4-mini", "GPT-5.4 Mini")];
+    if scenario == "chat-picker" {
+        models.extend([
+            ("gpt-5.3-codex", "GPT-5.3 Codex"),
+            ("gpt-5.2", "GPT-5.2"),
+            ("o4-mini", "o4-mini"),
+            ("o3", "o3"),
+            ("gpt-4.1", "GPT-4.1"),
+            ("gpt-4.1-mini", "GPT-4.1 Mini"),
+        ]);
+    }
+    Value::Array(
+        models
+            .into_iter()
+            .enumerate()
+            .map(|(index, (id, label))| {
+                json!({
+                    "id": id, "model": id, "displayName": label, "description": "", "isDefault": index == 0,
+                    "variants": ["low", "medium", "high"], "defaultVariant": "medium",
+                })
+            })
+            .collect(),
+    )
 }
 
 fn conversation() -> Vec<Value> {
@@ -103,7 +392,7 @@ fn conversation() -> Vec<Value> {
 }
 
 /// The recorded session snapshot (`displaySnapshot`).
-fn snapshot(events: &[Value]) -> Value {
+fn snapshot(events: &[Value], models: &Value, title: Option<&str>) -> Value {
     let reduce = |control: &Value, input: Value| {
         reduce_agent_session_control(control, &input)
             .ok()
@@ -127,14 +416,14 @@ fn snapshot(events: &[Value]) -> Value {
         "session": {
             "id": "fixture-session", "runtimeId": "codex", "runtime": { "id": "codex", "displayName": "Codex", "iconKey": "codex" },
             "provider": "codex", "providerSessionId": "fixture-thread", "workspaceRoot": "/visual-reference-only",
-            "title": (events.len() > 1).then_some("Markdown editor review"), "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z",
+            "title": title, "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z",
             "terminalState": display.get("presentation").map(|p| p["terminalState"].clone()).unwrap_or(Value::Null),
-            "selectedModel": "gpt-5-codex", "selectedMode": "code", "activeTurnId": display.get("runningTurnId").cloned().unwrap_or(Value::Null),
+            "selectedModel": models[0]["model"], "selectedMode": "code", "activeTurnId": display.get("runningTurnId").cloned().unwrap_or(Value::Null),
             "lastSequence": events.len(),
         },
         "account": null,
         "providers": [],
-        "models": models(),
+        "models": models,
         "modes": modes(),
         "commands": [],
         "capabilities": capabilities(),
@@ -175,7 +464,7 @@ fn capabilities() -> Value {
     })
 }
 
-fn inspection() -> Value {
+fn inspection(models: &Value) -> Value {
     let readiness = json!({
         "runtimeId": "codex", "provider": "codex", "status": "ready", "code": "READY", "version": "0.144.1",
         "minimumVersion": "0.144.1", "message": "ready", "selectable": true,
@@ -184,13 +473,16 @@ fn inspection() -> Value {
     json!({
         "runtimes": [{ "descriptor": runtime, "readiness": readiness }],
         "selectedRuntimeId": "codex", "runtime": runtime, "readiness": readiness, "account": null,
-        "providers": [], "models": models(), "modes": modes(), "commands": [], "capabilities": capabilities(), "warnings": [],
+        "providers": [], "models": models, "modes": modes(), "commands": [], "capabilities": capabilities(), "warnings": [],
     })
 }
 
 /// The recorded conversation as a client port.
 struct FixtureClient {
     snapshot: Option<Value>,
+    /// The session a fresh chat starts.
+    fresh: Value,
+    models: Value,
 }
 
 impl AgentClientPort for FixtureClient {
@@ -211,11 +503,9 @@ impl AgentClientPort for FixtureClient {
     fn call(&self, method: &str, request: Value) -> ClientFuture {
         let snapshot = self.snapshot.clone();
         // A fresh chat attaches to the session `createAgentSession` started.
-        let current = snapshot
-            .clone()
-            .unwrap_or_else(|| self::snapshot(&conversation()[..1]));
+        let current = snapshot.clone().unwrap_or_else(|| self.fresh.clone());
         let result = match method {
-            "discoverAgentRuntimes" => Ok(inspection()),
+            "discoverAgentRuntimes" => Ok(inspection(&self.models)),
             "resumeAgentSession" => Ok(snapshot.unwrap_or(Value::Null)),
             "createAgentSession" => Ok(current),
             "attachAgentSession" => Ok(json!({ "subscriptionId": "fixture", "snapshot": current })),
@@ -244,16 +534,17 @@ impl AgentClientPort for FixtureClient {
     }
 }
 
+/// The lab's UI state, applied once the conversation shows.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct LabState {
+    picker: bool,
+    expand_command: bool,
+    references: bool,
+}
+
 impl AgentChatTabPanel {
-    /// A panel over the recorded conversation (`populated`) or a fresh chat.
-    pub(crate) fn visual_fixture(
-        populated: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let client: Rc<dyn AgentClientPort> = Rc::new(FixtureClient {
-            snapshot: populated.then(|| snapshot(&conversation())),
-        });
+    fn fixture(client: FixtureClient, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let client: Rc<dyn AgentClientPort> = Rc::new(client);
         let controller = AgentSessionController::new(
             "/visual-reference-only",
             Rc::new(move || Some(client.clone())),
@@ -261,5 +552,98 @@ impl AgentChatTabPanel {
         );
         drop(controller.initialize(false));
         Self::new(controller, Vec::new(), window, cx)
+    }
+
+    /// A panel over the recorded conversation (`populated`) or a fresh chat.
+    pub(crate) fn visual_fixture(
+        populated: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let events = conversation();
+        let models = models();
+        Self::fixture(
+            FixtureClient {
+                snapshot: populated
+                    .then(|| snapshot(&events, &models, Some("Markdown editor review"))),
+                fresh: snapshot(&events[..1], &models, None),
+                models,
+            },
+            window,
+            cx,
+        )
+    }
+
+    /// The pixel lab's chat `scenario` (`tools/workbench-scenarios.json`).
+    pub(crate) fn lab_fixture(scenario: &str, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let models = lab_models(scenario);
+        let events = lab_conversation(scenario);
+        let mut panel = Self::fixture(
+            FixtureClient {
+                snapshot: Some(snapshot(&events, &models, Some("Codex"))),
+                fresh: snapshot(&events[..1], &models, None),
+                models,
+            },
+            window,
+            cx,
+        );
+        panel.lab = Some(LabState {
+            picker: scenario == "chat-picker",
+            expand_command: scenario == "chat-tool-expanded",
+            references: scenario == "chat-references",
+        });
+        panel
+    }
+
+    /// Applies the lab's UI state once its conversation is attached.
+    pub(super) fn apply_lab_state(&mut self, cx: &mut Context<Self>) {
+        let Some(lab) = self.lab.clone() else {
+            return;
+        };
+        let state = self.state();
+        if state.session.is_none() {
+            return;
+        }
+        if lab.picker {
+            self.picker_open =
+                Some(crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId::Model);
+        }
+        if lab.expand_command {
+            let row = self
+                .rows
+                .iter()
+                .find(|row| row.tool_group)
+                .map(|row| row.row.id.clone());
+            let Some(row) = row else {
+                return;
+            };
+            let part = self
+                .parts
+                .keys()
+                .find(|id| id.contains("tool-command"))
+                .cloned();
+            if let Some(part) = part {
+                self.group_selected.insert(row.clone(), part);
+                self.splice_row(&row);
+            }
+        }
+        if lab.references {
+            // The product fixture's draft: `@README.md ` with its mention,
+            // and a screenshot attachment.
+            let epoch = self.controller.export_display_draft().reference_epoch;
+            drop(self.controller.restore_display_draft(
+                crate::features::desktop_agent::application::agent_session_controller::DisplayDraft {
+                    text: "@README.md ".into(),
+                    mentions: vec![json!({ "referenceId": "ref-file", "start": 0, "end": 10 })],
+                    references: vec![
+                        json!({ "id": "ref-image", "kind": "staged-attachment", "token": "lab", "displayName": "screenshot.png", "mime": "image/png", "size": 256, "status": "ready" }),
+                        json!({ "id": "ref-file", "kind": "workspace-entry", "entryType": "file", "relativePath": "README.md", "displayName": "README.md", "status": "ready" }),
+                    ],
+                    reference_epoch: epoch,
+                },
+            ));
+        }
+        self.lab = None;
+        cx.notify();
     }
 }

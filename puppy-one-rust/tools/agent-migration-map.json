@@ -72,8 +72,6 @@
         "src/features/desktop_agent/domain/agent_session_open_error.rs",
         "src/features/desktop_agent/domain/agent_chat_history_target.rs",
         "src/features/session_transport/managed_operation_scope.rs",
-        "src/features/desktop_agent/application/legacy_agent_session_controller.rs",
-        "src/agent/runtime/legacy_runtime_port.rs",
         "src/features/desktop_agent/application/tests/controller.rs",
         "src/features/desktop_agent/application/tests/display_fixture.rs",
         "src/features/desktop_agent/application/tests/support.rs",
@@ -86,7 +84,7 @@
         "src/features/desktop_agent/application/tests/reference_drafts.rs",
         "src/features/desktop_agent/domain/tests.rs"
       ],
-      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent→reconnecting→degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller."
+      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent→reconnecting→degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller. The legacy controller and runtime port are removed."
     },
     {
       "name": "Native platform client",
@@ -120,19 +118,14 @@
         "src/features/desktop-agent/domain/agent-ui-state.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs",
-        "src/features/desktop_agent/domain/agent_chat_presentation.rs",
-        "src/features/desktop_agent/ui/agent_surface_header.rs",
-        "src/features/desktop_agent/ui/agent_composer.rs",
-        "src/features/desktop_agent/ui/agent_composer_references.rs",
-        "src/features/desktop_agent/ui/agent_transcript.rs",
-        "src/features/desktop_agent/ui/agent_history.rs",
-        "src/features/desktop_agent/ui/agent_status.rs",
-        "src/features/desktop_agent/ui/agent_blocking_interaction.rs",
-        "src/features/desktop_agent/ui/agent_session_control_picker.rs",
-        "src/features/desktop_agent/application/session_draft_store.rs"
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/panel/composer.rs",
+        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/panel/docks.rs",
+        "src/features/desktop_agent/ui/agent_conversation_history.rs"
       ],
-      "remaining": "Native virtual transcript, CommonMark, tables/code/copy, attachment/image previews, commands, typed approval/question/MCP forms, history filtering and controls exist. Mermaid graphics, all provider activity renderers, inline file navigation, accessibility and pixel parity remain pending."
+      "remaining": "AgentChatTabPanel, its transcript, composer, approval and question docks, session-control pickers and the History browser are the native GPUI panel over AgentSessionController (see Native GPUI Agent panel); the legacy native chat view is removed. Mermaid graphics, accessibility and pixel parity remain."
     },
     {
       "name": "Agent workbench items",
@@ -382,12 +375,9 @@
         "src/agent/agent_reference_authorization.rs",
         "src/agent/infrastructure/attachments/agent_attachment_store.rs",
         "src/agent/infrastructure/attachments/mod.rs",
-        "src/agent/infrastructure/attachments/tests.rs",
-        "src/agent/infrastructure/legacy_attachments.rs",
-        "src/agent/domain/reference_input.rs",
-        "src/features/desktop_agent/infrastructure/native/native_attachment_client.rs"
+        "src/agent/infrastructure/attachments/tests.rs"
       ],
-      "remaining": "agent-reference-authorization and the attachment store are ported 1:1 with the product authorization and attachment-store tests: live workspace references re-canonicalized per turn with a shared 32-file/25 MB budget and portable root-independent ids; external files and pathless inline bytes copied into private 0600 snapshots bound to owner, workspace and draft epoch, deduplicated, leased by one turn, expired, revoked and swept with the staging of exited processes, with TOCTOU detection and transactional batch rollback. agent-attachment-store.mjs is a deprecated re-export. The composer still uses legacy_attachments.rs until the host switches to AgentService."
+      "remaining": "agent-reference-authorization and the attachment store are ported 1:1 with the product authorization and attachment-store tests: live workspace references re-canonicalized per turn with a shared 32-file/25 MB budget and portable root-independent ids; external files and pathless inline bytes copied into private 0600 snapshots bound to owner, workspace and draft epoch, deduplicated, leased by one turn, expired, revoked and swept with the staging of exited processes, with TOCTOU detection and transactional batch rollback. agent-attachment-store.mjs is a deprecated re-export. The composer still uses legacy_attachments.rs until the host switches to AgentService. The legacy attachment staging and prompt model are removed; references flow through AgentReferenceDraftManager and the Main attachment store."
     },
     {
       "name": "Session catalog and capacity",
@@ -399,10 +389,9 @@
       "targets": [
         "src/agent/persistence/agent_conversation_catalog.rs",
         "src/agent/persistence/agent_session_repository.rs",
-        "src/agent/persistence/tests.rs",
-        "src/agent/runtime/session_lease.rs"
+        "src/agent/persistence/tests.rs"
       ],
-      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The app runs every local chat on AgentService with this catalog; the legacy catalog and native-harness leases are gone (session_lease.rs keeps only the hosted chat view's unavailable placeholder)."
+      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The app runs every local chat on AgentService with this catalog; the legacy catalog and native-harness leases are gone."
     },
     {
       "name": "Native rich transcript and composer",
@@ -422,9 +411,13 @@
         "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
         "src/features/desktop_agent/ui/agent_markdown.rs",
         "src/features/desktop_agent/ui/agent_markdown.rs",
-        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/panel/composer.rs",
+        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/panel/docks.rs"
       ],
-      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. The panel renders them over the display contract. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
     },
     {
       "name": "Provider activities",
@@ -434,10 +427,9 @@
         "src/features/desktop-agent/ui/styles/provider-activities.css"
       ],
       "targets": [
-        "src/features/desktop_agent/ui/agent_provider_activities.rs",
-        "src/agent/domain/legacy_session_model.rs"
+        "src/features/desktop_agent/ui/panel/status.rs"
       ],
-      "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read. The legacy Pi and Claude adapters that produced them for the native chat view are removed."
+      "remaining": "Provider notices are display activities (provider.notification / provider.activity) rendered by the panel's AgentProviderActivities dock: running/failed/warning lines, the rest under a closed Notifications disclosure with source tooltips."
     },
     {
       "name": "Tool activity step lines",
@@ -450,11 +442,9 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/activity/agent_tool_steps.rs",
-        "src/features/desktop_agent/domain/legacy_agent_tool_steps.rs",
-        "src/features/desktop_agent/ui/agent_activity.rs",
         "src/features/desktop_agent/ui/agent_theme.rs"
       ],
-      "remaining": "Tool groups are step lines with their glyph, verb and subject, and three or more file reads fold into an Explored line, as the product; the evidence trees (AgentToolEvidenceTree, AgentToolTextEvidence) and the native model's missing durations remain."
+      "remaining": "Tool groups are step lines with their glyph, verb and subject, and three or more file reads fold into an Explored line, as the product; the evidence trees (AgentToolEvidenceTree, AgentToolTextEvidence) and the native model's missing durations remain. The panel renders them through the ported activity views; the legacy step lines are removed."
     },
     {
       "name": "Shared Agent contract",
@@ -1049,9 +1039,12 @@
         "src/features/workbench/mod.rs",
         "src/features/desktop_agent/ui/panel/compute.rs",
         "src/features/desktop_agent/ui/panel/routing.rs",
-        "src/features/settings/agent_routing_preferences.rs"
+        "src/features/settings/agent_routing_preferences.rs",
+        "src/features/desktop_agent/ui/panel/hosted.rs",
+        "src/features/desktop_agent/infrastructure/cloud.rs",
+        "src/features/desktop_agent/infrastructure/cloud/projection.rs"
       ],
-      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain."
+      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain. The hosted Agent (CloudAgentConversation over CloudAgentController and cloudAgentProjection) renders through the same panel with its own status; its History reads the target's locators. The pixel lab's chat scenarios run on the panel fixture."
     }
   ]
 }

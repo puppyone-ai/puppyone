@@ -369,10 +369,7 @@ impl Workbench {
                 cx.notify();
             });
         }
-        self.creation_failure = Some(CreationFailure {
-            tab,
-            retry: CreationRetry::Agent(target),
-        });
+        self.creation_failure = Some(CreationFailure { tab, target });
         cx.notify();
     }
 
@@ -437,7 +434,7 @@ impl Workbench {
         .detach();
     }
 
-    fn agent_panel_event(
+    pub(super) fn agent_panel_event(
         &mut self,
         _: Entity<AgentChatTabPanel>,
         event: &AgentChatPanelEvent,
@@ -494,7 +491,7 @@ impl Workbench {
         };
         let group = self.project().map_or(0, |p| p.layout.active_group);
         self.chat_mode = true;
-        self.launch(group, None, Some(installation), false, window, cx);
+        self.launch(group, None, Some(installation), window, cx);
         true
     }
 

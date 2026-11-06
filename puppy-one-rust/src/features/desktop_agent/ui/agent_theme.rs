@@ -26,8 +26,6 @@ pub struct AgentTheme {
     pub tool_glyph: Rgba,
     pub tool_subject: Rgba,
     pub evidence_rail: Rgba,
-    pub question_surface: Rgba,
-    pub edge_fade: Rgba,
     pub inline_code_surface: Rgba,
     pub inline_code_border: Rgba,
     pub code_surface: Rgba,
@@ -35,12 +33,10 @@ pub struct AgentTheme {
     pub table_alternate_surface: Rgba,
     pub markdown_disclosure_surface: Rgba,
     pub empty_brand: Rgba,
-    pub empty_brand_hover: Rgba,
     pub diff_added_text: Rgba,
     pub diff_removed_text: Rgba,
     pub blocking_surface: Rgba,
     pub blocking_border: Rgba,
-    pub blocking_attention_border: Rgba,
     pub blocking_icon_surface: Rgba,
     pub blocking_icon: Rgba,
     pub accent: Rgba,
@@ -62,7 +58,6 @@ impl AgentTheme {
         let text_muted = t.sidebar_text;
         let border_subtle = t.divider;
         let control_surface = mix(t.header, t.panel_raised, 0.82);
-        let report_surface = mix(t.panel_raised, t.canvas, 0.9);
         Self {
             canvas,
             text,
@@ -80,8 +75,6 @@ impl AgentTheme {
             tool_glyph: t.subtle,
             tool_subject: mix(text, text_muted, 0.86),
             evidence_rail: t.border_strong,
-            question_surface: alpha(report_surface, 0.94),
-            edge_fade: alpha(canvas, 0.78),
             inline_code_surface: mix(text, canvas, 0.08),
             inline_code_border: mix(text, canvas, 0.14),
             code_surface: mix(control_surface, canvas, 0.88),
@@ -89,12 +82,10 @@ impl AgentTheme {
             table_alternate_surface: alpha(control_surface, 0.28),
             markdown_disclosure_surface: alpha(control_surface, 0.36),
             empty_brand: mix(t.subtle, canvas, 0.64),
-            empty_brand_hover: mix(text_muted, canvas, 0.76),
             diff_added_text: mix(t.success, text, 0.74),
             diff_removed_text: mix(t.danger, text, 0.72),
             blocking_surface: mix(control_surface, canvas, 0.52),
             blocking_border: border_subtle,
-            blocking_attention_border: mix(t.warning, border_subtle, 0.48),
             blocking_icon_surface: alpha(t.warning, 0.1),
             blocking_icon: mix(t.warning, text_muted, 0.62),
             accent: t.accent,

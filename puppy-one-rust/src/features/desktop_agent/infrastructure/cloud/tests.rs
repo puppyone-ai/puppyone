@@ -109,15 +109,14 @@ fn setup(fake: Arc<Fake>) -> Setup {
         _dir: dir,
     }
 }
-fn runtime(hub: &Arc<Hub>, key: &str) -> CloudAgentRuntime {
+fn controller(hub: &Arc<Hub>, key: &str) -> CloudAgentController {
     let (wake, _rx) = Wake::channel();
-    CloudAgentRuntime::new(hub.clone(), key, false, wake)
+    CloudAgentController::new(hub.clone(), key, None, wake).unwrap()
 }
-fn settle(rt: &mut CloudAgentRuntime, what: &str, ready: impl Fn(&SessionSnapshot) -> bool) {
+fn settle(c: &CloudAgentController, what: &str, ready: impl Fn(&CloudAgentState) -> bool) {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     loop {
-        rt.poll();
-        if ready(rt.snapshot()) {
+        if ready(&c.snapshot()) {
             return;
         }
         assert!(
@@ -127,20 +126,28 @@ fn settle(rt: &mut CloudAgentRuntime, what: &str, ready: impl Fn(&SessionSnapsho
         std::thread::sleep(Duration::from_millis(10));
     }
 }
+/// The transcript's (role, text) rows.
+fn texts(state: &CloudAgentState) -> Vec<(String, String)> {
+    project_cloud_agent_runs(&state.runs)
+        .messages
+        .iter()
+        .map(|m| {
+            (
+                m["role"].as_str().unwrap_or_default().to_string(),
+                m["text"].as_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect()
+}
 
 #[test]
-fn an_empty_tab_and_a_new_chat_send_nothing() {
+fn an_empty_tab_sends_nothing() {
     let s = setup(Fake::new(|_| Ok(json!({}))));
-    let mut rt = runtime(&s.hub, "tab-1");
-    std::thread::sleep(Duration::from_millis(300));
-    rt.poll();
-    rt.new_thread();
-    std::thread::sleep(Duration::from_millis(200));
-    rt.poll();
+    let c = controller(&s.hub, "tab-1");
+    std::thread::sleep(Duration::from_millis(500));
     assert!(s.fake.requests.lock().unwrap().is_empty());
     assert_eq!(s.fake.event_reads.load(Ordering::SeqCst), 0);
-    assert_eq!(rt.snapshot().runtime, LABEL);
-    assert!(rt.snapshot().messages.is_empty());
+    assert!(c.snapshot().runs.is_empty());
 }
 
 #[test]
@@ -153,13 +160,17 @@ fn a_lost_receipt_is_queried_then_resubmitted_with_the_same_uuid() {
         }
     });
     let s = setup(fake);
-    let mut rt = runtime(&s.hub, "tab-1");
-    rt.send("hello".into());
-    settle(&mut rt, "the lost receipt", |snap| snap.error.is_some());
-    // The tab keeps its unconfirmed submission.
-    assert!(!rt.can_release());
+    let c = controller(&s.hub, "tab-1");
+    c.set_draft("hello".into());
+    c.submit("hello".into());
+    settle(&c, "the lost receipt", |state| {
+        state.error.is_some() && !state.submitting
+    });
+    // The tab keeps its unconfirmed submission, and its draft.
+    assert!(!c.can_release());
+    assert_eq!(c.snapshot().draft, "hello");
     // Another message waits for this one.
-    rt.send("something else".into());
+    c.submit("something else".into());
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(s.fake.count("POST", "/agents/runs"), 1);
     // The same text again: the receipt is queried first, then the same UUID.
@@ -176,50 +187,42 @@ fn a_lost_receipt_is_queried_then_resubmitted_with_the_same_uuid() {
             Ok(run("run-1", "x", "succeeded", 3))
         }
     });
-    rt.send("hello".into());
-    settle(&mut rt, "the confirmed run", |snap| {
-        snap.thread.as_deref() == Some("session-1")
+    c.retry();
+    settle(&c, "the confirmed run", |state| {
+        state.session_id.as_deref() == Some("session-1")
     });
     let bodies = s.fake.bodies("/agents/runs");
     assert_eq!(bodies.len(), 2);
     assert_eq!(bodies[0]["request_id"], bodies[1]["request_id"]);
     assert_eq!(s.fake.count("GET", "/agents/requests/project-a/"), 1);
-    assert!(rt.can_release());
-    let texts: Vec<_> = rt
-        .snapshot()
-        .messages
-        .iter()
-        .map(|m| (m.role.clone(), m.text.clone()))
-        .collect();
-    assert!(texts.contains(&("You".into(), "hello".into())));
-    assert!(texts.contains(&(LABEL.into(), "reply 3".into())));
+    settle(&c, "the release", |state| {
+        state.pending.is_none() && !state.submitting
+    });
+    assert!(c.can_release());
+    // A confirmed prompt leaves the composer.
+    assert!(c.snapshot().draft.is_empty());
+    let rows = texts(&c.snapshot());
+    assert!(rows.contains(&("user".into(), "hello".into())));
+    assert!(rows.contains(&("assistant".into(), "reply 3".into())));
 }
 
 #[test]
 fn a_definite_refusal_forgets_the_submission() {
     let s = setup(Fake::new(|_| Err(status(422))));
-    let mut rt = runtime(&s.hub, "tab-1");
-    rt.send("hello".into());
-    settle(&mut rt, "the refusal", |snap| snap.error.is_some());
+    let c = controller(&s.hub, "tab-1");
+    c.submit("hello".into());
+    settle(&c, "the refusal", |state| state.error.is_some());
     // Forgetting the submission is a write of its own; the tab may go once
     // it has landed.
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !rt.can_release() {
-        rt.poll();
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the release did not settle"
-        );
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    settle(&c, "the release", |_| c.can_release());
 }
 
 #[test]
 fn a_pending_receipt_survives_a_restart_and_is_confirmed_on_load() {
     let s = setup(Fake::new(|_| Err(lost())));
-    let mut first = runtime(&s.hub, "tab-1");
-    first.send("hello".into());
-    settle(&mut first, "the lost receipt", |snap| snap.error.is_some());
+    let first = controller(&s.hub, "tab-1");
+    first.submit("hello".into());
+    settle(&first, "the lost receipt", |state| state.error.is_some());
     let request = s.fake.bodies("/agents/runs")[0]["request_id"]
         .as_str()
         .unwrap()
@@ -234,9 +237,9 @@ fn a_pending_receipt_survives_a_restart_and_is_confirmed_on_load() {
             Ok(run("run-1", &request, "succeeded", 2))
         }
     });
-    let mut again = runtime(&s.hub, "tab-1");
-    settle(&mut again, "the confirmed receipt", |snap| {
-        snap.thread.as_deref() == Some("session-1") && !snap.messages.is_empty()
+    let again = controller(&s.hub, "tab-1");
+    settle(&again, "the confirmed receipt", |state| {
+        state.session_id.as_deref() == Some("session-1") && !state.runs.is_empty()
     });
     assert!(again.can_release());
     // Confirmation never submits a second time.
@@ -258,12 +261,10 @@ fn closing_a_tab_never_stops_its_run() {
         }
     });
     let s = setup(fake);
-    let mut rt = runtime(&s.hub, "tab-1");
-    rt.send("hello".into());
-    settle(&mut rt, "the running turn", |snap| {
-        snap.state == State::Running
-    });
-    drop(rt);
+    let c = controller(&s.hub, "tab-1");
+    c.submit("hello".into());
+    settle(&c, "the running turn", CloudAgentState::running);
+    drop(c);
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(s.fake.count("POST", "/agents/runs/run-1/stop"), 0);
 }
@@ -279,28 +280,28 @@ fn stop_and_approvals_target_the_exact_run_and_a_retry_keeps_its_decision() {
         Ok(value)
     });
     let s = setup(fake);
-    let mut rt = runtime(&s.hub, "tab-1");
-    rt.send("hello".into());
-    settle(&mut rt, "the approval", |snap| {
-        !snap.interactions.is_empty()
+    let c = controller(&s.hub, "tab-1");
+    c.submit("hello".into());
+    settle(&c, "the approval", |state| {
+        !project_cloud_agent_runs(&state.runs).approvals.is_empty()
     });
-    let interaction = rt.snapshot().interactions[0].clone();
-    assert!(matches!(
-        interaction.kind,
-        InteractionKind::Approval { command: true, .. }
-    ));
-    rt.resolve(&interaction.id, Resolution::Approval(Decision::Accept));
+    let projection = project_cloud_agent_runs(&c.snapshot().runs);
+    let approval = projection.approvals[0].clone();
+    assert_eq!(approval["kind"], "command");
+    assert_eq!(approval["command"], "ls");
+    let call = approval["requestId"].as_str().unwrap().to_string();
+    c.approve(call.clone(), true);
     std::thread::sleep(Duration::from_millis(150));
-    rt.resolve(&interaction.id, Resolution::Approval(Decision::Accept));
+    c.approve(call.clone(), true);
     std::thread::sleep(Duration::from_millis(150));
     // A different answer to the same call is refused.
-    rt.resolve(&interaction.id, Resolution::Approval(Decision::Decline));
+    c.approve(call, false);
     std::thread::sleep(Duration::from_millis(150));
     let decisions = s.fake.bodies("/agents/runs/run-1/approvals/call-1");
     assert_eq!(decisions.len(), 2);
     assert_eq!(decisions[0]["decision_id"], decisions[1]["decision_id"]);
     assert_eq!(decisions[0]["allow"], true);
-    rt.stop();
+    c.stop();
     std::thread::sleep(Duration::from_millis(150));
     assert_eq!(s.fake.count("POST", "/agents/runs/run-1/stop"), 1);
 }
@@ -328,19 +329,19 @@ fn events_resume_by_sequence_a_reset_replaces_and_a_commit_publishes_once() {
         event: "reset".into(),
         data: reset,
     }]);
-    let mut rt = runtime(&s.hub, "tab-1");
-    rt.send("hello".into());
-    settle(&mut rt, "the finished run", |snap| {
-        snap.state == State::Idle
-            && snap.thread.is_some()
-            && snap.messages.iter().any(|m| m.text == "reply 9")
+    let c = controller(&s.hub, "tab-1");
+    c.submit("hello".into());
+    settle(&c, "the finished run", |state| {
+        !state.running()
+            && state.session_id.is_some()
+            && texts(state).iter().any(|(_, text)| text == "reply 9")
     });
     std::thread::sleep(Duration::from_millis(700));
     assert_eq!(s.published.load(Ordering::SeqCst), 1);
 }
 
 #[test]
-fn one_history_request_per_agent_and_open_conversations_are_not_offered() {
+fn one_history_request_per_agent_and_an_open_conversation_is_not_opened_twice() {
     let fake = Fake::new(|r| {
         if r.path == "/agents/sessions" {
             std::thread::sleep(Duration::from_millis(100));
@@ -362,25 +363,31 @@ fn one_history_request_per_agent_and_open_conversations_are_not_offered() {
         Ok(run("run-1", "req", "succeeded", 1))
     });
     let s = setup(fake);
-    let mut a = runtime(&s.hub, "tab-a");
-    a.send("hello".into());
-    settle(&mut a, "tab A's session", |snap| {
-        snap.thread.as_deref() == Some("session-1")
+    let a = controller(&s.hub, "tab-a");
+    a.submit("hello".into());
+    settle(&a, "tab A's session", |state| {
+        state.session_id.as_deref() == Some("session-1")
     });
-    let mut b = runtime(&s.hub, "tab-b");
-    // Two tabs refresh at once: one request for the one known Agent.
-    a.list_history();
-    b.list_history();
-    settle(&mut b, "the shared history", |snap| {
-        !snap.history.is_empty()
-    });
+    // Two refreshes at once: one request for the one known Agent.
+    s.hub.refresh_history();
+    s.hub.refresh_history();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !s.hub.history().loaded {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the shared history did not settle"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
     assert_eq!(s.fake.count("GET", "/agents/sessions"), 1);
-    let offered: Vec<_> = b.snapshot().history.iter().map(|h| h.id.clone()).collect();
-    assert_eq!(offered, vec!["session-2".to_string()]);
-    // Resuming the open one is refused; the other opens with its runs.
-    b.resume("session-1".into());
-    settle(&mut b, "the refusal", |snap| {
-        snap.error.is_some() && !snap.history_mode
-    });
-    assert_eq!(b.snapshot().thread, None);
+    let sessions = s.hub.history().sessions;
+    assert_eq!(sessions.len(), 2);
+    // Opening the conversation another tab shows is refused; the other one
+    // opens with its runs.
+    let (wake, _rx) = Wake::channel();
+    let open = sessions.iter().find(|s| s.id == "session-1").cloned();
+    assert!(CloudAgentController::new(s.hub.clone(), "tab-b", open, wake.clone()).is_err());
+    let other = sessions.iter().find(|s| s.id == "session-2").cloned();
+    let b = CloudAgentController::new(s.hub.clone(), "tab-b", other, wake).unwrap();
+    assert_eq!(b.snapshot().session_id.as_deref(), Some("session-2"));
 }

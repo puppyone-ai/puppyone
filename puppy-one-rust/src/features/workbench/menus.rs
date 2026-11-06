@@ -43,10 +43,7 @@ impl Workbench {
                 let tab = *tab;
                 let content = self.project()?.content.get(&tab)?;
                 let title = self.tab_title(tab, content, cx);
-                let mut surface = Menu::new("workbench-tab-menu").min_w(px(200.));
-                if let Content::Chat(view) = content {
-                    surface = AgentChat::session_menu(view.clone(), surface, cx).separator();
-                }
+                let surface = Menu::new("workbench-tab-menu").min_w(px(200.));
                 let host = host.clone();
                 let close =
                     crate::localization::tf("terminal.closeSession", &[("title", title.into())]);
@@ -72,7 +69,7 @@ impl Workbench {
                             move |w, cx| {
                                 let _ = host.update(cx, |s, cx| {
                                     s.chat_mode = false;
-                                    s.launch(group, tab, Some(installation.clone()), false, w, cx)
+                                    s.launch(group, tab, Some(installation.clone()), w, cx)
                                 });
                             },
                         ),

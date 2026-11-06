@@ -638,13 +638,10 @@ impl Shell {
                     workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
                 });
             }
-            if surface == "agent-empty"
-                || surface == "agent-transcript"
-                || surface == "agent-failed"
-            {
+            if surface == "agent-empty" || surface == "agent-transcript" {
                 s.panes.set_right_open(true);
                 s.sidebar.workbench.update(cx, |workbench, cx| {
-                    workbench.visual_fixture(surface == "agent-transcript", window, cx)
+                    workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
                 });
             }
         }

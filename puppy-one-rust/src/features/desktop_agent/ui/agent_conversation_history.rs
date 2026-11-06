@@ -11,6 +11,7 @@ use crate::features::desktop_agent::application::conversation_history_controller
 use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, create_agent_chat_history_target,
 };
+use crate::features::desktop_agent::infrastructure::cloud::{Hub, LABEL};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, tooltip};
 use crate::{
@@ -163,8 +164,79 @@ fn runtime_id(session: &Value) -> String {
         .to_string()
 }
 
+/// Where the conversations come from.
+#[derive(Clone)]
+pub enum HistorySource {
+    /// The project's Agent service history.
+    Agent(ConversationHistoryController),
+    /// `CloudAgentHistory`: the hosted target's shared locators.
+    Hosted(std::sync::Arc<Hub>),
+}
+
+impl HistorySource {
+    fn snapshot(&self) -> ConversationHistoryState {
+        match self {
+            Self::Agent(controller) => controller.get_snapshot(),
+            Self::Hosted(hub) => hosted_history(hub),
+        }
+    }
+    fn refresh(&self) {
+        match self {
+            Self::Agent(controller) => drop(controller.refresh()),
+            Self::Hosted(hub) => hub.refresh_history(),
+        }
+    }
+}
+
+/// `CloudAgentHistory`: server locators adapted, never transcripts.
+fn hosted_history(hub: &Hub) -> ConversationHistoryState {
+    let history = hub.history();
+    let sessions: Vec<Value> = history
+        .sessions
+        .iter()
+        .map(|session| {
+            let title = session
+                .title
+                .clone()
+                .filter(|t| !t.is_empty())
+                .unwrap_or_else(|| tr("agent.header.newChat").to_string());
+            serde_json::json!({
+                "id": session.id, "provider": "cloud-pi", "runtimeId": "cloud-pi",
+                "runtime": { "id": "cloud-pi", "displayName": LABEL, "iconKey": "puppyone-agent" },
+                "providerSessionId": session.id, "title": title,
+                "createdAt": session.updated_at, "updatedAt": session.updated_at,
+                "terminalState": "idle", "selectedModel": null, "lastSequence": 0,
+                "agentId": session.agent_id, "mode": session.mode,
+            })
+        })
+        .collect();
+    let status = if history.error.is_some() {
+        "failed"
+    } else if history.loaded {
+        "complete"
+    } else {
+        "not-requested"
+    };
+    ConversationHistoryState {
+        sources: vec![(
+            "cloud-pi".into(),
+            serde_json::json!({
+                "runtimeId": "cloud-pi", "status": status,
+                "coverage": if history.sessions.len() < 200 { "complete" } else { "unknown" },
+                "nextCursor": null, "scanId": null, "indexed": history.sessions.len(), "warnings": [],
+            }),
+        )],
+        sessions,
+        loading: !history.loaded && history.loading,
+        loaded: history.loaded || history.error.is_some(),
+        refreshing: history.loaded && history.loading,
+        error: history.error,
+        ..Default::default()
+    }
+}
+
 pub struct HistoryBrowser {
-    controller: ConversationHistoryController,
+    source: HistorySource,
     /// Discovery has the user's permission (`historyDiscoveryEnabled`).
     enabled: bool,
     excluded: Vec<String>,
@@ -183,9 +255,9 @@ pub struct HistoryBrowser {
 impl EventEmitter<HistoryBrowserEvent> for HistoryBrowser {}
 
 impl HistoryBrowser {
-    /// The browser over the project's `controller` (retained while hidden).
+    /// The browser over `source` (retained while hidden).
     pub fn new(
-        controller: ConversationHistoryController,
+        source: HistorySource,
         enabled: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -197,9 +269,27 @@ impl HistoryBrowser {
         });
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
         let (notify, mut changes) = tokio::sync::mpsc::unbounded_channel::<()>();
-        let unsubscribe = controller.subscribe(std::rc::Rc::new(move || {
-            let _ = notify.send(());
-        }));
+        let unsubscribe: Box<dyn FnOnce()> = match &source {
+            HistorySource::Agent(controller) => {
+                Box::new(controller.subscribe(std::rc::Rc::new(move || {
+                    let _ = notify.send(());
+                })))
+            }
+            HistorySource::Hosted(hub) => {
+                let (wake, woken) = crate::wake::Wake::channel();
+                let id = hub.watch_history(wake);
+                cx.spawn(async move |_, _| {
+                    while woken.recv().await.is_ok() {
+                        if notify.send(()).is_err() {
+                            break;
+                        }
+                    }
+                })
+                .detach();
+                let hub = hub.clone();
+                Box::new(move || hub.unwatch(id))
+            }
+        };
         cx.spawn(async move |this, cx| {
             while changes.recv().await.is_some() {
                 while changes.try_recv().is_ok() {}
@@ -210,7 +300,7 @@ impl HistoryBrowser {
         })
         .detach();
         let mut browser = Self {
-            controller,
+            source,
             enabled: false,
             excluded: vec![],
             search_open: false,
@@ -220,7 +310,7 @@ impl HistoryBrowser {
             search_focused: false,
             opening: None,
             list_scroll: ScrollHandle::new(),
-            _subscription: Box::new(unsubscribe),
+            _subscription: unsubscribe,
         };
         if enabled {
             browser.enable(cx);
@@ -236,7 +326,11 @@ impl HistoryBrowser {
             return;
         }
         self.enabled = true;
-        self.controller.activate();
+        match &self.source {
+            HistorySource::Agent(controller) => controller.activate(),
+            // `useEffect(() => void workbench.refreshHistory())`.
+            HistorySource::Hosted(hub) => hub.refresh_history(),
+        }
         cx.notify();
     }
     /// Sessions already open in a tab (`excludedResourceIds`).
@@ -252,7 +346,7 @@ impl HistoryBrowser {
             .map(create_agent_chat_history_target)
     }
     fn history(&self) -> History {
-        History::new(self.controller.get_snapshot(), &self.excluded)
+        History::new(self.source.snapshot(), &self.excluded)
     }
     fn back(&mut self, cx: &mut Context<Self>) {
         if self.opening.is_none() {
@@ -317,7 +411,7 @@ impl HistoryBrowser {
         if permission {
             return bar;
         }
-        let state = self.controller.get_snapshot();
+        let state = self.source.snapshot();
         let busy = (state.sessions.is_empty() && (state.loading || !state.loaded))
             || state.refreshing
             || state.loading_more;
@@ -403,7 +497,7 @@ impl HistoryBrowser {
             )
             .when(!busy, |d| {
                 d.on_click(cx.listener(|s, _, _, cx| {
-                    drop(s.controller.refresh());
+                    s.source.refresh();
                     cx.notify();
                 }))
             });
@@ -707,7 +801,9 @@ impl HistoryBrowser {
                     .when(!more_disabled, |d| {
                         d.hover(move |s| s.bg(row_hover).text_color(muted))
                             .on_click(cx.listener(|s, _, _, cx| {
-                                drop(s.controller.load_more());
+                                if let HistorySource::Agent(controller) = &s.source {
+                                    drop(controller.load_more());
+                                }
                                 cx.notify();
                             }))
                     })

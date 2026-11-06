@@ -14,17 +14,14 @@
 //!   against the exact run.
 //! - A run whose publication is `committed` invalidates the Cloud content
 //!   once (`onPublication`); chat text is never parsed for success.
+mod projection;
+
+pub use projection::project_cloud_agent_runs;
+
 use crate::{
-    agent::{
-        domain::legacy_session_model::{
-            Decision, HistoryEntry, Interaction, InteractionKind, Resolution, SessionSnapshot,
-            State, parse_rfc3339_ms,
-        },
-        runtime::legacy_runtime_port::AgentRuntimePort,
-    },
     cloud_auth::Cancellation,
     wake::Wake,
-    workspace::cloud::agent::{Client, Run, Session, Submission, Tool},
+    workspace::cloud::agent::{Client, Run, Session, Submission},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -57,12 +54,14 @@ struct Saved {
     pending: Option<Submission>,
 }
 
-#[derive(Default)]
-struct History {
-    sessions: Vec<Session>,
-    loading: bool,
-    error: Option<String>,
-    revision: u64,
+/// `HistoryState`: the target's conversations, newest first.
+#[derive(Clone, Debug, Default)]
+pub struct CloudHistory {
+    pub sessions: Vec<Session>,
+    pub loading: bool,
+    pub loaded: bool,
+    pub error: Option<String>,
+    pub revision: u64,
 }
 
 /// One target's shared state (`CloudAgentWorkbench` minus its layout).
@@ -72,7 +71,7 @@ pub struct Hub {
     storage: String,
     agents: Mutex<BTreeSet<String>>,
     open: Mutex<HashMap<u64, String>>,
-    history: Mutex<History>,
+    history: Mutex<CloudHistory>,
     wakes: Mutex<HashMap<u64, Wake>>,
     next_actor: AtomicU64,
     on_publication: Box<dyn Fn() + Send + Sync>,
@@ -139,6 +138,7 @@ impl Hub {
                 let mut history = hub.history.lock().unwrap();
                 if error.is_none() {
                     history.sessions = sessions;
+                    history.loaded = true;
                 }
                 history.error = error;
                 history.loading = false;
@@ -146,6 +146,19 @@ impl Hub {
             }
             hub.notify_all();
         });
+    }
+    /// `getHistory()`.
+    pub fn history(&self) -> CloudHistory {
+        self.history.lock().unwrap().clone()
+    }
+    /// Follows the shared history (`subscribeHistory`).
+    pub fn watch_history(&self, wake: Wake) -> u64 {
+        let id = self.next_actor.fetch_add(1, Ordering::SeqCst);
+        self.wakes.lock().unwrap().insert(id, wake);
+        id
+    }
+    pub fn unwatch(&self, id: u64) {
+        self.wakes.lock().unwrap().remove(&id);
     }
     /// The open conversation of every other tab.
     fn open_elsewhere(&self, actor: u64) -> HashSet<String> {
@@ -188,10 +201,12 @@ struct CoreState {
     submitting: bool,
     /// `send` handed a prompt over; `submit` has not taken it yet.
     sending: bool,
-    /// The tab shows the history list (`historyOpen`).
-    browsing: bool,
+    /// The composer's text (`state.draft`).
+    draft: String,
     resolving: Option<String>,
     error: Option<String>,
+    /// The failed request's HTTP status (`error.status`).
+    error_status: Option<u16>,
     reconnecting: bool,
     /// Selection epoch: a new chat or session drops late results.
     revision: u64,
@@ -274,6 +289,13 @@ impl Core {
             if s.revision != revision {
                 return;
             }
+            if s.saved
+                .pending
+                .as_ref()
+                .is_some_and(|p| p.prompt == s.draft)
+            {
+                s.draft.clear();
+            }
             s.saved.session_id = Some(run.session_id.clone());
             s.saved.agent_id = Some(run.agent_id.clone());
             s.saved.pending = None;
@@ -331,6 +353,7 @@ impl Core {
         self.patch(|s| {
             if s.revision == revision {
                 if let Err(e) = result {
+                    s.error_status = e.status;
                     s.error = Some(e.message);
                 }
                 s.loading = false;
@@ -364,6 +387,7 @@ impl Core {
                 && p.prompt != prompt
             {
                 s.error = Some("Confirm the previous message before sending another.".into());
+                s.error_status = None;
                 s.changed += 1;
                 drop(s);
                 self.wake.notify();
@@ -404,6 +428,7 @@ impl Core {
                             s.saved.pending = None;
                         }
                         s.error = Some(error.message.clone());
+                        s.error_status = error.status;
                     }
                 });
                 self.save();
@@ -430,7 +455,10 @@ impl Core {
             if s.revision == revision {
                 match result {
                     Ok(run) => Self::accept(s, run),
-                    Err(e) => s.error = Some(e.message),
+                    Err(e) => {
+                        s.error_status = e.status;
+                        s.error = Some(e.message);
+                    }
                 }
                 s.resolving = None;
             }
@@ -470,28 +498,6 @@ impl Core {
         };
         let id = call.clone();
         self.command(id, |client| client.approve(&run, &call, &decision, allow));
-    }
-    fn select(self: &Arc<Self>, session: Option<Session>) {
-        {
-            let mut s = self.state.lock().unwrap();
-            if s.submitting || s.saved.pending.is_some() || s.runs.last().is_some_and(Run::active) {
-                return;
-            }
-            s.revision += 1;
-            s.saved.session_id = session.as_ref().map(|s| s.id.clone());
-            if let Some(session) = &session {
-                s.saved.agent_id = Some(session.agent_id.clone());
-            }
-            s.runs.clear();
-            s.error = None;
-            s.loading = false;
-            s.changed += 1;
-        }
-        self.save();
-        self.wake.notify();
-        if session.is_some() {
-            self.load();
-        }
     }
     fn notify_publications(&self) {
         let fresh = {
@@ -572,6 +578,7 @@ impl Core {
                     if error.terminal() {
                         self.patch(|s| {
                             s.error = Some(error.message.clone());
+                            s.error_status = error.status;
                             s.reconnecting = false;
                         });
                         break;
@@ -586,34 +593,80 @@ impl Core {
     }
 }
 
-/// A tab's runtime: the shared Agent UI reads its snapshot.
-pub struct CloudAgentRuntime {
-    core: Arc<Core>,
-    snapshot: SessionSnapshot,
-    seen: (u64, u64),
+/// `CloudAgentState`: what a hosted chat shows.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CloudAgentState {
+    pub session_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub pending: Option<Submission>,
+    pub draft: String,
+    pub runs: Vec<Run>,
+    pub loading: bool,
+    pub submitting: bool,
+    pub resolving: Option<String>,
+    pub error: Option<String>,
+    pub error_status: Option<u16>,
+    pub reconnecting: bool,
 }
-impl CloudAgentRuntime {
-    /// `key` names this tab's persisted receipts within the target;
-    /// `history` opens the tab on its history list.
-    pub fn new(hub: Arc<Hub>, key: &str, history: bool, wake: Wake) -> Self {
+
+impl CloudAgentState {
+    /// The latest run, while it is the server's to finish.
+    pub fn running(&self) -> bool {
+        self.runs.last().is_some_and(Run::active)
+    }
+}
+
+/// `CloudAgentController`: one tab's conversation. Opening a tab, a new chat
+/// or typing sends nothing; dropping it ends its observation only.
+pub struct CloudAgentController {
+    core: Arc<Core>,
+}
+
+impl CloudAgentController {
+    /// `key` names this tab's persisted receipts within the target; a
+    /// History `session` opens it (`prepare(id, session)`), unless another
+    /// tab has it open.
+    pub fn new(
+        hub: Arc<Hub>,
+        key: &str,
+        session: Option<Session>,
+        wake: Wake,
+    ) -> Result<Self, String> {
         let actor = hub.next_actor.fetch_add(1, Ordering::SeqCst);
+        if let Some(session) = &session
+            && hub.open_elsewhere(actor).contains(&session.id)
+        {
+            return Err("This conversation is already open.".into());
+        }
         let path = hub.dir.join(format!(
             "{}.json",
             blake3::hash(format!("{}\u{0}{key}", hub.storage).as_bytes()).to_hex()
         ));
-        let saved: Saved = read_json(&path).unwrap_or_default();
+        let mut saved: Saved = read_json(&path).unwrap_or_default();
+        if let Some(session) = &session {
+            saved = Saved {
+                session_id: Some(session.id.clone()),
+                agent_id: Some(session.agent_id.clone()),
+                pending: None,
+            };
+        }
         if let Some(agent) = &saved.agent_id {
             hub.remember_agent(agent);
         }
         hub.wakes.lock().unwrap().insert(actor, wake.clone());
+        let draft = saved
+            .pending
+            .as_ref()
+            .map(|p| p.prompt.clone())
+            .unwrap_or_default();
         let core = Arc::new(Core {
             hub,
             actor,
             path,
             state: Mutex::new(CoreState {
                 saved,
+                draft,
                 loading: true,
-                browsing: history,
                 ..Default::default()
             }),
             wake,
@@ -622,259 +675,81 @@ impl CloudAgentRuntime {
         core.save();
         let observer = core.clone();
         std::thread::spawn(move || observer.observe());
-        if history {
-            core.hub.refresh_history();
-        }
-        let mut runtime = Self {
-            core,
-            snapshot: SessionSnapshot::new(LABEL, history),
-            seen: (u64::MAX, u64::MAX),
-        };
-        runtime.poll();
-        runtime
+        Ok(Self { core })
     }
+
     fn spawn(&self, f: impl FnOnce(Arc<Core>) + Send + 'static) {
         let core = self.core.clone();
         std::thread::spawn(move || f(core));
     }
+
+    pub fn hub(&self) -> &Arc<Hub> {
+        &self.core.hub
+    }
+
+    /// `getSnapshot()`, with a send already handed over counted as one.
+    pub fn snapshot(&self) -> CloudAgentState {
+        let s = self.core.state.lock().unwrap();
+        CloudAgentState {
+            session_id: s.saved.session_id.clone(),
+            agent_id: s.saved.agent_id.clone(),
+            pending: s.saved.pending.clone(),
+            draft: s.draft.clone(),
+            runs: s.runs.clone(),
+            loading: s.loading,
+            submitting: s.submitting || s.sending,
+            resolving: s.resolving.clone(),
+            error: s.error.clone(),
+            error_status: s.error_status,
+            reconnecting: s.reconnecting,
+        }
+    }
+
+    /// `setDraft(draft)`.
+    pub fn set_draft(&self, draft: String) {
+        self.core.patch(|s| s.draft = draft);
+    }
+
+    /// `submit(prompt)`.
+    pub fn submit(&self, prompt: String) {
+        // The view reads the state right after handing a prompt over: it
+        // must already say so.
+        self.core.patch(|s| s.sending = true);
+        self.spawn(move |core| core.submit(prompt));
+    }
+
+    pub fn stop(&self) {
+        self.spawn(|core| core.stop());
+    }
+
+    /// `approve(call, allow)`.
+    pub fn approve(&self, call: String, allow: bool) {
+        self.spawn(move |core| core.approve(call, allow));
+    }
+
+    /// The status's Retry: the unconfirmed submission again, else a reload.
+    pub fn retry(&self) {
+        let pending = self.core.state.lock().unwrap().saved.pending.clone();
+        match pending {
+            Some(pending) => self.submit(pending.prompt),
+            None => self.spawn(|core| core.load()),
+        }
+    }
+
+    /// `canClose`: an unconfirmed submission keeps its tab.
+    pub fn can_release(&self) -> bool {
+        let s = self.core.state.lock().unwrap();
+        s.saved.pending.is_none() && !s.submitting && !s.sending
+    }
 }
-impl Drop for CloudAgentRuntime {
+
+impl Drop for CloudAgentController {
     /// Closing the view ends its subscription; the run stays the server's.
     fn drop(&mut self) {
         self.core.cancel.cancel();
         self.core.hub.wakes.lock().unwrap().remove(&self.core.actor);
         self.core.hub.open.lock().unwrap().remove(&self.core.actor);
     }
-}
-impl AgentRuntimePort for CloudAgentRuntime {
-    fn snapshot(&self) -> &SessionSnapshot {
-        &self.snapshot
-    }
-    fn poll(&mut self) {
-        let history = self.core.hub.history.lock().unwrap().revision;
-        let changed = self.core.state.lock().unwrap().changed;
-        if self.seen == (changed, history) {
-            return;
-        }
-        self.seen = (changed, history);
-        let revision = self.snapshot.revision + 1;
-        let open = self.core.hub.open_elsewhere(self.core.actor);
-        let hub_history = self.core.hub.history.lock().unwrap();
-        let state = self.core.state.lock().unwrap();
-        self.snapshot = project(&state, &hub_history, &open);
-        self.snapshot.revision = revision;
-    }
-    fn send(&mut self, text: String) {
-        // The session owner reads the state right after handing a prompt
-        // over: it must already say so.
-        self.core.patch(|s| s.sending = true);
-        self.poll();
-        self.spawn(move |core| core.submit(text));
-    }
-    fn stop(&mut self) {
-        self.spawn(|core| core.stop());
-    }
-    fn resume(&mut self, id: String) {
-        let known = {
-            let history = self.core.hub.history.lock().unwrap();
-            history.sessions.iter().find(|s| s.id == id).cloned()
-        };
-        self.core.patch(|s| s.browsing = false);
-        // An open conversation is not opened twice.
-        if self.core.hub.open_elsewhere(self.core.actor).contains(&id) {
-            self.core
-                .patch(|s| s.error = Some("This conversation is already open.".into()));
-            return;
-        }
-        let agent = known
-            .as_ref()
-            .map(|s| s.agent_id.clone())
-            .or_else(|| self.core.state.lock().unwrap().saved.agent_id.clone())
-            .unwrap_or_default();
-        let session = known.unwrap_or(Session {
-            id,
-            agent_id: agent,
-            title: None,
-            mode: "cloud_pi".into(),
-            updated_at: String::new(),
-        });
-        self.spawn(move |core| core.select(Some(session)));
-    }
-    fn list_history(&mut self) {
-        self.core.patch(|s| s.browsing = true);
-        self.core.hub.refresh_history();
-    }
-    fn new_thread(&mut self) {
-        self.core.patch(|s| s.browsing = false);
-        self.spawn(|core| core.select(None));
-    }
-    fn resolve(&mut self, id: &serde_json::Value, response: Resolution) {
-        let Some(call) = id.as_str().map(str::to_owned) else {
-            return;
-        };
-        let allow = matches!(
-            response,
-            Resolution::Approval(Decision::Accept | Decision::AcceptForSession)
-        );
-        self.spawn(move |core| core.approve(call, allow));
-    }
-    fn select_model(&mut self, _model: Option<String>) {}
-    /// `canClose`: an unconfirmed submission keeps its tab.
-    fn can_release(&self) -> bool {
-        let s = self.core.state.lock().unwrap();
-        s.saved.pending.is_none() && !s.submitting
-    }
-}
-
-/// `cloudAgentProjection`: runs to the shared transcript model.
-fn project(state: &CoreState, history: &History, open: &HashSet<String>) -> SessionSnapshot {
-    let mut snapshot = SessionSnapshot::new(LABEL, state.browsing);
-    snapshot.capabilities.history = true;
-    snapshot.thread = state.saved.session_id.clone();
-    let current = state.runs.last();
-    let active = current.is_some_and(Run::active);
-    snapshot.turn = current.filter(|r| r.active()).map(|r| r.id.clone());
-    snapshot.state = if active {
-        if current.is_some_and(|r| r.stop_requested) {
-            State::Stopping
-        } else {
-            State::Running
-        }
-    } else if (state.loading && state.runs.is_empty() && state.saved.session_id.is_some())
-        || state.submitting
-        || state.sending
-    {
-        State::Starting
-    } else if state.browsing {
-        State::History
-    } else {
-        State::Idle
-    };
-    for run in &state.runs {
-        snapshot.upsert(format!("{}:user", run.id), "You", run.prompt.clone(), "");
-        for tool in run.tools.iter().flatten() {
-            let id = format!("{}:{}", run.id, tool.call_id);
-            snapshot.tool_call(
-                id.clone(),
-                tool.name.clone(),
-                tool.input.to_string(),
-                tool_status(tool),
-            );
-            snapshot.tool_result(id, tool.name.clone(), tool_output(tool), tool_status(tool));
-            if Some(&run.id) == current.map(|r| &r.id) && run.active() && tool.state == "waiting" {
-                snapshot.interactions.push(Interaction {
-                    id: serde_json::Value::String(tool.call_id.clone()),
-                    thread: run.session_id.clone(),
-                    turn: run.id.clone(),
-                    kind: InteractionKind::Approval {
-                        command: tool.name == "bash",
-                        prompt: tool.name.clone(),
-                        decisions: vec![Decision::Accept, Decision::Decline],
-                        title: tool.name.clone(),
-                        command_line: tool
-                            .input
-                            .get("command")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_owned),
-                        cwd: None,
-                        reason: None,
-                    },
-                });
-            }
-        }
-        if let Some(text) = run.snapshot.text.as_ref().filter(|t| !t.is_empty()) {
-            let status = if run.active() {
-                "running"
-            } else if run.state == "failed" {
-                "failed"
-            } else if run.state == "stopped" {
-                "interrupted"
-            } else {
-                "completed"
-            };
-            snapshot.upsert(format!("{}:assistant", run.id), LABEL, text.clone(), status);
-        }
-    }
-    if state.runs.len() == 100 {
-        snapshot.truncated_thread = Some(state.saved.session_id.clone());
-    }
-    snapshot.notice = if state.reconnecting {
-        Some(crate::localization::t("agent.connection.reconnecting").into())
-    } else if current.is_some_and(|r| r.state == "outcome_unknown") {
-        Some(crate::localization::t("agent.status.deliveryUnknown").into())
-    } else {
-        None
-    };
-    snapshot.error = state.error.clone().or_else(|| {
-        current
-            .filter(|r| r.state == "failed" || r.state == "conflict")
-            .map(|r| r.snapshot.code.clone().unwrap_or_else(|| r.state.clone()))
-    });
-    snapshot.history = history
-        .sessions
-        .iter()
-        .filter(|s| !open.contains(&s.id))
-        .map(|s| HistoryEntry {
-            id: s.id.clone(),
-            title: s
-                .title
-                .clone()
-                .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| LABEL.into()),
-            updated_at: parse_rfc3339_ms(&s.updated_at),
-        })
-        .collect();
-    snapshot.history_listed = history.revision;
-    snapshot.title = state
-        .runs
-        .first()
-        .map(|r| r.prompt.chars().take(80).collect())
-        .unwrap_or_else(|| LABEL.into());
-    snapshot
-}
-/// `toolStatus`.
-fn tool_status(tool: &Tool) -> &'static str {
-    match tool.state.as_str() {
-        "completed" => match &tool.result {
-            Some(result) if result.is_error => {
-                let code = result
-                    .details
-                    .as_ref()
-                    .and_then(|d| d.get("code"))
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("");
-                if [
-                    "tool_permission_denied",
-                    "tool_approval_denied",
-                    "tool_unavailable",
-                ]
-                .contains(&code)
-                {
-                    "blocked"
-                } else {
-                    "failed"
-                }
-            }
-            _ => "completed",
-        },
-        "rejected" => "cancelled",
-        "waiting" => "waiting-for-user",
-        _ => "running",
-    }
-}
-/// `toolOutput`.
-fn tool_output(tool: &Tool) -> String {
-    let text: Vec<&str> = tool
-        .result
-        .iter()
-        .flat_map(|r| r.content.iter())
-        .filter(|part| part.get("type").and_then(|t| t.as_str()) == Some("text"))
-        .filter_map(|part| part.get("text").and_then(|t| t.as_str()))
-        .collect();
-    if text.is_empty() && tool.state == "rejected" {
-        return crate::localization::t("native.cloudAgent.declined").into();
-    }
-    text.join("\n")
 }
 
 #[cfg(test)]
