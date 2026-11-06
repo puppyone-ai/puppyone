@@ -1962,6 +1962,57 @@
         "test:a_newer_choice_replaces_a_project_still_opening"
       ],
       "remaining": "File mode windows, the opening surface and newer-choice replacement are native; the window's project state is held by the Shell's fields rather than one store (windowProjectStore), with the same visible behaviour."
+    },
+    {
+      "name": "PDF viewer",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/pdf/**"
+      ],
+      "targets": [
+        "src/editor/viewers/pdf.rs",
+        "src/platform/pdf.rs"
+      ],
+      "evidence": [
+        "test:a_pdf_opens_fits_the_pane_and_renders_its_page",
+        "test:a_non_pdf_reports_the_resource_failure_with_retry"
+      ],
+      "remaining": "PDFium renders the pages natively instead of Chromium's embedded viewer (toolbar=0&navpanes=0); the pending state, budget/timeout/resource failures with Retry and the pane's Reload follow PdfViewer. The resource preflight is a local read, so HTTP MIME/length admission has no counterpart, and page content is the engine's rendering rather than a pixel contract."
+    },
+    {
+      "name": "Image, audio and video viewers",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/media/**"
+      ],
+      "targets": [
+        "src/editor/viewers/image.rs",
+        "src/editor/viewers/media.rs",
+        "src/editor/viewers/web.rs"
+      ],
+      "evidence": [
+        "test:media_pages_reference_the_served_file_with_controls"
+      ],
+      "remaining": "Images decode natively (AVIF through the platform codec) with the pending label and the unavailable state with Retry; audio and video play in the system web engine, which reports a media error so the surface shows the product's failure with Retry. Native controls are WebKit's, not Chromium's, and the audio card's icon uses the default file icon theme."
+    },
+    {
+      "name": "Database viewer",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/database/**",
+        "src/shared-ui/editor/preview-services/**"
+      ],
+      "targets": [
+        "src/editor/viewers/database.rs",
+        "src/platform/database.rs"
+      ],
+      "evidence": [
+        "test:next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
+        "test:a_sqlite_file_lists_tables_and_pages_rows",
+        "test:long_values_wide_tables_and_generated_columns_follow_the_budget",
+        "test:signatures_sidecars_and_budgets_are_checked"
+      ],
+      "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager. DuckDB files are reported unsupported (the product reads them through @duckdb/node-api), queries run on the background executor rather than a killable host process with the SQL authorizer, object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies."
     }
   ],
   "retired_sources": {
