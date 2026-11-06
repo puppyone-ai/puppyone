@@ -1,7 +1,8 @@
+import { isMarkdownShortcutCommand } from "./markdownShortcutDefinitions";
+import { runMarkdownCommand } from "./markdownCommandRegistry";
 import { EditorView } from "@codemirror/view";
 import {
   applyMarkdownFormatCommand,
-  isMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from "./markdownInlineCommands";
 
@@ -24,7 +25,7 @@ export function bindMarkdownFormatHotkeys(view: EditorView): () => void {
   }
   boundEditorCount += 1;
 
-  const onFocusIn = () => setActiveMarkdownEditor(view);
+  const onFocusIn = (event: FocusEvent) => setActiveMarkdownEditor(event.target === view.contentDOM ? view : null);
   const onFocusOut = (event: FocusEvent) => {
     const next = event.relatedTarget;
     if (next instanceof Node && view.dom.contains(next)) return;
@@ -81,6 +82,6 @@ function onMarkdownFormatKeyDown(event: KeyboardEvent): void {
 function onMarkdownFormatShortcut(event: Event): void {
   if (!activeMarkdownEditor || !(event instanceof CustomEvent)) return;
   const type = event.detail?.type;
-  if (!isMarkdownFormatCommand(type)) return;
-  applyMarkdownFormatCommand(activeMarkdownEditor, type);
+  if (!isMarkdownShortcutCommand(type)) return;
+  runMarkdownCommand(activeMarkdownEditor, type);
 }

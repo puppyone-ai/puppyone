@@ -1,7 +1,7 @@
 import {
   MARKDOWN_FORMAT_ACTIVE_EVENT,
   MARKDOWN_FORMAT_SHORTCUT_EVENT,
-  isMarkdownFormatCommand,
+  isMarkdownShortcutCommand,
 } from "@puppyone/shared-ui";
 
 export function startMarkdownFormatShortcutBridge(): () => void {
@@ -12,7 +12,7 @@ export function startMarkdownFormatShortcutBridge(): () => void {
   window.addEventListener(MARKDOWN_FORMAT_ACTIVE_EVENT, onActive);
 
   const stopShortcutListener = window.puppyoneDesktop?.onMarkdownFormatShortcut?.((payload) => {
-    if (!isMarkdownFormatCommand(payload?.type)) return;
+    if (!isMarkdownShortcutCommand(payload?.type)) return;
     window.dispatchEvent(new CustomEvent(MARKDOWN_FORMAT_SHORTCUT_EVENT, {
       detail: { type: payload.type },
     }));

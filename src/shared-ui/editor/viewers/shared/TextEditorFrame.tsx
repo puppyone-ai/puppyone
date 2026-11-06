@@ -18,7 +18,7 @@ import type {
 } from "../../sourceSnapshot";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
 import type { EditableDocumentSource } from "../../document-session/types";
-import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
+import { type EditorPaneMenuItem, useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 
 export type TextEditorControls = {
   canEdit: boolean;
@@ -36,6 +36,7 @@ export type TextEditorFrameProps = {
   canEdit: boolean;
   hideSourceView: boolean;
   enableModeToggleShortcut?: boolean;
+  additionalMenuItems?: readonly EditorPaneMenuItem[];
   modeControlPlacement?: "inline" | "pane-menu";
   liveModeLabel?: string;
   sourceModeLabel?: string;
@@ -61,6 +62,7 @@ export function TextEditorFrame({
   hideSourceView,
   enableModeToggleShortcut = false,
   modeControlPlacement = "inline",
+  additionalMenuItems,
   liveModeLabel,
   sourceModeLabel,
   liveModeIcon = "edit",
@@ -314,6 +316,7 @@ export function TextEditorFrame({
           ],
           setValue: setPaneMenuMode,
         },
+        ...(additionalMenuItems ?? []),
       ],
     });
 
@@ -327,6 +330,7 @@ export function TextEditorFrame({
     modeControlPlacement,
     publishPaneMenuContribution,
     setPaneMenuMode,
+    additionalMenuItems,
     sourceModeLabel,
     t,
   ]);
