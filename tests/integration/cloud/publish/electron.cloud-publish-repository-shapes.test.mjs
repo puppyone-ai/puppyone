@@ -95,6 +95,20 @@ async function parentsOf(repository, ref) {
 }
 
 describe("Cloud first push across repository shapes", () => {
+  it("follows what the pinned Cloud contract accepts", async () => {
+    // tests/fixtures/cloud/contracts/cloud-git-acceptance-v1.json is Cloud's own
+    // statement; the shapes below must change if it does.
+    const contract = JSON.parse(await readFile(new URL(
+      "../../../fixtures/cloud/contracts/cloud-git-acceptance-v1.json", import.meta.url), "utf8"));
+    expect(contract.commit_graph).toMatchObject({
+      merge_commits: "accepted", octopus_merges: "accepted", unrelated_histories: "accepted",
+    });
+    expect(contract.content.git_lfs).toBe("unsupported");
+    expect(Object.keys(shapes)).toEqual(expect.arrayContaining([
+      "mergeTip", "octopusMergeTip", "unrelatedHistoriesMerge", "lfsPointer",
+    ]));
+  });
+
   it.each([
     ["linear", 1],
     ["mergeTip", 2],

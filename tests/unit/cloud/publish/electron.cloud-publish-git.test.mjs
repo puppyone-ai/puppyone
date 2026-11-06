@@ -110,11 +110,18 @@ describe("Cloud publish Git diagnostics", () => {
     expect(rollback).not.toHaveBeenCalled();
   });
 
-  // The native Version Engine's refusals, verbatim: puppyone-cloud@94236c31
-  // backend/src/version_engine/storage/git_pack.py, platform/access/adapters/git/
-  // {execution,object_reader}.py and the HTTP 413 in git/router.py.
+  // A server with refusal codes (contracts/cloud-git-acceptance-v1.json) names
+  // each one; the words before it are whatever the server says. Without a code,
+  // the native Version Engine's refusals verbatim: puppyone-cloud@94236c31
+  // backend/src/version_engine/storage/{git_pack,git_process}.py,
+  // platform/access/adapters/git/{execution,object_reader}.py and git/router.py.
   it.each([
     ["connection timed out", "PUSH_UNCERTAIN"],
+    ["remote: unpack invalid pack: reworded entirely (puppyone-refusal=git_object_count_limit)", "PUSH_LIMIT_EXCEEDED"],
+    ["! [remote rejected] main -> main (anything (puppyone-refusal=git_graph_limit))", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: Git pack temporary disk budget exceeded", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: Git pack metadata budget exceeded", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: something new (puppyone-refusal=git_future_thing)", "PUSH_FAILED"],
     ["remote: unpack invalid pack: Git pack exceeds the 2147483648-byte limit for this operation", "PUSH_LIMIT_EXCEEDED"],
     ["remote: unpack invalid pack: completed Git pack exceeds the storage processing budget", "PUSH_LIMIT_EXCEEDED"],
     ["remote: unpack invalid pack: Git object count budget exceeded", "PUSH_LIMIT_EXCEEDED"],
