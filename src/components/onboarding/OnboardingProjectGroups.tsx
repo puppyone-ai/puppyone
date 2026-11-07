@@ -65,6 +65,11 @@ export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: Proje
   return groups.filter((group) => !group.empty || group.keepEmpty);
 }
 
+// Apply the same display order after every catalog has contributed its groups.
+const audienceOrder = new Map([
+  ["team-shared", 0], ["personal-shared", 1], ["shared-unresolved", 2], ["local-only", 3],
+]);
+
 /**
  * Shared projects are grouped by audience, not by storage location. One page
  * scrolls, and heterogeneous local/hosted/device lists flow through one grid.
@@ -80,10 +85,12 @@ export function OnboardingProjectGroups({ groups, label, note }: {
   const [only] = groups;
   const plain = groups.length === 1 && !only.alwaysShowHeading && only.detail === undefined && only.actions === undefined;
   if (plain && note === undefined) return <>{only.children}</>;
+  const ordered = [...groups].sort((left, right) =>
+    (audienceOrder.get(left.id) ?? 2) - (audienceOrder.get(right.id) ?? 2));
   return (
     <div className="onboarding-project-groups" data-po-scrollbar="menu" data-po-scrollbar-visibility="always"
       aria-label={label}>
-      {groups.map((group) => <ProjectGroup key={group.id} group={group} />)}
+      {ordered.map((group) => <ProjectGroup key={group.id} group={group} />)}
       {note}
     </div>
   );
@@ -117,6 +124,7 @@ function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
           <bdi>{group.title}</bdi>
         </h2>
         {group.detail !== undefined && <span className="onboarding-project-group-detail">{group.detail}</span>}
+        <span className="onboarding-project-group-divider" aria-hidden="true" />
         {group.actions !== undefined && <span className="onboarding-project-group-actions">{group.actions}</span>}
       </header>
       <div className="onboarding-project-group-content">{group.children}</div>
