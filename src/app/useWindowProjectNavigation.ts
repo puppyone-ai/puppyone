@@ -5,10 +5,11 @@ import type { MessageValue } from "@puppyone/localization";
 import type { WorkspaceEntryKind } from "../features/app-shell/workspaceEntryBootstrap";
 import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surfaces/workspaceSurfaceTypes";
 import { CloudOpeningError, describeCloudOpeningFailure } from "../features/cloud/cloudOpeningFailure";
-import { formatCloudMessage } from "../features/cloud/cloudPresentation";
+import { formatCloudDiagnostic, formatCloudMessage } from "../features/cloud/cloudPresentation";
 import { useCallback, useEffect, useRef } from "react";
 import { useProjectNavigation } from "../features/app-shell/window-project/useProjectNavigation";
-import { useWindowProject, windowProjectStore } from "../features/app-shell/window-project/windowProjectStore";
+import { closeHostFolder, hostFolderTarget, showHostFolder, useWindowProject, windowProjectStore,
+  type HostFolderSelection } from "../features/app-shell/window-project/windowProjectStore";
 
 export type ProjectDesktopView = Exclude<DesktopView, "settings" | "cloud">;
 
@@ -70,11 +71,23 @@ export function useWindowProjectNavigation({
   const projectNavigation = useProjectNavigation({
     async open(target, isCurrent) {
       windowProjectStore.setState({ failure: null });
+      if (target.kind === "host") {
+        // Local folders stay mounted behind it; the folder surface owns reachability.
+        const session = await knownCloudSession();
+        if (!isCurrent()) return;
+        if (!session || session.user_id !== target.selection.ref.accountId) {
+          throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
+        }
+        if (cloudHeaderActive) openLocalWorkspace();
+        showHostFolder(target.selection);
+        return;
+      }
       if (target.kind === "cloud") {
         const session = await knownCloudSession();
         if (!isCurrent()) return;
         if (!session) throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
         await accountCloud.openTarget({ kind: "project_root", project_id: target.projectId }, isCurrent, true);
+        if (isCurrent()) closeHostFolder();
         return;
       }
       const projectView = lastProjectViewRef.current;
@@ -88,6 +101,7 @@ export function useWindowProjectNavigation({
       else await openWorkspacePath(target.path, "switched");
       if (isCurrent()) {
         if (cloudHeaderActive) openLocalWorkspace();
+        closeHostFolder();
         navigateDesktopView(projectView);
       }
     },
@@ -95,7 +109,8 @@ export function useWindowProjectNavigation({
       const failure = target.kind === "cloud" ? describeCloudOpeningFailure(error) : null;
       const message = error instanceof Error ? error.message : String(error);
       windowProjectStore.setState({ failure: { target, recovery: failure?.action ?? "retry",
-        message: failure ? formatCloudMessage(failure.message, t) : message } });
+        message: failure ? formatCloudMessage(failure.message, t) : message,
+        diagnostic: failure ? formatCloudDiagnostic(failure.message, t) : null } });
     },
   });
   cancelProjectNavigationRef.current = projectNavigation.cancel;
@@ -117,6 +132,10 @@ export function useWindowProjectNavigation({
   }, [selectProjectTarget, setSwitcherOpen]);
   selectCloudProjectRef.current = selectCloudProject;
   const openDroppedProject = useCallback((folder: File) => selectProjectTarget({ kind: "dropped", folder }), [selectProjectTarget]);
+  const selectHostFolder = useCallback((selection: HostFolderSelection) => {
+    setSwitcherOpen(false);
+    return selectProjectTarget(hostFolderTarget(selection));
+  }, [selectProjectTarget, setSwitcherOpen]);
   // Every retry is another open, so it takes the same road as the first.
   const homepageCloudController = { ...accountCloud, retry: () => {
     const target = accountCloud.lastAttemptedTarget();
@@ -134,6 +153,6 @@ export function useWindowProjectNavigation({
   }, [selectCloudProject, activeCloudSession, cloudEnabled, initialCloudProject, restoringWorkspace]);
   return {
     dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
-    projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
+    projectNavigation, projectOpenFailure, selectCloudProject, selectHostFolder, selectProject,
   };
 }

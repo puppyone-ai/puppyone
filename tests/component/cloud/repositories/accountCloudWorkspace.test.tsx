@@ -113,13 +113,51 @@ describe("account-owned Cloud workspaces on the existing API", () => {
       await expect(account.openTarget({ kind: "project_root", project_id: "b" }, () => true, true))
         .rejects.toMatchObject({ failure: { message: { code: expected }, action } });
     });
-    expect(account.failure).toEqual({ message: { code: expected }, action });
+    // The server's status and code ride beside the message for a report.
+    expect(account.failure).toEqual({ message: { code: expected, diagnostic: { status, code } }, action });
     expect(account.context.projectId).toBe("a");
     expect(account.active).toBe(true);
     expect(requests.mock.calls.map(([request]) => [request.method, request.path])).toEqual([
       ["POST", "/projects/b/repository-context"], ["GET", "/projects/b/workbench"],
     ]);
     expect(localWrite).not.toHaveBeenCalled();
+  });
+
+  it.each(["workbench_generation_changed", "workbench_not_running", "workbench_context_changed"])(
+    "opens again by itself once when the workspace moved while opening (%s)", async (code) => {
+      await render();
+      const original = window.puppyoneDesktop!.requestCloudSessionApi;
+      let moved = false;
+      const requests = vi.fn<typeof original>(async request => {
+        if (request.path === "/projects/b/workbench" && !moved) {
+          moved = true;
+          return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, code, message: "moved" } };
+        }
+        return original(request);
+      });
+      window.puppyoneDesktop!.requestCloudSessionApi = requests;
+      await act(async () => { await account.openTarget({ kind: "project_root", project_id: "b" }, () => true, true); });
+      expect(account.failure).toBeNull();
+      expect(account.active).toBe(true);
+      expect(account.context.projectId).toBe("b");
+      expect(requests.mock.calls.filter(([request]) => request.path === "/projects/b/repository-context")).toHaveLength(2);
+    });
+
+  it("reports a workspace that moves again rather than reopening forever", async () => {
+    await render();
+    const original = window.puppyoneDesktop!.requestCloudSessionApi;
+    const requests = vi.fn<typeof original>(async request => request.path === "/projects/b/workbench"
+      ? { transport: "puppyone-cloud-ipc-v1", ok: false,
+        error: { status: 409, code: "workbench_generation_changed", message: "moved", requestId: "req-42" } }
+      : original(request));
+    window.puppyoneDesktop!.requestCloudSessionApi = requests;
+    await act(async () => {
+      await expect(account.openTarget({ kind: "project_root", project_id: "b" }, () => true, true))
+        .rejects.toMatchObject({ failure: { message: { code: "workspace-changed" }, action: "retry" } });
+    });
+    expect(account.failure).toMatchObject({ message: { code: "workspace-changed",
+      diagnostic: { status: 409, code: "workbench_generation_changed", requestId: "req-42" } } });
+    expect(requests.mock.calls.filter(([request]) => request.path === "/projects/b/workbench")).toHaveLength(2);
   });
 
   it("distinguishes a missing project from an unavailable runtime", async () => {

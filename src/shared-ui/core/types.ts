@@ -11,6 +11,7 @@ export type DataNodeStatus = "clean" | "modified" | "created" | "deleted" | "mov
 export type DataSourceKind =
   | "local"
   | "cloud"
+  | "device"
   | "github"
   | "notion"
   | "google_drive"
@@ -34,6 +35,8 @@ export type Workspace = {
   projectId?: string | null;
   workspaceInstanceId?: string;
   fsIdentity?: string;
+  /** Set when the owner opened this folder on their other computers (host folder id). */
+  hostFolderId?: string;
   hydrationState?: "metadata" | "loading" | "ready" | "error";
   configError?: string;
   /** Host-resolved Markdown grammar; never inferred from document contents. */
@@ -298,6 +301,7 @@ export type DataCapabilities = {
 };
 
 export type DataPort = {
+  saveDocumentConversion?: (request: ConvertedDocumentOutputRequest) => Promise<ConvertedDocumentOutputResult>;
   previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
   editorAssets?: import("../editor/resource/DocumentAssetImport").DocumentAssetImportPort;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
@@ -329,6 +333,16 @@ export type DataPort = {
     options?: DataCopyOptions,
   ) => Promise<DataCopyResult>;
 };
+
+export type ConvertedDocumentOutputRequest = {
+  path: string;
+  fingerprint: string;
+  primaryPath: string;
+  files: { path: string; bytes: Uint8Array }[];
+};
+export type ConvertedDocumentOutputResult =
+  | { ok: true; folderPath: string; openPath: string; paths: string[] }
+  | { ok: false; reason: "source-changed" | "invalid" | "io"; folderPath?: string };
 
 export type DataTemplateInstantiationRequest = {
   templateId: "slides.default";

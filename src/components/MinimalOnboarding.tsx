@@ -1,5 +1,6 @@
 import { useDesktopPreference } from "../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
+import { CloudIcon } from "@puppyone/shared-ui";
 import { AlertTriangle } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
@@ -12,7 +13,7 @@ import {
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
-import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
+import { projectHomeItemLocation, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
@@ -26,7 +27,9 @@ import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
 import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
-import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
+import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
+import { onboardingBaseGroups, OnboardingProjectGroups, type OnboardingGroupsBase } from "./onboarding/OnboardingProjectGroups";
+import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
@@ -54,6 +57,11 @@ export type MinimalOnboardingProps = {
   /** The page is here but its list is not settled, so the mark stands in for it. */
   listHeld?: boolean;
   cloudAccountStatus?: ReactNode;
+  /**
+   * Draws the page's groups when the owner's other computers join them; given the
+   * Cloud's and this computer's groups, in that order. Absent, the page draws those two.
+   */
+  projectGroups?: (base: OnboardingGroupsBase) => ReactNode;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -89,12 +97,14 @@ export function MinimalOnboarding({
   projectItems,
   listHeld = false,
   cloudAccountStatus,
+  projectGroups,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
   appearance,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
+  const platform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
   // A failure handed down replaces what is shown; the page's own actions clear it.
   const [latestInitialError, setLatestInitialError] = useState(initialError);
@@ -114,6 +124,7 @@ export function MinimalOnboarding({
       label: workspace.name,
       localPath: workspace.path,
       lastModifiedAt: workspace.lastModifiedAt ?? null,
+      ...(workspace.hostFolderId ? { hostFolderId: workspace.hostFolderId } : {}),
     }))),
     [projectItems, recentWorkspaces],
   );
@@ -189,6 +200,50 @@ export function MinimalOnboarding({
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const projectView = useHomepageProjectView(items, listHeld);
+  const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
+  const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
+  const projectList = (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
+    <OnboardingProjectList
+      held={listHeld}
+      items={listItems}
+      sharing={sharing}
+      layout={projectLayout}
+      onOpenCloudProject={onOpenCloudProject}
+      busy={busy}
+      openingPath={openingPath}
+      draggingPath={draggingPath}
+      onOpen={(path) => void openPath(path)}
+      onRename={onRenameProject}
+      onRemove={onRemoveProject}
+      onRenameCloudProject={onRenameCloudProject}
+      onDeleteCloudProject={onDeleteCloudProject}
+      onDragStart={startProjectDrag}
+      onDragEnd={() => setDraggingPath(null)}
+    />
+  );
+  // By where each project is: the Cloud's projects are the primary entries
+  // (product philosophy), then this computer's, then each of the owner's other
+  // computers. A held list is one wait, not a wait per group.
+  const groupsBase: OnboardingGroupsBase = {
+    label: t("onboarding.projects.title"),
+    layout: projectLayout,
+    cloud: cloudItems.length > 0 ? {
+      id: "cloud",
+      icon: <CloudIcon size={14} strokeWidth={1.85} />,
+      title: t("onboarding.projects.groups.cloud"),
+      children: projectList(cloudItems),
+    } : null,
+    local: localItems.length > 0 ? {
+      title: t(platform?.platform === "macos"
+        ? "shell.workspaceSwitcher.location.thisMac"
+        : "shell.workspaceSwitcher.location.thisComputer"),
+      render: (sharing) => projectList(localItems, sharing),
+    } : null,
+    showOtherComputers: projectView.places.size === 0,
+  };
+  let projects: ReactNode = projectList(projectView.visibleItems);
+  if (!listHeld && projectGroups) projects = projectGroups(groupsBase);
+  else if (!listHeld) projects = <OnboardingProjectGroups label={groupsBase.label} groups={onboardingBaseGroups(groupsBase)} />;
   const entry = onboardingEntrySlots(hasProjects, {
     busy,
     openingFolder: openingPath === "__new__",
@@ -226,24 +281,7 @@ export function MinimalOnboarding({
             </OnboardingProjectToolbar>
           )} trailing={entry.trailing} />}
           primaryKind={hasProjects ? "projects" : "create"}
-          primary={hasProjects ? (
-            <OnboardingProjectList
-              held={listHeld}
-              items={projectView.visibleItems}
-              layout={projectLayout}
-              onOpenCloudProject={onOpenCloudProject}
-              busy={busy}
-              openingPath={openingPath}
-              draggingPath={draggingPath}
-              onOpen={(path) => void openPath(path)}
-              onRename={onRenameProject}
-              onRemove={onRemoveProject}
-              onRenameCloudProject={onRenameCloudProject}
-              onDeleteCloudProject={onDeleteCloudProject}
-              onDragStart={startProjectDrag}
-              onDragEnd={() => setDraggingPath(null)}
-            />
-          ) : (
+          primary={hasProjects ? projects : (
             <OnboardingCreateProjectAction
               busy={busy}
               canCreateProject={canCreateProject}
@@ -253,6 +291,7 @@ export function MinimalOnboarding({
           )}
           actions={entry.actions}
         />
+        {!hasProjects && projectGroups?.({ ...groupsBase, cloud: null, local: null })}
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>

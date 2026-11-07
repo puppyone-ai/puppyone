@@ -203,7 +203,7 @@
   box-sizing: border-box;
   min-width: max-content;
   padding-block:
-    var(--csv-table-content-block-start-inset)
+    calc(var(--csv-table-content-block-start-inset) + var(--po-editor-chrome-inset-block-start, 0px))
     calc(
       var(--csv-table-content-block-end-inset)
       + var(--po-editable-table-action-gutter)
@@ -385,13 +385,26 @@
 .csv-table-editor__table thead th {
   position: sticky;
   z-index: 3;
-  inset-block-start: 0;
+  /* Under a host's chrome over the document's top, the header pins just below it. */
+  inset-block-start: var(--po-editor-chrome-inset-block-start, 0px);
   background:
     linear-gradient(
       var(--po-editable-table-sticky-header-background),
       var(--po-editable-table-sticky-header-background)
     ),
     var(--po-editor-bg);
+}
+
+/* Rows scrolled past a header pinned below a host's chrome stay hidden above it. */
+.csv-table-editor__table thead th::before {
+  position: absolute;
+  /* Over the cell borders too, or the columns' lines would show through. */
+  inset-inline: -1px;
+  inset-block-end: 100%;
+  height: var(--po-editor-chrome-inset-block-start, 0px);
+  background: var(--po-editor-bg);
+  content: "";
+  pointer-events: none;
 }
 
 /* Data-row numbers live inside the table frame but outside the serialized

@@ -46,6 +46,18 @@ const namespaceFiles = (await fs.readdir(path.join(rendererRoot, "en")))
   .sort();
 assert(namespaceFiles.length > 0, "English renderer catalog has no namespaces.");
 
+// Every namespace must reach the renderer: a catalog file no loader imports
+// renders as "This text is unavailable." everywhere it is used.
+for (const locale of expectedLocales) {
+  const loaderPath = path.join(repositoryRoot, "src/localization/catalog-loaders", `${locale}.ts`);
+  const loader = await fs.readFile(loaderPath, "utf8");
+  for (const filename of namespaceFiles) {
+    const namespace = filename.slice(0, -".json".length);
+    assert(loader.includes(`/locales/renderer/${locale}/${filename}"`) && loader.includes(`"${namespace}": `),
+      `src/localization/catalog-loaders/${locale}.ts does not load the ${namespace} namespace.`);
+  }
+}
+
 const rendererMessageIds = new Set();
 const englishRendererByNamespace = new Map();
 for (const filename of namespaceFiles) {

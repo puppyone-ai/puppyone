@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("session:failure", listener);
   },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
+  getWindowCursorPoint: () => ipcRenderer.invoke("window-layout:get-cursor-point"),
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {
       titlebar: request?.titlebar,
@@ -210,6 +211,46 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   requestCloudApi: (request) => ipcRenderer.invoke("cloud:api-request", request),
   cancelCloudSessionApi: (requestId) => ipcRenderer.invoke("cloud:session-api-cancel", requestId),
   requestCloudSessionApi: (request) => ipcRenderer.invoke("cloud:session-api-request", request),
+  listHostDevices: (expectedSession) => ipcRenderer.invoke("host:catalog", expectedSession),
+  registerHostFolder: (request) => ipcRenderer.invoke("host:register-folder", request),
+  connectHostDevice: (expectedSession) => ipcRenderer.invoke("host:connect", expectedSession),
+  disconnectHostDevice: () => ipcRenderer.invoke("host:disconnect"),
+  removeHostFolder: (request) => ipcRenderer.invoke("host:remove-folder", request),
+  updateHostFolder: (request) => ipcRenderer.invoke("host:update-folder", request),
+  revokeHostDevice: (request) => ipcRenderer.invoke("host:revoke-device", request),
+  getHostStatus: () => ipcRenderer.invoke("host:status"),
+  setHostSharingPaused: (request) => ipcRenderer.invoke("host:set-sharing-paused", request),
+  getHostAutostart: () => ipcRenderer.invoke("host:autostart"),
+  setHostAutostart: (request) => ipcRenderer.invoke("host:set-autostart", request),
+  onHostStatus: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:status-changed", listener);
+    return () => ipcRenderer.removeListener("host:status-changed", listener);
+  },
+  requestHostFolder: (request) => ipcRenderer.invoke("host:folder-request", request),
+  setHostExecution: (request) => ipcRenderer.invoke("host:set-execution", request),
+  stopRemoteHostSessions: () => ipcRenderer.invoke("host:stop-remote-sessions"),
+  openHostTerminal: (request) => ipcRenderer.invoke("host:exec-open", request),
+  writeHostTerminal: (request) => ipcRenderer.invoke("host:exec-input", request),
+  resizeHostTerminal: (request) => ipcRenderer.invoke("host:exec-resize", request),
+  interruptHostTerminal: (request) => ipcRenderer.invoke("host:exec-interrupt", request),
+  closeHostTerminal: (request) => ipcRenderer.invoke("host:exec-close", request),
+  onHostTerminalEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:exec-event", listener);
+    return () => ipcRenderer.removeListener("host:exec-event", listener);
+  },
+  watchHostFolder: (request) => ipcRenderer.invoke("host:folder-watch", request),
+  stopHostFolderWatch: (request) => ipcRenderer.invoke("host:folder-watch-stop", request),
+  onHostFolderEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:folder-event", listener);
+    return () => ipcRenderer.removeListener("host:folder-event", listener);
+  },
+  listRecentHostFolders: (expectedSession) => ipcRenderer.invoke("host:recent-folders", expectedSession),
+  recordRecentHostFolder: (request) => ipcRenderer.invoke("host:record-recent-folder", request),
+  closeRecentHostFolder: (request) => ipcRenderer.invoke("host:close-recent-folder", request),
+  forgetRecentHostFolder: (request) => ipcRenderer.invoke("host:forget-recent-folder", request),
   cloudInitializationGetState: (request) => ipcRenderer.invoke("cloud-initialization:get-state", request),
   cloudInitializationStart: (request) => ipcRenderer.invoke("cloud-initialization:start", request),
   cloudInitializationCleanup: (request) => ipcRenderer.invoke("cloud-initialization:cleanup", request),
@@ -224,7 +265,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   listCloudAccessPointDirectory: (request) => ipcRenderer.invoke("cloud:access-point-list-directory", request),
   getCloudAccessPointSemantics: (request) => ipcRenderer.invoke("cloud:access-point-semantics", request),
   openExternalUrl: (href) => ipcRenderer.invoke("system:open-external-url", href),
-  setFileEdited: (edited) => ipcRenderer.send("file-mode:set-edited", edited === true),
   onFileModeFileChanged: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = () => callback();
@@ -374,6 +414,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
   writeFile: (request) => ipcRenderer.invoke("workspace:write-file", request),
   createEntry: (request) => ipcRenderer.invoke("workspace:create-entry", request),
+  saveDocumentConversion: (request) => ipcRenderer.invoke("workspace:save-document-conversion", request),
   instantiateTemplate: (request) => ipcRenderer.invoke("workspace:instantiate-template", request),
   renameEntry: (request) => ipcRenderer.invoke("workspace:rename-entry", request),
   moveEntry: (request) => ipcRenderer.invoke("workspace:move-entry", request),

@@ -132,7 +132,9 @@ describe("inline Homepage Cloud projects", () => {
     expect(signIn?.textContent).toBe("Sign in");
     await render();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(3);
-    expect(document.querySelector(".onboarding-project-group")).toBeNull();
+    // Two entries, never merged; the Cloud's projects lead the page.
+    expect([...document.querySelectorAll(".onboarding-project-group-title")].map((title) => title.textContent))
+      .toEqual(["Cloud", "This computer"]);
     expect(document.querySelector('[data-linked-cloud-project-id="a"] .onboarding-project-icon[data-project-location="linked"]')).toBeTruthy();
     expect(document.querySelector('[data-cloud-project-id="a"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();
     expect(document.querySelector('[data-cloud-project-id="b"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();

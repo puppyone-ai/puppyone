@@ -123,6 +123,7 @@
   "template.loading": "불러오는 중…",
   "template.signIn": "로그인 후 템플릿 사용",
   "template.signingIn": "로그인 중…",
+  "projects.groups.cloud": "클라우드",
   "entry.import.includeSubpages": "하위 페이지 포함",
   "template.unpack": "압축 풀고 열기",
   "template.localDescription": "템플릿 파일을 새 프로젝트로 압축 해제합니다."

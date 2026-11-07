@@ -5,17 +5,17 @@ import { resolveAnchoredOverlayPosition } from "../../../../src/components/useAn
 const appSource = source("src/App.tsx");
 const layerSource = source("src/components/DesktopTitlebarMenuLayer.tsx");
 const projectSource = source("src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
-const reachSource = source("src/features/app-shell/project-reach/ReachPanel.tsx");
+const placeSource = source("src/features/app-shell/project-place/ProjectPlaceMenu.tsx");
 const titlebarCss = source("src/styles/titlebar.css");
 const dialogCss = source("src/styles/dialogs.css");
 
 describe("titlebar menu overlay architecture", () => {
-  it("portals project and reach menus out of the clipped Header tree", () => {
+  it("portals project and place menus out of the clipped Header tree", () => {
     expect(layerSource).toContain("<DesktopOverlayLayer>");
     expect(layerSource).toContain("useAnchoredOverlayPosition");
     expect(layerSource).toContain('data-titlebar-context-menu="true"');
     expect(projectSource).toContain("<DesktopTitlebarMenuLayer");
-    expect(reachSource).toContain("<DesktopTitlebarMenuLayer");
+    expect(placeSource).toContain("<DesktopTitlebarMenuLayer");
     expect(layerSource).toContain('typographySurface="left-sidebar"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-menu\.desktop-titlebar-menu-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset-inline-start:\s*auto;/s,

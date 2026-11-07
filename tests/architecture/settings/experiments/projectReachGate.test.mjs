@@ -84,7 +84,7 @@ describe("project reach experiment gate", () => {
     write(root, "src/App.tsx", `import { ${PROJECT_REACH_HOOK} } from "./features/project-reach/${PROJECT_REACH_HOOK}";\n`
       + `export const a = ${PROJECT_REACH_HOOK}(), b = ${PROJECT_REACH_HOOK}(), c = ${PROJECT_REACH_HOOK}();\n`);
     expect(projectReachGateErrors({ root })).toEqual([
-      `src/App.tsx contains 3 ${PROJECT_REACH_HOOK}() decisions; the fork contract allows 2`,
+      `src/App.tsx contains 3 ${PROJECT_REACH_HOOK}() decisions; the fork contract allows 1`,
       "src/App.tsx must import useProjectReachExperience from the project-reach public entry",
     ]);
   });

@@ -237,12 +237,11 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
   });
 
-  it("keeps Share from the Header on unless the user explicitly opts out", () => {
-    expect(parseExperimentalSettings(null).enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings("not-json").enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings(JSON.stringify({})).enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: false })).enableShareOnboarding).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
+  it.each([true, false])("forgets the retired Share preference (%s) without changing other experiments", (enabled) => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: enabled })))
+      .toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: enabled, enableProjectReach: true })))
+      .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
   });
 
   it("forgets the retired centered project and Git card Header choices", () => {

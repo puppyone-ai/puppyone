@@ -132,7 +132,7 @@ export function TerminalLauncher({
 
   if (historyOpen && history && onRestoreHistoryTarget) {
     return (
-      <section className="desktop-terminal-launcher is-history" aria-label={history.label}>
+      <section className="desktop-terminal-launcher is-history" data-po-scrollbar="content" aria-label={history.label}>
         {history.renderBrowser({
           instanceId: `${titleId}:${historyRevision}`,
           rootId: historyRootId,
@@ -159,7 +159,7 @@ export function TerminalLauncher({
   }
 
   return (
-    <section className="desktop-terminal-launcher" aria-labelledby={titleId}>
+    <section className="desktop-terminal-launcher" data-po-scrollbar="content" aria-labelledby={titleId}>
       <div className="desktop-terminal-launcher-content">
         <div
           className="desktop-terminal-launcher-group is-agents"

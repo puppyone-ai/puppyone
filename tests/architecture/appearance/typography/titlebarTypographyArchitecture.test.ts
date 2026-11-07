@@ -69,10 +69,6 @@ describe("titlebar typography architecture", () => {
     // Feature styles sit indented inside their layer.
     expect(placeCss).toMatch(
       /\.desktop-titlebar-place-button\[data-project-place="cloud"\] \.desktop-titlebar-workspace-mark \{\s*color: var\(--po-brand-blue, var\(--po-accent-text\)\);/);
-    const reachCss = readFileSync(
-      new URL("../../../../src/features/app-shell/project-reach/reach-header.css", import.meta.url), "utf8");
-    expect(reachCss).toMatch(
-      /\.desktop-titlebar-reach-button \.desktop-titlebar-workspace-mark\[data-reach-place="cloud"\] \{\s*color: var\(--po-brand-blue, var\(--po-accent-text\)\);/);
     expect(titlebarCss).not.toContain('.desktop-titlebar-workspace-mark[data-project-location="cloud"]');
     const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
     // Whatever else shares the rule, the Homepage Cloud mark is painted product blue.

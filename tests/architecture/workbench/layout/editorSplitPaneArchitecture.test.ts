@@ -35,7 +35,7 @@ const paneActionsMenuSource = readFileSync(
   "utf8",
 );
 const paneChromeRevealSource = readFileSync(
-  new URL("../../../../src/features/editor-workbench/layout/useEditorPaneChromeReveal.ts", import.meta.url),
+  new URL("../../../../src/components/useEditorPaneChromeReveal.ts", import.meta.url),
   "utf8",
 );
 const paneRuntimeSource = readFileSync(

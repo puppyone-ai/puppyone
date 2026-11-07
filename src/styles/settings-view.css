@@ -112,8 +112,7 @@
 }
 
 .desktop-settings-dialog-layout,
-.desktop-plugins-dialog-layout,
-.desktop-cloud-dialog-layout {
+.desktop-plugins-dialog-layout {
   display: grid;
   min-height: 0;
   flex: 1;
@@ -129,16 +128,14 @@
 .desktop-settings-dialog-content,
 .desktop-plugins-dialog-navigation,
 .desktop-plugins-dialog-content,
-.desktop-cloud-dialog-navigation,
-.desktop-cloud-dialog-content {
+.desktop-cloud-publish-dialog-content {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
 .desktop-settings-dialog-navigation,
-.desktop-plugins-dialog-navigation,
-.desktop-cloud-dialog-navigation {
+.desktop-plugins-dialog-navigation {
   display: flex;
   border-inline-end: 1px solid var(--po-border-subtle);
   background: var(--po-sidebar);
@@ -154,17 +151,19 @@
   background: transparent;
 }
 
-.desktop-cloud-dialog-navigation .desktop-cloud-service-sidebar {
-  width: 100%;
-  height: 100%;
-  background: transparent;
-}
-
 .desktop-settings-dialog-content,
 .desktop-plugins-dialog-content,
-.desktop-cloud-dialog-content {
+.desktop-cloud-publish-dialog-content {
   display: flex;
   background: var(--po-canvas);
+}
+
+.desktop-cloud-publish-dialog {
+  height: min(640px, calc(100vh - 2 * var(--desktop-task-dialog-inset)));
+}
+
+.desktop-cloud-publish-dialog-content {
+  flex: 1;
 }
 
 .desktop-settings-dialog-content .desktop-settings-body {

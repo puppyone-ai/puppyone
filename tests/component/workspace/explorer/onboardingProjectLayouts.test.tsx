@@ -52,9 +52,15 @@ const pick = (container: HTMLElement, layout: string) => {
   act(() => layoutTrigger(container).click());
   act(() => layoutOption(container, layout).click());
 };
+/** A project by what it is, wherever its group puts it on the page. */
 const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
-  const wrap = [...container.querySelectorAll<HTMLElement>(".onboarding-project-row-wrap")];
-  return { local: wrap[0], linked: wrap[1], cloud: wrap[2] }[id]!;
+  const wraps = [...container.querySelectorAll<HTMLElement>(".onboarding-project-row-wrap")];
+  const linkedId = (wrap: HTMLElement) => wrap.getAttribute("data-linked-cloud-project-id");
+  return wraps.find((wrap) => ({
+    local: wrap.dataset.projectLocation === "local" && !linkedId(wrap),
+    linked: Boolean(linkedId(wrap)),
+    cloud: wrap.dataset.projectLocation === "cloud",
+  })[id])!;
 };
 
 const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
@@ -278,17 +284,18 @@ describe("Homepage project layouts", () => {
   it("filters by any number of places, showing every project when none is chosen", () => {
     const { container } = renderHome();
     const shown = () => [...container.querySelectorAll(".onboarding-project-row-wrap")].map((row) => row.getAttribute("data-project-location"));
-    expect(shown()).toEqual(["local", "local", "cloud"]);
+    // The Cloud's projects lead the page, then this computer's.
+    expect(shown()).toEqual(["cloud", "local", "local"]);
     togglePlaces(container, "Cloud projects");
     expect(shown()).toEqual(["cloud"]);
     pick(container, "grid");
     expect(shown()).toEqual(["cloud"]);
     togglePlaces(container, "This computer");
-    expect(shown()).toEqual(["local", "local", "cloud"]);
+    expect(shown()).toEqual(["cloud", "local", "local"]);
     togglePlaces(container, "Cloud projects");
     expect(shown()).toEqual(["local", "local"]);
     togglePlaces(container, "This computer");
-    expect(shown()).toEqual(["local", "local", "cloud"]);
+    expect(shown()).toEqual(["cloud", "local", "local"]);
   });
 
   it("leaves the filter open while choosing several, and closes the order on its one choice", () => {
@@ -394,6 +401,13 @@ describe("Homepage project layouts", () => {
     act(() => layoutTrigger(container).click());
     expect(container.querySelector(".onboarding-view-menu")?.getAttribute("aria-label")).toBe("Project layout");
     expect(LAYOUTS.map((layout) => layoutOption(container, layout).textContent)).toEqual(["List", "Grid"]);
+  });
+
+  it("offers the Grid, the default, first", () => {
+    const { container } = renderHome();
+    act(() => layoutTrigger(container).click());
+    expect([...container.querySelectorAll("[data-project-layout-option]")].map((option) => option.textContent))
+      .toEqual(["Grid", "List"]);
   });
 
   it("remembers the choice across launches", () => {

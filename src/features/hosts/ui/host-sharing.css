@@ -1,0 +1,111 @@
+/* What the owner's other computers may do with one folder: two choices of access,
+   then what may run here, each applied as it is chosen. */
+.host-sharing-dialog {
+  width: min(440px, calc(100vw - 48px));
+}
+
+.host-sharing-body {
+  gap: 16px;
+}
+
+.host-sharing-body > p {
+  margin: 0;
+}
+
+.host-sharing-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.host-sharing-heading {
+  margin: 0;
+  padding: 0;
+  color: var(--po-text);
+  font-size: var(--po-text-size-interface, 13px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 18px;
+}
+
+.host-sharing-options {
+  display: grid;
+  gap: 6px;
+}
+
+.host-sharing-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.host-sharing-option:hover {
+  background: var(--po-hover);
+}
+
+.host-sharing-option[data-selected] {
+  border-color: color-mix(in srgb, var(--po-accent) 52%, var(--po-border-subtle));
+  background: color-mix(in srgb, var(--po-accent) 8%, transparent);
+}
+
+.host-sharing-option input {
+  margin: 2px 0 0;
+  accent-color: var(--po-accent);
+}
+
+.host-sharing-option:has(input:focus-visible) {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -1px;
+}
+
+.host-sharing-section:disabled .host-sharing-option {
+  opacity: 0.6;
+}
+
+.host-sharing-option-text {
+  display: grid;
+  gap: 2px;
+}
+
+.host-sharing-option-label {
+  color: var(--po-text);
+  font-size: var(--po-text-size-interface, 13px);
+  line-height: 18px;
+}
+
+.host-sharing-option-detail {
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 16px;
+}
+
+.host-sharing-switches {
+  display: grid;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 8px;
+}
+
+.host-sharing-switch-row {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--po-text);
+}
+
+.host-sharing-switch-row + .host-sharing-switch-row {
+  border-top: 1px solid var(--po-border-subtle);
+}
+
+.host-sharing-section .desktop-dialog-note {
+  margin: 0;
+}

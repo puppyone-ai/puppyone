@@ -39,7 +39,7 @@ describe("workspace registry lifecycle", () => {
     expect(result.items).toHaveLength(12);
     expect(new Set(result.items.map((item) => item.workspace.workspaceInstanceId)).size).toBe(12);
     const raw = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(raw.version).toBe(7);
+    expect(raw.version).toBe(8);
     expect(raw.recentWorkspaces).toHaveLength(12);
   });
 
@@ -93,7 +93,7 @@ describe("workspace registry lifecycle", () => {
 
     expect(first.workspaceId).toMatch(/^workbench:/);
     expect(second.workspaceId).toBe(first.workspaceId);
-    expect(persisted.version).toBe(7);
+    expect(persisted.version).toBe(8);
     expect(persisted.lastActiveWorkbenchWorkspaceId).toBe(first.workspaceId);
   });
 
@@ -293,7 +293,7 @@ describe("workspace registry lifecycle", () => {
 
     await store.rememberRecentWorkspacePath(folder, beforeRewrite.items[0].workspace);
     const persisted = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(persisted.version).toBe(7);
+    expect(persisted.version).toBe(8);
     expect(persisted.recentWorkspaces[0]).not.toHaveProperty("projectId");
   });
 

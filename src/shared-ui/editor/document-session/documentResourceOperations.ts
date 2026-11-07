@@ -2,7 +2,7 @@ import { settleFileResourceReleases } from "../resource/FileResourcePool";
 import { canonicalizeDocumentResourcePath } from "./documentIdentity";
 import { retireEditorTasks } from "../runtime/retireEditorTasks";
 import type { DataPort } from "../../core/types";
-import { getDataResourceParent, joinDataResourcePath } from "../../core/dataResourcePath";
+import { getDataResourceParent, joinDataResourcePath, resolveDataResourceWorkspaceRoot } from "../../core/dataResourcePath";
 import { getEditorStorageIdentity, retireDocumentInputs } from "../resource/DocumentInputRuntime";
 import { shareEditorStorageIdentity } from "../resource/editorStorageIdentity";
 import { documentOperationQueue } from "./ResourceOperationQueue";
@@ -56,6 +56,13 @@ export function withEditorDocumentOperations(port: DataPort): DataPort {
   if (previous) return previous;
   const result: DataPort = {
     ...port,
+    ...(port.saveDocumentConversion ? { saveDocumentConversion: request => {
+      const storageIdentity = getEditorStorageIdentity(port);
+      return documentOperationQueue.run([
+        { storageIdentity, resource: request.path },
+        { storageIdentity, resource: joinDataResourcePath(resolveDataResourceWorkspaceRoot(request.path), "converted") },
+      ], () => port.saveDocumentConversion!(request));
+    } } satisfies Pick<DataPort, "saveDocumentConversion"> : {}),
     ...(port.copyNode ? { copyNode: async (from, folder, options) => {
       const storageIdentity = getEditorStorageIdentity(port);
       return documentOperationQueue.run([{ storageIdentity, resource: from }, { storageIdentity, resource: folder }], async () => {

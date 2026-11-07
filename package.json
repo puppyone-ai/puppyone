@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
     "url": "https://github.com/puppyone-ai/puppyone/issues"
   },
   "type": "module",
-  "main": "electron/main.mjs",
+  "main": "electron/app-entry.mjs",
   "puppyoneCapabilities": {
     "externalViewerPacks": false,
     "gitAutoCommit": false
@@ -50,6 +50,8 @@
     "dev:local-cloud:web": "npm run dev -- --local-cloud=dev",
     "dev:agent-sandbox": "node scripts/dev-agent-sandbox.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://try.puppyone.ai npm run dev",
+    "dev:open-with": "node scripts/desktop/dev/open-with.mjs install",
+    "dev:open-with:remove": "node scripts/desktop/dev/open-with.mjs remove",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
     "dev:desktop-telemetry-edge": "wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc",
@@ -188,6 +190,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "semver": "^7.7.3",
+    "ssh2": "^1.17.0",
     "tar": "7.5.22",
     "yauzl": "3.4.0",
     "zustand": "^5.0.15"
@@ -213,6 +216,8 @@
     "@formatjs/icu-messageformat-parser": "3.5.5",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.4",
+    "@tesseract.js-data/chi_sim": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/parser": "^8.62.1",
@@ -234,14 +239,17 @@
     "js-yaml": "4.3.2",
     "katex": "^0.16.47",
     "lucide-react": "^0.562.0",
+    "mammoth": "1.13.0",
     "mermaid": "^11.16.1",
     "node-api-headers": "1.9.0",
     "parse5": "8.0.0",
+    "pdfjs-dist": "6.5.438",
     "plist": "3.1.0",
     "pngjs": "7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "saxes": "^6.0.0",
+    "tesseract.js-core": "6.1.2",
     "typescript": "^5.6.3",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",

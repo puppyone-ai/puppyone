@@ -5,12 +5,50 @@ export const CLOUD_INITIAL_PUSH_TIMEOUT_MS = 30 * 60_000;
 // Checking a failed push must not start another minute-long network wait.
 export const CLOUD_PUSH_STATUS_TIMEOUT_MS = 10_000;
 
-export function isPushLimitFailure(error) {
-  const diagnostic = [error?.stderr, error?.stdout, error?.message]
+// The refusal codes of contracts/cloud-git-acceptance-v1.json. Cloud appends
+// "(puppyone-refusal=<code>)" to the reason of a push a fixed budget refused;
+// the same content can never pass, so it is a size refusal, not a retry. A
+// test holds this list equal to the pinned contract.
+export const CLOUD_GIT_LIMIT_CODES = Object.freeze([
+  "git_graph_limit",
+  "git_object_count_limit",
+  "git_pack_too_large",
+  "git_processing_disk_limit",
+  "git_processing_metadata_limit",
+  "git_processing_output_limit",
+  "git_published_object_count_limit",
+  "git_single_object_limit",
+  "git_stored_pack_too_large",
+]);
+
+// Servers that predate the refusal codes say it only in words. The native
+// Version Engine wording comes first; the `incoming ... budget` forms are what
+// servers before it reported.
+const PROCESSING_LIMIT_DIAGNOSTICS = [
+  /Git (?:pack )?(?:single-object|graph|object count|temporary disk|output|metadata) budget exceeded/i,
+  /published object count budget exceeded/i,
+  /completed Git pack exceeds the storage processing budget/i,
+  /incoming (?:pack (?:expansion|byte)|expanded pack) budget exceeded/i,
+];
+
+function pushDiagnostic(error) {
+  return [error?.stderr, error?.stdout, error?.message]
     .filter((value) => typeof value === "string" || Buffer.isBuffer(value))
     .map(String).join(" ");
+}
+
+/** The contract code Cloud named for this refusal, or null. */
+export function pushRefusalCode(error) {
+  const match = /\(puppyone-refusal=([a-z][a-z0-9_]{0,79})\)/.exec(pushDiagnostic(error));
+  return match ? match[1] : null;
+}
+
+export function isPushLimitFailure(error) {
+  if (CLOUD_GIT_LIMIT_CODES.includes(pushRefusalCode(error))) return true;
+  // A code this release does not know falls back to the words, as before codes.
+  const diagnostic = pushDiagnostic(error);
   return isPushPackLimitFailure(error)
-    || /incoming (?:pack (?:expansion|byte)|expanded pack) budget exceeded|Git (?:single-object|graph) budget exceeded|completed Git pack exceeds the storage processing budget/i.test(diagnostic);
+    || PROCESSING_LIMIT_DIAGNOSTICS.some((pattern) => pattern.test(diagnostic));
 }
 
 export function isPushPackLimitFailure(error) {

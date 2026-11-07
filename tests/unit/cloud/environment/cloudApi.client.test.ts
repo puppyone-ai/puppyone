@@ -576,6 +576,17 @@ describe("session / api-base guards", () => {
     });
   });
 
+  it("keeps the server's retry decision and request id from the IPC envelope", async () => {
+    bridge.mockResolvedValue({
+      transport: "puppyone-cloud-ipc-v1",
+      ok: false,
+      error: { status: 409, code: "workbench_not_running", message: "moved", retryable: true, requestId: "req-5" },
+    });
+    const error = await cloudApiRequest("/projects/project-1/workbench", session, undefined, {}, API)
+      .then(() => null, (reason: unknown) => reason);
+    expect(error).toMatchObject({ status: 409, code: "workbench_not_running", retryable: true, requestId: "req-5" });
+  });
+
   it("rejects with 401 (without calling the bridge) when the requested api base != the session's", async () => {
     const otherApi = "https://subdomain.puppyone.ai/api/v1";
     await expect(

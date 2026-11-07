@@ -1,5 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { saveWorkspaceDocumentConversion } from "../../local-api/files/document-conversion-save.mjs";
 import {
   copyWorkspaceEntry,
   copyWorkspaceEntryBetweenRoots,
@@ -312,6 +313,11 @@ export function registerWorkspaceFileIpcHandlers({
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
       return result;
     });
+  });
+
+  ipcMain.handle("workspace:save-document-conversion", async (event, request) => {
+    const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
+    return runWorkspaceMutation(rootPath, () => saveWorkspaceDocumentConversion(rootPath, request));
   });
 
   ipcMain.handle("workspace:instantiate-template", async (event, request) => {

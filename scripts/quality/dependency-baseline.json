@@ -1096,15 +1096,6 @@
   {
     "type": "dependency",
     "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
-    "to": "src/features/cloud/CloudDialog.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
     "to": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
     "rule": {
       "severity": "error",
@@ -1232,24 +1223,6 @@
     "type": "dependency",
     "from": "src/features/app-shell/RestoringWorkspaceScreen.tsx",
     "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
-    "to": "src/features/cloud/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
-    "to": "src/features/cloud/workbench/CloudFileWorkspaceGate.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
@@ -1599,15 +1572,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/cloud/routes/CloudRouter.tsx",
-    "to": "src/features/source-control/remotes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/sections/AutomationRouteSection.tsx",
     "to": "src/features/automation/CloudProjectAutomationView.tsx",
     "rule": {
@@ -1646,42 +1610,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
     "to": "src/features/data-workspace/useFileClipboard.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/explorer.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/useDataNodeActions.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/useProjectExplorerSession.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/editor-workbench/controller/useDesktopEditorWorkbench.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"

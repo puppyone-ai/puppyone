@@ -1,21 +1,20 @@
 export {
   cloudContextHasProject,
   getResolvedCloudProjectId,
-  resolveCloudHubSectionAfterContextChange,
-  resolveCloudHubSectionForContext,
   resolveProjectCloudContext,
   useCurrentRepositoryCloudContext,
   type ProjectCloudContext,
 } from "./project/context";
-export { CloudServiceMainView } from "./CloudServiceMainView";
-export { CloudDialog, type CloudDialogProps } from "./CloudDialog";
+export { CloudPublishDialog } from "./initialization/CloudPublishDialog";
+export { CloudPublishTask } from "./initialization/CloudPublishTask";
+export { CloudFileWorkspaceGate } from "./workbench/CloudFileWorkspaceGate";
+export type { CloudProjectPreparationProps } from "./types";
 export {
   CloudProjectHistorySidebar,
   CloudProjectHistoryView,
   type CloudProjectHistoryProps,
 } from "./history";
 export type { AccessPointCatalogKind } from "./access-points";
-export { CloudServiceSidebar } from "./CloudServiceSidebar";
 export {
   getCloudAuthEmail,
   getCloudAuthSession,
@@ -24,7 +23,6 @@ export {
 } from "./auth";
 export { resolveCloudEnvironment } from "./environment";
 export {
-  CLOUD_HUB_ENTRY_SECTION,
   CLOUD_ROUTES,
   getCloudRoute,
   getCloudRouteWebPath,
@@ -43,3 +41,4 @@ export { isAccessPointNavigationResource } from "./access-points";
 export { useCloudHistoryController } from "./history/useCloudHistoryController";
 export { useCloudBillingController } from "./billing/useCloudBillingController";
 export type { LocalFolderCloudNotice } from "./project/localFolderCloudNoticeState";
+export { decodeWorkspaceBytes, encodeWorkspaceBytes } from "./files/cloudWorkspaceClient";

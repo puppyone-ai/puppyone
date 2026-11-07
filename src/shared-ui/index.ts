@@ -223,6 +223,13 @@ export type {
   DataNodeEditorHostProps as EditorHostProps,
 } from "./editor/host/DataNodeEditorHost";
 export { EditorDocumentHost } from "./editor/host/EditorDocumentHost";
+export {
+  EMBEDDED_POINTER_EVENT,
+  EMBEDDED_SCROLL_EVENT,
+  relayEmbeddedPointer,
+  relayEmbeddedScroll,
+} from "./editor/host/embeddedFrameRelay";
+export type { EmbeddedPointerDetail, EmbeddedScrollDetail } from "./editor/host/embeddedFrameRelay";
 export type { EditorDocumentHostProps } from "./editor/host/EditorDocumentHost";
 export { PresetViewerRuntimeHostProvider } from "./editor/host/PresetViewerRuntimeHost";
 export type {
@@ -706,3 +713,6 @@ export type {
 export { commitEditorLayout } from "./editor/runtime/editorLayout";
 
 export { MARKDOWN_SHORTCUT_DEFINITIONS, isMarkdownShortcutCommand, type MarkdownShortcutDefinition } from "./editor/markdown";
+export * from "./editor/conversion/types";
+export { tableToCsv } from "./editor/conversion/output";
+export { DocumentConversionProvider } from "./editor/conversion/DocumentConversionProvider";

@@ -15,7 +15,7 @@ const DEFAULT_DIALOG_MESSAGES = Object.freeze({
 });
 
 /** Preserve app-quit intent across the asynchronous BrowserWindow close gate. */
-export function createApplicationQuitIntent({ app, platform = process.platform }) {
+export function createApplicationQuitIntent({ app, platform = process.platform, onCancel = () => undefined }) {
   if (!app || typeof app.quit !== "function") {
     throw new TypeError("An Electron app implementation is required.");
   }
@@ -26,6 +26,7 @@ export function createApplicationQuitIntent({ app, platform = process.platform }
     },
     cancel: () => {
       requested = false;
+      onCancel();
     },
     resumeAfterLastWindowClosed: () => {
       if (platform !== "darwin" || requested) app.quit();

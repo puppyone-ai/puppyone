@@ -1,17 +1,15 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { Forward, LoaderCircle, Plus } from "lucide-react";
+import { LoaderCircle, Plus } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
-import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 import type { AgentRequest } from "../share/agentLinks";
 import { CloudWorkspaceAgentRequestCard } from "../share/CloudWorkspaceAgentRequestCard";
 import type { ShareAgentMark } from "../share/agentMark";
 import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAgents";
 
-const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 const AgentsDialog = lazy(() => import("../share/CloudWorkspaceAgentsDialog").then(module => ({ default: module.CloudWorkspaceAgentsDialog })));
 
 export type CloudWorkspacePeople = Readonly<{
@@ -26,7 +24,6 @@ export type CloudWorkspacePeople = Readonly<{
 
 type Props = {
   context: ProjectCloudContext | null;
-  getShareResource?: () => CloudWorkspaceShareResource | null;
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
@@ -37,11 +34,6 @@ type Props = {
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 };
 
-/**
- * Sharing with people stays out of the Header until inviting Agents works end
- * to end; its card and dialog are kept so it can come back as it is.
- */
-const SHARE_WITH_PEOPLE = false;
 /** A sign-in request lasts ten minutes, so an invite with no answer by then is not awaited. */
 const INVITE_WAIT_MS = 10 * 60_000;
 /** Who opened the Agents dialog: one Agent's mark, the stack of the ones at rest, or the empty seat. */
@@ -61,16 +53,13 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
-  const { t } = useLocalization();
-  const [panel, setPanel] = useState<"share" | "agents" | null>(null);
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
+  const [panel, setPanel] = useState<"agents" | null>(null);
   const [opener, setOpener] = useState<string | null>(null);
   /** The Agents already here when the last invite was copied, so a newcomer ends the wait. */
   const [invite, setInvite] = useState<ReadonlySet<string> | null>(null);
-  const shareButton = useRef<HTMLButtonElement>(null);
   const agentsAnchor = useRef<HTMLDivElement>(null);
   const denyRequest = useRef<HTMLButtonElement>(null);
-  const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
   // Inviting watches closely for an answer; a pending request then has its own persistent card.
   const { agents, requests, manageable, loading, refresh: refreshAgents } = useWorkspaceAgents(
@@ -86,12 +75,6 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     return () => clearTimeout(timer);
   }, [invite]);
   const closePanel = () => setPanel(null);
-  const toggleShare = () => {
-    if (panel === "share") { closePanel(); return; }
-    try { setShareResource(getShareResource?.()); }
-    catch { setShareResource(null); }
-    setPanel("share");
-  };
   // The Agents open straight into their dialog: no menu stands between the Header and what it opens.
   const openAgents = (next: string) => {
     if (pending) { denyRequest.current?.focus(); return; }
@@ -114,29 +97,20 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   const seat = (manageable || checking) && !(ready && listed);
   const agentsShown = (ready && listed) || seat;
   return <>
-    <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}
-      data-share-people={SHARE_WITH_PEOPLE || undefined}>
+    <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       {agentsShown && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
         {ready && listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
           onOpen: agentId => openAgents(agentId ?? MORE) })}
         {seat && <InviteAgentTool checking={!manageable} open={agentsOpen && opener === INVITE}
           onOpen={() => openAgents(INVITE)} />}
       </div>}
-      {SHARE_WITH_PEOPLE && <Tooltip content={t(ready ? "shell.titlebar.share" : "shell.workspaceSwitcher.location.checking")}>
-        <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
-          data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
-          aria-haspopup="dialog" aria-expanded={panel === "share"} onClick={toggleShare}>
-          <Forward size={15} strokeWidth={1.8} aria-hidden="true" />
-        </button>
-      </Tooltip>}
-      {(agentsShown || SHARE_WITH_PEOPLE) && <span className="desktop-titlebar-action-divider" aria-hidden="true" />}
+      {agentsShown && <span className="desktop-titlebar-action-divider" aria-hidden="true" />}
       <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
     {pending && control && <CloudWorkspaceAgentRequestCard key={pending.id} request={pending} count={requests.length}
       anchorRef={agentsAnchor} denyRef={denyRequest} session={control.session} apiBaseUrl={apiBaseUrl}
       projectName={control.projectName} onChanged={refreshPeople} renderAgentMark={renderAgentMark} />}
     {context?.status === "resolved" && <Suspense fallback={null}>
-      {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel} />}
       {agentsOpen && control && <AgentsDialog control={control} agents={agents} requests={requests}
         renderAgentMark={renderAgentMark} onClose={closePanel} />}
     </Suspense>}

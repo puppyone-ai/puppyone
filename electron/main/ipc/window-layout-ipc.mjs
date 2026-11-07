@@ -9,7 +9,22 @@ const WINDOW_ACTIONS = new Set(["minimize", "toggle-maximize", "close"]);
  * in one contract. The renderer reports only the current workbench minimum;
  * main owns validation and the product-level 640px floor.
  */
-export function registerWindowLayoutIpcHandlers({ ipcMain, BrowserWindow }) {
+export function registerWindowLayoutIpcHandlers({ ipcMain, BrowserWindow, screen }) {
+  /**
+   * Where the pointer is over the window's content, or null when it is
+   * elsewhere. A native drag region (the title bar) sends the renderer no
+   * pointer events, so chrome that reacts to the pointer asks here instead.
+   */
+  ipcMain.handle("window-layout:get-cursor-point", (event) => {
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!ownerWindow || ownerWindow.isDestroyed?.() || !screen) return null;
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = ownerWindow.getContentBounds();
+    const x = cursor.x - bounds.x;
+    const y = cursor.y - bounds.y;
+    return x >= 0 && y >= 0 && x < bounds.width && y < bounds.height ? { x, y } : null;
+  });
+
   ipcMain.handle("window-layout:get-chrome-state", (event) => {
     const ownerWindow = BrowserWindow.fromWebContents(event.sender);
     return {

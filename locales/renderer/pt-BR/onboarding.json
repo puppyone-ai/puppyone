@@ -123,6 +123,7 @@
   "template.loading": "Carregando…",
   "template.signIn": "Entrar para usar este modelo",
   "template.signingIn": "Entrando…",
+  "projects.groups.cloud": "Nuvem",
   "entry.import.includeSubpages": "Incluir subpáginas",
   "template.unpack": "Extrair e abrir",
   "template.localDescription": "Extraia os arquivos do modelo para um novo projeto."

@@ -3,10 +3,14 @@ import type {
   AppPreviewResult,
   DataNode,
   FileContent,
+  ConvertedDocumentOutputRequest,
+  ConvertedDocumentOutputResult,
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
+  HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
@@ -1002,6 +1006,8 @@ declare global {
       connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
+      /** Where the pointer is over this window's content, or null when it is elsewhere. */
+      getWindowCursorPoint: () => Promise<{ x: number; y: number } | null>;
       setWindowChromeProfile: (request: {
         titlebar: string;
       }) => Promise<{
@@ -1127,6 +1133,43 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      listHostDevices: (expectedSession: HostSession) => Promise<{ devices: HostCatalogDevice[] }>;
+      registerHostFolder: (request: { rootPath: string; writable?: boolean }) => Promise<
+        { deviceId: string; folderId: string } | { cancelled: true }>;
+      connectHostDevice: (expectedSession: HostSession) => Promise<{ deviceId: string | null; paused?: boolean }>;
+      disconnectHostDevice: () => Promise<{ disconnected: true }>;
+      removeHostFolder: (request: { deviceId: string; folderId: string;
+        expectedSession: HostSession }) => Promise<{ removed: boolean } | { cancelled: true }>;
+      updateHostFolder: (request: { deviceId: string; folderId: string; name: string; writable: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      revokeHostDevice: (request: { deviceId: string; expectedSession: HostSession }) => Promise<
+        { revoked: boolean } | { cancelled: true }>;
+      getHostStatus: () => Promise<HostSharingStatus>;
+      setHostSharingPaused: (request: { paused: boolean; expectedSession: HostSession }) => Promise<{ paused: boolean }>;
+      getHostAutostart?: () => Promise<{ supported: boolean; enabled: boolean }>;
+      setHostAutostart?: (request: { enabled: boolean }) => Promise<{ supported: boolean; enabled: boolean }>;
+      onHostStatus: (callback: (status: HostSharingStatus) => void) => () => void;
+      requestHostFolder: <T>(request: { folderId: string; operation: HostFileOperation;
+        expectedSession: HostSession }) => Promise<HostFolderResult<T>>;
+      watchHostFolder: (request: { id: string; folderId: string; expectedSession: HostSession }) => Promise<{ id: string }>;
+      stopHostFolderWatch: (request: { id: string }) => Promise<void>;
+      onHostFolderEvent: (callback: (event: HostFolderEvent) => void) => () => void;
+      listRecentHostFolders: (expectedSession: HostSession) => Promise<{ folders: RecentHostFolder[];
+        lastActive: RecentHostFolder | null }>;
+      recordRecentHostFolder: (request: { deviceId: string; folderId: string; name: string; hostName: string;
+        writable: boolean; expectedSession: HostSession }) => Promise<RecentHostFolder>;
+      closeRecentHostFolder: (request: { expectedSession: HostSession }) => Promise<boolean>;
+      forgetRecentHostFolder: (request: { folderId: string; expectedSession: HostSession }) => Promise<boolean>;
+      setHostExecution: (request: { deviceId: string; folderId: string; terminal: boolean; git: boolean; agent: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      stopRemoteHostSessions: () => Promise<{ stopped: true }>;
+      openHostTerminal: (request: { id: string; folderId: string; kind: "shell" | "agent"; launcher: HostLauncher;
+        cols: number; rows: number; expectedSession: HostSession }) => Promise<{ id: string }>;
+      writeHostTerminal: (request: { id: string; data: string }) => Promise<boolean>;
+      resizeHostTerminal: (request: { id: string; cols: number; rows: number }) => Promise<boolean>;
+      interruptHostTerminal: (request: { id: string }) => Promise<boolean>;
+      closeHostTerminal: (request: { id: string }) => Promise<boolean>;
+      onHostTerminalEvent: (callback: (event: HostTerminalEvent) => void) => () => void;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;
@@ -1172,7 +1215,6 @@ declare global {
         };
       }>;
       openExternalUrl: (href: string) => Promise<{ ok: boolean }>;
-      setFileEdited: (edited: boolean) => void;
       onFileModeFileChanged: (callback: () => void) => () => void;
       submitFeedback: (request: {
         message: string;
@@ -1346,6 +1388,7 @@ declare global {
         expectedVersion?: string | null;
       }) => Promise<WorkspaceWriteFileResult>;
       createEntry: (request: WorkspaceCreateEntryRequest) => Promise<WorkspaceCreateEntryResult>;
+      saveDocumentConversion: (request: ConvertedDocumentOutputRequest & { rootPath: string }) => Promise<ConvertedDocumentOutputResult>;
       instantiateTemplate: (
         request: WorkspaceInstantiateTemplateRequest,
       ) => Promise<WorkspaceInstantiateTemplateResult>;

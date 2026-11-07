@@ -130,7 +130,7 @@ export function AppPreviewSetupView({
   };
 
   return (
-    <div className="app-setup-scroll">
+    <div className="app-setup-scroll" data-po-scrollbar="content">
       <div className="app-setup-panel" data-screen={screen}>
         {screen !== "detecting"
           && screen !== "detected"
@@ -169,7 +169,7 @@ export function AppPreviewSetupView({
             icon={<Globe2 size={22} aria-hidden="true" />}
             title={t("editor.app.setup.projectsTitle")}
           >
-            <div className="app-setup-project-list" role="radiogroup" aria-label={t("editor.app.setup.detectedProjects")}>
+            <div className="app-setup-project-list" data-po-scrollbar="content" role="radiogroup" aria-label={t("editor.app.setup.detectedProjects")}>
               {detection.projects.map((candidate) => (
                 <label className="app-setup-project-option" data-selected={candidate.id === selectedProjectId || undefined} key={candidate.id}>
                   <input

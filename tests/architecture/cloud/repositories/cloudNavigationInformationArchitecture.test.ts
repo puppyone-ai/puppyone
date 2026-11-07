@@ -1,47 +1,39 @@
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { HomeIcon } from "../../../../src/shared-ui/icons/productIcons";
-import {
-  CLOUD_HUB_ENTRY_SECTION,
-  CLOUD_PROJECT_SIDEBAR_ROUTES,
-  normalizeCloudSection,
-  getCloudRoute,
-  getCloudSidebarActiveSection,
-} from "../../../../src/features/cloud/routes/cloudRoutes";
-import { McpLogoIcon } from "../../../../src/features/cloud/components/McpLogoIcon";
+import { CLOUD_ROUTES, getCloudRoute, getCloudRouteWebPath, getCloudSignedOutSection, normalizeCloudSection }
+  from "../../../../src/features/cloud/routes/cloudRoutes";
+const source = (file: string) => readFileSync(new URL(`../../../../${file}`, import.meta.url), "utf8");
 
-describe("Cloud navigation information architecture", () => {
-  it("enters Cloud through Homepage", () => {
-    expect(CLOUD_HUB_ENTRY_SECTION).toBe("contents");
+describe("Cloud Hub retirement", () => {
+  it("removes the Hub, its sidebar and both Share onboarding presentations", () => {
+    for (const file of ["CloudDialog.tsx", "CloudServiceSidebar.tsx", "CloudServiceMainView.tsx", "routes/CloudRouter.tsx",
+      "routes/CloudProjectRouteOutlet.tsx", "organization/CloudOrganizationRouteOutlet.tsx", "share/ShareWizardDialog.tsx", "share/CloudShareHome.tsx", "share/useProjectShareActivity.ts",
+      "share/CloudShareContext.tsx", "share/project-reach/ProjectReachDialog.tsx", "share/CloudWorkspaceShareDialog.tsx"]) {
+      expect(existsSync(new URL(`../../../../src/features/cloud/${file}`, import.meta.url)), file).toBe(false);
+    }
   });
-
-  it("keeps Homepage and Connections as separate product groups", () => {
-    expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual([
-      "contents",
-      "mcp",
-      "cli",
-    ]);
-    expect(getCloudRoute("contents").icon).toBe(HomeIcon);
-    expect(getCloudRoute("share").navigationGroup).toBe("project");
-    expect(getCloudRoute("share").showInSidebar).toBe(false);
-    expect(getCloudRoute("mcp").icon).toBe(McpLogoIcon);
-    expect(getCloudRoute("mcp").navigationGroup).toBe("connections");
-    expect(getCloudRoute("cli").navigationGroup).toBe("connections");
-    expect(getCloudRoute("git-sync").navigationGroup).toBe("connections");
-    expect(getCloudRoute("git-sync").showInSidebar).toBe(false);
-    expect(getCloudRoute("access").showInSidebar).toBe(false);
-    expect(getCloudRoute("history").showInSidebar).toBe(false);
-    expect(getCloudRoute("settings").showInSidebar).toBe(false);
+  it("cannot revive Share from a preference or another local entry", () => {
+    for (const file of ["src/App.tsx", "src/preferences.ts", "src/features/settings/main/ExperimentalSettingsView.tsx",
+      "src/features/app-shell/DesktopTitlebarActions.tsx", "src/features/app-shell/project-place/ProjectPlaceMenu.tsx",
+      "src/features/data-workspace/nodeActions.tsx"]) {
+      expect(source(file), file).not.toMatch(/enableShareOnboarding|openShareWizard|onInvitePerson|onConnectAgent|onShare\??[:=,]/);
+    }
+    expect(source("src/features/cloud/workbench/CloudWorkspaceHeaderTools.tsx")).not.toMatch(/SHARE_WITH_PEOPLE|ShareDialog|getShareResource/);
   });
-
-  it("keeps History and Settings as Homepage drill-downs", () => {
-    expect(getCloudSidebarActiveSection("history")).toBe("contents");
-    expect(getCloudSidebarActiveSection("settings")).toBe("contents");
+  it("retains service metadata and Web destinations without a navigation tree", () => {
+    expect(CLOUD_ROUTES.every(route => !("showInSidebar" in route) && !("navigationGroup" in route))).toBe(true);
+    expect(CLOUD_ROUTES.map(route => route.id)).not.toContain("share");
+    expect(getCloudRouteWebPath("mcp", "p1")).toBe("/projects/p1/access");
+    expect(getCloudRouteWebPath("cli", "p1")).toBe("/projects/p1/access");
+    expect(getCloudRouteWebPath("cloud-team")).toBe("/team");
+    expect(getCloudRouteWebPath("cloud-billing")).toBe("/billing");
     expect(getCloudRoute("history").surface).toBe("history");
-    expect(getCloudRoute("settings").surface).toBe("landing");
+    expect(() => getCloudRouteWebPath("access")).toThrow("project id");
   });
-
-  it("sends a saved Automation section to Homepage now that the route is not registered", () => {
+  it("keeps authentication on the publish task rather than an MCP invitation", () => {
+    expect(getCloudSignedOutSection("initialize")).toBe("initialize");
+    expect(normalizeCloudSection("share")).toBe("contents");
     expect(normalizeCloudSection("automation")).toBe("contents");
-    expect(normalizeCloudSection("mcp")).toBe("mcp");
+    expect(normalizeCloudSection("mcp-cli")).toBe("mcp");
   });
 });

@@ -134,12 +134,13 @@ describe("command-line control server", () => {
     return { endpoint, root };
   }
 
-  function exchange(endpoint, payload) {
+  /** Sends `payload` and collects the reply. `halfClose` stops sending right after, as `printf … | nc -U` does. */
+  function exchange(endpoint, payload, { halfClose = false } = {}) {
     return new Promise((resolve, reject) => {
-      const socket = net.connect(endpoint);
+      const socket = net.connect({ path: endpoint, allowHalfOpen: true });
       let data = "";
       socket.setEncoding("utf8");
-      socket.on("connect", () => socket.write(payload));
+      socket.on("connect", () => (halfClose ? socket.end(payload) : socket.write(payload)));
       socket.on("data", (chunk) => { data += chunk; });
       socket.on("end", () => resolve(data));
       socket.on("close", () => resolve(data));
@@ -163,6 +164,21 @@ describe("command-line control server", () => {
     const { endpoint } = await startServer(handle);
     expect(JSON.parse(await exchange(endpoint, "{not json\n"))).toMatchObject({ ok: false });
     expect(handle).toHaveBeenCalledWith(undefined);
+  });
+
+  it("still answers a client that stopped sending once its request was out", async () => {
+    // The reply takes a moment, as opening a window does.
+    const handle = vi.fn(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true }), 50)));
+    const { endpoint } = await startServer(handle);
+    const reply = await exchange(endpoint, '{"protocol":1,"type":"open","paths":["/a.md"]}\n', { halfClose: true });
+    expect(JSON.parse(reply)).toEqual({ ok: true });
+  });
+
+  it("drops a client that stops sending before a whole request", async () => {
+    const handle = vi.fn();
+    const { endpoint } = await startServer(handle);
+    expect(await exchange(endpoint, '{"protocol":1', { halfClose: true })).toBe("");
+    expect(handle).not.toHaveBeenCalled();
   });
 
   it("drops a client that sends too much or never finishes", async () => {

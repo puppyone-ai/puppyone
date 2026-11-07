@@ -6,10 +6,10 @@ import { CloudWorkspaceLoadingState } from "../components/shared";
 import { CloudProjectRecoveryState } from "../states/CloudProjectRecoveryState";
 import { formatCloudMessage } from "../cloudPresentation";
 import { isCloudContextRecovery } from "../project/context";
-import type { CloudServiceMainViewProps } from "../types";
+import type { CloudProjectPreparationProps } from "../types";
 
 /** Preparation content has no services navigation or authority to select Cloud. */
-export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps) {
+export function CloudFileWorkspaceGate(props: CloudProjectPreparationProps) {
   const { t } = useLocalization();
   const { cloudAuthState, cloudEnvironment, projectContext, workspace, status, loading, error,
     cloudPublishState, cloudPublishStateLoading, onCloudSessionChange, onRefresh } = props;
@@ -18,7 +18,8 @@ export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps) {
     return <CloudSignedOutRoute activeSection="contents" authState={cloudAuthState}
       apiBaseUrl={cloudEnvironment.apiBaseUrl} loadingLabel={t("cloud.loading.session")} />;
   }
-  if (projectContext?.status === "local-only" || cloudPublishState || cloudPublishStateLoading) {
+  if (projectContext?.status === "local-only" || cloudPublishState || cloudPublishStateLoading
+    || props.cloudBackupLoading || props.cloudPublishProgress || props.cloudPublishError) {
     return <CloudInitializationRoute activeSection="initialize" workspace={workspace} status={status}
       session={session} apiBaseUrl={cloudEnvironment.apiBaseUrl} accountEmail={getCloudAuthEmail(cloudAuthState)}
       loading={loading} error={error} cloudActionNotice={null}

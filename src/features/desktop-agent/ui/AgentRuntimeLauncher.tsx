@@ -23,6 +23,7 @@ export function AgentRuntimeLauncher({
   return (
     <section
       className="desktop-agent-runtime-launcher"
+      data-po-scrollbar="content"
       aria-labelledby="desktop-agent-runtime-launcher-title"
     >
       <div className="desktop-agent-runtime-launcher-content">

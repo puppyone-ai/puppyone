@@ -3,7 +3,7 @@ import { assertEditorRuntimeAdmission } from "./editorRuntimeAdmission";
 import { documentOperationQueue } from "../document-session/ResourceOperationQueue";
 import { editorTaskScheduler, type EditorTaskOwner } from "./EditorTaskScheduler";
 
-export type EditorWorkerKind = "office-validation" | "spreadsheet" | "office-text" | "markdown-index";
+export type EditorWorkerKind = "office-validation" | "spreadsheet" | "office-text" | "markdown-index" | "document-conversion";
 export type EditorWorkerPort = Pick<Worker, "postMessage" | "onmessage" | "onerror" | "onmessageerror">;
 export type EditorWorkerLease = { port: EditorWorkerPort; closed: AbortSignal; close: () => Promise<void> };
 const signalOwners = new WeakMap<AbortSignal, EditorTaskOwner>();
@@ -77,6 +77,7 @@ function createWorker(kind: EditorWorkerKind): Worker {
     case "office-validation": return new Worker(new URL("../security/officePackageValidation.worker.ts", import.meta.url), { type: "module", name: "puppyone-office-package-validation" });
     case "spreadsheet": return new Worker(new URL("../viewers/office/spreadsheetPreview.worker.ts", import.meta.url), { type: "module", name: "puppyone-spreadsheet-preview" });
     case "office-text": return new Worker(new URL("../viewers/office/officeTextFallback.worker.ts", import.meta.url), { type: "module", name: "puppyone-office-text-fallback" });
+    case "document-conversion": return new Worker(new URL("../conversion/documentConversion.worker.ts", import.meta.url), { type: "module", name: "puppyone-document-conversion" });
     case "markdown-index": return new Worker(new URL("../markdown/platform/indexing/markdownLinkIndex.worker.ts", import.meta.url), { type: "module", name: "puppyone-markdown-link-index" });
   }
 }

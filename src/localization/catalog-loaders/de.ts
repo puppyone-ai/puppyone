@@ -4,6 +4,7 @@ import automation from "../../../locales/renderer/de/automation.json";
 import cloud from "../../../locales/renderer/de/cloud.json";
 import common from "../../../locales/renderer/de/common.json";
 import editor from "../../../locales/renderer/de/editor.json";
+import hosts from "../../../locales/renderer/de/hosts.json";
 import onboarding from "../../../locales/renderer/de/onboarding.json";
 import plugins from "../../../locales/renderer/de/plugins.json";
 import settings from "../../../locales/renderer/de/settings.json";
@@ -20,6 +21,7 @@ export default mergeCatalogNamespaces({
   "cloud": cloud,
   "common": common,
   "editor": editor,
+  "hosts": hosts,
   "onboarding": onboarding,
   "plugins": plugins,
   "settings": settings,

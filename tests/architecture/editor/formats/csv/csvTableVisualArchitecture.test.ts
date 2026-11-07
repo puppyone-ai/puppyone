@@ -218,13 +218,14 @@ describe("CSV table visual architecture", () => {
     expect(scrollRule).toBeDefined();
     expect(scrollRule).not.toMatch(/\bpadding(?:-|:)/);
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__frame\s*\{[^}]*padding-block:\s*var\(--csv-table-content-block-start-inset\)[^}]*var\(--csv-table-content-block-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
+      /\.csv-table-editor__frame\s*\{[^}]*padding-block:\s*calc\(var\(--csv-table-content-block-start-inset\) \+ var\(--po-editor-chrome-inset-block-start, 0px\)\)[^}]*var\(--csv-table-content-block-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
     );
     expect(csvTableCss).toMatch(
       /\.csv-table-editor__frame\s*\{[^}]*padding-inline:\s*var\(--csv-table-content-inline-start-inset\)[^}]*var\(--csv-table-content-inline-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
     );
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table thead th\s*\{[^}]*z-index:\s*3[^}]*inset-block-start:\s*0[^}]*var\(--po-editable-table-sticky-header-background\)[^}]*var\(--po-editor-bg\)/s,
+      // Pinned just below a host's chrome over the document's top; at the top edge without one.
+      /\.csv-table-editor__table thead th\s*\{[^}]*z-index:\s*3[^}]*inset-block-start:\s*var\(--po-editor-chrome-inset-block-start, 0px\)[^}]*var\(--po-editable-table-sticky-header-background\)[^}]*var\(--po-editor-bg\)/s,
     );
     expect(csvTableCss).toMatch(
       /\.csv-table-editor__table \.csv-table-editor__record-index\s*\{[^}]*z-index:\s*2[^}]*inset-inline-start:\s*0[^}]*var\(--csv-table-record-index-background\)[^}]*var\(--po-editor-bg\)/s,

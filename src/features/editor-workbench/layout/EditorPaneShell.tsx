@@ -13,7 +13,7 @@ import type { EditorFileDropController } from "../drag-and-drop/useExplorerFileD
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
 import type { PaneDropEdge } from "../drag-and-drop/paneDropGeometry";
 import { EditorPaneChrome } from "./EditorPaneChrome";
-import { useEditorPaneChromeReveal } from "./useEditorPaneChromeReveal";
+import { useEditorPaneChromeReveal } from "../../../components/useEditorPaneChromeReveal";
 import {
   AgentFilePresence,
   desktopAgentActivityStore,

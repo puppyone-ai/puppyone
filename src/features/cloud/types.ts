@@ -10,7 +10,6 @@ import type { CloudAuthState } from "./auth";
 import type { CloudEnvironment } from "./environment";
 import type { ProjectCloudContext } from "./project/context";
 import type { RepositoryTarget } from "./repositoryTarget";
-import type { CloudWorkspaceSection } from "./routes/cloudRouteIds";
 
 export type { CloudWorkspaceSection } from "./routes/cloudRouteIds";
 
@@ -30,23 +29,14 @@ export type CloudGitRemoteOptions = {
   rejectRemoteNameCollision?: boolean;
 };
 
-export type CloudServiceSidebarProps = {
-  cloudAuthState: CloudAuthState;
-  activeSection: CloudWorkspaceSection;
-  /** True only when the current repository's canonical remote is authorized. */
-  projectAvailable?: boolean;
-  projectCapabilities?: readonly string[];
-  onSelectSection: (section: CloudWorkspaceSection) => void;
-};
-
-export type CloudServiceMainViewProps = {
+/** Shared preparation facts for publishing a folder or preparing its file provider. */
+export type CloudProjectPreparationProps = {
   workspace: Workspace;
   status: GitStatusSnapshot | null;
   cloudEnvironment: CloudEnvironment;
   cloudAuthState: CloudAuthState;
   projectContext?: ProjectCloudContext | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
-  activeSection: CloudWorkspaceSection;
   loading: boolean;
   error: string | null;
   cloudBackupLoading: boolean;
@@ -58,9 +48,6 @@ export type CloudServiceMainViewProps = {
   cloudPublishStateLoading: boolean;
   onAbandonPuppyoneBackup: () => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
-  onRemoveCloudRemote?: () => Promise<void>;
-  onSelectSection: (section: CloudWorkspaceSection) => void;
   onRefresh: () => void;
   onOpenGitSettings: () => void;
-  onOpenSourceControl?: () => void;
 };

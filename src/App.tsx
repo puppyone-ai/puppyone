@@ -31,14 +31,14 @@ import {
   SettingsDialog,
   type SettingsSection,
 } from "./features/settings";
-import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { HomepageComputers, useHostFolderPlace } from "./features/hosts";
+import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
 import { useWindowProjectNavigation, type ProjectDesktopView } from "./app/useWindowProjectNavigation";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
-import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
@@ -81,7 +81,9 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
-import { showWindowProject, useWindowProject } from "./features/app-shell/window-project/windowProjectStore";
+import { closeHostFolder, showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
+import { useHostFolderRestore } from "./features/app-shell/window-project/useHostFolderRestore";
+import { normalizeCloudApiBaseUrl } from "../shared/cloudEndpoint.js";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
 import {
   getDesktopCloudApiBaseUrl,
@@ -114,7 +116,6 @@ import { useExternalFileOpen } from "./features/external-apps/useExternalFileOpe
 import { useDesktopCloudSession } from "./features/cloud/hooks/useDesktopCloudSession";
 import {
   getResolvedCloudProjectId,
-  resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
 import {
@@ -124,9 +125,9 @@ import {
 } from "./features/cloud/project/localFolderCloudNoticeState";
 import { LocalFolderCloudNotice } from "./features/cloud/project/LocalFolderCloudNotice";
 import {
-  canReplaceMissingCloudProject,
-  MissingCloudProjectReplacement,
-} from "./features/cloud/project/MissingCloudProjectReplacement";
+  canDisconnectCloudLink,
+  CloudLinkDisconnectDialog,
+} from "./features/cloud/project/CloudLinkDisconnectDialog";
 import { useAccountAvailable, useCloudEnabled } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
@@ -155,28 +156,8 @@ import { useCloudInitialization } from "./features/cloud/initialization/useCloud
 import { CloudPublishHeaderStatus } from "./features/cloud/initialization/CloudPublishHeaderStatus";
 import { useCloudPublishHeaderStatus } from "./features/cloud/initialization/useCloudPublishHeaderStatus";
 import { isCleanupRequested, resolvePausedStage } from "./features/cloud/initialization/CloudPublishResume";
-import {
-  CloudShareProvider,
-  ProjectReachDialog,
-  ReadersList,
-  SHARE_TARGETS,
-  ShareWizardDialog,
-  resolveCloudShareStatus,
-  shareTargetLabelKey,
-  useProjectShareActivity,
-  useProjectShareRevoke,
-  type CloudShareActions,
-  type ReachPreviewData,
-  type ShareTargetId,
-  type ShareWizardFolderEntry,
-} from "./features/cloud/share";
 import { useProjectReachExperience } from "./features/project-reach";
-import {
-  ProjectReachPeople,
-  reachHeaderChangesStatus,
-  resolveProjectReachState,
-  type ProjectReachControlProps,
-} from "./features/app-shell/project-reach";
+import { reachHeaderChangesStatus } from "./features/source-control/reach/reachHeaderChangesStatus";
 import {
   TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
@@ -229,7 +210,6 @@ function AppContent() {
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
-  const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enablePayments = useDesktopPreference(s => s.experimentalSettings.enablePayments);
@@ -297,12 +277,10 @@ function AppContent() {
   // it pays for are available whenever the build has accounts. Cloud projects
   // and the Cloud Computer stay hidden until the user opts into the experiment.
   const accountAvailable = useAccountAvailable();
+  // Hidden until the gateway deployment and two-device acceptance are complete.
+  const hostDevicesEnabled = import.meta.env.VITE_HOST_DEVICES_ENABLED === "true";
   const cloudEnabled = useCloudEnabled();
-  // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
-  // project's Local/Cloud indicator and the only entry into sharing.
-  const shareOnboardingEnabled = cloudEnabled && enableShareOnboarding;
-  // The share entry's fork: one screen for inviting a person or connecting an
-  // agent, or the existing step wizard. Declared in the project-reach contract.
+  // The remaining experiment only changes the presentation of incoming Git work.
   const projectReachEnabled = useProjectReachExperience();
   const {
     cloudSession,
@@ -317,11 +295,27 @@ function AppContent() {
     sessionRestoring: cloudSessionRestoring,
     environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
   })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
+  const hostAccountId = activeCloudSession?.user_id ?? null;
+  const hostSessionGeneration = activeCloudSession?.session_generation ?? null;
+  useEffect(() => {
+    if (!hostDevicesEnabled || !window.puppyoneDesktop || !hostAccountId || !hostSessionGeneration) return;
+    void window.puppyoneDesktop.connectHostDevice({ userId: hostAccountId, generation: hostSessionGeneration })
+      .catch(() => {
+        // The connector retries transport outages; local folders stay available.
+      });
+  }, [hostDevicesEnabled, hostAccountId, hostSessionGeneration]);
+  // Another computer's folder is part of this window's project state, not a side mode.
+  const shownHostFolder = useWindowProject((project) => project.shown === "host" ? project.host : null);
+  useEffect(() => {
+    const host = windowProjectStore.getState().host;
+    // A different account or deployment never keeps another account's folder open.
+    if (host && (host.ref.accountId !== hostAccountId
+      || normalizeCloudApiBaseUrl(host.ref.deployment) !== normalizeCloudApiBaseUrl(desktopCloudApiBaseUrl))) closeHostFolder();
+  }, [hostAccountId, desktopCloudApiBaseUrl]);
   const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
-    shown: useWindowProject((project) => project.shown), onShow: showWindowProject });
+    shown: useWindowProject((project) => project.shown === "cloud" ? "cloud" : "local"), onShow: showWindowProject });
   const cloudWorkspaceActive = accountCloud.active;
   const { useLocal: returnToLocalWorkspace } = accountCloud;
-  const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const projectEntryFlow = useProjectEntryFlow();
   const cancelProjectNavigationRef = useRef(() => {});
@@ -648,10 +642,9 @@ function AppContent() {
     setBranchSwitcherOpen(false);
   }, [enableViewerPlugins, setBranchSwitcherOpen]);
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
-  const openCloudDialogAt = useCallback((section: CloudWorkspaceSection) => {
+  const openCloudPublish = useCallback(() => {
     if (!cloudEnabled) return;
     setActiveView("data");
-    setActiveCloudSection(section);
     setCloudDialogOpen(true);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
@@ -659,14 +652,6 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
-  const openCloudDialog = useCallback(
-    () => openCloudDialogAt(CLOUD_HUB_ENTRY_SECTION),
-    [openCloudDialogAt],
-  );
-  const openCloudShare = useCallback(
-    () => openCloudDialogAt("share"),
-    [openCloudDialogAt],
-  );
   const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
 
   useEffect(() => {
@@ -807,10 +792,6 @@ function AppContent() {
     desktopCloudApiBaseUrl,
     isGitRepositoryContextCurrent,
     refreshWorkspaceContent,
-    setActiveCloudSection,
-    setActiveView,
-    setSidebarCollapsed,
-    setSwitcherOpen,
     workspace,
   });
 
@@ -865,7 +846,8 @@ function AppContent() {
   // starts putting the folder in the Cloud, or shows the notice saying why it
   // cannot be opened from here. The folder itself is never replaced or blocked.
   const [dismissedCloudNoticeKey, setDismissedCloudNoticeKey] = useState<string | null>(null);
-  const [replacingMissingCloudProject, setReplacingMissingCloudProject] = useState(false);
+  /** The folder whose Cloud link is being ended, while that dialog is open. */
+  const [disconnectingCloudLinkPath, setDisconnectingCloudLinkPath] = useState<string | null>(null);
   const selectCloudProjectRef = useRef<(projectId: string) => Promise<void>>(async () => {});
   const openCloudWorkspace = useCallback(() => {
     if (!cloudEnabled) return;
@@ -883,8 +865,8 @@ function AppContent() {
       setDismissedCloudNoticeKey(null);
       return;
     }
-    openCloudDialogAt(entry.kind === "publish" ? "initialize" : CLOUD_HUB_ENTRY_SECTION);
-  }, [activeCloudSession, cloudEnabled, openCloudDialogAt, projectCloudContext, repositoryCloudInitializationPending,
+    openCloudPublish();
+  }, [activeCloudSession, cloudEnabled, openCloudPublish, projectCloudContext, repositoryCloudInitializationPending,
     revalidateRepositoryContext]);
   const openLocalWorkspace = useCallback(() => {
     cancelProjectNavigationRef.current();
@@ -899,39 +881,19 @@ function AppContent() {
   }, [cloudWorkspaceActive, resetDataNodeActions]);
   useEffect(() => {
     if (activeView === "cloud") {
-      // Programmatic Cloud routes (a finished or discarded first publish) keep
-      // the user in this folder and show the outcome in the Cloud dialog.
+      // A legacy Cloud view restores the publish task, never the retired Hub.
+      // New publishes own only their result state and do not navigate here.
       setActiveView("data");
       if (cloudEnabled) setCloudDialogOpen(true);
-      if (!cloudEnabled) setActiveCloudSection("initialize");
       return;
     }
     if (!cloudEnabled) setCloudDialogOpen(false);
     if (activeView === "git") {
       setActiveView("data");
-      setActiveCloudSection("initialize");
     }
   }, [activeView, cloudEnabled]);
 
 
-  const [shareWizard, setShareWizard] = useState<{
-    targetId: ShareTargetId | null;
-    path: string;
-    /** Set when the Header asked for one of the two verbs by name. */
-    intent?: "invite" | "connect";
-  } | null>(null);
-  const {
-    shares: projectShares,
-    pending: pendingShare,
-    setPending: setPendingShare,
-  } = useProjectShareActivity({
-    session: activeCloudSession,
-    apiBaseUrl: desktopCloudApiBaseUrl,
-    projectId: resolvedCloudProjectId,
-    enabled: shareOnboardingEnabled,
-    onSessionChange: updateCloudSession,
-  });
-  const cloudSignedIn = activeCloudSession !== null;
   // The window shows one project: a local folder, or a Cloud project opened as
   // its own project. Nothing switches one project between the two.
   const workspaceLocation = cloudWorkspaceActive ? "cloud" : "local";
@@ -942,20 +904,6 @@ function AppContent() {
   const handleLocalRightSidebarOpenChange = useCallback((open: boolean) => {
     if (!open || localRightSidebarActive) setRightSidebarOpen(open);
   }, [localRightSidebarActive, setRightSidebarOpen]);
-  // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
-  const openShareWizard = useCallback((
-    targetId: ShareTargetId | null,
-    path = "",
-    intent?: "invite" | "connect",
-  ) => {
-    if (!shareOnboardingEnabled) return;
-    setShareWizard({ targetId, path, intent });
-    setSettingsDialogOpen(false);
-    setPluginsDialogOpen(false);
-    setSwitcherOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
-  const closeShareWizard = useCallback(() => setShareWizard(null), []);
   // The first publish outlives its dialog; the Header carries it from there
   // and is the way back to it.
   const cloudPublishHeader = useCloudPublishHeaderStatus({
@@ -965,128 +913,18 @@ function AppContent() {
     // quit) stays visible until it is continued or its empty project deleted.
     pausedStage: cloudPublishState && !cloudPublishProgress ? resolvePausedStage(cloudPublishState) : null,
     pausedDiscard: cloudPublishState ? isCleanupRequested(cloudPublishState) : false,
-    surfaceOpen: cloudDialogOpen || shareWizard !== null,
+    surfaceOpen: cloudDialogOpen,
   });
   const acknowledgeCloudPublishHeader = cloudPublishHeader.acknowledge;
   const reopenCloudPublish = useCallback(() => {
     acknowledgeCloudPublishHeader();
-    openCloudDialogAt("initialize");
-  }, [acknowledgeCloudPublishHeader, openCloudDialogAt]);
+    openCloudPublish();
+  }, [acknowledgeCloudPublishHeader, openCloudPublish]);
   useEffect(() => {
-    if (accountCloud.opening && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+    if (accountCloud.opening && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen)) {
       cancelCloudWorkspaceSwitch();
     }
-  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
-  useEffect(() => {
-    if (shareOnboardingEnabled) return;
-    setShareWizard(null);
-    if (activeCloudSection === "share") setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
-  }, [activeCloudSection, shareOnboardingEnabled]);
-  const cloudShareActions = useMemo<CloudShareActions | null>(() => (
-    shareOnboardingEnabled
-      ? { shares: projectShares, signedIn: cloudSignedIn, pending: pendingShare, openShare: openShareWizard }
-      : null
-  ), [cloudSignedIn, openShareWizard, pendingShare, projectShares, shareOnboardingEnabled]);
-  // Who can reach this project, for the Header. The share domain owns the
-  // status, the rows and stopping a reach; the Header only states them.
-  const reachDestinations = useMemo(() => SHARE_TARGETS.map((target) => ({
-    id: target.id,
-    brand: target.brand,
-    label: t(shareTargetLabelKey(target.id)),
-  })), [t]);
-  const projectReachShareStatus = resolveCloudShareStatus({
-    context: projectCloudContext,
-    shares: projectShares.shares,
-    sharesLoaded: projectShares.loaded,
-    signedIn: cloudSignedIn,
-    pending: pendingShare,
-  });
-  const projectShareRevoke = useProjectShareRevoke({
-    session: activeCloudSession,
-    apiBaseUrl: desktopCloudApiBaseUrl,
-    shares: projectShares,
-    onSessionChange: updateCloudSession,
-  });
-  const projectReachState = resolveProjectReachState({
-    share: projectReachShareStatus.kind,
-    shares: projectReachShareStatus.readers,
-    destinations: reachDestinations,
-    deviceCopyAvailable: true,
-    // Where the project is, taken from the surface the user is working on —
-    // stated by the Header, never offered as a choice.
-    place: workspaceLocation === "cloud" ? "cloud" : "this-device",
-    waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
-  });
-  // Without Puppyone Cloud there is nobody to reach, so the Header states
-  // nothing — exactly like the established control, which only exists while
-  // Cloud does. Capability differences inside the entry never become a prompt.
-  const projectReach = useMemo<ProjectReachControlProps | null>(() => (
-    projectReachEnabled && shareOnboardingEnabled && cloudEnabled
-      ? {
-        state: projectReachState,
-        // No rows when nobody is there: the Header already states "only you",
-        // and an empty list would say the same thing a second time.
-        readers: projectReachState.members.length > 0
-          ? <ReadersList readers={projectReachShareStatus.readers} revoke={projectShareRevoke} />
-          : undefined,
-        onInvitePerson: () => openShareWizard("person", "", "invite"),
-        onConnectAgent: () => openShareWizard(null, "", "connect"),
-      }
-      : null
-  ), [cloudEnabled, openShareWizard, projectReachEnabled, projectReachShareStatus,
-    projectReachState, projectShareRevoke, shareOnboardingEnabled]);
-  // The reach control is a Header statement about the Project, so it stands
-  // only while the Header is the Project surface.
-  const reachStatedInHeader = Boolean(projectReach) && !railOwnsProject;
-  const listShareFolders = useCallback(async (): Promise<ShareWizardFolderEntry[]> => {
-    if (!dataPort) return [];
-    const children = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
-    return children
-      .filter((node) => node.type === "folder")
-      .map((node) => ({
-        name: node.name,
-        path: resolveWorkspaceResource(node.path)?.providerPath ?? node.name,
-      }))
-      .filter((entry) => entry.path.length > 0);
-  }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
-  // What is inside the folder a share would cover, for the share screen's
-  // preview: the entries, and one file shown open beside them. The Cloud
-  // workspace share screen illustrates a share exactly this way, so the two
-  // screens show one thing rather than two ideas of a preview.
-  const listSharePreview = useCallback(async (path: string): Promise<ReachPreviewData> => {
-    if (!dataPort) return { entries: [] };
-    const root = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
-    const chosen = path
-      ? root.find((node) => (resolveWorkspaceResource(node.path)?.providerPath ?? node.name) === path)
-      : null;
-    if (path && !chosen) return { entries: [] };
-    const nodes = chosen ? await dataPort.listChildren(chosen.path) : root;
-    const entries = nodes.map((node) => ({ name: node.name, type: node.type }));
-    const opened = pickSharePreviewFile(nodes);
-    if (!opened) return { entries };
-    try {
-      const content = await dataPort.readFile?.(opened.path);
-      return { entries, file: { name: opened.name, type: opened.type, content: content ?? undefined } };
-    } catch {
-      return { entries, file: { name: opened.name, type: opened.type } };
-    }
-  }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
-
-  const workspacePath = focusedWorkspace?.path ?? null;
-  const cloudHubWorkspaceIdentity = focusedWorkspace
-    ? `${focusedWorkspace.id}:${focusedWorkspace.path}`
-    : null;
-  const previousCloudHubWorkspaceIdentityRef = useRef<string | null>(null);
-  useEffect(() => {
-    const workspaceChanged = previousCloudHubWorkspaceIdentityRef.current !== cloudHubWorkspaceIdentity;
-    previousCloudHubWorkspaceIdentityRef.current = cloudHubWorkspaceIdentity;
-    if (!workspacePath) return;
-    setActiveCloudSection((currentSection) => resolveCloudHubSectionAfterContextChange({
-      currentSection,
-      hasProjectContext: Boolean(resolvedCloudProjectId),
-      workspaceChanged,
-    }));
-  }, [resolvedCloudProjectId, cloudHubWorkspaceIdentity, workspacePath]);
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, pluginsDialogOpen, settingsDialogOpen]);
 
   const [homepageListHeld, holdHomepageList] = useHomepageListHold();
   const goToHomepage = useCallback(async () => {
@@ -1096,6 +934,7 @@ function AppContent() {
       const refreshed = refreshRecentWorkspaceList();
       holdHomepageList(refreshed);
       await showHomepage();
+      closeHostFolder();
       cancelCloudWorkspaceSwitch();
       returnToLocalWorkspace();
       clearWorkspace();
@@ -1276,7 +1115,6 @@ function AppContent() {
       }
       // Signing out with Cloud off leaves the user where they are.
       if (!cloudEnabled) return;
-      setActiveCloudSection("initialize");
       setActiveView("data");
       setSidebarCollapsed(false);
       setSwitcherOpen(false);
@@ -1328,7 +1166,6 @@ function AppContent() {
     )) {
       refreshWorkspaceContent();
     }
-    setActiveCloudSection("initialize");
   }, [
     applyGitStatus,
     captureGitRepositoryContext,
@@ -1565,7 +1402,7 @@ function AppContent() {
   };
   const {
     dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
-    projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
+    projectNavigation, projectOpenFailure, selectCloudProject, selectHostFolder, selectProject,
   } = useWindowProjectNavigation({
     accountCloud, activeCloudSession, cloudSessionRestoring, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
     cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef,
@@ -1619,34 +1456,37 @@ function AppContent() {
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
-  const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
-    && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
     ? resolveLocalFolderCloudNotice(projectCloudContext) : null;
+  // The folder's Cloud link can be ended from here whatever state it is in,
+  // except while a first publish owns it.
+  const cloudLinkDisconnectable = Boolean(cloudProjectNoticeState) && !repositoryCloudInitializationPending
+    && canDisconnectCloudLink(activeGitStatus);
+  const openCloudLinkDisconnect = () => setDisconnectingCloudLinkPath(workspace?.path ?? null);
   const cloudProjectNoticeKey = localFolderCloudNoticeKey(focusedWorkspace?.path, cloudProjectNoticeState);
   const cloudProjectNotice = cloudProjectNoticeState && cloudProjectNoticeKey !== dismissedCloudNoticeKey
     ? <LocalFolderCloudNotice notice={cloudProjectNoticeState}
       onOpenCloudProject={(projectId) => { void selectCloudProject(projectId); }}
       onSignIn={() => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); }}
-      onPutInCloud={missingCloudProjectReplaceable ? () => setReplacingMissingCloudProject(true) : undefined}
+      onDisconnect={cloudLinkDisconnectable ? openCloudLinkDisconnect : undefined}
       onRetry={revalidateRepositoryContext}
       onDismiss={() => setDismissedCloudNoticeKey(cloudProjectNoticeKey)} />
     : undefined;
-  // Putting the folder in the Cloud again first retires its old, missing
-  // Cloud project's Git connection, then continues to the first publish.
-  const missingCloudProjectDialog = replacingMissingCloudProject && missingCloudProjectReplaceable
-    && workspace && activeCloudSession && projectCloudContext.status === "not-found"
-    ? <MissingCloudProjectReplacement
-      key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
-        activeCloudSession.session_generation, projectCloudContext.projectId])}
-      context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
-      apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
-      onCancel={() => setReplacingMissingCloudProject(false)}
-      onDone={(outcome) => {
-        setReplacingMissingCloudProject(false);
+  // Ending the link removes only the folder's Git connection; the folder is
+  // then an ordinary local project that can be put in the Cloud again.
+  const cloudLinkDisconnectDialog = workspace && disconnectingCloudLinkPath === workspace.path && cloudLinkDisconnectable
+    ? <CloudLinkDisconnectDialog key={workspace.path}
+      projectName={cloudProjectNoticeState?.kind === "linked" ? cloudProjectNoticeState.projectName : null}
+      status={activeGitStatus}
+      onDisconnect={async (expectedRemotes) => {
+        await handleRemoveCloudRemote(expectedRemotes);
+        // Settled here rather than in the dialog: the refreshed status can
+        // close the dialog before its own completion runs.
+        setDisconnectingCloudLinkPath(null);
         revalidateRepositoryContext();
-        if (outcome === "replaced") openCloudDialogAt("initialize");
-      }} />
+      }}
+      onCancel={() => setDisconnectingCloudLinkPath(null)}
+      onDone={() => setDisconnectingCloudLinkPath(null)} />
     : null;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
   const firstRunSignIn = useFirstRunSignIn({
@@ -1661,6 +1501,12 @@ function AppContent() {
     account: projectCatalog.account,
     accountRestoring: cloudSessionRestoring,
   });
+  useHostFolderRestore({ enabled: hostDevicesEnabled, session: activeCloudSession, apiBase: desktopCloudApiBaseUrl,
+    restoring: restoringWorkspace || cloudSessionRestoring || !homepageReady, open: selectHostFolder });
+  const hostFolderPlace = useHostFolderPlace({
+    enabled: hostDevicesEnabled && Boolean(window.puppyoneDesktop && desktopCloudApiBaseUrl) && !cloudWorkspaceActive,
+    session: activeCloudSession, rootPath: workspace?.path, recordedFolderId: workspace?.hostFolderId,
+    name: workspace?.name ?? "" });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1712,7 +1558,7 @@ function AppContent() {
     )}
   </DesktopOverlayPortal>;
   const projectNavigationOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
-    {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message}
+    {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message} diagnostic={projectOpenFailure.diagnostic}
       title={projectOpenFailure.target.kind === "cloud" ? t("cloud.opening.failedTitle") : undefined}
       onClose={dismissProjectOpenFailure}
       action={projectOpenFailure.recovery === "account" ? { label: t("settings.sidebar.account"),
@@ -1764,6 +1610,17 @@ function AppContent() {
     );
   }
 
+  // Another computer's folder covers the window; this window's own folders stay
+  // open behind it and return when it closes.
+  if (hostDevicesEnabled && shownHostFolder && activeCloudSession && desktopCloudApiBaseUrl
+    && shownHostFolder.ref.accountId === activeCloudSession.user_id) return themeRuntime(
+    <DeviceFolderWorkbenchSurface key={shownHostFolder.ref.folderId} selection={shownHostFolder} session={activeCloudSession}
+      apiBase={desktopCloudApiBaseUrl} appearance={surfaceAppearance} onOpenSettings={() => openSettingsDialog()} onClose={() => {
+        closeHostFolder();
+        if (!workspace) void goToHomepage();
+      }} />,
+  );
+
   if (!workspace) {
     if (firstRunSignIn.required) return themeRuntime(
       <FirstRunSignInScreen appearance={surfaceAppearance} apiBaseUrl={desktopCloudApiBaseUrl}
@@ -1785,6 +1642,10 @@ function AppContent() {
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
+        projectGroups={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
+          ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
+              session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
+              onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
@@ -1866,9 +1727,6 @@ function AppContent() {
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: handleToggleAgentWorkbench,
     onToggleGitChanges: handleToggleGitChanges,
-    cloudEnabled,
-    shareEnabled: shareOnboardingEnabled,
-    onShare: openCloudShare,
   };
   // The Header states the Project only while it is the Project switcher. With
   // the rail on, the name and the place are in the rail's rows, and repeating
@@ -1887,27 +1745,23 @@ function AppContent() {
       unhosted: projectCloudContext.status === "local-only",
       publishPending: repositoryCloudInitializationPending,
       notice: cloudProjectNoticeState,
-      missingReplaceable: missingCloudProjectReplaceable,
+      disconnectable: cloudLinkDisconnectable,
       linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
     }),
     handlers: {
-      onPutInCloud: () => openCloudDialogAt("initialize"),
+      onPutInCloud: openCloudPublish,
       onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
       onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
-      onPutInCloudAgain: () => setReplacingMissingCloudProject(true),
+      onRetryCloudLink: revalidateRepositoryContext,
+      onDisconnectCloudLink: openCloudLinkDisconnect,
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
-      // Inviting and connecting are part of putting a folder in the Cloud.
-      ...(shareOnboardingEnabled ? {
-        onInvitePerson: () => openShareWizard("person", "", "invite"),
-        onConnectAgent: () => openShareWizard(null, "", "connect"),
-      } : {}),
       ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
     },
+    hostRows: hostFolderPlace.placeRows,
   } : null;
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext
       titlebarLabel={projectOpening?.projectName ?? headerWorkspace.name}
-      projectReach={projectOpening ? null : projectReach}
       placeMenu={projectOpening ? null : placeMenu}
       locationActivity={cloudEnabled && !projectOpening
         ? <CloudPublishHeaderStatus status={cloudPublishHeader.status} onOpen={reopenCloudPublish} />
@@ -1943,22 +1797,12 @@ function AppContent() {
   const titlebarActions = (
     <>
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
-        getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
-      {/* Who can reach the project sits where every application puts the
-          people in a document: the right of the Header, ahead of the tools.
-          It opens the same panel as the place control, so it is one entry
-          seen from both halves of the subject rather than a second one. */}
-      {projectReach && !cloudHeaderActive && <ProjectReachPeople {...projectReach} />}
-      {/* On the project reach path the Header's project control is the only
-          Cloud entry, so the right side adds no second share action. Once the
-          rail states the Project that control is gone, and the established
-          share entry comes back rather than leaving no way in. */}
-      <DesktopTitlebarActions {...chromeActionProps}
-        shareEnabled={!cloudHeaderActive && shareOnboardingEnabled && !reachStatedInHeader} />
+      {hostFolderPlace.dialog}
+      <DesktopTitlebarActions {...chromeActionProps} />
     </>
   );
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
@@ -1985,7 +1829,6 @@ function AppContent() {
   );
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
-      <CloudShareProvider value={cloudShareActions}>
         <ProjectWindow
           location={workspaceLocation}
           appearance={surfaceAppearance}
@@ -2068,7 +1911,6 @@ function AppContent() {
             activeExplorerPath={activeExplorerPath}
             activeView={activeView}
             cloud={{
-              activeSection: activeCloudSection,
               projectContext: projectCloudContext,
               backupLoading: cloudBackupLoading,
               backupPending: pendingCloudBackupSetup,
@@ -2083,11 +1925,10 @@ function AppContent() {
               sessionRestoring: cloudSessionRestoring,
               onCloudSessionChange: handleCloudSessionChange,
               onAbandonPuppyoneBackup: handleAbandonPuppyoneBackup,
-              onRemoveCloudRemote: handleRemoveCloudRemote,
               onOpenGitSettings: () => {
                 openSettingsDialog("git");
               },
-              onSelectSection: setActiveCloudSection,
+              onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
             }}
             cloudOpen={cloudDialogOpen}
@@ -2227,94 +2068,21 @@ function AppContent() {
               deleteShortcut={deleteShortcutLabel}
               onOpenInDefaultApp={openNodeInDefaultAppFromMenu}
               onRevealInFinder={revealNodeInFinderFromMenu}
-              onShare={shareOnboardingEnabled
-                ? () => {
-                  const sharedPath = resolveWorkspaceResource(nodeActionMenu.node.path)?.providerPath ?? "";
-                  setNodeActionMenu(null);
-                  openShareWizard(null, sharedPath);
-                }
-                : undefined}
             />
           )}
-          {shareWizard && shareOnboardingEnabled && (projectReachEnabled ? (
-            <ProjectReachDialog
-              workspaceName={(focusedWorkspace ?? workspace).name}
-              workspacePath={(focusedWorkspace ?? workspace).path}
-              initialTargetId={shareWizard.targetId}
-              initialIntent={shareWizard.intent}
-              initialPath={shareWizard.path}
-              session={activeCloudSession}
-              apiBaseUrl={desktopCloudApiBaseUrl}
-              projectContext={projectCloudContext}
-              publish={{
-                loading: cloudBackupLoading || cloudPublishStateLoading,
-                pending: Boolean(cloudPublishState),
-                progress: cloudPublishProgress,
-                error: cloudPublishError,
-                start: handleStartPuppyoneBackup,
-              }}
-              shares={projectShares}
-              listTopLevelFolders={listShareFolders}
-              listPreview={listSharePreview}
-              onSessionChange={updateCloudSession}
-              onIssued={setPendingShare}
-              onOpenCloud={() => {
-                closeShareWizard();
-                openCloudDialog();
-              }}
-              onClose={closeShareWizard}
-            />
-          ) : (
-            <ShareWizardDialog
-              workspaceName={(focusedWorkspace ?? workspace).name}
-              initialTargetId={shareWizard.targetId}
-              initialPath={shareWizard.path}
-              session={activeCloudSession}
-              apiBaseUrl={desktopCloudApiBaseUrl}
-              projectContext={projectCloudContext}
-              publish={{
-                loading: cloudBackupLoading || cloudPublishStateLoading,
-                pending: Boolean(cloudPublishState),
-                progress: cloudPublishProgress,
-                error: cloudPublishError,
-                start: handleStartPuppyoneBackup,
-              }}
-              shares={projectShares}
-              listTopLevelFolders={listShareFolders}
-              onSessionChange={updateCloudSession}
-              onIssued={setPendingShare}
-              onOpenCloud={() => {
-                closeShareWizard();
-                openCloudDialog();
-              }}
-              onClose={closeShareWizard}
-            />
-          ))}
           </>
         </DesktopOverlayPortal>
       {settingsOverlay}
-      </CloudShareProvider>
       {accountCloudSurface}
       {projectNavigationOverlay}
       {projectEntryOverlay}
-      <DesktopOverlayPortal appearance={surfaceAppearance}>{missingCloudProjectDialog}</DesktopOverlayPortal>
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{cloudLinkDisconnectDialog}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }
 
 function isPreviewableAgentImagePath(path: string) {
   return /\.(?:png|jpe?g|gif|webp|avif)$/i.test(path);
-}
-
-/**
- * Which file to show open in a share preview: the one a person opens first
- * when they want to know what a folder is. A readme is that file when there
- * is one; otherwise the first document in the folder stands for it.
- */
-function pickSharePreviewFile(nodes: readonly DataNode[]): DataNode | null {
-  const documents = nodes.filter((node) => node.type !== "folder" && !node.name.startsWith("."));
-  const readme = documents.find((node) => /^readme\b/i.test(node.name));
-  return readme ?? documents[0] ?? null;
 }
 
 function hasSameActiveDataNodeIdentity(left: DataNode | null, right: DataNode | null): boolean {

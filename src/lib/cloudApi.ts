@@ -1853,6 +1853,14 @@ function unwrapCloudIpcEnvelope<T>(value: unknown): T {
   if (typeof transported.code === "string" && transported.code) {
     (normalized as Error & { code?: string }).code = transported.code;
   }
+  // The server decides whether the same request can later succeed; the request
+  // id lets a user's report be found in the server log.
+  if (typeof transported.retryable === "boolean") {
+    (normalized as Error & { retryable?: boolean }).retryable = transported.retryable;
+  }
+  if (typeof transported.requestId === "string" && transported.requestId) {
+    (normalized as Error & { requestId?: string }).requestId = transported.requestId;
+  }
   throw normalized;
 }
 

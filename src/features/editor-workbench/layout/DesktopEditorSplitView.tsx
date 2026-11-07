@@ -58,6 +58,7 @@ import {
 import { toWorkspaceRelativePath, agentChangedFilesStore } from "../../desktop-agent-presence";
 
 export type DesktopEditorSplitViewProps = Readonly<{
+  onOpenCreatedDocument?: (node: DocumentDataNode) => void;
   aiEditRequest: AiEditRequest | null;
   /** The project's first document is still on its way to these panes. */
   entering?: boolean;
@@ -105,6 +106,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
 }>;
 
 export function DesktopEditorSplitView({
+  onOpenCreatedDocument,
   aiEditRequest,
   entering = false,
   dataPort,
@@ -192,6 +194,7 @@ export function DesktopEditorSplitView({
         />
         {panes.map((pane) => createPortal(
         <EditorPane
+          onOpenCreatedDocument={onOpenCreatedDocument}
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
           entering={entering}
@@ -289,6 +292,7 @@ function EditorSplit({
 }
 
 type EditorPaneProps = Readonly<{
+  onOpenCreatedDocument?: DesktopEditorSplitViewProps["onOpenCreatedDocument"];
   activePaneId: string;
   aiEditRequest: AiEditRequest | null;
   entering: boolean;
@@ -316,6 +320,7 @@ type EditorPaneProps = Readonly<{
 }>;
 
 function EditorPane({
+  onOpenCreatedDocument,
   activePaneId,
   aiEditRequest,
   entering,
@@ -409,6 +414,7 @@ function EditorPane({
       >
         <EditorPaneRuntime
           agentReviewPath={agentPresencePath}
+          onOpenCreatedDocument={onOpenCreatedDocument}
           aiEditFile={getAiEditFileForPath(aiEditRequest, editor?.resource) ?? null}
           dataPort={dataPort}
           documentSourceKind={documentSourceKind}

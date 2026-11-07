@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  askToSaveFile,
   createFileTarget,
   FILE_MODE_EXTENSIONS,
   isFileModeFile,
@@ -90,7 +89,6 @@ describe("File Mode IPC gate", () => {
       "workspace:revoke-file-url",
       "system:open-external-url",
       "editor:markdown-format-active",
-      "file-mode:set-edited",
       "native-surfaces:set-overlay-occluded",
     ]) expect(allowed(channel)).toBe(true);
   });
@@ -137,28 +135,5 @@ describe("watching the bound file", () => {
 
     stop();
     expect(unwatchFile).toHaveBeenCalledWith("/x/plan.md", listener);
-  });
-});
-
-describe("closing with unsaved edits", () => {
-  const t = (id, values) => (values ? `${id}:${values.name}` : id);
-  const ask = (response) => {
-    const dialog = { showMessageBox: vi.fn(async () => ({ response })) };
-    return { dialog, choice: askToSaveFile({ dialog, window: {}, name: "plan.md", t }) };
-  };
-
-  it.each([[0, "save"], [1, "discard"], [2, "cancel"], [9, "cancel"]])("maps button %i to %s", async (response, expected) => {
-    await expect(ask(response).choice).resolves.toBe(expected);
-  });
-
-  it("names the file and treats dismissing the dialog as cancel", async () => {
-    const { dialog, choice } = ask(0);
-    await choice;
-    expect(dialog.showMessageBox).toHaveBeenCalledWith({}, expect.objectContaining({
-      message: "native.fileClose.message:plan.md",
-      defaultId: 0,
-      cancelId: 2,
-      buttons: ["native.fileClose.save", "native.fileClose.discard", "native.fileClose.cancel"],
-    }));
   });
 });

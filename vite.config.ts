@@ -15,7 +15,7 @@ const DESKTOP_CONTENT_SECURITY_POLICY = [
   "form-action 'none'",
   // `frame-ancestors` is ignored in a meta-delivered CSP. Electron main owns
   // top-level navigation/window creation, so do not advertise a false guard.
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: puppyone-local: puppyone-asset: http: https:",
   "font-src 'self' data: blob:",
@@ -96,7 +96,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["docx-preview"],
+    include: ["docx-preview", "mammoth/mammoth.browser", "pdfjs-dist/build/pdf.mjs", "pdfjs-dist/build/pdf.worker.mjs"],
   },
   worker: {
     format: "es",

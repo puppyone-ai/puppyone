@@ -38,7 +38,7 @@ import {
 import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
-import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
+import { useDesktopPlatformCapabilities } from "../../platform";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/ProjectShell";
@@ -452,6 +452,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  onOpenCreatedDocument={editorWorkbench.openDocument}
                   entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}

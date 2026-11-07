@@ -36,7 +36,7 @@ import {
 import { fileSplitDropEdge, type FileSplitDropEdge } from "./fileSplitDropTarget";
 import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
 import { editorDropDocument } from "./editorResourceDrop";
-import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
+import { resolveResourceDropSource } from "../../../platform";
 
 export type EditorFileDropHandler = (
   node: DocumentDataNode,

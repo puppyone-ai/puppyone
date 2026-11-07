@@ -31,10 +31,6 @@ const settingsSidebarSource = readFileSync(
   new URL("../../../../src/features/settings/sidebar/SettingsSidebar.tsx", import.meta.url),
   "utf8",
 );
-const cloudSidebarSource = readFileSync(
-  new URL("../../../../src/features/cloud/CloudServiceSidebar.tsx", import.meta.url),
-  "utf8",
-);
 const agentThemeCss = readCss("../../../../src/features/desktop-agent/ui/styles/theme.css");
 const gitLayoutCss = readCss("../../../../src/features/source-control/styles/sidebar-layout.css");
 const gitResourcesCss = readCss("../../../../src/features/source-control/styles/sidebar-providers.css");
@@ -226,12 +222,10 @@ describe("sidebar spacing architecture", () => {
     expect(gitSectionTitleText).toContain(
       "font-size: var(--desktop-sidebar-section-title-font-size, var(--git-font-small));",
     );
-    expect(cloudSidebarSource).toContain("<SidebarScrollArea>");
     expect(cloudSidebarCss).not.toContain(".desktop-cloud-sidebar-list");
     expect(cloudSidebarCss).not.toContain(".desktop-cloud-sidebar-nav-row");
     expect(cloudSidebarCss).not.toContain(".desktop-cloud-sidebar-nav-row.locked");
     expect(settingsSidebarSource).toContain("<SidebarGroup");
-    expect(cloudSidebarSource).toContain("<SidebarGroup");
     expect(settingsCss).not.toContain("desktop-settings-sidebar-group");
     expect(cloudSidebarCss).not.toContain("desktop-cloud-sidebar-separator");
     expect(cloudHistorySidebarCss).not.toContain(".desktop-cloud-history-sidebar-header");

@@ -123,6 +123,7 @@
   "template.loading": "Cargando…",
   "template.signIn": "Iniciar sesión para usar esta plantilla",
   "template.signingIn": "Iniciando sesión…",
+  "projects.groups.cloud": "Nube",
   "entry.import.includeSubpages": "Incluir subpáginas",
   "template.unpack": "Extraer y abrir",
   "template.localDescription": "Extrae los archivos de la plantilla en un nuevo proyecto."

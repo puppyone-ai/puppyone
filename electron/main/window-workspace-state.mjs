@@ -7,8 +7,6 @@ import path from "node:path";
  * first Folder; Folder order is presentation state only.
  */
 export class WindowWorkspaceState {
-  /** Whether a File Mode window currently holds unsaved edits. */
-  fileEdited = false;
   #initialWorkspacePaths;
   #initialCloudProject;
   #initialOpenPath;

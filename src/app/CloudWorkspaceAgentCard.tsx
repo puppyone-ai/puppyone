@@ -52,7 +52,7 @@ export function CloudWorkspaceAgentCard({ subject, anchor, mark }: {
       : t("cloud.share.agent.detail.since", { date: formatDate(subject.agent.connected_at, DATE_FORMAT) }),
   ] : [];
   return <DesktopOverlayLayer>
-    <div ref={setOverlayRef} className="desktop-cloud-agent-card" aria-hidden="true"
+    <div ref={setOverlayRef} className="desktop-cloud-agent-card" data-po-scrollbar="content" aria-hidden="true"
       data-cloud-agent-card={person.id} data-live={live || undefined}
       style={overlayPosition
         ? { left: overlayPosition.left, top: overlayPosition.top, width: overlayPosition.width }

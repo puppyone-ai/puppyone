@@ -23,12 +23,15 @@ describe("Electron application quit intent", () => {
 
   it("cancels quit intent when a failed document window stays open", () => {
     const app = { quit: vi.fn() };
-    const intent = createApplicationQuitIntent({ app, platform: "darwin" });
+    const onCancel = vi.fn();
+    const intent = createApplicationQuitIntent({ app, platform: "darwin", onCancel });
     intent.markRequested();
     intent.cancel();
 
     intent.resumeAfterLastWindowClosed();
     expect(app.quit).not.toHaveBeenCalled();
+    // An update restart waiting on this quit hears that it will not happen.
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 
   it("retains the native non-macOS last-window quit behavior", () => {

@@ -11,13 +11,12 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 const mocks = vi.hoisted(() => ({
   getInitialWorkspace: vi.fn(),
+  cursorPoint: vi.fn(),
   resolveNode: vi.fn(),
   retry: vi.fn(),
   preview: vi.fn(),
   content: { value: null as null | Record<string, unknown> },
-  setFileEdited: vi.fn(),
   fileChanged: { value: () => undefined as void },
-  publishUnsaved: { value: (_unsaved: boolean) => undefined as void },
   platformCapabilities: { value: null as null | Record<string, unknown> },
   menuItems: { value: [] as Array<
     | { kind: "toggle"; id: string; label: string; checked: boolean; setChecked: (checked: boolean) => void }
@@ -40,8 +39,8 @@ vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
 
 vi.mock("../../../../src/lib/localFiles", () => ({
   getInitialWorkspace: mocks.getInitialWorkspace,
+  getWindowCursorPoint: mocks.cursorPoint,
   openExternalUrl: vi.fn(),
-  setFileEdited: mocks.setFileEdited,
   subscribeFileModeFileChanges: (callback: () => void) => {
     mocks.fileChanged.value = callback;
     return () => { mocks.fileChanged.value = () => undefined; };
@@ -78,10 +77,6 @@ vi.mock("@puppyone/shared-ui", async (original) => {
     return <div data-testid="preview" />;
   }
   return { ...actual, FilePreview,
-  subscribeUnsavedDocumentSessions: (listener: (unsaved: boolean) => void) => {
-    mocks.publishUnsaved.value = listener;
-    return () => undefined;
-  },
   useDocumentInput: () => ({
     content: mocks.content.value, generation: 0, fileUrl: null, fileUrlLoading: false, fileUrlError: null,
     loading: false, error: null, retry: mocks.retry, applyPersistedCommit: vi.fn(),
@@ -90,6 +85,7 @@ vi.mock("@puppyone/shared-ui", async (original) => {
 });
 
 import { FileModeApp } from "../../../../src/app/FileModeApp";
+import { EMBEDDED_POINTER_EVENT, EMBEDDED_SCROLL_EVENT } from "../../../../src/shared-ui/editor/host/embeddedFrameRelay";
 
 const target = { path: "/notes/plan.md", rootPath: "/notes", name: "plan.md", tooLarge: false, sizeLimit: 1048576 };
 
@@ -107,6 +103,24 @@ async function mount() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve)); });
 }
 
+/** A tall scroller whose top sits `top` pixels below the document's. */
+function scrollerAt(parent: Element, top: number) {
+  const element = document.createElement("div");
+  Object.defineProperties(element, {
+    scrollHeight: { value: 2000 },
+    clientHeight: { value: 600 },
+    scrollTop: { value: 0, writable: true },
+  });
+  element.getBoundingClientRect = () => ({ top } as DOMRect);
+  parent.append(element);
+  return element;
+}
+
+function scroll(element: HTMLElement, top: number) {
+  element.scrollTop = top;
+  element.dispatchEvent(new Event("scroll"));
+}
+
 describe("FileModeApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -114,6 +128,7 @@ describe("FileModeApp", () => {
     mocks.menuItems.value = [];
     mocks.platformCapabilities.value = { platform: "macos", windowChrome: { mode: "overlay" } };
     mocks.getInitialWorkspace.mockResolvedValue({ initialFile: target });
+    mocks.cursorPoint.mockResolvedValue(null);
     mocks.resolveNode.mockResolvedValue({ id: "plan.md", path: "plan.md", name: "plan.md", type: "markdown" });
   });
 
@@ -122,19 +137,20 @@ describe("FileModeApp", () => {
     container.remove();
   });
 
-  it("shows the bound file under a draggable bar with explicit saves", async () => {
+  it("shows the bound file under a draggable bar and saves edits as they are made", async () => {
     await mount();
 
     expect(mocks.resolveNode).toHaveBeenCalledWith("plan.md");
     expect(container.querySelector('[data-window-drag-region="true"] .file-mode-window__name')?.textContent).toBe("plan.md");
     expect(container.querySelector('[data-testid="preview"]')).not.toBeNull();
     expect(mocks.preview).toHaveBeenLastCalledWith(expect.objectContaining({
-      editorSaveMode: "manual",
+      // As in a project window: no save step, no save status.
+      editorSaveMode: "auto",
       // Markdown keeps its source view, as in a project pane.
       hideSourceView: false,
       htmlTrustMode: "safe",
       workspaceRoot: "/notes",
-      editorInteractionPreferences: expect.objectContaining({ showSaveStatus: true }),
+      editorInteractionPreferences: expect.objectContaining({ showSaveStatus: false }),
     }));
     expect(mocks.preview.mock.lastCall?.[0].markdownEnvironment.assetUrlResolver).toBeTypeOf("function");
   });
@@ -152,12 +168,6 @@ describe("FileModeApp", () => {
 
     const titlebar = container.querySelector<HTMLElement>(".file-mode-window__titlebar");
     expect(titlebar?.dataset).toMatchObject({ windowPlatform: "macos", windowChromeMode: "overlay" });
-  });
-
-  it("lets the window know about unsaved edits", async () => {
-    await mount();
-    mocks.publishUnsaved.value(true);
-    expect(mocks.setFileEdited).toHaveBeenLastCalledWith(true);
   });
 
   it("keeps the title bar to the file's name when the editor has no settings", async () => {
@@ -190,6 +200,100 @@ describe("FileModeApp", () => {
     expect(document.querySelector(".desktop-editor-view-mode-menu")).toBeNull();
   });
 
+  it("shows the file's controls only while the pointer is in the top third of the window", async () => {
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "live", setValue: vi.fn(),
+      options: [{ id: "live", label: "Live view", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const pointAt = (clientY: number) => act(() => {
+      windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY }));
+    });
+
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    pointAt(150);
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    pointAt(450);
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    pointAt(150);
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null })); });
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+  });
+
+  it("fades and reveals for a page drawn in a frame, from what its viewer relays", async () => {
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "preview", setValue: vi.fn(),
+      options: [{ id: "preview", label: "Interact", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    const surface = container.querySelector<HTMLElement>(".file-mode-window__document")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const frame = document.createElement("iframe");
+    container.querySelector('[data-testid="preview"]')!.append(frame);
+    const relay = (type: string, detail: unknown) => act(() => {
+      frame.dispatchEvent(new CustomEvent(type, { bubbles: true, detail }));
+    });
+
+    // The page scrolls inside its frame; only its viewer's report says so.
+    relay(EMBEDDED_SCROLL_EVENT, { top: 300 });
+    // Marked as a frame's: the page keeps its own background instead of fading into the window's.
+    expect(surface.dataset.scrolled).toBe("frame");
+    relay(EMBEDDED_SCROLL_EVENT, { top: 0 });
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
+
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 120 });
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 450 });
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    relay(EMBEDDED_POINTER_EVENT, { clientX: 400, clientY: 120 });
+    relay(EMBEDDED_POINTER_EVENT, null);
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+
+    // Moving from the page onto the title bar: the window sees the pointer before the page says it left.
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY: 20 })); });
+    relay(EMBEDDED_POINTER_EVENT, null);
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+  });
+
+  it("asks where the pointer is while the title bar keeps it from the page", async () => {
+    const focused = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    mocks.menuItems.value = [{
+      kind: "segmented", id: "editor-view-mode", label: "View", value: "live", setValue: vi.fn(),
+      options: [{ id: "live", label: "Live view", icon: null }, { id: "source", label: "Source code", icon: null }],
+    }];
+    // The window opens under a pointer resting near its top: nothing has moved yet.
+    mocks.cursorPoint.mockResolvedValue({ x: 400, y: 20 });
+    await mount();
+    const windowRoot = container.querySelector<HTMLElement>(".file-mode-window")!;
+    windowRoot.getBoundingClientRect = () => ({ left: 0, right: 800, top: 0, height: 600 } as DOMRect);
+    const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+
+    // Over the document the page sees the pointer itself and stops asking.
+    act(() => { windowRoot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 400, clientY: 450 })); });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    const asked = mocks.cursorPoint.mock.calls.length;
+    await settle();
+    expect(mocks.cursorPoint.mock.calls.length).toBe(asked);
+
+    // Up onto the title bar: the page only hears the pointer leave, then asks again.
+    act(() => {
+      windowRoot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null }));
+      windowRoot.dispatchEvent(new PointerEvent("pointerleave"));
+    });
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBe("true");
+    mocks.cursorPoint.mockResolvedValue(null);
+    await settle();
+    expect(windowRoot.dataset.controlsRevealed).toBeUndefined();
+    focused.mockRestore();
+  });
+
   it("puts the editor's settings in a title bar menu instead of the editor", async () => {
     const setChecked = vi.fn();
     mocks.menuItems.value = [{ kind: "toggle", id: "csv-header-row", label: "Header row", checked: true, setChecked }];
@@ -205,6 +309,29 @@ describe("FileModeApp", () => {
     expect(document.querySelector(".desktop-editor-pane-menu-close-action")).toBeNull();
     act(() => item?.click());
     expect(setChecked).toHaveBeenCalledWith(false);
+  });
+
+  it("fades the document under the title bar only once it has left its top", async () => {
+    await mount();
+    const surface = container.querySelector<HTMLElement>(".file-mode-window__document")!;
+    const scroller = scrollerAt(container.querySelector('[data-testid="preview"]')!, 0);
+    const codeBlock = scrollerAt(scroller, 300);
+
+    scroll(scroller, 40);
+    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    // A block scrolling inside the page does not decide the edge.
+    scroll(codeBlock, 0);
+    expect(surface.hasAttribute("data-scrolled")).toBe(true);
+    scroll(scroller, 0);
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
+
+    // A view switch replaces the scroller without scrolling.
+    scroll(scroller, 40);
+    await act(async () => {
+      scroller.remove();
+      await new Promise((resolve) => setTimeout(resolve));
+    });
+    expect(surface.hasAttribute("data-scrolled")).toBe(false);
   });
 
   it("sends links to the browser without offering neighbouring files", async () => {

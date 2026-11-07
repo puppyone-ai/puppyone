@@ -19,6 +19,8 @@ export const CLOUD_PUBLISH_ERROR_CODES = Object.freeze([
   "COMMIT_REQUIRED",
   "BRANCH_REQUIRED",
   "SOURCE_MISSING",
+  // No longer produced: the native Version Engine accepts merge commits. Kept
+  // so journals that recorded it still decode and can be retried.
   "MERGE_TIP_UNSUPPORTED",
   "LFS_UNSUPPORTED",
   "REMOTE_CONFLICT",

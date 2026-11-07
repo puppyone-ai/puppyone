@@ -8,7 +8,7 @@ import { CLI_CONTROL_PROTOCOL, CLI_INFO_PLIST_KEYS } from "../../../../shared/cl
  * list without claiming the user's default app. A declaration's content types
  * override its extensions, so anything matched by extension needs its own entry.
  */
-const FILE_MODE_DOCUMENT_TYPES = Object.freeze([
+export const FILE_MODE_DOCUMENT_TYPES = Object.freeze([
   { CFBundleTypeName: "Markdown", LSItemContentTypes: ["net.daringfireball.markdown"] },
   { CFBundleTypeName: "CSV", LSItemContentTypes: ["public.comma-separated-values-text"] },
   { CFBundleTypeName: "HTML", LSItemContentTypes: ["public.html"] },

@@ -74,9 +74,10 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
   const accept = (row: CloudWorkbench) => {
     if (!row || row.project_id !== context.projectId || !row.id || !row.generation || typeof row.state !== "string") throw failure("Cloud returned a different workspace.");
     if (workspace && (workspace.id !== row.id || workspace.generation !== row.generation)) {
-      throw failure("This Cloud workspace was replaced. Close and reopen this project; your unsaved draft is preserved.");
+      throw failure("This Cloud workspace was replaced. Close and reopen this project; your unsaved draft is preserved.",
+        409, "workbench_generation_changed");
     }
-    if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.");
+    if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.", 409, "workbench_not_running");
     workspace = { ...row }; return workspace;
   };
   async function waitForReady(initial: OpeningResult, progress: Opening["progress"]) {
@@ -103,7 +104,9 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
       const started = Date.now();
       const next = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("?wait_seconds=20");
       if (!next.workspace) throw failure("This workspace is unavailable.", 404);
-      if (next.workspace.id !== row.id || next.workspace.generation !== row.generation) throw failure("This workspace was replaced. Close and reopen the project.");
+      if (next.workspace.id !== row.id || next.workspace.generation !== row.generation) {
+        throw failure("This workspace was replaced. Close and reopen the project.", 409, "workbench_generation_changed");
+      }
       row = next.workspace;
       result = { ...next, workspace: row };
       await paceStatusObservation(row, started);

@@ -86,7 +86,9 @@
 
 .code-codemirror-editor .cm-content {
   min-height: 100%;
-  padding: var(--po-editor-code-padding-block) var(--po-editor-code-padding-inline) var(--po-editor-code-padding-bottom) 0;
+  padding:
+    calc(var(--po-editor-code-padding-block) + var(--po-editor-chrome-inset-block-start, 0px))
+    var(--po-editor-code-padding-inline) var(--po-editor-code-padding-bottom) 0;
   caret-color: var(--po-accent);
 }
 

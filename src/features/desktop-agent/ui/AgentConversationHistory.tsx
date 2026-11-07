@@ -203,7 +203,7 @@ export function AgentConversationHistory({
             {label}: {t("agent.history.refreshFailed")}
           </p>;
         })}
-        {sourceNotes.length > 0 && <details className="desktop-agent-history-source-details">
+        {sourceNotes.length > 0 && <details className="desktop-agent-history-source-details" data-po-scrollbar="content">
           <summary>{t("agent.history.sourceSummary")}</summary>
           {sourceNotes.map(({ runtimeId, message }) => <p key={runtimeId} className="desktop-agent-history-source-status">
             {runtimeById.get(runtimeId)?.descriptor.displayName || runtimeId}: {t(message)}
