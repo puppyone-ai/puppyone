@@ -1,7 +1,7 @@
 //! `shared/agent-contract/validation.mjs`: the primitive checks every
 //! contract schema is built from. A failure is the product's `TypeError`
 //! (`Invalid Agent contract: <path> <reason>.`).
-use super::js::{self, Obj};
+use super::js;
 use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -231,12 +231,6 @@ pub fn enum_value<'a>(
         .find(|entry| Some(**entry) == text)
         .copied()
         .ok_or_else(|| contract_error(label, &format!("must be one of {}", allowed.join(", "))))
-}
-
-/// `compact(value)`: drop `undefined` entries. Builders here never hold
-/// `undefined`, so this is [`Obj::build`].
-pub fn compact(value: Obj) -> Value {
-    value.build()
 }
 
 #[cfg(test)]

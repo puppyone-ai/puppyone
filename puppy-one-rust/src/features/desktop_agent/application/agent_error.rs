@@ -1,7 +1,7 @@
 //! `application/agent-error.ts`: Renderer error codes and their
 //! presentation descriptors (`{ code, params?, detail?, operation? }`).
 use crate::agent::agent_error::AgentError;
-use crate::agent::contract::dto::{ErrorParam, ErrorParams, OperationFailure};
+use crate::agent::contract::dto::{ErrorParams, OperationFailure};
 
 /// `AgentErrorDescriptor`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -11,16 +11,6 @@ pub struct ErrorDescriptor {
     pub detail: Option<String>,
     /// The operation failure an unknown error came from.
     pub operation: Option<OperationFailure>,
-}
-
-impl ErrorDescriptor {
-    /// `error.params[key]` as text.
-    pub fn param(&self, key: &str) -> Option<&ErrorParam> {
-        self.params
-            .iter()
-            .find(|(name, _)| name == key)
-            .map(|(_, value)| value)
-    }
 }
 
 /// `new AgentOperationError(failure)`: a structured bridge failure.

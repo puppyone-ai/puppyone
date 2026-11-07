@@ -81,11 +81,6 @@ impl AgentError {
         self
     }
 
-    pub fn with_stage(mut self, stage: &str) -> Self {
-        self.stage = Some(stage.into());
-        self
-    }
-
     /// `error.code === code`.
     pub fn is(&self, code: &str) -> bool {
         self.code.as_deref() == Some(code)

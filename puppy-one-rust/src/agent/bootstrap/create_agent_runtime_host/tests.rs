@@ -120,15 +120,11 @@ fn registers_independent_native_backends_and_never_silently_replaces_an_explicit
             ]
         );
         assert_eq!(DEFAULT_AGENT_RUNTIME_ID, "codex");
-        assert_eq!(
-            host.select(&catalog, None).unwrap().descriptor["id"],
-            "codex"
+        assert!(
+            catalog
+                .iter()
+                .any(|entry| entry.descriptor["id"] == DEFAULT_AGENT_RUNTIME_ID)
         );
-        assert_eq!(
-            host.select(&catalog, Some("codex")).unwrap().descriptor["id"],
-            "codex"
-        );
-        assert!(host.select(&catalog, Some("missing")).is_none());
         assert_eq!(
             host.require("claude").unwrap().descriptor["displayName"],
             "Claude Agent"
@@ -204,10 +200,6 @@ fn isolates_discovery_failure_to_the_backend_that_failed() {
         };
         assert_eq!(readiness("cursor")["status"], "error");
         assert_eq!(readiness("codex")["status"], "ready");
-        assert_eq!(
-            host.select(&catalog, Some("codex")).unwrap().descriptor["id"],
-            "codex"
-        );
         host.dispose().await.unwrap();
     });
 }

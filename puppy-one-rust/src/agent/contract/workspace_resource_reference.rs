@@ -53,6 +53,7 @@ pub fn is_workspace_resource_reference(value: &str) -> bool {
     value.starts_with(PREFIX)
 }
 
+#[cfg(test)]
 /// `createWorkspaceResourceReference(folderId, relativePath)`.
 pub fn create_workspace_resource_reference(
     folder_id: &str,
@@ -74,6 +75,7 @@ pub fn create_workspace_resource_reference(
     Ok(uri)
 }
 
+#[cfg(test)]
 fn is_absolute_root(root: &str) -> bool {
     let bytes = root.as_bytes();
     root.starts_with('/')
@@ -86,6 +88,7 @@ fn is_absolute_root(root: &str) -> bool {
             && root[2..].contains('\\'))
 }
 
+#[cfg(test)]
 /// `projectLocalResourcePath(rootPath, relativePath)`: synchronous
 /// display/export projection; native consumers must reauthorize it.
 pub fn project_local_resource_path(root_path: &str, relative_path: &str) -> Contract<String> {

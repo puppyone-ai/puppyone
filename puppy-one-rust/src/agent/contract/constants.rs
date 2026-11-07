@@ -55,15 +55,6 @@ pub const AGENT_RUNTIME_CAPABILITIES: &[&str] = &[
     "compaction",
 ];
 
-pub const REQUIRED_AGENT_RUNTIME_METHODS: &[&str] = &[
-    "inspect",
-    "createSession",
-    "resumeSession",
-    "startTurn",
-    "interruptTurn",
-    "dispose",
-];
-
 /// The provider process ended after the native turn had a confirmed terminal outcome.
 pub const AGENT_IDLE_DISCONNECT_REASON: &str = "provider-idle-exit";
 
@@ -124,37 +115,6 @@ pub const AGENT_SESSION_OPEN_ERROR_CODES: &[&str] = &[
     "PROTOCOL_ERROR",
 ];
 
-pub const AGENT_IPC_CHANNELS: &[&str] = &[
-    "agent:providers-discover",
-    "agent:local-connections-discover",
-    "agent:models-list",
-    "agent:account-read",
-    "agent:session-create",
-    "agent:session-resume",
-    "agent:session-open",
-    "agent:session-replay",
-    "agent:session-attach",
-    "agent:session-feed-ack",
-    "agent:session-feed-watermark",
-    "agent:session-detach",
-    "agent:sessions-list",
-    "agent:session-fork",
-    "agent:session-archive",
-    "agent:session-delete",
-    "agent:session-close",
-    "agent:reference-stage",
-    "agent:reference-revoke",
-    "agent:reference-resolve-workspace",
-    "agent:reference-pick-workspace",
-    "agent:command-dispatch",
-    "agent:turn-start",
-    "agent:turn-steer",
-    "agent:turn-interrupt",
-    "agent:session-compact",
-    "agent:approval-resolve",
-    "agent:question-resolve",
-];
-
 /// `agentContractLimits`.
 pub mod limits {
     pub const MAX_PATH_LENGTH: usize = 4_096;
@@ -163,6 +123,5 @@ pub mod limits {
     pub const MAX_COMMAND_ERROR_LENGTH: usize = 1_000;
     pub const MAX_COMMAND_FINGERPRINT_LENGTH: usize = 128;
     pub const MAX_REFERENCE_COUNT: usize = 32;
-    pub const MAX_REFERENCE_BYTES: usize = 25 * 1024 * 1024;
     pub const MAX_TOTAL_REFERENCE_BYTES: usize = 25 * 1024 * 1024;
 }

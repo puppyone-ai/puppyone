@@ -34,7 +34,6 @@ pub fn create_work_buddy_runtime_definition(
             Ok(Rc::new(work_buddy_acp_adapter(channel, acp)?) as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }
 

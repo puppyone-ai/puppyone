@@ -24,9 +24,9 @@ const MAX_REFERENCE_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_TOTAL_REFERENCE_BYTES: u64 = 25 * 1024 * 1024;
 
 /// `agentReferenceLimits`.
+#[cfg(test)]
 pub mod limits {
     pub const MAX_REFERENCES: usize = super::MAX_REFERENCES;
-    pub const MAX_REFERENCE_BYTES: u64 = super::MAX_REFERENCE_BYTES;
     pub const MAX_TOTAL_REFERENCE_BYTES: u64 = super::MAX_TOTAL_REFERENCE_BYTES;
 }
 

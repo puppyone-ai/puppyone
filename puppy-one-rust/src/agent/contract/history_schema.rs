@@ -11,7 +11,6 @@ use serde_json::Value;
 pub mod limits {
     pub const PAGE_SIZE: usize = 100;
     pub const NATIVE_PAGE: usize = 1000;
-    pub const NATIVE_ID: usize = 512;
     pub const CURSOR: usize = 1024;
 }
 

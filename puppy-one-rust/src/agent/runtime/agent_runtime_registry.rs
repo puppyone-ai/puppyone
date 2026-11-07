@@ -37,7 +37,6 @@ pub struct RuntimeDefinition {
     pub discovery: Rc<dyn RuntimeDiscovery>,
     pub create_adapter: AdapterFactory,
     pub dispose: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, AgentResult<()>>>>,
-    pub has_active_resources: Option<Rc<dyn Fn() -> bool>>,
 }
 
 /// A registered definition: its validated manifest and public descriptor.
@@ -61,7 +60,6 @@ struct RegistryState {
     next_adapter: Cell<u64>,
     disposed: Cell<bool>,
     disposal: RefCell<Option<SharedTask<AgentResult<()>>>>,
-    default_runtime_id: String,
 }
 
 /// `AgentRuntimeRegistry` (and the `AgentRuntimeHost` facade over it).
@@ -106,9 +104,8 @@ impl AgentRuntimeRegistry {
             next_adapter: Cell::new(0),
             disposed: Cell::new(false),
             disposal: RefCell::new(None),
-            default_runtime_id: String::new(),
         };
-        let mut registry = Self(Rc::new(state));
+        let registry = Self(Rc::new(state));
         let default_id = default_runtime_id
             .map(str::to_string)
             .or_else(|| {
@@ -123,14 +120,7 @@ impl AgentRuntimeRegistry {
                 "Default Agent runtime is not registered: {default_id}"
             )));
         }
-        Rc::get_mut(&mut registry.0)
-            .expect("a fresh registry")
-            .default_runtime_id = default_id;
         Ok(registry)
-    }
-
-    pub fn default_runtime_id(&self) -> &str {
-        &self.0.default_runtime_id
     }
 
     /// `registry.descriptors()`.
@@ -154,6 +144,7 @@ impl AgentRuntimeRegistry {
     }
 
     /// `registry.manifests()`: Main-process-only manifests.
+    #[cfg(test)]
     pub fn manifests(&self) -> Vec<Value> {
         self.descriptors()
             .iter()
@@ -222,20 +213,6 @@ impl AgentRuntimeRegistry {
             }
         });
         join_all(rows).await
-    }
-
-    /// `registry.select(catalog, preferredRuntimeId)`.
-    pub fn select<'a>(
-        &self,
-        catalog: &'a [RuntimeCatalogEntry],
-        preferred: Option<&str>,
-    ) -> Option<&'a RuntimeCatalogEntry> {
-        let runtime_id = preferred
-            .filter(|p| !p.is_empty())
-            .unwrap_or(&self.0.default_runtime_id);
-        catalog
-            .iter()
-            .find(|entry| entry.descriptor["id"] == runtime_id)
     }
 
     /// `registry.createAdapter(runtimeId, options)`: dispose is idempotent and
@@ -310,20 +287,6 @@ impl AgentRuntimeRegistry {
         });
         *self.0.disposal.borrow_mut() = Some(disposal.clone());
         disposal
-    }
-
-    /// `registry.hasActiveResources()`.
-    pub fn has_active_resources(&self) -> bool {
-        if !self.0.adapters.borrow().is_empty() || self.0.discovery.has_active_resources() {
-            return true;
-        }
-        self.0.definitions.iter().any(|entry| {
-            entry
-                .definition
-                .has_active_resources
-                .as_ref()
-                .is_some_and(|active| active())
-        })
     }
 }
 

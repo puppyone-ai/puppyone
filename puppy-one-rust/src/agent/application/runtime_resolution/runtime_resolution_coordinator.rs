@@ -33,9 +33,6 @@ pub struct ResolvedRuntime {
     pub descriptor: Value,
     /// The internal (launch) readiness, promoted when publicly ready.
     pub readiness: Value,
-    pub public_readiness: Value,
-    pub protocol_verification_required: bool,
-    pub generation: u64,
 }
 
 #[derive(Clone)]
@@ -124,14 +121,8 @@ impl RuntimeResolutionCoordinator {
                 let effective =
                     effective_readiness_after_inspection(&selected, &public_readiness, &inspection);
                 if self.store.generation() == generation {
-                    self.store.set(
-                        &id,
-                        &inspection_root,
-                        effective.clone(),
-                        promote_internal_readiness(&selected.readiness, &effective),
-                        inspection.clone(),
-                        "protocol-handshake",
-                    );
+                    self.store
+                        .set(&id, &inspection_root, effective.clone(), inspection.clone());
                 }
                 update_runtime_row(&mut runtimes, &id, &effective);
                 Ok(catalog_result(runtimes, &selected, &effective, &inspection))
@@ -189,9 +180,6 @@ impl RuntimeResolutionCoordinator {
         Ok(ResolvedRuntime {
             readiness: promote_internal_readiness(&selected.readiness, &effective),
             descriptor: selected.descriptor,
-            public_readiness: effective,
-            protocol_verification_required: verification,
-            generation: self.store.generation(),
         })
     }
 
@@ -216,9 +204,7 @@ impl RuntimeResolutionCoordinator {
             runtime_id,
             workspace_root,
             effective.clone(),
-            promote_internal_readiness(readiness, &effective),
             inspection.clone(),
-            "live-operation",
         );
     }
 
@@ -245,7 +231,7 @@ impl RuntimeResolutionCoordinator {
             AdapterOptions::detached(selected.readiness.clone(), &workspace_root),
         )?;
         let result = supervisor
-            .run_start(&format!("{id}:catalog-inspect"), None, || adapter.inspect())
+            .run_start(None, || adapter.inspect())
             .await
             .and_then(|inspected| {
                 assert_agent_runtime_inspection(adapter.as_ref(), &inspected, &id)

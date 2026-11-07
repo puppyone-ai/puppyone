@@ -99,13 +99,11 @@ impl AgentSessionRuntime {
     async fn run_runtime_start<T, F: std::future::Future<Output = AgentResult<T>>>(
         &self,
         session: &SessionRef,
-        operation: &str,
         start: impl FnOnce() -> F,
     ) -> AgentResult<T> {
-        let label = format!("{}:{operation}", session.runtime_id());
         self.0
             .supervisor
-            .run_start(&label, None, || async {
+            .run_start(None, || async {
                 if session.closing() {
                     return Err(AgentError::new("Agent session closed during startup."));
                 }
@@ -217,13 +215,12 @@ impl AgentSessionRuntime {
         Ok(adapter)
     }
 
-    /// `runtimeSession.bootstrapNativeSession(session, selected, { kind, operation, threadId })`.
+    /// `runtimeSession.bootstrapNativeSession(session, selected, { kind, threadId })`.
     pub async fn bootstrap_native_session(
         &self,
         session: &SessionRef,
         selected: &ResolvedRuntime,
         kind: &str,
-        operation: &str,
         thread_id: Option<String>,
     ) -> AgentResult<Bootstrapped> {
         let adapter = session
@@ -253,9 +250,7 @@ impl AgentSessionRuntime {
                 .spread(&selection)
                 .build();
             let result = self
-                .run_runtime_start(session, &format!("bootstrap-{operation}"), || {
-                    adapter.bootstrap_session(request)
-                })
+                .run_runtime_start(session, || adapter.bootstrap_session(request))
                 .await?;
             let inspection = assert_agent_runtime_inspection(
                 adapter.as_ref(),
@@ -271,7 +266,7 @@ impl AgentSessionRuntime {
             )
         } else {
             let inspected = self
-                .run_runtime_start(session, "inspect", || adapter.inspect())
+                .run_runtime_start(session, || adapter.inspect())
                 .await?;
             (
                 assert_agent_runtime_inspection(adapter.as_ref(), &inspected, &runtime_id)?,
@@ -303,13 +298,11 @@ impl AgentSessionRuntime {
                     .set("threadId", thread_id.clone())
                     .spread(&selection)
                     .build();
-                self.run_runtime_start(session, operation, || adapter.resume_session(request))
+                self.run_runtime_start(session, || adapter.resume_session(request))
                     .await?
             } else {
-                self.run_runtime_start(session, operation, || {
-                    adapter.create_session(selection.clone())
-                })
-                .await?
+                self.run_runtime_start(session, || adapter.create_session(selection.clone()))
+                    .await?
             });
         }
         let provider_session = provider_session.unwrap_or(Value::Null);

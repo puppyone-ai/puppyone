@@ -97,10 +97,6 @@ impl RuntimeDiscoverySupervisor {
         observed
     }
 
-    pub fn has_active_resources(&self) -> bool {
-        !self.0.flights.borrow().is_empty()
-    }
-
     pub fn dispose(&self) {
         self.0.disposed.set(true);
         let flights: Vec<Rc<Flight>> = self.0.flights.borrow().values().cloned().collect();

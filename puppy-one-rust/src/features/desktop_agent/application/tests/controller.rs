@@ -21,6 +21,7 @@ use crate::features::desktop_agent::application::agent_runtime_discovery_cache::
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
 use crate::features::desktop_agent::application::agent_session_lifecycle::CloseOutcome;
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
+use crate::features::desktop_agent::fixtures::projection_json;
 use serde_json::{Value, json};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -907,9 +908,9 @@ fn renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat() {
         ));
         settle().await;
         assert_eq!(f.bridge.count("replayAgentSession"), 0);
-        let projection = controller.get_snapshot().projection;
-        assert_eq!(projection.last_sequence, 5);
-        assert_eq!(projection.terminal_state.as_deref(), Some("completed"));
+        let projection = projection_json(&controller.get_snapshot().projection);
+        assert_eq!(projection["lastSequence"], 5);
+        assert_eq!(projection["terminalState"], "completed");
 
         controller.remember_viewport(
             320.,

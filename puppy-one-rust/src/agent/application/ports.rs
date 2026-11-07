@@ -38,6 +38,7 @@ pub trait SessionCache {
         workspace_root: String,
         runtime_id: Option<String>,
     ) -> Pending<Option<Value>>;
+    #[cfg(test)]
     /// `cache.list(workspaceRoot, options)`.
     fn list(&self, workspace_root: String, options: Value) -> Pending<Vec<Value>>;
     /// `cache.archive(sessionId, archivedAt)`.
@@ -88,18 +89,6 @@ pub trait HistoryCatalog {
 pub trait AttachmentStore {
     /// Whether an optional method exists.
     fn supports(&self, method: &str) -> bool;
-    /// `store.stage({ ownerId, workspaceRoot, epoch, sourcePaths, sources })`.
-    fn stage(&self, _request: Value) -> Pending<Vec<Value>> {
-        unsupported("stage")
-    }
-    /// `store.authorize({ ownerId, workspaceRoot, epoch, references })`.
-    fn authorize(&self, _request: Value) -> Pending<Vec<Value>> {
-        unsupported("authorize")
-    }
-    /// `store.lease({ ownerId, workspaceRoot, epoch, tokens, leaseId })`.
-    fn lease(&self, _request: Value) -> Pending<()> {
-        unsupported("lease")
-    }
     /// `store.releaseLease({ ownerId, workspaceRoot, tokens, leaseId })`.
     fn release_lease(&self, _request: Value) -> Pending<()> {
         unsupported("releaseLease")
@@ -112,6 +101,7 @@ pub trait AttachmentStore {
     fn revoke_owner(&self, _owner_id: u64) -> Pending<()> {
         unsupported("revokeOwner")
     }
+    #[cfg(test)]
     /// `store.revokeWorkspace(ownerId, workspaceRoot)`.
     fn revoke_workspace(&self, _owner_id: u64, _workspace_root: String) -> Pending<()> {
         unsupported("revokeWorkspace")

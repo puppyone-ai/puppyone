@@ -95,36 +95,6 @@ pub fn has_agent_attachment_support(capabilities: &Value) -> bool {
         .any(|kind| accepted(attachment_input(capabilities, kind)))
 }
 
-/// `acceptedAgentAttachmentPickerTypes(capabilities)`: empty when any kind
-/// accepts every file.
-pub fn accepted_agent_attachment_picker_types(capabilities: &Value) -> Vec<String> {
-    let inputs: Vec<&Value> = AGENT_ATTACHMENT_KINDS
-        .iter()
-        .filter_map(|kind| attachment_input(capabilities, kind))
-        .filter(|input| accepted(Some(input)))
-        .collect();
-    let list = |input: &Value, key: &str| strings(js::get(input, key));
-    if inputs
-        .iter()
-        .any(|i| list(i, "mimeTypes").is_empty() && list(i, "extensions").is_empty())
-    {
-        return Vec::new();
-    }
-    let mut types: Vec<String> = Vec::new();
-    for input in inputs {
-        for value in list(input, "mimeTypes")
-            .into_iter()
-            .chain(list(input, "extensions"))
-        {
-            let value = text::trim(&value).to_lowercase();
-            if !value.is_empty() && !types.contains(&value) {
-                types.push(value);
-            }
-        }
-    }
-    types
-}
-
 /// [`accepts_agent_attachment`] of a runtime's typed reference inputs.
 pub fn accepts_attachment(
     capabilities: &super::dto::ReferenceInputCapabilities,
@@ -137,14 +107,6 @@ pub fn accepts_attachment(
 /// [`has_agent_attachment_support`] of a runtime's typed reference inputs.
 pub fn has_attachment_support(capabilities: &super::dto::ReferenceInputCapabilities) -> bool {
     has_agent_attachment_support(&typed(capabilities))
-}
-
-/// [`accepted_agent_attachment_picker_types`] of a runtime's typed
-/// reference inputs.
-pub fn attachment_picker_types(
-    capabilities: &super::dto::ReferenceInputCapabilities,
-) -> Vec<String> {
-    accepted_agent_attachment_picker_types(&typed(capabilities))
 }
 
 fn typed(capabilities: &super::dto::ReferenceInputCapabilities) -> Value {
@@ -214,9 +176,5 @@ mod tests {
         ));
         assert!(!accepts_agent_attachment(&capabilities, "", "a.txt"));
         assert!(has_agent_attachment_support(&capabilities));
-        assert_eq!(
-            accepted_agent_attachment_picker_types(&capabilities),
-            vec!["image/*"]
-        );
     }
 }

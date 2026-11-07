@@ -70,6 +70,5 @@ pub fn create_open_code_native_runtime_definition(
             Ok(Rc::new(open_code_acp_adapter(acp)?) as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

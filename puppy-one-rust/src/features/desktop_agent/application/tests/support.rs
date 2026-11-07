@@ -118,22 +118,13 @@ pub trait StateJson {
 pub fn error_json(
     error: &crate::features::desktop_agent::application::agent_error::ErrorDescriptor,
 ) -> Value {
-    use crate::agent::contract::dto::ErrorParam;
     let mut value = serde_json::json!({ "code": error.code });
     if !error.params.is_empty() {
         value["params"] = Value::Object(
             error
                 .params
                 .iter()
-                .map(|(key, param)| {
-                    (
-                        key.clone(),
-                        match param {
-                            ErrorParam::Text(text) => Value::from(text.as_str()),
-                            ErrorParam::Number(number) => Value::from(*number),
-                        },
-                    )
-                })
+                .map(|(key, param)| (key.clone(), Value::from(param.as_str())))
                 .collect(),
         );
     }

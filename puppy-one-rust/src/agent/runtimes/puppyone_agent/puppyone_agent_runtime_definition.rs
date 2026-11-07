@@ -73,6 +73,5 @@ pub fn create_puppyone_agent_runtime_definition(
             factory(pi, port.clone())
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

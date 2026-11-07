@@ -17,6 +17,7 @@ use crate::agent::contract::js;
 use crate::agent::contract::protocol::{
     AgentOperation, AgentRequest, AgentResponse, ResponseError,
 };
+#[cfg(test)]
 use crate::agent::contract::schema::{assert_agent_ipc_response, parse_agent_ipc_request};
 use crate::agent::infrastructure::attachments::agent_attachment_store::AgentAttachmentStore;
 use crate::agent::runtime::agent_operation_error::agent_operation_failure;
@@ -123,6 +124,7 @@ impl AgentRequests {
         read.map_err(failure_of)
     }
 
+    #[cfg(test)]
     /// Handles `operation`'s request in its transport form: the answer, or
     /// the operation-failure envelope (`ipcMain.handle`'s listener).
     pub async fn handle_value(

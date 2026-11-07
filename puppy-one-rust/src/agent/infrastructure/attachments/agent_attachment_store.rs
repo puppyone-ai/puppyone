@@ -950,18 +950,6 @@ impl AttachmentStore for AgentAttachmentStore {
                 | "close"
         )
     }
-    fn stage(&self, request: Value) -> Pending<Vec<Value>> {
-        let store = self.clone();
-        Box::pin(async move { store.stage(&request).await })
-    }
-    fn authorize(&self, request: Value) -> Pending<Vec<Value>> {
-        let store = self.clone();
-        Box::pin(async move { store.authorize(&request).await })
-    }
-    fn lease(&self, request: Value) -> Pending<()> {
-        let store = self.clone();
-        Box::pin(async move { store.lease(&request).await.map(drop) })
-    }
     fn release_lease(&self, request: Value) -> Pending<()> {
         let result = self.release_lease(&request).map(drop);
         Box::pin(async move { result })
@@ -975,6 +963,7 @@ impl AttachmentStore for AgentAttachmentStore {
         self.revoke_owner(owner_id as i64);
         Box::pin(async { Ok(()) })
     }
+    #[cfg(test)]
     fn revoke_workspace(&self, owner_id: u64, workspace_root: String) -> Pending<()> {
         let result = self.revoke_workspace(owner_id as i64, &workspace_root);
         Box::pin(async move { result })

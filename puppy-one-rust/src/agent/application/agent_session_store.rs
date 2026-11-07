@@ -117,13 +117,6 @@ impl AgentSessionStore {
         true
     }
 
-    /// `store.retire(session)`.
-    pub fn retire(&self, session: &SessionRef) {
-        if self.is_current(session) {
-            self.detach_owner(session);
-        }
-    }
-
     /// `store.requireOwned(sender, id)`.
     pub fn require_owned(&self, sender: &Sender, id: Option<&Value>) -> AgentResult<SessionRef> {
         let normalized = normalize_required_id(id, "Agent session id")?;
@@ -277,6 +270,7 @@ impl AgentSessionStore {
         }
     }
 
+    #[cfg(test)]
     /// `store.activeCount()`.
     pub fn active_count(&self) -> usize {
         self.values()
@@ -285,6 +279,7 @@ impl AgentSessionStore {
             .count()
     }
 
+    #[cfg(test)]
     /// `store.size`.
     pub fn size(&self) -> usize {
         self.state.borrow().sessions.len()

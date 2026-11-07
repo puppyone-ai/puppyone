@@ -37,7 +37,6 @@ pub struct AgentServiceOptions {
 #[derive(Clone)]
 pub struct AgentService {
     store: AgentSessionStore,
-    coordinator: RuntimeResolutionCoordinator,
     catalog: AgentRuntimeCatalog,
     indexer: NativeConversationIndexer,
     history: AgentHistoryQueries,
@@ -100,7 +99,6 @@ impl AgentService {
         let commands = AgentSessionCommands::new(runtime);
         Self {
             store,
-            coordinator,
             catalog,
             indexer,
             history,
@@ -133,9 +131,7 @@ impl AgentService {
         Ok(session)
     }
 
-    pub fn invalidate_runtime_readiness(&self) -> u64 {
-        self.coordinator.clear()
-    }
+    #[cfg(test)]
     pub fn assert_session_instance(
         &self,
         sender: &Sender,
@@ -347,6 +343,7 @@ impl AgentService {
         result
     }
 
+    #[cfg(test)]
     /// `service.closeSessionsForWindow(ownerId)`.
     pub async fn close_sessions_for_window(&self, owner_id: u64) -> AgentResult<()> {
         let sessions: Vec<SessionRef> = self
@@ -368,6 +365,7 @@ impl AgentService {
         closed
     }
 
+    #[cfg(test)]
     /// `service.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot)`.
     pub async fn close_sessions_for_workspace_root(
         &self,
@@ -402,13 +400,12 @@ impl AgentService {
         closed
     }
 
+    #[cfg(test)]
     pub fn get_session_count(&self) -> usize {
         self.lifecycle.get_session_count()
     }
+    #[cfg(test)]
     pub fn get_retained_session_count(&self) -> usize {
         self.lifecycle.get_retained_session_count()
-    }
-    pub fn has_runtime_resources(&self) -> bool {
-        self.lifecycle.has_runtime_resources()
     }
 }

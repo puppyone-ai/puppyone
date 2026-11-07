@@ -1652,7 +1652,6 @@ impl Inner {
                 request_id,
                 command_id: Some(control_command_id("question")),
                 preconditions,
-                answer: resolution.answer,
                 answers: resolution.answers,
                 rejected: resolution.rejected,
             }),
@@ -1950,7 +1949,6 @@ enum Interaction {
 /// `resolveQuestion(resolution)`'s resolution.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionResolution {
-    pub answer: Option<crate::agent::contract::protocol::QuestionAnswer>,
     pub answers: Option<Vec<Vec<String>>>,
     pub rejected: Option<bool>,
 }

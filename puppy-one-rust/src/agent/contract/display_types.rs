@@ -4,7 +4,7 @@
 //! Collection entries are shared (`Arc`), as the product's are shared
 //! object references: a revision rebuilds only the entries an event touched,
 //! and comparing two revisions skips every entry they still share.
-use super::display_state::{DISPLAY_COLLECTION_KEYS, DISPLAY_VALUE_KEYS};
+use super::display_state::DISPLAY_COLLECTION_KEYS;
 use super::validation::{Contract, contract_error};
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -148,9 +148,4 @@ impl AgentDisplay {
         }
         Ok(display)
     }
-}
-
-/// The display value keys, in the product's order.
-pub fn display_value_keys() -> &'static [&'static str] {
-    DISPLAY_VALUE_KEYS
 }

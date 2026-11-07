@@ -177,6 +177,7 @@ impl SessionCache for AgentSessionRepository {
                 .await
         })
     }
+    #[cfg(test)]
     fn list(&self, workspace_root: String, options: Value) -> Pending<Vec<Value>> {
         let repository = self.clone();
         Box::pin(async move {

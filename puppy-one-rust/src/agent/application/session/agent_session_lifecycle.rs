@@ -77,7 +77,7 @@ impl AgentSessionLifecycle {
             session.state_mut().adapter = Some(adapter);
             let booted = self
                 .runtime
-                .bootstrap_native_session(&session, &selected, "create", "create", None)
+                .bootstrap_native_session(&session, &selected, "create", None)
                 .await?;
             apply_provider_session(&session, &booted.provider_session);
             self.runtime.finish_native_session(&session)?;
@@ -254,13 +254,7 @@ impl AgentSessionLifecycle {
             session.state_mut().adapter = Some(adapter);
             let booted = self
                 .runtime
-                .bootstrap_native_session(
-                    &session,
-                    &selected,
-                    "resume",
-                    "resume",
-                    thread_id.clone(),
-                )
+                .bootstrap_native_session(&session, &selected, "resume", thread_id.clone())
                 .await?;
             apply_provider_session(&session, &booted.provider_session);
             self.record_runtime_success(&session, &selected, &booted.inspection);
@@ -431,6 +425,7 @@ impl AgentSessionLifecycle {
         Ok(())
     }
 
+    #[cfg(test)]
     /// `lifecycle.closeSessionsForWorkspaceRoot(webContentsId, workspaceRoot)`.
     pub async fn close_sessions_for_workspace_root(
         &self,
@@ -480,16 +475,14 @@ impl AgentSessionLifecycle {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn get_retained_session_count(&self) -> usize {
         self.runtime.store().size()
     }
 
+    #[cfg(test)]
     pub fn get_session_count(&self) -> usize {
         self.runtime.store().active_count()
-    }
-
-    pub fn has_runtime_resources(&self) -> bool {
-        self.runtime.registry().has_active_resources()
     }
 
     fn record_runtime_success(

@@ -59,6 +59,5 @@ pub fn create_claude_runtime_definition(
             factory(claude)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

@@ -28,6 +28,5 @@ pub fn create_pi_runtime_definition(
             Ok(Rc::new(pi_rpc_adapter(pi)?) as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

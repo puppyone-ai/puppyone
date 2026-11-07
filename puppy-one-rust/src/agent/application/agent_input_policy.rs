@@ -613,15 +613,6 @@ pub fn normalize_question_answers(
     ))
 }
 
-/// `unavailableReadiness(message)`.
-pub fn unavailable_readiness(message: &str) -> Value {
-    serde_json::json!({
-        "runtimeId": "unknown", "provider": "unknown", "status": "error", "code": "RUNTIME_DISCOVERY_FAILED",
-        "version": null, "minimumVersion": null, "message": message, "source": "missing",
-        "compatibility": "unavailable", "selectable": false,
-    })
-}
-
 /// `normalizeApprovalDecision(value)`.
 pub fn normalize_approval_decision(value: Option<&Value>) -> AgentResult<String> {
     match value.and_then(Value::as_str) {

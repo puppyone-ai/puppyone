@@ -3,7 +3,7 @@
 use super::agent_history_presentation::agent_history_notice;
 use super::agent_panel_presentation::{readiness_status_code, session_status_code};
 use crate::agent::contract::dto::{
-    Approval, Capability, DraftReference, ErrorParam, Model, PromptMention, Question,
+    Approval, Capability, DraftReference, Model, PromptMention, Question,
     ReferenceInputCapabilities, RuntimeCatalogEntry, RuntimeReadiness, SlashCommand,
 };
 use crate::features::desktop_agent::application::agent_controller_state::{
@@ -486,7 +486,7 @@ fn panel_error(state: &AgentControllerState, runtime: &str) -> Option<ErrorDescr
     }
     (state.phase == AgentControllerPhase::RuntimeExited).then(|| ErrorDescriptor {
         code: "runtime-exited".into(),
-        params: vec![("runtime".into(), ErrorParam::Text(runtime.to_string()))],
+        params: vec![("runtime".into(), runtime.to_string())],
         ..ErrorDescriptor::default()
     })
 }

@@ -52,6 +52,5 @@ pub fn create_cursor_runtime_definition(
             Ok(Rc::new(cursor_acp_adapter(acp)?) as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

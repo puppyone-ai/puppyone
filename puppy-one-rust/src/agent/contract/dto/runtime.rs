@@ -269,19 +269,11 @@ pub struct Capabilities {
 pub enum Capability {
     Steer,
     Queue,
-    Fork,
-    Resume,
     ModelSelection,
     ModeSelection,
     SlashCommands,
-    SessionHistory,
-    Compaction,
     ModelConnections,
     ReadOnly,
-    ManualApprovals,
-    StructuredQuestions,
-    Attachments,
-    ContextReferences,
 }
 
 impl Capabilities {
@@ -289,19 +281,11 @@ impl Capabilities {
         match capability {
             Capability::Steer => self.steer,
             Capability::Queue => self.queue,
-            Capability::Fork => self.fork,
-            Capability::Resume => self.resume,
             Capability::ModelSelection => self.model_selection,
             Capability::ModeSelection => self.mode_selection,
             Capability::SlashCommands => self.slash_commands,
-            Capability::SessionHistory => self.session_history,
-            Capability::Compaction => self.compaction,
             Capability::ModelConnections => self.model_connections,
             Capability::ReadOnly => self.read_only,
-            Capability::ManualApprovals => self.manual_approvals,
-            Capability::StructuredQuestions => self.structured_questions,
-            Capability::Attachments => self.attachments,
-            Capability::ContextReferences => self.context_references,
         }
     }
 }

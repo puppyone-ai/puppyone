@@ -1,5 +1,4 @@
 //! `ui/agentErrorPresentation.ts`.
-use crate::agent::contract::dto::ErrorParam;
 use crate::features::desktop_agent::application::agent_error::ErrorDescriptor;
 use crate::localization::{Arg, bidi_isolate, t, tf};
 
@@ -21,13 +20,7 @@ pub fn present_agent_error(error: Option<&ErrorDescriptor>) -> Option<AgentError
     let mut params: Vec<(String, Arg)> = error
         .params
         .iter()
-        .map(|(key, value)| {
-            let arg = match value {
-                ErrorParam::Text(text) => Arg::Text(bidi_isolate(text)),
-                ErrorParam::Number(number) => Arg::Number(*number),
-            };
-            (key.clone(), arg)
-        })
+        .map(|(key, value)| (key.clone(), Arg::Text(bidi_isolate(value))))
         .collect();
     if code == "runtime-exited" && !params.iter().any(|(key, _)| key == "runtime") {
         params.push(("runtime".into(), Arg::Text(bidi_isolate(t("agent.name")))));

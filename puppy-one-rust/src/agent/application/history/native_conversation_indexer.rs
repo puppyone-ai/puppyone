@@ -460,10 +460,9 @@ impl NativeConversationIndexer {
             return Ok(None);
         }
         let signal = controller.signal();
-        let label = format!("{}:history-discovery", scan.runtime_id);
         self.0
             .supervisor
-            .run_start(&label, Some(&signal), || async {
+            .run_start(Some(&signal), || async {
                 observe_history_operation(
                     async {
                         guard()?;
@@ -653,6 +652,7 @@ impl NativeConversationIndexer {
         Ok(())
     }
 
+    #[cfg(test)]
     /// `indexer.closeWorkspace(workspaceRoot)`.
     pub async fn close_workspace(&self, workspace_root: &str) -> AgentResult<()> {
         let root = workspace_root.to_string();
@@ -660,6 +660,7 @@ impl NativeConversationIndexer {
             .await
     }
 
+    #[cfg(test)]
     /// `indexer.closeOwner(ownerId)`.
     pub async fn close_owner(&self, owner_id: u64) -> AgentResult<()> {
         self.close_matching(move |_, owner| owner == Some(owner_id))

@@ -60,8 +60,3 @@ impl AgentEventView for Value {
         self.item_id().map_or(Value::Null, Value::from)
     }
 }
-
-/// `{}`.
-pub fn empty_object() -> &'static Value {
-    &EMPTY
-}

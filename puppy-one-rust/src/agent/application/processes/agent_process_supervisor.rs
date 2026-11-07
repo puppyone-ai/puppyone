@@ -12,7 +12,6 @@ const DEFAULT_MAX_CONCURRENT_STARTS: usize = 2;
 
 struct Waiter {
     id: u64,
-    label: String,
     ready: oneshot::Sender<()>,
 }
 
@@ -64,10 +63,9 @@ impl AgentProcessSupervisor {
         })))
     }
 
-    /// `supervisor.runStart({ label, signal }, operation)`.
+    /// `supervisor.runStart({ signal }, operation)`.
     pub async fn run_start<T, F: Future<Output = AgentResult<T>>>(
         &self,
-        label: &str,
         signal: Option<&CancelSignal>,
         operation: impl FnOnce() -> F,
     ) -> AgentResult<T> {
@@ -79,16 +77,7 @@ impl AgentProcessSupervisor {
             let mut state = self.0.borrow_mut();
             state.next += 1;
             let id = state.next;
-            let label = label.trim();
-            state.queue.push_back(Waiter {
-                id,
-                label: if label.is_empty() {
-                    "agent-runtime".into()
-                } else {
-                    label.chars().take(160).collect()
-                },
-                ready,
-            });
+            state.queue.push_back(Waiter { id, ready });
             drain(&mut state);
             id
         };
@@ -118,17 +107,6 @@ impl AgentProcessSupervisor {
             return Err(abort_error());
         }
         operation().await
-    }
-
-    /// `supervisor.snapshot()`.
-    pub fn snapshot(&self) -> serde_json::Value {
-        let state = self.0.borrow();
-        serde_json::json!({
-            "maxConcurrentStarts": state.limit,
-            "inUse": state.in_use,
-            "queued": state.queue.len(),
-            "queuedLabels": state.queue.iter().take(32).map(|w| w.label.clone()).collect::<Vec<_>>(),
-        })
     }
 }
 

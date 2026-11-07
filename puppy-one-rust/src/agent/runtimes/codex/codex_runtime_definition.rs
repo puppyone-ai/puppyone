@@ -55,6 +55,5 @@ pub fn create_codex_runtime_definition(
             })
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }

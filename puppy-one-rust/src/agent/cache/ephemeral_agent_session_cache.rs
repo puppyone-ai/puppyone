@@ -25,11 +25,9 @@ const MAX_SESSION_BYTES: usize = 2 * 1024 * 1024;
 const LEGACY_JOURNAL_FILENAME: &str = "desktop-agent-sessions.json";
 
 /// `agentSessionCachePolicy`.
+#[cfg(test)]
 pub mod policy {
     pub const DURABLE: bool = false;
-    pub const MAX_SESSIONS: usize = super::MAX_SESSIONS;
-    pub const MAX_EVENTS_PER_SESSION: usize = super::MAX_EVENTS_PER_SESSION;
-    pub const MAX_SESSION_BYTES: usize = super::MAX_SESSION_BYTES;
     pub const LEGACY_JOURNAL_FILENAME: &str = super::LEGACY_JOURNAL_FILENAME;
 }
 
@@ -197,6 +195,7 @@ impl SessionCache for EphemeralAgentSessionCache {
                 .await)
         })
     }
+    #[cfg(test)]
     /// Compatibility surface only. PuppyOne deliberately exposes no Chat History.
     fn list(&self, _workspace_root: String, _options: Value) -> Pending<Vec<Value>> {
         let cache = self.clone();

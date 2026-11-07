@@ -100,7 +100,7 @@ impl AgentSessionCommands {
             session.state_mut().adapter = Some(adapter);
             let booted = self
                 .runtime
-                .bootstrap_native_session(&session, &selected, "resume", "resume-fork", thread_id)
+                .bootstrap_native_session(&session, &selected, "resume", thread_id)
                 .await?;
             apply_provider_session(&session, &booted.provider_session);
             self.runtime.coordinator().record_operation_success(

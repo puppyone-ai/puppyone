@@ -63,11 +63,6 @@ pub fn truthy_opt(value: Option<&Value>) -> bool {
     value.is_some_and(truthy)
 }
 
-/// `value && typeof value === "object" && !Array.isArray(value)`.
-pub fn is_record(value: &Value) -> bool {
-    value.is_object()
-}
-
 /// `value?.[key]`, absent for anything but an object.
 pub fn get<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     value.as_object()?.get(key)

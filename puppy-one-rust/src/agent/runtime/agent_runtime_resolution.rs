@@ -48,11 +48,6 @@ pub fn agent_runtime_resolution_error(
     error
 }
 
-/// `isAgentRuntimeResolutionError(error)`.
-pub fn is_agent_runtime_resolution_error(error: &AgentError) -> bool {
-    error.name.as_deref() == Some("AgentRuntimeResolutionError")
-}
-
 fn actions_for(code: &str) -> &'static [&'static str] {
     match code {
         "AUTHENTICATION_REQUIRED" | "AUTHENTICATION_EXPIRED" => &["sign-in", "refresh"],

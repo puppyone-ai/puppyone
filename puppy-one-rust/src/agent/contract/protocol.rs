@@ -154,19 +154,6 @@ impl AgentOperation {
             Self::TerminateExecution => "terminateAgentExecution",
         }
     }
-
-    /// The operation of port method `method`.
-    pub fn of_method(method: &str) -> Option<Self> {
-        Self::MAIN
-            .iter()
-            .chain(&[Self::ManageExecutions, Self::TerminateExecution])
-            .copied()
-            .find(|operation| operation.method() == method)
-            .or(match method {
-                "discoverAgentProviders" => Some(Self::DiscoverRuntimes),
-                _ => None,
-            })
-    }
 }
 
 /// `AgentRuntimeRequest` (discovery, models, account) and
@@ -479,14 +466,6 @@ impl ApprovalDecision {
             _ => return None,
         })
     }
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Accept => "accept",
-            Self::AcceptForSession => "acceptForSession",
-            Self::Decline => "decline",
-            Self::Cancel => "cancel",
-        }
-    }
 }
 
 /// `AgentApprovalResolution`.
@@ -504,15 +483,6 @@ pub struct ResolveApproval {
     pub decision: ApprovalDecision,
 }
 
-/// `AgentQuestionResolution["answer"]`.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(untagged)]
-pub enum QuestionAnswer {
-    Text(String),
-    Choices(Vec<String>),
-    Matrix(Vec<Vec<String>>),
-}
-
 /// `AgentQuestionResolution`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -525,8 +495,6 @@ pub struct ResolveQuestion {
     pub command_id: Option<String>,
     #[serde(flatten)]
     pub preconditions: CommandPreconditions,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub answer: Option<QuestionAnswer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answers: Option<Vec<Vec<String>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -705,11 +673,6 @@ impl AgentRequest {
         *slot = Some(instance.to_string());
     }
 
-    /// The workspace root the request is for (`rootPath`).
-    pub fn root_path(&self) -> Option<&str> {
-        each_request!(self, request => request_root(request), stage stage => Some(stage.root_path.as_str()), none => None)
-    }
-
     /// The request in its transport form, checked against the contract as
     /// the product's IPC checks every request (`parseAgentIpcRequest`).
     pub fn to_value(&self) -> Contract<Value> {
@@ -723,42 +686,6 @@ impl AgentRequest {
     pub fn transport(&self) -> Value {
         each_request!(self, request => serde_json::to_value(request).unwrap_or(Value::Null), stage stage => stage_value(stage), none => Value::Object(Default::default()))
     }
-}
-
-trait Rooted {
-    fn root(&self) -> Option<&str>;
-}
-macro_rules! rooted {
-    ($($ty:ty),*) => { $(impl Rooted for $ty { fn root(&self) -> Option<&str> { Some(&self.root_path) } })* };
-}
-rooted!(
-    CreateSession,
-    ResumeSession,
-    OpenSession,
-    ReplaySession,
-    SessionTarget,
-    FeedAck,
-    FeedTarget,
-    ListSessions,
-    HistoryAction,
-    CloseSession,
-    RevokeReferences,
-    ResolveWorkspaceReferences,
-    WorkspaceTarget,
-    StartTurn,
-    SteerTurn,
-    InterruptTurn,
-    CompactSession,
-    ResolveApproval,
-    ResolveQuestion
-);
-impl Rooted for RuntimeQuery {
-    fn root(&self) -> Option<&str> {
-        self.root_path.as_deref()
-    }
-}
-fn request_root(request: &impl Rooted) -> Option<&str> {
-    request.root()
 }
 
 fn stage_value(stage: &StageReferences) -> Value {

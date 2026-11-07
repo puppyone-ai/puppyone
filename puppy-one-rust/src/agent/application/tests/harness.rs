@@ -529,7 +529,6 @@ pub fn create_service_harness(options: HarnessOptions) -> Harness {
             Ok(adapter as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     };
     let registry = AgentRuntimeRegistry::new(vec![definition], None, None).expect("registry");
     let persistence = Rc::new(FakePersistence::default());

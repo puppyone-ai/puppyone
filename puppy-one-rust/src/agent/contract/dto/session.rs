@@ -77,13 +77,6 @@ pub struct SessionMetadata {
 }
 
 impl SessionMetadata {
-    /// `session.runtimeId ?? session.provider`.
-    pub fn runtime_key(&self) -> &str {
-        self.runtime_id
-            .as_deref()
-            .filter(|id| !id.is_empty())
-            .unwrap_or(&self.provider)
-    }
     /// The live instance, when it has one.
     pub fn instance(&self) -> Option<&str> {
         self.instance_id.as_deref().filter(|id| !id.is_empty())
@@ -549,32 +542,5 @@ impl SessionSnapshot {
                 .map(|events| events.iter().cloned().map(Record::from_value).collect())
                 .unwrap_or_default(),
         })
-    }
-    /// The snapshot in transport form.
-    pub(in crate::agent) fn to_value(&self) -> Value {
-        let mut value = serde_json::json!({
-            "display": self.display.to_value(),
-            "session": self.session,
-            "account": self.account,
-            "providers": self.providers,
-            "models": self.models,
-            "capabilities": self.capabilities,
-            "events": self.events,
-            "partial": self.partial,
-            "firstAvailableSequence": self.first_available_sequence,
-            "lastSequence": self.last_sequence,
-            "cursor": self.cursor,
-            "control": self.control,
-        });
-        if let Some(runtime) = &self.runtime {
-            value["runtime"] = serde_json::json!(runtime);
-        }
-        if let Some(modes) = &self.modes {
-            value["modes"] = serde_json::json!(modes);
-        }
-        if let Some(commands) = &self.commands {
-            value["commands"] = serde_json::json!(commands);
-        }
-        value
     }
 }

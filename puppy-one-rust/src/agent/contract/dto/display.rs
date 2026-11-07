@@ -308,40 +308,7 @@ pub struct Part {
     pub event_type: Option<String>,
 }
 
-/// The kinds a part shares with activities.
-pub const ACTIVITY_KINDS: &[&str] = &[
-    "notification",
-    "system",
-    "tool",
-    "command",
-    "file-change",
-    "plan",
-    "reasoning",
-    "warning",
-    "error",
-];
-
 impl Part {
-    /// Whether this part is an activity.
-    pub fn is_activity(&self) -> bool {
-        ACTIVITY_KINDS.contains(&self.kind.as_str())
-    }
-    /// The activity this part is, read as one.
-    pub fn as_activity(&self) -> Activity {
-        Activity {
-            id: self.id.clone(),
-            turn_id: self.turn_id.clone(),
-            item_id: self.item_id.clone(),
-            kind: self.kind.clone(),
-            label: self.label.clone(),
-            label_code: self.label_code.clone(),
-            status: self.status.clone(),
-            detail: self.detail.clone(),
-            output: self.output.clone(),
-            sequence: self.sequence,
-            updated_sequence: self.updated_sequence,
-        }
-    }
     /// The activity as a part.
     pub fn of_activity(activity: &Activity) -> Self {
         Self {
@@ -384,19 +351,14 @@ impl Part {
 /// What an activity shows, whether it is a display activity or a timeline
 /// part of an activity kind.
 pub trait ActivityFields {
-    fn activity_id(&self) -> &str;
     fn kind(&self) -> &str;
     fn label(&self) -> &str;
     fn label_code(&self) -> Option<&str>;
-    fn status(&self) -> &str;
     fn detail(&self) -> &Record;
     fn output(&self) -> &str;
 }
 
 impl ActivityFields for Activity {
-    fn activity_id(&self) -> &str {
-        &self.id
-    }
     fn kind(&self) -> &str {
         &self.kind
     }
@@ -405,9 +367,6 @@ impl ActivityFields for Activity {
     }
     fn label_code(&self) -> Option<&str> {
         self.label_code.as_deref()
-    }
-    fn status(&self) -> &str {
-        &self.status
     }
     fn detail(&self) -> &Record {
         &self.detail
@@ -418,9 +377,6 @@ impl ActivityFields for Activity {
 }
 
 impl ActivityFields for Part {
-    fn activity_id(&self) -> &str {
-        &self.id
-    }
     fn kind(&self) -> &str {
         &self.kind
     }
@@ -429,9 +385,6 @@ impl ActivityFields for Part {
     }
     fn label_code(&self) -> Option<&str> {
         self.label_code.as_deref()
-    }
-    fn status(&self) -> &str {
-        &self.status
     }
     fn detail(&self) -> &Record {
         &self.detail
@@ -490,30 +443,15 @@ pub struct HistoryCoverage {
     pub reason: Option<String>,
 }
 
-/// `AgentProjection["missingRanges"][number]`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct MissingRange {
-    #[serde(deserialize_with = "super::lenient::integer")]
-    pub from: i64,
-    #[serde(deserialize_with = "super::lenient::integer")]
-    pub to: i64,
-}
-
 /// `AgentProjection`: the display, typed. Entries are shared; two
 /// projections share every entry a revision did not touch.
 #[derive(Clone, Debug)]
 pub struct AgentProjection {
     display: AgentDisplay,
-    pub session_state: String,
-    pub last_sequence: i64,
     pub history: HistoryCoverage,
     pub display_truncated: bool,
-    pub missing_ranges: Vec<MissingRange>,
     pub connection_status: Option<ConnectionStatus>,
     pub running_turn_id: Option<String>,
-    pub terminal_state: Option<String>,
-    pub usage: Option<Record>,
     pub presentation: Option<Presentation>,
     pub messages: Vec<Arc<TranscriptMessage>>,
     pub activities: Vec<Arc<Activity>>,
@@ -603,15 +541,10 @@ impl AgentProjection {
         let rows = collection!(&display.rows, Row, "rows");
         let window: Record = value(display, "displayWindow")?;
         Ok(Self {
-            session_state: value(display, "sessionState")?,
-            last_sequence: display.last_sequence(),
             history: value(display, "history")?,
             display_truncated: window.is_true("truncated"),
-            missing_ranges: value(display, "missingRanges")?,
             connection_status: value(display, "connectionStatus")?,
             running_turn_id: display.running_turn_id().map(str::to_string),
-            terminal_state: value(display, "terminalState")?,
-            usage: value(display, "usage")?,
             presentation: value(display, "presentation")?,
             display: display.clone(),
             messages,
@@ -644,11 +577,8 @@ impl AgentProjection {
             && self.messages.is_empty()
             && self.activities.is_empty()
     }
-    /// The transport form (contract checks and labs).
-    pub(in crate::agent) fn display(&self) -> &AgentDisplay {
-        &self.display
-    }
-    /// The display as plain JSON, for diagnostics and test snapshots.
+    /// The display as plain JSON, for test snapshots.
+    #[cfg(test)]
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self.display.to_value()).unwrap_or_default()
     }

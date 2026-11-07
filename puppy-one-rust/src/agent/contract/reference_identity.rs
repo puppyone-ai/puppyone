@@ -92,10 +92,6 @@ fn safe_reference_display_name(value: Option<&Value>) -> String {
     }
 }
 
-/// `agentReferenceIdentityLimits`.
-pub const MAX_WORKSPACE_RELATIVE_PATH: usize = MAX_WORKSPACE_RELATIVE_PATH_LENGTH;
-pub const MAX_REFERENCE_LABEL: usize = MAX_REFERENCE_LABEL_LENGTH;
-
 #[cfg(test)]
 mod tests {
     use super::*;

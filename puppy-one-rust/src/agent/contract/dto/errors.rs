@@ -30,12 +30,5 @@ pub struct OperationFailure {
     pub status: Option<String>,
 }
 
-/// One parameter of a known failure's message (`params.runtime`).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ErrorParam {
-    Text(String),
-    Number(i64),
-}
-
-/// A known failure's message parameters, in order.
-pub type ErrorParams = Vec<(String, ErrorParam)>;
+/// A known failure's message parameters (`params.runtime`), in order.
+pub type ErrorParams = Vec<(String, String)>;

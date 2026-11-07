@@ -12,11 +12,8 @@ pub const DEFAULT_SUCCESS_TTL_MS: i64 = 5 * 60_000;
 #[derive(Clone, Debug)]
 pub struct ReadinessSnapshot {
     pub public_readiness: Value,
-    pub internal_readiness: Value,
     pub inspection: Value,
-    pub evidence_source: String,
     pub generation: u64,
-    pub observed_at: i64,
     pub expires_at: i64,
 }
 
@@ -58,18 +55,13 @@ impl RuntimeReadinessStore {
         runtime_id: &str,
         workspace_root: &str,
         public_readiness: Value,
-        internal_readiness: Value,
         inspection: Value,
-        evidence_source: &str,
     ) -> ReadinessSnapshot {
         let observed_at = (self.now)();
         let snapshot = ReadinessSnapshot {
             public_readiness,
-            internal_readiness,
             inspection,
-            evidence_source: evidence_source.into(),
             generation: self.generation.get(),
-            observed_at,
             expires_at: observed_at + self.success_ttl_ms.max(1),
         };
         self.snapshots

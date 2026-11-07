@@ -33,6 +33,5 @@ pub fn create_hermes_runtime_definition(
             Ok(Rc::new(hermes_acp_adapter(acp)?) as Rc<dyn AgentRuntimeAdapter>)
         }),
         dispose: None,
-        has_active_resources: None,
     }
 }
