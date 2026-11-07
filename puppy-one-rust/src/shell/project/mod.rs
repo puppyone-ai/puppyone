@@ -9,6 +9,7 @@
 //! The window pumps it ([`ProjectLifecycle::pump`]) and hands what came of
 //! the pump ([`Pumped`]) to the owners that show it; what the picker finds
 //! later arrives as a [`ProjectEvent`].
+mod notices;
 mod preparation;
 
 use super::session::DocumentSession;
@@ -51,11 +52,13 @@ pub(super) struct WindowProject {
     pub fixture: bool,
 }
 
-/// What the picker found, later.
+/// What the picker found, later, and what the notices ask.
 pub(super) enum ProjectEvent {
     /// The folder picker closed: the window pumps the runtime again.
     Picked,
     Error(String),
+    /// The workspace notice's Retry (`resumeWorkspace`).
+    Retry,
 }
 
 /// What one pump of the runtime brought.

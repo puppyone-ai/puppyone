@@ -398,3 +398,86 @@ impl Render for EditorArea {
     }
 }
 use crate::ui::appearance::ActiveAppearance as _;
+
+impl EditorArea {
+    /// `.editor-notice-stack`, 48px below the top of the editor region
+    /// `editor`, 12px in from its end (`end` from the window's): the active
+    /// document's save failure, or a held-back Cloud conflict.
+    pub(super) fn notices(
+        &self,
+        editor: crate::geometry::Rect,
+        end: f32,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        use crate::{
+            localization::t as tr,
+            ui::components::{
+                FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
+            },
+        };
+        let stack = || {
+            NoticeStack::new(
+                NoticePlacement::TopEnd,
+                editor.y + 48.,
+                end + 12.,
+                (editor.w - 24.).min(420.),
+            )
+        };
+        let docs = self.docs.read(cx);
+        if docs.cloud_conflict() {
+            let area = self.weak.clone();
+            return Some(
+                stack()
+                    .child(
+                        FloatingNotice::new(
+                            "editor-session-notice",
+                            tr("editor.session.cloudConflict"),
+                        )
+                        .tone(NoticeTone::Danger)
+                        .action(
+                            NoticeAction::new(
+                                "editor-session-reload",
+                                tr("editor.session.discardAndReload"),
+                                move |_, cx| {
+                                    let _ = area.update(cx, |_, cx| {
+                                        cx.emit(EditorEvent::Command(Command::ReloadCloudBaseline))
+                                    });
+                                },
+                            )
+                            .emphasis(),
+                        ),
+                    )
+                    .into_any_element(),
+            );
+        }
+        let detail = docs
+            .save_error
+            .clone()
+            .filter(|e| self.dismissed_save_error.as_ref() != Some(e))?;
+        let area = self.weak.clone();
+        let dismissed = detail.clone();
+        Some(
+            stack()
+                .child(
+                    FloatingNotice::new(
+                        "editor-save-failure",
+                        crate::localization::tf(
+                            "editor.session.saveFailedDetail",
+                            &[(
+                                "detail",
+                                detail.chars().take(300).collect::<String>().into(),
+                            )],
+                        ),
+                    )
+                    .tone(NoticeTone::Danger)
+                    .on_dismiss(move |_, cx| {
+                        let _ = area.update(cx, |e, cx| {
+                            e.dismissed_save_error = Some(dismissed.clone());
+                            cx.notify();
+                        });
+                    }),
+                )
+                .into_any_element(),
+        )
+    }
+}

@@ -2,12 +2,12 @@ use crate::{
     documents::Intent,
     editor::workbench::runtime::Runtime as Documents,
     geometry::Rect,
-    localization::Locale,
     theme::{self, Theme},
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
+mod appearance;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
 #[cfg(feature = "dev-capture")]
@@ -36,7 +36,6 @@ mod session;
 mod share_panel;
 mod window_cloud;
 pub mod windows;
-use crate::features::settings::preferences_store::Slice;
 use command::on_shell_actions;
 pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
@@ -46,7 +45,7 @@ pub(crate) use dialogs::{settings_dialog, task_backdrop};
 use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
 use explorer_column::ExplorerColumn;
 use footer::SidebarFooter;
-use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side, StoredPanes};
+use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side};
 use right_sidebar::Surface;
 /// The layout of a pane embedded as a cached view: it fills the frame the
 /// shell places it in. A cached pane renders again only when its entity is
@@ -54,38 +53,6 @@ use right_sidebar::Surface;
 /// rebuild the Explorer or the right sidebar.
 fn fill() -> StyleRefinement {
     StyleRefinement::default().size_full()
-}
-
-/// What the process-wide appearance is projected from: a change to any of
-/// these renders the whole window again; nothing else does.
-#[derive(Clone, PartialEq)]
-struct AppearanceInputs {
-    theme_mode: crate::features::settings::preference_types::ThemeMode,
-    sub_theme_ids: crate::features::settings::preference_types::SubThemeIds,
-    text_scale: crate::typography::Scale,
-    fonts: crate::typography::fonts::Selection,
-    pointer_cursors: bool,
-    loading_style: crate::ui::loading::LoadingStyle,
-    locale: String,
-}
-impl AppearanceInputs {
-    fn of(p: &crate::features::settings::preference_types::Preferences) -> Self {
-        Self {
-            theme_mode: p.theme_mode,
-            sub_theme_ids: p.sub_theme_ids.clone(),
-            text_scale: p.text_scale,
-            fonts: p.fonts.clone(),
-            pointer_cursors: p.pointer_cursors,
-            loading_style: p.loading_style,
-            locale: p.locale.clone(),
-        }
-    }
-}
-/// The parts of the preferences the shell projects only when they change.
-#[derive(Default)]
-struct PreferenceSlices {
-    appearance: Slice<AppearanceInputs>,
-    panes: Slice<StoredPanes>,
 }
 
 /// Header popovers owned by the shell.
@@ -108,8 +75,6 @@ pub struct Shell {
     cloud: Entity<window_cloud::WindowCloud>,
     /// The Header, its popovers, the project rail and the introductions.
     chrome: Entity<chrome::WindowChrome>,
-    dark: bool,
-    locale: Locale,
     /// The Explorer's and the right sidebar's frames: open, width, edge
     /// drags and motion.
     panes: Entity<PaneLayout>,
@@ -120,14 +85,13 @@ pub struct Shell {
     sidebar: Entity<right_sidebar::RightSidebar>,
     /// A file window's own state (File Mode); `None` for a project window.
     pub(super) file: Option<Entity<file_mode::FileWindow>>,
-    weak: WeakEntity<Shell>,
     /// The project's Explorer session (its tree, selection, clipboard and
     /// pins, kept per project) and its view on the left.
     explorer_session: Entity<ExplorerSession>,
     explorer: Entity<Explorer>,
     home: Entity<home::Homepage>,
-    preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
-    preference_slices: PreferenceSlices,
+    /// The shared preferences and what the window projects of them.
+    prefs: appearance::WindowPreferences,
     /// The editor area's hosts, drops, resizes and save notices.
     editor: Entity<editor_area::EditorArea>,
     focus: FocusHandle,
@@ -158,7 +122,7 @@ impl Shell {
         window.on_window_should_close(cx, move |window, cx| {
             weak.update(cx, |s, cx| {
                 if s.files(cx).allow_quit {
-                    s.preferences.read(cx).drained()
+                    s.prefs.store.read(cx).drained()
                         && !s.dialogs.read(cx).creating(cx)
                         && (windows::count(cx) > 1
                             || !windows::last_close_quits(cx)
@@ -324,13 +288,10 @@ impl Shell {
             },
             cloud,
             chrome,
-            dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
-            locale: Locale::default(),
             panes,
             dialogs,
             sidebar,
             file: None,
-            weak: cx.weak_entity(),
             explorer_session: explorer_session.clone(),
             explorer: {
                 let owner = crate::features::agent_presence::owner(window);
@@ -340,8 +301,7 @@ impl Shell {
                 })
             },
             home,
-            preferences,
-            preference_slices: Default::default(),
+            prefs: appearance::WindowPreferences::new(preferences),
             editor,
             focus,
             captured: false,
@@ -393,8 +353,10 @@ impl Shell {
         }
         // The folder picker's answer, and the project as it changes.
         cx.subscribe_in(&s.project, window, |s, _, event, w, cx| {
-            if let project::ProjectEvent::Error(error) = event {
-                s.show_error(error.clone(), cx);
+            match event {
+                project::ProjectEvent::Error(error) => s.show_error(error.clone(), cx),
+                project::ProjectEvent::Retry => s.retry_workspace_surface(cx),
+                project::ProjectEvent::Picked => {}
             }
             s.receive(w, cx);
             cx.notify();
@@ -425,7 +387,7 @@ impl Shell {
         })
         .detach();
         cx.subscribe_in(
-            &s.preferences,
+            &s.prefs.store,
             window,
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
                 s.preferences_changed(w, cx);
@@ -509,7 +471,7 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        cx.observe(&s.preferences, |s, _, cx| {
+        cx.observe(&s.prefs.store, |s, _, cx| {
             s.session.docs.read(cx).wake().notify();
             cx.notify()
         })
@@ -543,7 +505,8 @@ impl Shell {
                     .update(cx, |s, cx| s.reload_agent_configuration(cx)),
                 SettingsEvent::ForgetProject(path) => {
                     let path = path.clone();
-                    s.preferences
+                    s.prefs
+                        .store
                         .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
                     s.close_tasks(cx);
                     if s.files(cx)
@@ -710,107 +673,28 @@ impl Shell {
         })
         .detach();
         // Until preferences load: the default Sub Theme in the start-up mode.
-        crate::ui::appearance::Appearance::default()
-            .with_dark(s.dark)
-            .apply(Some(window), cx);
+        s.prefs.apply_default(window, cx);
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
         s.sync_session_view(cx);
         s
     }
-    /// The preferences changed. Only a change to appearance, type scale or
-    /// locale renders the whole window again; every other reader takes its
-    /// own part, and the pane layout arrives only when it changed.
+    /// The preferences changed: the appearance (the whole window renders
+    /// again) and the pane layout, when they did.
     fn preferences_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let appearance = AppearanceInputs::of(&self.preferences.read(cx).state);
-        if self
-            .preference_slices
-            .appearance
-            .changed(appearance)
-            .is_some()
-        {
-            self.apply_appearance(window, cx);
+        let (appearance, panes) = self.prefs.changed(window, cx);
+        if appearance {
+            self.gate_editors(window, cx);
         }
-        self.apply_projections(cx);
-    }
-    /// Project persisted appearance/locale preferences onto the process-wide
-    /// theme, type scale and catalog. `System` follows the window appearance.
-    fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        use crate::features::settings::preference_types::ThemeMode;
-        let p = self.preferences.read(cx).state.clone();
-        self.dark = match p.theme_mode {
-            ThemeMode::Dark => true,
-            ThemeMode::Light => false,
-            ThemeMode::System => matches!(
-                window.appearance(),
-                WindowAppearance::Dark | WindowAppearance::VibrantDark
-            ),
-        };
-        // Captures pin the appearance (`PUPPYONE_THEME=light|dark`).
-        if let Ok(theme) = std::env::var("PUPPYONE_THEME")
-            && std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
-        {
-            self.dark = theme != "light";
-        }
-        let mut scale = p.text_scale;
-        // Captures pin the text size (`PUPPYONE_TEXT_SCALE=small|medium|large`).
-        if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
-            match std::env::var("PUPPYONE_TEXT_SCALE").as_deref() {
-                Ok("small") => scale = crate::typography::Scale::Small,
-                Ok("large") => scale = crate::typography::Scale::Large,
-                Ok("medium") => scale = crate::typography::Scale::Medium,
-                _ => {}
-            }
-        }
-        let sub_theme = crate::features::sub_theme_catalog::effective(
-            p.sub_theme_ids.get(self.dark),
-            self.dark,
-            cx,
-        );
-        crate::ui::appearance::Appearance::new(self.dark, &sub_theme, scale, p.pointer_cursors)
-            .with_loading(p.loading_style)
-            .with_fonts(p.fonts.normalized())
-            .apply(Some(window), cx);
-        let code = crate::localization::resolve_preference(
-            &p.locale,
-            crate::platform::environment::system_languages(),
-        );
-        crate::localization::set_current(code);
-        let theme_menu = crate::features::sub_theme_catalog::sync_menu(
-            p.sub_theme_ids.get(self.dark),
-            self.dark,
-            cx,
-        );
-        if self.locale.set(code) | theme_menu {
-            cx.set_menus(app_menus());
-        }
-        // Appearance, type scale and locale are process-wide: the cached
-        // panes (Explorer, workbench, Changes) read them while rendering, so
-        // the whole window renders again.
-        window.refresh();
-        self.gate_editors(window, cx);
-    }
-    /// The parts of the preferences other owners read, handed to them; each
-    /// takes only a change (nothing here renders the window again).
-    fn apply_projections(&mut self, cx: &mut Context<Self>) {
-        let p = self.preferences.read(cx).state.clone();
-        // The built-in Agent offers PuppyOne compute only while Payments is on.
-        crate::cloud::auth::set_payments(p.experimental.payments);
-        crate::editor::markdown::core::commands::block_move::set_enabled(
-            p.experimental.markdown_block_drag,
-        );
-        // The pane layout (`useDesktopExplorerFrame`), only when it changed:
-        // this window's own commits arrive back here as no change.
-        let stored = StoredPanes {
-            explorer_collapsed: p.sidebar_collapsed,
-            explorer_width: p.explorer_width,
-            right_width: p.right_sidebar_width,
-        };
-        if let Some(stored) = self.preference_slices.panes.changed(stored) {
-            let stored = *stored;
+        if let Some(stored) = panes {
             self.panes.update(cx, |p, cx| p.restore(stored, cx));
         }
+    }
+    /// The window appearance or an installed Sub Theme changed.
+    fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.prefs.apply(window, cx);
+        self.gate_editors(window, cx);
     }
     /// The file's folder is the window's root; only the file shows, and it
     /// saves when asked. A file that is gone or too large is never read
@@ -974,7 +858,7 @@ impl Shell {
     /// in flight is cancelled and a Cloud project on screen leaves for the
     /// Homepage.
     pub(super) fn guard_cloud_authority(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current = if crate::features::flags::cloud_enabled(&self.preferences, cx) {
+        let current = if crate::features::flags::cloud_enabled(&self.prefs.store, cx) {
             cloud_authority::account_key(cx)
         } else {
             None
@@ -1235,8 +1119,8 @@ impl Shell {
         if self.files(cx).allow_quit && self.dialogs.read(cx).creating(cx) {
             return;
         }
-        if self.files(cx).allow_quit && !self.preferences.read(cx).drained() {
-            if let Some(error) = self.preferences.read(cx).error.clone() {
+        if self.files(cx).allow_quit && !self.prefs.store.read(cx).drained() {
+            if let Some(error) = self.prefs.store.read(cx).error.clone() {
                 self.show_error(error, cx);
                 self.session.docs.update(cx, |d, _| d.cancel_quit());
                 windows::cancel_quit(cx);
@@ -1286,7 +1170,7 @@ impl Shell {
         editor_area::EditorGate {
             modal: self.modal(cx) || self.sidebar.read(cx).workbench.read(cx).dialog_open(),
             home: self.home_visible(cx),
-            dark: self.dark,
+            dark: self.prefs.dark,
         }
     }
     /// The window's gate over the editors changed.
@@ -1466,7 +1350,7 @@ impl Shell {
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).
     fn persist_panes(&mut self, cx: &mut Context<Self>) {
         let stored = self.panes.read(cx).stored();
-        self.preferences.update(cx, |store, cx| {
+        self.prefs.store.update(cx, |store, cx| {
             store.change(
                 |p| {
                     p.sidebar_collapsed = stored.explorer_collapsed;
@@ -1628,8 +1512,15 @@ impl Render for Shell {
         if !home && !opening && !file {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
+        // `FloatingNoticeStack`s over the workspace: its own notices and
+        // the editor's (save failure, held-back Cloud conflict).
         if !home && !opening {
-            root = root.children(self.notices(w, cx));
+            let (editor, end) = (self.layout.editor, w - self.layout.editor.right());
+            let folder = self.cloud.read(cx).local_folder_notice_view(cx);
+            let project = self.project.downgrade();
+            root = root
+                .children(self.project.read(cx).notices(editor, end, folder, project))
+                .children(self.editor.read(cx).notices(editor, end, cx));
         }
         let chrome = self.chrome.read(cx);
         root = root.child(chrome.project_actions.clone());
@@ -1638,142 +1529,10 @@ impl Render for Shell {
     }
 }
 impl Shell {
-    /// `FloatingNoticeStack`s over the workspace: the workspace surface
-    /// notice (`.desktop-workspace-notice-stack`: 12px below the top, 16px
-    /// in from the editor's end) and the document session's held-back Cloud
-    /// conflict (`.editor-notice-stack`: 48px / 12px).
-    fn notices(&self, w: f32, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        use crate::{
-            localization::t as tr,
-            ui::components::{
-                FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
-            },
-        };
-        let editor = self.layout.editor;
-        let end = w - editor.right();
-        let mut layers = vec![];
-        // `.desktop-workspace-notice-stack`: the local folder's Cloud notice
-        // leads the workspace's own warning.
-        let mut folder_notice = self.cloud.read(cx).local_folder_notice_view(cx);
-        if folder_notice.is_some() && self.project.read(cx).record.notice.is_none() {
-            layers.push(
-                NoticeStack::new(
-                    NoticePlacement::TopEnd,
-                    editor.y + 12.,
-                    end + 16.,
-                    (editor.w - 40.).min(400.),
-                )
-                .children(folder_notice.take())
-                .into_any_element(),
-            );
-        }
-        if let Some(message) = &self.project.read(cx).record.notice {
-            let host = self.weak.clone();
-            let dismiss = self.weak.clone();
-            layers.push(
-                NoticeStack::new(
-                    NoticePlacement::TopEnd,
-                    editor.y + 12.,
-                    end + 16.,
-                    (editor.w - 40.).min(400.),
-                )
-                .children(folder_notice.take())
-                .child(
-                    FloatingNotice::new("workspace-notice", message.clone())
-                        .tone(NoticeTone::Warning)
-                        .action(NoticeAction::new(
-                            "workspace-notice-retry",
-                            tr("common.action.retry"),
-                            move |_, cx| {
-                                let _ = host.update(cx, |s, cx| s.retry_workspace_surface(cx));
-                            },
-                        ))
-                        .on_dismiss(move |_, cx| {
-                            let _ = dismiss.update(cx, |s, cx| {
-                                s.project.update(cx, |p, _| p.record.notice = None);
-                                cx.notify();
-                            });
-                        }),
-                )
-                .into_any_element(),
-            );
-        }
-        // `editor-notice-stack`: the active document's save failure.
-        if let Some(detail) = self.files(cx).save_error.clone().filter(|e| {
-            !self.files(cx).cloud_conflict()
-                && self.editor.read(cx).dismissed_save_error.as_ref() != Some(e)
-        }) {
-            let dismiss = self.weak.clone();
-            let dismissed = detail.clone();
-            layers.push(
-                NoticeStack::new(
-                    NoticePlacement::TopEnd,
-                    editor.y + 48.,
-                    end + 12.,
-                    (editor.w - 24.).min(420.),
-                )
-                .child(
-                    FloatingNotice::new(
-                        "editor-save-failure",
-                        crate::localization::tf(
-                            "editor.session.saveFailedDetail",
-                            &[(
-                                "detail",
-                                detail.chars().take(300).collect::<String>().into(),
-                            )],
-                        ),
-                    )
-                    .tone(NoticeTone::Danger)
-                    .on_dismiss(move |_, cx| {
-                        let _ = dismiss.update(cx, |s, cx| {
-                            let dismissed = dismissed.clone();
-                            s.editor
-                                .update(cx, |e, _| e.dismissed_save_error = Some(dismissed));
-                            cx.notify();
-                        });
-                    }),
-                )
-                .into_any_element(),
-            );
-        }
-        if self.files(cx).cloud_conflict() {
-            let host = self.weak.clone();
-            layers.push(
-                NoticeStack::new(
-                    NoticePlacement::TopEnd,
-                    editor.y + 48.,
-                    end + 12.,
-                    (editor.w - 24.).min(420.),
-                )
-                .child(
-                    FloatingNotice::new(
-                        "editor-session-notice",
-                        tr("editor.session.cloudConflict"),
-                    )
-                    .tone(NoticeTone::Danger)
-                    .action(
-                        NoticeAction::new(
-                            "editor-session-reload",
-                            tr("editor.session.discardAndReload"),
-                            move |w, cx| {
-                                let _ = host.update(cx, |s, cx| {
-                                    s.command(Command::ReloadCloudBaseline, w, cx)
-                                });
-                            },
-                        )
-                        .emphasis(),
-                    ),
-                )
-                .into_any_element(),
-            );
-        }
-        layers
-    }
     /// `resumeWorkspace`: a hosted Project opens again explicitly (its
     /// retained documents rebind to the new lease); a local folder
     /// subscribes again. Both reread what the Explorer has loaded.
     fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
-        self.project.update(cx, |p, _| p.record.notice = None);
         match self.hosted_project(cx) {
             Some(project) => self.open_cloud(project, cx),
             None => self.explorer_session.update(cx, |e, cx| e.resubscribe(cx)),

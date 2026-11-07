@@ -288,13 +288,14 @@ impl Shell {
             }
             Step::Remember(path) => {
                 let path = path.clone();
-                self.preferences.update(cx, |p, cx| {
+                self.prefs.store.update(cx, |p, cx| {
                     p.change(|p| p.remember_project(&path, 1_792_800_000), cx)
                 });
             }
             Step::Forget(path) => {
                 let path = path.clone();
-                self.preferences
+                self.prefs
+                    .store
                     .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
             }
             Step::GitDiff(path, staged) => {
@@ -452,7 +453,7 @@ impl Shell {
                     return false;
                 }
             }
-            Step::HomeList => self.preferences.update(cx, |p, cx| {
+            Step::HomeList => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| {
                         p.homepage_project_layout =

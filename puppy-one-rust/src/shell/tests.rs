@@ -350,7 +350,7 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     view.update(cx, |s, cx| {
         assert!(!s.panes.read(cx).right().open && s.sidebar.read(cx).is(Surface::Git));
         assert_eq!(
-            s.preferences.read(cx).state.right_sidebar_surface,
+            s.prefs.store.read(cx).state.right_sidebar_surface,
             crate::features::settings::preference_types::RightSidebarSurface::Changes
         );
     });
@@ -407,7 +407,7 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let stored = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
         view.read_with(cx, |s, cx| {
-            s.preferences.read(cx).state.right_sidebar_surface
+            s.prefs.store.read(cx).state.right_sidebar_surface
         })
     };
     assert_eq!(stored(&view, cx), RightSidebarSurface::History);
@@ -432,7 +432,7 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     assert_eq!(stored(&view, cx), RightSidebarSurface::Chat);
     // A new window starts closed on the stored surface, once.
     view.update_in(cx, |s, w, cx| {
-        let preferences = s.preferences.clone();
+        let preferences = s.prefs.store.clone();
         let panes = cx.new(|cx| panes::PaneLayout::new(false, w, cx));
         let sidebar = cx
             .new(|cx| right_sidebar::RightSidebar::new(Surface::Agent, preferences, panes, w, cx));
@@ -747,7 +747,8 @@ fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext)
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     draw(cx);
@@ -802,13 +803,13 @@ fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestApp
 fn locale_changes_catalog_without_document_work(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.locale.set("zh-Hans");
+        s.prefs.locale.set("zh-Hans");
         cx.notify();
     });
     view.update(cx, |s, cx| {
-        assert_eq!(s.locale.text("settings.general.title"), "通用");
+        assert_eq!(s.prefs.locale.text("settings.general.title"), "通用");
         assert!(matches!(s.files(cx).phase, Phase::Idle));
-        assert_eq!(Locale::choices().count(), 8);
+        assert_eq!(crate::localization::Locale::choices().count(), 8);
     });
 }
 #[gpui::test]
@@ -1301,7 +1302,7 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     });
     // Both commits are the stored layout.
     view.read_with(cx, |s, cx| {
-        let p = &s.preferences.read(cx).state;
+        let p = &s.prefs.store.read(cx).state;
         assert_eq!((p.sidebar_collapsed, p.explorer_width), (true, 220.));
     });
 }
@@ -1314,7 +1315,7 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
         let _ = w.draw(cx);
     });
     // The stored layout arriving is shown at once, not as a close.
-    let store = view.read_with(cx, |s, _| s.preferences.clone());
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
     store.update(cx, |store, cx| {
         store.change(
             |p| {
@@ -1350,7 +1351,7 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
             ),
             (true, 260.)
         );
-        assert!(!s.preferences.read(cx).state.sidebar_collapsed);
+        assert!(!s.prefs.store.read(cx).state.sidebar_collapsed);
     });
 }
 
@@ -1510,7 +1511,7 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     assert!(pushed > before, "a host change renders the Explorer");
     // A preference the Explorer does not read leaves it alone (the first
     // change projects the whole appearance once, as loading does)…
-    let store = view.read_with(cx, |s, _| s.preferences.clone());
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
     store.update(cx, |p, cx| p.change(|p| p.right_sidebar_width = 380., cx));
     draw(cx);
     let pushed = renders(cx);
@@ -1803,7 +1804,8 @@ fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppCo
         crate::cloud::auth::responding_account_fixture(with_catalog(cloud_project_responder()));
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
@@ -1851,7 +1853,8 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
@@ -2032,7 +2035,8 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
         account.update(cx, |a, _| a.sign_out());
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
@@ -2113,7 +2117,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences.update(cx, |p, _| {
+        s.prefs.store.update(cx, |p, _| {
             p.state.experimental.cloud_workspace = true;
             p.state.remember_project(&plain, 2);
             p.state.remember_project(&linked, 1);
@@ -2180,7 +2184,8 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     let account =
         cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let settle = |view: &Entity<Shell>,
@@ -2238,7 +2243,8 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
@@ -2250,7 +2256,7 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     view.read_with(cx, |s, cx| assert!(s.files(cx).cloud_opening().is_some()));
     view.update(cx, |s, cx| {
-        s.preferences.update(cx, |p, cx| {
+        s.prefs.store.update(cx, |p, cx| {
             p.change(|p| p.experimental.cloud_workspace = false, cx)
         })
     });
@@ -2283,7 +2289,8 @@ fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
@@ -2320,7 +2327,8 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let settle = |view: &Entity<Shell>,
@@ -2394,7 +2402,8 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let settle = |view: &Entity<Shell>,
@@ -2462,7 +2471,8 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         name: "notes".into(),
     };
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.remember_project(&path, 1));
         let target = target.clone();
         let actions = s.chrome.read(cx).project_actions.clone();
@@ -2507,7 +2517,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
         assert_eq!(
-            s.preferences.read(cx).state.recent_projects[0].name,
+            s.prefs.store.read(cx).state.recent_projects[0].name,
             "Field notes"
         );
     });
@@ -2529,7 +2539,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     });
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
-        assert!(s.preferences.read(cx).state.recent_projects.is_empty())
+        assert!(s.prefs.store.read(cx).state.recent_projects.is_empty())
     });
 }
 
@@ -2574,7 +2584,8 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
         s.refresh_cloud_catalog(true, cx);
     });
@@ -2686,7 +2697,8 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
         );
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
@@ -2778,7 +2790,8 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
         crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let settle = |view: &Entity<Shell>,
@@ -2867,7 +2880,7 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
         cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     cx.run_until_parked();
     view.update(cx, |s, cx| {
-        s.preferences.update(cx, |p, cx| {
+        s.prefs.store.update(cx, |p, cx| {
             p.loaded = true;
             p.change(|p| p.experimental.cloud_workspace = true, cx);
         })
@@ -2883,7 +2896,7 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.home.read(cx).first_run_sign_in(cx));
-        assert!(s.preferences.read(cx).state.first_run_sign_in_completed);
+        assert!(s.prefs.store.read(cx).state.first_run_sign_in_completed);
     });
     let _ = account;
 }
@@ -3196,7 +3209,8 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
         s.project.update(cx, |p, _| p.record.fixture = false);
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
     });
     command(&view, cx, Command::Home);
@@ -3349,13 +3363,14 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     draw(cx);
     view.update(cx, |s, cx| {
         assert!(!s.chrome.read(cx).coachmarks.read(cx).shown(cx));
-        assert!(s.preferences.read(cx).state.header_coachmarks.agent);
+        assert!(s.prefs.store.read(cx).state.header_coachmarks.agent);
     });
     // A dialog hides it, and Escape then answers the dialog, not the overlay.
-    let mut prefs = view.read_with(cx, |s, cx| s.preferences.read(cx).state.clone());
+    let mut prefs = view.read_with(cx, |s, cx| s.prefs.store.read(cx).state.clone());
     prefs.header_coachmarks.agent = false;
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, cx| p.change(|p| *p = prefs, cx));
         s.chrome
             .read(cx)
@@ -3376,7 +3391,7 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     draw(cx);
     view.update(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
-        assert!(!s.preferences.read(cx).state.header_coachmarks.agent);
+        assert!(!s.prefs.store.read(cx).state.header_coachmarks.agent);
         assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx));
     });
 }
@@ -3421,7 +3436,8 @@ fn linked_checkout(
     let kept = broker.clone();
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
@@ -3581,7 +3597,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     // Turning Cloud on loads the catalog.
     view.update(cx, |s, cx| {
-        s.preferences.update(cx, |p, cx| {
+        s.prefs.store.update(cx, |p, cx| {
             p.change(|p| p.experimental.cloud_workspace = true, cx)
         })
     });
@@ -3824,7 +3840,8 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
     ];
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let mut seen = vec![];
@@ -3923,7 +3940,8 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
 
     let off = |view: &Entity<Shell>, on: bool, cx: &mut VisualTestContext| {
         view.update(cx, |s, cx| {
-            s.preferences
+            s.prefs
+                .store
                 .update(cx, |p, _| p.state.experimental.share_onboarding = on)
         })
     };
@@ -4042,7 +4060,8 @@ fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
         crate::cloud::auth::responding_account_fixture(cloud_project_responder());
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
@@ -4185,7 +4204,8 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
     });
     let settings = view.read_with(cx, |s, cx| s.dialogs.read(cx).settings.clone());
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.payments = false)
     });
     settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
@@ -4194,7 +4214,8 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
     cx.run_until_parked();
     assert_eq!(reads.load(Ordering::SeqCst), 0);
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.payments = true)
     });
     settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
@@ -4270,7 +4291,8 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.project.update(cx, |p, _| p.record.fixture = false);
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
@@ -4349,7 +4371,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         assert_eq!(s.layout.editor.x, 0.);
         assert_eq!(s.layout.explorer.w, 0.);
         // Not remembered as a project, never shared or put in the Cloud.
-        assert!(s.preferences.read(cx).state.recent_projects.is_empty());
+        assert!(s.prefs.store.read(cx).state.recent_projects.is_empty());
         assert!(s.cloud.read(cx).local_folder_notice(cx).is_none());
         // Nothing watches the file.
         assert!(!s.files(cx).watching());
@@ -4439,7 +4461,8 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.preferences
+        s.prefs
+            .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
         let cache = dir.path().to_path_buf();
         s.cloud
