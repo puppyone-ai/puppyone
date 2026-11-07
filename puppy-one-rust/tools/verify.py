@@ -18,7 +18,7 @@ out.mkdir(parents=True, exist_ok=True)
 (out / 'result.json').unlink(missing_ok=True)
 cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json']]
-for folder in ['src', 'assets', 'fixtures', 'tools']:
+for folder in ['src', 'crates', 'assets', 'fixtures', 'tools']:
     paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file() and "__pycache__" not in p.parts)
 def source_hashes():
     return {os.path.relpath(p, root): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}

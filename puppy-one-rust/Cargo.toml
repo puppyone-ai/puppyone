@@ -1,7 +1,8 @@
 [workspace]
-# The window (this package, `po-app`'s role) over the layered crates in
-# crates/: po-contracts ← po-platform ← po-workspace ← po-agent; po-ui;
-# po-editor. Their sources stay in src/, mounted by each crate's lib.rs.
+# The window (this package, `po-app`: app/, features/ and the binary) over
+# the layered crates in crates/: po-contracts ← po-platform ← po-workspace
+# ← po-agent; po-ui; po-editor. Their sources stay in src/, mounted by each
+# crate's lib.rs.
 members = ["crates/*"]
 # `cargo test`, `cargo clippy` and `cargo build` cover every crate.
 default-members = [
@@ -21,11 +22,15 @@ edition = "2024"
 license = "Apache-2.0"
 
 [package]
-name = "puppy-one-rust"
+name = "po-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[[bin]]
+name = "puppy-one-rust"
+path = "src/main.rs"
 
 [dependencies]
 po-contracts = { path = "crates/po-contracts" }

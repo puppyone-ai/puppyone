@@ -30,15 +30,15 @@ build = subprocess.run([cargo, 'test', '--release', '--locked', '--no-run', '--m
 if build.returncode:
     sys.stderr.write(build.stderr)
     sys.exit(build.returncode)
-binary = next(json.loads(line)['executable'] for line in build.stdout.splitlines()
-              if line.startswith('{') and json.loads(line).get('profile', {}).get('test')
-              and json.loads(line).get('executable'))
-
-tests = {'editor': 'editor::view::bench::editor_frame_cost', 'window': 'app::dev::bench::window_frame_cost'}
+# The editor's benchmark is in po-editor's tests, the window's in the app's.
+binaries = {a['target']['name']: a['executable'] for a in map(json.loads, filter(lambda l: l.startswith('{'), build.stdout.splitlines()))
+            if a.get('profile', {}).get('test') and a.get('executable')}
+tests = {'editor': ('po_editor', 'editor::view::bench::editor_frame_cost'),
+         'window': ('puppy-one-rust', 'app::dev::bench::window_frame_cost')}
 results = []
 for sections in [int(s) for s in args.sections.split(',')]:
-    for surface, test in tests.items():
-        run = subprocess.run([binary, test, '--exact', '--ignored', '--nocapture', '--test-threads=1'],
+    for surface, (target, test) in tests.items():
+        run = subprocess.run([binaries[target], test, '--exact', '--ignored', '--nocapture', '--test-threads=1'],
                              cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              env={**os.environ, 'PUPPYONE_BENCH_SECTIONS': str(sections)})
         found = re.search(r'BENCH (\{.*\})', run.stdout)

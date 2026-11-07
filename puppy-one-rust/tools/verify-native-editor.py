@@ -55,7 +55,7 @@ suites = {
     ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
-paths.extend(p for folder in ['src', 'assets'] for p in sorted((root / folder).rglob('*')) if p.is_file())
+paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())
 def hashes():
     return {os.path.relpath(p, root): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 before = hashes()
@@ -71,7 +71,7 @@ if build.returncode:
 artifacts = [json.loads(line) for line in build.stdout.splitlines() if line.startswith('{')]
 binary = next(a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact'
               and a.get('profile', {}).get('test') and a.get('executable')
-              and a.get('target', {}).get('name') == 'puppy-one-rust')
+              and a.get('target', {}).get('name') == 'po_editor')
 checks = []
 for prefix, required in suites.items():
     name = prefix.removeprefix('editor::').replace('::', '-').rstrip('-')

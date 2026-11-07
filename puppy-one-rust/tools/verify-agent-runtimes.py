@@ -36,7 +36,7 @@ if args.only:
 
 def source_hashes():
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for folder in ['src/agent', 'src/features/desktop_agent', 'src/model_connections', 'src/platform']
+            for folder in ['src/agent', 'src/features/desktop_agent', 'src/platform', 'crates']
             for p in sorted((root / folder).rglob('*.rs'))}
 
 before = source_hashes()
