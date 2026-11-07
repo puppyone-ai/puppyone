@@ -35,15 +35,7 @@ pub struct CompileCx<'a> {
 
 /// What a widget factory sees.
 pub struct WidgetFactoryCx<'a> {
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every widget factory; none reads it yet"
-    )]
     pub doc: &'a Buffer,
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every widget factory; none reads it yet"
-    )]
     pub syntax: &'a Syntax,
     pub theme: &'a MarkdownTheme,
     /// Where the document's media resolve and load from.

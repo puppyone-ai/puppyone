@@ -2,10 +2,11 @@
 //! No real browser, Keychain, account, or hosted endpoint is used.
 use super::{
     callback,
+    fixtures::MemoryStore,
     http::{Http, Remote},
     model::*,
     service::Broker,
-    tests::{MemoryStore, wait},
+    tests::wait,
 };
 use std::{
     io::{Read, Write},
@@ -372,9 +373,9 @@ fn cancelling_a_native_attempt_closes_the_listener_and_fences_late_callbacks() {
 }
 #[test]
 fn concurrent_callbacks_dispatch_only_one_exchange() {
-    let remote = Arc::new(super::tests::FakeRemote::default());
+    let remote = Arc::new(super::fixtures::FakeRemote::default());
     let (broker, browser) = Broker::new(
-        super::tests::env(),
+        super::fixtures::env(),
         remote.clone(),
         Arc::new(MemoryStore::default()),
     );

@@ -5992,6 +5992,168 @@ dependencies = [
 ]
 
 [[package]]
+name = "po-agent"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "blake3",
+ "cap-std",
+ "encoding_rs",
+ "futures-util",
+ "getrandom 0.3.4",
+ "libc",
+ "po-contracts",
+ "po-platform",
+ "po-workspace",
+ "regex",
+ "security-framework",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "similar",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "unicode-normalization",
+ "url",
+ "uuid",
+ "zed-reqwest",
+]
+
+[[package]]
+name = "po-contracts"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "base64",
+ "chrono",
+ "icu_collator",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "url",
+]
+
+[[package]]
+name = "po-editor"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "base64",
+ "blake3",
+ "block2 0.6.2",
+ "gpui-base",
+ "gpui-component",
+ "gpui-kit",
+ "gpui-pre-apple",
+ "icu_collator",
+ "icu_normalizer",
+ "image",
+ "objc2 0.6.4",
+ "po-contracts",
+ "po-platform",
+ "po-ui",
+ "po-workspace",
+ "pulldown-cmark",
+ "regex",
+ "rusqlite",
+ "semver",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "unicode-segmentation",
+ "url",
+ "uuid",
+ "wry",
+ "zed-reqwest",
+]
+
+[[package]]
+name = "po-platform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "base64",
+ "blake3",
+ "chrono",
+ "flate2",
+ "futures-util",
+ "getrandom 0.3.4",
+ "hmac",
+ "image",
+ "libc",
+ "notify",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "pdfium-render",
+ "po-contracts",
+ "portable-pty",
+ "raw-window-handle",
+ "regex",
+ "rusqlite",
+ "rusty-leveldb",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sysinfo",
+ "tar",
+ "tempfile",
+ "tokio",
+ "unicode-normalization",
+ "url",
+ "uuid",
+ "zed-reqwest",
+]
+
+[[package]]
+name = "po-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
+ "objc2 0.6.4",
+ "po-contracts",
+ "po-platform",
+ "po-workspace",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "po-workspace"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "base64",
+ "blake3",
+ "cap-std",
+ "chrono",
+ "encoding_rs",
+ "futures-util",
+ "getrandom 0.3.4",
+ "httparse",
+ "libc",
+ "notify",
+ "po-contracts",
+ "po-platform",
+ "security-framework",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+ "zed-reqwest",
+ "zeroize",
+]
+
+[[package]]
 name = "polling"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6300,6 +6462,12 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "pdfium-render",
+ "po-agent",
+ "po-contracts",
+ "po-editor",
+ "po-platform",
+ "po-ui",
+ "po-workspace",
  "portable-pty",
  "pulldown-cmark",
  "raw-window-handle",

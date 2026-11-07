@@ -29,7 +29,7 @@ pub struct CsvSurface {
 }
 
 impl ViewerSurface for CsvSurface {
-    #[cfg(test)]
+    #[cfg(feature = "test-support")]
     fn csv_editor(&self) -> Option<Entity<CsvEditor>> {
         Some(self.editor.clone())
     }

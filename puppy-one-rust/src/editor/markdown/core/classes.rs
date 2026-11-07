@@ -84,10 +84,6 @@ classes! {
     /// `is-external`
     IS_EXTERNAL = 31;
     /// `is-missing`
-    #[expect(
-        dead_code,
-        reason = "product class for unresolved wiki links; no workspace resolver yet"
-    )]
     IS_MISSING = 32;
     // Revealed source (decorationPrimitives.ts addSourceSyntaxDecoration).
     /// `cm-md-source-syntax`

@@ -11,7 +11,7 @@ mod button;
 mod checkbox;
 mod dialog;
 mod icon;
-pub(crate) mod menu;
+pub mod menu;
 mod notice;
 mod popover;
 mod resize_handle;

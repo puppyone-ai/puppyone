@@ -723,7 +723,8 @@ mod tests {
     fn the_folder_lists_what_the_product_lists() {
         let data = temp("oracle");
         copy(
-            &Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/themes/folder"),
+            &Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
+                .join("fixtures/themes/folder"),
             &data.join("themes"),
         );
         let snapshot = Service::new(data.clone()).list().unwrap();

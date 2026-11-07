@@ -52,7 +52,7 @@ impl History {
         let sessions: Vec<SessionMetadata> = state
             .sessions
             .iter()
-            .filter(|s| !excluded.iter().any(|id| s.id == *id))
+            .filter(|s| !excluded.contains(&s.id))
             .cloned()
             .collect();
         Self {

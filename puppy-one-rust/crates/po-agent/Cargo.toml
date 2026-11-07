@@ -1,0 +1,46 @@
+[package]
+name = "po-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+doctest = false
+
+[dependencies]
+po-contracts = { path = "../po-contracts" }
+po-platform = { path = "../po-platform" }
+po-workspace = { path = "../po-workspace" }
+base64 = "0.22"
+blake3 = "1.8"
+cap-std = "3.4"
+encoding_rs = "=0.8.42"
+futures-util = "0.3"
+getrandom = "0.3"
+regex = "1.13.1"
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+similar = "2.7"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+tokio-util = "0.7"
+unicode-normalization = "0.1"
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["test-util"] }
+
+[features]
+dev-capture = ["po-platform/dev-capture", "po-workspace/dev-capture"]
+test-support = ["po-contracts/test-support", "po-workspace/test-support"]

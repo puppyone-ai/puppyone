@@ -141,15 +141,7 @@ pub struct LineDecoration<'b> {
 /// A feature decorating its block (around its widget).
 pub struct BlockDecoration<'b, 'a> {
     pub(super) builder: &'b mut Builder<'a>,
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every feature; none reads it yet"
-    )]
     pub source: Range<usize>,
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every feature; none reads it yet"
-    )]
     pub lines: Range<usize>,
 }
 
@@ -157,10 +149,6 @@ impl BlockDecoration<'_, '_> {
     pub fn doc(&self) -> &Buffer {
         self.builder.cx.doc
     }
-    #[expect(
-        dead_code,
-        reason = "feature context: handed to every feature; none reads it yet"
-    )]
     pub fn syntax(&self) -> &Syntax {
         self.builder.cx.syntax
     }

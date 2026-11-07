@@ -282,8 +282,8 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
 fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAppContext) {
     use crate::cloud::publication::{
         Action, Code, Coordinator,
+        fixtures::{Fake, coordinator},
         journal::Journal,
-        tests::{Fake, coordinator},
     };
     use crate::features::cloud::Publication;
     use std::sync::{

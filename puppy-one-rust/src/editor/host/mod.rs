@@ -84,8 +84,8 @@ pub struct DocumentEditor {
 impl EventEmitter<ClientMessage> for DocumentEditor {}
 
 impl DocumentEditor {
-    #[cfg(test)]
-    pub(crate) fn csv_editor(&self) -> Option<Entity<crate::editor::csv::CsvEditor>> {
+    #[cfg(feature = "test-support")]
+    pub fn csv_editor(&self) -> Option<Entity<crate::editor::csv::CsvEditor>> {
         self.surface.as_ref()?.csv_editor()
     }
     pub fn new(cx: &mut Context<Self>) -> Self {

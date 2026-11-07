@@ -1,11 +1,39 @@
-[package]
-name = "puppy-one-rust"
+[workspace]
+# The window (this package, `po-app`'s role) over the layered crates in
+# crates/: po-contracts ← po-platform ← po-workspace ← po-agent; po-ui;
+# po-editor. Their sources stay in src/, mounted by each crate's lib.rs.
+members = ["crates/*"]
+# `cargo test`, `cargo clippy` and `cargo build` cover every crate.
+default-members = [
+    ".",
+    "crates/po-contracts",
+    "crates/po-platform",
+    "crates/po-workspace",
+    "crates/po-agent",
+    "crates/po-ui",
+    "crates/po-editor",
+]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
+
+[package]
+name = "puppy-one-rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]
+po-contracts = { path = "crates/po-contracts" }
+po-platform = { path = "crates/po-platform" }
+po-workspace = { path = "crates/po-workspace" }
+po-agent = { path = "crates/po-agent" }
+po-ui = { path = "crates/po-ui" }
+po-editor = { path = "crates/po-editor" }
 url = "2.5"
 gpui-kit = { version = "=0.8.0" }
 # The code gutter metrics patch (vendor/gpui-base/PUPPYONE_PATCH.md).
@@ -85,6 +113,11 @@ gpui-pre-apple = { version = "=0.3.9", features = ["font-kit"] }
 
 [dev-dependencies]
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
+# The window's tests drive the Agent host's and the Workspace's test doubles.
+po-agent = { path = "crates/po-agent", features = ["test-support"] }
+po-workspace = { path = "crates/po-workspace", features = ["test-support"] }
+po-editor = { path = "crates/po-editor", features = ["test-support"] }
+po-ui = { path = "crates/po-ui", features = ["test-support"] }
 tempfile = "3"
 # Paused clocks for the Agent service timers (src/agent/application/tests).
 tokio = { version = "1", features = ["test-util"] }
@@ -94,7 +127,15 @@ tokio = { version = "1", features = ["test-util"] }
 # fixtures); absent from normal builds. GPUI's test support renders a frame
 # off screen (`PUPPYONE_SCREENSHOT_OFFSCREEN`).
 # Web content is composited from WKWebView snapshots (src/web_host.rs).
-dev-capture = ["gpui-kit/test-support", "dep:block2"]
+dev-capture = [
+    "gpui-kit/test-support",
+    "dep:block2",
+    "po-platform/dev-capture",
+    "po-workspace/dev-capture",
+    "po-agent/dev-capture",
+    "po-ui/dev-capture",
+    "po-editor/dev-capture",
+]
 
 [profile.dev]
 debug = 0

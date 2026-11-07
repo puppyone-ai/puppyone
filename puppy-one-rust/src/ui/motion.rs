@@ -34,7 +34,7 @@ impl Timeline {
         frozen_time().is_none() && self.started.elapsed() >= self.duration
     }
     /// Tests: let `by` pass on the motion's clock.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn advance(&mut self, by: Duration) {
         self.started -= by;
     }
@@ -81,7 +81,7 @@ impl FrameTimeline {
         frozen_time().is_none() && self.elapsed >= self.duration
     }
     /// Tests: let `by` pass on the motion's clock.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn advance(&mut self, by: Duration) {
         self.elapsed += by;
     }

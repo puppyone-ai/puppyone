@@ -473,7 +473,7 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     cx.update(|_, cx| {
         cx.write_to_clipboard(ClipboardItem::new_string(format!(
             "https://www.puppyone.ai/t/{}",
-            crate::platform::templates::package::tests::ID
+            crate::platform::templates::package::fixtures::ID
         )))
     });
     // ⌘V on the Homepage takes the link.
@@ -520,7 +520,7 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     // With a project open here, the next copy opens in a window of its own.
     let link = format!(
         "https://www.puppyone.ai/t/{}",
-        crate::platform::templates::package::tests::ID
+        crate::platform::templates::package::fixtures::ID
     );
     view.update_in(cx, |s, w, cx| {
         s.home.update(cx, |h, cx| h.open_template_link(link, w, cx))

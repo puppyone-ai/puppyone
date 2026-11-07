@@ -104,10 +104,10 @@ impl Fetch for Http {
 }
 
 /// Tests: the store every [`Store::current`] answers from.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 static TEST_FETCH: std::sync::Mutex<Option<std::sync::Arc<dyn Fetch>>> =
     std::sync::Mutex::new(None);
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl Fetch for std::sync::Arc<dyn Fetch> {
     fn get(&self, url: &str, timeout: Duration, max: usize) -> Result<Response, String> {
         (**self).get(url, timeout, max)
@@ -123,9 +123,9 @@ impl Fetch for std::sync::Arc<dyn Fetch> {
     }
 }
 /// Tests: a store with one public template, `files` in its package.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub fn install_test_store(files: &[(&str, &str)]) {
-    use super::package::tests::{ID, RELEASE, package};
+    use super::package::fixtures::{ID, RELEASE, package};
     struct Fixture(Vec<u8>, Value);
     impl Fetch for Fixture {
         fn get(&self, url: &str, _: Duration, _: usize) -> Result<Response, String> {
@@ -217,7 +217,7 @@ impl Store {
     }
     /// The store for this build, over the network.
     pub fn current() -> Self {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if let Some(fetch) = TEST_FETCH.lock().unwrap().clone() {
             return Self::new(link::STORE_ORIGIN.into(), Channel::Dev, Box::new(fetch));
         }
@@ -341,7 +341,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::templates::package::tests::{ID, RELEASE, package};
+    use crate::platform::templates::package::fixtures::{ID, RELEASE, package};
     use core::prelude::v1::test;
     use std::sync::Mutex;
 

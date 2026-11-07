@@ -59,7 +59,8 @@ mod tests {
     fn avif_is_transcoded_to_png_through_imageio() {
         assert!(needs_transcode("photo.AVIF"));
         assert!(!needs_transcode("photo.png"));
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/media/red.avif");
+        let fixture = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
+            .join("fixtures/media/red.avif");
         let png = to_png(&fixture, 1 << 20).unwrap();
         assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
         assert!(to_png(&fixture, 10).is_err());

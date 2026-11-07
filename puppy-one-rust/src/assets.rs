@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn referenced_icons_exist() {
         let mut missing = vec![];
-        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let src = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).join("src");
         let mut stack = vec![src];
         while let Some(dir) = stack.pop() {
             for entry in std::fs::read_dir(dir).unwrap().flatten() {

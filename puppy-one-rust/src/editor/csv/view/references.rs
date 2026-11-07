@@ -28,8 +28,8 @@ pub(super) struct ReferenceCells {
 }
 
 impl CsvEditor {
-    #[cfg(test)]
-    pub(crate) fn activate_reference(
+    #[cfg(feature = "test-support")]
+    pub fn activate_reference(
         &mut self,
         row: usize,
         column: usize,
@@ -56,7 +56,7 @@ impl CsvEditor {
     }
 
     /// The reference a cell's value is, if any (cached by value).
-    pub(crate) fn reference(&self, row: usize, column: usize) -> Option<Reference> {
+    pub fn reference(&self, row: usize, column: usize) -> Option<Reference> {
         let value = self.model.rows().get(row)?.cells.get(column)?;
         if value.is_empty() {
             return None;

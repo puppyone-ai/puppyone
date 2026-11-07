@@ -779,13 +779,6 @@ impl Broker {
             .as_ref()
             .map(|a| a.binding.clone())
     }
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Native service reconfiguration boundary; no environment editor is added in this stage"
-        )
-    )]
     pub fn set_environment(&self, environment: Environment) {
         let Ok(fence) = self.begin(Status::SignedOut) else {
             return;

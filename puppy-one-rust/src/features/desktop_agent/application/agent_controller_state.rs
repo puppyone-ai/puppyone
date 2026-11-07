@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 /// A state the product spells as a string (`"idle"`, `"live"`).
 pub trait StateName: Sized {
-    fn as_str(self) -> &'static str;
+    fn as_str(&self) -> &'static str;
     fn parse(value: &str) -> Option<Self>;
 }
 
@@ -24,7 +24,7 @@ macro_rules! string_enum {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum $name { $($variant),* }
         impl StateName for $name {
-            fn as_str(self) -> &'static str {
+            fn as_str(&self) -> &'static str {
                 match self { $(Self::$variant => $text),* }
             }
             fn parse(value: &str) -> Option<Self> {

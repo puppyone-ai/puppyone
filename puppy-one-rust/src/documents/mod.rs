@@ -101,10 +101,6 @@ pub enum ClientMessage {
         id: String,
     },
     /// The editor could not apply an edit or protocol step.
-    #[expect(
-        dead_code,
-        reason = "host protocol message; the host renders it, no native editor reports one yet"
-    )]
     Fault {
         message: String,
     },
@@ -392,7 +388,7 @@ impl Documents {
             self.start_watch(ctx);
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn watching(&self) -> bool {
         self.watch.is_some()
     }

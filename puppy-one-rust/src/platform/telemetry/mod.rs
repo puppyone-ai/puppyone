@@ -7,6 +7,6 @@ pub mod store;
 pub mod transport;
 
 pub use contract::{DISCLOSURE_URL, Level};
-#[cfg(any(test, feature = "dev-capture"))]
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
 pub use service::DisabledReason;
 pub use service::{Config, Deps, Service, Snapshot, eligibility, import_electron_preference};

@@ -591,7 +591,7 @@ pub fn set_pack(id: &str) {
     let pack = find(id).unwrap_or_else(|| packs()[0].clone());
     PACK.with(|p| *p.borrow_mut() = Some(pack));
 }
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub fn pack_id() -> String {
     active().id.clone()
 }

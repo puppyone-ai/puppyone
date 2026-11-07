@@ -147,7 +147,7 @@ pub trait ViewerSurface {
     fn html_visual_deliver(&self, _body: &str) -> bool {
         false
     }
-    #[cfg(test)]
+    #[cfg(feature = "test-support")]
     fn csv_editor(&self) -> Option<gpui::Entity<crate::editor::csv::CsvEditor>> {
         None
     }

@@ -8,8 +8,10 @@ mod store;
 mod transport;
 pub use model::{Environment, Error, Snapshot, Status};
 pub use service::{Broker, BrowserEvent};
-#[cfg(test)]
-pub(crate) use tests::{
+#[cfg(any(test, feature = "test-support"))]
+mod fixtures;
+#[cfg(any(test, feature = "test-support"))]
+pub use fixtures::{
     Responder, account_fixture, protocol_fixture, relogin, responding_account_fixture,
 };
 pub use transport::{Cancellation, ServiceCode, StreamEvent};

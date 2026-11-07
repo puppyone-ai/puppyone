@@ -54,7 +54,7 @@ fn body_start(doc: &Buffer) -> usize {
 /// `getMarkdownMovableBlockAt`: by line, never by column; a blank line
 /// belongs to no block.
 pub fn movable_at(doc: &Buffer, syntax: &Syntax, offset: usize) -> Option<Movable> {
-    if doc.len() == 0 {
+    if doc.is_empty() {
         return None;
     }
     let line = doc.line_range(doc.line_index(offset.min(doc.len())));

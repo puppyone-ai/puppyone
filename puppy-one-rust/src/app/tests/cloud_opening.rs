@@ -387,7 +387,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
 #[gpui::test]
 fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut TestAppContext) {
     use super::project_place::Action;
-    use crate::cloud::publication::tests::{Fake, coordinator};
+    use crate::cloud::publication::fixtures::{Fake, coordinator};
     let (temp, fake) = Fake::new();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("a.md"), "# A\n").unwrap();

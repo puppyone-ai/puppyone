@@ -1,21 +1,14 @@
 //! Admitted workspace handle: stable resource identity, revocable provider lease
 //! and capability enforcement. Only `local` knows the capability filesystem.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Live Cloud adapter is protocol-tested; navigation awaits conflict policy and execution isolation"
-    )
-)]
 pub mod cloud;
-pub mod contracts;
+pub use po_contracts::workspace::contracts;
 mod local;
 #[cfg(test)]
 #[path = "local_tests.rs"]
 mod local_compatibility_tests;
 pub mod ports;
-#[cfg(test)]
-pub(crate) mod testing;
+#[cfg(any(test, feature = "test-support"))]
+pub mod testing;
 #[cfg(test)]
 mod tests;
 
@@ -131,7 +124,7 @@ impl Subscription {
 }
 impl Workspace {
     /// A project folder (tests, the lab and benches open fixtures with it).
-    #[cfg(any(test, feature = "dev-capture"))]
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     pub fn open(path: &Path) -> Result<Arc<Self>> {
         Self::open_with(path, false)
     }

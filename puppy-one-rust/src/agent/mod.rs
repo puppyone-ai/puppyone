@@ -7,7 +7,7 @@ pub mod cache;
 pub mod connections;
 // Executable discovery and the local installations it resolves
 // (`electron/main/platform/common`, `electron/main/local-agent-installation`).
-pub mod contract;
+pub use po_contracts::agent::contract;
 pub mod discovery;
 pub mod domain;
 pub mod host;

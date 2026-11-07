@@ -72,7 +72,7 @@ pub fn library_path() -> Option<PathBuf> {
         candidates.push(dir.join(name));
     }
     candidates.push(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
+        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
             .join("vendor/pdfium/lib")
             .join(name),
     );
@@ -275,7 +275,7 @@ fn run(
 }
 
 /// A one-page 200×100 pt PDF with a blue rectangle (tests).
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub fn test_pdf() -> Vec<u8> {
     let objects = [
         "<< /Type /Catalog /Pages 2 0 R >>",

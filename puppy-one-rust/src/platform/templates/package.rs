@@ -345,17 +345,17 @@ fn private_key(content: &[u8]) -> bool {
     })
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+#[cfg(any(test, feature = "test-support"))]
+pub mod fixtures {
+    //! A signed template package, for these tests and the window's.
     use super::*;
-    use core::prelude::v1::test;
     use serde_json::json;
 
-    pub(crate) const ID: &str = "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab";
-    pub(crate) const RELEASE: &str = "11111111-2222-4333-8444-555555555555";
+    pub const ID: &str = "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab";
+    pub const RELEASE: &str = "11111111-2222-4333-8444-555555555555";
 
     /// A stored (uncompressed) zip of `entries`.
-    pub(crate) fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    pub fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut out = Vec::new();
         let mut central = Vec::new();
         for (name, content) in entries {
@@ -438,7 +438,7 @@ pub(crate) mod tests {
         !crc
     }
     /// A package of `files`, and the descriptor that vouches for it.
-    pub(crate) fn package(files: &[(&str, &str)]) -> (Vec<u8>, Value) {
+    pub fn package(files: &[(&str, &str)]) -> (Vec<u8>, Value) {
         let owned: Vec<(String, Vec<u8>)> = files
             .iter()
             .map(|(p, c)| (p.to_string(), c.as_bytes().to_vec()))
@@ -468,6 +468,13 @@ pub(crate) mod tests {
             "expires_at": "2099-01-01T00:00:00Z"});
         (bytes, descriptor)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fixtures::*;
+    use super::*;
+    use core::prelude::v1::test;
 
     #[test]
     fn a_package_is_verified_end_to_end() {

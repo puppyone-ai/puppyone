@@ -276,7 +276,7 @@ enum MenuEntry {
     Element(AnyElement),
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl Menu {
     /// What the menu offers, separators and blocks left out.
     pub fn labels(&self) -> Vec<String> {

@@ -13,11 +13,13 @@
 //! blindly. Failure is a retryable state, never an automatic rollback;
 //! deleting the empty Project is an explicit cleanup.
 pub mod api;
+#[cfg(any(test, feature = "test-support"))]
+pub mod fixtures;
 pub mod git;
 pub mod journal;
 mod migrate;
 #[cfg(test)]
-pub(crate) mod tests;
+mod tests;
 pub mod vault;
 
 use crate::workspace::cloud::publish;

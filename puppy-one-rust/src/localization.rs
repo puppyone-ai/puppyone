@@ -699,7 +699,7 @@ mod tests {
         let mut missing = Vec::new();
         let mut dirs = vec![std::path::PathBuf::from(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/src"
+            "/../../src"
         ))];
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(&dir).unwrap() {

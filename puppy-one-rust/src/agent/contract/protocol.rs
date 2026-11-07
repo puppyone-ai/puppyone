@@ -85,7 +85,7 @@ impl AgentOperation {
 
     /// The product's channel: the contract names its request and response
     /// rules by it.
-    pub(in crate::agent) fn channel(self) -> &'static str {
+    pub fn channel(self) -> &'static str {
         match self {
             Self::DiscoverRuntimes => "agent:providers-discover",
             Self::DiscoverLocalConnections => "agent:local-connections-discover",
@@ -661,7 +661,7 @@ pub enum AgentResponse {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ResponseError {
     /// Main reported the operation failed.
-    Failed(OperationFailure),
+    Failed(Box<OperationFailure>),
     /// The answer does not satisfy the contract.
     Invalid(String),
 }
@@ -673,9 +673,9 @@ impl AgentResponse {
     pub fn read(operation: AgentOperation, value: &Value) -> Result<Self, ResponseError> {
         let invalid = |error: String| ResponseError::Invalid(error);
         if let Some(failure) = read_agent_operation_failure(value).map_err(|e| invalid(e.0))? {
-            return Err(ResponseError::Failed(
+            return Err(ResponseError::Failed(Box::new(
                 serde_json::from_value(failure).map_err(|e| invalid(e.to_string()))?,
-            ));
+            )));
         }
         let checked =
             operation != AgentOperation::AttachSession && AgentOperation::MAIN.contains(&operation);

@@ -55,7 +55,7 @@ pub type ServicesFactory = Box<dyn FnOnce(WindowRoots) -> AgentResult<AgentHostS
 enum Command {
     Request {
         window: u64,
-        request: AgentRequest,
+        request: Box<AgentRequest>,
         reply: oneshot::Sender<AgentReply>,
     },
     OpenWindow {
@@ -131,7 +131,7 @@ impl AgentHostHandle {
                                 tokio::task::spawn_local(async move {
                                     let response = match sender {
                                         Some(sender) => {
-                                            services.requests.handle(&sender, request).await
+                                            services.requests.handle(&sender, *request).await
                                         }
                                         None => Err(stopped(
                                             "This window is not connected to the Agent host.",
@@ -226,16 +226,17 @@ impl AgentHostHandle {
         let (reply, response) = oneshot::channel();
         let sent = self.commands.send(Command::Request {
             window,
-            request,
+            request: Box::new(request),
             reply,
         });
         async move {
             if sent.is_err() {
                 return Err(stopped("The Agent host has stopped."));
             }
-            response
-                .await
-                .unwrap_or_else(|_| Err(stopped("The Agent host has stopped.")))
+            match response.await {
+                Ok(reply) => reply,
+                Err(_) => Err(stopped("The Agent host has stopped.")),
+            }
         }
     }
 

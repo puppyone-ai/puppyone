@@ -578,7 +578,7 @@ impl AgentProjection {
             && self.activities.is_empty()
     }
     /// The display as plain JSON, for test snapshots.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self.display.to_value()).unwrap_or_default()
     }

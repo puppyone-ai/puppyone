@@ -1,34 +1,22 @@
 // Use Kit as the single public UI dependency, including GPUI macros.
 extern crate gpui_kit as gpui;
-mod agent;
 mod app;
-mod asset_catalog;
-mod assets;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
 mod capture;
-mod clock;
-mod cloud;
-mod documents;
-mod editor;
 mod features;
-mod file_kind;
-mod formats;
-mod geometry;
 #[cfg(feature = "dev-capture")]
 mod lab;
-mod localization;
-mod model;
 mod native_window;
-mod platform;
-mod text;
-mod theme;
-mod typography;
-mod ui;
-mod wake;
-mod web_host;
-mod workspace;
+
+// The layers below the window, under the names the sources use.
 use gpui::*;
+use po_agent::agent;
+use po_contracts::{clock, file_kind, formats, geometry, model, text, wake};
+use po_editor::{documents, editor, web_host};
+use po_platform::{localization, platform};
+use po_ui::{assets, theme, typography, ui};
+use po_workspace::{cloud, workspace};
 fn main() {
     // An Agent CLI's Hook runs this executable as its bridge: forward the
     // event and exit before any UI or single-instance work starts.

@@ -12,8 +12,8 @@ pub mod ports;
 pub mod processes;
 pub mod runtime_resolution;
 pub mod session;
-#[cfg(test)]
-pub(crate) mod tests;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
+pub mod tests;
+#[cfg(any(test, feature = "test-support"))]
 pub mod tests_support;
 pub mod turn;

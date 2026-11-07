@@ -32,8 +32,7 @@ pub fn list_enabled_agent_runtimes(
         .into_iter()
         .filter(|entry| {
             installed(entry)
-                && enabled_runtime_ids
-                    .is_none_or(|enabled| enabled.iter().any(|id| entry.descriptor.id == *id))
+                && enabled_runtime_ids.is_none_or(|enabled| enabled.contains(&entry.descriptor.id))
         })
         .collect()
 }
@@ -46,12 +45,7 @@ pub fn list_visible_agent_runtimes(
 ) -> Vec<RuntimeCatalogEntry> {
     list_agent_runtimes(inspection)
         .into_iter()
-        .filter(|entry| {
-            installed(entry)
-                && !hidden_runtime_ids
-                    .iter()
-                    .any(|id| entry.descriptor.id == *id)
-        })
+        .filter(|entry| installed(entry) && !hidden_runtime_ids.contains(&entry.descriptor.id))
         .collect()
 }
 

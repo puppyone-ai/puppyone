@@ -1,6 +1,6 @@
 //! Executable lookup shared by native Agent and PTY hosts.
 use std::path::PathBuf;
-pub(crate) fn search_dirs() -> Vec<PathBuf> {
+pub fn search_dirs() -> Vec<PathBuf> {
     let mut dirs =
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect::<Vec<_>>();
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {

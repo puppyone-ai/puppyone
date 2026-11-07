@@ -372,15 +372,9 @@ impl SessionCache for Rc<FakePersistence> {
         });
         ready(entry)
     }
-    fn list(&self, workspace_root: String, _options: Value) -> Pending<Vec<Value>> {
-        let entries = self
-            .values()
-            .into_iter()
-            .filter(|v| {
-                v["workspaceRoot"] == workspace_root.as_str() && v["availability"] == "available"
-            })
-            .collect();
-        ready(entries)
+    #[cfg(test)]
+    fn list(&self, workspace_root: String, options: Value) -> Pending<Vec<Value>> {
+        HistoryCatalog::list(self, workspace_root, options)
     }
     fn archive(&self, _session_id: String, _archived_at: String) -> Pending<()> {
         ready(())
@@ -399,8 +393,15 @@ impl SessionCache for Rc<FakePersistence> {
 }
 
 impl HistoryCatalog for Rc<FakePersistence> {
-    fn list(&self, workspace_root: String, options: Value) -> Pending<Vec<Value>> {
-        SessionCache::list(self, workspace_root, options)
+    fn list(&self, workspace_root: String, _options: Value) -> Pending<Vec<Value>> {
+        let entries = self
+            .values()
+            .into_iter()
+            .filter(|v| {
+                v["workspaceRoot"] == workspace_root.as_str() && v["availability"] == "available"
+            })
+            .collect();
+        ready(entries)
     }
     fn get_revision(&self) -> Pending<i64> {
         ready(0)

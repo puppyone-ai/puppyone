@@ -1,0 +1,53 @@
+[package]
+name = "po-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+doctest = false
+
+[dependencies]
+po-contracts = { path = "../po-contracts" }
+anyhow = "1"
+async-channel = "2"
+base64 = "0.22"
+blake3 = "1.8"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+flate2 = "1.1"
+futures-util = "0.3"
+getrandom = "0.3"
+hmac = "0.12"
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+notify = { version = "=8.2.0", default-features = false, features = ["macos_fsevent"] }
+pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe", "image_025"] }
+portable-pty = "0.9"
+raw-window-handle = { version = "0.6", features = ["std"] }
+regex = "1.13.1"
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+rusty-leveldb = { version = "=4.0.2" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+sysinfo = { version = "=0.31.4", default-features = false, features = ["system"] }
+tar = { version = "=0.4.46", default-features = false }
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+unicode-normalization = "0.1"
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.4"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSDragging", "NSDraggingItem", "NSDraggingSession", "NSEvent", "NSImage", "NSPasteboard", "NSResponder", "NSView", "NSWindow", "NSWorkspace"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSDate", "NSDateFormatter", "NSFormatter", "NSLocale", "NSString", "NSObject"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[features]
+test-support = ["po-contracts/test-support"]
+dev-capture = []

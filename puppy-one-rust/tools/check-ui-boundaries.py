@@ -236,6 +236,32 @@ for path in (root / 'src').rglob('*.rs'):
     for number, line in enumerate(path.read_text().splitlines(), 1):
         if colour_literal.search(line) and not line.lstrip().startswith('//'):
             errors.append(f'{path.relative_to(root)}:{number}: colour literal outside theme.rs')
+# Crates: every source module belongs to one crate. `crates/*/lib.rs`
+# mount theirs from src/ by `#[path]` (an inline module mounts a subtree's
+# children), the window (`main.rs`) declares the rest; `bench.rs` holds the
+# test helpers both the editor's and the window's benchmarks build.
+mounted = {}
+for lib in sorted((root / 'crates').glob('*/lib.rs')):
+    for target, inline in re.findall(r'#\[path\s*=\s*"\.\./\.\./src/([^"]+)"\]\s*pub\s+mod\s+\w+\s*(\{[^}]*\})?',
+                                     lib.read_text()):
+        names = ([f'{target}/{child}' for child in re.findall(r'mod\s+(\w+)\s*;', inline)] if inline
+                 else [re.sub(r'(/mod)?\.rs$', '', target)])
+        for name in names:
+            mounted.setdefault(name, []).append(lib.parent.name)
+for name in re.findall(r'^(?:#\[[^\]]*\]\s*)*mod\s+(\w+)\s*;', (root / 'src/main.rs').read_text(), re.M):
+    if name != 'bench':
+        mounted.setdefault(name, []).append('the window')
+for entry in sorted((root / 'src').iterdir()):
+    name = entry.stem if entry.suffix == '.rs' else entry.name
+    if name not in ('main', 'bench') and (entry.suffix == '.rs' or entry.is_dir()) and name not in mounted:
+        errors.append(f'src/{entry.name}: mounted by no crate')
+for name, crates in sorted(mounted.items()):
+    if len(crates) > 1:
+        errors.append(f'src/{name}: compiled by {", ".join(crates)}')
+    parent, _, child = name.rpartition('/')
+    if parent and re.search(rf'^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{child}\s*;',
+                            (root / 'src' / parent / 'mod.rs').read_text(), re.M):
+        errors.append(f'src/{name}: declared again by src/{parent}/mod.rs')
 if errors:
     raise SystemExit("\n".join(errors))
 print("Native UI boundary guard passed (GPUI primitives, Markdown layers and retired framework guard)")

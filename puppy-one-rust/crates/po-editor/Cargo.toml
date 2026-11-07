@@ -1,0 +1,61 @@
+[package]
+name = "po-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+doctest = false
+
+[dependencies]
+po-contracts = { path = "../po-contracts" }
+po-platform = { path = "../po-platform" }
+po-workspace = { path = "../po-workspace" }
+po-ui = { path = "../po-ui" }
+async-channel = "2"
+base64 = "0.22"
+blake3 = "1.8"
+gpui-base = { version = "=0.8.0" }
+gpui-kit = { version = "=0.8.0" }
+# GPUI Kit's tree-sitter highlighter with the grammars of the languages the
+# product highlights.
+gpui-component = { version = "=0.8.0", features = ["tree-sitter-css", "tree-sitter-html", "tree-sitter-javascript", "tree-sitter-typescript", "tree-sitter-tsx", "tree-sitter-python", "tree-sitter-yaml", "tree-sitter-bash", "tree-sitter-toml", "tree-sitter-sql"] }
+icu_collator = "=2.3.0"
+icu_normalizer = "=2.3.0"
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+pulldown-cmark = "0.13"
+regex = "1.13.1"
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+unicode-segmentation = "1"
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+wry = "=0.57.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "=0.6.2", optional = true }
+objc2 = "=0.6.4"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+# Real Core Text shaping for the frame-cost benchmarks (src/bench.rs).
+gpui-pre-apple = { version = "=0.3.9", features = ["font-kit"] }
+
+[dev-dependencies]
+# Its tests open fixture workspaces and PDFs.
+po-platform = { path = "../po-platform", features = ["test-support"] }
+po-workspace = { path = "../po-workspace", features = ["test-support"] }
+gpui-kit = { version = "=0.8.0", features = ["test-support"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+[features]
+dev-capture = ["gpui-kit/test-support", "dep:block2", "po-platform/dev-capture", "po-workspace/dev-capture", "po-ui/dev-capture"]
+# The window's tests reach into the editors.
+test-support = ["po-ui/test-support", "po-workspace/test-support"]
