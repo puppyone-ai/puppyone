@@ -4,7 +4,7 @@
 use super::drag::{self, DropIntent};
 use super::header_layout::{self as metrics, Mode};
 use super::*;
-use crate::features::desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
+use crate::features::desktop_agent::{LauncherIdentity, launcher_icon, runtime_for_icon_key};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use gpui_kit::component::Sizable as _;
@@ -17,8 +17,9 @@ const CLOSE: f32 = 22.;
 const SLOT: Id = Id::MAX;
 
 impl Workbench {
-    /// `AuxiliaryWorkbenchStatus`: the item's own icon in a 14px slot; a running
-    /// chat adds the pulsing 5px accent dot at its corner.
+    /// `AuxiliaryWorkbenchStatus`: the item's mark in a 14px slot (or the
+    /// contribution's own status); a running item adds the pulsing 5px
+    /// accent dot at its corner.
     pub(super) fn tab_status(&self, tab: Id, content: &Content, fg: Rgba, cx: &App) -> AnyElement {
         let t = cx.palette();
         let identity = |runtime: Option<Runtime>| {
@@ -44,44 +45,16 @@ impl Workbench {
             Content::Retained(RetainedItem::Terminal { runtime, .. }) => {
                 launcher_icon(identity(*runtime), true, t.dark, t.muted).into_any_element()
             }
-            Content::Terminal(view, _, runtime) => {
-                let terminal = view.read(cx);
-                let running = terminal.running;
-                // `TerminalSessionHeaderStatus`: a busy Agent CLI swaps its mark
-                // for the activity grid in the tab's own colour.
-                let active = runtime.is_some() && terminal.agent_active();
-                // `[data-status="exited"] .desktop-terminal-tab-status { opacity: 0.42 }`
-                div()
-                    .size(px(14.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .when(!running, |d| d.opacity(0.42))
-                    .map(|d| {
-                        if active {
-                            d.child(activity_grid(tab, fg))
-                        } else {
-                            d.child(launcher_icon(identity(*runtime), true, t.dark, t.muted))
-                        }
-                    })
-                    .into_any_element()
-            }
-            Content::Agent(view, _) => {
-                let presentation = view.read(cx).presentation().cloned();
-                let running = presentation.as_ref().is_some_and(|p| p.running);
-                let runtime = presentation
-                    .as_ref()
-                    .and_then(|p| p.runtime_icon_key.as_deref())
-                    .and_then(
-                        crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key,
-                    );
+            Content::Item { item, .. } => item.status_mark(tab, fg, cx).unwrap_or_else(|| {
+                let snapshot = item.snapshot(cx);
+                let runtime = snapshot.icon_key.as_deref().and_then(runtime_for_icon_key);
                 div()
                     .relative()
                     .size(px(14.))
                     .child(launcher_icon(identity(runtime), true, t.dark, t.muted))
-                    .when(running, |d| d.child(running_dot(tab, t)))
+                    .when(snapshot.running, |d| d.child(running_dot(tab, t)))
                     .into_any_element()
-            }
+            }),
         }
     }
 
@@ -234,6 +207,11 @@ impl Workbench {
                 continue;
             };
             let label: SharedString = self.tab_title(tab, content, cx).into();
+            // `aria-label={item.snapshot.accessibleLabel}`.
+            let accessible: SharedString = content.item().map_or_else(
+                || label.clone(),
+                |item| item.snapshot(cx).accessible_label.into(),
+            );
             let active = g.active == Some(tab);
             let compact = !active && layout.mode != Mode::Full;
             let fg = if active { t.text } else { t.muted };
@@ -253,7 +231,7 @@ impl Workbench {
             let focus = focus.clone();
             let select = gpui_kit::base::Tab::new(("tab", tab))
                 .selected(active)
-                .accessibility_label(label.clone())
+                .accessibility_label(accessible.clone())
                 .size_full()
                 .flex()
                 .items_center()
@@ -271,7 +249,7 @@ impl Workbench {
                     })
                 })
                 .when(compact, |d| {
-                    d.tooltip(crate::ui::components::tooltip(label.clone()))
+                    d.tooltip(crate::ui::components::tooltip(accessible.clone()))
                 })
                 .child(
                     div()
@@ -535,38 +513,6 @@ impl Workbench {
 
 /// `.desktop-terminal-chat-tab-status > i`: 5px accent dot, 1px surface ring,
 /// pulsing between 48% and 100% opacity and 0.82–1 scale every 1.4s.
-/// `TerminalActivityGrid`: four 3px cells, 2px apart, at 22% ink; one cell at
-/// a time lights clockwise from the top left (`steps(1, end)`, 0.8s cycle,
-/// each lit for the first 24% of its 0.2s-staggered period).
-fn activity_grid(tab: Id, color: Rgba) -> AnyElement {
-    const CELL: f32 = 3.;
-    const GAP: f32 = 2.;
-    div()
-        .relative()
-        .size(px(CELL * 2. + GAP))
-        .with_animation(
-            ElementId::NamedInteger("terminal-activity".into(), tab),
-            Animation::new(std::time::Duration::from_millis(800)).repeat(),
-            move |grid, delta| {
-                let t = delta * 0.8;
-                let slot = ((t / 0.2) as usize).min(3);
-                let lit = (t - slot as f32 * 0.2) < 0.192;
-                // Clockwise: top left, top right, bottom right, bottom left.
-                let order = [(0., 0.), (1., 0.), (1., 1.), (0., 1.)];
-                grid.children(order.iter().enumerate().map(|(i, (x, y))| {
-                    div()
-                        .absolute()
-                        .left(px(x * (CELL + GAP)))
-                        .top(px(y * (CELL + GAP)))
-                        .size(px(CELL))
-                        .bg(color)
-                        .opacity(if lit && i == slot { 1. } else { 0.22 })
-                }))
-            },
-        )
-        .into_any_element()
-}
-
 fn running_dot(tab: Id, t: Theme) -> AnyElement {
     div()
         .absolute()

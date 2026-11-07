@@ -9,6 +9,7 @@
 //! - [`queries`]: the terminal replies interactive CLIs ask for
 //! - [`glyphs`]: xterm's custom box-drawing and Powerline glyphs
 //! - [`activity`]: an Agent CLI's activity signal
+//! - [`workbench`]: the terminal tab of the Workbench ([`TerminalItem`])
 use crate::ui::appearance::ActiveAppearance;
 use crate::{
     localization::{t as tr, tf},
@@ -30,6 +31,7 @@ mod model;
 mod paint;
 mod queries;
 mod view;
+mod workbench;
 
 use activity::TerminalActivity;
 use interaction::{CellPoint, Link, MouseAction, MouseModifiers, Selection};
@@ -37,3 +39,4 @@ use model::*;
 pub use model::{SessionStatus, path_label};
 use paint::*;
 pub use view::TerminalView;
+pub use workbench::TerminalItem;

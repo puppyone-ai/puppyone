@@ -355,8 +355,11 @@ impl HistoryBrowser {
         cx.notify();
     }
     /// Sessions already open in a tab (`excludedResourceIds`).
-    pub fn set_excluded(&mut self, ids: Vec<String>) {
-        self.excluded = ids;
+    pub fn set_excluded(&mut self, ids: Vec<String>, cx: &mut Context<Self>) {
+        if self.excluded != ids {
+            self.excluded = ids;
+            cx.notify();
+        }
     }
     /// Dev captures: the first listed chat's target.
     #[cfg(feature = "dev-capture")]

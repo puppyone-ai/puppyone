@@ -1,16 +1,26 @@
-mod agent_chat;
+//! `AuxiliaryWorkbench`: the right sidebar's tabbed, splittable
+//! workbench. It owns the topology (groups, tabs, splits), the launcher,
+//! the header chrome and the saved state; each tab's content is a
+//! contribution's [`WorkbenchItem`] (the Agent chat, the terminal).
 mod auxiliary_workbench_launcher;
 mod close_dialog;
 mod drag;
 mod header;
 mod header_layout;
 mod history;
+mod item;
 #[cfg(feature = "dev-capture")]
 mod lab;
 mod layout;
 mod menus;
 mod persistence;
-use super::terminal::TerminalView;
+pub use item::{CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, WorkbenchItem};
+pub use persistence::RetainedItem;
+
+use super::desktop_agent::{
+    AgentChats, HistoryBrowser, HistoryTarget, agent_chat_runtime_id, hosted_installation,
+};
+use super::terminal::TerminalItem;
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
 use crate::ui::{
@@ -29,64 +39,49 @@ use drag::{DropIntent, Edge};
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use layout::{Axis, Id, Layout, Node};
-use persistence::{RetainedItem, StoredProject};
-use std::{collections::HashMap, path::PathBuf, sync::mpsc};
+use persistence::StoredProject;
+use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::mpsc};
 
 enum Content {
     Launcher,
     Retained(RetainedItem),
-    /// `AgentChatWorkbenchItem` over its project-owned controller, and its
-    /// Item id.
-    Agent(
-        Entity<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>,
-        String,
-    ),
-    /// A PTY, its tab title and the CLI it launched (`None` for the shell).
-    Terminal(Entity<TerminalView>, String, Option<Runtime>),
+    /// A contribution's item, and what keeps the Workbench watching it.
+    Item {
+        item: Rc<dyn WorkbenchItem>,
+        _watch: Subscription,
+    },
 }
 impl Content {
-    fn busy(&self, cx: &App) -> bool {
+    fn item(&self) -> Option<&dyn WorkbenchItem> {
         match self {
-            Self::Agent(e, _) => e.read(cx).presentation().is_some_and(|p| p.running),
-            Self::Terminal(e, ..) => e.read(cx).running,
-            _ => false,
+            Self::Item { item, .. } => Some(item.as_ref()),
+            _ => None,
         }
     }
-    /// Whether this item counts against the chat (`true`) or terminal cap.
-    fn is_kind(&self, chat: bool) -> bool {
+    fn busy(&self, cx: &App) -> bool {
+        self.item().is_some_and(|item| item.snapshot(cx).running)
+    }
+    /// The contribution this tab counts against.
+    fn kind(&self) -> Option<ItemKind> {
         match self {
-            Self::Agent(..) | Self::Retained(RetainedItem::Chat { .. }) => chat,
-            Self::Terminal(..) | Self::Retained(RetainedItem::Terminal { .. }) => !chat,
-            _ => false,
+            Self::Item { item, .. } => Some(item.kind()),
+            Self::Retained(item) => item.kind(),
+            Self::Launcher => None,
         }
+    }
+    /// `minimumSize` of the tab (a launcher's is a chat's).
+    fn minimum_size(&self) -> (f32, f32) {
+        self.kind().unwrap_or(ItemKind::Chat).minimum_size()
     }
     /// `AuxiliaryWorkbenchItemSnapshot.detail` for the overflow menu.
     fn detail(&self, cx: &App) -> Option<String> {
-        match self {
-            Self::Terminal(view, title, _) => Some(format!(
-                "{title} — {}",
-                crate::localization::t(view.read(cx).status().label_key())
-            )),
-            Self::Agent(view, _) => view.read(cx).presentation().map(|p| {
-                agent_chat::present_agent_chat_workbench_item(
-                    p,
-                    crate::localization::t("agent.name"),
-                )
-                .detail
-            }),
-            _ => None,
-        }
+        self.item().and_then(|item| item.snapshot(cx).detail)
     }
     fn title(&self, cx: &App) -> String {
         match self {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
             Self::Retained(item) => item.title(),
-            Self::Agent(e, _) => e
-                .read(cx)
-                .presentation()
-                .map(|p| p.title.clone())
-                .unwrap_or_else(|| crate::localization::t("agent.header.newChat").into()),
-            Self::Terminal(_, name, _) => name.clone(),
+            Self::Item { item, .. } => item.snapshot(cx).title,
         }
     }
 }
@@ -97,8 +92,6 @@ struct Project {
     loading: bool,
     saved: Option<blake3::Hash>,
     storage_error: Option<String>,
-    /// `projectAgentControllers(project)`, created with its first chat.
-    agents: Option<agent_chat::ProjectAgents>,
 }
 #[derive(Clone)]
 struct DragTab {
@@ -149,22 +142,6 @@ pub enum WorkbenchEvent {
         path: String,
     },
 }
-/// The hosted Agent location (`CloudAgentSidebar`): a target's Hub.
-struct CloudLocation {
-    hub: std::sync::Arc<crate::features::desktop_agent::infrastructure::cloud::Hub>,
-}
-/// `CLOUD_AGENT_LABEL`'s creation recipe: the only runtime a Cloud launcher
-/// offers (no local discovery, no terminal).
-fn cloud_installation() -> Installation {
-    use crate::features::desktop_agent::infrastructure::cloud;
-    Installation {
-        runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::PuppyOne,
-        id: cloud::INSTALLATION_ID,
-        label: cloud::LABEL.into(),
-        executable: PathBuf::new(),
-        chat: true,
-    }
-}
 impl EventEmitter<WorkbenchEvent> for Workbench {}
 pub struct Workbench {
     projects: HashMap<PathBuf, Project>,
@@ -172,9 +149,6 @@ pub struct Workbench {
     installations: Vec<Installation>,
     /// Local agent ids hidden in Settings → Local Agents.
     hidden_agents: Vec<String>,
-    /// `agentRoutingPreferences` and the Payments experience, for chats.
-    agent_routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
-    payments: bool,
     /// Appearance → Loading animation preset.
     scanning: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
@@ -209,10 +183,7 @@ pub struct Workbench {
     dragging: Option<Id>,
     drop_intent: Option<DropIntent>,
     /// Launcher tabs showing the cross-runtime History browser.
-    history: HashMap<
-        Id,
-        Entity<crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser>,
-    >,
+    history: HashMap<Id, Entity<HistoryBrowser>>,
     /// The launcher's last refused creation, per group (`launchError`).
     launch_errors: HashMap<Id, String>,
     /// Each launcher group's scroller.
@@ -225,24 +196,20 @@ pub struct Workbench {
     owner: String,
     /// `creationFailure`: a History conversation that could not be opened.
     creation_failure: Option<CreationFailure>,
-    /// The hosted location shown, and the Hubs of the targets seen (by
-    /// storage, account binding and workbench).
-    cloud: Option<CloudLocation>,
-    cloud_hubs:
-        HashMap<String, std::sync::Arc<crate::features::desktop_agent::infrastructure::cloud::Hub>>,
+    /// A hosted Agent run's changes were accepted.
     cloud_published: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// The close dialog refuses (an unconfirmed Cloud submission).
     close_blocked: bool,
-    /// This window on the Agent host, and its bridge once a chat needs it.
-    window_id: u64,
-    agent_window: Option<agent_chat::WindowAgent>,
-    /// Chat tabs whose session is being released.
-    closing_agents: std::collections::HashSet<Id>,
+    /// The Agent chat contribution: this window's Agent bridge, the
+    /// projects' controllers and the hosted location.
+    chats: AgentChats,
+    /// Tabs whose item is being released.
+    closing: std::collections::HashSet<Id>,
 }
 struct CreationFailure {
     tab: Id,
     /// The History target `retryCreation` opens again.
-    target: crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget,
+    target: HistoryTarget,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -278,6 +245,13 @@ impl Workbench {
             }
         })
         .detach();
+        // Saving and the items' presentation follow every change, after
+        // the update that made it.
+        cx.defer_in(window, |_, window, cx| {
+            let this = cx.entity();
+            cx.observe_in(&this, window, |s, _, window, cx| s.changed(window, cx))
+                .detach();
+        });
         // An activation that installed a CLI rescans the launchers' Agents.
         let activation = crate::features::local_agents::setup::store(cx);
         cx.subscribe(
@@ -293,8 +267,6 @@ impl Workbench {
             root: None,
             installations: vec![],
             hidden_agents: vec![],
-            agent_routing: Default::default(),
-            payments: false,
             scanning: true,
             scan_started: Some(std::time::Instant::now()),
             scan_rx,
@@ -323,13 +295,60 @@ impl Workbench {
             setup: None,
             owner: crate::features::agent_presence::owner(window),
             creation_failure: None,
-            cloud: None,
-            cloud_hubs: HashMap::new(),
             cloud_published: Default::default(),
             close_blocked: false,
-            window_id: window.window_handle().window_id().as_u64(),
-            agent_window: None,
-            closing_agents: Default::default(),
+            chats: AgentChats::new(window.window_handle().window_id().as_u64()),
+            closing: Default::default(),
+        }
+    }
+    /// After every change: the saved state, then which items are shown.
+    fn changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.persist(cx);
+        self.sync_presentation(window, cx);
+        self.sync_history(cx);
+        // The close dialog follows its item: a vanished item takes it down.
+        if let Some(tab) = self.confirm
+            && self.close_copy(tab, cx).is_none()
+        {
+            self.confirm = None;
+        }
+        if std::mem::take(&mut self.close_focus_pending) && self.confirm.is_some() {
+            self.close_focus.focus(window, cx);
+        }
+    }
+    /// `presented` (the shown tab of its group) and `commandTarget` (that
+    /// tab in the active group) for every item; other projects' items are
+    /// hidden.
+    fn sync_presentation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = self.root.clone();
+        let mut updates = Vec::new();
+        for (root, project) in &self.projects {
+            for (tab, content) in &project.content {
+                let Content::Item { item, .. } = content else {
+                    continue;
+                };
+                let group = project
+                    .layout
+                    .groups
+                    .iter()
+                    .find(|(_, g)| g.tabs.contains(tab));
+                let presented = current.as_ref() == Some(root)
+                    && group.is_some_and(|(_, g)| g.active == Some(*tab));
+                let command_target =
+                    presented && group.is_some_and(|(id, _)| *id == project.layout.active_group);
+                updates.push((item.clone(), presented, command_target));
+            }
+        }
+        for (item, presented, command_target) in updates {
+            item.set_presentation(presented, command_target, window, cx);
+        }
+    }
+    /// The tab's content over `item`, watched.
+    fn content(&mut self, item: impl WorkbenchItem + 'static, cx: &mut Context<Self>) -> Content {
+        let subscription = item.watch(cx);
+        Content::Item {
+            item: Rc::new(item),
+            _watch: subscription,
         }
     }
     /// The Agent panel over a recorded conversation (`agent-panel*`).
@@ -340,15 +359,13 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use crate::features::desktop_agent::ui::panel::AgentChatTabPanel;
         let root = PathBuf::from("/visual-reference-only");
         let mut project = Project::default();
         let id = project.layout.add(0);
-        let view = cx.new(|cx| AgentChatTabPanel::visual_fixture(populated, window, cx));
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        project
-            .content
-            .insert(id, Content::Agent(view, "visual-fixture".into()));
+        let item =
+            crate::features::desktop_agent::AgentChatItem::visual_fixture(populated, window, cx);
+        let content = self.content(item, cx);
+        project.content.insert(id, content);
         self.projects.insert(root.clone(), project);
         self.root = Some(root);
         cx.notify();
@@ -360,24 +377,16 @@ impl Workbench {
         payments: bool,
         cx: &mut Context<Self>,
     ) {
-        let hidden_changed = self.hidden_agents != hidden;
-        let routing_changed = self.agent_routing != routing || self.payments != payments;
-        self.hidden_agents = hidden;
-        self.agent_routing = routing;
-        self.payments = payments;
-        if hidden_changed {
-            self.sync_agent_hidden_runtimes(cx);
-        }
-        if hidden_changed || routing_changed {
-            self.sync_agent_routing(cx);
+        self.hidden_agents = hidden.clone();
+        if self.chats.set_preferences(hidden, routing, payments, cx) {
             cx.notify();
         }
     }
     /// Installations offered by launchers: detected agents the user has not
     /// hidden, then the bundled Built-in Agent (never hidden).
     pub(crate) fn visible_installations(&self) -> Vec<Installation> {
-        if self.cloud.is_some() {
-            return vec![cloud_installation()];
+        if self.chats.is_hosted() {
+            return vec![hosted_installation()];
         }
         self.installations
             .iter()
@@ -401,55 +410,29 @@ impl Workbench {
         cx.notify();
     }
     pub fn set_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
-        self.cloud = None;
+        self.chats.close_hosted();
         self.attach(root, cx);
     }
-    /// The hosted Project's Agent (`useCloudAgentWorkspace`): tabs persist
-    /// per API, account and target; one Hub per binding and workbench.
+    /// The hosted Project's Agent (`useCloudAgentWorkspace`).
     pub fn set_cloud_workspace(
         &mut self,
         target: crate::workspace::cloud::agent::AgentTarget,
         cx: &mut Context<Self>,
     ) {
-        use crate::features::desktop_agent::infrastructure::cloud::Hub;
-        use crate::workspace::cloud::agent::{BrokerTransport, Client};
-        let identity = format!(
-            "{}#{}#{}#{}",
-            target.storage, target.binding.instance, target.binding.epoch, target.workbench
-        );
         let (flag, wake) = (self.cloud_published.clone(), self.wake.clone());
-        let hub = self
-            .cloud_hubs
-            .entry(identity)
-            .or_insert_with(|| {
-                let transport = std::sync::Arc::new(BrokerTransport {
-                    broker: target.broker.clone(),
-                    binding: target.binding.clone(),
-                    cancel: Default::default(),
-                    wait: crate::workspace::cloud::agent::BATCH_WAIT,
-                });
-                Hub::new(
-                    Client::new(transport, target.project.clone(), target.workbench.clone()),
-                    target.storage.clone(),
-                    crate::features::desktop_agent::infrastructure::cloud::storage_dir(),
-                    Box::new(move || {
-                        flag.store(true, std::sync::atomic::Ordering::SeqCst);
-                        wake.notify();
-                    }),
-                )
-            })
-            .clone();
-        let root = PathBuf::from(format!(
-            "puppyone-cloud-agent-{}",
-            blake3::hash(target.storage.as_bytes()).to_hex()
-        ));
-        self.cloud = Some(CloudLocation { hub });
+        let root = self.chats.open_hosted(
+            target,
+            Box::new(move || {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                wake.notify();
+            }),
+        );
         self.attach(root, cx);
     }
     /// Whether the hosted Agent is shown.
     #[cfg(test)]
     pub fn cloud_location(&self) -> bool {
-        self.cloud.is_some()
+        self.chats.is_hosted()
     }
     /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat for `tab`,
     /// its receipts persisted under the tab id; a History `session` opens it
@@ -461,19 +444,29 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<Content, String> {
-        use crate::features::desktop_agent::infrastructure::cloud::CloudAgentController;
-        use crate::features::desktop_agent::ui::panel::AgentChatTabPanel;
-        let hub = self
-            .cloud
-            .as_ref()
-            .ok_or_else(|| String::from("The hosted Agent is not open."))?
-            .hub
-            .clone();
-        let (wake, changes) = Wake::channel();
-        let chat = CloudAgentController::new(hub, &format!("tab:{tab}"), session, wake)?;
-        let view = cx.new(|cx| AgentChatTabPanel::new_hosted(chat, changes, window, cx));
-        cx.subscribe(&view, Self::agent_panel_event).detach();
-        Ok(Content::Agent(view, format!("hosted:{tab}")))
+        let root = self.root.clone().unwrap_or_default();
+        let item = self
+            .chats
+            .hosted_chat(&root, &format!("tab:{tab}"), session, window, cx)?;
+        Ok(self.content(item, cx))
+    }
+    /// `prepareAgentChatWorkbenchItem(project, itemId, runtimeId)` or, with
+    /// a session, `restoreAgentChatWorkbenchItem`: the tab's content.
+    fn chat_content(
+        &mut self,
+        runtime_id: &str,
+        session_id: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<Content, String> {
+        let root = self
+            .root
+            .clone()
+            .ok_or_else(|| String::from("This project is closing."))?;
+        let item = self
+            .chats
+            .prepare(&root, runtime_id, session_id, window, cx)?;
+        Ok(self.content(item, cx))
     }
     fn attach(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if !self.projects.contains_key(&root) {
@@ -485,7 +478,8 @@ impl Workbench {
                 },
             );
             ui_state_store::load(root.clone(), self.store_tx.clone(), self.wake.clone());
-            self.authorize_agent_roots();
+            self.chats
+                .set_roots(self.projects.keys().cloned().collect());
         }
         self.root = Some(root);
         self.confirm = None;
@@ -556,29 +550,7 @@ impl Workbench {
                         match content {
                             Content::Launcher => RetainedItem::Launcher,
                             Content::Retained(item) => item.clone(),
-                            Content::Agent(view, _) => {
-                                let panel = view.read(cx);
-                                let presentation = panel.presentation().cloned();
-                                let state = panel.controller().get_snapshot();
-                                RetainedItem::Chat {
-                                    runtime_id: state
-                                        .session
-                                        .as_ref()
-                                        .and_then(|s| s.runtime_id.clone())
-                                        .or(state.selected_runtime_id),
-                                    runtime: presentation
-                                        .as_ref()
-                                        .and_then(|p| p.runtime_icon_key.as_deref())
-                                        .and_then(crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key)
-                                        .unwrap_or(Runtime::PuppyOne),
-                                    thread: presentation.as_ref().and_then(|p| p.session_id.clone()),
-                                    title: presentation.map(|p| p.title).unwrap_or_default(),
-                                }
-                            }
-                            Content::Terminal(_, title, runtime) => RetainedItem::Terminal {
-                                title: title.clone(),
-                                runtime: *runtime,
-                            },
+                            Content::Item { item, .. } => item.retained(cx),
                         },
                     )
                 })
@@ -614,7 +586,7 @@ impl Workbench {
         let root = self.root.clone().unwrap();
         let content = match item {
             // The tab's saved receipts reopen its conversation.
-            RetainedItem::Chat { .. } if self.cloud.is_some() => {
+            RetainedItem::Chat { .. } if self.chats.is_hosted() => {
                 match self.hosted_chat(tab, None, window, cx) {
                     Ok(content) => content,
                     Err(error) => {
@@ -640,13 +612,11 @@ impl Workbench {
                     self.installations
                         .iter()
                         .find(|i| i.runtime == runtime)
-                        .map(agent_chat::agent_chat_runtime_id)
+                        .map(agent_chat_runtime_id)
                 });
                 let content = runtime_id
                     .ok_or_else(|| crate::localization::t("native.agent.uninstalled").to_string())
-                    .and_then(|runtime_id| {
-                        self.agent_chat_content(&runtime_id, thread, window, cx)
-                    });
+                    .and_then(|runtime_id| self.chat_content(&runtime_id, thread, window, cx));
                 match content {
                     Ok(content) => content,
                     Err(error) => {
@@ -659,10 +629,8 @@ impl Workbench {
                 }
             }
             RetainedItem::Terminal { .. } => {
-                let label = super::terminal::path_label(&root);
-                let view = cx.new(|cx| TerminalView::new(root, None, "shell", window, cx));
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                Content::Terminal(view, label, None)
+                let item = TerminalItem::launch(root, None, window, cx);
+                self.content(item, cx)
             }
             RetainedItem::Launcher => Content::Launcher,
         };
@@ -673,7 +641,7 @@ impl Workbench {
         cx.notify();
     }
     pub fn reload_agent_configuration(&mut self, cx: &mut Context<Self>) {
-        self.reload_agent_model_connections(cx);
+        self.chats.reload_model_connections(cx);
     }
     pub fn has_running(&self, cx: &App) -> bool {
         self.projects
@@ -683,6 +651,7 @@ impl Workbench {
     pub fn shutdown(&mut self, cx: &mut Context<Self>) {
         self.persist(cx);
         self.projects.clear();
+        self.chats.shutdown();
         self.root = None;
         cx.notify();
     }
@@ -692,12 +661,15 @@ impl Workbench {
     fn project_mut(&mut self) -> Option<&mut Project> {
         self.root.as_ref().and_then(|r| self.projects.get_mut(r))
     }
-    /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`
-    /// (8 Agent Chats, 32 terminals per project).
-    fn can_create(&self, chat: bool) -> bool {
-        let limit = if chat { 8 } else { 32 };
-        self.project()
-            .is_none_or(|p| p.content.values().filter(|c| c.is_kind(chat)).count() < limit)
+    /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`.
+    fn can_create(&self, kind: ItemKind) -> bool {
+        self.project().is_none_or(|p| {
+            p.content
+                .values()
+                .filter(|c| c.kind() == Some(kind))
+                .count()
+                < kind.maximum_items()
+        })
     }
     fn add(&mut self, group: Id, cx: &mut Context<Self>) {
         if let Some(p) = self.project_mut() {
@@ -707,45 +679,65 @@ impl Workbench {
         }
         cx.notify();
     }
+    /// `close.decide`, then `close.commit`: a busy item asks first, a
+    /// blocked one only keeps its tab.
     fn close(&mut self, id: Id, force: bool, cx: &mut Context<Self>) {
         if force && self.close_blocked {
             return;
         }
-        // A hosted chat never stops its run on close; an unconfirmed
-        // submission keeps the tab until its receipt is recovered.
-        if self.cloud.is_some() {
-            let content = self.project().and_then(|p| p.content.get(&id));
-            if let Some(Content::Agent(view, _)) = content
-                && view
-                    .read(cx)
-                    .hosted()
-                    .is_some_and(|chat| !chat.can_release())
-            {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        let item = self
+            .project()
+            .and_then(|p| p.content.get(&id))
+            .and_then(|c| match c {
+                Content::Item { item, .. } => Some(item.clone()),
+                _ => None,
+            });
+        let Some(item) = item else {
+            self.remove_tab(&root, id, cx);
+            return;
+        };
+        match item.close_decision(cx) {
+            CloseDecision::Blocked => {
                 self.close_blocked = true;
                 self.request_close_confirmation(id, cx);
                 return;
             }
-        } else if !force
-            && self
-                .project()
-                .and_then(|p| p.content.get(&id))
-                .is_some_and(|c| c.busy(cx))
-        {
-            self.request_close_confirmation(id, cx);
-            return;
+            CloseDecision::Confirm if !force => {
+                self.request_close_confirmation(id, cx);
+                return;
+            }
+            _ => {}
         }
-        // A hosted chat releases only its view (`release(id)`).
-        if let Some(Content::Agent(view, item)) = self.project().and_then(|p| p.content.get(&id))
-            && view.read(cx).hosted().is_none()
-        {
-            let item = item.clone();
-            self.confirm = None;
-            self.close_agent_chat(id, item, cx);
-            return;
-        }
-        if let Some(root) = self.root.clone() {
+        let Some(release) = item.commit_close() else {
             self.remove_tab(&root, id, cx);
+            return;
+        };
+        self.confirm = None;
+        if !self.closing.insert(id) {
+            return;
         }
+        // The tab closes once its item is released; a refusal presents the
+        // latest decision again.
+        cx.spawn(async move |this, cx| {
+            let released = release.await;
+            this.update(cx, |s, cx| {
+                s.closing.remove(&id);
+                if released {
+                    s.remove_tab(&root, id, cx);
+                } else if s.root.as_ref() == Some(&root)
+                    && s.project()
+                        .and_then(|p| p.content.get(&id))
+                        .is_some_and(|c| c.busy(cx))
+                {
+                    s.request_close_confirmation(id, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
     /// `removeItem`: the tab leaves `root`'s layout.
     fn remove_tab(&mut self, root: &std::path::Path, id: Id, cx: &mut Context<Self>) {
@@ -781,8 +773,8 @@ impl Workbench {
             return;
         }
         // Cloud: the hosted Agent only, no session lease of this machine.
-        if self.cloud.is_some() {
-            if !installation.as_ref().is_some_and(|i| i.chat) || !self.can_create(true) {
+        if self.chats.is_hosted() {
+            if !installation.as_ref().is_some_and(|i| i.chat) || !self.can_create(ItemKind::Chat) {
                 return;
             }
             self.launch_errors.remove(&group);
@@ -810,7 +802,12 @@ impl Workbench {
         let chat = installation
             .as_ref()
             .is_some_and(|i| i.chat && self.chat_mode);
-        if !self.can_create(chat) {
+        let kind = if chat {
+            ItemKind::Chat
+        } else {
+            ItemKind::Terminal
+        };
+        if !self.can_create(kind) {
             return;
         }
         self.launch_errors.remove(&group);
@@ -818,12 +815,7 @@ impl Workbench {
             // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`;
             // `launchError`: a refused creation stays on the launcher with
             // its reason.
-            match self.agent_chat_content(
-                &agent_chat::agent_chat_runtime_id(&installation),
-                None,
-                window,
-                cx,
-            ) {
+            match self.chat_content(&agent_chat_runtime_id(&installation), None, window, cx) {
                 Ok(content) => content,
                 Err(error) => {
                     self.launch_errors.insert(group, error);
@@ -832,15 +824,8 @@ impl Workbench {
                 }
             }
         } else {
-            // `TerminalWorkbenchContribution`: the tab is titled by the
-            // project folder; the launcher shows as its icon.
-            let label = super::terminal::path_label(&root);
-            let runtime = installation.as_ref().map(|i| i.runtime);
-            let launcher = installation.as_ref().map_or("shell", |i| i.id);
-            let exe = installation.map(|i| i.executable);
-            let view = cx.new(|cx| TerminalView::new(root, exe, launcher, window, cx));
-            cx.observe(&view, |_, _, cx| cx.notify()).detach();
-            Content::Terminal(view, label, runtime)
+            let item = TerminalItem::launch(root, installation, window, cx);
+            self.content(item, cx)
         };
         if let Some(p) = self.project_mut() {
             let id = tab.unwrap_or_else(|| p.layout.add(group));
@@ -924,15 +909,10 @@ impl Workbench {
                     )
                     .into_any_element()
             }
-            Some(Content::Agent(view, _)) => {
-                let view = view.clone();
-                div().size_full().child(view).into_any_element()
+            Some(Content::Item { item, .. }) => {
+                div().size_full().child(item.view()).into_any_element()
             }
-            Some(Content::Terminal(view, ..)) => {
-                let view = view.clone();
-                div().size_full().child(view).into_any_element()
-            }
-            _ => match g.active.and_then(|tab| self.render_history(tab, cx)) {
+            _ => match g.active.and_then(|tab| self.render_history(tab)) {
                 Some(history) => history,
                 None => self.launcher(id, g.active, width, cx).into_any_element(),
             },
@@ -1234,6 +1214,7 @@ impl Workbench {
         &mut self,
         store: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     ) {
+        self.chats.set_preference_store(store.clone());
         self.preferences = Some(store);
         self.setup = None;
     }
@@ -1297,10 +1278,11 @@ impl Workbench {
             .map(|g| g.tabs.clone())
             .unwrap_or_default();
         tabs.iter()
-            .map(|tab| match project.content.get(tab) {
-                Some(Content::Terminal(..))
-                | Some(Content::Retained(RetainedItem::Terminal { .. })) => (188., 196.),
-                _ => (280., 260.),
+            .map(|tab| {
+                project
+                    .content
+                    .get(tab)
+                    .map_or(ItemKind::Chat.minimum_size(), Content::minimum_size)
             })
             .fold(None, |acc: Option<(f32, f32)>, (w, h)| {
                 Some(acc.map_or((w, h), |(aw, ah)| (aw.max(w), ah.max(h))))
@@ -1333,16 +1315,16 @@ impl Workbench {
         if source_group != target && project.layout.groups[&source_group].tabs.len() == 1 {
             return true;
         }
-        let source_min: (f32, f32) = match project.content.get(&source) {
-            Some(Content::Terminal(..)) => (188., 196.),
-            _ => (280., 260.),
+        let minimum = |tab: &Id| {
+            project
+                .content
+                .get(tab)
+                .map_or(ItemKind::Chat.minimum_size(), Content::minimum_size)
         };
+        let source_min = minimum(&source);
         let target_min = remaining
             .iter()
-            .map(|tab| match project.content.get(tab) {
-                Some(Content::Terminal(..)) => (188., 196.),
-                _ => (280., 260.),
-            })
+            .map(minimum)
             .fold((1f32, 1f32), |(w, h), (a, b)| (w.max(a), h.max(b)));
         let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
         match axis {
@@ -1361,17 +1343,6 @@ impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::platform::watchdog::activity("workbench.render");
         let t = cx.palette();
-        self.persist(cx);
-        self.sync_agent_presentation(window, cx);
-        // The close dialog follows its item: a vanished item takes it down.
-        if let Some(tab) = self.confirm
-            && self.close_copy(tab, cx).is_none()
-        {
-            self.confirm = None;
-        }
-        if std::mem::take(&mut self.close_focus_pending) && self.confirm.is_some() {
-            self.close_focus.focus(window, cx);
-        }
         let close_dialog = self.render_close_dialog(window, cx);
         let loading = self.project().is_some_and(|p| p.loading);
         let error = self.project().and_then(|p| p.storage_error.clone());
@@ -1509,13 +1480,13 @@ mod tests {
         );
         let (view, cx) = cx.add_window_view(Workbench::new);
         view.update_in(cx, |s, w, cx| {
-            s.cloud = Some(CloudLocation { hub });
+            s.chats.open_hosted_hub(hub);
             s.attach(
                 PathBuf::from(format!("cloud-test-{}", uuid::Uuid::new_v4())),
                 cx,
             );
             s.project_mut().unwrap().loading = false;
-            s.launch(0, None, Some(cloud_installation()), w, cx);
+            s.launch(0, None, Some(hosted_installation()), w, cx);
         });
         let (tab, chat) = view.read_with(cx, |s, _| {
             s.project()
@@ -1523,7 +1494,11 @@ mod tests {
                 .content
                 .iter()
                 .find_map(|(id, c)| match c {
-                    Content::Agent(view, _) => Some((*id, view.clone())),
+                    Content::Item { item, .. } => item
+                        .view()
+                        .downcast::<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>()
+                        .ok()
+                        .map(|chat| (*id, chat)),
                     _ => None,
                 })
                 .expect("a hosted chat")
@@ -1623,7 +1598,7 @@ mod tests {
             let p = s.project_mut().unwrap();
             let tab = p.layout.add(0);
             p.content.insert(tab, Content::Launcher);
-            let target = crate::features::desktop_agent::domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget {
+            let target = HistoryTarget {
                 id: "agent:thread-1".into(),
                 title: "Saved chat".into(),
                 icon_key: None,
@@ -1664,8 +1639,11 @@ mod tests {
                     }),
                 );
             }
-            assert!(!s.can_create(false), "32 terminals per project");
-            assert!(s.can_create(true));
+            assert!(
+                !s.can_create(ItemKind::Terminal),
+                "32 terminals per project"
+            );
+            assert!(s.can_create(ItemKind::Chat));
             // The shell launcher refuses rather than starting a 33rd PTY.
             s.launch(0, None, None, window, cx);
             assert_eq!(s.project().unwrap().content.len(), 32);
@@ -1682,7 +1660,7 @@ mod tests {
                     }),
                 );
             }
-            assert!(!s.can_create(true), "8 Agent Chats per project");
+            assert!(!s.can_create(ItemKind::Chat), "8 Agent Chats per project");
         });
     }
     #[gpui::test]

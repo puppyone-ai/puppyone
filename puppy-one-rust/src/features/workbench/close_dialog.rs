@@ -1,6 +1,6 @@
 //! Port of `AuxiliaryWorkbenchCloseDialog` (`auxiliary-workbench-close-dialog.css`
-//! over `DesktopDialog`). Closing a busy item asks first: a running chat uses
-//! `createAgentChatCloseAdapter`'s copy, a live shell the terminal's.
+//! over `DesktopDialog`). Closing a busy item asks first, in the copy of the
+//! item's contribution (`AuxiliaryWorkbenchCloseAdapter.decide`).
 use super::*;
 use crate::localization::{t as tr, tf};
 use crate::ui::appearance::ActiveAppearance;
@@ -13,15 +13,6 @@ const WIDTH: f32 = 380.;
 /// `.desktop-dialog-backdrop` padding.
 const INSET: f32 = 16.;
 
-/// Copy of the `confirm` decision for one item (`AuxiliaryWorkbenchCloseDialogCopy`).
-pub(super) struct CloseCopy {
-    title: String,
-    detail: &'static str,
-    action: &'static str,
-    /// `{ kind: "blocked" }`: only "Keep chat open".
-    blocked: bool,
-}
-
 #[cfg(test)]
 impl CloseCopy {
     pub(super) fn is_blocked(&self) -> bool {
@@ -30,25 +21,15 @@ impl CloseCopy {
 }
 
 impl Workbench {
+    /// The dialog of the `confirm` (or, while refused, `blocked`) decision
+    /// for `tab`'s item.
     pub(super) fn close_copy(&self, tab: Id, cx: &App) -> Option<CloseCopy> {
         let content = self.project()?.content.get(&tab)?;
         let title = content.title(cx);
-        if self.close_blocked {
-            return Some(CloseCopy {
-                title: tr("cloud.agent.pendingTitle").into(),
-                detail: tr("cloud.agent.pendingDetail"),
-                action: tr("agent.closeDialog.keepOpen"),
-                blocked: true,
-            });
-        }
-        Some(match content {
-            Content::Terminal(..) => CloseCopy {
-                title: tf("terminal.closeDialog.title", &[("title", title.into())]),
-                detail: tr("terminal.closeDialog.detail"),
-                action: tr("terminal.closeDialog.confirm"),
-                blocked: false,
-            },
-            _ => CloseCopy {
+        Some(match content.item() {
+            Some(item) => item.close_copy(self.close_blocked, title),
+            // Launchers never ask; the pixel lab's dialog shows over a chat.
+            None => CloseCopy {
                 title: tf("agent.closeDialog.activeTitle", &[("title", title.into())]),
                 detail: tr("agent.closeDialog.activeDetail"),
                 action: tr("common.action.close"),

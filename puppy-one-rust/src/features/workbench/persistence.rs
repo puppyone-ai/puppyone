@@ -1,7 +1,9 @@
+use super::item::ItemKind;
 use super::layout::{Id, Layout};
 use crate::agent::runtime::legacy_runtime_registry::Runtime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+/// What a project's saved workbench keeps of a tab.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RetainedItem {
     Launcher,
@@ -22,6 +24,14 @@ pub enum RetainedItem {
     },
 }
 impl RetainedItem {
+    /// The contribution whose item this was.
+    pub fn kind(&self) -> Option<ItemKind> {
+        match self {
+            Self::Launcher => None,
+            Self::Chat { .. } => Some(ItemKind::Chat),
+            Self::Terminal { .. } => Some(ItemKind::Terminal),
+        }
+    }
     pub fn title(&self) -> String {
         match self {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),

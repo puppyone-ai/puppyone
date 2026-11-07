@@ -6,7 +6,7 @@
 use super::*;
 use crate::ui::appearance::ActiveAppearance;
 use crate::{
-    features::desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
+    features::desktop_agent::{LauncherIdentity, launcher_icon},
     localization::t as tr,
     theme,
     ui::components::{Icon, IconButton, Spinner},
@@ -84,7 +84,10 @@ impl Workbench {
         let t = cx.palette();
         let m = theme::ty();
         let visible = self.visible_installations();
-        let (chats, terminals) = (self.can_create(true), self.can_create(false));
+        let (chats, terminals) = (
+            self.can_create(ItemKind::Chat),
+            self.can_create(ItemKind::Terminal),
+        );
         let mut external = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
             let terminal = installation.clone();
@@ -175,7 +178,7 @@ impl Workbench {
             // Cloud reads the hosted Agent's own history (`CloudAgentHistory`).
             s.open_history(group, tab, window, cx)
         }));
-        let cloud = self.cloud.is_some();
+        let cloud = self.chats.is_hosted();
 
         let mut entries = v_flex().gap(px(1.)).child(external);
         // `discoveryPhase="ready"`: no local discovery in Cloud.

@@ -2,6 +2,9 @@
 //! scenario data mirrors `tools/reference-workbench-entry.tsx` exactly: the
 //! same detected agents, tab topology and Agent Chat content.
 use super::*;
+use crate::agent::runtime::legacy_runtime_registry::Runtime;
+use crate::features::desktop_agent::{AgentChatItem, lab_history_browser};
+use crate::features::terminal::TerminalView;
 
 impl Workbench {
     pub(crate) fn lab_fixture(
@@ -49,17 +52,9 @@ impl Workbench {
                 scenario
             };
             let _ = codex;
-            let view = cx.new(|cx| {
-                crate::features::desktop_agent::ui::panel::AgentChatTabPanel::lab_fixture(
-                    chat_scenario,
-                    window,
-                    cx,
-                )
-            });
-            cx.observe(&view, |_, _, cx| cx.notify()).detach();
-            project
-                .content
-                .insert(chat, Content::Agent(view, "lab-chat".into()));
+            let item = AgentChatItem::lab_fixture(chat_scenario, window, cx);
+            let content = self.content(item, cx);
+            project.content.insert(chat, content);
             let terminal = project.layout.add(0);
             project
                 .content
@@ -68,27 +63,19 @@ impl Workbench {
             project.content.insert(launcher, Content::Launcher);
             if scenario == "tabs-narrow" {
                 let claude = project.layout.add(0);
-                let view = cx.new(|cx| {
-                    crate::features::desktop_agent::ui::panel::AgentChatTabPanel::lab_fixture(
-                        "chat-empty",
-                        window,
-                        cx,
-                    )
-                });
-                project
-                    .content
-                    .insert(claude, Content::Agent(view, "lab-claude".into()));
+                let item = AgentChatItem::lab_fixture("chat-empty", window, cx);
+                let content = self.content(item, cx);
+                project.content.insert(claude, content);
                 let shell = project.layout.add(0);
                 project.content.insert(shell, self.lab_terminal(window, cx));
             }
             project.layout.activate(0, chat);
             if scenario == "terminal" {
                 let view = cx.new(TerminalView::lab_fixture);
-                cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                project.content.insert(
-                    terminal,
-                    Content::Terminal(view, crate::localization::t("terminal.title").into(), None),
-                );
+                let item =
+                    TerminalItem::of(view, crate::localization::t("terminal.title").into(), None);
+                let content = self.content(item, cx);
+                project.content.insert(terminal, content);
                 project.layout.activate(0, terminal);
             }
             // Native-only interaction states (no product reference): a tab
@@ -118,14 +105,9 @@ impl Workbench {
                         view.lab_busy_agent();
                         view
                     });
-                    project.content.insert(
-                        terminal,
-                        Content::Terminal(
-                            view,
-                            "Claude Code".into(),
-                            Some(crate::agent::runtime::legacy_runtime_registry::Runtime::Claude),
-                        ),
-                    );
+                    let item = TerminalItem::of(view, "Claude Code".into(), Some(Runtime::Claude));
+                    let content = self.content(item, cx);
+                    project.content.insert(terminal, content);
                 }
                 "split" => {
                     project
@@ -149,142 +131,14 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
-        use crate::features::desktop_agent::infrastructure::host::window_runtime::WindowUiRuntime;
-        use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
-        let client: std::rc::Rc<
-            dyn crate::features::desktop_agent::application::agent_client_port::AgentClientPort,
-        > = std::rc::Rc::new(crate::features::desktop_agent::fixtures::JsonPort(
-            LabHistoryClient { populated },
-        ));
-        let controller = ConversationHistoryController::new(
-            "/reference/project",
-            std::rc::Rc::new(move || Some(client.clone())),
-            WindowUiRuntime::create(cx),
-        );
         let enabled = populated || self.history_discovery(cx);
-        let browser = cx.new(|cx| {
-            HistoryBrowser::new(
-                crate::features::desktop_agent::ui::agent_conversation_history::HistorySource::Agent(
-                    controller,
-                ),
-                enabled,
-                window,
-                cx,
-            )
-        });
+        let browser = lab_history_browser(populated, enabled, window, cx);
         self.install_history(tab, browser, window, cx);
     }
     /// An inactive shell tab; its PTY lives in a scratch directory.
     fn lab_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Content {
         let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), None, "shell", window, cx));
-        Content::Terminal(view, crate::localization::t("terminal.title").into(), None)
-    }
-}
-
-/// The reference entry's History: four runtimes and five saved chats.
-struct LabHistoryClient {
-    populated: bool,
-}
-
-impl crate::features::desktop_agent::fixtures::JsonAgent for LabHistoryClient {
-    fn supports(&self, operation: crate::agent::contract::protocol::AgentOperation) -> bool {
-        use crate::agent::contract::protocol::AgentOperation as O;
-        matches!(operation, O::DiscoverRuntimes | O::ListSessions)
-    }
-
-    fn answer(
-        &self,
-        operation: crate::agent::contract::protocol::AgentOperation,
-        request: serde_json::Value,
-    ) -> crate::features::desktop_agent::fixtures::JsonAnswer {
-        use crate::agent::contract::protocol::AgentOperation as O;
-        use serde_json::json;
-        const NOW: i64 = 1_800_000_000_000;
-        let runtimes = [
-            ("codex", "Codex"),
-            ("claude", "Claude Code"),
-            ("pi", "Pi"),
-            ("opencode-native", "OpenCode"),
-        ];
-        let runtime = |id: &str| {
-            let (id, label) = runtimes
-                .iter()
-                .find(|(r, _)| *r == id)
-                .copied()
-                .unwrap_or((id, id));
-            let icon = if id == "opencode-native" {
-                "opencode"
-            } else {
-                id
-            };
-            json!({ "id": id, "displayName": label, "iconKey": icon, "ownership": { "session": "runtime" } })
-        };
-        let session = |id: usize, runtime_id: &str, title: &str, age: i64| {
-            json!({
-                "id": format!("history-{id}"), "title": title, "runtimeId": runtime_id,
-                "runtime": runtime(runtime_id),
-                "updatedAt": crate::clock::iso_string(NOW - age),
-            })
-        };
-        let sessions: Vec<serde_json::Value> = if self.populated {
-            vec![
-                session(
-                    0,
-                    "codex",
-                    "Make the terminal colours follow the theme",
-                    5 * 60_000,
-                ),
-                session(
-                    1,
-                    "claude",
-                    "Refactor the workbench split constraints",
-                    2 * 3_600_000,
-                ),
-                session(2, "codex", "Port the approval dock to GPUI", 26 * 3_600_000),
-                session(
-                    3,
-                    "pi",
-                    "Investigate the flaky terminal resize test after the PTY host moved",
-                    3 * 86_400_000,
-                ),
-                session(
-                    4,
-                    "opencode-native",
-                    "Audit markdown table rendering",
-                    9 * 86_400_000,
-                ),
-            ]
-        } else {
-            vec![]
-        };
-        let result = match operation {
-            O::DiscoverRuntimes => json!({
-                "runtimes": runtimes.iter().map(|(id, _)| json!({
-                    "descriptor": runtime(id),
-                    "readiness": { "runtimeId": id, "status": "ready", "code": "READY", "selectable": true },
-                })).collect::<Vec<_>>(),
-            }),
-            _ if request["discoverNative"] == true => {
-                let runtime_id = request["runtimeId"].as_str().unwrap_or_default();
-                let more = runtime_id == "codex";
-                json!({
-                    "sessions": sessions.iter().filter(|s| s["runtimeId"] == runtime_id).collect::<Vec<_>>(),
-                    "discovery": {
-                        "runtimeId": runtime_id,
-                        "status": if more { "partial" } else { "complete" },
-                        "coverage": if more { "partial" } else { "complete" },
-                        "nextCursor": more.then_some("page-2"),
-                        "scanId": more.then_some("scan-1"),
-                    },
-                })
-            }
-            _ => json!({
-                "sessions": sessions,
-                "catalogCoverage": { "truncated": false },
-                "catalogNextCursor": null,
-            }),
-        };
-        Box::pin(async move { Ok(result) })
+        let item = TerminalItem::of(view, crate::localization::t("terminal.title").into(), None);
+        self.content(item, cx)
     }
 }

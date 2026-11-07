@@ -2,9 +2,7 @@
 //! chat contribution's `history.renderBrowser`): a launcher tab becomes
 //! "Chat history" and hosts the cross-runtime browser until Back or Open.
 use super::*;
-use crate::features::desktop_agent::ui::agent_conversation_history::{
-    HistoryBrowser, HistoryBrowserEvent, HistorySource,
-};
+use crate::features::desktop_agent::HistoryBrowserEvent;
 
 impl Workbench {
     /// `onOpenHistory`: the launcher tab itself, or a new launcher tab.
@@ -29,21 +27,14 @@ impl Workbench {
         if self.history.contains_key(&tab) {
             return;
         }
-        // `CloudAgentHistory` reads the hosted target's locators; it asks
-        // no discovery permission.
-        let (source, enabled) = match &self.cloud {
-            Some(cloud) => (HistorySource::Hosted(cloud.hub.clone()), true),
-            None => match self.project_history(&root, cx) {
-                Ok(controller) => (HistorySource::Agent(controller), self.history_discovery(cx)),
-                Err(error) => {
-                    self.launch_errors.insert(group, error);
-                    cx.notify();
-                    return;
-                }
-            },
-        };
-        let browser = cx.new(|cx| HistoryBrowser::new(source, enabled, window, cx));
-        self.install_history(tab, browser, window, cx);
+        let discovery = self.history_discovery(cx);
+        match self.chats.history_browser(&root, discovery, window, cx) {
+            Ok(browser) => self.install_history(tab, browser, window, cx),
+            Err(error) => {
+                self.launch_errors.insert(group, error);
+                cx.notify();
+            }
+        }
     }
     /// Hosts `browser` in the launcher tab `tab`.
     pub(super) fn install_history(
@@ -84,16 +75,9 @@ impl Workbench {
             }
             // `prepareAgentChatWorkbenchItem({ historyTarget })`.
             HistoryBrowserEvent::Open(target) => {
-                let group = self.project().and_then(|p| {
-                    p.layout
-                        .groups
-                        .iter()
-                        .find(|(_, g)| g.tabs.contains(&tab))
-                        .map(|(group, _)| *group)
-                });
-                if let Some(group) = group {
+                if let Some(group) = self.group_of(tab) {
                     self.creation_failure = None;
-                    if self.cloud.is_some() {
+                    if self.chats.is_hosted() {
                         self.open_hosted_history_target(group, tab, target.id.clone(), window, cx);
                     } else {
                         self.restore_history_target(group, tab, target.clone(), window, cx);
@@ -103,28 +87,110 @@ impl Workbench {
         }
         cx.notify();
     }
+    /// The group showing `tab`.
+    pub(super) fn group_of(&self, tab: Id) -> Option<Id> {
+        self.project()?
+            .layout
+            .groups
+            .iter()
+            .find(|(_, g)| g.tabs.contains(&tab))
+            .map(|(group, _)| *group)
+    }
+    /// `restoreAgentChatWorkbenchItem` for a History target: the launcher
+    /// tab becomes the chat only once its saved session opened; otherwise it
+    /// stays and the failure is retryable (`recordCreationFailure`).
+    pub(super) fn restore_history_target(
+        &mut self,
+        group: Id,
+        tab: Id,
+        target: HistoryTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        let mut saved = match self.chats.open_saved(&root, &target, cx) {
+            Ok(saved) => saved,
+            Err(_) => {
+                self.history_restore_failed(tab, target, cx);
+                return;
+            }
+        };
+        let opening = saved.opening();
+        cx.spawn_in(window, async move |this, cx| {
+            let opened = opening.await;
+            this.update_in(cx, |s, window, cx| {
+                let launcher = s.root.as_ref() == Some(&root)
+                    && matches!(
+                        s.project().and_then(|p| p.content.get(&tab)),
+                        Some(Content::Launcher)
+                    );
+                if opened && launcher {
+                    let item = s.chats.saved_chat(saved, window, cx);
+                    let content = s.content(item, cx);
+                    s.history.remove(&tab);
+                    if let Some(p) = s.project_mut() {
+                        p.content.insert(tab, content);
+                        p.layout.activate(group, tab);
+                    }
+                    cx.notify();
+                    return;
+                }
+                cx.foreground_executor().spawn(saved.discard()).detach();
+                if launcher {
+                    s.history_restore_failed(tab, target, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+    fn history_restore_failed(&mut self, tab: Id, target: HistoryTarget, cx: &mut Context<Self>) {
+        if let Some(browser) = self.history.get(&tab) {
+            browser.update(cx, |browser, cx| {
+                browser.opening = None;
+                cx.notify();
+            });
+        }
+        self.creation_failure = Some(CreationFailure { tab, target });
+        cx.notify();
+    }
     /// `localAgentsSettings.chatHistoryDiscoveryEnabled`.
     pub(super) fn history_discovery(&self, cx: &App) -> bool {
         self.preferences
             .as_ref()
             .is_some_and(|p| p.read(cx).state.local_agents.chat_history_discovery)
     }
-    /// Thread ids already open in a chat tab (`excludedHistoryResourceIds`).
+    /// Sessions already open in a chat tab (`excludedHistoryResourceIds`).
     pub(super) fn open_threads(&self, cx: &App) -> Vec<String> {
         self.project()
             .map(|p| {
                 p.content
                     .values()
-                    .filter_map(|c| match c {
-                        Content::Agent(view, _) => view
-                            .read(cx)
-                            .presentation()
-                            .and_then(|p| p.session_id.clone()),
-                        _ => None,
-                    })
+                    .filter_map(Content::item)
+                    .filter(|item| item.kind() == ItemKind::Chat)
+                    .filter_map(|item| item.snapshot(cx).resource_id)
                     .collect()
             })
             .unwrap_or_default()
+    }
+    /// The browsers follow the open chats and the discovery permission
+    /// (granted elsewhere, in Settings, it starts discovery too).
+    pub(super) fn sync_history(&mut self, cx: &mut Context<Self>) {
+        if self.history.is_empty() {
+            return;
+        }
+        let excluded = self.open_threads(cx);
+        let enabled = self.history_discovery(cx);
+        for browser in self.history.values() {
+            browser.update(cx, |b, cx| {
+                b.set_excluded(excluded.clone(), cx);
+                if enabled && !b.enabled() {
+                    b.enable(cx);
+                }
+            });
+        }
     }
     /// The launcher tab's label and icon while History is open.
     pub(super) fn history_open(&self, tab: Id) -> bool {
@@ -136,17 +202,8 @@ impl Workbench {
         }
         content.title(cx)
     }
-    pub(super) fn render_history(&mut self, tab: Id, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(super) fn render_history(&self, tab: Id) -> Option<AnyElement> {
         let browser = self.history.get(&tab)?.clone();
-        let excluded = self.open_threads(cx);
-        let enabled = self.history_discovery(cx);
-        browser.update(cx, |b, cx| {
-            b.set_excluded(excluded);
-            // Permission granted elsewhere (Settings) starts discovery too.
-            if enabled && !b.enabled() {
-                b.enable(cx);
-            }
-        });
         Some(div().size_full().child(browser).into_any_element())
     }
 }
@@ -162,14 +219,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let session = self.cloud.as_ref().and_then(|cloud| {
-            cloud
-                .hub
-                .history()
-                .sessions
-                .into_iter()
-                .find(|s| s.id == session_id)
-        });
+        let session = self.chats.hosted_session(&session_id);
         match self.hosted_chat(tab, session, window, cx) {
             Ok(content) => {
                 self.history.remove(&tab);
@@ -219,5 +269,52 @@ impl Workbench {
         browser.update(cx, |b, _| b.opening = Some(target.id.clone()));
         self.history_event(tab, &HistoryBrowserEvent::Open(target), window, cx);
         true
+    }
+
+    /// Dev captures: a new chat on the detected Agent `runtime_id` in the
+    /// active group; `false` until the Agents are scanned.
+    pub(crate) fn capture_new_chat(
+        &mut self,
+        runtime_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if self.scanning || self.project().is_none_or(|p| p.loading) {
+            return false;
+        }
+        let Some(installation) = self
+            .installations
+            .iter()
+            .find(|i| agent_chat_runtime_id(i) == runtime_id)
+            .cloned()
+        else {
+            eprintln!("No detected Agent for {runtime_id:?}");
+            return true;
+        };
+        let group = self.project().map_or(0, |p| p.layout.active_group);
+        self.chat_mode = true;
+        self.launch(group, None, Some(installation), window, cx);
+        true
+    }
+
+    /// Dev captures: every chat's session is prepared, or failed.
+    pub(crate) fn capture_agent_settled(&self, cx: &App) -> bool {
+        self.root
+            .as_ref()
+            .is_some_and(|root| self.chats.capture_settled(root, cx))
+    }
+
+    /// Dev captures: the first chat sends `text`; `false` until it can.
+    pub(crate) fn capture_agent_prompt(&self, text: &str, cx: &App) -> bool {
+        self.root
+            .as_ref()
+            .is_some_and(|root| self.chats.capture_prompt(root, text, cx))
+    }
+
+    /// Dev captures: the first chat's turn has settled.
+    pub(crate) fn capture_agent_idle(&self, cx: &App) -> bool {
+        self.root
+            .as_ref()
+            .is_some_and(|root| self.chats.capture_idle(root, cx))
     }
 }
