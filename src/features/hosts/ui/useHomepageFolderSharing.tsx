@@ -23,8 +23,9 @@ export function useHomepageFolderSharing({ enabled, session, apiBase, workspaceP
   useEffect(() => {
     if (!candidate) return;
     const current = candidate.sequence === sequence.current && candidate.authority === authority;
-    // A project just created may not be this window's project yet; it is waited for.
-    if (current && candidate.opened && candidate.path !== workspacePath) return;
+    // A project just created may not be this window's project yet; it is waited for,
+    // but only until the window shows a project at all. Another one ends the wait.
+    if (current && candidate.opened && workspacePath === null) return;
     setCandidate(null);
     if (current && candidate.path === workspacePath) setReady(candidate);
   }, [candidate, authority, workspacePath]);

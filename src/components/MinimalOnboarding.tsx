@@ -76,6 +76,8 @@ export type MinimalOnboardingProps = {
 };
 
 const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
+/** How long a first visit waits for the spaces that group its Cloud projects. */
+const SPACES_WAIT_MS = 3000;
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 /** Once there are projects, every way to start one moves to the head of the page. */
@@ -213,7 +215,15 @@ export function MinimalOnboarding({
   // Which group a Cloud project is in comes from the account's spaces. Until they
   // answer, the groups wait as one, rather than grouping it once provisionally and
   // then moving it. Spaces the account last saw stand in, so this is a first run only.
-  const groupsHeld = listHeld || (cloudSpacesStatus === "loading" && items.some((item) => projectHomeItemLocation(item) === "cloud"));
+  // The wait is bounded: a request that never answers must not cost the page its list.
+  const awaitingSpaces = cloudSpacesStatus === "loading" && items.some((item) => projectHomeItemLocation(item) === "cloud");
+  const [spacesWaitOver, setSpacesWaitOver] = useState(false);
+  useEffect(() => {
+    if (!awaitingSpaces) return undefined;
+    const timer = window.setTimeout(() => setSpacesWaitOver(true), SPACES_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [awaitingSpaces]);
+  const groupsHeld = listHeld || (awaitingSpaces && !spacesWaitOver);
   const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
   const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
   // A folder's menu moves it to another group exactly as dragging it there would.

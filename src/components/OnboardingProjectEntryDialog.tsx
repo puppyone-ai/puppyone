@@ -41,7 +41,8 @@ export function OnboardingProjectEntryDialog({
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
   /** Spaces this account can start projects in. */
   cloudSpaces?: readonly CloudSpace[];
-  onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
+  /** `operationId` repeats for a retry of the same project, so the Cloud makes it once. */
+  onCreateCloudProject?: (spaceId: string, name: string, operationId: string) => Promise<void>;
   /** Offers a project just created and opened here to the owner's other computers. */
   onShareWithMyDevices?: (path: string) => Promise<void>;
 }) {
@@ -50,6 +51,7 @@ export function OnboardingProjectEntryDialog({
     `${t("onboarding.entry.create.defaultName")} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`
   ));
   const requestRef = useRef<WorkspaceCreateProjectRequest | null>(null);
+  const cloudOperationRef = useRef<{ attempt: string; id: string } | null>(null);
   const [created, setCreated] = useState<WorkspaceCreateProjectResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
@@ -94,8 +96,10 @@ export function OnboardingProjectEntryDialog({
 
   const createInCloud = async (name: string) => {
     if (!cloudSpace || !onCreateCloudProject) return;
+    const attempt = `${cloudSpace.id}\n${name}`;
+    if (cloudOperationRef.current?.attempt !== attempt) cloudOperationRef.current = { attempt, id: crypto.randomUUID() };
     try {
-      await onCreateCloudProject(cloudSpace.id, name);
+      await onCreateCloudProject(cloudSpace.id, name, cloudOperationRef.current.id);
       onClose();
       return;
     } catch (nextError) {
@@ -126,7 +130,10 @@ export function OnboardingProjectEntryDialog({
       const result = await onSubmit(requestRef.current);
       if (result.opening.status === "opened") {
         onClose();
-        if (audience === "devices") void onShareWithMyDevices?.(result.initialization.path);
+        // Offered from this window only, as the folder it now shows.
+        const opened = result.opening.result;
+        const openedPath = opened.workspace?.path ?? opened.path;
+        if (audience === "devices" && opened.status === "opened-current" && openedPath) void onShareWithMyDevices?.(openedPath);
         return;
       }
       setCreated(result);

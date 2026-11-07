@@ -69,7 +69,7 @@ export type ProjectEntryFlowProps = Readonly<{
   /** Cloud spaces a new project may be started in instead of this computer. */
   cloudSpaces?: readonly CloudSpace[];
   /** Starts an empty Cloud project in a space and opens it. */
-  onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
+  onCreateCloudProject?: (spaceId: string, name: string, operationId: string) => Promise<void>;
   /** Offers a project just created and opened here to the owner's other computers. */
   onShareWithMyDevices?: (path: string) => Promise<void>;
   onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
@@ -199,7 +199,9 @@ export function ProjectEntryFlow({
       <OnboardingProjectEntryDialog
         cloudSpaces={cloudSpaces}
         onCreateCloudProject={onCreateCloudProject}
-        onShareWithMyDevices={onShareWithMyDevices}
+        // A project open here means a new one opens in its own window, which this
+        // window cannot offer to the other computers.
+        onShareWithMyDevices={projectIsOpen ? undefined : onShareWithMyDevices}
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}
