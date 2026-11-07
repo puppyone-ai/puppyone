@@ -125,7 +125,7 @@ function HomepageComputersFixture() {
       onPublishToSpace={async (path, spaceId) => setTarget({ path, spaceId })}
       onShareLocalFolder={sharing.request}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
-      onOpenCloudProject={() => {}}
+      onOpenCloudProject={() => {}} onRenameProject={async () => {}} onRemoveProject={async () => {}}
       projectGroups={(base) => <HomepageComputers session={session} apiBase={API} base={base} onOpen={() => {}} />} />
     {sharing.dialog}
     {target && <CloudPublishDialog onClose={() => setTarget(null)}><CloudGitPrerequisite

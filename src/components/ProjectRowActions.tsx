@@ -15,6 +15,7 @@ import {
 } from "./DesktopDialog";
 import {
   DesktopMenuItem,
+  DesktopMenuSection,
   DesktopMenuSeparator,
 } from "./DesktopMenu";
 import {
@@ -28,7 +29,7 @@ import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
 
-/** The local menu carries the folder's path; a Cloud project has only its commands. */
+/** The local menu has room for its folder's commands and where it can move. */
 const PROJECT_ACTION_MENU_WIDTH = { local: 224, cloud: 184 } as const;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 const PROJECT_NAME_MAX_LENGTH = { local: 120, cloud: 200 } as const;
@@ -62,12 +63,16 @@ export type ProjectRowActionsProps = Readonly<{
   onDelete?: () => Promise<void>;
   /** What the owner's other computers may do with this folder; only where it is open to them. */
   onSharingSettings?: () => void;
+  /** The Homepage groups this project can be moved to, as dragging it there would. */
+  moveTargets?: readonly ProjectMoveTarget[];
   disabled?: boolean;
   triggerClassName?: string;
   /** For a list that keeps its rows out of the way of the Tab key. */
   triggerTabIndex?: number;
   menuPlacement?: keyof typeof PROJECT_ACTION_MENU_POSITION;
 }>;
+
+export type ProjectMoveTarget = Readonly<{ id: string; label: string; icon: ReactNode; onMove: () => void }>;
 
 export function ProjectRowActions({
   project,
@@ -77,6 +82,7 @@ export function ProjectRowActions({
   onUnlink,
   onDelete,
   onSharingSettings,
+  moveTargets = [],
   disabled = false,
   triggerClassName = "desktop-project-switcher-row-action",
   triggerTabIndex,
@@ -260,7 +266,23 @@ export function ProjectRowActions({
                 }}
               />
             )}
-            {(onRename || onSharingSettings) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
+            {moveTargets.length > 0 && <>
+              <DesktopMenuSeparator />
+              <DesktopMenuSection label={t("shell.workspaceSwitcher.moveTo")}>
+                {moveTargets.map((target) => (
+                  <DesktopMenuItem
+                    key={target.id}
+                    icon={target.icon}
+                    label={target.label}
+                    onClick={() => {
+                      onSurfaceChange(null);
+                      target.onMove();
+                    }}
+                  />
+                ))}
+              </DesktopMenuSection>
+            </>}
+            {(onRename || onSharingSettings || moveTargets.length > 0) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
             {onUnlink && (
               <DesktopMenuItem
                 destructive

@@ -8,7 +8,7 @@ import {
 } from "../../../components/onboarding/OnboardingProjectGroups";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { useHostCatalog, type HostCatalog } from "../data/useHostCatalog";
-import { useSharedFolderAssignments } from "../model/sharedFolders";
+import { forgetSharedFolder, useSharedFolderAssignments } from "../model/sharedFolders";
 import type { HostFolderSelection } from "../model/hostFolderSelection";
 import { HostFolderSharingDialog, type HostFolderSharingTarget } from "./HostFolderSharingDialog";
 import { RemoteFolderList } from "./RemoteFolderList";
@@ -40,6 +40,16 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   const groups = onboardingBaseGroups({ ...base, local }, {
     sharedFolderIds,
     onSharingSettings: ({ folderId, name, rootPath }) => setSharingTarget({ kind: "settings", folderId, name, rootPath }),
+    // Main asks before the folder closes to the other computers; a refusal changes nothing.
+    onStopSharing: mine ? ({ folderId, rootPath }) => {
+      let cancelled = false;
+      void catalog.run(async () => {
+        const result = await window.puppyoneDesktop?.removeHostFolder({ deviceId: mine.id, folderId,
+          expectedSession: catalog.expectedSession });
+        cancelled = Boolean(result && "cancelled" in result);
+        return result;
+      }, "hosts.catalog.removeFailure").then((done) => { if (done && !cancelled) forgetSharedFolder(folderId, rootPath); });
+    } : undefined,
   });
   const others = catalog.devices.filter((device) => device.id !== catalog.thisComputerId);
   const localFolderIds = new Set(local?.items.flatMap((item) => item.hostFolderId ? [item.hostFolderId] : []));

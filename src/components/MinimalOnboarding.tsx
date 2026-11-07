@@ -1,6 +1,7 @@
 import { useDesktopPreference } from "../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
-import { AlertTriangle } from "lucide-react";
+import { LocalIcon } from "@puppyone/shared-ui";
+import { AlertTriangle, UserRound, UsersRound } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
   useEffect,
@@ -28,6 +29,7 @@ import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
+import type { ProjectMoveTarget } from "./ProjectRowActions";
 import { onboardingBaseGroups, OnboardingProjectGroups, type OnboardingGroupsBase } from "./onboarding/OnboardingProjectGroups";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
@@ -214,8 +216,26 @@ export function MinimalOnboarding({
   const groupsHeld = listHeld || (cloudSpacesStatus === "loading" && items.some((item) => projectHomeItemLocation(item) === "cloud"));
   const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
   const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
+  // A folder's menu moves it to another group exactly as dragging it there would.
+  const writableTeams = cloudSpaces.filter((space) => space.kind === "team" && space.canCreateProjects);
+  const moveTargets = (sharing: ProjectListSharing | undefined) => (item: ProjectHomeItem): ProjectMoveTarget[] => {
+    const path = item.localPath;
+    if (!path) return [];
+    const folderId = item.hostFolderId;
+    const shared = Boolean(folderId && (sharing ? sharing.sharedFolderIds.has(folderId) : true));
+    const targets: ProjectMoveTarget[] = [];
+    if (shared && folderId && sharing?.onStopSharing) targets.push({ id: "local-only", label: t("onboarding.sharing.localOnly"),
+      icon: <LocalIcon size={14} />, onMove: () => sharing.onStopSharing?.({ folderId, rootPath: path }) });
+    if (!shared && onShareLocalFolder) targets.push({ id: "personal-shared", label: t("onboarding.sharing.personal"),
+      icon: <UserRound size={14} />, onMove: () => void runOpening(path, () => onShareLocalFolder(path)) });
+    if (!item.linkedCloudProject && onPublishToSpace) for (const team of writableTeams) targets.push({ id: `team:${team.id}`,
+      label: writableTeams.length > 1 ? team.name : t("onboarding.sharing.team"),
+      icon: <UsersRound size={14} />, onMove: () => void runOpening(path, () => onPublishToSpace(path, team.id)) });
+    return targets;
+  };
   const projectList = (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
     <OnboardingProjectList
+      moveTargets={moveTargets(sharing)}
       held={groupsHeld}
       items={listItems}
       sharing={sharing}

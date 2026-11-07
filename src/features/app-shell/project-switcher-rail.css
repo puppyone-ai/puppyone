@@ -333,19 +333,6 @@ body.desktop-project-switcher-resizing * {
   --desktop-dialog-width: 420px;
 }
 
-.desktop-project-menu-header-path {
-  display: block;
-  overflow: hidden;
-  padding: 5px 9px 3px;
-  color: var(--po-text-muted);
-  font-size: var(--po-menu-meta-font-size);
-  line-height: var(--po-menu-meta-line-height);
-  text-overflow: ellipsis;
-  user-select: text;
-  -webkit-user-select: text;
-  white-space: nowrap;
-}
-
 .desktop-project-menu-header-status {
   position: absolute;
   width: 1px;
