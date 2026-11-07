@@ -176,6 +176,17 @@ for base in ['src/app', 'src/features', 'src/editor']:
         for view, body in rust_paths.render_bodies(rust_paths.strip(path.read_text())):
             for found in render_writes.finditer(rust_paths.without_closures(body)):
                 errors.append(f'{path.relative_to(root)}: {view}::render writes state ({found.group(0)})')
+# The Shell composes: its fields, construction and assembly in
+# `app/mod.rs` (at most 800 lines), its command routing, event handling and
+# document pump in `app/command/`; the window's parts are their own
+# entities. The dev-capture scenario driver and tests are the exceptions.
+shell_impls = {'mod.rs', 'command/route.rs', 'command/events.rs', 'command/pump.rs', 'dev/capture_scenario.rs'}
+for path in (root / 'src/app').rglob('*.rs'):
+    relative = path.relative_to(root / 'src/app').as_posix()
+    if relative not in shell_impls and not fixture(path) and re.search(r'^impl\s+Shell\b', path.read_text(), re.M):
+        errors.append(f'src/app/{relative}: `impl Shell` outside the composition root; give the part its own entity')
+if (lines := len((root / 'src/app/mod.rs').read_text().splitlines())) > 800:
+    errors.append(f'src/app/mod.rs: {lines} lines; the composition root holds at most 800')
 # The window's composition and views pass Rust values, never untyped JSON
 # (`serde_json::Value`, `json!`): JSON stays at the wire edges (the Agent
 # contract and providers, Cloud API clients, disk stores, bundled data).

@@ -592,8 +592,6 @@ impl Shell {
         let name = self.session.project.read(cx).record.name.clone();
         self.session.apply_title(window, file, root, &name);
     }
-}
-impl Shell {
     /// The native window cannot be resized below the open panes' minima; a
     /// window already narrower (a pane opened in a small window) widens to
     /// fit, like the product's `setMinimumSize` + `setSize`. Full screen
@@ -614,8 +612,6 @@ impl Shell {
             window.resize(size(px(minimum), viewport.height));
         }
     }
-}
-impl Shell {
     /// After a frame: a capture's scenario steps (dev builds), and once it
     /// is done the window is captured as it is.
     fn capture_tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -798,7 +794,6 @@ impl Render for Shell {
         root.child(self.dialogs.clone())
     }
 }
-impl Shell {}
 
 #[cfg(test)]
 mod tests;
