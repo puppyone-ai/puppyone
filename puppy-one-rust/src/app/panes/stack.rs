@@ -118,6 +118,7 @@ pub(in crate::app) fn edges(
         .stroke_at(1.)
         .resizing(state.dragging() == Some(side))
         .focused(focus.is_focused(window))
+        .focus_ring()
         // A pane that is closing (or previewing closed) keeps its edge
         // painted but cannot be grabbed (`onPointerDown` while collapsed).
         .disabled(!state.pane(side).open)
@@ -151,18 +152,31 @@ pub(in crate::app) fn edges(
     } else if !state.right().open {
         // `.po-collapsed-pane-edge-handle--inline-end`: a 12px lane at the
         // window edge to pull the closed sidebar back out, marked by a
-        // faint line that firms up on hover.
+        // faint line that firms up on hover or focus. It is the right
+        // edge's tab stop while the sidebar is closed and takes its keys.
         let lane = theme::pane::COLLAPSED_EDGE_HIT;
-        let on_drag = panes.downgrade();
+        let focus = state.focus(Side::End).clone();
+        let (on_drag, on_key) = (panes.downgrade(), panes.downgrade());
         edges.push(
             ResizeHandle::new("right-collapsed-edge", Axis::Horizontal)
                 .stroke_at(lane - 1.)
                 .rest(theme::alpha(t.shell_divider, 0.72))
                 .hover(t.border_strong)
+                .focused(focus.is_focused(window))
                 .cursor(CursorStyle::ResizeLeft)
                 .on_drag_start(move |e: &MouseDownEvent, _, cx| {
                     cx.stop_propagation();
                     let _ = on_drag.update(cx, |p, cx| p.begin_drag(Side::End, e.position, cx));
+                })
+                .track_focus(&focus)
+                .on_key_down(move |e: &KeyDownEvent, _, cx| {
+                    if let Some(intent) = intent(&e.keystroke.key) {
+                        cx.stop_propagation();
+                        let shift = e.keystroke.modifiers.shift;
+                        let _ = on_key.update(cx, |p, cx| {
+                            p.resize_collapsed_by_keyboard(intent, shift, cx)
+                        });
+                    }
                 })
                 .absolute()
                 .left(px(w - lane))

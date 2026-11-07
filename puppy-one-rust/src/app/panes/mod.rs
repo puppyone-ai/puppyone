@@ -341,6 +341,37 @@ impl PaneLayout {
         if self.drag.is_some() || !self.pane(side).open {
             return;
         }
+        let current = match side {
+            Side::Start => self.resolved.get().0,
+            Side::End => self.resolved.get().1,
+        };
+        self.commit_keyboard(side, intent, accelerated, current, cx);
+    }
+    /// The same keys on the closed right sidebar's lane at the window edge
+    /// (`AuxiliaryPanelHost`: the edge stays a tab stop while settled
+    /// collapsed). End opens the sidebar at its widest; a step resizes the
+    /// width it reopens at, or keeps it closed below the minimum; Home keeps
+    /// it closed at its minimum.
+    pub fn resize_collapsed_by_keyboard(
+        &mut self,
+        intent: ResizeIntent,
+        accelerated: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if self.drag.is_some() || self.right.open {
+            return;
+        }
+        let current = self.right.width;
+        self.commit_keyboard(Side::End, intent, accelerated, current, cx);
+    }
+    fn commit_keyboard(
+        &mut self,
+        side: Side,
+        intent: ResizeIntent,
+        accelerated: bool,
+        current: f32,
+        cx: &mut Context<Self>,
+    ) {
         let config = self.config(side);
         let (min, max) = config.range();
         let commit = match intent {
@@ -358,10 +389,6 @@ impl PaneLayout {
                 let grow = match side {
                     Side::Start => toward_end,
                     Side::End => -toward_end,
-                };
-                let current = match side {
-                    Side::Start => self.resolved.get().0,
-                    Side::End => self.resolved.get().1,
                 };
                 let next = current + grow * step;
                 if next < min {
@@ -651,6 +678,49 @@ mod tests {
             .filter(|e| **e == PaneEvent::Committed)
             .count();
         assert_eq!(committed, 4);
+    }
+
+    #[gpui::test]
+    fn the_closed_right_edge_takes_the_keys_of_its_lane(cx: &mut TestAppContext) {
+        let panes = panes(cx, false);
+        let heard = events(&panes, cx);
+        panes.update(cx, |p, cx| {
+            p.frames(1600., 800., 0., true);
+            let stored = p.right().width;
+            // ← widens the width it reopens at; it stays closed.
+            p.resize_collapsed_by_keyboard(ResizeIntent::Decrease, false, cx);
+            assert_eq!(
+                p.right(),
+                SidePane {
+                    open: false,
+                    width: stored + 12.
+                }
+            );
+            // A step below the minimum keeps it closed at the minimum.
+            for _ in 0..80 {
+                p.resize_collapsed_by_keyboard(ResizeIntent::Increase, true, cx);
+            }
+            let (min, max) = p.config(Side::End).range();
+            assert_eq!(
+                p.right(),
+                SidePane {
+                    open: false,
+                    width: min
+                }
+            );
+            // End opens it at its widest; the open edge then owns the keys.
+            p.resize_collapsed_by_keyboard(ResizeIntent::Maximum, false, cx);
+            assert_eq!(
+                p.right(),
+                SidePane {
+                    open: true,
+                    width: max
+                }
+            );
+            p.resize_collapsed_by_keyboard(ResizeIntent::Minimum, false, cx);
+            assert!(p.right().open);
+        });
+        assert!(heard.borrow().contains(&PaneEvent::OpenChanged));
     }
 
     #[gpui::test]

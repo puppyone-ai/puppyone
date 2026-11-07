@@ -30,6 +30,7 @@ pub struct ResizeHandle {
     cursor: Option<CursorStyle>,
     resizing: bool,
     focused: bool,
+    focus_ring: bool,
     disabled: bool,
     on_drag_start: Option<DragStart>,
 }
@@ -50,6 +51,7 @@ impl ResizeHandle {
             cursor: None,
             resizing: false,
             focused: false,
+            focus_ring: false,
             disabled: false,
             on_drag_start: None,
         }
@@ -90,6 +92,14 @@ impl ResizeHandle {
     /// (`:focus-visible`).
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+    /// While focused, also a 2px focus ring inset in the lane
+    /// (`.po-sidebar-resize-handle:focus-visible`: `outline: 2px solid
+    /// var(--po-focus-ring)`, `outline-offset: -2px`). A collapsed pane's
+    /// lane has none; only its line firms up.
+    pub fn focus_ring(mut self) -> Self {
+        self.focus_ring = true;
         self
     }
     /// A primary press on the lane starts the owner's drag.
@@ -150,6 +160,15 @@ impl RenderOnce for ResizeHandle {
                 d.on_mouse_down(MouseButton::Left, move |event, window, cx| {
                     handler(event, window, cx)
                 })
+            })
+            .when(self.focused && self.focus_ring, |d| {
+                d.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .border_2()
+                        .border_color(t.focus_ring),
+                )
             })
             .children(self.divider.map(|color| line(0.).bg(color)))
             .child(

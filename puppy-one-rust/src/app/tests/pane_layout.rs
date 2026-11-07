@@ -276,6 +276,26 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
         )
     });
 }
+/// The closed right sidebar's lane is the right edge's tab stop: focused,
+/// it takes the edge's keys, and End opens the sidebar at its widest with
+/// the focus kept on the edge.
+#[gpui::test]
+fn the_closed_right_edge_opens_from_the_keyboard(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    draw(cx);
+    let focus = view.read_with(cx, |s, cx| {
+        assert!(!s.panes.read(cx).right().open);
+        s.panes.read(cx).focus(panes::Side::End).clone()
+    });
+    cx.update(|w, cx| w.focus(&focus, cx));
+    draw(cx);
+    cx.simulate_keystrokes("end");
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.panes.read(cx).right().open));
+    cx.update(|w, _| assert!(focus.is_focused(w)));
+}
 #[gpui::test]
 fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
