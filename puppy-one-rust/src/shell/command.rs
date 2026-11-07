@@ -269,7 +269,11 @@ mod route {
     impl Shell {
         /// Escape on the topmost dialog, each with its own cancel: the Documents
         /// error, then the top of the dialog layer.
-        pub(in crate::shell) fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        pub(in crate::shell) fn dismiss_modal(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
             if !self.files(cx).cloud_conflict()
                 && self
                     .session
@@ -281,7 +285,11 @@ mod route {
             }
             self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx));
         }
-        pub(in crate::shell) fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        pub(in crate::shell) fn pick_workspace(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
             if self.project.update(cx, |p, cx| p.pick(window, cx)) {
                 self.push_explorer_host(window, cx);
             }
@@ -399,7 +407,7 @@ mod route {
                     cx.notify();
                     return;
                 }
-                Command::Quit if self.sidebar.workbench.read(cx).has_running(cx) => {
+                Command::Quit if self.sidebar.read(cx).workbench.read(cx).has_running(cx) => {
                     self.open_modal(Modal::ConfirmQuit, cx);
                     self.focus.focus(window, cx);
                     cx.notify();
@@ -515,9 +523,7 @@ mod route {
                     self.panes.update(cx, |p, cx| p.toggle_explorer(cx));
                 }
                 Command::ToggleRightSidebar => {
-                    let open = self.panes.read(cx).right().open;
-                    let open = self.sidebar.toggle_agent(open, &self.preferences, cx);
-                    self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
+                    self.sidebar.update(cx, |s, cx| s.toggle_agent(cx));
                 }
                 Command::Settings => {
                     self.set_popover(None, cx);
@@ -564,12 +570,17 @@ mod route {
                     if self.right_shows(Surface::CloudHistory, cx)
                         && self
                             .sidebar
+                            .read(cx)
                             .cloud_history
                             .read(cx)
                             .focus_handle()
                             .contains_focused(window, cx) =>
                 {
-                    self.sidebar.cloud_history.update(cx, |h, cx| h.back(cx));
+                    self.sidebar
+                        .read(cx)
+                        .cloud_history
+                        .clone()
+                        .update(cx, |h, cx| h.back(cx));
                 }
                 Command::Escape => {
                     let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
@@ -635,11 +646,17 @@ mod route {
                         return;
                     };
                     self.set_popover(None, cx);
-                    let open = self.panes.read(cx).right().open;
-                    let open = self.sidebar.toggle_cloud_history(open, &project, cx);
-                    self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
+                    let open = self
+                        .sidebar
+                        .update(cx, |s, cx| s.toggle_cloud_history(&project, cx));
                     if open {
-                        let history = self.sidebar.cloud_history.read(cx).focus_handle().clone();
+                        let history = self
+                            .sidebar
+                            .read(cx)
+                            .cloud_history
+                            .read(cx)
+                            .focus_handle()
+                            .clone();
                         history.focus(window, cx);
                     } else {
                         self.focus.focus(window, cx);
@@ -665,9 +682,7 @@ mod route {
                     if self.files(cx).workspace.is_none() {
                         return;
                     }
-                    let open = self.panes.read(cx).right().open;
-                    let open = self.sidebar.toggle_git(open, &self.preferences, cx);
-                    self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
+                    self.sidebar.update(cx, |s, cx| s.toggle_git(cx));
                     self.focus.focus(window, cx);
                 }
                 _ => {}

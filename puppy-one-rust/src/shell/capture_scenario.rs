@@ -207,7 +207,14 @@ impl Shell {
                 && (!file || self.files(cx).opened().is_some())
                 && !self.files(cx).busy()
                 && !self.files(cx).folder_busy;
-        let git_ready = file || self.sidebar.source_control.read(cx).snapshot.is_some();
+        let git_ready = file
+            || self
+                .sidebar
+                .read(cx)
+                .source_control
+                .read(cx)
+                .snapshot
+                .is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
         }
@@ -216,8 +223,13 @@ impl Shell {
             return false;
         }
         let Some(step) = scenario.steps.front().cloned() else {
-            let reading =
-                self.home.read(cx).reading || self.sidebar.source_control.read(cx).reading_detail();
+            let reading = self.home.read(cx).reading
+                || self
+                    .sidebar
+                    .read(cx)
+                    .source_control
+                    .read(cx)
+                    .reading_detail();
             return !reading || timed_out;
         };
         if let Step::Wait(ms) = step {
@@ -289,7 +301,9 @@ impl Shell {
                 let (path, staged) = (path.clone(), *staged);
                 if !self
                     .sidebar
+                    .read(cx)
                     .source_control
+                    .clone()
                     .update(cx, |s, cx| s.select_path(&path, staged, cx))
                 {
                     return false;
@@ -297,7 +311,9 @@ impl Shell {
             }
             Step::GitHistory => self
                 .sidebar
+                .read(cx)
                 .source_control
+                .clone()
                 .update(cx, |s, cx| s.open_history(cx)),
             Step::ProjectEntry => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
             Step::ExplorerDrag(x) => {
@@ -313,7 +329,9 @@ impl Shell {
                 let index = *index;
                 if !self
                     .sidebar
+                    .read(cx)
                     .source_control
+                    .clone()
                     .update(cx, |s, cx| s.select_commit(index, cx))
                 {
                     return false;
@@ -371,20 +389,29 @@ impl Shell {
             Step::AgentChat(runtime_id) => {
                 if !self
                     .sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |w, cx| w.capture_new_chat(runtime_id, window, cx))
                 {
                     return false;
                 }
             }
             Step::AgentSettled => {
-                if !self.sidebar.workbench.read(cx).capture_agent_settled(cx) {
+                if !self
+                    .sidebar
+                    .read(cx)
+                    .workbench
+                    .read(cx)
+                    .capture_agent_settled(cx)
+                {
                     return false;
                 }
             }
             Step::AgentPrompt(text) => {
                 if !self
                     .sidebar
+                    .read(cx)
                     .workbench
                     .read(cx)
                     .capture_agent_prompt(text, cx)
@@ -393,14 +420,22 @@ impl Shell {
                 }
             }
             Step::AgentIdle => {
-                if !self.sidebar.workbench.read(cx).capture_agent_idle(cx) {
+                if !self
+                    .sidebar
+                    .read(cx)
+                    .workbench
+                    .read(cx)
+                    .capture_agent_idle(cx)
+                {
                     return false;
                 }
             }
             Step::AgentHistory => {
                 if !self
                     .sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |w, cx| w.capture_history(window, cx))
                 {
                     return false;
@@ -409,7 +444,9 @@ impl Shell {
             Step::AgentHistoryOpen => {
                 if !self
                     .sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |w, cx| w.capture_history_open(window, cx))
                 {
                     return false;

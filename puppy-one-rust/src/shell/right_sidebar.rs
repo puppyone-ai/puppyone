@@ -4,15 +4,26 @@
 //! one is the surface (`rightSidebarSurface`), what the Header entries do
 //! with it, and storing it.
 //!
-//! Whether the sidebar is open, and how wide, is the pane layout's
-//! ([`super::panes`]): every entry here takes whether it is open and answers
-//! whether it should be, and the shell opens or closes the pane.
-use crate::features::{
-    settings::{preference_types::RightSidebarSurface, preferences_store::PreferencesStore},
-    source_control::{CloudHistory, SourceControl},
-    workbench::Workbench,
+//! [`RightSidebar`] is an entity. Whether the sidebar is open, and how wide,
+//! is the pane layout's ([`super::panes`]): an entry here decides whether
+//! it should be open and sets the pane. Each surface takes its own part of
+//! the preferences; what a surface asks of the window leaves as a
+//! [`SidebarEvent`].
+use super::panes::PaneLayout;
+use crate::{
+    features::{
+        settings::{
+            Page,
+            preference_types::{Preferences, RightSidebarSurface},
+            preferences_store::{PreferencesStore, observe_slice},
+        },
+        source_control::{CloudHistory, CloudHistoryEvent, SourceControl, SourceControlEvent},
+        workbench::{Workbench, WorkbenchEvent},
+    },
+    ui::appearance::ActiveAppearance,
 };
-use gpui::*;
+use gpui::{prelude::*, *};
+use std::path::PathBuf;
 
 /// The surface the sidebar shows, or shows when it reopens.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -27,79 +38,215 @@ pub(super) enum Surface {
     CloudHistory,
 }
 
+/// What a surface asks of the window.
+pub(super) enum SidebarEvent {
+    /// Changes "Open file" (`onOpenFile`), a path in the project.
+    OpenFile(PathBuf),
+    /// `handleAgentOpenFile`: a path the Agent named in `root`.
+    OpenAgentFile { root: PathBuf, path: String },
+    /// `openSettingsDialog(page)`.
+    OpenSettings(Page),
+    /// A hosted run's changes were accepted.
+    CloudPublished,
+    /// History closed itself: the window takes the focus back.
+    Closed,
+}
+
+/// The parts of the preferences the surfaces show.
+#[derive(Clone, PartialEq)]
+struct Shown {
+    hidden: Vec<String>,
+    routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
+    payments: bool,
+    layout: crate::features::settings::preference_types::GitSidebarLayout,
+    icons: String,
+}
+impl Shown {
+    fn of(p: &Preferences) -> Self {
+        Self {
+            hidden: p.local_agents.hidden_agent_ids.clone(),
+            routing: p.agent_routing.clone(),
+            payments: p.experimental.payments,
+            layout: p.git_sidebar_layout,
+            icons: p.file_icon_theme.clone(),
+        }
+    }
+}
+
 pub(super) struct RightSidebar {
     pub workbench: Entity<Workbench>,
     pub source_control: Entity<SourceControl>,
     pub cloud_history: Entity<CloudHistory>,
+    preferences: Entity<PreferencesStore>,
+    panes: Entity<PaneLayout>,
     surface: Surface,
     /// The stored surface has been applied (once, when preferences load).
     restored: bool,
 }
+impl EventEmitter<SidebarEvent> for RightSidebar {}
 
 impl RightSidebar {
-    pub fn new(surface: Surface, window: &mut Window, cx: &mut App) -> Self {
-        Self {
-            workbench: cx.new(|cx| Workbench::new(window, cx)),
-            source_control: cx.new(|cx| SourceControl::new(window, cx)),
-            cloud_history: cx.new(CloudHistory::new),
+    pub fn new(
+        surface: Surface,
+        preferences: Entity<PreferencesStore>,
+        panes: Entity<PaneLayout>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let workbench = cx.new(|cx| Workbench::new(window, cx));
+        let source_control = cx.new(|cx| SourceControl::new(window, cx));
+        let cloud_history = cx.new(CloudHistory::new);
+        let store = preferences.clone();
+        workbench.update(cx, |workbench, _| workbench.set_preference_store(store));
+        cx.subscribe(&workbench, |_, _, event, cx| {
+            cx.emit(match event {
+                WorkbenchEvent::OpenModelConnections => {
+                    SidebarEvent::OpenSettings(Page::ModelConnections)
+                }
+                WorkbenchEvent::OpenAccount => SidebarEvent::OpenSettings(Page::Account),
+                WorkbenchEvent::OpenAgentFile { root, path } => SidebarEvent::OpenAgentFile {
+                    root: root.clone(),
+                    path: path.clone(),
+                },
+                WorkbenchEvent::CloudPublished => SidebarEvent::CloudPublished,
+            })
+        })
+        .detach();
+        // History and Back store the surface (`rightSidebarSurface`).
+        cx.subscribe(&source_control, |s, _, event, cx| match event {
+            SourceControlEvent::OpenFile(path) => {
+                cx.emit(SidebarEvent::OpenFile(PathBuf::from(path)))
+            }
+            SourceControlEvent::Surface => s.store(cx),
+        })
+        .detach();
+        // History's Close and Back leave the sidebar closed on the workbench.
+        cx.subscribe(&cloud_history, |s, _, event, cx| {
+            let CloudHistoryEvent::Close = event;
+            s.close_cloud_history(cx);
+            cx.emit(SidebarEvent::Closed);
+        })
+        .detach();
+        cx.observe(&source_control, |_, _, cx| cx.notify()).detach();
+        // Each surface takes its part of the preferences when it changes.
+        observe_slice(
+            &preferences,
+            |store| Shown::of(&store.state),
+            |s: &mut Self, shown, cx| s.show(shown, cx),
+            cx,
+        )
+        .detach();
+        // The surface the closed sidebar opens on, once the stored one loads.
+        cx.observe(&preferences, |s, preferences, cx| {
+            let store = preferences.read(cx);
+            if store.loaded {
+                let surface = store.state.right_sidebar_surface;
+                s.restore(surface, cx);
+            }
+        })
+        .detach();
+        let mut sidebar = Self {
+            workbench,
+            source_control,
+            cloud_history,
+            preferences: preferences.clone(),
+            panes,
             surface,
             restored: false,
-        }
+        };
+        let shown = Shown::of(&preferences.read(cx).state);
+        sidebar.show(&shown, cx);
+        sidebar
+    }
+    fn show(&mut self, shown: &Shown, cx: &mut Context<Self>) {
+        let Shown {
+            hidden,
+            routing,
+            payments,
+            layout,
+            icons,
+        } = shown.clone();
+        self.workbench
+            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
+        let history_icons = icons.clone();
+        self.cloud_history
+            .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
+        self.source_control
+            .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
+    }
+    fn open(&self, cx: &App) -> bool {
+        self.panes.read(cx).right().open
+    }
+    fn set_open(&self, open: bool, cx: &mut App) {
+        self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
     }
     /// The sidebar, open or not, shows `surface`.
+    #[cfg(test)]
     pub fn is(&self, surface: Surface) -> bool {
         self.surface == surface
+    }
+    /// The sidebar is open on `surface`.
+    pub fn shows(&self, surface: Surface, cx: &App) -> bool {
+        self.open(cx) && self.surface == surface
     }
 
     // ------------------------------------------------------- Header entries
     /// ⌘J and the Agent entry (`handleToggleAgentWorkbench`): close the
-    /// Agent when it shows, else show it. Returns whether the sidebar is open.
-    pub fn toggle_agent(
-        &mut self,
-        open: bool,
-        preferences: &Entity<PreferencesStore>,
-        cx: &mut App,
-    ) -> bool {
-        if open && self.surface == Surface::Agent {
-            return false;
+    /// Agent when it shows, else show it.
+    pub fn toggle_agent(&mut self, cx: &mut Context<Self>) {
+        if self.open(cx) && self.surface == Surface::Agent {
+            return self.set_open(false, cx);
         }
         self.surface = Surface::Agent;
-        self.store(preferences, cx);
-        true
+        self.store(cx);
+        self.set_open(true, cx);
+        cx.notify();
     }
     /// The Changes entry (`useGitPresentation.toggle`): close Git when it
     /// shows (Changes or History), else reveal the Changes list.
-    pub fn toggle_git(
-        &mut self,
-        open: bool,
-        preferences: &Entity<PreferencesStore>,
-        cx: &mut App,
-    ) -> bool {
-        if open && self.surface == Surface::Git {
-            return false;
+    pub fn toggle_git(&mut self, cx: &mut Context<Self>) {
+        if self.open(cx) && self.surface == Surface::Git {
+            return self.set_open(false, cx);
         }
         self.surface = Surface::Git;
         self.source_control.update(cx, |s, cx| {
             s.show_changes(cx);
             s.refresh(cx);
         });
-        self.store(preferences, cx);
-        true
+        self.store(cx);
+        self.set_open(true, cx);
+        cx.notify();
     }
     /// The Cloud Header's History: close it when it shows, else open it on
     /// `project`. Returns whether the sidebar is open (an opening that cannot
     /// start leaves it closed).
-    pub fn toggle_cloud_history(&mut self, open: bool, project: &str, cx: &mut App) -> bool {
-        if open && self.surface == Surface::CloudHistory {
+    pub fn toggle_cloud_history(&mut self, project: &str, cx: &mut Context<Self>) -> bool {
+        let open = if self.open(cx) && self.surface == Surface::CloudHistory {
             self.cloud_history.update(cx, |h, cx| h.close(cx));
-            return false;
-        }
-        self.surface = Surface::CloudHistory;
-        self.cloud_history.update(cx, |h, cx| h.open(project, cx))
+            false
+        } else {
+            self.surface = Surface::CloudHistory;
+            self.cloud_history.update(cx, |h, cx| h.open(project, cx))
+        };
+        self.set_open(open, cx);
+        cx.notify();
+        open
     }
-    /// History closed itself (Close, Back, a scope that ended): its reads go.
-    pub fn close_cloud_history(&mut self, cx: &mut App) {
+    /// History closed itself (Close, Back): the sidebar closes on it and
+    /// its reads go.
+    pub fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
+        if self.surface == Surface::CloudHistory {
+            self.set_open(false, cx);
+        }
         self.cloud_history.update(cx, |h, cx| h.close(cx));
+    }
+    /// `closeWorkspaceSidebars`: the sidebar collapses; drafts, widths and
+    /// sessions stay.
+    pub fn collapse(&mut self, cx: &mut Context<Self>) {
+        if self.surface == Surface::CloudHistory {
+            self.cloud_history.update(cx, |h, cx| h.close(cx));
+        }
+        self.set_open(false, cx);
     }
     /// Pulled out from the window edge, the sidebar opens on its surface; a
     /// hosted Project's History only opens from its Header entry.
@@ -110,18 +257,19 @@ impl RightSidebar {
     }
     /// `useCloudWorkspaceSidebar`: History lives only in the scope it opened
     /// in (Project, account, session generation, API) and only while the
-    /// sidebar is open. `true` when it has to close (its reads are gone).
-    pub fn guard_cloud_history(&mut self, open: bool, project: Option<&str>, cx: &mut App) -> bool {
+    /// sidebar is open; out of it, it closes (its reads are gone).
+    pub fn guard_cloud_history(&mut self, project: Option<&str>, cx: &mut Context<Self>) {
+        let open = self.open(cx);
         // Already closed: the sidebar only keeps History as what it showed.
         if self.surface != Surface::CloudHistory || !(open || self.cloud_history.read(cx).is_open())
         {
-            return false;
+            return;
         }
         if open && self.cloud_history.read(cx).matches(project, cx) {
-            return false;
+            return;
         }
-        self.close_cloud_history(cx);
-        true
+        self.cloud_history.update(cx, |h, cx| h.close(cx));
+        self.set_open(false, cx);
     }
 
     // ------------------------------------------------------- stored surface
@@ -138,19 +286,19 @@ impl RightSidebar {
         }
     }
     /// Store the surface (`setRightSidebarSurface`).
-    pub fn store(&self, preferences: &Entity<PreferencesStore>, cx: &mut App) {
+    pub fn store(&self, cx: &mut App) {
         let Some(surface) = self.stored(cx) else {
             return;
         };
-        preferences.update(cx, |store, cx| {
+        self.preferences.update(cx, |store, cx| {
             store.change(|p| p.right_sidebar_surface = surface, cx)
         });
     }
     /// The stored surface arriving (`readInitialRightSidebarSurface`): once,
     /// and only onto a closed sidebar; later loads are this window's own
     /// writes.
-    pub fn restore(&mut self, stored: RightSidebarSurface, open: bool, cx: &mut App) {
-        if std::mem::replace(&mut self.restored, true) || open {
+    pub(super) fn restore(&mut self, stored: RightSidebarSurface, cx: &mut Context<Self>) {
+        if std::mem::replace(&mut self.restored, true) || self.open(cx) {
             return;
         }
         self.surface = match stored {
@@ -160,12 +308,15 @@ impl RightSidebar {
         let history = stored == RightSidebarSurface::History;
         self.source_control
             .update(cx, |s, cx| s.restore_history(history, cx));
+        cx.notify();
     }
+}
 
+impl Render for RightSidebar {
     /// The surface's view, as the sidebar frame paints it.
-    pub fn content(&self) -> AnyElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         use super::fill;
-        match self.surface {
+        let content = match self.surface {
             Surface::Git => self
                 .source_control
                 .clone()
@@ -173,6 +324,10 @@ impl RightSidebar {
                 .into_any_element(),
             Surface::CloudHistory => self.cloud_history.clone().cached(fill()).into_any_element(),
             Surface::Agent => self.workbench.clone().cached(fill()).into_any_element(),
-        }
+        };
+        div()
+            .size_full()
+            .bg(cx.palette().auxiliary())
+            .child(content)
     }
 }

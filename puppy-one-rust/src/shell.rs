@@ -124,7 +124,7 @@ pub struct Shell {
     dialogs: Entity<DialogLayer>,
     /// What the right sidebar shows: the Agent workbench, Changes / History
     /// and a hosted Project's History.
-    sidebar: right_sidebar::RightSidebar,
+    sidebar: Entity<right_sidebar::RightSidebar>,
     /// A file window's own state (File Mode); `None` for a project window.
     pub(super) file: Option<Entity<file_mode::FileWindow>>,
     popover: Option<Popover>,
@@ -215,6 +215,10 @@ impl Shell {
         });
         let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
         let catalog = crate::features::cloud::catalog::global(cx);
+        let panes = {
+            let right = std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1");
+            cx.new(|cx| PaneLayout::new(right, window, cx))
+        };
         let project_actions = cx.new(|cx| {
             project_actions::ProjectActions::new(
                 preferences.clone(),
@@ -274,21 +278,22 @@ impl Shell {
             project_actions,
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
-            panes: {
-                let right = std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1");
-                cx.new(|cx| PaneLayout::new(right, window, cx))
-            },
+            panes: panes.clone(),
             rail: false,
             dialogs,
-            sidebar: right_sidebar::RightSidebar::new(
-                if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
-                    right_sidebar::Surface::Git
-                } else {
-                    right_sidebar::Surface::Agent
-                },
-                window,
-                cx,
-            ),
+            sidebar: cx.new(|cx| {
+                right_sidebar::RightSidebar::new(
+                    if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
+                        right_sidebar::Surface::Git
+                    } else {
+                        right_sidebar::Surface::Agent
+                    },
+                    preferences.clone(),
+                    panes,
+                    window,
+                    cx,
+                )
+            }),
             file: None,
             popover: None,
             weak: cx.weak_entity(),
@@ -345,10 +350,9 @@ impl Shell {
         .detach();
         cx.observe(&s.editor, |_, _, cx| cx.notify()).detach();
         // A dialog of the Agent workbench holds the editors too.
-        cx.observe_in(&s.sidebar.workbench, window, |s, _, w, cx| {
-            s.gate_editors(w, cx)
-        })
-        .detach();
+        let workbench = s.sidebar.read(cx).workbench.clone();
+        cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
+            .detach();
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
             Ok("settings") => s.open_modal(Modal::Task(Task::Settings), cx),
@@ -446,7 +450,9 @@ impl Shell {
                 // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
                 SessionEvent::ContentChanged => {
                     s.sidebar
+                        .read(cx)
                         .source_control
+                        .clone()
                         .update(cx, |sc, cx| sc.invalidate(cx));
                 }
             }
@@ -494,7 +500,7 @@ impl Shell {
                 s.push_explorer_host(window, cx);
                 s.guard_cloud_history(cx);
             }
-            PaneEvent::PulledOut => s.sidebar.pulled_out(),
+            PaneEvent::PulledOut => s.sidebar.update(cx, |s, _| s.pulled_out()),
         })
         .detach();
         // The Explorer's frame follows the window.
@@ -507,7 +513,9 @@ impl Shell {
                 SettingsEvent::Close => s.close_tasks(cx),
                 SettingsEvent::ModelConfigurationChanged => s
                     .sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |s, cx| s.reload_agent_configuration(cx)),
                 SettingsEvent::ForgetProject(path) => {
                     let path = path.clone();
@@ -526,44 +534,12 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        let preferences = s.preferences.clone();
-        s.sidebar.workbench.update(cx, |workbench, _| {
-            workbench.set_preference_store(preferences)
-        });
-        cx.subscribe_in(
-            &s.sidebar.workbench,
-            window,
-            |s, _, event: &crate::features::workbench::WorkbenchEvent, w, cx| match event {
-                crate::features::workbench::WorkbenchEvent::OpenModelConnections => {
-                    s.open_settings(crate::features::settings::Page::ModelConnections, w, cx)
-                }
-                // `openSettingsDialog("account")`.
-                crate::features::workbench::WorkbenchEvent::OpenAccount => {
-                    s.open_settings(crate::features::settings::Page::Account, w, cx)
-                }
-                // `handleAgentOpenFile`: a path inside the chat's project
-                // opens in the editor.
-                crate::features::workbench::WorkbenchEvent::OpenAgentFile { root, path } => {
-                    if let Some(path) = crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path(
-                        &root.to_string_lossy(),
-                        path,
-                    ) {
-                        s.session.docs.update(cx, |d, _| d.begin(Intent::OpenFile(root.join(path))));
-                    }
-                }
-                // A hosted run's accepted changes: reread the Cloud tree and
-                // revalidate the open document (a draft is kept).
-                crate::features::workbench::WorkbenchEvent::CloudPublished => {
-                    if s.hosted_project(cx).is_some() {
-                        s.explorer_session
-                            .update(cx, |e, cx| e.refresh_published(cx));
-                        s.session.docs.update(cx, |d, _| d.observe_publication());
-                        s.receive(w, cx);
-                    }
-                }
-            },
-        )
+        // What the right sidebar's surfaces ask of the window.
+        cx.subscribe_in(&s.sidebar, window, |s, _, event, w, cx| {
+            s.sidebar_event(event, w, cx)
+        })
         .detach();
+        cx.observe(&s.sidebar, |_, _, cx| cx.notify()).detach();
         // What the Cloud asks of the window.
         cx.subscribe_in(&s.cloud, window, |s, _, event, w, cx| {
             s.cloud_event(event, w, cx)
@@ -574,7 +550,9 @@ impl Shell {
         cx.observe_window_activation(window, |s, window, cx| {
             let active = window.is_window_active();
             s.sidebar
+                .read(cx)
                 .source_control
+                .clone()
                 .update(cx, |sc, cx| sc.set_focused(active, cx));
             if !active {
                 s.editor.update(cx, |e, cx| e.cancel_gestures(cx));
@@ -636,41 +614,6 @@ impl Shell {
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
         }
-        // The Header's Changes status follows the Git snapshot.
-        cx.observe(&s.sidebar.source_control, |_, _, cx| cx.notify())
-            .detach();
-        // Changes "Open file" (`onOpenFile`): the file in the editor.
-        // History and Back store the surface (`rightSidebarSurface`).
-        cx.subscribe_in(
-            &s.sidebar.source_control,
-            window,
-            |s, _, event, window, cx| {
-                use crate::features::source_control::SourceControlEvent;
-                match event {
-                    SourceControlEvent::OpenFile(path) => {
-                        s.session
-                            .docs
-                            .update(cx, |d, _| d.begin(Intent::OpenFile(PathBuf::from(path))));
-                        s.receive(window, cx);
-                    }
-                    SourceControlEvent::Surface => s.sidebar.store(&s.preferences, cx),
-                }
-                cx.notify();
-            },
-        )
-        .detach();
-        // History's Close and Back leave the sidebar closed on the workbench.
-        cx.subscribe_in(
-            &s.sidebar.cloud_history,
-            window,
-            |s, _, event, window, cx| {
-                let crate::features::source_control::CloudHistoryEvent::Close = event;
-                s.close_cloud_history(cx);
-                s.focus.focus(window, cx);
-                cx.notify();
-            },
-        )
-        .detach();
         let mut workspace = if cfg!(test) || !launch.from_args {
             launch.workspace.clone()
         } else {
@@ -695,15 +638,23 @@ impl Shell {
             }
             if surface == "agent-panel" || surface == "agent-panel-empty" {
                 s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
-                s.sidebar.workbench.update(cx, |workbench, cx| {
-                    workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
-                });
+                s.sidebar
+                    .read(cx)
+                    .workbench
+                    .clone()
+                    .update(cx, |workbench, cx| {
+                        workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
+                    });
             }
             if surface == "agent-empty" || surface == "agent-transcript" {
                 s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
-                s.sidebar.workbench.update(cx, |workbench, cx| {
-                    workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
-                });
+                s.sidebar
+                    .read(cx)
+                    .workbench
+                    .clone()
+                    .update(cx, |workbench, cx| {
+                        workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
+                    });
             }
         }
         // Dev captures open a file window with `PUPPYONE_FILE_MODE`.
@@ -836,19 +787,6 @@ impl Shell {
         crate::editor::markdown::core::commands::block_move::set_enabled(
             p.experimental.markdown_block_drag,
         );
-        let hidden = p.local_agents.hidden_agent_ids.clone();
-        let (routing, payments) = (p.agent_routing.clone(), p.experimental.payments);
-        self.sidebar
-            .workbench
-            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
-        let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
-        let history_icons = icons.clone();
-        self.sidebar
-            .cloud_history
-            .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
-        self.sidebar
-            .source_control
-            .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
         // The pane layout (`useDesktopExplorerFrame`), only when it changed:
         // this window's own commits arrive back here as no change.
         let stored = StoredPanes {
@@ -859,11 +797,6 @@ impl Shell {
         if let Some(stored) = self.preference_slices.panes.changed(stored) {
             let stored = *stored;
             self.panes.update(cx, |p, cx| p.restore(stored, cx));
-        }
-        // The surface the closed sidebar opens on (`rightSidebarSurface`).
-        if self.preferences.read(cx).loaded {
-            let open = self.panes.read(cx).right().open;
-            self.sidebar.restore(p.right_sidebar_surface, open, cx);
         }
         // The project rail takes room from the panes.
         let rail_changed = self.rail != p.project_switcher_rail;
@@ -1000,10 +933,7 @@ impl Shell {
     /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
     /// focus it held; drafts, widths and sessions stay.
     fn close_workspace_sidebars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.sidebar.is(Surface::CloudHistory) {
-            self.sidebar.close_cloud_history(cx);
-        }
-        self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
+        self.sidebar.update(cx, |s, cx| s.collapse(cx));
         self.set_popover(None, cx);
         self.focus.focus(window, cx);
     }
@@ -1236,15 +1166,21 @@ impl Shell {
                 // A lone file has no Agent, Git or Terminal.
             } else if let Some(root) = ws.local_root() {
                 self.sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
                 self.sidebar
+                    .read(cx)
                     .source_control
+                    .clone()
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
             } else if let Some(target) = ws.agent_target() {
                 // `CloudAgentSidebar`: the hosted Agent, not this machine's.
                 self.sidebar
+                    .read(cx)
                     .workbench
+                    .clone()
                     .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
             }
             self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
@@ -1292,7 +1228,8 @@ impl Shell {
                     }
                 }
             }
-            self.sidebar.workbench.update(cx, |s, cx| s.shutdown(cx));
+            let workbench = self.sidebar.read(cx).workbench.clone();
+            workbench.update(cx, |s, cx| s.shutdown(cx));
             // Window retirement blocks new editor allocations and waits for
             // this window's admitted tasks to confirm their exit.
             let scheduler = crate::platform::tasks::Scheduler::global();
@@ -1314,7 +1251,7 @@ impl Shell {
     /// Agent workbench), the Homepage, the appearance.
     fn editor_gate(&self, cx: &App) -> editor_area::EditorGate {
         editor_area::EditorGate {
-            modal: self.modal(cx) || self.sidebar.workbench.read(cx).dialog_open(),
+            modal: self.modal(cx) || self.sidebar.read(cx).workbench.read(cx).dialog_open(),
             home: self.home_visible(cx),
             dark: self.dark,
         }
@@ -1342,27 +1279,58 @@ impl Shell {
     fn hosted_project(&self, cx: &App) -> Option<String> {
         self.project.read(cx).hosted(cx)
     }
-    /// History closed itself (Close, Back): the sidebar closes on it.
-    fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
-        if self.sidebar.is(Surface::CloudHistory) {
-            self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
-        }
-        self.sidebar.close_cloud_history(cx);
-    }
     /// The right sidebar is open on `surface`.
     fn right_shows(&self, surface: Surface, cx: &App) -> bool {
-        self.panes.read(cx).right().open && self.sidebar.is(surface)
+        self.sidebar.read(cx).shows(surface, cx)
     }
     /// History out of its scope closes (`useCloudWorkspaceSidebar`).
     fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
         let project = self.hosted_project(cx);
-        let open = self.panes.read(cx).right().open;
-        if self
-            .sidebar
-            .guard_cloud_history(open, project.as_deref(), cx)
-        {
-            self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
+        self.sidebar
+            .update(cx, |s, cx| s.guard_cloud_history(project.as_deref(), cx));
+    }
+    /// What the right sidebar's surfaces ask of the window.
+    fn sidebar_event(
+        &mut self,
+        event: &right_sidebar::SidebarEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use right_sidebar::SidebarEvent;
+        match event {
+            SidebarEvent::OpenFile(path) => {
+                let path = path.clone();
+                self.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
+            }
+            // `handleAgentOpenFile`: a path inside the chat's project opens
+            // in the editor.
+            SidebarEvent::OpenAgentFile { root, path } => {
+                use crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path as resolve;
+                if let Some(path) = resolve(&root.to_string_lossy(), path) {
+                    let path = root.join(path);
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
+                }
+                return cx.notify();
+            }
+            SidebarEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
+            // A hosted run's accepted changes: reread the Cloud tree and
+            // revalidate the open document (a draft is kept).
+            SidebarEvent::CloudPublished => {
+                if self.hosted_project(cx).is_none() {
+                    return;
+                }
+                self.explorer_session
+                    .update(cx, |e, cx| e.refresh_published(cx));
+                self.session.docs.update(cx, |d, _| d.observe_publication());
+            }
+            SidebarEvent::Closed => self.focus.focus(window, cx),
         }
+        self.receive(window, cx);
+        cx.notify();
     }
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
         if let Err(error) = self.project.update(cx, |p, cx| p.open_cloud(project, cx)) {
@@ -1685,7 +1653,8 @@ impl Shell {
             }
             if changes {
                 use gpui_kit::base::Selectable as _;
-                let status = header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
+                let status =
+                    header::GitTitlebarStatus::of(self.sidebar.read(cx).source_control.read(cx));
                 let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
                 let button = header::ChangesButton::new(status)
                     .selected(self.right_shows(Surface::Git, cx))
@@ -1834,11 +1803,7 @@ impl Render for Shell {
             if !home && panes.end.is_some() {
                 // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
                 // content starts at the divider like the product's.
-                let content = div()
-                    .size_full()
-                    .bg(t.auxiliary())
-                    .child(self.sidebar.content());
-                stack = stack.end(self.layout.auxiliary, content);
+                stack = stack.end(self.layout.auxiliary, self.sidebar.clone());
             }
             stack
                 .main(at(self.layout.editor).child(self.editor.clone()))

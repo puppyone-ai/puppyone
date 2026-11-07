@@ -157,8 +157,15 @@ impl Shell {
     /// Feeds this frame's Header state to the introductions.
     pub(super) fn sync_coachmarks(&mut self, cx: &mut Context<Self>) {
         let prefs = self.preferences.read(cx).state.clone();
-        let status = super::header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
-        let repository = self.sidebar.source_control.read(cx).snapshot.is_some();
+        let status =
+            super::header::GitTitlebarStatus::of(self.sidebar.read(cx).source_control.read(cx));
+        let repository = self
+            .sidebar
+            .read(cx)
+            .source_control
+            .read(cx)
+            .snapshot
+            .is_some();
         let scope = self
             .files(cx)
             .workspace
