@@ -84,7 +84,8 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
     const personal: OnboardingProjectGroup = {
       ...previous, id: "personal-shared", title: base.personalSharedTitle,
       alwaysShowHeading: true, empty: false,
-      dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy, onDrop: () => {
+      dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy,
+        hint: t("onboarding.drop.personal"), onDrop: () => {
         share.endDrag();
         if (source && !share.busy) void share.request(source.localPath);
       } } : undefined,

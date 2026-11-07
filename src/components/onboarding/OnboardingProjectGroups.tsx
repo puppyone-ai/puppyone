@@ -17,7 +17,12 @@ export type OnboardingProjectGroup = Readonly<{
   empty?: boolean;
   keepEmpty?: boolean;
   /** Present only for a trusted in-page drag, never dataTransfer paths. */
-  dropTarget?: { enabled: boolean; onDrop: () => void };
+  dropTarget?: {
+    enabled: boolean;
+    onDrop: () => void;
+    /** What letting go here does, said at the end of the heading while it can. */
+    hint?: string;
+  };
   children: ReactNode;
 }>;
 
@@ -87,9 +92,11 @@ export function OnboardingProjectGroups({ groups, label, note }: {
   if (plain && note === undefined) return <>{only.children}</>;
   const ordered = [...groups].sort((left, right) =>
     (audienceOrder.get(left.id) ?? 2) - (audienceOrder.get(right.id) ?? 2));
+  // A project is being dragged: the groups that take it become places to drop it.
+  const dragging = groups.some((group) => group.dropTarget);
   return (
     <div className="onboarding-project-groups" data-po-scrollbar="menu" data-po-scrollbar-visibility="always"
-      aria-label={label}>
+      data-project-dragging={dragging || undefined} aria-label={label}>
       {ordered.map((group) => <ProjectGroup key={group.id} group={group} />)}
       {note}
     </div>
@@ -122,7 +129,9 @@ function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
         <h2 id={titleId} className="onboarding-project-group-title"><bdi>{group.title}</bdi></h2>
         {group.detail !== undefined && <span className="onboarding-project-group-detail">{group.detail}</span>}
         <span className="onboarding-project-group-divider" aria-hidden="true" />
-        {group.actions !== undefined && <span className="onboarding-project-group-actions">{group.actions}</span>}
+        {group.dropTarget?.enabled && group.dropTarget.hint
+          ? <span className="onboarding-project-group-drop-hint" role="status">{group.dropTarget.hint}</span>
+          : group.actions !== undefined && <span className="onboarding-project-group-actions">{group.actions}</span>}
       </header>
       <div className="onboarding-project-group-content">{group.children}</div>
     </section>
