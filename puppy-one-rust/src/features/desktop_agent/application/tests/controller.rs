@@ -6,7 +6,7 @@
 use super::display_fixture::{DisplayFeed, display_snapshot};
 use super::fake_client::FakeClient;
 use super::session_feed::{advance, settle, wait_for};
-use super::support::{Deferred, Deferreds, assert_match, matches};
+use super::support::{Deferred, Deferreds, StateJson as _, assert_match, j, matches, typed};
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests::harness::{run, run_paused};
 use crate::agent::contract::js;
@@ -19,6 +19,7 @@ use crate::features::desktop_agent::application::agent_controller_state::{
 use crate::features::desktop_agent::application::agent_reference_preview_store::object_url_bytes;
 use crate::features::desktop_agent::application::agent_runtime_discovery_cache::AGENT_RUNTIME_DISCOVERY_CACHE_TTL_MS;
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
+use crate::features::desktop_agent::application::agent_session_lifecycle::CloseOutcome;
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
 use serde_json::{Value, json};
 use std::cell::Cell;
@@ -56,7 +57,7 @@ fn message_texts(controller: &AgentSessionController) -> Vec<Value> {
             .projection
             .messages
             .iter()
-            .map(|message| message["text"].clone())
+            .map(|message| Value::from(message.text.as_str()))
             .collect()
     })
 }
@@ -445,7 +446,7 @@ fn recovers_the_bound_model_after_a_temporary_empty_catalog() {
         controller.refresh_model_connections().await;
         let state = controller.get_snapshot();
         assert_eq!(
-            state.inspection.as_ref().map(|i| i["models"].clone()),
+            state.inspection.as_ref().map(|i| j(&i.models)),
             Some(json!([]))
         );
         assert_eq!(state.selected_model.as_deref(), Some("openai/gpt-5"));
@@ -458,7 +459,7 @@ fn recovers_the_bound_model_after_a_temporary_empty_catalog() {
         controller.refresh_model_connections().await;
         let state = controller.get_snapshot();
         assert_eq!(
-            state.inspection.as_ref().map(|i| i["models"].clone()),
+            state.inspection.as_ref().map(|i| j(&i.models)),
             Some(available["models"].clone())
         );
         assert_eq!(state.session, session);
@@ -615,7 +616,9 @@ fn keeps_newer_steer_drafts_references_and_mentions_on_receipt() {
             let first_reference = controller.get_snapshot().references[0].clone();
             controller.set_draft_document(
                 "@a.md",
-                &[json!({ "referenceId": first_reference["id"], "start": 0, "end": 5 })],
+                &[typed(
+                    json!({ "referenceId": j(&first_reference)["id"], "start": 0, "end": 5 }),
+                )],
             );
             let pending = controller.submit("@a.md");
             assert_match(
@@ -629,7 +632,9 @@ fn keeps_newer_steer_drafts_references_and_mentions_on_receipt() {
             let newer_reference = controller.get_snapshot().references[0].clone();
             controller.set_draft_document(
                 "@b.md",
-                &[json!({ "referenceId": newer_reference["id"], "start": 0, "end": 5 })],
+                &[typed(
+                    json!({ "referenceId": j(&newer_reference)["id"], "start": 0, "end": 5 }),
+                )],
             );
             if accepted {
                 receipt.resolve(
@@ -646,19 +651,22 @@ fn keeps_newer_steer_drafts_references_and_mentions_on_receipt() {
                 next.draft,
                 if accepted { "@b.md" } else { "@a.md\n\n@b.md" }
             );
-            let ids: Vec<Value> = next.references.iter().map(|r| r["id"].clone()).collect();
+            let ids: Vec<Value> = next.references.iter().map(|r| j(r)["id"].clone()).collect();
             assert_eq!(
                 ids,
                 if accepted {
-                    vec![newer_reference["id"].clone()]
+                    vec![j(&newer_reference)["id"].clone()]
                 } else {
-                    vec![first_reference["id"].clone(), newer_reference["id"].clone()]
+                    vec![
+                        j(&first_reference)["id"].clone(),
+                        j(&newer_reference)["id"].clone(),
+                    ]
                 }
             );
             assert_eq!(
-                next.draft_mentions.last().cloned(),
+                next.draft_mentions.last().map(j),
                 Some(json!({
-                    "referenceId": newer_reference["id"],
+                    "referenceId": j(&newer_reference)["id"],
                     "start": if accepted { 0 } else { 7 },
                     "end": if accepted { 5 } else { 12 },
                 }))
@@ -778,7 +786,7 @@ fn discovers_installed_agents_without_selecting_or_resuming_one() {
         controller.initialize(false).await.expect("initialize");
         assert_eq!(
             f.bridge.calls("discoverAgentRuntimes"),
-            vec![json!({ "rootPath": ROOT, "runtimeId": null, "refresh": false })]
+            vec![json!({ "rootPath": ROOT, "refresh": false })]
         );
         assert_match(
             &state(&controller),
@@ -900,8 +908,8 @@ fn renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat() {
         settle().await;
         assert_eq!(f.bridge.count("replayAgentSession"), 0);
         let projection = controller.get_snapshot().projection;
-        assert_eq!(projection.last_sequence(), 5);
-        assert_eq!(projection.get("terminalState"), Some(&json!("completed")));
+        assert_eq!(projection.last_sequence, 5);
+        assert_eq!(projection.terminal_state.as_deref(), Some("completed"));
 
         controller.remember_viewport(
             320.,
@@ -937,7 +945,7 @@ fn closes_a_tab_owned_native_session_without_affecting_another_controller() {
         let second = second_fixture.controller();
         first.initialize(false).await.expect("initialize");
         second.initialize(false).await.expect("initialize");
-        assert_eq!(first.close_tab_session().await, json!(true));
+        assert_eq!(first.close_tab_session().await, CloseOutcome::Closed);
         assert!(first_fixture.bridge.calls("closeAgentSession").contains(
             &json!({ "rootPath": ROOT, "sessionId": "session-1", "removePersistence": false })
         ));
@@ -1040,7 +1048,7 @@ fn allows_confirmed_tab_closure_while_the_displayed_turn_runs() {
         let controller = f.controller();
         controller.initialize(false).await.expect("initialize");
         f.emit(turn_started(2, "Keep going", "turn-1"));
-        assert_eq!(controller.close_tab_session().await, json!(true));
+        assert_eq!(controller.close_tab_session().await, CloseOutcome::Closed);
         assert_eq!(f.bridge.count("closeAgentSession"), 1);
         assert_ne!(controller.get_snapshot().error_code(), Some("active-turn"));
     });
@@ -1272,7 +1280,7 @@ fn displays_provider_diagnostics_without_rewriting_the_catalog() {
                 .projection
                 .activities
                 .iter()
-                .any(|activity| activity["kind"] == "error")
+                .any(|activity| activity.kind == "error")
         );
     });
 }
@@ -1329,7 +1337,7 @@ fn discovers_local_tools_only_when_the_provider_surface_requests_them() {
         let connections = controller.get_snapshot().local_connections;
         assert_eq!(connections.len(), 1);
         assert_match(
-            &connections[0],
+            &j(&connections[0]),
             &json!({ "id": "codex", "selectable": false }),
         );
         controller.discover_local_connections(true).await;
@@ -1409,7 +1417,9 @@ fn captures_reference_mention_ranges_in_the_immutable_intent() {
         let prompt = "Explain @architecture.md";
         controller.set_draft_document(
             prompt,
-            &[json!({ "referenceId": reference["id"], "start": 8, "end": 24 })],
+            &[typed(
+                json!({ "referenceId": j(&reference)["id"], "start": 8, "end": 24 }),
+            )],
         );
         assert!(submit(&controller, prompt).await);
         let calls = f.bridge.calls("startAgentTurn");
@@ -1417,8 +1427,8 @@ fn captures_reference_mention_ranges_in_the_immutable_intent() {
             &calls[0],
             &json!({
                 "prompt": prompt,
-                "promptMentions": [{ "referenceId": reference["id"], "start": 8, "end": 24 }],
-                "references": [{ "id": reference["id"] }],
+                "promptMentions": [{ "referenceId": j(&reference)["id"], "start": 8, "end": 24 }],
+                "references": [{ "id": j(&reference)["id"] }],
             }),
         );
         assert_match(
@@ -1698,14 +1708,16 @@ fn retains_references_steer_cannot_carry_and_restores_the_intent_after_preparati
         let retry_prompt = "Retry with @restore.md";
         failed.set_draft_document(
             retry_prompt,
-            &[json!({ "referenceId": restore_reference["id"], "start": 11, "end": 22 })],
+            &[typed(
+                json!({ "referenceId": j(&restore_reference)["id"], "start": 11, "end": 22 }),
+            )],
         );
         assert!(!submit(&failed, retry_prompt).await);
         assert_match(
             &state(&failed),
             &json!({
                 "draft": retry_prompt,
-                "draftMentions": [{ "referenceId": restore_reference["id"], "start": 11, "end": 22 }],
+                "draftMentions": [{ "referenceId": j(&restore_reference)["id"], "start": 11, "end": 22 }],
                 "pendingIntent": null,
                 "references": [{ "relativePath": "restore.md" }],
             }),
@@ -1765,10 +1777,10 @@ fn revokes_staged_grants_on_removal_and_keeps_external_paths_outside_state() {
         );
         let reference = controller.get_snapshot().references[0].clone();
         assert_match(
-            &reference,
+            &j(&reference),
             &json!({ "kind": "staged-attachment", "displayName": "capture.png", "status": "ready" }),
         );
-        assert!(reference.get("path").is_none());
+        assert!(j(&reference).get("path").is_none());
         assert_eq!(
             controller
                 .stage_external_files(vec![file])
@@ -1777,7 +1789,7 @@ fn revokes_staged_grants_on_removal_and_keeps_external_paths_outside_state() {
             0
         );
         assert_eq!(controller.get_snapshot().references.len(), 1);
-        controller.remove_reference(reference["id"].as_str().unwrap_or_default());
+        controller.remove_reference(j(&reference)["id"].as_str().unwrap_or_default());
         wait_for(|| {
             f.bridge
                 .calls("revokeAgentAttachments")
@@ -1801,13 +1813,13 @@ fn keeps_image_previews_renderer_local_and_revokes_their_object_urls_on_removal(
             1
         );
         let reference = controller.get_snapshot().references[0].clone();
-        let id = reference["id"].as_str().unwrap_or_default().to_string();
+        let id = j(&reference)["id"].as_str().unwrap_or_default().to_string();
         let url = controller
             .get_reference_preview_url(&id)
             .expect("preview url");
         assert!(url.starts_with("blob:"));
         assert!(object_url_bytes(&url).is_some());
-        assert!(reference.get("previewUrl").is_none());
+        assert!(j(&reference).get("previewUrl").is_none());
         controller.remove_reference(&id);
         assert_eq!(controller.get_reference_preview_url(&id), None);
         assert!(object_url_bytes(&url).is_none());
@@ -1873,13 +1885,16 @@ fn removes_electron_ipc_transport_boilerplate_from_reference_diagnostics() {
         let references = controller.get_snapshot().references;
         assert_eq!(references.len(), 1);
         assert_match(
-            &references[0],
+            &j(&references[0]),
             &json!({
                 "displayName": "missing.md",
                 "status": "error",
                 "error": { "code": "workspace-resolution-failed", "message": "An Agent file reference no longer exists." },
             }),
         );
-        assert_eq!(references[0]["error"].as_object().map(|e| e.len()), Some(2));
+        assert_eq!(
+            j(&references[0])["error"].as_object().map(|e| e.len()),
+            Some(2)
+        );
     });
 }

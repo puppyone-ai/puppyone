@@ -1,9 +1,11 @@
 //! The Agent host: the Main-process half of the product's Agent
-//! composition (`electron/main.mjs`) on its own thread, with the
-//! `ipcMain.handle` bridge and per-window frame delivery the preload
-//! exposes. Every Agent object lives on this thread's single-threaded
-//! runtime; windows talk to it only through [`AgentHostHandle`].
+//! composition (`electron/main.mjs`) on its own thread. Every Agent object
+//! lives on this thread's single-threaded runtime; windows talk to it only
+//! through [`AgentHostHandle`], with typed requests ([`AgentRequest`]) and
+//! typed events ([`AgentEvent`]) — the product's IPC channels and preload
+//! have no counterpart here.
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::application::agent_requests::{AgentRequests, AuthorizeWorkspaceRoot};
 use crate::agent::application::agent_service::{AgentService, AgentServiceOptions};
 use crate::agent::application::processes::agent_process_supervisor::AgentProcessSupervisor;
 use crate::agent::bootstrap::create_agent_runtime_host::{
@@ -13,15 +15,15 @@ use crate::agent::cache::ephemeral_agent_session_cache::EphemeralAgentSessionCac
 use crate::agent::connections::local_agent_inventory::{
     LocalAgentInventoryOptions, create_local_agent_inventory,
 };
+use crate::agent::contract::dto::{OperationFailure, SessionFrame};
+use crate::agent::contract::protocol::{AgentEvent, AgentRequest, AgentResponse};
 use crate::agent::infrastructure::attachments::agent_attachment_store::{
     AgentAttachmentStore, AttachmentStoreOptions,
 };
-use crate::agent::ipc::agent_ipc::{AgentIpcHandlers, AuthorizeWorkspaceRoot};
 use crate::agent::persistence::agent_conversation_catalog::{
     AgentConversationCatalog, CatalogOptions,
 };
 use crate::agent::persistence::agent_session_repository::AgentSessionRepository;
-use crate::agent::runtime::agent_operation_error::agent_operation_failure;
 use crate::agent::sender::Sender;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -31,15 +33,18 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 
-/// Delivers one window-bound frame (`webContents.send(channel, payload)`).
-pub type FrameSink = Box<dyn Fn(&str, Value) + Send>;
+/// Delivers one window-bound event.
+pub type EventSink = Box<dyn Fn(AgentEvent) + Send>;
+
+/// An operation's answer, or why it failed.
+pub type AgentReply = Result<AgentResponse, OperationFailure>;
 
 /// The window roots the Agent bridge may authorize.
 pub type WindowRoots = Arc<Mutex<HashMap<u64, HashSet<String>>>>;
 
 /// What the host thread composes.
 pub struct AgentHostServices {
-    pub handlers: AgentIpcHandlers,
+    pub requests: AgentRequests,
     pub service: AgentService,
     pub attachment_store: Option<AgentAttachmentStore>,
 }
@@ -48,15 +53,14 @@ pub struct AgentHostServices {
 pub type ServicesFactory = Box<dyn FnOnce(WindowRoots) -> AgentResult<AgentHostServices> + Send>;
 
 enum Command {
-    Invoke {
+    Request {
         window: u64,
-        channel: String,
-        request: Value,
-        reply: oneshot::Sender<Value>,
+        request: AgentRequest,
+        reply: oneshot::Sender<AgentReply>,
     },
     OpenWindow {
         window: u64,
-        sink: FrameSink,
+        sink: EventSink,
     },
     CloseWindow {
         window: u64,
@@ -66,7 +70,7 @@ enum Command {
     },
 }
 
-/// A window's handle on the Agent host (the preload's `ipcRenderer`).
+/// A window's handle on the Agent host.
 #[derive(Clone)]
 pub struct AgentHostHandle {
     commands: tokio::sync::mpsc::UnboundedSender<Command>,
@@ -117,9 +121,8 @@ impl AgentHostHandle {
                     let windows: Rc<RefCell<HashMap<u64, Sender>>> = Rc::default();
                     while let Some(command) = queue.recv().await {
                         match command {
-                            Command::Invoke {
+                            Command::Request {
                                 window,
-                                channel,
                                 request,
                                 reply,
                             } => {
@@ -128,9 +131,9 @@ impl AgentHostHandle {
                                 tokio::task::spawn_local(async move {
                                     let response = match sender {
                                         Some(sender) => {
-                                            services.handlers.handle(&sender, &channel, &request).await
+                                            services.requests.handle(&sender, request).await
                                         }
-                                        None => agent_operation_failure(AgentError::new(
+                                        None => Err(stopped(
                                             "This window is not connected to the Agent host.",
                                         )),
                                     };
@@ -138,7 +141,14 @@ impl AgentHostHandle {
                                 });
                             }
                             Command::OpenWindow { window, sink } => {
-                                let sender = Sender::new(window, Rc::new(move |channel, payload| sink(channel, payload)));
+                                // Frames are checked and typed here, off the
+                                // window's thread.
+                                let sender = Sender::new(
+                                    window,
+                                    Rc::new(move |frame: Value| {
+                                        sink(AgentEvent::SessionFrame(SessionFrame::read(&frame)))
+                                    }),
+                                );
                                 if let Some(previous) = windows.borrow_mut().insert(window, sender) {
                                     previous.destroy();
                                 }
@@ -179,8 +189,8 @@ impl AgentHostHandle {
         Self::start(Box::new(move |roots| production_services(options, roots)))
     }
 
-    /// The window's frame channel opens (`webContents` creation).
-    pub fn open_window(&self, window: u64, sink: FrameSink) {
+    /// The window's event channel opens (`webContents` creation).
+    pub fn open_window(&self, window: u64, sink: EventSink) {
         let _ = self.commands.send(Command::OpenWindow { window, sink });
     }
 
@@ -207,28 +217,25 @@ impl AgentHostHandle {
         let _ = self.commands.send(Command::CloseWindow { window });
     }
 
-    /// `ipcRenderer.invoke(channel, request)`: the response or the
-    /// operation-failure envelope.
-    pub fn invoke(
+    /// Sends `window`'s `request`: its answer, or why it failed.
+    pub fn request(
         &self,
         window: u64,
-        channel: &str,
-        request: Value,
-    ) -> impl std::future::Future<Output = Value> + Send + 'static {
+        request: AgentRequest,
+    ) -> impl std::future::Future<Output = AgentReply> + Send + 'static {
         let (reply, response) = oneshot::channel();
-        let sent = self.commands.send(Command::Invoke {
+        let sent = self.commands.send(Command::Request {
             window,
-            channel: channel.to_string(),
             request,
             reply,
         });
         async move {
             if sent.is_err() {
-                return agent_operation_failure(AgentError::new("The Agent host has stopped."));
+                return Err(stopped("The Agent host has stopped."));
             }
-            response.await.unwrap_or_else(|_| {
-                agent_operation_failure(AgentError::new("The Agent host has stopped."))
-            })
+            response
+                .await
+                .unwrap_or_else(|_| Err(stopped("The Agent host has stopped.")))
         }
     }
 
@@ -241,6 +248,16 @@ impl AgentHostHandle {
                 let _ = done.await;
             }
         }
+    }
+}
+
+/// A request the host could not deliver.
+fn stopped(message: &str) -> OperationFailure {
+    OperationFailure {
+        schema_version: 1,
+        code: "AGENT_OPERATION_FAILED".into(),
+        message: message.into(),
+        ..OperationFailure::default()
     }
 }
 
@@ -338,7 +355,7 @@ fn production_services(
         ..Default::default()
     })?;
     Ok(AgentHostServices {
-        handlers: AgentIpcHandlers {
+        requests: AgentRequests {
             agent_service: Rc::new(service.clone()),
             local_agent_inventory: Some(inventory),
             authorize_workspace_root: window_root_authorizer(roots),

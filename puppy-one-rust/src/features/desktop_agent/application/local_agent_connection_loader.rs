@@ -1,12 +1,12 @@
 //! `application/LocalAgentConnectionLoader.ts`: lazy presentation loader for
 //! the Main-owned local-tool inventory. It does not participate in session
 //! phases and cannot select a Provider.
-use super::agent_client_port::AgentClientProvider;
+use super::agent_client_port::{AgentClient as _, AgentClientProvider};
 use super::agent_controller_state::{LocalConnectionsPhase, StatePatch};
-use super::agent_error::{create_agent_error, format_agent_error};
+use super::agent_error::{ErrorDescriptor, create_agent_error, format_agent_error};
 use super::agent_session_controller::AgentControllerStore;
 use super::ui_runtime::{Task, UiRuntime, launch, resolved, unstarted};
-use serde_json::json;
+use crate::agent::contract::protocol::{AgentOperation, RuntimeQuery};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -50,7 +50,8 @@ impl LocalAgentConnectionLoader {
             return pending.clone();
         }
         let bridge = (inner.bridge_provider)();
-        let Some(bridge) = bridge.filter(|b| b.implements("discoverLocalAgentConnections")) else {
+        let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::DiscoverLocalConnections))
+        else {
             inner.store.patch(
                 StatePatch::new()
                     .local_connections_phase(LocalConnectionsPhase::Error)
@@ -66,10 +67,11 @@ impl LocalAgentConnectionLoader {
                 .local_connections_phase(LocalConnectionsPhase::Loading)
                 .local_connections_error(None),
         );
-        let call = bridge.call(
-            "discoverLocalAgentConnections",
-            json!({ "rootPath": inner.workspace_root, "refresh": refresh }),
-        );
+        let call = bridge.discover_local_connections(RuntimeQuery {
+            root_path: Some(inner.workspace_root.clone()),
+            refresh: Some(refresh),
+            ..RuntimeQuery::default()
+        });
         let id = inner.next_task.get() + 1;
         inner.next_task.set(id);
         let loader = inner.clone();
@@ -78,24 +80,19 @@ impl LocalAgentConnectionLoader {
             if !loader.disposed.get() {
                 match result {
                     Ok(snapshot) => {
-                        let warning = snapshot["warnings"]
-                            .get(0)
-                            .filter(|w| crate::agent::contract::js::truthy(w));
+                        let warning = snapshot.warnings.first().filter(|w| !w.is_empty());
                         loader.store.patch(
                             StatePatch::new()
-                                .local_connections(
-                                    snapshot["connections"]
-                                        .as_array()
-                                        .cloned()
-                                        .unwrap_or_default(),
-                                )
+                                .local_connections(snapshot.connections.clone())
                                 .local_connections_phase(LocalConnectionsPhase::Ready)
                                 .local_connections_scanned_at(
-                                    snapshot["scannedAt"].as_str().map(str::to_string),
+                                    Some(snapshot.scanned_at.clone()).filter(|s| !s.is_empty()),
                                 )
-                                .local_connections_error(warning.map(
-                                    |warning| json!({ "code": "unknown", "detail": warning }),
-                                )),
+                                .local_connections_error(warning.map(|warning| ErrorDescriptor {
+                                    code: "unknown".into(),
+                                    detail: Some(warning.clone()),
+                                    ..ErrorDescriptor::default()
+                                })),
                         );
                     }
                     Err(error) => loader.store.patch(

@@ -7,6 +7,7 @@ mod assets;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
 mod capture;
+mod clock;
 mod cloud;
 mod documents;
 mod editor;
@@ -20,6 +21,7 @@ mod localization;
 mod model;
 mod native_window;
 mod platform;
+mod text;
 mod theme;
 mod typography;
 mod ui;

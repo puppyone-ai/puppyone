@@ -7,58 +7,11 @@
 use base64::Engine as _;
 use serde_json::{Map, Value};
 
+pub use crate::clock::{date_parse, iso_string, now_iso, now_ms};
+pub use crate::text::{head16, len16, locale_compare, slice16, tail16, trim};
+
 /// `Number.MAX_SAFE_INTEGER`.
 pub const MAX_SAFE_INTEGER: i64 = (1 << 53) - 1;
-
-/// `value.length` of a JS string.
-pub fn len16(value: &str) -> usize {
-    value.chars().map(char::len_utf16).sum()
-}
-
-/// The byte offset of UTF-16 offset `units`, clamped to the string. A cut
-/// inside a surrogate pair keeps the pair out (Rust cannot hold half of it).
-fn byte_at(value: &str, units: usize) -> usize {
-    let mut count = 0;
-    for (index, ch) in value.char_indices() {
-        if count + ch.len_utf16() > units {
-            return index;
-        }
-        count += ch.len_utf16();
-    }
-    value.len()
-}
-
-/// `value.slice(0, limit)`.
-pub fn head16(value: &str, limit: usize) -> &str {
-    &value[..byte_at(value, limit)]
-}
-
-/// `value.slice(start, end)` with non-negative bounds.
-pub fn slice16(value: &str, start: usize, end: usize) -> &str {
-    let from = byte_at(value, start);
-    let to = byte_at(value, end).max(from);
-    &value[from..to]
-}
-
-/// `value.slice(start)`.
-pub fn tail16(value: &str, start: usize) -> &str {
-    &value[byte_at(value, start)..]
-}
-
-/// `String.prototype.trim` (Unicode white space, line terminators and BOM).
-pub fn trim(value: &str) -> &str {
-    value.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
-}
-
-/// `String.prototype.trimStart`.
-pub fn trim_start(value: &str) -> &str {
-    value.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
-}
-
-/// `String.prototype.trimEnd`.
-pub fn trim_end(value: &str) -> &str {
-    value.trim_end_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
-}
 
 /// `Number.isSafeInteger(value)`.
 pub fn is_safe_integer(value: &Value) -> bool {
@@ -266,109 +219,6 @@ pub fn delete(value: &mut Value, key: &str) {
     if let Some(map) = value.as_object_mut() {
         map.shift_remove(key);
     }
-}
-
-// ----------------------------------------------------------------- dates
-
-/// `Date.parse(value)` in milliseconds: the ECMAScript date-time string
-/// format (date-only forms are UTC), the forms V8 also reads (a space for
-/// `T`, RFC 2822). Times without an offset are read as UTC.
-pub fn date_parse(value: &str) -> Option<i64> {
-    use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
-    use std::sync::LazyLock;
-    static ISO: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(
-            r"^([+-]\d{6}|\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$",
-        )
-        .expect("ISO date pattern")
-    });
-    let text = trim(value);
-    if let Some(captures) = ISO.captures(text) {
-        let year: i32 = captures[1].parse().ok()?;
-        if &captures[1] == "-000000" {
-            return None;
-        }
-        let part = |index: usize, default: u32| -> Option<u32> {
-            captures
-                .get(index)
-                .map_or(Some(default), |m| m.as_str().parse().ok())
-        };
-        let date = NaiveDate::from_ymd_opt(year, part(2, 1)?, part(3, 1)?)?;
-        let (hour, minute, second) = (part(4, 0)?, part(5, 0)?, part(6, 0)?);
-        let millis = captures.get(7).map_or(Some(0), |m| {
-            let digits = format!("{:0<3}", m.as_str());
-            digits[..3].parse::<u32>().ok()
-        })?;
-        // `24:00` is the end of the day.
-        let (time, carry) = if hour == 24 && minute == 0 && second == 0 && millis == 0 {
-            (NaiveTime::from_hms_opt(0, 0, 0)?, 86_400_000)
-        } else {
-            (
-                NaiveTime::from_hms_milli_opt(hour, minute, second, millis)?,
-                0,
-            )
-        };
-        let utc = NaiveDateTime::new(date, time).and_utc().timestamp_millis() + carry;
-        let offset = match captures.get(8).map(|m| m.as_str()) {
-            None | Some("Z") => 0,
-            Some(zone) => {
-                let sign = if zone.starts_with('-') { -1 } else { 1 };
-                let digits: String = zone[1..].chars().filter(char::is_ascii_digit).collect();
-                let hours: i64 = digits[..2].parse().ok()?;
-                let minutes: i64 = digits[2..].parse().ok()?;
-                if hours > 23 || minutes > 59 {
-                    return None;
-                }
-                sign * (hours * 60 + minutes) * 60_000
-            }
-        };
-        return Some(utc - offset);
-    }
-    DateTime::parse_from_rfc2822(text)
-        .ok()
-        .map(|date| date.timestamp_millis())
-}
-
-/// `new Date(milliseconds).toISOString()`.
-pub fn iso_string(milliseconds: i64) -> String {
-    let Some(date) = chrono::DateTime::from_timestamp_millis(milliseconds) else {
-        return String::new();
-    };
-    use chrono::Datelike;
-    let year = date.year();
-    let rest = date.format("-%m-%dT%H:%M:%S%.3fZ");
-    if (0..=9999).contains(&year) {
-        format!("{year:04}{rest}")
-    } else {
-        format!(
-            "{}{:06}{rest}",
-            if year < 0 { '-' } else { '+' },
-            year.abs()
-        )
-    }
-}
-
-/// `new Date().toISOString()`.
-pub fn now_iso() -> String {
-    iso_string(now_ms())
-}
-
-/// `left.localeCompare(right)`: ICU root collation, as V8 compares
-/// strings without a locale.
-pub fn locale_compare(left: &str, right: &str) -> std::cmp::Ordering {
-    thread_local! {
-        static COLLATOR: icu_collator::CollatorBorrowed<'static> =
-            icu_collator::Collator::try_new(Default::default(), Default::default())
-                .expect("compiled ICU collation data");
-    }
-    COLLATOR.with(|collator| collator.compare(left, right))
-}
-
-/// `Date.now()`.
-pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as i64)
 }
 
 // ------------------------------------------------------------------ URIs

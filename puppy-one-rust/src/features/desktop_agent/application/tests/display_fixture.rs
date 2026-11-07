@@ -16,7 +16,7 @@ use crate::agent::domain::transcript::message_identity::associate_agent_user_mes
 use crate::agent::domain::transcript::transcript_reducer::{
     apply_agent_event, create_agent_projection, project_agent_user_submission,
 };
-use crate::features::desktop_agent::application::agent_client_port::ClientFuture;
+use crate::features::desktop_agent::fixtures::JsonAnswer as ClientFuture;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

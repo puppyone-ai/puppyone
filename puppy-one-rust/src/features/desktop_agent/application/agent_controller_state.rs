@@ -1,13 +1,15 @@
 //! `application/agent-controller-state.ts`: the Renderer controller's state
-//! and its phase graph. Contract DTOs (inspection, session, control,
-//! references, …) stay JSON; the display is the shared [`AgentDisplay`].
+//! and its phase graph, over the contract's types (inspection, session,
+//! control, references) and the typed display ([`AgentProjection`]).
 //!
 //! `patch(Partial<AgentControllerState>)` is [`StatePatch`]: a field that
 //! is `None` is absent from the patch, `Some(None)` sets a nullable field
 //! to `null`/`undefined`.
-use crate::agent::contract::display_state::create_empty_agent_display;
-use crate::agent::contract::display_types::AgentDisplay;
-use serde_json::Value;
+use super::agent_error::ErrorDescriptor;
+use crate::agent::contract::dto::{
+    AgentProjection, Capability, DraftReference, LocalConnection, PromptMention, RuntimeInspection,
+    SessionControl, SessionMetadata, SubmissionIntent,
+};
 use std::rc::Rc;
 
 macro_rules! string_enum {
@@ -122,37 +124,37 @@ pub struct StopRequest {
 #[derive(Clone, Debug)]
 pub struct AgentControllerState {
     pub phase: AgentControllerPhase,
-    pub inspection: Option<Value>,
-    pub session: Option<Value>,
+    pub inspection: Option<RuntimeInspection>,
+    pub session: Option<SessionMetadata>,
     /// Main-owned business state. Renderer-only fields are derived from
     /// this checkpoint.
-    pub control: Option<Value>,
+    pub control: Option<SessionControl>,
     pub replica_status: ReplicaStatus,
-    pub projection: AgentDisplay,
+    pub projection: AgentProjection,
     pub selected_runtime_id: Option<String>,
     pub selected_provider_id: Option<String>,
     pub selected_model: Option<String>,
     pub selected_effort: Option<String>,
     pub selected_mode: Option<String>,
-    pub local_connections: Vec<Value>,
+    pub local_connections: Vec<LocalConnection>,
     pub local_connections_phase: LocalConnectionsPhase,
     pub local_connections_scanned_at: Option<String>,
-    pub local_connections_error: Option<Value>,
+    pub local_connections_error: Option<ErrorDescriptor>,
     pub draft: String,
     /// Atomic file-reference spans inside draft. Images remain media
     /// references.
-    pub draft_mentions: Vec<Value>,
+    pub draft_mentions: Vec<PromptMention>,
     /// Optimistic prompt shown while the native backend accepts the turn.
     pub pending_prompt: Option<String>,
     /// Immutable prompt/config/reference capture while native turn
     /// acceptance is pending.
-    pub pending_intent: Option<Value>,
+    pub pending_intent: Option<SubmissionIntent>,
     /// Lifecycle of the reusable native session prepared for the selected
     /// runtime.
     pub session_preparation: AgentSessionPreparation,
-    pub references: Vec<Value>,
+    pub references: Vec<DraftReference>,
     /// An `AgentErrorDescriptor`.
-    pub error: Option<Value>,
+    pub error: Option<ErrorDescriptor>,
     pub submitting: bool,
     pub stopping: bool,
     pub stop_request: Option<Rc<StopRequest>>,
@@ -168,7 +170,7 @@ impl Default for AgentControllerState {
             session: None,
             control: None,
             replica_status: ReplicaStatus::Detached,
-            projection: create_empty_agent_display(),
+            projection: AgentProjection::default(),
             selected_runtime_id: None,
             selected_provider_id: None,
             selected_model: None,
@@ -197,77 +199,25 @@ impl Default for AgentControllerState {
 impl AgentControllerState {
     /// `state.session?.id`.
     pub fn session_id(&self) -> Option<&str> {
-        self.session.as_ref().and_then(|s| s["id"].as_str())
+        self.session.as_ref().map(|s| s.id.as_str())
     }
     /// `state.session?.instanceId`.
     pub fn session_instance_id(&self) -> Option<&str> {
-        self.session.as_ref().and_then(|s| s["instanceId"].as_str())
+        self.session.as_ref().and_then(|s| s.instance_id.as_deref())
     }
     /// `state.inspection?.capabilities?.[name]` is truthy.
-    pub fn capability(&self, name: &str) -> bool {
+    pub fn capability(&self, capability: Capability) -> bool {
         self.inspection
             .as_ref()
-            .is_some_and(|i| crate::agent::contract::js::truthy(&i["capabilities"][name]))
+            .is_some_and(|i| i.capability(capability))
     }
     /// `state.projection.runningTurnId` when truthy.
     pub fn running_turn_id(&self) -> Option<&str> {
-        self.projection
-            .running_turn_id()
-            .filter(|id| !id.is_empty())
-    }
-    /// The state as the product's plain object (`getSnapshot()`).
-    pub fn to_value(&self) -> Value {
-        let text = |value: &Option<String>| value.clone().map_or(Value::Null, Value::from);
-        let mut value = serde_json::json!({
-            "phase": self.phase.as_str(),
-            "inspection": self.inspection,
-            "session": self.session,
-            "control": self.control,
-            "replicaStatus": self.replica_status.as_str(),
-            "projection": self.projection.to_value(),
-            "selectedRuntimeId": text(&self.selected_runtime_id),
-            "selectedProviderId": text(&self.selected_provider_id),
-            "selectedModel": text(&self.selected_model),
-            "selectedEffort": text(&self.selected_effort),
-            "selectedMode": text(&self.selected_mode),
-            "localConnections": self.local_connections,
-            "localConnectionsPhase": self.local_connections_phase.as_str(),
-            "localConnectionsScannedAt": text(&self.local_connections_scanned_at),
-            "localConnectionsError": self.local_connections_error,
-            "draft": self.draft,
-            "draftMentions": self.draft_mentions,
-            "pendingPrompt": text(&self.pending_prompt),
-            "pendingIntent": self.pending_intent,
-            "sessionPreparation": self.session_preparation.as_str(),
-            "references": self.references,
-            "error": self.error,
-            "submitting": self.submitting,
-            "stopping": self.stopping,
-            "initialized": self.initialized,
-        });
-        if let Some(request) = &self.stop_request {
-            value["stopRequest"] = serde_json::json!({
-                "commandId": request.command_id,
-                "sessionId": request.session_id,
-                "instanceId": request.instance_id,
-                "turnId": request.turn_id,
-                "status": request.status.as_str(),
-            });
-        }
-        if let Some(recovery) = &self.display_recovery {
-            value["displayRecovery"] = serde_json::json!({
-                "policy": recovery.policy.as_str(),
-                "stage": recovery.stage.as_str(),
-                "cause": recovery.cause.as_str(),
-                "attempt": recovery.attempt,
-                "maxAttempts": recovery.max_attempts,
-            });
-        }
-        value
+        self.projection.running_turn()
     }
     /// `state.error?.code`.
     pub fn error_code(&self) -> Option<&str> {
-        self.error.as_ref().and_then(|e| e["code"].as_str())
+        self.error.as_ref().map(|e| e.code.as_str())
     }
 }
 
@@ -302,27 +252,27 @@ macro_rules! state_patch {
 
 state_patch!(
     phase: AgentControllerPhase,
-    inspection: Option<Value>,
-    session: Option<Value>,
-    control: Option<Value>,
+    inspection: Option<RuntimeInspection>,
+    session: Option<SessionMetadata>,
+    control: Option<SessionControl>,
     replica_status: ReplicaStatus,
-    projection: AgentDisplay,
+    projection: AgentProjection,
     selected_runtime_id: Option<String>,
     selected_provider_id: Option<String>,
     selected_model: Option<String>,
     selected_effort: Option<String>,
     selected_mode: Option<String>,
-    local_connections: Vec<Value>,
+    local_connections: Vec<LocalConnection>,
     local_connections_phase: LocalConnectionsPhase,
     local_connections_scanned_at: Option<String>,
-    local_connections_error: Option<Value>,
+    local_connections_error: Option<ErrorDescriptor>,
     draft: String,
-    draft_mentions: Vec<Value>,
+    draft_mentions: Vec<PromptMention>,
     pending_prompt: Option<String>,
-    pending_intent: Option<Value>,
+    pending_intent: Option<SubmissionIntent>,
     session_preparation: AgentSessionPreparation,
-    references: Vec<Value>,
-    error: Option<Value>,
+    references: Vec<DraftReference>,
+    error: Option<ErrorDescriptor>,
     submitting: bool,
     stopping: bool,
     stop_request: Option<Rc<StopRequest>>,

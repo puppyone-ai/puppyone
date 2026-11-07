@@ -21,3 +21,17 @@ pub fn is_agent_transcript_activity(part: &Value) -> bool {
         _ => true,
     }
 }
+
+/// [`is_agent_tool_activity`] of a typed activity or part.
+pub fn is_tool_activity<A: super::dto::ActivityFields + ?Sized>(part: &A) -> bool {
+    matches!(part.kind(), "tool" | "command" | "file-change")
+}
+
+/// [`is_agent_transcript_activity`] of a typed activity or part.
+pub fn is_transcript_activity<A: super::dto::ActivityFields + ?Sized>(part: &A) -> bool {
+    match part.kind() {
+        "notification" => false,
+        "system" => part.detail().text("category") == Some("compaction"),
+        _ => true,
+    }
+}

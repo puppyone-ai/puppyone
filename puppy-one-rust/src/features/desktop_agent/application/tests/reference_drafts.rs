@@ -15,6 +15,7 @@ use crate::features::desktop_agent::application::agent_reference_draft_manager::
 use crate::features::desktop_agent::application::agent_reference_preview_store::AgentReferenceVisualPreview;
 use crate::features::desktop_agent::application::agent_session_controller::AgentControllerStore;
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
+use crate::features::desktop_agent::fixtures::{json_of, typed};
 use serde_json::{Value, json};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -27,7 +28,8 @@ struct Fixture {
 
 impl Fixture {
     fn references(&self) -> Vec<Value> {
-        self.store.read(|state| state.references.clone())
+        self.store
+            .read(|state| state.references.iter().map(json_of).collect())
     }
 }
 
@@ -35,11 +37,11 @@ impl Fixture {
 /// caller.
 fn fixture(bridge: Rc<FakeClient>) -> Fixture {
     let state = AgentControllerState {
-        inspection: Some(json!({ "capabilities": { "referenceInputs": {
+        inspection: Some(typed(json!({ "capabilities": { "referenceInputs": {
             "workspace": { "files": true, "directories": true, "crossRoots": true },
             "attachments": { "image": { "accepted": true } },
             "limits": { "maxCount": 32, "maxBytesPerReference": 100, "maxTotalBytes": 1000 },
-        } } })),
+        } } }))),
         ..Default::default()
     };
     let store = Rc::new(AgentControllerStore::plain(state));
@@ -82,10 +84,10 @@ fn staged(id: &str, token: &str, name: &str, size: u64) -> Value {
 fn preserves_the_structured_failure_reason() {
     for kind in ["attachment", "workspace"] {
         run(async move {
-            let error = agent_operation_error(json!({
+            let error = agent_operation_error(typed(json!({
                 "schemaVersion": 1, "code": "PROJECT_CLOSING", "message": "This project is closing.",
                 "stage": "authorization", "retryable": true, "actions": [],
-            }));
+            })));
             let bridge = FakeClient::new();
             bridge.reject("resolveAgentWorkspaceReferences", error.clone());
             bridge.reject("stageAgentAttachments", error);
@@ -151,7 +153,11 @@ fn does_not_resurrect_an_image_removed_reset_or_disposed_during_staging() {
                 "remove" => f
                     .manager
                     .remove(pending_reference["id"].as_str().unwrap_or_default()),
-                "reset" => f.manager.reset(f.references()).await,
+                "reset" => {
+                    f.manager
+                        .reset(f.store.read(|state| state.references.clone()))
+                        .await
+                }
                 _ => f.manager.dispose_renderer_resources(),
             }
             complete.resolve(json!([staged(

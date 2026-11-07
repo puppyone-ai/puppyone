@@ -1,7 +1,8 @@
 //! `tests/integration/agent/security/electron.agent-ipc-authorization.test.mjs`
-//! and `tests/integration/agent/references/electron.agent-reference-ipc.test.mjs`.
-use super::agent_ipc::{AGENT_IPC_CHANNELS, AgentIpcHandlers, AgentIpcService};
+//! and `tests/integration/agent/references/electron.agent-reference-ipc.test.mjs`:
+//! the request entry authorizes roots and references before the service.
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::application::agent_requests::{AgentRequestService, AgentRequests};
 use crate::agent::application::ports::Pending;
 use crate::agent::application::tests_support::run_local;
 use crate::agent::connections::local_agent_inventory::{
@@ -9,6 +10,7 @@ use crate::agent::connections::local_agent_inventory::{
 };
 use crate::agent::connections::tools::local_agent_tool_registry::LocalAgentToolDescriptor;
 use crate::agent::contract::operation_error::read_agent_operation_failure;
+use crate::agent::contract::protocol::AgentOperation;
 use crate::agent::infrastructure::attachments::agent_attachment_store::{
     AgentAttachmentStore, AttachmentStoreOptions,
 };
@@ -64,7 +66,7 @@ macro_rules! recorded {
     };
 }
 
-impl AgentIpcService for FakeService {
+impl AgentRequestService for FakeService {
     fn discover_providers(
         &self,
         sender: &Sender,
@@ -191,17 +193,17 @@ fn open_capabilities() -> Value {
 }
 
 fn sender(id: u64) -> Sender {
-    Sender::new(id, Rc::new(|_, _| {}))
+    Sender::new(id, Rc::new(|_| {}))
 }
 
 /// `clientHandler(handler)`: a failure envelope becomes an error.
 async fn call(
-    handlers: &AgentIpcHandlers,
+    handlers: &AgentRequests,
     sender: &Sender,
-    channel: &str,
+    operation: AgentOperation,
     request: Value,
 ) -> AgentResult<Value> {
-    let response = handlers.handle(sender, channel, &request).await;
+    let response = handlers.handle_value(sender, operation, &request).await;
     match read_agent_operation_failure(&response).map_err(AgentError::from)? {
         Some(failure) => Err(AgentError::new(
             failure["message"]
@@ -216,8 +218,8 @@ fn handlers_for(
     service: Rc<FakeService>,
     workspace: Option<String>,
     store: Option<AgentAttachmentStore>,
-) -> AgentIpcHandlers {
-    AgentIpcHandlers {
+) -> AgentRequests {
+    AgentRequests {
         agent_service: service,
         local_agent_inventory: Some(
             create_local_agent_inventory(LocalAgentInventoryOptions {
@@ -275,21 +277,21 @@ fn authorizes_create_and_resume_roots_before_invoking_the_service() {
         let rejected = call(
             &handlers,
             &owner,
-            "agent:session-create",
+            AgentOperation::CreateSession,
             json!({ "rootPath": "/other" }),
         )
         .await
         .unwrap_err();
         assert!(rejected.message.contains("does not match"));
         assert!(calls.borrow().is_empty());
-        for (channel, method) in [
-            ("agent:session-create", "createSession"),
-            ("agent:session-resume", "resumeSession"),
+        for (operation, method) in [
+            (AgentOperation::CreateSession, "createSession"),
+            (AgentOperation::ResumeSession, "resumeSession"),
         ] {
             call(
                 &handlers,
                 &owner,
-                channel,
+                operation,
                 json!({ "rootPath": "/workspace" }),
             )
             .await
@@ -307,7 +309,7 @@ fn authorizes_create_and_resume_roots_before_invoking_the_service() {
         }
         let open =
             json!({ "rootPath": "/workspace", "sessionId": "saved-session", "runtimeId": "codex" });
-        call(&handlers, &owner, "agent:session-open", open.clone())
+        call(&handlers, &owner, AgentOperation::OpenSession, open.clone())
             .await
             .unwrap();
         assert_eq!(calls.borrow().last().unwrap().2, open);
@@ -315,7 +317,7 @@ fn authorizes_create_and_resume_roots_before_invoking_the_service() {
             call(
                 &handlers,
                 &owner,
-                "agent:local-connections-discover",
+                AgentOperation::DiscoverLocalConnections,
                 json!({ "rootPath": "/workspace", "refresh": true })
             )
             .await
@@ -324,7 +326,7 @@ fn authorizes_create_and_resume_roots_before_invoking_the_service() {
         let mismatch = call(
             &handlers,
             &owner,
-            "agent:local-connections-discover",
+            AgentOperation::DiscoverLocalConnections,
             json!({ "rootPath": "/other" }),
         )
         .await
@@ -336,33 +338,8 @@ fn authorizes_create_and_resume_roots_before_invoking_the_service() {
 #[test]
 fn registers_the_full_bridge_list_including_fail_closed_steer_and_question_handlers() {
     run_local(async {
-        for channel in [
-            "agent:providers-discover",
-            "agent:local-connections-discover",
-            "agent:models-list",
-            "agent:account-read",
-            "agent:session-create",
-            "agent:session-resume",
-            "agent:session-open",
-            "agent:session-replay",
-            "agent:sessions-list",
-            "agent:session-fork",
-            "agent:session-archive",
-            "agent:session-delete",
-            "agent:session-close",
-            "agent:reference-stage",
-            "agent:reference-revoke",
-            "agent:reference-resolve-workspace",
-            "agent:reference-pick-workspace",
-            "agent:turn-start",
-            "agent:turn-steer",
-            "agent:turn-interrupt",
-            "agent:session-compact",
-            "agent:approval-resolve",
-            "agent:question-resolve",
-        ] {
-            assert!(AGENT_IPC_CHANNELS.contains(&channel), "{channel}");
-        }
+        // Every product channel is a Main operation.
+        assert_eq!(AgentOperation::MAIN.len(), 27);
         let (service, calls) = fake_service(
             Rc::new(|_| Ok(json!({}))),
             semantic_reference_capabilities(),
@@ -370,7 +347,7 @@ fn registers_the_full_bridge_list_including_fail_closed_steer_and_question_handl
         let handlers = handlers_for(service, None, None);
         let owner = sender(8);
         let steer = json!({ "rootPath": "/workspace", "sessionId": "s", "turnId": "t", "message": "steer" });
-        call(&handlers, &owner, "agent:turn-steer", steer.clone())
+        call(&handlers, &owner, AgentOperation::SteerTurn, steer.clone())
             .await
             .unwrap();
         assert_eq!(
@@ -387,7 +364,7 @@ fn registers_the_full_bridge_list_including_fail_closed_steer_and_question_handl
         call(
             &handlers,
             &owner,
-            "agent:question-resolve",
+            AgentOperation::ResolveQuestion,
             question.clone(),
         )
         .await
@@ -445,14 +422,14 @@ fn delivers_a_pathless_image_through_main_authorization_to_every_native_image_en
         );
         let handlers = handlers_for(service, Some(text(&workspace)), Some(store.clone()));
         let owner = sender(41);
-        let draft = call(&handlers, &owner, "agent:reference-stage", json!({
+        let draft = call(&handlers, &owner, AgentOperation::StageReferences, json!({
             "rootPath": text(&workspace), "epoch": "image-draft",
             "sources": [{ "name": "clipboard.png", "bytes": crate::agent::contract::js::uint8array(&bytes) }],
         }))
         .await
         .unwrap()[0]
             .clone();
-        call(&handlers, &owner, "agent:turn-start", json!({
+        call(&handlers, &owner, AgentOperation::StartTurn, json!({
             "rootPath": text(&workspace), "sessionId": "image-session", "prompt": "Describe the image",
             "referenceEpoch": "image-draft", "references": [draft],
         }))
@@ -551,7 +528,7 @@ fn turns_a_preload_file_grant_into_an_owner_bound_one_use_snapshot() {
         let draft = call(
             &handlers,
             &owner,
-            "agent:reference-stage",
+            AgentOperation::StageReferences,
             json!({
                 "rootPath": text(&workspace), "epoch": "draft-a", "sourcePaths": [text(&source)],
             }),
@@ -564,7 +541,7 @@ fn turns_a_preload_file_grant_into_an_owner_bound_one_use_snapshot() {
         assert!(draft.get("path").is_none());
         assert!(!draft.to_string().contains(&text(&source)));
         let mentions = json!([{ "referenceId": draft["id"], "start": 4, "end": 16 }]);
-        call(&handlers, &owner, "agent:turn-start", json!({
+        call(&handlers, &owner, AgentOperation::StartTurn, json!({
             "rootPath": text(&workspace), "sessionId": "session-1", "prompt": "use @outside.txt",
             "promptMentions": mentions, "referenceEpoch": "draft-a", "references": [draft],
         }))
@@ -583,7 +560,7 @@ fn turns_a_preload_file_grant_into_an_owner_bound_one_use_snapshot() {
         let replay = call(
             &handlers,
             &owner,
-            "agent:turn-start",
+            AgentOperation::StartTurn,
             json!({
                 "rootPath": text(&workspace), "sessionId": "session-1", "prompt": "replay grant",
                 "referenceEpoch": "draft-a", "references": [draft],
@@ -617,7 +594,7 @@ fn rejects_cross_window_grants_and_raw_external_workspace_paths() {
             open_capabilities(),
         );
         let handlers = handlers_for(service, Some(text(&workspace)), Some(store.clone()));
-        let draft = call(&handlers, &sender(11), "agent:reference-stage", json!({
+        let draft = call(&handlers, &sender(11), AgentOperation::StageReferences, json!({
             "rootPath": text(&workspace), "epoch": "draft-owner", "sourcePaths": [text(&source)],
         }))
         .await
@@ -626,7 +603,7 @@ fn rejects_cross_window_grants_and_raw_external_workspace_paths() {
         let workspace_draft = call(
             &handlers,
             &sender(11),
-            "agent:reference-resolve-workspace",
+            AgentOperation::ResolveWorkspaceReferences,
             json!({
                 "rootPath": text(&workspace), "paths": ["inside.txt"],
             }),
@@ -643,7 +620,7 @@ fn rejects_cross_window_grants_and_raw_external_workspace_paths() {
         let stolen = call(
             &handlers,
             &sender(12),
-            "agent:turn-start",
+            AgentOperation::StartTurn,
             json!({
                 "rootPath": text(&workspace), "sessionId": "session-1", "prompt": "steal",
                 "referenceEpoch": "draft-owner", "references": [draft],
@@ -656,7 +633,7 @@ fn rejects_cross_window_grants_and_raw_external_workspace_paths() {
                 .unwrap()
                 .is_match(&stolen.message)
         );
-        let raw = call(&handlers, &sender(11), "agent:turn-start", json!({
+        let raw = call(&handlers, &sender(11), AgentOperation::StartTurn, json!({
             "rootPath": text(&workspace), "sessionId": "session-1", "prompt": "raw path",
             "references": [{
                 "id": "raw-external", "kind": "workspace-entry", "entryType": "file",
@@ -691,7 +668,7 @@ fn keeps_staged_grants_isolated_when_one_window_owns_multiple_workspaces() {
         let draft = call(
             &handlers_a,
             &owner,
-            "agent:reference-stage",
+            AgentOperation::StageReferences,
             json!({
                 "rootPath": text(&a), "epoch": "workspace-a-draft", "sourcePaths": [text(&source)],
             }),
@@ -702,7 +679,7 @@ fn keeps_staged_grants_isolated_when_one_window_owns_multiple_workspaces() {
         let crossed = call(
             &handlers_b,
             &owner,
-            "agent:turn-start",
+            AgentOperation::StartTurn,
             json!({
                 "rootPath": text(&b), "sessionId": "session-b", "prompt": "cross workspace",
                 "referenceEpoch": "workspace-a-draft", "references": [draft],
@@ -746,7 +723,7 @@ fn resolves_one_portable_workspace_identity_against_the_assigned_session_root_at
         let portable = call(
             &handlers_a,
             &owner,
-            "agent:reference-resolve-workspace",
+            AgentOperation::ResolveWorkspaceReferences,
             json!({
                 "rootPath": text(&a), "paths": ["docs/notes.md"],
             }),
@@ -757,7 +734,7 @@ fn resolves_one_portable_workspace_identity_against_the_assigned_session_root_at
         call(
             &handlers_b,
             &owner,
-            "agent:turn-start",
+            AgentOperation::StartTurn,
             json!({
                 "rootPath": text(&b), "sessionId": "session-b", "prompt": "Review @docs/notes.md",
                 "promptMentions": [{ "referenceId": portable["id"], "start": 7, "end": 21 }],
@@ -812,7 +789,7 @@ fn releases_a_failed_turn_lease_so_the_unchanged_draft_can_retry() {
         );
         let handlers = handlers_for(service, Some(text(&workspace)), Some(store.clone()));
         let owner = sender(21);
-        let draft = call(&handlers, &owner, "agent:reference-stage", json!({
+        let draft = call(&handlers, &owner, AgentOperation::StageReferences, json!({
             "rootPath": text(&workspace), "epoch": "retry-draft", "sourcePaths": [text(&source)],
         }))
         .await
@@ -822,11 +799,16 @@ fn releases_a_failed_turn_lease_so_the_unchanged_draft_can_retry() {
             "rootPath": text(&workspace), "sessionId": "session-1", "prompt": "retry",
             "referenceEpoch": "retry-draft", "references": [draft],
         });
-        let failed = call(&handlers, &owner, "agent:turn-start", request.clone())
-            .await
-            .unwrap_err();
+        let failed = call(
+            &handlers,
+            &owner,
+            AgentOperation::StartTurn,
+            request.clone(),
+        )
+        .await
+        .unwrap_err();
         assert!(failed.message.contains("native start failed"));
-        let retried = call(&handlers, &owner, "agent:turn-start", request)
+        let retried = call(&handlers, &owner, AgentOperation::StartTurn, request)
             .await
             .unwrap();
         assert_eq!(retried["turnId"], "turn-2");

@@ -1,29 +1,29 @@
 //! `application/AgentSessionReplica.ts`: a disposable replica of the
-//! session service's display JSON. It never interprets Harness events.
-use super::agent_client_port::{AgentClientPort, AgentClientProvider, Cleanup, same_client};
+//! session service's display. It never interprets Harness events.
+use super::agent_client_port::{
+    AgentClient as _, AgentClientPort, AgentClientProvider, Cleanup, same_client,
+};
 use super::agent_controller_state::{
     AgentControllerPhase, AgentDisplayRecovery, AgentDisplayRecoveryCause as Cause,
     AgentDisplayRecoveryPolicy as Policy, AgentDisplayRecoveryStage as Stage, ReplicaStatus,
     StatePatch,
 };
-use super::agent_error::{agent_known_error, known_error_code, operation_failure};
+use super::agent_error::{
+    agent_known_error, create_agent_error, known_error_code, operation_failure,
+};
 use super::agent_session_controller::AgentControllerStore;
 use super::ui_runtime::{
     Task, Timer, UiRuntime, detach, launch, math_random, microtask, resolved, set_timeout,
     start_deferred, unstarted,
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::display_schema::assert_display;
-use crate::agent::contract::display_state::apply_agent_display_patch;
-use crate::agent::contract::display_types::AgentDisplay;
-use crate::agent::contract::js;
-use crate::agent::contract::schema::{assert_agent_session_frame, assert_agent_session_snapshot};
+use crate::agent::contract::dto::{AgentProjection, SessionFailure, SessionFrame, SessionSnapshot};
+use crate::agent::contract::protocol::{AgentOperation, FeedAck, FeedTarget, SessionTarget};
 use crate::features::session_transport::managed_operation_scope::{
     ManagedOperationScope, scoped_timeout_ms, wait_for_scoped_operation,
 };
 use futures_util::FutureExt;
 use futures_util::future::LocalBoxFuture;
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -118,12 +118,27 @@ fn clear(timer: &RefCell<Option<Timer>>) {
     }
 }
 
-fn session_request(root: &str, session_id: &str, instance_id: Option<&str>) -> Value {
-    let mut request = json!({ "rootPath": root, "sessionId": session_id });
-    if let Some(instance_id) = instance_id.filter(|id| !id.is_empty()) {
-        request["instanceId"] = Value::from(instance_id);
+fn session_target(root: &str, session_id: &str, instance_id: Option<&str>) -> SessionTarget {
+    SessionTarget {
+        root_path: root.to_string(),
+        session_id: session_id.to_string(),
+        instance_id: instance_id.filter(|id| !id.is_empty()).map(str::to_string),
     }
-    request
+}
+
+fn feed_target(
+    root: &str,
+    session_id: &str,
+    instance_id: Option<&str>,
+    subscription_id: &str,
+) -> FeedTarget {
+    let target = session_target(root, session_id, instance_id);
+    FeedTarget {
+        root_path: target.root_path,
+        session_id: target.session_id,
+        instance_id: target.instance_id,
+        subscription_id: subscription_id.to_string(),
+    }
 }
 
 impl AgentSessionReplica {
@@ -180,7 +195,7 @@ impl AgentSessionReplica {
     pub fn attach_session(
         &self,
         session_id: &str,
-    ) -> LocalBoxFuture<'static, AgentResult<Option<Value>>> {
+    ) -> LocalBoxFuture<'static, AgentResult<Option<SessionSnapshot>>> {
         self.0.attach_session(session_id)
     }
     pub fn activate_session_feed(&self, session_id: &str) -> LocalBoxFuture<'static, bool> {
@@ -249,24 +264,22 @@ impl Inner {
         }));
         let weak = self.weak();
         *self.failure_cleanup.borrow_mut() =
-            bridge.on_agent_session_failure(Rc::new(move |failure: Value| {
+            bridge.on_agent_session_failure(Rc::new(move |failure: SessionFailure| {
                 let Some(replica) = weak.upgrade() else {
                     return;
                 };
                 if replica.disposed.get() || replica.paused.get() {
                     return;
                 }
-                if failure["scope"] == "display" {
+                if failure.scope == "display" {
                     drop(replica.repair_from(Some(Cause::StreamReset)));
                     return;
                 }
                 replica.ended.set(true);
                 replica.clear_recovery_timers();
                 replica.invalidate();
-                let mut error = json!({ "code": "session-ended" });
-                if let Some(message) = failure.get("message") {
-                    error["detail"] = message.clone();
-                }
+                let mut error = create_agent_error("session-ended", None);
+                error.detail = failure.message.clone();
                 replica.store.patch(
                     StatePatch::new()
                         .phase(AgentControllerPhase::RuntimeExited)
@@ -318,12 +331,16 @@ impl Inner {
         subscription_id: &str,
         instance_id: Option<&str>,
     ) {
-        let Some(bridge) = bridge.filter(|b| b.implements("detachAgentSession")) else {
+        let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::DetachFeed)) else {
             return;
         };
-        let mut request = session_request(&self.workspace_root, session_id, instance_id);
-        request["subscriptionId"] = Value::from(subscription_id);
-        let pending = bridge.call("detachAgentSession", request);
+        let request = feed_target(
+            &self.workspace_root,
+            session_id,
+            instance_id,
+            subscription_id,
+        );
+        let pending = bridge.detach_session(request);
         detach(&self.runtime, async move {
             let _ = pending.await;
         });
@@ -332,7 +349,7 @@ impl Inner {
     fn attach_session(
         self: &Rc<Self>,
         session_id: &str,
-    ) -> LocalBoxFuture<'static, AgentResult<Option<Value>>> {
+    ) -> LocalBoxFuture<'static, AgentResult<Option<SessionSnapshot>>> {
         if self.disposed.get() || self.paused.get() {
             return Box::pin(async { Ok(None) });
         }
@@ -340,13 +357,9 @@ impl Inner {
         self.connect();
         let bridge = self.connected_bridge.borrow().clone();
         let Some(bridge) = bridge.filter(|bridge| {
-            [
-                "attachAgentSession",
-                "acknowledgeAgentSession",
-                "onAgentSessionFrame",
-            ]
-            .iter()
-            .all(|method| bridge.implements(method))
+            bridge.supports(AgentOperation::AttachSession)
+                && bridge.supports(AgentOperation::AcknowledgeFeed)
+                && bridge.delivers_frames()
         }) else {
             return Box::pin(async {
                 Err(AgentError::new(
@@ -364,10 +377,10 @@ impl Inner {
         self.store
             .patch(StatePatch::new().replica_status(ReplicaStatus::Subscribing));
         let timed_out = Rc::new(Cell::new(false));
-        let pending: Task<AgentResult<Value>> = {
+        let pending: Task<AgentResult<crate::agent::contract::dto::FeedReceipt>> = {
             let replica = self.weak();
             let bridge = bridge.clone();
-            let request = session_request(&self.workspace_root, session_id, instance_id.as_deref());
+            let request = session_target(&self.workspace_root, session_id, instance_id.as_deref());
             start_deferred(&self.runtime, async move {
                 let current = replica.upgrade().is_some_and(|r| {
                     !r.disposed.get() && !r.paused.get() && epoch == r.epoch.get()
@@ -377,7 +390,7 @@ impl Inner {
                         "The display attach was cancelled before dispatch.",
                     ));
                 }
-                bridge.call("attachAgentSession", request).await
+                bridge.attach_session(request).await
             })
         };
         // An expired attach can still create a Main subscription; release its
@@ -397,11 +410,10 @@ impl Inner {
                     return;
                 };
                 if timed_out.get() || replica.disposed.get() || epoch != replica.epoch.get() {
-                    let subscription_id = js::string_or_empty(receipt.get("subscriptionId"));
                     replica.detach(
                         Some(bridge),
                         &session_id,
-                        &subscription_id,
+                        &receipt.subscription_id,
                         instance_id.as_deref(),
                     );
                 }
@@ -440,47 +452,40 @@ impl Inner {
             if replica.disposed.get() || epoch != replica.epoch.get() {
                 return Ok(None);
             }
-            let snapshot = receipt.get("snapshot").cloned().unwrap_or(Value::Null);
-            let validated = assert_agent_session_snapshot(&snapshot)
-                .map_err(AgentError::from)
-                .and_then(|()| {
-                    let cursor = &snapshot["cursor"];
-                    if snapshot["session"]["id"] != session_id.as_str()
-                        || !js::truthy(cursor)
-                        || !js::truthy(&snapshot["control"])
-                    {
-                        return Err(AgentError::new("Invalid Agent display snapshot."));
-                    }
-                    Ok(())
-                });
-            if let Err(error) = validated {
-                let subscription_id = js::string_or_empty(receipt.get("subscriptionId"));
-                replica.detach(
-                    Some(bridge),
-                    &session_id,
-                    &subscription_id,
-                    instance_id.as_deref(),
-                );
-                replica.subscription_failed(epoch, Cause::SchemaInvalid, Some(&error));
-                return Err(agent_known_error("event-gap", None));
-            }
+            let validated = receipt.snapshot.and_then(|snapshot| {
+                if snapshot.session.id != session_id {
+                    return Err("Invalid Agent display snapshot.".to_string());
+                }
+                Ok(snapshot)
+            });
+            let snapshot = match validated {
+                Ok(snapshot) => snapshot,
+                Err(message) => {
+                    let error = AgentError::new(message).with_name("TypeError");
+                    replica.detach(
+                        Some(bridge),
+                        &session_id,
+                        &receipt.subscription_id,
+                        instance_id.as_deref(),
+                    );
+                    replica.subscription_failed(epoch, Cause::SchemaInvalid, Some(&error));
+                    return Err(agent_known_error("event-gap", None));
+                }
+            };
             replica
                 .last_snapshot_items
-                .set(snapshot["display"]["parts"].as_array().map_or(0, Vec::len));
-            let cursor = &snapshot["cursor"];
+                .set(snapshot.display.parts.len());
             *replica.subscription.borrow_mut() = Some(Rc::new(Subscription {
-                id: js::string_or_empty(receipt.get("subscriptionId")),
+                id: receipt.subscription_id.clone(),
                 session_id: session_id.clone(),
-                instance_id: snapshot["session"]["instanceId"]
-                    .as_str()
-                    .map(str::to_string),
-                stream_id: js::string_or_empty(cursor.get("streamId")),
-                revision: Cell::new(cursor["revision"].as_i64().unwrap_or(0)),
+                instance_id: snapshot.session.instance_id.clone(),
+                stream_id: snapshot.cursor.stream_id.clone(),
+                revision: Cell::new(snapshot.cursor.revision),
                 acknowledged_revision: Cell::new(None),
                 ack_promise: RefCell::default(),
                 epoch,
             }));
-            Ok(Some(snapshot))
+            Ok(Some(*snapshot))
         })
     }
 
@@ -566,11 +571,16 @@ impl Inner {
                 {
                     return Ok(());
                 }
-                let projection = AgentDisplay::from_value(&snapshot["display"])?;
+                let projection = replica
+                    .store
+                    .read(|state| {
+                        AgentProjection::project(&snapshot.display, Some(&state.projection))
+                    })
+                    .map_err(|error| AgentError::new(error).with_name("TypeError"))?;
                 replica.store.patch(
                     StatePatch::new()
-                        .session(Some(snapshot["session"].clone()))
-                        .control(Some(snapshot["control"].clone()))
+                        .session(Some(snapshot.session.clone()))
+                        .control(Some(snapshot.control.clone()))
                         .projection(projection),
                 );
                 let synchronized = replica.activate_session_feed(&session_id).await;
@@ -664,15 +674,16 @@ impl Inner {
         self.repair_from(Some(cause))
     }
 
-    fn handle_frame(self: &Rc<Self>, input: Value) {
+    fn handle_frame(self: &Rc<Self>, frame: SessionFrame) {
         let subscription = self.subscription.borrow().clone();
         let Some(subscription) = subscription else {
             return;
         };
-        if !self.current(&subscription) || input["subscriptionId"] != subscription.id.as_str() {
+        if !self.current(&subscription) || frame.subscription_id() != Some(subscription.id.as_str())
+        {
             return;
         }
-        if let Err(error) = self.apply_frame(&subscription, &input) {
+        if let Err(error) = self.apply_frame(&subscription, frame) {
             self.enter_recovery(Cause::SchemaInvalid, Some(&error));
             drop(self.repair_from(Some(Cause::SchemaInvalid)));
         }
@@ -681,41 +692,60 @@ impl Inner {
     fn apply_frame(
         self: &Rc<Self>,
         subscription: &Rc<Subscription>,
-        frame: &Value,
+        frame: SessionFrame,
     ) -> AgentResult<()> {
-        assert_agent_session_frame(frame)?;
+        let (stream_id, base_revision, revision, control, display_patch, session) = match frame {
+            SessionFrame::Malformed { error, .. } => {
+                return Err(AgentError::new(error).with_name("TypeError"));
+            }
+            SessionFrame::ResyncRequired { .. } => {
+                self.schedule_watermark_check();
+                drop(self.repair_from(Some(Cause::BackpressureOverflow)));
+                return Ok(());
+            }
+            SessionFrame::Delta {
+                stream_id,
+                base_revision,
+                revision,
+                control,
+                display_patch,
+                session,
+                ..
+            } => (
+                stream_id,
+                base_revision,
+                revision,
+                control,
+                display_patch,
+                session,
+            ),
+        };
         self.schedule_watermark_check();
-        if frame["type"] == "resync-required" {
-            drop(self.repair_from(Some(Cause::BackpressureOverflow)));
-            return Ok(());
-        }
-        if frame["streamId"] != subscription.stream_id.as_str() {
+        if stream_id != subscription.stream_id {
             drop(self.repair_from(Some(Cause::StreamReset)));
             return Ok(());
         }
-        let revision = frame["revision"].as_i64().unwrap_or(0);
         if revision <= subscription.revision.get() {
             return Ok(());
         }
-        if frame["baseRevision"].as_i64() != Some(subscription.revision.get())
-            || frame["session"]["id"] != subscription.session_id.as_str()
-        {
+        if base_revision != subscription.revision.get() || session.id != subscription.session_id {
             drop(self.repair_from(Some(Cause::RevisionGap)));
             return Ok(());
         }
         let projection = self
             .store
-            .read(|state| apply_agent_display_patch(&state.projection, &frame["displayPatch"]))?;
-        assert_display(&projection)?;
+            .read(|state| state.projection.apply(&display_patch))
+            .map_err(|error| AgentError::new(error).with_name("TypeError"))?;
+        let closed = control.connection.reason.as_deref() == Some("session-closed");
         // Validate and publish the complete transaction before moving the
         // cursor or ACKing it.
         self.store.patch(
             StatePatch::new()
                 .projection(projection)
-                .control(Some(frame["control"].clone()))
-                .session(Some(frame["session"].clone())),
+                .control(Some(*control))
+                .session(Some(*session)),
         );
-        if frame["control"]["connection"]["reason"] == "session-closed" {
+        if closed {
             self.end_instance();
             return Ok(());
         }
@@ -776,7 +806,7 @@ impl Inner {
             return task.clone();
         }
         let bridge = self.connected_bridge.borrow().clone();
-        let Some(bridge) = bridge.filter(|b| b.implements("acknowledgeAgentSession")) else {
+        let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::AcknowledgeFeed)) else {
             return resolved(Err(AgentError::new(
                 "The Agent display feed cannot acknowledge changes.",
             )));
@@ -791,19 +821,25 @@ impl Inner {
                     && subscription.acknowledged_revision.get() != Some(subscription.revision.get())
                 {
                     let revision = subscription.revision.get();
-                    let mut request = session_request(
+                    let target = feed_target(
                         &replica.workspace_root,
                         &subscription.session_id,
                         subscription.instance_id.as_deref(),
+                        &subscription.id,
                     );
-                    request["subscriptionId"] = Value::from(subscription.id.as_str());
-                    request["streamId"] = Value::from(subscription.stream_id.as_str());
-                    request["revision"] = Value::from(revision);
+                    let request = FeedAck {
+                        root_path: target.root_path,
+                        session_id: target.session_id,
+                        instance_id: target.instance_id,
+                        subscription_id: target.subscription_id,
+                        stream_id: subscription.stream_id.clone(),
+                        revision,
+                    };
                     let signal = replica.scope.borrow().signal();
                     let turn = microtask(&replica.runtime);
                     let call = async {
                         turn.await;
-                        bridge.call("acknowledgeAgentSession", request).await
+                        bridge.acknowledge_session(request).await
                     };
                     let result = wait_for_scoped_operation(
                         &replica.runtime,
@@ -812,7 +848,7 @@ impl Inner {
                         CONTROL_REQUEST_TIMEOUT_MS,
                     )
                     .await?;
-                    if !replica.current(&subscription) || !js::truthy(&result["synchronized"]) {
+                    if !replica.current(&subscription) || !result.synchronized {
                         return Ok(false);
                     }
                     subscription.acknowledged_revision.set(Some(revision));
@@ -866,23 +902,20 @@ impl Inner {
         let (Some(subscription), Some(bridge)) = (subscription, bridge) else {
             return;
         };
-        if !self.current(&subscription) || !bridge.implements("readAgentSessionWatermark") {
+        if !self.current(&subscription) || !bridge.supports(AgentOperation::ReadFeedWatermark) {
             return;
         }
-        let request = {
-            let mut request = session_request(
-                &self.workspace_root,
-                &subscription.session_id,
-                subscription.instance_id.as_deref(),
-            );
-            request["subscriptionId"] = Value::from(subscription.id.as_str());
-            request
-        };
+        let request = feed_target(
+            &self.workspace_root,
+            &subscription.session_id,
+            subscription.instance_id.as_deref(),
+            &subscription.id,
+        );
         let signal = self.scope.borrow().signal();
         let turn = microtask(&self.runtime);
         let call = async {
             turn.await;
-            bridge.call("readAgentSessionWatermark", request).await
+            bridge.read_session_watermark(request).await
         };
         match wait_for_scoped_operation(&self.runtime, call, &signal, CONTROL_REQUEST_TIMEOUT_MS)
             .await
@@ -891,13 +924,11 @@ impl Inner {
                 if self.current(&subscription) {
                     // Frames may advance while this read is in flight. A lower
                     // watermark is harmless.
-                    if js::truthy(&watermark["resyncRequired"]) {
+                    if watermark.resync_required {
                         self.repair_from(Some(Cause::BackpressureOverflow)).await;
-                    } else if watermark["streamId"] != subscription.stream_id.as_str() {
+                    } else if watermark.stream_id != subscription.stream_id {
                         self.repair_from(Some(Cause::StreamReset)).await;
-                    } else if watermark["revision"].as_i64().unwrap_or(0)
-                        > subscription.revision.get()
-                    {
+                    } else if watermark.revision > subscription.revision.get() {
                         self.repair_from(Some(Cause::RevisionGap)).await;
                     }
                 }
@@ -1076,25 +1107,40 @@ impl Inner {
     fn log_recovery(&self, cause: Cause, error: Option<&AgentError>) {
         let subscription = self.subscription.borrow().clone();
         let detail = self.store.read(|state| {
-            json!({
-                "cause": cause.as_str(),
-                "attempt": self.attempts.get(),
-                "expectedRevision": subscription.as_ref().map(|s| s.revision.get()),
-                "acknowledgedRevision": subscription.as_ref().and_then(|s| s.acknowledged_revision.get()),
-                "streamId": subscription.as_ref().map(|s| s.stream_id.clone()),
-                "snapshotItems": self.last_snapshot_items.get(),
-                "elapsedMs": self.recovery_started_at.get().map_or(0, |started| (self.runtime.now_ms() - started).max(0)),
-                "runtimeId": state.session.as_ref().and_then(|s| s["runtimeId"].as_str()).or(state.selected_runtime_id.as_deref()),
-                "runtimeVersion": state.inspection.as_ref().map(|i| i["readiness"]["version"].clone()).unwrap_or(Value::Null),
-                "timeoutMs": error.and_then(scoped_timeout_ms),
-            })
+            let runtime = state
+                .session
+                .as_ref()
+                .and_then(|s| s.runtime_id.clone())
+                .or_else(|| state.selected_runtime_id.clone());
+            let version = state
+                .inspection
+                .as_ref()
+                .and_then(|i| i.readiness.as_ref())
+                .and_then(|r| r.version.clone());
+            format!(
+                "cause={} attempt={} expectedRevision={:?} acknowledgedRevision={:?} streamId={:?} snapshotItems={} elapsedMs={} runtimeId={:?} runtimeVersion={:?} timeoutMs={:?}",
+                cause.as_str(),
+                self.attempts.get(),
+                subscription.as_ref().map(|s| s.revision.get()),
+                subscription
+                    .as_ref()
+                    .and_then(|s| s.acknowledged_revision.get()),
+                subscription.as_ref().map(|s| s.stream_id.clone()),
+                self.last_snapshot_items.get(),
+                self.recovery_started_at
+                    .get()
+                    .map_or(0, |started| (self.runtime.now_ms() - started).max(0)),
+                runtime,
+                version,
+                error.and_then(scoped_timeout_ms),
+            )
         });
         eprintln!("Agent display feed entered recovery {detail}");
     }
 
     fn handle_ended(&self, error: &AgentError) -> bool {
         let code = match operation_failure(error) {
-            Some(failure) => failure["code"].as_str().map(str::to_string),
+            Some(failure) => Some(failure.code.clone()),
             None => error.code.clone(),
         };
         if !code.is_some_and(|code| ENDED_CODES.contains(&code.as_str())) {
@@ -1114,7 +1160,7 @@ impl Inner {
                 .phase(AgentControllerPhase::RuntimeExited)
                 .replica_status(ReplicaStatus::Detached)
                 .display_recovery(None)
-                .error(Some(json!({ "code": "session-ended" }))),
+                .error(Some(create_agent_error("session-ended", None))),
         );
     }
 }

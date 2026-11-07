@@ -28,6 +28,6 @@ impl UiRuntime for WindowUiRuntime {
         Box::pin(self.background.timer(Duration::from_millis(ms)))
     }
     fn now_ms(&self) -> i64 {
-        crate::agent::contract::js::now_ms()
+        crate::clock::now_ms()
     }
 }

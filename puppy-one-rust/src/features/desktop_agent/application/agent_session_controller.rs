@@ -4,7 +4,7 @@
 //! The product's `async` methods run until their first `await` when
 //! called and keep running when nobody awaits them. These methods do the
 //! same synchronous work, then return a started [`Task`].
-use super::agent_client_port::{AgentClientProvider, AgentFile, require_bridge};
+use super::agent_client_port::{AgentClient as _, AgentClientProvider, AgentFile, require_bridge};
 use super::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryPolicy,
     AgentSessionPreparation, ReplicaStatus, StatePatch, StopRequest, StopRequestStatus,
@@ -18,6 +18,7 @@ use super::agent_reference_draft_manager::{
 use super::agent_reference_preview_store::AgentReferenceVisualPreview;
 use super::agent_runtime_discovery_cache::has_fresh_agent_runtime_inspection;
 use super::agent_runtime_selection::plan_agent_runtime_switch;
+use super::agent_session_lifecycle::CloseOutcome;
 use super::agent_session_lifecycle::{AgentSessionLifecycle, AgentSessionLifecycleOptions};
 use super::agent_session_preparer::{AgentSessionPreparer, AgentSessionPreparerOptions};
 use super::agent_session_replica::AgentSessionReplica;
@@ -29,13 +30,17 @@ use super::session_ui_state_store::{SessionUiPatch, SessionUiState, SessionUiSta
 use super::ui_runtime::{Task, UiRuntime, detach, launch, random_uuid, resolved, start, unstarted};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::constants::AGENT_IDLE_DISCONNECT_REASON;
-use crate::agent::contract::display_state::create_empty_agent_display;
-use crate::agent::contract::display_types::AgentDisplay;
-use crate::agent::contract::js;
-use crate::agent::contract::schema::assert_agent_session_snapshot;
+use crate::agent::contract::dto::{
+    AgentProjection, Capability, DraftReference, Model, PromptMention, Receipt, RuntimeInspection,
+    SessionSnapshot,
+};
+use crate::agent::contract::protocol::{
+    AgentOperation, ApprovalDecision, CloseSession, CommandPreconditions, CreateSession,
+    InterruptTurn, OpenSession, ResolveApproval, ResolveQuestion, ResumeSession, RuntimeQuery,
+};
 use crate::features::desktop_agent::domain::agent_provider_routing::{
-    agent_provider_id_for_model, choose_agent_model, choose_agent_provider,
-    list_agent_inference_providers,
+    agent_provider_id_for_model, agent_provider_id_for_selection, choose_agent_model,
+    choose_agent_provider, list_agent_inference_providers,
 };
 use crate::features::desktop_agent::domain::agent_session_open_error::agent_session_open_error;
 use crate::features::desktop_agent::domain::agent_ui_state::AgentViewportGeometry;
@@ -44,15 +49,14 @@ use crate::features::session_transport::managed_operation_scope::{
 };
 use futures_util::FutureExt;
 use futures_util::future::LocalBoxFuture;
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::{Rc, Weak};
 
 /// `() => Promise<AgentSessionSnapshot>`.
-pub type CreateSession = Rc<dyn Fn() -> LocalBoxFuture<'static, AgentResult<Value>>>;
+pub type CreateSessionFn = Rc<dyn Fn() -> LocalBoxFuture<'static, AgentResult<SessionSnapshot>>>;
 /// `(snapshot) => Promise<void>`.
-pub type ApplySnapshot = Rc<dyn Fn(Value) -> LocalBoxFuture<'static, AgentResult<()>>>;
+pub type ApplySnapshot = Rc<dyn Fn(SessionSnapshot) -> LocalBoxFuture<'static, AgentResult<()>>>;
 
 type Listener = Rc<dyn Fn()>;
 
@@ -185,22 +189,13 @@ fn derive_control_replica_state(state: &mut AgentControllerState) {
     let (Some(control), Some(session)) = (state.control.as_ref(), state.session.as_mut()) else {
         return;
     };
-    let view = state
-        .projection
-        .get("presentation")
-        .cloned()
-        .unwrap_or(Value::Null);
-    let pending_id = state
+    let view = state.projection.presentation.clone();
+    let admitted = state
         .pending_intent
         .as_ref()
-        .map(|intent| intent["id"].clone());
-    let admitted = pending_id.as_ref().is_some_and(|id| {
-        control["commands"]
-            .as_array()
-            .is_some_and(|commands| commands.iter().any(|command| command["commandId"] == *id))
-    });
+        .is_some_and(|intent| control.command(&intent.id).is_some());
     let local_pending = match &state.pending_intent {
-        Some(intent) if !admitted => intent["prompt"].as_str().map(str::to_string),
+        Some(intent) if !admitted => Some(intent.prompt.clone()),
         _ => None,
     };
     // A cached projection cannot override a newer transport failure or local
@@ -211,32 +206,29 @@ fn derive_control_replica_state(state: &mut AgentControllerState) {
             | AgentControllerPhase::Restoring
             | AgentControllerPhase::Failed
             | AgentControllerPhase::RuntimeExited
-    ) && let Some(phase) = view["phase"].as_str().and_then(AgentControllerPhase::parse)
+    ) && let Some(phase) = view
+        .as_ref()
+        .and_then(|view| AgentControllerPhase::parse(&view.phase))
     {
         state.phase = phase;
     }
-    session["activeTurnId"] = state
-        .projection
-        .get("runningTurnId")
-        .cloned()
-        .unwrap_or(Value::Null);
-    match view.get("terminalState") {
-        Some(terminal) => session["terminalState"] = terminal.clone(),
-        None => js::delete(session, "terminalState"),
-    }
-    state.pending_prompt = view["pendingPrompt"]
-        .as_str()
-        .map(str::to_string)
+    session.active_turn_id = state.projection.running_turn_id.clone();
+    session.terminal_state = view.as_ref().map(|view| view.terminal_state.clone());
+    state.pending_prompt = view
+        .as_ref()
+        .and_then(|view| view.pending_prompt.clone())
         .or(local_pending);
-    state.submitting = js::truthy(&view["submitting"]) || state.pending_intent.is_some();
-    let session_id = session["id"].as_str().map(str::to_string);
-    let instance_id = session["instanceId"].as_str().map(str::to_string);
-    let running_turn_id = state.projection.running_turn_id().map(str::to_string);
+    state.submitting =
+        view.as_ref().is_some_and(|view| view.submitting) || state.pending_intent.is_some();
+    let session_id = Some(session.id.clone());
+    let instance_id = session.instance_id.clone();
+    let running_turn_id = state.projection.running_turn_id.clone();
     let stopping = state
         .stop_request
         .as_ref()
         .is_some_and(|request| request.status == StopRequestStatus::Sending)
-        || (state.replica_status == ReplicaStatus::Live && js::truthy(&view["stopping"]));
+        || (state.replica_status == ReplicaStatus::Live
+            && view.as_ref().is_some_and(|view| view.stopping));
     if let Some(request) = &state.stop_request
         && (Some(&request.session_id) != session_id.as_ref()
             || request.instance_id != instance_id
@@ -252,8 +244,8 @@ fn derive_control_replica_state(state: &mut AgentControllerState) {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DisplayDraft {
     pub text: String,
-    pub mentions: Vec<Value>,
-    pub references: Vec<Value>,
+    pub mentions: Vec<PromptMention>,
+    pub references: Vec<DraftReference>,
     pub reference_epoch: String,
 }
 
@@ -277,7 +269,7 @@ struct Inner {
     last_inspection_at: Cell<i64>,
     model_catalog_epoch: Cell<u64>,
     disposed: Cell<bool>,
-    stop_intent: RefCell<Option<Value>>,
+    stop_intent: RefCell<Option<InterruptTurn>>,
     stop_scope: ManagedOperationScope,
     next_task: Cell<u64>,
 }
@@ -295,7 +287,7 @@ impl AgentSessionController {
     ) -> Self {
         let store = Rc::new(AgentControllerStore::default());
         let inner = Rc::new_cyclic(|weak: &Weak<Inner>| {
-            let create_session: CreateSession = {
+            let create_session: CreateSessionFn = {
                 let weak = weak.clone();
                 Rc::new(move || match upgrade(&weak) {
                     Ok(inner) => inner.create_session(),
@@ -493,7 +485,7 @@ impl AgentSessionController {
             references: state
                 .references
                 .iter()
-                .filter(|reference| reference["status"] == "ready")
+                .filter(|reference| reference.is_ready())
                 .cloned()
                 .collect(),
             reference_epoch: inner.reference_drafts.reference_epoch(),
@@ -586,7 +578,7 @@ impl AgentSessionController {
         self.0.set_draft_document(draft, &[]);
     }
 
-    pub fn set_draft_document(&self, draft: &str, draft_mentions: &[Value]) {
+    pub fn set_draft_document(&self, draft: &str, draft_mentions: &[PromptMention]) {
         self.0.set_draft_document(draft, draft_mentions);
     }
 
@@ -657,7 +649,7 @@ impl AgentSessionController {
         self.0.new_session()
     }
 
-    pub fn close_tab_session(&self) -> Task<Value> {
+    pub fn close_tab_session(&self) -> Task<CloseOutcome> {
         self.0.close_tab_session()
     }
 
@@ -701,31 +693,23 @@ impl AgentSessionController {
         start(&self.0.runtime, self.0.session_replica.retry_recovery())
     }
 
-    pub fn manage_executions(&self) -> Option<Task<AgentResult<Value>>> {
+    pub fn manage_executions(&self) -> Option<Task<AgentResult<Receipt>>> {
         let bridge = (self.0.bridge_provider)()?;
-        if !bridge.implements("manageAgentExecutions") {
+        if !bridge.supports(AgentOperation::ManageExecutions) {
             return None;
         }
-        Some(start(
-            &self.0.runtime,
-            bridge.call("manageAgentExecutions", Value::Null),
-        ))
+        Some(start(&self.0.runtime, bridge.manage_executions()))
     }
 
-    pub fn resolve_approval(&self, decision: Value) -> Task<AgentResult<()>> {
-        self.0.resolve_interaction(
-            "approvals",
-            "resolveAgentApproval",
-            "approval",
-            json!({ "decision": decision }),
-        )
+    pub fn resolve_approval(&self, decision: ApprovalDecision) -> Task<AgentResult<()>> {
+        self.0.resolve_interaction(Interaction::Approval(decision))
     }
 
     /// `resolveQuestion(resolution)`: the resolution without its routing
     /// fields.
-    pub fn resolve_question(&self, resolution: Value) -> Task<AgentResult<()>> {
+    pub fn resolve_question(&self, resolution: QuestionResolution) -> Task<AgentResult<()>> {
         self.0
-            .resolve_interaction("questions", "resolveAgentQuestion", "question", resolution)
+            .resolve_interaction(Interaction::Question(resolution))
     }
 
     pub fn compact_session(&self) -> Task<()> {
@@ -844,14 +828,14 @@ impl Inner {
                 state
                     .inspection
                     .as_ref()
-                    .is_some_and(|i| i["selectedRuntimeId"] == runtime_id.as_str())
+                    .is_some_and(|i| i.selected_runtime_id.as_deref() == Some(runtime_id.as_str()))
             }))
         })
     }
 
     fn refresh_model_connections(self: &Rc<Self>) -> Task<()> {
         let blocked = self.read(|state| {
-            !state.capability("modelConnections")
+            !state.capability(Capability::ModelConnections)
                 || state.running_turn_id().is_some()
                 || state.submitting
         });
@@ -869,12 +853,15 @@ impl Inner {
         let inner = self.clone();
         // Main invalidates inspection when connection state changes. Keep the
         // executable discovery cache: a wallet update is not a CLI reinstall.
-        let call = require_bridge(&self.bridge_provider, &["discoverAgentRuntimes"]).map(|bridge| {
-            bridge.call(
-                "discoverAgentRuntimes",
-                json!({ "rootPath": self.workspace_root, "runtimeId": runtime_id, "refresh": false }),
-            )
-        });
+        let call = require_bridge(&self.bridge_provider, &[AgentOperation::DiscoverRuntimes]).map(
+            |bridge| {
+                bridge.discover_runtimes(RuntimeQuery {
+                    root_path: Some(self.workspace_root.clone()),
+                    runtime_id: runtime_id.clone(),
+                    refresh: Some(false),
+                })
+            },
+        );
         start(&self.runtime, async move {
             let inspection = match call {
                 Ok(call) => call.await,
@@ -899,9 +886,11 @@ impl Inner {
             let (previous, bound_connection, selected_model) = inner.read(|state| {
                 (
                     state.inspection.clone(),
-                    agent_provider_id_for_model(
-                        state.session.as_ref().map(|s| &s["selectedModel"]),
-                    ),
+                    state
+                        .session
+                        .as_ref()
+                        .and_then(|s| s.selected_model.as_deref())
+                        .and_then(agent_provider_id_for_selection),
                     state.selected_model.clone(),
                 )
             });
@@ -909,34 +898,30 @@ impl Inner {
             // configuration. A transient empty catalog must not erase that
             // binding: intersect the current catalog with native model IDs,
             // never the previous UI catalog.
-            let all_models = inspection["models"].as_array().cloned().unwrap_or_default();
-            let models: Vec<Value> = if session_id.is_some() {
+            let all_models = inspection.models.clone();
+            let models: Vec<Model> = if session_id.is_some() {
                 all_models
                     .into_iter()
                     .filter(|model| {
-                        agent_provider_id_for_model(Some(model)) != bound_connection
-                            || inner
-                                .store
-                                .has_session_model(model["model"].as_str().unwrap_or_default())
+                        agent_provider_id_for_model(model) != bound_connection
+                            || inner.store.has_session_model(&model.model)
                     })
                     .collect()
             } else {
                 all_models
             };
             let mut next = inspection.clone();
-            next["models"] = Value::Array(models);
-            if js::truthy(&inspection["capabilities"]) {
-                if previous
-                    .as_ref()
-                    .is_some_and(|p| js::truthy(&p["capabilities"]["readOnly"]))
-                {
-                    next["capabilities"]["readOnly"] = Value::Bool(true);
+            next.models = models;
+            match next.capabilities.as_mut() {
+                Some(capabilities) => {
+                    if previous
+                        .as_ref()
+                        .is_some_and(|p| p.capability(Capability::ReadOnly))
+                    {
+                        capabilities.read_only = true;
+                    }
                 }
-            } else {
-                match previous.as_ref().and_then(|p| p.get("capabilities")) {
-                    Some(capabilities) => next["capabilities"] = capabilities.clone(),
-                    None => js::delete(&mut next, "capabilities"),
-                }
+                None => next.capabilities = previous.as_ref().and_then(|p| p.capabilities.clone()),
             }
             let selected = choose_agent_model(Some(&inspection), selected_model.as_deref(), None);
             inner.patch(
@@ -964,12 +949,15 @@ impl Inner {
             inner.patch(plan.patch);
             let result: AgentResult<bool> = async {
                 if let Some(session_id) = plan.session_id {
-                    let bridge = require_bridge(&inner.bridge_provider, &["closeAgentSession"])?;
+                    let bridge =
+                        require_bridge(&inner.bridge_provider, &[AgentOperation::CloseSession])?;
                     bridge
-                        .call(
-                            "closeAgentSession",
-                            json!({ "rootPath": inner.workspace_root, "sessionId": session_id, "removePersistence": false }),
-                        )
+                        .close_session(CloseSession {
+                            root_path: inner.workspace_root.clone(),
+                            session_id: session_id.clone(),
+                            remove_persistence: Some(false),
+                            ..CloseSession::default()
+                        })
                         .await?;
                     inner.session_ui.borrow_mut().delete(&session_id);
                 }
@@ -977,7 +965,9 @@ impl Inner {
                 // only through openSavedSession(), never as an implicit side
                 // effect here.
                 inner.initialize_runtime(false, false).await?;
-                Ok(inner.read(|state| state.selected_runtime_id.as_deref() == Some(runtime_id.as_str())))
+                Ok(inner.read(|state| {
+                    state.selected_runtime_id.as_deref() == Some(runtime_id.as_str())
+                }))
             }
             .await;
             result.unwrap_or_else(|error| {
@@ -1005,7 +995,10 @@ impl Inner {
         self.session_replica.connect();
         let bridge = match require_bridge(
             &self.bridge_provider,
-            &["discoverAgentRuntimes", "openAgentSession"],
+            &[
+                AgentOperation::DiscoverRuntimes,
+                AgentOperation::OpenSession,
+            ],
         ) {
             Ok(bridge) => bridge,
             Err(error) => return resolved(Err(error)),
@@ -1022,19 +1015,22 @@ impl Inner {
         start(&self.runtime, async move {
             reset.await;
             if let Some(current) = inner.read(|state| state.session_id().map(str::to_string)) {
-                let bridge = require_bridge(&inner.bridge_provider, &["closeAgentSession"])?;
+                let bridge =
+                    require_bridge(&inner.bridge_provider, &[AgentOperation::CloseSession])?;
                 bridge
-                    .call(
-                        "closeAgentSession",
-                        json!({ "rootPath": inner.workspace_root, "sessionId": current, "removePersistence": false }),
-                    )
+                    .close_session(CloseSession {
+                        root_path: inner.workspace_root.clone(),
+                        session_id: current,
+                        remove_persistence: Some(false),
+                        ..CloseSession::default()
+                    })
                     .await?;
             }
             inner.patch(
                 StatePatch::new()
                     .phase(AgentControllerPhase::Discovering)
                     .session(None)
-                    .projection(create_empty_agent_display())
+                    .projection(AgentProjection::default())
                     .selected_runtime_id(Some(runtime_id.clone()))
                     .error(None)
                     .references(Vec::new())
@@ -1042,19 +1038,28 @@ impl Inner {
             );
             let result: AgentResult<bool> = async {
                 let inspection = bridge
-                    .call(
-                        "discoverAgentRuntimes",
-                        json!({ "rootPath": inner.workspace_root, "runtimeId": runtime_id, "refresh": false }),
-                    )
+                    .discover_runtimes(RuntimeQuery {
+                        root_path: Some(inner.workspace_root.clone()),
+                        runtime_id: Some(runtime_id.clone()),
+                        refresh: Some(false),
+                    })
                     .await?;
                 let selected_model = choose_agent_model(Some(&inspection), None, None);
                 let entry = find_model(Some(&inspection), selected_model.as_deref());
                 inner.patch(
                     StatePatch::new()
-                        .selected_runtime_id(inspection["selectedRuntimeId"].as_str().map(str::to_string))
+                        .selected_runtime_id(inspection.selected_runtime_id.clone())
                         .selected_provider_id(
-                            agent_provider_id_for_model(entry.as_ref())
-                                .or_else(|| choose_agent_provider(Some(&inspection), None, selected_model.as_deref())),
+                            entry
+                                .as_ref()
+                                .and_then(agent_provider_id_for_model)
+                                .or_else(|| {
+                                    choose_agent_provider(
+                                        Some(&inspection),
+                                        None,
+                                        selected_model.as_deref(),
+                                    )
+                                }),
                         )
                         .selected_effort(choose_agent_effort(entry.as_ref(), None))
                         .selected_mode(choose_agent_mode(Some(&inspection), None))
@@ -1064,20 +1069,31 @@ impl Inner {
                         .phase(AgentControllerPhase::Restoring),
                 );
                 let result = bridge
-                    .call(
-                        "openAgentSession",
-                        json!({ "rootPath": inner.workspace_root, "sessionId": session_id, "runtimeId": runtime_id }),
-                    )
+                    .open_session(OpenSession {
+                        root_path: inner.workspace_root.clone(),
+                        session_id: session_id.clone(),
+                        runtime_id: runtime_id.clone(),
+                    })
                     .await?;
-                if result["status"] == "failed" {
-                    return Err(agent_session_open_error(&result["error"]));
-                }
-                let snapshot = result["snapshot"].clone();
-                let running = js::truthy(&snapshot["session"]["activeTurnId"]);
+                let snapshot = match result {
+                    crate::agent::contract::dto::SessionOpenResult::Opened(snapshot) => *snapshot,
+                    crate::agent::contract::dto::SessionOpenResult::Failed(error) => {
+                        return Err(agent_session_open_error(&error));
+                    }
+                };
+                let running = snapshot
+                    .session
+                    .active_turn_id
+                    .as_deref()
+                    .is_some_and(|id| !id.is_empty());
                 inner.apply_snapshot(snapshot).await?;
                 inner.patch(
                     StatePatch::new()
-                        .phase(if running { AgentControllerPhase::Running } else { AgentControllerPhase::Ready })
+                        .phase(if running {
+                            AgentControllerPhase::Running
+                        } else {
+                            AgentControllerPhase::Ready
+                        })
                         .session_preparation(AgentSessionPreparation::Ready),
                 );
                 Ok(true)
@@ -1101,10 +1117,13 @@ impl Inner {
         restore_latest: bool,
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         self.session_replica.connect();
-        let methods: &[&str] = if restore_latest {
-            &["discoverAgentRuntimes", "resumeAgentSession"]
+        let methods: &[AgentOperation] = if restore_latest {
+            &[
+                AgentOperation::DiscoverRuntimes,
+                AgentOperation::ResumeSession,
+            ]
         } else {
-            &["discoverAgentRuntimes"]
+            &[AgentOperation::DiscoverRuntimes]
         };
         let bridge = match require_bridge(&self.bridge_provider, methods) {
             Ok(bridge) => bridge,
@@ -1115,23 +1134,20 @@ impl Inner {
                 .phase(AgentControllerPhase::Discovering)
                 .error(None),
         );
-        let discover = bridge.call(
-            "discoverAgentRuntimes",
-            json!({
-                "rootPath": self.workspace_root,
-                "runtimeId": self.read(|state| state.selected_runtime_id.clone()),
-                "refresh": refresh,
-            }),
-        );
+        let discover = bridge.discover_runtimes(RuntimeQuery {
+            root_path: Some(self.workspace_root.clone()),
+            runtime_id: self.read(|state| state.selected_runtime_id.clone()),
+            refresh: Some(refresh),
+        });
         let inner = self.clone();
         Box::pin(async move {
             let result: AgentResult<()> = async {
                 let inspection = discover.await?;
                 inner.last_inspection_at.set(inner.runtime.now_ms());
-                let runtime_id = inspection["selectedRuntimeId"]
-                    .as_str()
-                    .filter(|id| !id.is_empty())
-                    .map(str::to_string);
+                let runtime_id = inspection
+                    .selected_runtime_id
+                    .clone()
+                    .filter(|id| !id.is_empty());
                 let (model, provider, mode, effort) = inner.read(|state| {
                     (
                         state.selected_model.clone(),
@@ -1142,11 +1158,13 @@ impl Inner {
                 });
                 let selected_model = choose_agent_model(Some(&inspection), model.as_deref(), None);
                 let entry = find_model(Some(&inspection), selected_model.as_deref());
-                let selected_provider_id = agent_provider_id_for_model(entry.as_ref())
+                let selected_provider_id = entry
+                    .as_ref()
+                    .and_then(agent_provider_id_for_model)
                     .or_else(|| choose_agent_provider(Some(&inspection), provider.as_deref(), selected_model.as_deref()));
                 let selected_mode = choose_agent_mode(Some(&inspection), mode.as_deref());
                 let selected_effort = choose_agent_effort(entry.as_ref(), effort.as_deref());
-                let ready = inspection["readiness"]["status"] == "ready";
+                let ready = inspection.readiness.as_ref().is_some_and(|r| r.is_ready());
                 inner.patch(
                     StatePatch::new()
                         .inspection(Some(inspection))
@@ -1167,20 +1185,25 @@ impl Inner {
                 };
                 inner.patch(StatePatch::new().phase(AgentControllerPhase::Restoring));
                 let session_id = inner.read(|state| state.session_id().map(str::to_string));
-                let mut request = json!({ "rootPath": inner.workspace_root, "runtimeId": runtime_id });
-                if let Some(session_id) = &session_id {
-                    request["sessionId"] = Value::from(session_id.as_str());
-                }
-                let restored = bridge.call("resumeAgentSession", request).await?;
-                let restored = Some(restored).filter(js::truthy);
+                let restored = bridge
+                    .resume_session(ResumeSession {
+                        root_path: inner.workspace_root.clone(),
+                        runtime_id: Some(runtime_id.clone()),
+                        session_id: session_id.clone(),
+                        ..ResumeSession::default()
+                    })
+                    .await?;
                 if session_id.is_some() && restored.is_none() {
                     return Err(AgentError::new(
                         "This Agent conversation is no longer available. Start a new conversation to continue.",
                     ));
                 }
-                let running = restored
-                    .as_ref()
-                    .is_some_and(|r| js::truthy(&r["session"]["activeTurnId"]));
+                let running = restored.as_ref().is_some_and(|r| {
+                    r.session
+                        .active_turn_id
+                        .as_deref()
+                        .is_some_and(|id| !id.is_empty())
+                });
                 let has_restored = restored.is_some();
                 if let Some(restored) = restored {
                     inner.apply_snapshot(restored).await?;
@@ -1221,9 +1244,13 @@ impl Inner {
             return state.selected_model;
         }
         if state.session.is_some()
-            && state.capability("modelConnections")
+            && state.capability(Capability::ModelConnections)
             && provider_id.map(str::to_string)
-                != agent_provider_id_for_model(state.session.as_ref().map(|s| &s["selectedModel"]))
+                != state
+                    .session
+                    .as_ref()
+                    .and_then(|s| s.selected_model.as_deref())
+                    .and_then(agent_provider_id_for_selection)
         {
             return state.selected_model;
         }
@@ -1232,7 +1259,7 @@ impl Inner {
             .filter(|id| {
                 list_agent_inference_providers(state.inspection.as_ref())
                     .iter()
-                    .any(|provider| provider["id"] == *id)
+                    .any(|provider| provider.id == *id)
             })
             .map(str::to_string);
         let selected_model = choose_agent_model(
@@ -1269,10 +1296,7 @@ impl Inner {
         let entry = model
             .filter(|m| !m.is_empty())
             .and_then(|model| find_model(state.inspection.as_ref(), Some(model)));
-        let selected_model = entry
-            .as_ref()
-            .and_then(|e| e["model"].as_str())
-            .map(str::to_string);
+        let selected_model = entry.as_ref().map(|e| e.model.clone());
         if self.requires_new_model_connection_session(model) {
             return;
         }
@@ -1286,7 +1310,7 @@ impl Inner {
             || selected_effort != state.selected_effort)
             && self.session_preparer.invalidate_selection();
         let provider = match entry.as_ref() {
-            Some(entry) => agent_provider_id_for_model(Some(entry)),
+            Some(entry) => agent_provider_id_for_model(entry),
             None => state.selected_provider_id.clone(),
         };
         let mut patch = StatePatch::new()
@@ -1305,17 +1329,18 @@ impl Inner {
             let Some(model) = model.filter(|m| !m.is_empty()) else {
                 return false;
             };
-            if state.session.is_none() || !state.capability("modelConnections") {
+            if state.session.is_none() || !state.capability(Capability::ModelConnections) {
                 return false;
             }
             let session_model = state
                 .session
                 .as_ref()
-                .map(|s| s["selectedModel"].clone())
-                .filter(|m| !m.is_null())
-                .or_else(|| state.selected_model.clone().map(Value::from));
-            agent_provider_id_for_model(session_model.as_ref())
-                != agent_provider_id_for_model(Some(&Value::from(model)))
+                .and_then(|s| s.selected_model.clone())
+                .or_else(|| state.selected_model.clone());
+            session_model
+                .as_deref()
+                .and_then(agent_provider_id_for_selection)
+                != agent_provider_id_for_selection(model)
         })
     }
 
@@ -1330,13 +1355,8 @@ impl Inner {
         {
             return resolved(());
         }
-        let Some(connection_id) =
-            find_model(state.inspection.as_ref(), Some(model)).and_then(|entry| {
-                entry["connectionId"]
-                    .as_str()
-                    .filter(|id| !id.is_empty())
-                    .map(str::to_string)
-            })
+        let Some(connection_id) = find_model(state.inspection.as_ref(), Some(model))
+            .and_then(|entry| entry.connection_id.filter(|id| !id.is_empty()))
         else {
             return resolved(());
         };
@@ -1413,7 +1433,7 @@ impl Inner {
         self.patch(patch);
     }
 
-    fn set_draft_document(&self, draft: &str, draft_mentions: &[Value]) {
+    fn set_draft_document(&self, draft: &str, draft_mentions: &[PromptMention]) {
         let mentions = draft_mentions.to_vec();
         self.patch(
             StatePatch::new()
@@ -1428,7 +1448,7 @@ impl Inner {
     }
 
     fn append_dropped_text(&self, text: &str) {
-        let value = js::trim(text);
+        let value = crate::text::trim(text);
         if value.is_empty() {
             return;
         }
@@ -1462,7 +1482,7 @@ impl Inner {
         })
     }
 
-    fn close_tab_session(self: &Rc<Self>) -> Task<Value> {
+    fn close_tab_session(self: &Rc<Self>) -> Task<CloseOutcome> {
         self.stop_scope.cancel();
         self.submission.invalidate();
         self.session_preparer.dispose();
@@ -1471,7 +1491,7 @@ impl Inner {
         let inner = self.clone();
         start(&self.runtime, async move {
             let closed = close.await;
-            if !js::truthy(&closed) {
+            if !closed.closed() {
                 return closed;
             }
             let pending = inner.read(pending_references);
@@ -1501,32 +1521,34 @@ impl Inner {
         {
             return resolved(Ok(()));
         }
-        let bridge = match require_bridge(&self.bridge_provider, &["interruptAgentTurn"]) {
+        let bridge = match require_bridge(&self.bridge_provider, &[AgentOperation::InterruptTurn]) {
             Ok(bridge) => bridge,
             Err(error) => return resolved(Err(error)),
         };
         let instance_id = state.session_instance_id().map(str::to_string);
         let reuse = self.stop_intent.borrow().as_ref().is_some_and(|intent| {
-            intent["sessionId"] == session_id.as_str()
-                && intent["turnId"] == turn_id.as_str()
-                && intent["instanceId"].as_str() == instance_id.as_deref()
+            intent.session_id == session_id
+                && intent.turn_id == turn_id
+                && intent.preconditions.instance_id == instance_id
         });
         if !reuse {
-            let mut intent = json!({
-                "rootPath": self.workspace_root,
-                "sessionId": session_id,
-                "turnId": turn_id,
-                "commandId": control_command_id("interrupt"),
+            let preconditions = CommandPreconditions {
+                instance_id: instance_id.clone(),
+                ..command_preconditions(&state)
+            };
+            *self.stop_intent.borrow_mut() = Some(InterruptTurn {
+                root_path: self.workspace_root.clone(),
+                session_id: session_id.clone(),
+                turn_id: turn_id.clone(),
+                command_id: Some(control_command_id("interrupt")),
+                preconditions,
             });
-            if let Some(instance_id) = &instance_id {
-                intent["instanceId"] = Value::from(instance_id.as_str());
-            }
-            spread(&mut intent, &command_preconditions(&state));
-            *self.stop_intent.borrow_mut() = Some(intent);
         }
-        let intent = self.stop_intent.borrow().clone().unwrap_or(Value::Null);
+        let Some(intent) = self.stop_intent.borrow().clone() else {
+            return resolved(Ok(()));
+        };
         let request = Rc::new(StopRequest {
-            command_id: js::string_or_empty(intent.get("commandId")),
+            command_id: intent.command_id.clone().unwrap_or_default(),
             session_id,
             instance_id,
             turn_id,
@@ -1538,7 +1560,7 @@ impl Inner {
                 .stopping(true)
                 .error(None),
         );
-        let call = bridge.call("interruptAgentTurn", intent);
+        let call = bridge.interrupt_turn(intent);
         let signal = self.stop_scope.signal();
         let inner = self.clone();
         start(&self.runtime, async move {
@@ -1560,7 +1582,7 @@ impl Inner {
             };
             match receipt {
                 Ok(receipt) => {
-                    let status = if js::truthy(&receipt["interruptRequested"]) {
+                    let status = if receipt.rest.truthy("interruptRequested") {
                         StopRequestStatus::Accepted
                     } else {
                         StopRequestStatus::Unconfirmed
@@ -1583,43 +1605,58 @@ impl Inner {
     }
 
     /// `resolveApproval(decision)` and `resolveQuestion(resolution)`.
-    fn resolve_interaction(
-        self: &Rc<Self>,
-        collection: &str,
-        method: &str,
-        kind: &str,
-        resolution: Value,
-    ) -> Task<AgentResult<()>> {
+    fn resolve_interaction(self: &Rc<Self>, interaction: Interaction) -> Task<AgentResult<()>> {
         let state = self.store.snapshot();
-        let Some(pending) = state.projection.collection(collection).first().cloned() else {
+        let pending = match &interaction {
+            Interaction::Approval(_) => state
+                .projection
+                .approvals
+                .first()
+                .map(|a| (a.turn_id.clone(), a.request_id.clone())),
+            Interaction::Question(_) => state
+                .projection
+                .questions
+                .first()
+                .map(|q| (q.turn_id.clone(), q.request_id.clone())),
+        };
+        let Some((turn_id, request_id)) = pending else {
             return resolved(Ok(()));
         };
         let Some(session_id) = state.session_id().map(str::to_string) else {
             return resolved(Ok(()));
         };
-        let bridge = match require_bridge(&self.bridge_provider, &[method]) {
+        let operation = match interaction {
+            Interaction::Approval(_) => AgentOperation::ResolveApproval,
+            Interaction::Question(_) => AgentOperation::ResolveQuestion,
+        };
+        let bridge = match require_bridge(&self.bridge_provider, &[operation]) {
             Ok(bridge) => bridge,
             Err(error) => return resolved(Err(error)),
         };
         self.patch(StatePatch::new().error(None));
-        let mut request = if kind == "question" {
-            resolution.clone()
-        } else {
-            json!({})
+        let preconditions = command_preconditions(&state);
+        let call = match interaction {
+            Interaction::Approval(decision) => bridge.resolve_approval(ResolveApproval {
+                root_path: self.workspace_root.clone(),
+                session_id,
+                turn_id,
+                request_id,
+                command_id: Some(control_command_id("approval")),
+                preconditions,
+                decision,
+            }),
+            Interaction::Question(resolution) => bridge.resolve_question(ResolveQuestion {
+                root_path: self.workspace_root.clone(),
+                session_id,
+                turn_id,
+                request_id,
+                command_id: Some(control_command_id("question")),
+                preconditions,
+                answer: resolution.answer,
+                answers: resolution.answers,
+                rejected: resolution.rejected,
+            }),
         };
-        if !request.is_object() {
-            request = json!({});
-        }
-        request["rootPath"] = Value::from(self.workspace_root.as_str());
-        request["sessionId"] = Value::from(session_id);
-        request["turnId"] = pending["turnId"].clone();
-        request["requestId"] = pending["requestId"].clone();
-        request["commandId"] = Value::from(control_command_id(kind));
-        spread(&mut request, &command_preconditions(&state));
-        if kind == "approval" {
-            request["decision"] = resolution["decision"].clone();
-        }
-        let call = bridge.call(method, request);
         let inner = self.clone();
         start(&self.runtime, async move {
             if let Err(error) = call.await {
@@ -1630,21 +1667,20 @@ impl Inner {
         })
     }
 
-    fn create_session(&self) -> LocalBoxFuture<'static, AgentResult<Value>> {
-        let bridge = match require_bridge(&self.bridge_provider, &["createAgentSession"]) {
+    fn create_session(&self) -> LocalBoxFuture<'static, AgentResult<SessionSnapshot>> {
+        let bridge = match require_bridge(&self.bridge_provider, &[AgentOperation::CreateSession]) {
             Ok(bridge) => bridge,
             Err(error) => return Box::pin(async move { Err(error) }),
         };
-        let request = self.read(|state| {
-            json!({
-                "rootPath": self.workspace_root,
-                "runtimeId": state.selected_runtime_id,
-                "model": state.selected_model,
-                "effort": state.selected_effort,
-                "mode": state.selected_mode,
-            })
+        let request = self.read(|state| CreateSession {
+            root_path: self.workspace_root.clone(),
+            runtime_id: state.selected_runtime_id.clone(),
+            model: state.selected_model.clone(),
+            effort: state.selected_effort.clone(),
+            mode: state.selected_mode.clone(),
+            ..CreateSession::default()
         });
-        bridge.call("createAgentSession", request)
+        bridge.create_session(request)
     }
 
     /// Restores a settled native connection only when the user sends the
@@ -1655,25 +1691,25 @@ impl Inner {
         let runtime_id = current
             .session
             .as_ref()
-            .and_then(|s| s["runtimeId"].as_str())
+            .and_then(|s| s.runtime_id.clone())
             .filter(|id| !id.is_empty())
-            .map(str::to_string)
             .or(current.selected_runtime_id.clone());
         let (Some(session_id), Some(runtime_id)) = (session_id, runtime_id) else {
             return Box::pin(async { Ok(false) });
         };
-        let control = current.control.clone().unwrap_or(Value::Null);
-        if control["connection"]["status"] != "exited" {
+        let control = current.control.clone().unwrap_or_default();
+        if control.connection.status != "exited" {
             return Box::pin(async { Ok(true) });
         }
-        if control["connection"]["reason"] != AGENT_IDLE_DISCONNECT_REASON
-            || control["execution"]["certainty"] != "confirmed"
-            || js::truthy(&control["execution"]["activeTurnId"])
-            || js::truthy(&control["execution"]["uncertainTurnId"])
+        let present = |id: &Option<String>| id.as_deref().is_some_and(|id| !id.is_empty());
+        if control.connection.reason.as_deref() != Some(AGENT_IDLE_DISCONNECT_REASON)
+            || control.execution.certainty != "confirmed"
+            || present(&control.execution.active_turn_id)
+            || present(&control.execution.uncertain_turn_id)
         {
             return Box::pin(async { Ok(false) });
         }
-        let bridge = match require_bridge(&self.bridge_provider, &["resumeAgentSession"]) {
+        let bridge = match require_bridge(&self.bridge_provider, &[AgentOperation::ResumeSession]) {
             Ok(bridge) => bridge,
             Err(error) => return Box::pin(async move { Err(error) }),
         };
@@ -1683,19 +1719,25 @@ impl Inner {
                 .error(None)
                 .session_preparation(AgentSessionPreparation::Preparing),
         );
-        let call = bridge.call(
-            "resumeAgentSession",
-            json!({ "rootPath": self.workspace_root, "runtimeId": runtime_id, "sessionId": session_id }),
-        );
+        let call = bridge.resume_session(ResumeSession {
+            root_path: self.workspace_root.clone(),
+            runtime_id: Some(runtime_id),
+            session_id: Some(session_id),
+            ..ResumeSession::default()
+        });
         let inner = self.clone();
         Box::pin(async move {
             let result: AgentResult<bool> = async {
-                let restored = Some(call.await?).filter(js::truthy).ok_or_else(|| {
+                let restored = call.await?.ok_or_else(|| {
                     AgentError::new(
                         "This Agent conversation is no longer available. Start a new conversation to continue.",
                     )
                 })?;
-                let running = js::truthy(&restored["session"]["activeTurnId"]);
+                let running = restored
+                    .session
+                    .active_turn_id
+                    .as_deref()
+                    .is_some_and(|id| !id.is_empty());
                 inner.apply_snapshot(restored).await?;
                 inner.patch(
                     StatePatch::new()
@@ -1719,12 +1761,12 @@ impl Inner {
 
     fn apply_snapshot(
         self: &Rc<Self>,
-        snapshot: Value,
+        snapshot: SessionSnapshot,
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         if let Err(error) = self.apply_snapshot_state(&snapshot) {
             return Box::pin(async move { Err(error) });
         }
-        let session_id = js::string_or_empty(snapshot["session"].get("id"));
+        let session_id = snapshot.session.id.clone();
         let feed = self.session_replica.attach_session(&session_id);
         let inner = self.clone();
         Box::pin(async move {
@@ -1753,87 +1795,86 @@ impl Inner {
         })
     }
 
-    fn apply_snapshot_state(&self, snapshot: &Value) -> AgentResult<()> {
-        assert_agent_session_snapshot(snapshot)?;
-        let projection = AgentDisplay::from_value(&snapshot["display"])?;
-        let models = snapshot["models"].as_array().cloned().unwrap_or_default();
+    fn apply_snapshot_state(&self, snapshot: &SessionSnapshot) -> AgentResult<()> {
+        let projection = self
+            .read(|state| AgentProjection::project(&snapshot.display, Some(&state.projection)))
+            .map_err(|error| AgentError::new(error).with_name("TypeError"))?;
+        let models = snapshot.models.clone();
         self.store.set_session_model_ids(
             models
                 .iter()
-                .filter_map(|model| model["model"].as_str().map(str::to_string))
+                .map(|model| model.model.clone())
                 .collect::<HashSet<_>>(),
         );
         let state = self.store.snapshot();
-        let session = &snapshot["session"];
+        let session = &snapshot.session;
         let inspection = state.inspection.as_ref().map(|current| {
             let mut inspection = current.clone();
-            let nullish = |value: &Value| value.is_null();
-            let runtime = [
-                &snapshot["runtime"],
-                &session["runtime"],
-                &current["runtime"],
-            ]
-            .into_iter()
-            .find(|value| !nullish(value))
-            .cloned();
-            match runtime {
-                Some(runtime) => inspection["runtime"] = runtime,
-                None => js::delete(&mut inspection, "runtime"),
-            }
-            match snapshot.get("account") {
-                Some(account) => inspection["account"] = account.clone(),
-                None => js::delete(&mut inspection, "account"),
-            }
-            for key in ["providers", "modes", "commands"] {
-                inspection[key] = [&snapshot[key], &current[key]]
-                    .into_iter()
-                    .find(|value| !nullish(value))
-                    .cloned()
-                    .unwrap_or_else(|| json!([]));
-            }
-            inspection["models"] = Value::Array(models.clone());
-            match snapshot.get("capabilities") {
-                Some(capabilities) => inspection["capabilities"] = capabilities.clone(),
-                None => js::delete(&mut inspection, "capabilities"),
-            }
+            inspection.runtime = snapshot
+                .runtime
+                .clone()
+                .or_else(|| session.runtime.clone())
+                .or_else(|| current.runtime.clone());
+            inspection.account = snapshot.account.clone();
+            inspection.providers = Some(
+                snapshot
+                    .providers
+                    .clone()
+                    .or_else(|| current.providers.clone())
+                    .unwrap_or_default(),
+            );
+            inspection.modes = Some(
+                snapshot
+                    .modes
+                    .clone()
+                    .or_else(|| current.modes.clone())
+                    .unwrap_or_default(),
+            );
+            inspection.commands = Some(
+                snapshot
+                    .commands
+                    .clone()
+                    .or_else(|| current.commands.clone())
+                    .unwrap_or_default(),
+            );
+            inspection.models = models.clone();
+            inspection.capabilities = snapshot.capabilities.clone();
             inspection
         });
-        let truthy_str =
-            |value: &Value| value.as_str().filter(|v| !v.is_empty()).map(str::to_string);
-        let requested_model = truthy_str(&session["selectedModel"])
+        let truthy_str = |value: &Option<String>| value.clone().filter(|v| !v.is_empty());
+        let requested_model = truthy_str(&session.selected_model)
             .or(state.selected_model.clone())
             .or_else(|| choose_agent_model(inspection.as_ref(), None, None));
         let selected_model =
             choose_agent_model(inspection.as_ref(), requested_model.as_deref(), None);
         let entry = find_model(inspection.as_ref(), selected_model.as_deref());
-        let selected_provider_id = agent_provider_id_for_model(entry.as_ref()).or_else(|| {
-            choose_agent_provider(
-                inspection.as_ref(),
-                state.selected_provider_id.as_deref(),
-                selected_model.as_deref(),
-            )
-        });
+        let selected_provider_id = entry
+            .as_ref()
+            .and_then(agent_provider_id_for_model)
+            .or_else(|| {
+                choose_agent_provider(
+                    inspection.as_ref(),
+                    state.selected_provider_id.as_deref(),
+                    selected_model.as_deref(),
+                )
+            });
         let selected_effort = choose_agent_effort(
             entry.as_ref(),
-            truthy_str(&session["selectedEffort"])
+            truthy_str(&session.selected_effort)
                 .or(state.selected_effort.clone())
                 .as_deref(),
         );
-        let selected_mode = truthy_str(&session["selectedMode"])
+        let selected_mode = truthy_str(&session.selected_mode)
             .or(state.selected_mode.clone())
             .or_else(|| choose_agent_mode(inspection.as_ref(), None));
-        let selected_runtime_id = truthy_str(&session["runtimeId"])
-            .or_else(|| truthy_str(&session["provider"]))
+        let selected_runtime_id = truthy_str(&session.runtime_id)
+            .or_else(|| truthy_str(&Some(session.provider.clone())))
             .or(state.selected_runtime_id.clone());
         self.patch(
             StatePatch::new()
                 .session(Some(session.clone()))
-                .control(Some(snapshot["control"].clone()).filter(|c| !c.is_null()))
-                .replica_status(if js::truthy(&snapshot["cursor"]) {
-                    ReplicaStatus::Subscribing
-                } else {
-                    ReplicaStatus::Detached
-                })
+                .control(Some(snapshot.control.clone()))
+                .replica_status(ReplicaStatus::Subscribing)
                 .inspection(inspection)
                 .selected_runtime_id(selected_runtime_id)
                 .selected_provider_id(selected_provider_id)
@@ -1864,31 +1905,22 @@ impl Inner {
 }
 
 /// `state.pendingIntent?.references ?? []`.
-fn pending_references(state: &AgentControllerState) -> Vec<Value> {
+fn pending_references(state: &AgentControllerState) -> Vec<DraftReference> {
     state
         .pending_intent
         .as_ref()
-        .and_then(|intent| intent["references"].as_array().cloned())
+        .map(|intent| intent.references.clone())
         .unwrap_or_default()
 }
 
 /// `inspection?.models.find((model) => model.model === selected)`.
-fn find_model(inspection: Option<&Value>, selected: Option<&str>) -> Option<Value> {
+fn find_model(inspection: Option<&RuntimeInspection>, selected: Option<&str>) -> Option<Model> {
     let selected = selected?;
-    inspection?["models"]
-        .as_array()?
+    inspection?
+        .models
         .iter()
-        .find(|model| model["model"] == selected)
+        .find(|model| model.model == selected)
         .cloned()
-}
-
-/// `{ ...request, ...extra }`.
-fn spread(request: &mut Value, extra: &Value) {
-    if let (Some(request), Some(extra)) = (request.as_object_mut(), extra.as_object()) {
-        for (key, value) in extra {
-            request.insert(key.clone(), value.clone());
-        }
-    }
 }
 
 /// `controlCommandId(kind)`.
@@ -1897,13 +1929,28 @@ fn control_command_id(kind: &str) -> String {
 }
 
 /// `commandPreconditions(state)`.
-pub fn command_preconditions(state: &AgentControllerState) -> Value {
+pub fn command_preconditions(state: &AgentControllerState) -> CommandPreconditions {
     let Some(control) = state.control.as_ref() else {
-        return json!({});
+        return CommandPreconditions::default();
     };
-    json!({
-        "expectedSessionEpoch": control["sessionEpoch"],
-        "expectedAdapterGeneration": control["adapterGeneration"],
-        "expectedRunGeneration": control["runGeneration"],
-    })
+    CommandPreconditions {
+        instance_id: None,
+        expected_session_epoch: Some(control.session_epoch.clone()),
+        expected_adapter_generation: Some(control.adapter_generation),
+        expected_run_generation: Some(control.run_generation),
+    }
+}
+
+/// An answer to the first blocking interaction.
+enum Interaction {
+    Approval(ApprovalDecision),
+    Question(QuestionResolution),
+}
+
+/// `resolveQuestion(resolution)`'s resolution.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct QuestionResolution {
+    pub answer: Option<crate::agent::contract::protocol::QuestionAnswer>,
+    pub answers: Option<Vec<Vec<String>>>,
+    pub rejected: Option<bool>,
 }

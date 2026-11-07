@@ -1,11 +1,14 @@
-//! The Agent host thread end to end: a window's requests reach the
-//! service on the host thread and its session frames come back.
+//! The Agent host thread end to end: a window's typed requests reach the
+//! service on the host thread and its session frames come back as events.
 use super::agent_host::{AgentHostHandle, AgentHostServices, window_root_authorizer};
+use crate::agent::application::agent_requests::AgentRequests;
 use crate::agent::application::tests::harness::{HarnessOptions, create_service_harness};
-use crate::agent::contract::operation_error::read_agent_operation_failure;
-use crate::agent::ipc::agent_ipc::AgentIpcHandlers;
+use crate::agent::contract::dto::SessionFrame;
+use crate::agent::contract::protocol::{
+    AgentEvent, AgentRequest, AgentResponse, CreateSession, FeedAck, ReplaySession, SessionTarget,
+    StartTurn,
+};
 use core::prelude::v1::test;
-use serde_json::{Value, json};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
@@ -13,7 +16,7 @@ fn start() -> AgentHostHandle {
     AgentHostHandle::start(Box::new(|roots| {
         let harness = create_service_harness(HarnessOptions::default());
         Ok(AgentHostServices {
-            handlers: AgentIpcHandlers {
+            requests: AgentRequests {
                 agent_service: Rc::new(harness.service.clone()),
                 local_agent_inventory: None,
                 authorize_workspace_root: window_root_authorizer(roots),
@@ -44,116 +47,94 @@ fn serves_a_window_on_the_host_thread_and_returns_its_session_frames() {
         .unwrap()
         .to_string_lossy()
         .into_owned();
-    let frames: Arc<Mutex<Vec<(String, Value)>>> = Arc::default();
-    let sink = frames.clone();
-    host.open_window(
-        7,
-        Box::new(move |channel, payload| {
-            sink.lock().unwrap().push((channel.to_string(), payload));
-        }),
-    );
-    let unauthorized = block_on(host.invoke(
-        7,
-        "agent:session-create",
-        json!({ "rootPath": root, "runtimeId": "codex" }),
-    ));
-    let failure = read_agent_operation_failure(&unauthorized)
-        .unwrap()
-        .unwrap();
-    assert!(
-        failure["message"]
-            .as_str()
-            .unwrap()
-            .contains("open project")
-    );
+    let events: Arc<Mutex<Vec<AgentEvent>>> = Arc::default();
+    let sink = events.clone();
+    host.open_window(7, Box::new(move |event| sink.lock().unwrap().push(event)));
+    let create = || {
+        AgentRequest::CreateSession(CreateSession {
+            root_path: root.clone(),
+            runtime_id: Some("codex".into()),
+            ..Default::default()
+        })
+    };
+    let unauthorized = block_on(host.request(7, create())).unwrap_err();
+    assert!(unauthorized.message.contains("open project"));
 
     host.authorize_roots(7, [root.clone()]);
-    let snapshot = block_on(host.invoke(
+    let Ok(AgentResponse::Snapshot(snapshot)) = block_on(host.request(7, create())) else {
+        panic!("a snapshot");
+    };
+    let session = snapshot.session.clone();
+    assert_eq!(session.runtime_id.as_deref(), Some("codex"));
+    let target = SessionTarget {
+        root_path: root.clone(),
+        session_id: session.id.clone(),
+        instance_id: session.instance_id.clone(),
+    };
+    let Ok(AgentResponse::FeedReceipt(receipt)) =
+        block_on(host.request(7, AgentRequest::AttachSession(target.clone())))
+    else {
+        panic!("a receipt");
+    };
+    let control = receipt
+        .snapshot
+        .as_ref()
+        .expect("a valid snapshot")
+        .control
+        .clone();
+    let acknowledged = block_on(host.request(
         7,
-        "agent:session-create",
-        json!({ "rootPath": root, "runtimeId": "codex" }),
-    ));
-    assert!(
-        read_agent_operation_failure(&snapshot).unwrap().is_none(),
-        "{snapshot}"
-    );
-    let session = snapshot["session"].clone();
-    assert_eq!(session["runtimeId"], "codex");
-    let attach = block_on(host.invoke(
-        7,
-        "agent:session-attach",
-        json!({
-            "rootPath": root,
-            "sessionId": session["id"],
-            "instanceId": session["instanceId"],
+        AgentRequest::AcknowledgeFeed(FeedAck {
+            root_path: root.clone(),
+            session_id: session.id.clone(),
+            instance_id: session.instance_id.clone(),
+            subscription_id: receipt.subscription_id.clone(),
+            stream_id: control.stream_id.clone(),
+            revision: control.revision,
         }),
     ));
     assert!(
-        read_agent_operation_failure(&attach).unwrap().is_none(),
-        "{attach}"
+        matches!(acknowledged, Ok(AgentResponse::FeedAcknowledgement(_))),
+        "{acknowledged:?}"
     );
-    let control = &attach["snapshot"]["control"];
-    let acknowledged = block_on(host.invoke(
+    let started = block_on(host.request(
         7,
-        "agent:session-feed-ack",
-        json!({
-            "rootPath": root,
-            "sessionId": session["id"],
-            "instanceId": session["instanceId"],
-            "subscriptionId": attach["subscriptionId"],
-            "streamId": control["streamId"],
-            "revision": control["revision"],
+        AgentRequest::StartTurn(StartTurn {
+            root_path: root.clone(),
+            session_id: session.id.clone(),
+            preconditions: crate::agent::contract::protocol::CommandPreconditions {
+                instance_id: session.instance_id.clone(),
+                ..Default::default()
+            },
+            prompt: "Hello".into(),
+            ..Default::default()
         }),
     ));
-    assert!(
-        read_agent_operation_failure(&acknowledged)
-            .unwrap()
-            .is_none(),
-        "{acknowledged}"
-    );
-    let started = block_on(host.invoke(
-        7,
-        "agent:turn-start",
-        json!({
-            "rootPath": root,
-            "sessionId": session["id"],
-            "instanceId": session["instanceId"],
-            "prompt": "Hello",
-        }),
-    ));
-    assert!(
-        read_agent_operation_failure(&started).unwrap().is_none(),
-        "{started}"
-    );
-    for _ in 0..200 {
-        if frames
+    assert!(started.is_ok(), "{started:?}");
+    let delta = || {
+        events
             .lock()
             .unwrap()
             .iter()
-            .any(|(channel, _)| channel == "agent:session-frame")
-        {
+            .any(|event| matches!(event, AgentEvent::SessionFrame(SessionFrame::Delta { .. })))
+    };
+    for _ in 0..200 {
+        if delta() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    assert!(
-        frames
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|(channel, _)| channel == "agent:session-frame"),
-        "attach={attach} started={started} frames={:?}",
-        frames.lock().unwrap()
-    );
+    assert!(delta(), "events={:?}", events.lock().unwrap());
 
-    let other = block_on(host.invoke(
+    let other = block_on(host.request(
         9,
-        "agent:session-replay",
-        json!({
-            "rootPath": root, "sessionId": session["id"], "instanceId": session["instanceId"],
+        AgentRequest::ReplaySession(ReplaySession {
+            root_path: root,
+            session_id: session.id.clone(),
+            after_sequence: 0,
         }),
     ));
-    assert!(read_agent_operation_failure(&other).unwrap().is_some());
+    assert!(other.is_err());
     host.close_window(7);
     block_on(host.shutdown());
 }

@@ -75,12 +75,10 @@ impl FeedHarness {
             let transform = transform.clone();
             Sender::new(
                 890,
-                Rc::new(move |channel: &str, frame: Value| {
-                    if channel == "agent:session-frame" {
-                        let transform = transform.borrow().clone();
-                        if let Some(value) = transform(frame) {
-                            bridge.frame(value);
-                        }
+                Rc::new(move |frame: Value| {
+                    let transform = transform.borrow().clone();
+                    if let Some(value) = transform(frame) {
+                        bridge.frame(value);
                     }
                 }),
             )
@@ -192,9 +190,9 @@ impl FeedHarness {
     }
 
     pub fn projection(&self) -> Value {
-        self.controller
-            .store()
-            .read(|state| state.projection.to_value())
+        self.controller.store().read(|state| {
+            crate::features::desktop_agent::fixtures::projection_json(&state.projection)
+        })
     }
 
     pub fn assert_display_matches(&self) {
@@ -234,7 +232,7 @@ fn messages(h: &FeedHarness) -> Vec<Value> {
             .projection
             .messages
             .iter()
-            .map(|message| message["text"].clone())
+            .map(|message| Value::from(message.text.as_str()))
             .collect()
     })
 }
@@ -305,7 +303,11 @@ fn termination_of_a_healthy_display_is_not_a_recovery_incident() {
         release
             .send(json!({ "kind": "released" }))
             .expect("release");
-        assert_eq!(closing.await, json!({ "kind": "released" }));
+        let closed = closing.await;
+        let crate::features::desktop_agent::application::agent_session_lifecycle::CloseOutcome::Terminated(receipt) = closed else {
+            panic!("a termination receipt: {closed:?}");
+        };
+        assert_eq!(receipt.rest.text("kind"), Some("released"));
         h.dispose().await;
     });
 }
@@ -409,10 +411,10 @@ fn ends_a_missing_runtime_instance_instead_of_retrying_it_as_a_history_gap() {
         h.initialize().await;
         h.bridge.reject(
             "readAgentSessionWatermark",
-            agent_operation_error(json!({
+            agent_operation_error(crate::features::desktop_agent::fixtures::typed(json!({
                 "schemaVersion": 1, "code": "SESSION_NOT_FOUND", "message": "The runtime instance has ended.",
                 "retryable": false, "actions": [],
-            })),
+            }))),
         );
         advance(WATERMARK_IDLE_MS).await;
         let state = h.controller.get_snapshot();
@@ -680,24 +682,19 @@ fn keeps_a_model_retry_while_a_tool_progresses_and_clears_it_on_completion() {
         assert_eq!(
             state
                 .projection
-                .get("connectionStatus")
-                .map(|s| s["message"].clone()),
-            Some(json!("Retrying"))
+                .connection_status
+                .as_ref()
+                .map(|s| s.message.clone()),
+            Some("Retrying".to_string())
         );
         assert_eq!(
-            state
-                .control
-                .as_ref()
-                .map(|c| c["connection"]["status"].clone()),
-            Some(json!("connected"))
+            state.control.as_ref().map(|c| c.connection.status.clone()),
+            Some("connected".to_string())
         );
         h.emit_a("turn.completed");
         assert_eq!(
-            h.controller
-                .get_snapshot()
-                .projection
-                .get("connectionStatus"),
-            Some(&Value::Null)
+            h.controller.get_snapshot().projection.connection_status,
+            None
         );
         h.assert_display_matches();
         h.dispose().await;
@@ -763,7 +760,7 @@ fn coalesces_a_frame_burst_into_bounded_acknowledgements() {
             let revision = h
                 .controller
                 .store()
-                .read(|state| state.control.as_ref().map(|c| c["revision"].clone()));
+                .read(|state| state.control.as_ref().map(|c| Value::from(c.revision)));
             h.bridge
                 .calls("acknowledgeAgentSession")
                 .last()

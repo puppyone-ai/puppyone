@@ -4,9 +4,9 @@
 //! `AgentCommandSuggestions`, plus `useAgentReferenceIngestion`'s drops.
 use super::super::agent_chat_view_model::AgentChatViewModel;
 use super::super::agent_theme::AgentTheme;
+use super::AgentChatTabPanel;
 use super::elements::{effort_label, mention_chip};
-use super::{AgentChatTabPanel, text_of};
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{DraftReference, PromptMention, ReferenceStatus};
 use crate::features::desktop_agent::application::agent_client_port::{AgentFile, AgentFileSource};
 use crate::features::desktop_agent::application::agent_controller_state::AgentControllerState;
 use crate::features::desktop_agent::application::agent_reference_preview_store::object_url_bytes;
@@ -24,7 +24,6 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
 use gpui_kit::component::input::{InlineToken, InputContent};
-use serde_json::{Value, json};
 use std::path::PathBuf;
 
 /// `--agent-reference-card-height`.
@@ -45,7 +44,7 @@ pub(super) fn token_renderer() -> crate::ui::form_input::TokenRenderer {
 }
 
 /// `localizedReferenceError(reference, t)`.
-pub(super) fn localized_reference_error(reference: &Value) -> String {
+pub(super) fn localized_reference_error(reference: &DraftReference) -> String {
     const LOCALIZED: [&str; 10] = [
         "capability-unreported",
         "reference-size",
@@ -58,31 +57,32 @@ pub(super) fn localized_reference_error(reference: &Value) -> String {
         "reference-total-size",
         "workspace-resolution-failed",
     ];
-    match reference["error"]["code"].as_str() {
+    let error = reference.error.as_ref();
+    match error.map(|e| e.code.as_str()) {
         Some(code) if LOCALIZED.contains(&code) => {
             t(&format!("agent.reference.error.{code}")).into()
         }
-        _ => reference["error"]["message"]
-            .as_str()
+        _ => error
+            .map(|e| e.message.clone())
             .filter(|m| !m.is_empty())
-            .map(str::to_string)
             .unwrap_or_else(|| t("agent.reference.failed").into()),
     }
 }
 
 /// `AgentVisualAttachment`'s status details: the localized state, then the
 /// raw error when it says more.
-fn reference_details(reference: &Value) -> Vec<String> {
-    let status = match reference["status"].as_str() {
-        Some("resolving") => t("agent.reference.resolving").to_string(),
-        Some("error") => localized_reference_error(reference),
-        _ => String::new(),
+fn reference_details(reference: &DraftReference) -> Vec<String> {
+    let status = match reference.status {
+        ReferenceStatus::Resolving => t("agent.reference.resolving").to_string(),
+        ReferenceStatus::Error => localized_reference_error(reference),
+        ReferenceStatus::Ready => String::new(),
     };
-    let raw = if reference["status"] == "error" {
-        reference["error"]["message"]
-            .as_str()
+    let raw = if reference.status == ReferenceStatus::Error {
+        reference
+            .error
+            .as_ref()
+            .map(|e| e.message.clone())
             .unwrap_or_default()
-            .to_string()
     } else {
         String::new()
     };
@@ -98,10 +98,10 @@ pub(super) fn can_submit(state: &AgentControllerState, view: &AgentChatViewModel
     let attachment_only = view
         .reference_capabilities
         .as_ref()
-        .is_some_and(|c| c["attachmentOnly"] == true);
-    let has_submission =
-        !js::trim(&state.draft).is_empty() || (!state.references.is_empty() && attachment_only);
-    let references_ready = state.references.iter().all(|r| r["status"] == "ready");
+        .is_some_and(|c| c.attachment_only);
+    let has_submission = !crate::text::trim(&state.draft).is_empty()
+        || (!state.references.is_empty() && attachment_only);
+    let references_ready = state.references.iter().all(DraftReference::is_ready);
     let can_send_while_running = view.steer_available || view.queue_available;
     has_submission
         && references_ready
@@ -112,24 +112,22 @@ pub(super) fn can_submit(state: &AgentControllerState, view: &AgentChatViewModel
 
 /// UTF-16 offset → byte offset in `text`.
 fn byte_offset(text: &str, units: usize) -> usize {
-    js::head16(text, units).len()
+    crate::text::head16(text, units).len()
 }
 
 impl AgentChatTabPanel {
     /// The composer's document as `(text, mentions)`: each token is one
     /// mention, its range in UTF-16 units.
-    fn composer_document(&self, cx: &App) -> (String, Vec<Value>) {
+    fn composer_document(&self, cx: &App) -> (String, Vec<PromptMention>) {
         let input = self.composer.read(cx);
         let text = input.text().to_string();
         let mentions = input
             .token_spans(cx)
             .into_iter()
-            .map(|(id, range)| {
-                json!({
-                    "referenceId": id,
-                    "start": js::len16(&text[..range.start]),
-                    "end": js::len16(&text[..range.end]),
-                })
+            .map(|(id, range)| PromptMention {
+                reference_id: id,
+                start: crate::text::len16(&text[..range.start]),
+                end: crate::text::len16(&text[..range.end]),
             })
             .collect();
         (text, mentions)
@@ -152,10 +150,9 @@ impl AgentChatTabPanel {
             if current != draft {
                 let mut content = InputContent::new(draft.0.clone());
                 for mention in &draft.1 {
-                    let start =
-                        byte_offset(&draft.0, mention["start"].as_u64().unwrap_or(0) as usize);
-                    let end = byte_offset(&draft.0, mention["end"].as_u64().unwrap_or(0) as usize);
-                    let id = text_of(&mention["referenceId"]);
+                    let start = byte_offset(&draft.0, mention.start);
+                    let end = byte_offset(&draft.0, mention.end);
+                    let id = mention.reference_id.clone();
                     let label = draft.0[start..end].to_string();
                     if let Ok(next) = content
                         .clone()
@@ -175,13 +172,8 @@ impl AgentChatTabPanel {
             .references
             .iter()
             .filter(|reference| !is_agent_media_reference(reference))
-            .filter(|reference| !existing.contains(&text_of(&reference["id"])))
-            .map(|reference| {
-                (
-                    text_of(&reference["id"]),
-                    agent_prompt_mention_text(reference),
-                )
-            })
+            .filter(|reference| !existing.contains(&reference.id))
+            .map(|reference| (reference.id.clone(), agent_prompt_mention_text(reference)))
             .collect();
         if !insertions.is_empty() {
             self.composer
@@ -201,13 +193,9 @@ impl AgentChatTabPanel {
             .shown_draft
             .1
             .iter()
-            .map(|m| text_of(&m["referenceId"]))
+            .map(|m| m.reference_id.clone())
             .collect();
-        let next: Vec<String> = document
-            .1
-            .iter()
-            .map(|m| text_of(&m["referenceId"]))
-            .collect();
+        let next: Vec<String> = document.1.iter().map(|m| m.reference_id.clone()).collect();
         self.shown_draft = document.clone();
         for removed in previous.iter().filter(|id| !next.contains(id)) {
             self.controller.remove_reference(removed);
@@ -601,7 +589,7 @@ impl AgentChatTabPanel {
     ) -> Option<AnyElement> {
         let t_ = cx.palette();
         let a = AgentTheme::new(&t_);
-        let media: Vec<Value> = state
+        let media: Vec<DraftReference> = state
             .references
             .iter()
             .filter(|r| is_agent_media_reference(r))
@@ -620,12 +608,12 @@ impl AgentChatTabPanel {
             .pt(px(12.))
             .px(px(12.));
         for reference in media {
-            let id = text_of(&reference["id"]);
-            let name = text_of(&reference["displayName"]);
+            let id = reference.id.clone();
+            let name = reference.display_name.clone();
             let preview = self.controller.get_reference_preview_url(&id);
             let image: Option<ImageSource> = preview.map(|url| match object_url_bytes(&url) {
                 Some(bytes) => {
-                    let format = match reference["mime"].as_str().unwrap_or_default() {
+                    let format = match reference.mime.as_deref().unwrap_or_default() {
                         "image/jpeg" => ImageFormat::Jpeg,
                         "image/gif" => ImageFormat::Gif,
                         "image/webp" => ImageFormat::Webp,
@@ -639,7 +627,7 @@ impl AgentChatTabPanel {
                 None => ImageSource::from(PathBuf::from(url)),
             });
             let group = SharedString::from(format!("panel-visual-attachment-{id}"));
-            let failed = reference["status"] == "error";
+            let failed = reference.status == ReferenceStatus::Error;
             let remove = tf(
                 "agent.reference.remove",
                 &[("name", Arg::Text(name.clone()))],
@@ -732,7 +720,7 @@ impl AgentChatTabPanel {
         let commands: Vec<(String, String)> = view
             .commands
             .iter()
-            .map(|command| (text_of(&command["name"]), text_of(&command["description"])))
+            .map(|command| (command.name.clone(), command.description.clone()))
             .filter(|(name, _)| !name.is_empty() && name.to_lowercase().starts_with(&needle))
             .take(8)
             .collect();
@@ -792,9 +780,9 @@ impl AgentChatTabPanel {
             )));
         }
         let accepts_files = view.reference_capabilities.as_ref().is_some_and(|c| {
-            crate::agent::contract::reference_input::has_agent_attachment_support(c)
-                || c["workspace"]["files"] == true
-                || c["workspace"]["directories"] == true
+            crate::agent::contract::reference_input::has_attachment_support(c)
+                || c.workspace.files
+                || c.workspace.directories
         });
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
@@ -910,7 +898,7 @@ impl AgentChatTabPanel {
         let resolving = state
             .references
             .iter()
-            .any(|r| r["status"] == "resolving" && !is_agent_media_reference(r));
+            .any(|r| r.status == ReferenceStatus::Resolving && !is_agent_media_reference(r));
         v_flex()
             .w_full()
             .min_w_0()

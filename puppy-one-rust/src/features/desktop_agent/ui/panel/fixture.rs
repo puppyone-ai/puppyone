@@ -3,7 +3,7 @@
 //! reducers. No provider startup, inference or credentials.
 use super::AgentChatTabPanel;
 use crate::agent::agent_error::AgentError;
-use crate::agent::contract::js;
+use crate::agent::contract::protocol::AgentOperation;
 use crate::agent::domain::agent_control_view::project_agent_control_view;
 use crate::agent::domain::agent_session_control::{
     create_agent_session_control, reduce_agent_session_control,
@@ -13,10 +13,9 @@ use crate::agent::domain::transcript::display_projection::ProjectionOptions;
 use crate::agent::domain::transcript::transcript_reducer::{
     apply_agent_event, create_agent_projection,
 };
-use crate::features::desktop_agent::application::agent_client_port::{
-    AgentClientPort, Cleanup, ClientFuture,
-};
+use crate::features::desktop_agent::application::agent_client_port::{AgentClientPort, Cleanup};
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
+use crate::features::desktop_agent::fixtures::{JsonAgent, JsonAnswer, JsonPort};
 use crate::features::desktop_agent::infrastructure::host::window_runtime::WindowUiRuntime;
 use gpui::{Context, Window};
 use serde_json::{Value, json};
@@ -50,7 +49,7 @@ fn event_at(
     json!({
         "schemaVersion": 1, "sequence": sequence, "sessionId": "fixture-session", "runtimeId": "codex",
         "provider": "codex", "providerSessionId": "fixture-thread", "turnId": turn, "itemId": item,
-        "emittedAt": js::iso_string(at), "type": kind, "payload": payload,
+        "emittedAt": crate::clock::iso_string(at), "type": kind, "payload": payload,
     })
 }
 
@@ -160,7 +159,7 @@ fn lab_conversation(scenario: &str) -> Vec<Value> {
         None,
     );
     let t1 = if running {
-        js::now_ms() - 12_000
+        crate::clock::now_ms() - 12_000
     } else {
         t0 + 60_000
     };
@@ -485,43 +484,48 @@ struct FixtureClient {
     models: Value,
 }
 
-impl AgentClientPort for FixtureClient {
-    fn implements(&self, method: &str) -> bool {
+impl JsonAgent for FixtureClient {
+    fn supports(&self, operation: AgentOperation) -> bool {
+        use AgentOperation as O;
         matches!(
-            method,
-            "discoverAgentRuntimes"
-                | "resumeAgentSession"
-                | "createAgentSession"
-                | "attachAgentSession"
-                | "acknowledgeAgentSession"
-                | "readAgentSessionWatermark"
-                | "detachAgentSession"
-                | "onAgentSessionFrame"
+            operation,
+            O::DiscoverRuntimes
+                | O::ResumeSession
+                | O::CreateSession
+                | O::AttachSession
+                | O::AcknowledgeFeed
+                | O::ReadFeedWatermark
+                | O::DetachFeed
         )
     }
 
-    fn call(&self, method: &str, request: Value) -> ClientFuture {
+    fn delivers_frames(&self) -> bool {
+        true
+    }
+
+    fn answer(&self, operation: AgentOperation, request: Value) -> JsonAnswer {
+        use AgentOperation as O;
         let snapshot = self.snapshot.clone();
         // A fresh chat attaches to the session `createAgentSession` started.
         let current = snapshot.clone().unwrap_or_else(|| self.fresh.clone());
-        let result = match method {
-            "discoverAgentRuntimes" => Ok(inspection(&self.models)),
-            "resumeAgentSession" => Ok(snapshot.unwrap_or(Value::Null)),
-            "createAgentSession" => Ok(current),
-            "attachAgentSession" => Ok(json!({ "subscriptionId": "fixture", "snapshot": current })),
-            "acknowledgeAgentSession" => {
+        let result = match operation {
+            O::DiscoverRuntimes => Ok(inspection(&self.models)),
+            O::ResumeSession => Ok(snapshot.unwrap_or(Value::Null)),
+            O::CreateSession => Ok(current),
+            O::AttachSession => Ok(json!({ "subscriptionId": "fixture", "snapshot": current })),
+            O::AcknowledgeFeed => {
                 let mut receipt = request;
                 receipt["synchronized"] = Value::Bool(true);
                 Ok(receipt)
             }
-            "readAgentSessionWatermark" => Ok(json!({
+            O::ReadFeedWatermark => Ok(json!({
                 "subscriptionId": "fixture",
                 "streamId": current["cursor"]["streamId"],
                 "revision": current["cursor"]["revision"],
                 "acknowledgedRevision": current["cursor"]["revision"],
                 "resyncRequired": false,
             })),
-            "detachAgentSession" => Ok(json!({ "subscriptionId": "fixture", "detached": true })),
+            O::DetachFeed => Ok(json!({ "subscriptionId": "fixture", "detached": true })),
             _ => Err(AgentError::new(
                 "The visual fixture does not run Agent work.",
             )),
@@ -529,7 +533,7 @@ impl AgentClientPort for FixtureClient {
         Box::pin(async move { result })
     }
 
-    fn on_agent_session_frame(&self, _listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_frame(&self, _listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
         Some(Box::new(|| {}))
     }
 }
@@ -544,7 +548,7 @@ pub(super) struct LabState {
 
 impl AgentChatTabPanel {
     fn fixture(client: FixtureClient, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let client: Rc<dyn AgentClientPort> = Rc::new(client);
+        let client: Rc<dyn AgentClientPort> = Rc::new(JsonPort(client));
         let controller = AgentSessionController::new(
             "/visual-reference-only",
             Rc::new(move || Some(client.clone())),
@@ -634,11 +638,11 @@ impl AgentChatTabPanel {
             drop(self.controller.restore_display_draft(
                 crate::features::desktop_agent::application::agent_session_controller::DisplayDraft {
                     text: "@README.md ".into(),
-                    mentions: vec![json!({ "referenceId": "ref-file", "start": 0, "end": 10 })],
-                    references: vec![
-                        json!({ "id": "ref-image", "kind": "staged-attachment", "token": "lab", "displayName": "screenshot.png", "mime": "image/png", "size": 256, "status": "ready" }),
-                        json!({ "id": "ref-file", "kind": "workspace-entry", "entryType": "file", "relativePath": "README.md", "displayName": "README.md", "status": "ready" }),
-                    ],
+                    mentions: serde_json::from_value(json!([{ "referenceId": "ref-file", "start": 0, "end": 10 }])).unwrap_or_default(),
+                    references: serde_json::from_value(json!([
+                        { "id": "ref-image", "kind": "staged-attachment", "token": "lab", "displayName": "screenshot.png", "mime": "image/png", "size": 256, "status": "ready" },
+                        { "id": "ref-file", "kind": "workspace-entry", "entryType": "file", "relativePath": "README.md", "displayName": "README.md", "status": "ready" },
+                    ])).unwrap_or_default(),
                     reference_epoch: epoch,
                 },
             ));

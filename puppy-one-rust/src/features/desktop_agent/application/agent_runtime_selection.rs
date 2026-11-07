@@ -2,7 +2,7 @@
 use super::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation, StatePatch,
 };
-use crate::agent::contract::display_state::create_empty_agent_display;
+use crate::agent::contract::dto::AgentProjection;
 use crate::features::desktop_agent::domain::agent_backend_routing::list_agent_runtimes;
 
 /// `AgentRuntimeSwitchPlan`.
@@ -37,7 +37,7 @@ pub fn plan_agent_runtime_switch(
     }
     list_agent_runtimes(state.inspection.as_ref())
         .iter()
-        .find(|entry| entry["descriptor"]["id"] == runtime_id)?;
+        .find(|entry| entry.descriptor.id == runtime_id)?;
     let session_id = state.session_id().map(str::to_string);
     if state.selected_runtime_id.as_deref() == Some(runtime_id) {
         return Some(AgentRuntimeSwitchPlan {
@@ -52,7 +52,7 @@ pub fn plan_agent_runtime_switch(
         patch: StatePatch::new()
             .phase(AgentControllerPhase::Discovering)
             .session(None)
-            .projection(create_empty_agent_display())
+            .projection(AgentProjection::default())
             .selected_runtime_id(Some(runtime_id.to_string()))
             .selected_provider_id(None)
             .selected_model(None)

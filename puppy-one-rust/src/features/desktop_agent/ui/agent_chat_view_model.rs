@@ -2,11 +2,15 @@
 //! from one controller snapshot.
 use super::agent_history_presentation::agent_history_notice;
 use super::agent_panel_presentation::{readiness_status_code, session_status_code};
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{
+    Approval, Capability, DraftReference, ErrorParam, Model, PromptMention, Question,
+    ReferenceInputCapabilities, RuntimeCatalogEntry, RuntimeReadiness, SlashCommand,
+};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryStage, AgentSessionPreparation,
     AgentSubmissionStage, ReplicaStatus,
 };
+use crate::features::desktop_agent::application::agent_error::ErrorDescriptor;
 use crate::features::desktop_agent::domain::agent_backend_routing::{
     list_agent_runtimes, list_visible_agent_runtimes,
 };
@@ -18,7 +22,6 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
     derive_agent_session_controls,
 };
 use crate::localization::t;
-use serde_json::{Value, json};
 
 /// `AgentChatViewOptions`.
 #[derive(Clone, Debug, Default)]
@@ -34,10 +37,10 @@ pub struct AgentChatViewOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentChatRuntime {
     pub agent_runtime_selected: bool,
-    pub agent_runtimes: Vec<Value>,
+    pub agent_runtimes: Vec<RuntimeCatalogEntry>,
     pub runtime_label: String,
     pub runtime_icon_key: Option<String>,
-    pub runtime_models: Vec<Value>,
+    pub runtime_models: Vec<Model>,
 }
 
 /// `presentation`.
@@ -70,8 +73,8 @@ pub struct AgentChatViewModel {
     pub routing_ready: bool,
     pub can_request_compute_access: bool,
     pub has_status: bool,
-    pub readiness: Option<Value>,
-    pub reference_capabilities: Option<Value>,
+    pub readiness: Option<RuntimeReadiness>,
+    pub reference_capabilities: Option<ReferenceInputCapabilities>,
     pub degraded_recovery: Option<ActiveAgentDegradedRecovery>,
     pub presentation: AgentChatPresentation,
     pub composer_placeholder: String,
@@ -79,24 +82,24 @@ pub struct AgentChatViewModel {
     pub show_ready_empty_state: bool,
     pub show_runtime_launcher: bool,
     pub show_status: bool,
-    pub panel_error: Option<Value>,
+    pub panel_error: Option<ErrorDescriptor>,
     pub model_connections: bool,
     pub read_only: bool,
     pub session_controls: Vec<AgentSessionControl>,
-    pub commands: Vec<Value>,
+    pub commands: Vec<SlashCommand>,
     pub steer_available: bool,
     pub queue_available: bool,
     pub pending_submission_id: Option<String>,
-    pub pending_references: Vec<Value>,
-    pub pending_prompt_mentions: Vec<Value>,
-    pub approval: Option<Value>,
+    pub pending_references: Vec<DraftReference>,
+    pub pending_prompt_mentions: Vec<PromptMention>,
+    pub approval: Option<Approval>,
     pub approval_resolving: bool,
-    pub question: Option<Value>,
+    pub question: Option<Question>,
     pub question_resolving: bool,
 }
 
-fn non_empty(value: &Value) -> Option<String> {
-    value.as_str().filter(|v| !v.is_empty()).map(str::to_string)
+fn non_empty(value: Option<&str>) -> Option<String> {
+    value.filter(|v| !v.is_empty()).map(str::to_string)
 }
 
 /// `deriveAgentChatRuntime(state, hiddenRuntimeIds, t)`: the runtime
@@ -106,28 +109,21 @@ pub fn derive_agent_chat_runtime(
     hidden_runtime_ids: &[String],
 ) -> AgentChatRuntime {
     let inspection = state.inspection.as_ref();
-    let session_runtime = state
-        .session
-        .as_ref()
-        .map(|s| &s["runtime"])
-        .filter(|r| js::truthy(r));
-    let inspection_runtime = inspection.map(|i| &i["runtime"]).filter(|r| js::truthy(r));
+    let session_runtime = state.session.as_ref().and_then(|s| s.runtime.as_ref());
+    let inspection_runtime = inspection.and_then(|i| i.runtime.as_ref());
     let catalog_runtime = inspection
-        .and_then(|i| i["runtimes"].as_array())
+        .map(|i| i.runtime_entries())
         .and_then(|runtimes| {
             runtimes.iter().find(|entry| {
-                state
-                    .selected_runtime_id
-                    .as_deref()
-                    .is_some_and(|id| entry["descriptor"]["id"] == id)
+                state.selected_runtime_id.as_deref() == Some(entry.descriptor.id.as_str())
             })
         })
-        .map(|entry| &entry["descriptor"]);
+        .map(|entry| &entry.descriptor);
     let runtime = session_runtime.or(inspection_runtime).or(catalog_runtime);
     // A direct recipe remains bound even when its runtime needs setup. Only
     // the chooser filters not-installed runtimes from subsequent selection.
     let agent_runtime_selected = list_agent_runtimes(inspection).iter().any(|entry| {
-        let id = entry["descriptor"]["id"].as_str().unwrap_or_default();
+        let id = entry.descriptor.id.as_str();
         state.selected_runtime_id.as_deref() == Some(id)
             && (state.session.is_some() || !hidden_runtime_ids.iter().any(|hidden| hidden == id))
     });
@@ -137,20 +133,18 @@ pub fn derive_agent_chat_runtime(
         .filter(|id| !id.is_empty())
         .map(|id| {
             runtime
-                .and_then(|r| non_empty(&r["iconKey"]))
+                .and_then(|r| non_empty(r.icon_key.as_deref()))
                 .unwrap_or_else(|| id.clone())
         });
     AgentChatRuntime {
         agent_runtime_selected,
         agent_runtimes: list_visible_agent_runtimes(inspection, hidden_runtime_ids),
         runtime_label: runtime
-            .and_then(|r| non_empty(&r["displayName"]))
+            .and_then(|r| non_empty(Some(r.display_name.as_str())))
             .unwrap_or_else(|| t("agent.name").to_string()),
         runtime_icon_key,
         runtime_models: if agent_runtime_selected {
-            inspection
-                .and_then(|i| i["models"].as_array().cloned())
-                .unwrap_or_default()
+            inspection.map(|i| i.models.clone()).unwrap_or_default()
         } else {
             Vec::new()
         },
@@ -185,12 +179,8 @@ pub fn derive_agent_chat_view_model(
     options: &AgentChatViewOptions,
 ) -> AgentChatViewModel {
     let activity = derive_activity(state, options.presented);
-    let readiness = state
-        .inspection
-        .as_ref()
-        .map(|i| i["readiness"].clone())
-        .filter(Value::is_object);
-    let unavailable = readiness.as_ref().is_some_and(|r| r["status"] != "ready");
+    let readiness = state.inspection.as_ref().and_then(|i| i.readiness.clone());
+    let unavailable = readiness.as_ref().is_some_and(|r| !r.is_ready());
     let compute_onboarding = is_compute_onboarding(state, &activity);
     let routing_ready = is_routing_ready(state, &runtime, options);
     let can_request_compute_access = can_request_access(
@@ -212,6 +202,10 @@ pub fn derive_agent_chat_view_model(
     };
     let approval = state.projection.approvals.first().map(|a| (**a).clone());
     let question = state.projection.questions.first().map(|q| (**q).clone());
+    let approval_resolving =
+        reply_in_flight(approval.as_ref().and_then(|a| a.reply_status.as_deref()));
+    let question_resolving =
+        reply_in_flight(question.as_ref().and_then(|q| q.reply_status.as_deref()));
     let (session_controls, commands, steer_available, queue_available) =
         derive_composer_configuration(state);
     let (pending_submission_id, pending_references, pending_prompt_mentions) =
@@ -228,11 +222,11 @@ pub fn derive_agent_chat_view_model(
             && !activity.failed,
         show_status: has_status || state.stop_request.is_some(),
         panel_error: panel_error(state, &runtime.runtime_label),
-        model_connections: state.capability("modelConnections"),
-        read_only: state.capability("readOnly"),
+        model_connections: state.capability(Capability::ModelConnections),
+        read_only: state.capability(Capability::ReadOnly),
         reference_capabilities: derive_reference_capabilities(state),
-        approval_resolving: reply_in_flight(approval.as_ref()),
-        question_resolving: reply_in_flight(question.as_ref()),
+        approval_resolving,
+        question_resolving,
         approval,
         question,
         session_controls,
@@ -274,11 +268,7 @@ fn derive_activity(state: &AgentControllerState, presented: bool) -> Activity {
         state.phase,
         AgentControllerPhase::Failed | AgentControllerPhase::RuntimeExited
     );
-    let projection = &state.projection;
-    let has_committed_transcript = !projection.rows.is_empty()
-        || !projection.parts.is_empty()
-        || !projection.messages.is_empty()
-        || !projection.activities.is_empty();
+    let has_committed_transcript = !state.projection.is_empty_transcript();
     let submission_pending = state.submitting
         || state
             .pending_prompt
@@ -322,11 +312,12 @@ fn submission_stage(state: &AgentControllerState, pending: bool) -> Option<Agent
 fn is_compute_onboarding(state: &AgentControllerState, activity: &Activity) -> bool {
     // First-use setup is onboarding. Saved routes, history, credentials errors
     // and actual runtime failures retain recovery UI.
-    state.capability("modelConnections")
+    state.capability(Capability::ModelConnections)
         && state
             .inspection
             .as_ref()
-            .is_some_and(|i| i["readiness"]["code"] == "RUNTIME_SETUP_REQUIRED")
+            .and_then(|i| i.readiness.as_ref())
+            .is_some_and(|r| r.code == "RUNTIME_SETUP_REQUIRED")
         && state.selected_model.is_none()
         && state.session.is_none()
         && !activity.has_committed_transcript
@@ -345,10 +336,10 @@ fn is_routing_ready(
     {
         return false;
     }
-    if state.capability("modelConnections") && !options.compute_ready {
+    if state.capability(Capability::ModelConnections) && !options.compute_ready {
         return false;
     }
-    if !state.capability("modelSelection") {
+    if !state.capability(Capability::ModelSelection) {
         return true;
     }
     state.selected_model.as_deref().is_some_and(|selected| {
@@ -356,7 +347,7 @@ fn is_routing_ready(
             && runtime
                 .runtime_models
                 .iter()
-                .any(|model| model["model"] == selected)
+                .any(|model| model.model == selected)
     })
 }
 
@@ -368,7 +359,7 @@ fn can_request_access(
     compute_onboarding: bool,
     failed: bool,
 ) -> bool {
-    state.capability("modelConnections")
+    state.capability(Capability::ModelConnections)
         && runtime.agent_runtime_selected
         && options
             .compute_access_required
@@ -395,7 +386,7 @@ fn has_panel_status(
 }
 
 fn composer_disabled(state: &AgentControllerState, activity: &Activity, policy: &Policy) -> bool {
-    state.capability("readOnly")
+    state.capability(Capability::ReadOnly)
         || matches!(
             state.replica_status,
             ReplicaStatus::Stale | ReplicaStatus::Subscribing
@@ -427,10 +418,7 @@ fn show_ready_empty_state(
         && !policy.has_status
         && !has_submitted_conversation
         && agent_history_notice(&state.projection).is_none()
-        && !state
-            .projection
-            .get("connectionStatus")
-            .is_some_and(js::truthy)
+        && state.projection.connection_status.is_none()
 }
 
 fn composer_placeholder(
@@ -445,7 +433,7 @@ fn composer_placeholder(
         "agent.composer.placeholder.preparing"
     } else if !runtime.agent_runtime_selected {
         "agent.composer.placeholder.chooseAgent"
-    } else if state.capability("modelSelection") && state.selected_model.is_none() {
+    } else if state.capability(Capability::ModelSelection) && state.selected_model.is_none() {
         "agent.composer.placeholder.chooseModel"
     } else if !state.projection.rows.is_empty() || !state.projection.messages.is_empty() {
         "agent.composer.placeholder.followUp"
@@ -461,9 +449,10 @@ fn derive_presentation(
     degraded: bool,
 ) -> AgentChatPresentation {
     let mut status_code =
-        readiness_status_code(state.inspection.as_ref().map(|i| &i["readiness"])).to_string();
+        readiness_status_code(state.inspection.as_ref().and_then(|i| i.readiness.as_ref()))
+            .to_string();
     if let Some(session) = &state.session {
-        status_code = session_status_code(session["terminalState"].as_str());
+        status_code = session_status_code(session.terminal_state.as_deref());
     }
     if degraded {
         status_code = "needs-attention".into();
@@ -471,7 +460,7 @@ fn derive_presentation(
     let title = state
         .session
         .as_ref()
-        .and_then(|s| non_empty(&s["title"]))
+        .and_then(|s| non_empty(Some(s.title.as_str())))
         .unwrap_or_else(|| {
             if runtime.agent_runtime_selected {
                 runtime.runtime_label.clone()
@@ -491,43 +480,41 @@ fn derive_presentation(
     }
 }
 
-fn panel_error(state: &AgentControllerState, runtime: &str) -> Option<Value> {
+fn panel_error(state: &AgentControllerState, runtime: &str) -> Option<ErrorDescriptor> {
     if let Some(error) = &state.error {
         return Some(error.clone());
     }
-    (state.phase == AgentControllerPhase::RuntimeExited)
-        .then(|| json!({ "code": "runtime-exited", "params": { "runtime": runtime } }))
+    (state.phase == AgentControllerPhase::RuntimeExited).then(|| ErrorDescriptor {
+        code: "runtime-exited".into(),
+        params: vec![("runtime".into(), ErrorParam::Text(runtime.to_string()))],
+        ..ErrorDescriptor::default()
+    })
 }
 
-fn derive_reference_capabilities(state: &AgentControllerState) -> Option<Value> {
+fn derive_reference_capabilities(
+    state: &AgentControllerState,
+) -> Option<ReferenceInputCapabilities> {
     let inspection = state.inspection.as_ref()?;
-    let base = inspection["capabilities"]["referenceInputs"].clone();
-    if !js::truthy(&base) {
-        return None;
-    }
-    if !state.capability("modelConnections") {
+    let base = inspection
+        .capabilities
+        .as_ref()
+        .and_then(|c| c.reference_inputs.clone())?;
+    if !state.capability(Capability::ModelConnections) {
         return Some(base);
     }
-    let images = inspection["models"]
-        .as_array()
-        .and_then(|models| {
-            models.iter().find(|model| {
-                state
-                    .selected_model
-                    .as_deref()
-                    .is_some_and(|selected| model["model"] == selected)
-            })
-        })
-        .map(|model| model["modelCapabilities"]["images"] == "supported")
-        .unwrap_or(false);
+    let images = inspection
+        .models
+        .iter()
+        .find(|model| state.selected_model.as_deref() == Some(model.model.as_str()))
+        .is_some_and(Model::accepts_images);
     let mut capabilities = base;
-    capabilities["attachments"]["image"]["accepted"] = Value::Bool(images);
+    capabilities.attachments.image.accepted = images;
     Some(capabilities)
 }
 
 fn derive_composer_configuration(
     state: &AgentControllerState,
-) -> (Vec<AgentSessionControl>, Vec<Value>, bool, bool) {
+) -> (Vec<AgentSessionControl>, Vec<SlashCommand>, bool, bool) {
     let controls = derive_agent_session_controls(
         state.inspection.as_ref(),
         AgentSessionControlSelection {
@@ -536,7 +523,7 @@ fn derive_composer_configuration(
             selected_mode: state.selected_mode.as_deref(),
         },
     );
-    let session_controls = if state.capability("modelConnections") {
+    let session_controls = if state.capability(Capability::ModelConnections) {
         controls
             .into_iter()
             .filter(|control| control.id != AgentSessionControlId::Model)
@@ -544,11 +531,11 @@ fn derive_composer_configuration(
     } else {
         controls
     };
-    let commands = if state.capability("slashCommands") {
+    let commands = if state.capability(Capability::SlashCommands) {
         state
             .inspection
             .as_ref()
-            .and_then(|i| i["commands"].as_array().cloned())
+            .map(|i| i.command_list().to_vec())
             .unwrap_or_default()
     } else {
         Vec::new()
@@ -556,33 +543,29 @@ fn derive_composer_configuration(
     (
         session_controls,
         commands,
-        state.capability("steer"),
-        state.capability("queue"),
+        state.capability(Capability::Steer),
+        state.capability(Capability::Queue),
     )
 }
 
 fn derive_pending_transcript(
     state: &AgentControllerState,
-) -> (Option<String>, Vec<Value>, Vec<Value>) {
+) -> (Option<String>, Vec<DraftReference>, Vec<PromptMention>) {
     let intent = state.pending_intent.as_ref();
-    let mut references = intent
-        .and_then(|i| i["references"].as_array().cloned())
-        .unwrap_or_default();
+    let mut references = intent.map(|i| i.references.clone()).unwrap_or_default();
     if state.pending_prompt.is_none() {
         references = Vec::new();
     }
     (
-        intent.and_then(|i| non_empty(&i["id"])),
+        intent.and_then(|i| non_empty(Some(i.id.as_str()))),
         references,
         intent
-            .and_then(|i| i["promptMentions"].as_array().cloned())
+            .map(|i| i.prompt_mentions.clone())
             .unwrap_or_default(),
     )
 }
 
 /// `replyInFlight(status)`.
-fn reply_in_flight(interaction: Option<&Value>) -> bool {
-    interaction
-        .and_then(|i| i["replyStatus"].as_str())
-        .is_some_and(|status| ["dispatching", "accepted", "outcome-unknown"].contains(&status))
+fn reply_in_flight(status: Option<&str>) -> bool {
+    status.is_some_and(|status| ["dispatching", "accepted", "outcome-unknown"].contains(&status))
 }

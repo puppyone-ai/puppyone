@@ -52,7 +52,7 @@ pub struct TokioUiRuntime {
 impl TokioUiRuntime {
     pub fn create() -> Rc<dyn UiRuntime> {
         Rc::new(Self {
-            origin_ms: crate::agent::contract::js::now_ms(),
+            origin_ms: crate::clock::now_ms(),
             origin: tokio::time::Instant::now(),
         })
     }

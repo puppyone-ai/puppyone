@@ -4,11 +4,12 @@
 //! is the user's own connection.
 use super::status::{ButtonTone, agent_button};
 use super::{AgentChatPanelEvent, AgentChatTabPanel};
-use crate::agent::runtimes::puppyone_agent::native_model_connections::{
-    connection_catalog, product_connection_id,
-};
+use crate::agent::contract::dto::Model;
 use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
+};
+pub(crate) use crate::features::desktop_agent::infrastructure::compute::{
+    ComputeSnapshot, ManagedCompute, read_compute_snapshot,
 };
 use crate::features::desktop_agent::ui::agent_theme::AgentTheme;
 use crate::localization::t;
@@ -18,73 +19,6 @@ use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
-use serde_json::Value;
-use std::collections::HashMap;
-
-/// `snapshot.managed`: PuppyOne compute for the signed-in account.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ManagedCompute {
-    pub signed_in: bool,
-    pub available: bool,
-    /// `"ready"`, `"sign-in-required"` or `"insufficient-credit"`.
-    pub reason: &'static str,
-}
-
-/// What Chat reads of the app's model connections (`useModelConnections`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct ComputeSnapshot {
-    pub revision: String,
-    /// Each ready connection's source kind (`managed`, `api` or `local`).
-    pub sources: HashMap<String, &'static str>,
-    pub managed: Option<ManagedCompute>,
-}
-
-fn local_endpoint(endpoint: &str) -> bool {
-    reqwest::Url::parse(endpoint)
-        .is_ok_and(|url| matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")))
-}
-
-/// Reads the connections (blocking: the configuration file and PuppyOne
-/// compute's cached catalog).
-pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
-    use crate::agent::model_connections::configuration;
-    let mut connections = configuration::load().unwrap_or_default();
-    use crate::agent::model_connections::ComputeAccount as _;
-    let account =
-        crate::features::desktop_agent::infrastructure::host::agent_host_global::CloudCompute;
-    let managed = configuration::managed(&account);
-    let signed_in = account.current().is_some();
-    let available = !managed.is_empty();
-    connections.extend(managed);
-    let catalog = connection_catalog(&connections);
-    ComputeSnapshot {
-        revision: catalog["revision"].as_str().unwrap_or_default().to_string(),
-        sources: connections
-            .iter()
-            .map(|c| {
-                let kind = if c.managed {
-                    "managed"
-                } else if local_endpoint(&c.endpoint) {
-                    "local"
-                } else {
-                    "api"
-                };
-                (product_connection_id(&c.id), kind)
-            })
-            .collect(),
-        managed: Some(ManagedCompute {
-            signed_in,
-            available,
-            reason: if !signed_in {
-                "sign-in-required"
-            } else if !available {
-                "insufficient-credit"
-            } else {
-                "ready"
-            },
-        }),
-    }
-}
 
 /// The dock's derived state.
 #[derive(Clone, Debug, PartialEq)]
@@ -92,7 +26,7 @@ pub(crate) struct ComputeView {
     pub ready: bool,
     /// `ComputeAccessRequired`.
     pub access_required: Option<&'static str>,
-    pub offered: Vec<Value>,
+    pub offered: Vec<Model>,
     pub source: &'static str,
     pub own_compute_only: bool,
     pub show_picker: bool,
@@ -105,24 +39,25 @@ pub(crate) struct ComputeView {
 /// The dock's policy over `models` (the runtime's) and the snapshot.
 pub(crate) fn derive_compute(
     snapshot: Option<&ComputeSnapshot>,
-    models: &[Value],
+    models: &[Model],
     payments: bool,
     selected_model: Option<&str>,
     access_prompt: bool,
 ) -> ComputeView {
-    let source_of = |model: &Value| {
-        model["connectionId"]
-            .as_str()
+    let source_of = |model: &Model| {
+        model
+            .connection_id
+            .as_deref()
             .and_then(|id| snapshot.and_then(|s| s.sources.get(id)).copied())
     };
-    let ready_models: Vec<&Value> = models.iter().filter(|m| source_of(m).is_some()).collect();
-    let is_managed = |model: &Value| source_of(model) == Some("managed");
+    let ready_models: Vec<&Model> = models.iter().filter(|m| source_of(m).is_some()).collect();
+    let is_managed = |model: &Model| source_of(model) == Some("managed");
     let current = ready_models
         .iter()
-        .find(|m| m["model"].as_str() == selected_model);
+        .find(|m| selected_model == Some(m.model.as_str()));
     let selected = models
         .iter()
-        .find(|m| m["model"].as_str() == selected_model);
+        .find(|m| selected_model == Some(m.model.as_str()));
     let current_connection = selected.and_then(source_of);
     let source = current_connection.unwrap_or(if payments { "managed" } else { "api" });
     // Paid compute is the one route an install may not be allowed to offer.
@@ -131,12 +66,12 @@ pub(crate) fn derive_compute(
     } else {
         None
     };
-    let own: Vec<Value> = ready_models
+    let own: Vec<Model> = ready_models
         .iter()
         .filter(|m| !is_managed(m))
         .map(|m| (*m).clone())
         .collect();
-    let offered: Vec<Value> = if payments {
+    let offered: Vec<Model> = if payments {
         ready_models.iter().map(|m| (*m).clone()).collect()
     } else {
         own
@@ -202,7 +137,7 @@ impl AgentChatTabPanel {
         .detach();
     }
 
-    pub(super) fn compute_view(&self, models: &[Value], selected: Option<&str>) -> ComputeView {
+    pub(super) fn compute_view(&self, models: &[Model], selected: Option<&str>) -> ComputeView {
         derive_compute(
             self.compute.as_ref(),
             models,
@@ -268,24 +203,18 @@ impl AgentChatTabPanel {
                         .map(|model| {
                             let managed = self.compute.as_ref().and_then(|s| {
                                 s.sources
-                                    .get(model["connectionId"].as_str().unwrap_or_default())
+                                    .get(model.connection_id.as_deref().unwrap_or_default())
                             }) == Some(&"managed");
-                            let text = |key: &str| model[key].as_str().map(str::to_string);
                             AgentSessionControlOption {
-                                value: text("model").unwrap_or_default(),
+                                value: model.model.clone(),
                                 label: if managed {
                                     t("agent.compute.managed").to_string()
                                 } else {
-                                    text("displayName").unwrap_or_default()
+                                    model.display_name.clone()
                                 },
-                                description: (!managed).then(|| text("description")).flatten(),
-                                keywords: (!managed).then(|| {
-                                    format!(
-                                        "{} {}",
-                                        text("id").unwrap_or_default(),
-                                        text("model").unwrap_or_default()
-                                    )
-                                }),
+                                description: (!managed).then(|| model.description.clone()),
+                                keywords: (!managed)
+                                    .then(|| format!("{} {}", model.id, model.model)),
                             }
                         })
                         .collect(),
@@ -423,10 +352,16 @@ impl AgentChatTabPanel {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
-    use serde_json::json;
+    use std::collections::HashMap;
 
-    fn model(connection: &str, id: &str) -> Value {
-        json!({ "model": format!("{connection}/{id}"), "id": id, "connectionId": connection, "displayName": id })
+    fn model(connection: &str, id: &str) -> Model {
+        Model {
+            model: format!("{connection}/{id}"),
+            id: id.into(),
+            connection_id: Some(connection.into()),
+            display_name: id.into(),
+            ..Model::default()
+        }
     }
 
     fn snapshot(managed: Option<ManagedCompute>) -> ComputeSnapshot {

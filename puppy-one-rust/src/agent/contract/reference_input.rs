@@ -124,6 +124,32 @@ pub fn accepted_agent_attachment_picker_types(capabilities: &Value) -> Vec<Strin
     types
 }
 
+/// [`accepts_agent_attachment`] of a runtime's typed reference inputs.
+pub fn accepts_attachment(
+    capabilities: &super::dto::ReferenceInputCapabilities,
+    mime: &str,
+    name: &str,
+) -> bool {
+    accepts_agent_attachment(&typed(capabilities), mime, name)
+}
+
+/// [`has_agent_attachment_support`] of a runtime's typed reference inputs.
+pub fn has_attachment_support(capabilities: &super::dto::ReferenceInputCapabilities) -> bool {
+    has_agent_attachment_support(&typed(capabilities))
+}
+
+/// [`accepted_agent_attachment_picker_types`] of a runtime's typed
+/// reference inputs.
+pub fn attachment_picker_types(
+    capabilities: &super::dto::ReferenceInputCapabilities,
+) -> Vec<String> {
+    accepted_agent_attachment_picker_types(&typed(capabilities))
+}
+
+fn typed(capabilities: &super::dto::ReferenceInputCapabilities) -> Value {
+    serde_json::to_value(capabilities).unwrap_or_default()
+}
+
 /// `isTextMime(value)`.
 pub fn is_text_mime(value: &str) -> bool {
     let mime = normalize_mime(value);

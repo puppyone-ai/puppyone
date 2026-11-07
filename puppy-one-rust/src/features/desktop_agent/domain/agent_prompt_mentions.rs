@@ -1,60 +1,67 @@
 //! `domain/agent-prompt-mentions.ts`.
-use crate::agent::contract::js;
-use crate::agent::contract::reference_identity::agent_reference_mention_text;
+use crate::agent::contract::dto::{
+    DraftReference, EntryType, PromptMention, ReferenceDisplay, ReferenceDisplayKind,
+};
+use crate::agent::contract::reference_identity::mention_text;
 use crate::agent::contract::reference_input::classify_agent_attachment;
-use serde_json::Value;
+use crate::text;
 use std::collections::HashSet;
 
-/// `isAgentMediaReference(reference)`: images are native media inputs.
-/// Every other reference is an inline path mention.
-pub fn is_agent_media_reference(reference: &Value) -> bool {
-    if reference["kind"] == "workspace-directory" || reference["entryType"] == "directory" {
+/// `isAgentMediaReference(reference)` of a draft reference: images are
+/// native media inputs. Every other reference is an inline path mention.
+pub fn is_agent_media_reference(reference: &DraftReference) -> bool {
+    if reference.entry_type == Some(EntryType::Directory) {
         return false;
     }
     classify_agent_attachment(
-        reference["mime"].as_str().unwrap_or_default(),
-        reference["displayName"].as_str().unwrap_or_default(),
+        reference.mime.as_deref().unwrap_or_default(),
+        &reference.display_name,
+    ) == "image"
+}
+
+/// `isAgentMediaReference(reference)` of a transcript's reference.
+pub fn is_agent_media_display(reference: &ReferenceDisplay) -> bool {
+    if reference.kind == ReferenceDisplayKind::WorkspaceDirectory {
+        return false;
+    }
+    classify_agent_attachment(
+        reference.mime.as_deref().unwrap_or_default(),
+        &reference.display_name,
     ) == "image"
 }
 
 /// `agentPromptMentionText(reference)`.
-pub fn agent_prompt_mention_text(reference: &Value) -> String {
-    agent_reference_mention_text(reference)
+pub fn agent_prompt_mention_text(reference: &DraftReference) -> String {
+    mention_text(reference)
 }
 
 /// `normalizeAgentPromptMentions(prompt, mentions, referenceIds)`.
 pub fn normalize_agent_prompt_mentions(
     prompt: &str,
-    mentions: &[Value],
+    mentions: &[PromptMention],
     reference_ids: Option<&HashSet<String>>,
-) -> Vec<Value> {
-    let length = js::len16(prompt) as i64;
-    let boundary = 0i64;
-    let mut candidates: Vec<(i64, i64, &Value)> = mentions
+) -> Vec<PromptMention> {
+    let length = text::len16(prompt);
+    let mut candidates: Vec<&PromptMention> = mentions
         .iter()
-        .filter_map(|mention| {
-            let reference_id = mention["referenceId"].as_str()?;
-            let start = js::safe_integer(&mention["start"])?;
-            let end = js::safe_integer(&mention["end"])?;
-            let valid = start >= boundary
-                && end > start
-                && end <= length
-                && reference_ids.is_none_or(|ids| ids.contains(reference_id));
-            valid.then_some((start, end, mention))
+        .filter(|mention| {
+            mention.end > mention.start
+                && mention.end <= length
+                && reference_ids.is_none_or(|ids| ids.contains(&mention.reference_id))
         })
         .collect();
-    candidates.sort_by_key(|(start, _, _)| *start);
-    let mut boundary = 0i64;
+    candidates.sort_by_key(|mention| mention.start);
+    let mut boundary = 0usize;
     candidates
         .into_iter()
-        .filter(|(start, end, _)| {
-            if *start < boundary {
+        .filter(|mention| {
+            if mention.start < boundary {
                 return false;
             }
-            boundary = *end;
+            boundary = mention.end;
             true
         })
-        .map(|(_, _, mention)| mention.clone())
+        .cloned()
         .collect()
 }
 
@@ -62,30 +69,32 @@ pub fn normalize_agent_prompt_mentions(
 #[derive(Clone, Debug, PartialEq)]
 pub enum PromptPart {
     Text(String),
-    Mention { text: String, mention: Value },
+    Mention {
+        text: String,
+        mention: PromptMention,
+    },
 }
 
 /// `splitAgentPromptMentions(prompt, mentions)`.
-pub fn split_agent_prompt_mentions(prompt: &str, mentions: &[Value]) -> Vec<PromptPart> {
+pub fn split_agent_prompt_mentions(prompt: &str, mentions: &[PromptMention]) -> Vec<PromptPart> {
     let normalized = normalize_agent_prompt_mentions(prompt, mentions, None);
     let mut parts = Vec::new();
     let mut cursor = 0usize;
     for mention in normalized {
-        let start = mention["start"].as_u64().unwrap_or(0) as usize;
-        let end = mention["end"].as_u64().unwrap_or(0) as usize;
+        let (start, end) = (mention.start, mention.end);
         if start > cursor {
             parts.push(PromptPart::Text(
-                js::slice16(prompt, cursor, start).to_string(),
+                text::slice16(prompt, cursor, start).to_string(),
             ));
         }
         parts.push(PromptPart::Mention {
-            text: js::slice16(prompt, start, end).to_string(),
+            text: text::slice16(prompt, start, end).to_string(),
             mention,
         });
         cursor = end;
     }
-    if cursor < js::len16(prompt) {
-        parts.push(PromptPart::Text(js::tail16(prompt, cursor).to_string()));
+    if cursor < text::len16(prompt) {
+        parts.push(PromptPart::Text(text::tail16(prompt, cursor).to_string()));
     }
     parts
 }

@@ -1,8 +1,9 @@
 //! A scripted [`AgentClientPort`] (the tests' `vi.fn()` bridge objects).
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::features::desktop_agent::application::agent_client_port::{
-    AgentClientPort, Cleanup, ClientFuture,
-};
+use crate::agent::contract::dto::{SessionFailure, SessionFrame};
+use crate::agent::contract::protocol::{AgentOperation, AgentRequest};
+use crate::features::desktop_agent::application::agent_client_port::{AgentClientPort, Cleanup};
+use crate::features::desktop_agent::fixtures::{JsonAnswer as ClientFuture, read_answer};
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
@@ -176,14 +177,43 @@ pub async fn next_turn() {
 }
 
 impl AgentClientPort for FakeClient {
-    fn implements(&self, method: &str) -> bool {
-        match method {
-            "onAgentSessionFrame" | "onAgentSessionFailure" => self.listens.get(),
-            method => self.defined.borrow().contains(method),
-        }
+    fn supports(&self, operation: AgentOperation) -> bool {
+        self.defined.borrow().contains(operation.method())
     }
 
-    fn call(&self, method: &str, request: Value) -> ClientFuture {
+    fn delivers_frames(&self) -> bool {
+        self.listens.get()
+    }
+
+    fn request(
+        &self,
+        request: AgentRequest,
+    ) -> crate::features::desktop_agent::application::agent_client_port::ClientFuture {
+        let operation = request.operation();
+        let call = self.call(operation.method(), request.transport());
+        Box::pin(async move { read_answer(operation, &call.await?) })
+    }
+
+    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(SessionFrame)>) -> Option<Cleanup> {
+        let listener: Listener = Rc::new(move |frame| listener(SessionFrame::read(&frame)));
+        self.frame_subscriptions.borrow_mut().push(listener.clone());
+        *self.frame_listener.borrow_mut() = Some(listener);
+        let slot = self.frame_listener.clone();
+        Some(Box::new(move || *slot.borrow_mut() = None))
+    }
+
+    fn on_agent_session_failure(&self, listener: Rc<dyn Fn(SessionFailure)>) -> Option<Cleanup> {
+        let listener: Listener =
+            Rc::new(move |failure| listener(serde_json::from_value(failure).unwrap_or_default()));
+        *self.failure_listener.borrow_mut() = Some(listener);
+        let slot = self.failure_listener.clone();
+        Some(Box::new(move || *slot.borrow_mut() = None))
+    }
+}
+
+impl FakeClient {
+    /// `bridge[method](request)`: the scripted JSON answer.
+    pub fn call(&self, method: &str, request: Value) -> ClientFuture {
         self.calls
             .borrow_mut()
             .push((method.into(), request.clone()));
@@ -217,18 +247,5 @@ impl AgentClientPort for FakeClient {
             next_turn().await;
             result
         })
-    }
-
-    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
-        self.frame_subscriptions.borrow_mut().push(listener.clone());
-        *self.frame_listener.borrow_mut() = Some(listener);
-        let slot = self.frame_listener.clone();
-        Some(Box::new(move || *slot.borrow_mut() = None))
-    }
-
-    fn on_agent_session_failure(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
-        *self.failure_listener.borrow_mut() = Some(listener);
-        let slot = self.failure_listener.clone();
-        Some(Box::new(move || *slot.borrow_mut() = None))
     }
 }

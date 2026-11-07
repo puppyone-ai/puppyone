@@ -4,6 +4,10 @@
 //! preparation, and shows `CloudAgentStatus` instead of the readiness card.
 use super::status::{ButtonTone, agent_button};
 use super::{AgentChatTabPanel, AgentChatTabPresentation};
+use crate::agent::contract::dto::{
+    Capabilities, RuntimeCatalogEntry, RuntimeDescriptor, RuntimeInspection, RuntimeReadiness,
+    SessionMetadata,
+};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, ReplicaStatus,
 };
@@ -17,7 +21,6 @@ use crate::theme;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
-use serde_json::json;
 
 /// The hosted runtime's id (`CloudAgentHistory`'s `cloud-pi`).
 pub const HOSTED_RUNTIME_ID: &str = "cloud-pi";
@@ -26,8 +29,18 @@ pub const HOSTED_ICON_KEY: &str = "puppyone-agent";
 
 /// The hosted conversation as the panel's controller state.
 pub(super) fn hosted_controller_state(chat: &CloudAgentState) -> AgentControllerState {
-    let descriptor =
-        json!({ "id": HOSTED_RUNTIME_ID, "displayName": LABEL, "iconKey": HOSTED_ICON_KEY });
+    let descriptor = RuntimeDescriptor {
+        id: HOSTED_RUNTIME_ID.into(),
+        display_name: LABEL.into(),
+        icon_key: Some(HOSTED_ICON_KEY.into()),
+        ..RuntimeDescriptor::default()
+    };
+    let readiness = RuntimeReadiness {
+        runtime_id: Some(HOSTED_RUNTIME_ID.into()),
+        status: "ready".into(),
+        selectable: Some(true),
+        ..RuntimeReadiness::default()
+    };
     let run = chat.runs.last();
     AgentControllerState {
         phase: if chat.running() {
@@ -36,23 +49,31 @@ pub(super) fn hosted_controller_state(chat: &CloudAgentState) -> AgentController
             AgentControllerPhase::Ready
         },
         initialized: true,
-        inspection: Some(json!({
-            "selectedRuntimeId": HOSTED_RUNTIME_ID,
-            "runtime": descriptor,
-            "runtimes": [{ "descriptor": descriptor, "readiness": { "runtimeId": HOSTED_RUNTIME_ID, "status": "ready", "selectable": true } }],
-            "readiness": { "runtimeId": HOSTED_RUNTIME_ID, "status": "ready", "selectable": true },
-            "models": [], "modes": [], "commands": [], "providers": [], "warnings": [],
-            "capabilities": {
-                "streamingText": true, "manualApprovals": true, "attachments": false,
-                "contextReferences": false, "steer": false, "queue": false,
-                "modelSelection": false, "modeSelection": false, "slashCommands": false,
-            },
-        })),
+        inspection: Some(RuntimeInspection {
+            selected_runtime_id: Some(HOSTED_RUNTIME_ID.into()),
+            runtime: Some(descriptor.clone()),
+            runtimes: Some(vec![RuntimeCatalogEntry {
+                descriptor: descriptor.clone(),
+                readiness: readiness.clone(),
+            }]),
+            readiness: Some(readiness),
+            modes: Some(Vec::new()),
+            commands: Some(Vec::new()),
+            providers: Some(Vec::new()),
+            capabilities: Some(Capabilities {
+                streaming_text: true,
+                manual_approvals: true,
+                ..Capabilities::default()
+            }),
+            ..RuntimeInspection::default()
+        }),
         selected_runtime_id: Some(HOSTED_RUNTIME_ID.into()),
-        session: chat
-            .session_id
-            .as_ref()
-            .map(|id| json!({ "id": id, "runtimeId": HOSTED_RUNTIME_ID, "runtime": descriptor })),
+        session: chat.session_id.as_ref().map(|id| SessionMetadata {
+            id: id.clone(),
+            runtime_id: Some(HOSTED_RUNTIME_ID.into()),
+            runtime: Some(descriptor.clone()),
+            ..SessionMetadata::default()
+        }),
         replica_status: ReplicaStatus::Live,
         projection: project_cloud_agent_runs(&chat.runs),
         draft: chat.draft.clone(),

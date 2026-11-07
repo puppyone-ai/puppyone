@@ -5,6 +5,7 @@
 //! opening one is the workbench's job (`HistoryBrowserEvent::Open`).
 use super::agent_brand_mark::{monochrome_mark, runtime_for_icon_key};
 use super::agent_theme::AgentTheme;
+use crate::agent::contract::dto::{RuntimeDescriptor, SessionDiscovery, SessionMetadata};
 use crate::features::desktop_agent::application::conversation_history_controller::{
     ConversationHistoryController, ConversationHistoryState,
 };
@@ -21,7 +22,6 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
-use serde_json::Value;
 
 /// `--desktop-chrome-height` in the right sidebar.
 const TOOLBAR: f32 = 40.;
@@ -42,17 +42,17 @@ pub enum HistoryBrowserEvent {
 /// sessions already open in a tab left out.
 struct History {
     state: ConversationHistoryState,
-    sessions: Vec<Value>,
+    sessions: Vec<SessionMetadata>,
     excluded_count: usize,
     has_more: bool,
 }
 
 impl History {
     fn new(state: ConversationHistoryState, excluded: &[String]) -> Self {
-        let sessions: Vec<Value> = state
+        let sessions: Vec<SessionMetadata> = state
             .sessions
             .iter()
-            .filter(|s| !excluded.iter().any(|id| s["id"] == id.as_str()))
+            .filter(|s| !excluded.iter().any(|id| s.id == *id))
             .cloned()
             .collect();
         Self {
@@ -63,12 +63,13 @@ impl History {
         }
     }
 
-    fn runtime_label(&self, session: &Value) -> String {
+    fn runtime_label(&self, session: &SessionMetadata) -> String {
         let id = runtime_id(session);
-        session["runtime"]["displayName"]
-            .as_str()
+        session
+            .runtime
+            .as_ref()
+            .map(|r| r.display_name.clone())
             .filter(|l| !l.is_empty())
-            .map(str::to_string)
             .or_else(|| self.runtime_name(&id))
             .unwrap_or(id)
     }
@@ -77,24 +78,23 @@ impl History {
         self.state
             .runtimes
             .iter()
-            .find(|entry| entry["descriptor"]["id"] == id)
-            .and_then(|entry| entry["descriptor"]["displayName"].as_str())
-            .map(str::to_string)
+            .find(|entry| entry.descriptor.id == id)
+            .map(|entry| entry.descriptor.display_name.clone())
     }
 
-    fn icon_key(&self, session: &Value) -> String {
+    fn icon_key(&self, session: &SessionMetadata) -> String {
         let id = runtime_id(session);
-        session["runtime"]["iconKey"]
-            .as_str()
+        session
+            .runtime
+            .as_ref()
+            .and_then(|r| r.icon_key.clone())
             .filter(|k| !k.is_empty())
-            .map(str::to_string)
             .or_else(|| {
                 self.state
                     .runtimes
                     .iter()
-                    .find(|entry| entry["descriptor"]["id"] == id.as_str())
-                    .and_then(|entry| entry["descriptor"]["iconKey"].as_str())
-                    .map(str::to_string)
+                    .find(|entry| entry.descriptor.id == id)
+                    .and_then(|entry| entry.descriptor.icon_key.clone())
             })
             .unwrap_or(id)
     }
@@ -103,7 +103,7 @@ impl History {
         self.state
             .sources
             .iter()
-            .any(|(_, source)| source["status"] == "failed")
+            .any(|(_, source)| source.status == "failed")
     }
 
     /// Every source listed to its end: an empty projection is not proof of
@@ -113,7 +113,7 @@ impl History {
             .state
             .catalog_coverage
             .as_ref()
-            .is_some_and(|c| c["truncated"] == true);
+            .is_some_and(|c| c.truncated);
         !self.state.sources.is_empty()
             && !truncated
             && !self.has_more
@@ -121,12 +121,11 @@ impl History {
                 .state
                 .sources
                 .iter()
-                .all(|(_, s)| s["status"] == "complete" && s["coverage"] == "complete")
+                .all(|(_, s)| s.status == "complete" && complete_coverage(s))
             && self.state.runtimes.iter().all(|runtime| {
-                runtime["descriptor"]["id"]
-                    .as_str()
-                    .and_then(|id| self.state.source(id))
-                    .is_some_and(|s| s["coverage"] == "complete")
+                self.state
+                    .source(&runtime.descriptor.id)
+                    .is_some_and(complete_coverage)
             })
     }
 
@@ -136,12 +135,11 @@ impl History {
             .sources
             .iter()
             .filter_map(|(id, source)| {
-                let status = source["status"].as_str().unwrap_or_default();
-                let message = match status {
+                let message = match source.status.as_str() {
                     "unsupported" => Some("agent.history.sourceUnsupported"),
                     "partial" => Some("agent.history.sourcePartial"),
                     "failed" => None,
-                    _ if source["coverage"] != "complete" => Some("agent.history.sourceUnverified"),
+                    _ if !complete_coverage(source) => Some("agent.history.sourceUnverified"),
                     _ => None,
                 }?;
                 Some((id.clone(), message))
@@ -155,13 +153,18 @@ impl History {
     }
 }
 
-fn runtime_id(session: &Value) -> String {
-    session["runtimeId"]
-        .as_str()
+fn runtime_id(session: &SessionMetadata) -> String {
+    session
+        .runtime_id
+        .as_deref()
         .filter(|id| !id.is_empty())
-        .or_else(|| session["runtime"]["id"].as_str())
+        .or_else(|| session.runtime.as_ref().map(|r| r.id.as_str()))
         .unwrap_or_default()
         .to_string()
+}
+
+fn complete_coverage(source: &SessionDiscovery) -> bool {
+    source.coverage.as_deref() == Some("complete")
 }
 
 /// Where the conversations come from.
@@ -191,7 +194,7 @@ impl HistorySource {
 /// `CloudAgentHistory`: server locators adapted, never transcripts.
 fn hosted_history(hub: &Hub) -> ConversationHistoryState {
     let history = hub.history();
-    let sessions: Vec<Value> = history
+    let sessions: Vec<SessionMetadata> = history
         .sessions
         .iter()
         .map(|session| {
@@ -200,14 +203,23 @@ fn hosted_history(hub: &Hub) -> ConversationHistoryState {
                 .clone()
                 .filter(|t| !t.is_empty())
                 .unwrap_or_else(|| tr("agent.header.newChat").to_string());
-            serde_json::json!({
-                "id": session.id, "provider": "cloud-pi", "runtimeId": "cloud-pi",
-                "runtime": { "id": "cloud-pi", "displayName": LABEL, "iconKey": "puppyone-agent" },
-                "providerSessionId": session.id, "title": title,
-                "createdAt": session.updated_at, "updatedAt": session.updated_at,
-                "terminalState": "idle", "selectedModel": null, "lastSequence": 0,
-                "agentId": session.agent_id, "mode": session.mode,
-            })
+            SessionMetadata {
+                id: session.id.clone(),
+                provider: "cloud-pi".into(),
+                runtime_id: Some("cloud-pi".into()),
+                runtime: Some(RuntimeDescriptor {
+                    id: "cloud-pi".into(),
+                    display_name: LABEL.into(),
+                    icon_key: Some("puppyone-agent".into()),
+                    ..RuntimeDescriptor::default()
+                }),
+                provider_session_id: Some(session.id.clone()),
+                title,
+                created_at: session.updated_at.clone(),
+                updated_at: session.updated_at.clone(),
+                terminal_state: Some("idle".into()),
+                ..SessionMetadata::default()
+            }
         })
         .collect();
     let status = if history.error.is_some() {
@@ -220,11 +232,20 @@ fn hosted_history(hub: &Hub) -> ConversationHistoryState {
     ConversationHistoryState {
         sources: vec![(
             "cloud-pi".into(),
-            serde_json::json!({
-                "runtimeId": "cloud-pi", "status": status,
-                "coverage": if history.sessions.len() < 200 { "complete" } else { "unknown" },
-                "nextCursor": null, "scanId": null, "indexed": history.sessions.len(), "warnings": [],
-            }),
+            SessionDiscovery {
+                runtime_id: Some("cloud-pi".into()),
+                status: status.into(),
+                coverage: Some(
+                    if history.sessions.len() < 200 {
+                        "complete"
+                    } else {
+                        "unknown"
+                    }
+                    .into(),
+                ),
+                indexed: history.sessions.len() as i64,
+                ..SessionDiscovery::default()
+            },
         )],
         sessions,
         loading: !history.loaded && history.loading,
@@ -587,7 +608,7 @@ impl HistoryBrowser {
     fn row(
         &self,
         index: usize,
-        session: &Value,
+        session: &SessionMetadata,
         history: &History,
         a: AgentTheme,
         t: Theme,
@@ -595,11 +616,11 @@ impl HistoryBrowser {
     ) -> AnyElement {
         let runtime = runtime_for_icon_key(&history.icon_key(session));
         let disabled = self.opening.is_some();
-        let title = session["title"].as_str().unwrap_or_default().to_string();
-        let updated = (session["updatedAtKnown"] != false)
-            .then(|| session["updatedAt"].as_str())
-            .flatten()
-            .and_then(crate::agent::contract::js::date_parse)
+        let title = session.title.clone();
+        let updated = (session.updated_at_known != Some(false))
+            .then_some(session.updated_at.as_str())
+            .filter(|at| !at.is_empty())
+            .and_then(crate::clock::date_parse)
             .map(format_history_date)
             .unwrap_or_default();
         let target = create_agent_chat_history_target(session);
@@ -658,18 +679,14 @@ impl HistoryBrowser {
         let history = self.history();
         let failed = history.source_failed();
         let query = self.search.read(cx).text().trim().to_lowercase();
-        let matching: Vec<Value> = history
+        let matching: Vec<SessionMetadata> = history
             .sessions
             .iter()
             .filter(|session| {
                 query.is_empty()
-                    || format!(
-                        "{}\n{}",
-                        session["title"].as_str().unwrap_or_default(),
-                        history.runtime_label(session)
-                    )
-                    .to_lowercase()
-                    .contains(&query)
+                    || format!("{}\n{}", session.title, history.runtime_label(session))
+                        .to_lowercase()
+                        .contains(&query)
             })
             .cloned()
             .collect();
@@ -740,7 +757,7 @@ impl HistoryBrowser {
             .px(px(12.))
             .pb(px(8.));
         for (id, source) in &state.sources {
-            if source["status"] == "failed" {
+            if source.status == "failed" {
                 footer = footer.child(warning(format!(
                     "{}: {}",
                     history.label_for(id),
@@ -778,11 +795,7 @@ impl HistoryBrowser {
             }
             footer = footer.child(details);
         }
-        if state
-            .catalog_coverage
-            .as_ref()
-            .is_some_and(|c| c["truncated"] == true)
-        {
+        if state.catalog_coverage.as_ref().is_some_and(|c| c.truncated) {
             footer = footer.child(warning(tr("agent.history.catalogTruncated").into()));
         }
         if history.has_more {

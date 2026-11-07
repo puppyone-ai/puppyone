@@ -1,11 +1,11 @@
 //! `useAgentRoutingPreferences.ts`: applies and records routing without
 //! leaking one runtime's model into another.
 use super::{AgentChatPanelEvent, AgentChatTabPanel};
+use crate::agent::contract::dto::Model;
 use crate::features::desktop_agent::application::agent_controller_state::AgentControllerState;
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
 use crate::features::settings::agent_routing_preferences::{AgentRoutePatch, AgentRoutePreference};
 use gpui::Context;
-use serde_json::Value;
 
 /// What the Workbench item passes in (`preferredRuntimeId`, `preferredRoute`).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -38,7 +38,7 @@ fn some(value: &Option<String>) -> Option<&str> {
 /// The pending flags (`modelPreferencePending`, …).
 pub(super) fn pending_preferences(
     state: &AgentControllerState,
-    runtime_models: &[Value],
+    runtime_models: &[Model],
     routing: &AgentRouting,
 ) -> PendingPreferences {
     let route = &routing.preferred_route;
@@ -50,36 +50,30 @@ pub(super) fn pending_preferences(
     let model_available = preferred_model_id.as_deref().is_some_and(|model| {
         same_runtime
             && inspection.is_some_and(|i| {
-                i["selectedRuntimeId"].as_str() == selected_runtime
-                    && i["models"]
-                        .as_array()
-                        .is_some_and(|models| models.iter().any(|m| m["model"] == model))
+                i.selected_runtime_id.as_deref() == selected_runtime
+                    && i.models.iter().any(|m| m.model == model)
             })
     });
     let model = state.session.is_none()
         && model_available
         && state.selected_model.as_deref() != preferred_model_id.as_deref();
     let mode_available = some(&route.mode).is_some_and(|mode| {
-        same_runtime
-            && inspection.is_some_and(|i| {
-                i["modes"]
-                    .as_array()
-                    .is_some_and(|modes| modes.iter().any(|m| m["id"] == mode))
-            })
+        same_runtime && inspection.is_some_and(|i| i.mode_list().iter().any(|m| m.id == mode))
     });
     let mode = state.session.is_none()
         && mode_available
         && state.selected_mode.as_deref() != some(&route.mode);
     let selected_profile = runtime_models
         .iter()
-        .find(|m| m["model"].as_str() == state.selected_model.as_deref());
+        .find(|m| state.selected_model.as_deref() == Some(m.model.as_str()));
     let preferred_effort = some(&route.effort)
         .or(some(&route.variant))
         .map(str::to_string);
     let effort_available = preferred_effort.as_deref().is_some_and(|effort| {
         selected_profile.is_some_and(|profile| {
-            profile["variants"]
-                .as_array()
+            profile
+                .variants
+                .as_deref()
                 .is_some_and(|variants| variants.iter().any(|v| v == effort))
         })
     });
@@ -128,15 +122,11 @@ impl AgentChatTabPanel {
                     )));
                 }
                 None if preferred_runtime.is_some() => {
-                    let registered = state
-                        .inspection
-                        .as_ref()
-                        .and_then(|i| i["runtimes"].as_array())
-                        .is_some_and(|runtimes| {
-                            runtimes.iter().any(|entry| {
-                                entry["descriptor"]["id"].as_str() == preferred_runtime.as_deref()
-                            })
-                        });
+                    let registered = state.inspection.as_ref().is_some_and(|i| {
+                        i.runtime_entries().iter().any(|entry| {
+                            preferred_runtime.as_deref() == Some(entry.descriptor.id.as_str())
+                        })
+                    });
                     if state.inspection.is_some() && !registered {
                         cx.emit(AgentChatPanelEvent::PreferredRuntime(None));
                     }
@@ -197,20 +187,9 @@ impl AgentChatTabPanel {
             AgentSessionControlId::Model => {
                 self.controller.select_model(Some(&value));
                 let runtime = self.runtime_view(&state);
-                let selected = runtime
-                    .runtime_models
-                    .iter()
-                    .find(|m| m["model"] == value.as_str());
-                let variants = |model: Option<&Value>| -> Vec<String> {
-                    model
-                        .and_then(|m| m["variants"].as_array())
-                        .map(|v| {
-                            v.iter()
-                                .filter_map(Value::as_str)
-                                .map(str::to_string)
-                                .collect()
-                        })
-                        .unwrap_or_default()
+                let selected = runtime.runtime_models.iter().find(|m| m.model == value);
+                let variants = |model: Option<&Model>| -> Vec<String> {
+                    model.and_then(|m| m.variants.clone()).unwrap_or_default()
                 };
                 let offered = variants(selected);
                 let effort = if state.selected_model.as_deref() == Some(value.as_str())
@@ -222,14 +201,11 @@ impl AgentChatTabPanel {
                     state.selected_effort.clone()
                 } else {
                     selected
-                        .and_then(|m| m["defaultVariant"].as_str())
-                        .map(str::to_string)
+                        .and_then(|m| m.default_variant.clone())
                         .or_else(|| offered.first().cloned())
                 };
                 AgentRoutePreference {
-                    provider_id: selected
-                        .and_then(|m| m["providerId"].as_str())
-                        .map(str::to_string),
+                    provider_id: selected.and_then(|m| m.provider_id.clone()),
                     model_id: Some(value),
                     variant: None,
                     effort,
@@ -281,6 +257,7 @@ impl AgentChatTabPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::contract::dto::{RuntimeInspection, SessionMetadata};
     use core::prelude::v1::test;
     use serde_json::json;
 
@@ -289,17 +266,17 @@ mod tests {
         let mut state = AgentControllerState {
             selected_runtime_id: Some("codex".into()),
             selected_model: Some("codex/a".into()),
-            inspection: Some(json!({
-                "selectedRuntimeId": "codex",
-                "models": [{ "model": "codex/a" }, { "model": "codex/b", "variants": ["low", "high"] }],
-                "modes": [{ "id": "plan" }],
-            })),
+            inspection: Some(
+                serde_json::from_value::<RuntimeInspection>(json!({
+                    "selectedRuntimeId": "codex",
+                    "models": [{ "model": "codex/a" }, { "model": "codex/b", "variants": ["low", "high"] }],
+                    "modes": [{ "id": "plan" }],
+                }))
+                .unwrap(),
+            ),
             ..Default::default()
         };
-        let models = state.inspection.as_ref().unwrap()["models"]
-            .as_array()
-            .unwrap()
-            .clone();
+        let models = state.inspection.as_ref().unwrap().models.clone();
         let routing = AgentRouting {
             preferred_runtime_id: Some("codex".into()),
             preferred_route: AgentRoutePreference {
@@ -323,7 +300,10 @@ mod tests {
             !elsewhere.model && !elsewhere.mode,
             "another runtime's route is not applied"
         );
-        state.session = Some(json!({ "id": "s" }));
+        state.session = Some(SessionMetadata {
+            id: "s".into(),
+            ..Default::default()
+        });
         assert!(pending_preferences(&state, &models, &routing).ready());
     }
 }

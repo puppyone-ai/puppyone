@@ -4,13 +4,12 @@ use super::session_feed::{settle, wait_for};
 use super::support::{Deferred, assert_match};
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests::harness::run;
-use crate::features::desktop_agent::application::agent_client_port::{
-    AgentClientPort, ClientFuture,
-};
+use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::conversation_history_controller::{
     ConversationHistoryController, NativeScanContinuation,
 };
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
+use crate::features::desktop_agent::fixtures::JsonAnswer as ClientFuture;
 use serde_json::{Value, json};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -85,7 +84,7 @@ fn ids(controller: &ConversationHistoryController) -> Vec<String> {
         .get_snapshot()
         .sessions
         .iter()
-        .map(|entry| entry["id"].as_str().unwrap_or_default().to_string())
+        .map(|entry| entry.id.clone())
         .collect()
 }
 
@@ -454,8 +453,8 @@ fn publishes_a_healthy_source_while_another_native_source_waits() {
         let state = history.get_snapshot();
         assert!(state.refreshing);
         assert_eq!(
-            state.source("codex").map(|s| s["status"].clone()),
-            Some(json!("complete"))
+            state.source("codex").map(|s| s.status.clone()),
+            Some("complete".to_string())
         );
         slow.resolve(catalog(
             Vec::new(),

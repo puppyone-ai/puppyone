@@ -14,12 +14,8 @@ fn native_event(event_type: &str, turn_id: &str, payload: Value) -> Value {
     json!({ "type": event_type, "turnId": turn_id, "providerSessionId": "thread-1", "payload": payload })
 }
 
-fn frames(sink: &std::cell::RefCell<Vec<(String, Value)>>) -> Vec<Value> {
-    sink.borrow()
-        .iter()
-        .filter(|(c, _)| c == "agent:session-frame")
-        .map(|(_, f)| f.clone())
-        .collect()
+fn frames(sink: &std::cell::RefCell<Vec<Value>>) -> Vec<Value> {
+    sink.borrow().clone()
 }
 
 #[test]

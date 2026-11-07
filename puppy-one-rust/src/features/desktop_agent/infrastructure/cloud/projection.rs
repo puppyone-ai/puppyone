@@ -2,6 +2,7 @@
 //! the hosted chat renders through the same transcript, approval dock and
 //! composer as a local one.
 use crate::agent::contract::display_types::AgentDisplay;
+use crate::agent::contract::dto::AgentProjection;
 use crate::workspace::cloud::agent::{Run, Tool};
 use serde_json::{Value, json};
 
@@ -91,7 +92,7 @@ fn tool_status(tool: &Tool) -> &'static str {
 }
 
 /// `projectCloudAgentRuns(runs)`.
-pub fn project_cloud_agent_runs(runs: &[Run]) -> AgentDisplay {
+pub fn project_cloud_agent_runs(runs: &[Run]) -> AgentProjection {
     let mut messages = Vec::new();
     let mut activities = Vec::new();
     let mut approvals = Vec::new();
@@ -166,5 +167,7 @@ pub fn project_cloud_agent_runs(runs: &[Run]) -> AgentDisplay {
             "stopping": current.is_some_and(|run| run.stop_requested),
         },
     });
-    AgentDisplay::from_value(&value).expect("the hosted projection has every collection")
+    let display =
+        AgentDisplay::from_value(&value).expect("the hosted projection has every collection");
+    AgentProjection::project(&display, None).expect("the hosted projection reads as a display")
 }

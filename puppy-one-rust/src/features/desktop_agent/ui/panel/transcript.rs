@@ -15,14 +15,13 @@ use super::super::transcript::transcript_layout::{
 use super::super::transcript::transcript_rows::{
     PendingTranscriptSubmission, STANDARD_CONTROL_SIZE, build_agent_timeline,
 };
+use super::AgentChatTabPanel;
 use super::elements::{
     EVIDENCE_RAIL_INLINE, OpenFile, context_divider, evidence_branch, evidence_tree, mention_chip,
     metadata_element, plan_list, prose_branch, run_feedback, status_icon_element, step_icon,
     step_line, subject_element,
 };
-use super::{AgentChatTabPanel, text_of};
-use crate::agent::contract::display_types::AgentDisplay;
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{AgentProjection, ConnectionStatus, Part, Turn};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerState, AgentSubmissionStage,
 };
@@ -30,19 +29,20 @@ use crate::features::desktop_agent::domain::agent_activity_presentation::{
     format_agent_duration, output_for_activity,
 };
 use crate::features::desktop_agent::domain::agent_prompt_mentions::{
-    PromptPart, is_agent_media_reference, split_agent_prompt_mentions,
+    PromptPart, is_agent_media_display, split_agent_prompt_mentions,
 };
 use crate::features::desktop_agent::domain::agent_stream_presentation::split_streaming_markdown;
 use crate::localization::{Arg, bidi_isolate, format_number, t, tf};
+use crate::text;
 use crate::theme;
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// `--agent-content-max`, transcript padding and the 12px gutter.
 const CONTENT_MAX: f32 = 900.;
@@ -62,58 +62,47 @@ pub enum RunStatus {
 
 /// The parts the transcript reads (`projection.parts`, or the original
 /// message/activity shape).
-fn typed_parts(projection: &AgentDisplay) -> Vec<Value> {
+fn typed_parts(projection: &AgentProjection) -> Vec<Arc<Part>> {
     if !projection.parts.is_empty() {
-        return projection
-            .parts
-            .iter()
-            .map(|part| (**part).clone())
-            .collect();
+        return projection.parts.clone();
     }
     projection
         .messages
         .iter()
-        .map(|message| {
-            let mut part = (**message).clone();
-            part["kind"] = message["role"].clone();
-            part
-        })
+        .map(|message| Arc::new(Part::of_message(message)))
         .chain(
             projection
                 .activities
                 .iter()
-                .map(|activity| (**activity).clone()),
+                .map(|activity| Arc::new(Part::of_activity(activity))),
         )
         .collect()
 }
 
-fn updated(part: &Value) -> i64 {
-    part["updatedSequence"]
-        .as_i64()
-        .unwrap_or_else(|| part["sequence"].as_i64().unwrap_or(0))
+fn updated(part: &Arc<Part>) -> i64 {
+    part.updated_sequence.unwrap_or(part.sequence)
 }
 
 /// `agentRunStatusCode(projection, working)`: presentation only; it never
 /// fabricates model content or Harness history.
-pub fn agent_run_status_code(projection: &AgentDisplay, working: bool) -> Option<RunStatus> {
+pub fn agent_run_status_code(projection: &AgentProjection, working: bool) -> Option<RunStatus> {
     if !working || !projection.approvals.is_empty() || !projection.questions.is_empty() {
         return None;
     }
-    let turn_id = projection.running_turn_id().filter(|id| !id.is_empty())?;
-    let mut visible: Vec<Value> = typed_parts(projection)
+    let turn_id = projection.running_turn()?;
+    let mut visible: Vec<Arc<Part>> = typed_parts(projection)
         .into_iter()
         .filter(|part| {
-            part["turnId"] == turn_id
-                && !["user", "usage", "permission", "question"]
-                    .contains(&part["kind"].as_str().unwrap_or_default())
+            part.turn_id.as_deref() == Some(turn_id)
+                && !["user", "usage", "permission", "question"].contains(&part.kind.as_str())
         })
         .collect();
     visible.sort_by_key(updated);
     let Some(latest) = visible.last() else {
         return Some(RunStatus::Thinking);
     };
-    match latest["kind"].as_str().unwrap_or_default() {
-        "assistant" => return (latest["streaming"] != true).then_some(RunStatus::Working),
+    match latest.kind.as_str() {
+        "assistant" => return (!latest.streaming).then_some(RunStatus::Working),
         "error" | "warning" => return None,
         _ => {}
     }
@@ -124,9 +113,9 @@ pub fn agent_run_status_code(projection: &AgentDisplay, working: bool) -> Option
         "waiting-for-user",
         "blocked",
     ]
-    .contains(&latest["status"].as_str().unwrap_or_default())
+    .contains(&latest.status.as_str())
     {
-        return Some(if latest["kind"] == "reasoning" {
+        return Some(if latest.kind == "reasoning" {
             RunStatus::Thinking
         } else {
             RunStatus::Working
@@ -138,33 +127,29 @@ pub fn agent_run_status_code(projection: &AgentDisplay, working: bool) -> Option
 }
 
 /// `currentAgentReasoningSummary(projection)`.
-pub fn current_agent_reasoning_summary(projection: &AgentDisplay) -> Option<(String, String)> {
-    let turn_id = projection.running_turn_id().filter(|id| !id.is_empty())?;
-    let parts = if projection.parts.is_empty() {
+pub fn current_agent_reasoning_summary(projection: &AgentProjection) -> Option<(String, String)> {
+    let turn_id = projection.running_turn()?;
+    let parts: Vec<Arc<Part>> = if projection.parts.is_empty() {
         projection
             .activities
             .iter()
-            .map(|a| (**a).clone())
+            .map(|a| Arc::new(Part::of_activity(a)))
             .collect()
     } else {
-        projection
-            .parts
-            .iter()
-            .map(|p| (**p).clone())
-            .collect::<Vec<_>>()
+        projection.parts.clone()
     };
-    let mut reasoning: Vec<Value> = parts
+    let mut reasoning: Vec<Arc<Part>> = parts
         .into_iter()
-        .filter(|part| part["kind"] == "reasoning" && part["turnId"] == turn_id)
+        .filter(|part| part.kind == "reasoning" && part.turn_id.as_deref() == Some(turn_id))
         .collect();
     reasoning.sort_by_key(updated);
     let latest = reasoning.pop()?;
-    let text = match latest["detail"]["delta"].as_str() {
+    let summary = match latest.detail.text("delta") {
         Some(delta) => delta.to_string(),
-        None => output_for_activity(&latest),
+        None => output_for_activity(&*latest),
     };
-    let text = js::head16(js::trim(&text), 2_048).to_string();
-    (!text.is_empty()).then(|| (js::string_or_empty(latest.get("id")), text))
+    let summary = text::head16(text::trim(&summary), 2_048).to_string();
+    (!summary.is_empty()).then(|| (latest.id.clone(), summary))
 }
 
 /// `agentSubmissionStatusLabel(stage, runtimeLabel, palette)`.
@@ -183,32 +168,29 @@ pub fn agent_submission_status_label(
 
 /// `agentRunActiveElapsedMs(turn, nowMs)`: active Agent work time from
 /// event timestamps.
-pub fn agent_run_active_elapsed_ms(turn: Option<&Value>, now_ms: i64) -> Option<i64> {
+pub fn agent_run_active_elapsed_ms(turn: Option<&Turn>, now_ms: i64) -> Option<i64> {
     let turn = turn?;
-    if turn["status"] != "running" {
+    if turn.status != "running" {
         return None;
     }
-    let started = turn["startedAtMs"].as_i64()?;
+    let started = turn.started_at_ms? as i64;
     let wall = (now_ms - started).max(0);
-    let settled_wait = turn["userWaitDurationMs"].as_i64().unwrap_or(0).max(0);
-    let open_wait = turn["userWaitStartedAtMs"]
-        .as_i64()
-        .map_or(0, |at| (now_ms - at).max(0));
+    let settled_wait = turn.user_wait_duration_ms.unwrap_or(0.).max(0.) as i64;
+    let open_wait = turn
+        .user_wait_started_at_ms
+        .map_or(0, |at| (now_ms - at as i64).max(0));
     Some(MAX_VISIBLE_RUN_DURATION_MS.min((wall - settled_wait - open_wait).max(0)))
 }
 
 /// The live tail (`hasLiveTail`): the label and a running reasoning summary.
 struct LiveTail {
-    connection: Option<Value>,
+    connection: Option<ConnectionStatus>,
     working: Option<(String, Option<(String, String)>)>,
 }
 
 fn live_tail(state: &AgentControllerState, view: &AgentChatViewModel) -> LiveTail {
     let projection = &state.projection;
-    let connection = projection
-        .get("connectionStatus")
-        .filter(|c| js::truthy(c))
-        .cloned();
+    let connection = projection.connection_status.clone();
     let submission =
         agent_submission_status_label(view.submission_stage, &view.runtime.runtime_label);
     let run_status = if connection.is_none() && submission.is_none() {
@@ -219,14 +201,10 @@ fn live_tail(state: &AgentControllerState, view: &AgentChatViewModel) -> LiveTai
     let running_turn = projection
         .turns
         .iter()
-        .find(|turn| {
-            projection
-                .running_turn_id()
-                .is_some_and(|id| turn["id"] == id)
-        })
+        .find(|turn| projection.running_turn_id.as_deref() == Some(turn.id.as_str()))
         .map(|turn| (**turn).clone());
     let elapsed = run_status
-        .and_then(|_| agent_run_active_elapsed_ms(running_turn.as_ref(), js::now_ms()))
+        .and_then(|_| agent_run_active_elapsed_ms(running_turn.as_ref(), crate::clock::now_ms()))
         .filter(|ms| *ms >= AGENT_RUN_ELAPSED_LABEL_THRESHOLD_MS);
     let status_label = run_status.map(|status| {
         t(match status {
@@ -284,8 +262,8 @@ impl AgentChatTabPanel {
         let streaming: HashMap<String, String> = self
             .parts
             .iter()
-            .filter(|(_, part)| part["kind"] == "assistant" && part["streaming"] == true)
-            .map(|(id, part)| (id.clone(), text_of(&part["text"])))
+            .filter(|(_, part)| part.kind == "assistant" && part.streaming)
+            .map(|(id, part)| (id.clone(), part.text.clone()))
             .collect();
         // A new answer shows its text as it first arrives (`useState(text)`).
         self.stream_text.retain(|id, displayed| {
@@ -327,7 +305,7 @@ impl AgentChatTabPanel {
             let Some(part) = self.parts.get(id) else {
                 continue;
             };
-            let text = text_of(&part["text"]);
+            let text = part.text.clone();
             if *displayed == text {
                 continue;
             }
@@ -385,11 +363,7 @@ impl AgentChatTabPanel {
             .collect();
         if tail.connection.is_some() || tail.working.is_some() {
             let mut hasher = blake3::Hasher::new();
-            hasher.update(
-                serde_json::to_string(&tail.connection)
-                    .unwrap_or_default()
-                    .as_bytes(),
-            );
+            hasher.update(format!("{:?}", tail.connection).as_bytes());
             if let Some((label, summary)) = &tail.working {
                 hasher.update(label.as_bytes());
                 hasher.update(
@@ -450,7 +424,7 @@ impl AgentChatTabPanel {
         hasher.update(row.row.kind.as_bytes());
         for id in &row.part_ids {
             if let Some(part) = self.parts.get(id) {
-                hasher.update(serde_json::to_string(part).unwrap_or_default().as_bytes());
+                hasher.update(format!("{part:?}").as_bytes());
             }
         }
         hasher.update(
@@ -611,7 +585,7 @@ impl AgentChatTabPanel {
             build_agent_timeline_layout(&layout_rows, &HashMap::new(), AGENT_TIMELINE_SPACING);
         let (body, gap) = match self.rows.get(index).cloned() {
             Some(row) => {
-                let parts: Vec<Value> = row
+                let parts: Vec<Arc<Part>> = row
                     .part_ids
                     .iter()
                     .filter_map(|id| self.parts.get(id).cloned())
@@ -652,7 +626,7 @@ impl AgentChatTabPanel {
     fn render_part(
         &mut self,
         row_id: &str,
-        part: &Value,
+        part: &Part,
         view: &AgentChatViewModel,
         content_width: f32,
         window: &mut Window,
@@ -660,12 +634,12 @@ impl AgentChatTabPanel {
     ) -> AnyElement {
         let palette = cx.palette();
         let a = AgentTheme::new(&palette);
-        match part["kind"].as_str().unwrap_or_default() {
+        match part.kind.as_str() {
             "user" => self.render_user_message(part, &a),
             "assistant" => self.render_assistant_message(part, view, content_width, window, cx),
             "turn-summary" => {
-                let duration = format_agent_duration(part["durationMs"].as_f64().unwrap_or(0.));
-                let label = if part["completionQuality"] == "degraded" {
+                let duration = format_agent_duration(part.duration_ms.unwrap_or(0.));
+                let label = if part.completion_quality.as_deref() == Some("degraded") {
                     tf(
                         "agent.recovery.degraded.turnSummary",
                         &[("duration", Arg::Text(duration))],
@@ -695,16 +669,14 @@ impl AgentChatTabPanel {
         }
     }
 
-    fn render_unregistered(&self, part: &Value, a: &AgentTheme) -> AnyElement {
-        let label = if part.get("eventType").is_some() {
-            part["label"]
-                .as_str()
+    fn render_unregistered(&self, part: &Part, a: &AgentTheme) -> AnyElement {
+        let label = if part.event_type.is_some() {
+            Some(part.label.clone())
                 .filter(|l| !l.is_empty())
-                .map(str::to_string)
                 .unwrap_or_else(|| {
                     t(&format!(
                         "agent.part.{}",
-                        part["labelCode"].as_str().unwrap_or("unsupported-event")
+                        part.label_code.as_deref().unwrap_or("unsupported-event")
                     ))
                     .into()
                 })
@@ -721,21 +693,19 @@ impl AgentChatTabPanel {
 
     /// `AgentMessagePart` for the user: quiet full-width row, media
     /// references above the prompt, mentions inline.
-    fn render_user_message(&self, part: &Value, a: &AgentTheme) -> AnyElement {
+    fn render_user_message(&self, part: &Part, a: &AgentTheme) -> AnyElement {
         let m = theme::ty();
-        let references = part["references"].as_array().cloned().unwrap_or_default();
-        let media: Vec<Value> = references
+        let references = part.references.clone().unwrap_or_default();
+        let media: Vec<_> = references
             .iter()
-            .filter(|r| is_agent_media_reference(r))
+            .filter(|r| is_agent_media_display(r))
             .cloned()
             .collect();
-        let text = text_of(&part["text"]);
-        let mentions = part["promptMentions"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let delivery = part["deliveryStatus"]
-            .as_str()
+        let text = part.text.clone();
+        let mentions = part.prompt_mentions.clone().unwrap_or_default();
+        let delivery = part
+            .delivery_status
+            .as_deref()
             .filter(|status| !["accepted", "dispatching"].contains(status))
             .map(|status| {
                 t(match status {
@@ -774,7 +744,7 @@ impl AgentChatTabPanel {
                                 .border_color(a.border_subtle)
                                 .text_size(px(m.left.meta))
                                 .text_color(a.text_muted)
-                                .child(text_of(&reference["displayName"]))
+                                .child(reference.display_name.clone())
                         })),
                 )
             })
@@ -802,7 +772,7 @@ impl AgentChatTabPanel {
     /// flow; incomplete Markdown streams as a plain tail.
     fn render_assistant_message(
         &self,
-        part: &Value,
+        part: &Part,
         _view: &AgentChatViewModel,
         content_width: f32,
         window: &mut Window,
@@ -811,10 +781,10 @@ impl AgentChatTabPanel {
         let palette = cx.palette();
         let a = AgentTheme::new(&palette);
         let m = theme::ty();
-        let streaming = part["streaming"] == true;
-        let id = text_of(&part["id"]);
-        let text = self.presented_text(&id, &text_of(&part["text"]), streaming);
-        let order = part["sequence"].as_i64().unwrap_or(0).max(0) as u64 * 10;
+        let streaming = part.streaming;
+        let id = part.id.clone();
+        let text = self.presented_text(&id, &part.text, streaming);
+        let order = part.sequence.max(0) as u64 * 10;
         let (stable, tail) = if streaming {
             split_streaming_markdown(&text)
         } else {
@@ -825,8 +795,9 @@ impl AgentChatTabPanel {
         } else {
             stable
         };
-        let terminal = part["terminalState"]
-            .as_str()
+        let terminal = part
+            .terminal_state
+            .as_deref()
             .filter(|state| *state != "completed")
             .map(|state| {
                 (
@@ -874,7 +845,7 @@ impl AgentChatTabPanel {
                     })
                     .child(label)
             }))
-            .when(part["truncated"] == true, |d| {
+            .when(part.truncated == Some(true), |d| {
                 d.child(
                     div()
                         .px(px(12.))
@@ -890,7 +861,7 @@ impl AgentChatTabPanel {
     fn render_activity(
         &mut self,
         row_id: &str,
-        part: &Value,
+        part: &Part,
         in_group: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -928,14 +899,14 @@ impl AgentChatTabPanel {
     fn render_shell(
         &mut self,
         row_id: &str,
-        part: &Value,
+        part: &Part,
         shell: &ActivityShell,
         in_group: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let palette = cx.palette();
         let a = AgentTheme::new(&palette);
-        let part_id = text_of(&part["id"]);
+        let part_id = part.id.clone();
         let key = format!("{row_id}:{part_id}");
         let has_detail = shell.has_detail();
         let expanded = if in_group {
@@ -1024,7 +995,7 @@ impl AgentChatTabPanel {
     fn render_tool_group(
         &mut self,
         row_id: &str,
-        parts: &[Value],
+        parts: &[Arc<Part>],
         _view: &AgentChatViewModel,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -1032,7 +1003,7 @@ impl AgentChatTabPanel {
         let a = AgentTheme::new(&palette);
         // Drop a selection whose step left the group.
         if let Some(selected) = self.group_selected.get(row_id)
-            && !parts.iter().any(|part| part["id"] == selected.as_str())
+            && !parts.iter().any(|part| part.id == *selected)
         {
             self.group_selected.remove(row_id);
         }
@@ -1127,7 +1098,7 @@ impl AgentChatTabPanel {
     /// `AgentHistoryNotice`.
     fn render_history_notice(
         &self,
-        projection: &AgentDisplay,
+        projection: &AgentProjection,
         a: &AgentTheme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
@@ -1192,20 +1163,18 @@ impl AgentChatTabPanel {
         let mut column = v_flex().gap(px(6.));
         if let Some(status) = tail.connection {
             // `AgentConnectionStatus`.
-            let reconnecting = status["state"] == "reconnecting";
+            let reconnecting = status.state == "reconnecting";
             let fallback = if reconnecting {
                 t("agent.connection.reconnecting")
             } else {
                 t("agent.connection.fallback")
             };
-            let attempt = match (status["attempt"].as_i64(), status["maxAttempts"].as_i64()) {
+            let attempt = match (status.attempt, status.max_attempts) {
                 (Some(attempt), Some(max)) if attempt > 0 && max > 0 => format!(" {attempt}/{max}"),
                 _ => String::new(),
             };
-            let label = status["message"]
-                .as_str()
+            let label = Some(status.message.clone())
                 .filter(|m| !m.is_empty())
-                .map(str::to_string)
                 .unwrap_or_else(|| format!("{fallback}{attempt}"));
             column = column.child(
                 h_flex()

@@ -1,5 +1,6 @@
 //! `desktop-agent.tool-evidence.test.ts` and
 //! `desktop-agent.tool-presentation.test.ts`.
+use crate::agent::contract::dto::Activity;
 use crate::agent::contract::js;
 use crate::features::desktop_agent::domain::agent_activity_presentation::{
     command_presentation_for_activity, output_for_activity,
@@ -8,6 +9,7 @@ use crate::features::desktop_agent::domain::agent_tool_evidence::{
     AGENT_TOOL_EVIDENCE_LIMITS, collect_agent_tool_result_lines,
     create_agent_tool_evidence_preview, stringify_agent_tool_input,
 };
+use crate::features::desktop_agent::fixtures::typed;
 use serde_json::{Map, Value, json};
 
 #[test]
@@ -71,16 +73,22 @@ fn serializes_wide_structured_input_within_an_aggregate_budget() {
     }
     // A JSON tree cannot be cyclic; a nested copy stands in for `input.self`.
     input.insert("self".into(), Value::Object(input.clone()));
-    let serialized = stringify_agent_tool_input(&Value::Object(input)).expect("serialized");
+    let input: crate::agent::contract::dto::Record =
+        crate::features::desktop_agent::fixtures::typed(Value::Object(input));
+    let serialized = stringify_agent_tool_input(input.view()).expect("serialized");
     assert!(js::len16(&serialized) <= 32 * 1024);
     assert!(serialized.contains("truncated"));
 }
 
-fn command(command: &str) -> Value {
+fn command_json(command: &str) -> Value {
     json!({
         "id": "command", "turnId": "turn", "itemId": "tool", "kind": "command", "label": command,
         "status": "completed", "detail": { "tool": "bash", "command": command }, "output": "", "sequence": 1,
     })
+}
+
+fn command(command: &str) -> Activity {
+    typed(command_json(command))
 }
 
 #[test]
@@ -129,7 +137,7 @@ fn keeps_ambiguous_or_mutating_shell_syntax_as_bash() {
 
 #[test]
 fn renders_a_structured_tool_result_without_an_adapter_preview() {
-    let mut normalized = command("tool");
+    let mut normalized = command_json("tool");
     normalized["kind"] = json!("tool");
     normalized["detail"] = json!({
         "tool": "lookup",
@@ -143,7 +151,7 @@ fn renders_a_structured_tool_result_without_an_adapter_preview() {
         },
     });
     let expected = "visible result\nartifact://report\n{\n  \"count\": 2\n}";
-    assert!(output_for_activity(&normalized).contains(expected));
+    assert!(output_for_activity(&typed::<Activity>(normalized.clone())).contains(expected));
     normalized["kind"] = json!("mcp");
-    assert!(output_for_activity(&normalized).contains(expected));
+    assert!(output_for_activity(&typed::<Activity>(normalized)).contains(expected));
 }

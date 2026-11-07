@@ -3,10 +3,11 @@
 //! individual tool identities remain untouched.
 use super::activity::agent_tool_steps::agent_tool_step_segments;
 use super::transcript::transcript_rows::TimelineRow;
-use crate::agent::contract::activity_semantics::is_agent_tool_activity;
+use crate::agent::contract::activity_semantics::is_tool_activity;
+use crate::agent::contract::dto::Part;
 use crate::features::desktop_agent::domain::agent_activity_presentation::is_context_compaction_activity;
-use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// `AgentTranscriptRow`.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,7 +22,7 @@ pub const AGENT_TOOL_GROUP_LIMIT: usize = 64;
 /// `groupAgentToolRows(rows, parts, compactRowHeight)`.
 pub fn group_agent_tool_rows(
     rows: &[TimelineRow],
-    parts: &HashMap<String, Value>,
+    parts: &HashMap<String, Arc<Part>>,
     compact_row_height: f64,
 ) -> Vec<AgentTranscriptRow> {
     let mut grouped = Vec::new();
@@ -47,7 +48,7 @@ pub fn group_agent_tool_rows(
             tool_rows.push(&rows[cursor]);
             cursor += 1;
         }
-        let group_parts: Vec<Value> = tool_rows
+        let group_parts: Vec<Arc<Part>> = tool_rows
             .iter()
             .filter_map(|entry| parts.get(&entry.part_id).cloned())
             .collect();
@@ -73,11 +74,11 @@ pub fn group_agent_tool_rows(
     grouped
 }
 
-fn is_groupable_tool_row(row: &TimelineRow, parts: &HashMap<String, Value>) -> bool {
+fn is_groupable_tool_row(row: &TimelineRow, parts: &HashMap<String, Arc<Part>>) -> bool {
     if !matches!(row.kind.as_str(), "tool" | "command" | "file-change") {
         return false;
     }
     parts
         .get(&row.part_id)
-        .is_some_and(|part| is_agent_tool_activity(part) && !is_context_compaction_activity(part))
+        .is_some_and(|part| is_tool_activity(&**part) && !is_context_compaction_activity(&**part))
 }

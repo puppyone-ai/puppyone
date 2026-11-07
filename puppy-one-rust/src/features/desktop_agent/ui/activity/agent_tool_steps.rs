@@ -1,12 +1,13 @@
 //! `ui/activity/agent-tool-steps.ts`: what a tool call did, in user terms.
 //! Provider tool ids and conservative read-only shell commands collapse into
 //! the same small vocabulary so every Harness reads the same way.
-use crate::agent::contract::activity_semantics::is_agent_tool_activity;
+use crate::agent::contract::activity_semantics::is_tool_activity;
+use crate::agent::contract::dto::Part;
 use crate::features::desktop_agent::domain::agent_activity_presentation::{
     agent_activity_tool_id, command_presentation_for_activity, path_for_activity,
 };
-use serde_json::Value;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// `AgentToolStepKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -26,11 +27,11 @@ pub enum AgentToolStepKind {
 pub enum AgentToolStepSegment {
     Step {
         id: String,
-        part: Value,
+        part: Arc<Part>,
     },
     Explored {
         id: String,
-        parts: Vec<Value>,
+        parts: Vec<Arc<Part>>,
         files: usize,
         searches: usize,
     },
@@ -57,9 +58,9 @@ pub fn is_active_tool_status(status: &str) -> bool {
 }
 
 /// `agentToolStepKind(activity)`.
-pub fn agent_tool_step_kind(activity: &Value) -> AgentToolStepKind {
+pub fn agent_tool_step_kind(activity: &Part) -> AgentToolStepKind {
     let tool = agent_activity_tool_id(activity);
-    if activity["kind"] == "command" || tool == "bash" {
+    if activity.kind == "command" || tool == "bash" {
         return match command_presentation_for_activity(activity).tool {
             "grep" | "glob" => AgentToolStepKind::Search,
             "read" => AgentToolStepKind::Read,
@@ -67,7 +68,7 @@ pub fn agent_tool_step_kind(activity: &Value) -> AgentToolStepKind {
             _ => AgentToolStepKind::Command,
         };
     }
-    if activity["kind"] == "file-change" {
+    if activity.kind == "file-change" {
         return if tool == "write" {
             AgentToolStepKind::Write
         } else {
@@ -96,14 +97,14 @@ pub fn is_exploration_step(kind: AgentToolStepKind) -> bool {
 /// `agentToolStepSegments(parts)`: one tool group's visible lines. Only
 /// settled, successful exploration is folded; running work and failures
 /// stay on their own line.
-pub fn agent_tool_step_segments(parts: &[Value]) -> Vec<AgentToolStepSegment> {
+pub fn agent_tool_step_segments(parts: &[Arc<Part>]) -> Vec<AgentToolStepSegment> {
     let mut segments = Vec::new();
-    let mut run: Vec<Value> = Vec::new();
-    let flush = |run: &mut Vec<Value>, segments: &mut Vec<AgentToolStepSegment>| {
+    let mut run: Vec<Arc<Part>> = Vec::new();
+    let flush = |run: &mut Vec<Arc<Part>>, segments: &mut Vec<AgentToolStepSegment>| {
         if run.len() >= AGENT_TOOL_EXPLORATION_FOLD_MIN {
             let (files, searches) = exploration_counts(run);
             segments.push(AgentToolStepSegment::Explored {
-                id: format!("explored:{}", run[0]["id"].as_str().unwrap_or_default()),
+                id: format!("explored:{}", run[0].id),
                 parts: std::mem::take(run),
                 files,
                 searches,
@@ -111,7 +112,7 @@ pub fn agent_tool_step_segments(parts: &[Value]) -> Vec<AgentToolStepSegment> {
         } else {
             for part in run.drain(..) {
                 segments.push(AgentToolStepSegment::Step {
-                    id: part["id"].as_str().unwrap_or_default().to_string(),
+                    id: part.id.clone(),
                     part,
                 });
             }
@@ -124,7 +125,7 @@ pub fn agent_tool_step_segments(parts: &[Value]) -> Vec<AgentToolStepSegment> {
         }
         flush(&mut run, &mut segments);
         segments.push(AgentToolStepSegment::Step {
-            id: part["id"].as_str().unwrap_or_default().to_string(),
+            id: part.id.clone(),
             part: part.clone(),
         });
     }
@@ -132,15 +133,15 @@ pub fn agent_tool_step_segments(parts: &[Value]) -> Vec<AgentToolStepSegment> {
     segments
 }
 
-fn is_foldable_exploration(part: &Value) -> bool {
-    let status = part["status"].as_str().unwrap_or_default();
-    is_agent_tool_activity(part)
+fn is_foldable_exploration(part: &Part) -> bool {
+    let status = part.status.as_str();
+    is_tool_activity(part)
         && !ACTIVE_STATUSES.contains(&status)
         && !FAILED_STATUSES.contains(&status)
         && is_exploration_step(agent_tool_step_kind(part))
 }
 
-fn exploration_counts(parts: &[Value]) -> (usize, usize) {
+fn exploration_counts(parts: &[Arc<Part>]) -> (usize, usize) {
     let mut paths = HashSet::new();
     let mut unnamed_reads = 0;
     let mut searches = 0;
@@ -149,10 +150,10 @@ fn exploration_counts(parts: &[Value]) -> (usize, usize) {
             searches += 1;
             continue;
         }
-        let path = if part["kind"] == "command" {
+        let path = if part.kind == "command" {
             String::new()
         } else {
-            path_for_activity(part)
+            path_for_activity(&**part)
         };
         if path.is_empty() {
             unnamed_reads += 1;

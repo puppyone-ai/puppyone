@@ -1,20 +1,21 @@
 //! `application/AgentTurnSubmissionCoordinator.ts`: captures and advances
 //! immutable prompt/configuration/reference intents.
-use super::agent_client_port::{AgentClientProvider, require_bridge};
+use super::agent_client_port::{AgentClient as _, AgentClientProvider, require_bridge};
 use super::agent_controller_state::{AgentControllerState, StatePatch};
-use super::agent_error::{create_agent_error, format_agent_error};
+use super::agent_error::{ErrorDescriptor, create_agent_error, format_agent_error};
 use super::agent_reference_draft_manager::AgentReferenceDraftManager;
 use super::agent_session_controller::{AgentControllerStore, command_preconditions};
 use super::ui_runtime::random_uuid;
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{Capability, DraftReference, PromptMention, SubmissionIntent};
+use crate::agent::contract::protocol::{AgentOperation, StartTurn, SteerTurn};
+use crate::text;
 use futures_util::future::LocalBoxFuture;
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// `writeDraft(draft, mentions)`.
-pub type WriteDraft = Rc<dyn Fn(&str, &[Value])>;
+pub type WriteDraft = Rc<dyn Fn(&str, &[PromptMention])>;
 
 pub struct AgentTurnSubmissionCoordinatorOptions {
     pub workspace_root: String,
@@ -35,7 +36,7 @@ struct Inner {
     disposed: Cell<bool>,
 }
 
-type Dispatch = Box<dyn FnOnce(String) -> LocalBoxFuture<'static, AgentResult<Value>>>;
+type Dispatch = Box<dyn FnOnce(String) -> LocalBoxFuture<'static, AgentResult<()>>>;
 
 impl AgentTurnSubmissionCoordinator {
     pub fn new(options: AgentTurnSubmissionCoordinatorOptions) -> Self {
@@ -67,20 +68,21 @@ impl AgentTurnSubmissionCoordinator {
         if inner.disposed.get() || inner.active_intent_id.borrow().is_some() {
             return Box::pin(async { Ok(false) });
         }
-        let bridge = match require_bridge(&inner.options.bridge_provider, &["startAgentTurn"]) {
-            Ok(bridge) => bridge,
-            Err(error) => return Box::pin(async move { Err(error) }),
-        };
+        let bridge =
+            match require_bridge(&inner.options.bridge_provider, &[AgentOperation::StartTurn]) {
+                Ok(bridge) => bridge,
+                Err(error) => return Box::pin(async move { Err(error) }),
+            };
         let state = inner.options.store.snapshot();
         let normalized = normalize_submission_draft(prompt, &state.draft_mentions);
         let text = normalized.0;
-        let capabilities = state
+        let reference_inputs = state
             .inspection
             .as_ref()
-            .map(|i| i["capabilities"].clone())
-            .unwrap_or(Value::Null);
-        let attachment_only = !state.references.is_empty()
-            && capabilities["referenceInputs"]["attachmentOnly"] == true;
+            .and_then(|i| i.capabilities.as_ref())
+            .and_then(|c| c.reference_inputs.as_ref());
+        let attachment_only =
+            !state.references.is_empty() && reference_inputs.is_some_and(|r| r.attachment_only);
         if (text.is_empty() && !attachment_only)
             || state.submitting
             || state.pending_intent.is_some()
@@ -95,14 +97,14 @@ impl AgentTurnSubmissionCoordinator {
         if state
             .references
             .iter()
-            .any(|reference| reference["status"] != "ready")
+            .any(|reference| !reference.is_ready())
         {
             inner.options.store.patch(
                 StatePatch::new().error(Some(create_agent_error("references-not-ready", None))),
             );
             return Box::pin(async { Ok(false) });
         }
-        if js::truthy(&capabilities["modelSelection"]) && state.selected_model.is_none() {
+        if state.capability(Capability::ModelSelection) && state.selected_model.is_none() {
             inner
                 .options
                 .store
@@ -119,14 +121,10 @@ impl AgentTurnSubmissionCoordinator {
         let active_turn_id = state.running_turn_id().map(str::to_string);
         if let Some(active_turn_id) = active_turn_id.as_ref()
             && state.session.is_some()
-            && js::truthy(&capabilities["steer"])
-            && bridge.implements("steerAgentTurn")
+            && state.capability(Capability::Steer)
+            && bridge.supports(AgentOperation::SteerTurn)
         {
-            if intent["references"]
-                .as_array()
-                .is_some_and(|r| !r.is_empty())
-                && capabilities["referenceInputs"]["steer"] != true
-            {
+            if !intent.references.is_empty() && !reference_inputs.is_some_and(|r| r.steer) {
                 inner
                     .options
                     .store
@@ -136,48 +134,48 @@ impl AgentTurnSubmissionCoordinator {
                     ))));
                 return Box::pin(async { Ok(false) });
             }
-            let request = {
-                let mut request = json!({
-                    "rootPath": inner.options.workspace_root,
-                    "commandId": intent["id"],
-                    "turnId": active_turn_id,
-                });
-                spread(&mut request, &command_preconditions(&state));
-                request["message"] = Value::from(text.as_str());
-                request["referenceEpoch"] = intent["referenceEpoch"].clone();
-                request["references"] = intent["references"].clone();
-                request["promptMentions"] = intent["promptMentions"].clone();
-                request
+            let request = SteerTurn {
+                root_path: inner.options.workspace_root.clone(),
+                session_id: String::new(),
+                turn_id: active_turn_id.clone(),
+                command_id: Some(intent.id.clone()),
+                preconditions: command_preconditions(&state),
+                message: text.clone(),
+                reference_epoch: Some(intent.reference_epoch.clone()),
+                prompt_mentions: Some(intent.prompt_mentions.clone()),
+                references: Some(intent.references.clone()),
             };
             let dispatch: Dispatch = Box::new(move |session_id| {
-                let mut request = request;
-                request["sessionId"] = Value::from(session_id);
-                bridge.call("steerAgentTurn", request)
+                let call = bridge.steer_turn(SteerTurn {
+                    session_id,
+                    ..request
+                });
+                Box::pin(async move { call.await.map(drop) })
             });
             return inner.dispatch_intent(intent, dispatch, false);
         }
-        if active_turn_id.is_some() && !js::truthy(&capabilities["queue"]) {
+        if active_turn_id.is_some() && !state.capability(Capability::Queue) {
             return Box::pin(async { Ok(false) });
         }
         let store = inner.options.store.clone();
         let root = inner.options.workspace_root.clone();
         let captured = intent.clone();
         let dispatch: Dispatch = Box::new(move |session_id| {
-            let mut request =
-                json!({ "rootPath": root, "sessionId": session_id, "commandId": captured["id"] });
-            spread(&mut request, &store.read(command_preconditions));
-            for key in [
-                "prompt",
-                "model",
-                "effort",
-                "mode",
-                "referenceEpoch",
-                "references",
-                "promptMentions",
-            ] {
-                request[key] = captured[key].clone();
-            }
-            bridge.call("startAgentTurn", request)
+            let call = bridge.start_turn(StartTurn {
+                root_path: root,
+                session_id,
+                command_id: Some(captured.id.clone()),
+                preconditions: store.read(command_preconditions),
+                prompt: captured.prompt.clone(),
+                model: captured.model.clone(),
+                effort: captured.effort.clone(),
+                mode: captured.mode.clone(),
+                reference_epoch: Some(captured.reference_epoch.clone()),
+                references: Some(captured.references.clone()),
+                prompt_mentions: Some(captured.prompt_mentions.clone()),
+                ..StartTurn::default()
+            });
+            Box::pin(async move { call.await.map(drop) })
         });
         inner.dispatch_intent(intent, dispatch, false)
     }
@@ -193,13 +191,14 @@ impl AgentTurnSubmissionCoordinator {
         if inner.disposed.get() || inner.active_intent_id.borrow().is_some() {
             return Box::pin(async { Ok(false) });
         }
-        let bridge = match require_bridge(&inner.options.bridge_provider, &["startAgentTurn"]) {
-            Ok(bridge) => bridge,
-            Err(error) => return Box::pin(async move { Err(error) }),
-        };
+        let bridge =
+            match require_bridge(&inner.options.bridge_provider, &[AgentOperation::StartTurn]) {
+                Ok(bridge) => bridge,
+                Err(error) => return Box::pin(async move { Err(error) }),
+            };
         let state = inner.options.store.snapshot();
         let latest_turn = state.projection.turns.last().cloned();
-        let text = js::trim(prompt).to_string();
+        let text = text::trim(prompt).to_string();
         if text.is_empty()
             || state.session.is_none()
             || state.submitting
@@ -216,14 +215,17 @@ impl AgentTurnSubmissionCoordinator {
         let Some(latest_turn) = latest_turn else {
             return Box::pin(async { Ok(false) });
         };
-        if latest_turn["id"] != turn_id
-            || latest_turn["status"] != "completed"
-            || latest_turn["completionQuality"] != "degraded"
-            || latest_turn["recovery"]["kind"] != "degraded-completion"
+        if latest_turn.id != turn_id
+            || latest_turn.status != "completed"
+            || latest_turn.completion_quality.as_deref() != Some("degraded")
+            || latest_turn
+                .recovery
+                .as_ref()
+                .is_none_or(|recovery| recovery.kind != "degraded-completion")
         {
             return Box::pin(async { Ok(false) });
         }
-        if state.capability("modelSelection") && state.selected_model.is_none() {
+        if state.capability(Capability::ModelSelection) && state.selected_model.is_none() {
             inner
                 .options
                 .store
@@ -242,19 +244,22 @@ impl AgentTurnSubmissionCoordinator {
         let captured = intent.clone();
         let turn_id = turn_id.to_string();
         let dispatch: Dispatch = Box::new(move |session_id| {
-            let mut request = json!({
-                "rootPath": root,
-                "sessionId": session_id,
-                "commandId": captured["id"],
-                "recoveryOfTurnId": turn_id,
+            let call = bridge.start_turn(StartTurn {
+                root_path: root,
+                session_id,
+                command_id: Some(captured.id.clone()),
+                recovery_of_turn_id: Some(turn_id),
+                preconditions: store.read(command_preconditions),
+                prompt: captured.prompt.clone(),
+                model: captured.model.clone(),
+                effort: captured.effort.clone(),
+                mode: captured.mode.clone(),
+                reference_epoch: Some(captured.reference_epoch.clone()),
+                references: Some(Vec::new()),
+                prompt_mentions: Some(Vec::new()),
+                ..StartTurn::default()
             });
-            spread(&mut request, &store.read(command_preconditions));
-            for key in ["prompt", "model", "effort", "mode", "referenceEpoch"] {
-                request[key] = captured[key].clone();
-            }
-            request["references"] = json!([]);
-            request["promptMentions"] = json!([]);
-            bridge.call("startAgentTurn", request)
+            Box::pin(async move { call.await.map(drop) })
         });
         inner.dispatch_intent(intent, dispatch, true)
     }
@@ -269,16 +274,16 @@ impl Inner {
 
     fn dispatch_intent(
         self: &Rc<Self>,
-        intent: Value,
+        intent: SubmissionIntent,
         dispatch: Dispatch,
         preserve_draft: bool,
     ) -> LocalBoxFuture<'static, AgentResult<bool>> {
-        let intent_id = js::string_or_empty(intent.get("id"));
+        let intent_id = intent.id.clone();
         *self.active_intent_id.borrow_mut() = Some(intent_id.clone());
         let session_id = self.session_id();
         let mut patch = StatePatch::new()
             .submitting(true)
-            .pending_prompt(intent["prompt"].as_str().map(str::to_string))
+            .pending_prompt(Some(intent.prompt.clone()))
             .pending_intent(Some(intent.clone()));
         if !preserve_draft {
             patch = patch
@@ -297,7 +302,7 @@ impl Inner {
                 let inner = inner.clone();
                 let session = session.clone();
                 let intent_id = intent_id.clone();
-                let epoch = js::string_or_empty(intent.get("referenceEpoch"));
+                let epoch = intent.reference_epoch.clone();
                 move || {
                     !inner.disposed.get()
                         && inner.active_intent_id.borrow().as_deref() == Some(intent_id.as_str())
@@ -314,7 +319,7 @@ impl Inner {
                         state
                             .control
                             .as_ref()
-                            .is_some_and(|control| control["connection"]["status"] == "exited")
+                            .is_some_and(|control| control.connection.status == "exited")
                     });
                 if exited {
                     let reconnected = (inner.options.reconnect_session)().await?;
@@ -357,18 +362,9 @@ impl Inner {
                         if is_current() {
                             let accepted = inner.options.store.read(|observed| {
                                 observed.control.as_ref().is_some_and(|control| {
-                                    control["commands"].as_array().is_some_and(|commands| {
-                                        commands.iter().any(|command| {
-                                            command["commandId"] == intent["id"]
-                                                && [
-                                                    "queued",
-                                                    "dispatching",
-                                                    "accepted",
-                                                    "outcome-unknown",
-                                                ]
-                                                .iter()
-                                                .any(|status| command["status"] == *status)
-                                        })
+                                    control.command(&intent.id).is_some_and(|command| {
+                                        ["queued", "dispatching", "accepted", "outcome-unknown"]
+                                            .contains(&command.status.as_str())
                                     })
                                 })
                             });
@@ -409,7 +405,7 @@ impl Inner {
         })
     }
 
-    fn prepare_failure(&self) -> Option<Value> {
+    fn prepare_failure(&self) -> Option<ErrorDescriptor> {
         Some(
             self.options
                 .store
@@ -418,28 +414,21 @@ impl Inner {
         )
     }
 
-    fn release_submitted_previews(&self, intent: &Value) {
-        let retained: Vec<String> = self.options.store.read(|state| {
-            state
-                .references
-                .iter()
-                .map(|r| js::string_or_empty(r.get("id")))
-                .collect()
-        });
-        let released: Vec<Value> = intent["references"]
-            .as_array()
-            .map(|references| {
-                references
-                    .iter()
-                    .filter(|r| !retained.contains(&js::string_or_empty(r.get("id"))))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
+    fn release_submitted_previews(&self, intent: &SubmissionIntent) {
+        let retained: Vec<String> = self
+            .options
+            .store
+            .read(|state| state.references.iter().map(|r| r.id.clone()).collect());
+        let released: Vec<DraftReference> = intent
+            .references
+            .iter()
+            .filter(|r| !retained.contains(&r.id))
+            .cloned()
+            .collect();
         self.options.references.release_previews(&released);
     }
 
-    fn restore_draft(&self, intent: &Value, error: Option<Value>) {
+    fn restore_draft(&self, intent: &SubmissionIntent, error: Option<ErrorDescriptor>) {
         let (draft, mentions, references) = self.options.store.read(|state| {
             (
                 state.draft.clone(),
@@ -448,7 +437,7 @@ impl Inner {
             )
         });
         let (prompt, mentions) = merge_failed_draft(intent, &draft, &mentions);
-        let intent_references = intent["references"].as_array().cloned().unwrap_or_default();
+        let intent_references = intent.references.clone();
         self.options.store.patch(
             StatePatch::new()
                 .draft(prompt.clone())
@@ -464,53 +453,43 @@ impl Inner {
     }
 }
 
-/// `{ ...request, ...extra }`.
-fn spread(request: &mut Value, extra: &Value) {
-    if let (Some(request), Some(extra)) = (request.as_object_mut(), extra.as_object()) {
-        for (key, value) in extra {
-            request.insert(key.clone(), value.clone());
-        }
-    }
-}
-
 /// `createSubmissionIntent({ … })`. The product's destructuring drops a
 /// `recoveryOfTurnId` from the intent.
 fn create_submission_intent(
     reference_epoch: &str,
     prompt: &str,
     state: &AgentControllerState,
-    references: &[Value],
-    prompt_mentions: &[Value],
-) -> Value {
-    json!({
-        "id": format!("intent-{}", random_uuid()),
-        "referenceEpoch": reference_epoch,
-        "prompt": prompt,
-        "model": state.selected_model,
-        "effort": state.selected_effort,
-        "mode": state.selected_mode,
-        "references": references,
-        "promptMentions": prompt_mentions,
-    })
+    references: &[DraftReference],
+    prompt_mentions: &[PromptMention],
+) -> SubmissionIntent {
+    SubmissionIntent {
+        id: format!("intent-{}", random_uuid()),
+        recovery_of_turn_id: None,
+        reference_epoch: reference_epoch.to_string(),
+        prompt: prompt.to_string(),
+        model: state.selected_model.clone(),
+        effort: state.selected_effort.clone(),
+        mode: state.selected_mode.clone(),
+        references: references.to_vec(),
+        prompt_mentions: prompt_mentions.to_vec(),
+    }
 }
 
 /// `normalizeSubmissionDraft(prompt, mentions)`.
-fn normalize_submission_draft(prompt: &str, mentions: &[Value]) -> (String, Vec<Value>) {
-    let leading = js::len16(prompt) - js::len16(js::trim_start(prompt));
-    let trailing_boundary = js::len16(js::trim_end(prompt));
-    let normalized = js::slice16(prompt, leading, trailing_boundary.max(leading)).to_string();
+fn normalize_submission_draft(
+    prompt: &str,
+    mentions: &[PromptMention],
+) -> (String, Vec<PromptMention>) {
+    let leading = text::len16(prompt) - text::len16(text::trim_start(prompt));
+    let trailing_boundary = text::len16(text::trim_end(prompt));
+    let normalized = text::slice16(prompt, leading, trailing_boundary.max(leading)).to_string();
     let mentions = mentions
         .iter()
-        .filter_map(|mention| {
-            let start = mention["start"].as_i64()?;
-            let end = mention["end"].as_i64()?;
-            if start < leading as i64 || end > trailing_boundary as i64 {
-                return None;
-            }
-            let mut mention = mention.clone();
-            mention["start"] = Value::from(start - leading as i64);
-            mention["end"] = Value::from(end - leading as i64);
-            Some(mention)
+        .filter(|mention| mention.start >= leading && mention.end <= trailing_boundary)
+        .map(|mention| PromptMention {
+            reference_id: mention.reference_id.clone(),
+            start: mention.start - leading,
+            end: mention.end - leading,
         })
         .collect();
     (normalized, mentions)
@@ -518,15 +497,12 @@ fn normalize_submission_draft(prompt: &str, mentions: &[Value]) -> (String, Vec<
 
 /// `mergeFailedDraft(failed, currentPrompt, currentMentions)`.
 fn merge_failed_draft(
-    failed: &Value,
+    failed: &SubmissionIntent,
     current_prompt: &str,
-    current_mentions: &[Value],
-) -> (String, Vec<Value>) {
-    let failed_prompt = js::string_or_empty(failed.get("prompt"));
-    let failed_mentions = failed["promptMentions"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+    current_mentions: &[PromptMention],
+) -> (String, Vec<PromptMention>) {
+    let failed_prompt = failed.prompt.clone();
+    let failed_mentions = failed.prompt_mentions.clone();
     if failed_prompt.is_empty() {
         return (current_prompt.to_string(), current_mentions.to_vec());
     }
@@ -537,13 +513,14 @@ fn merge_failed_draft(
         return (current_prompt.to_string(), current_mentions.to_vec());
     }
     let separator = "\n\n";
-    let offset = (js::len16(&failed_prompt) + js::len16(separator)) as i64;
+    let offset = text::len16(&failed_prompt) + text::len16(separator);
     let mut mentions = failed_mentions;
     for mention in current_mentions {
-        let mut mention = mention.clone();
-        mention["start"] = Value::from(mention["start"].as_i64().unwrap_or(0) + offset);
-        mention["end"] = Value::from(mention["end"].as_i64().unwrap_or(0) + offset);
-        mentions.push(mention);
+        mentions.push(PromptMention {
+            reference_id: mention.reference_id.clone(),
+            start: mention.start + offset,
+            end: mention.end + offset,
+        });
     }
     (
         format!("{failed_prompt}{separator}{current_prompt}"),

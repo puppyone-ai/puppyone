@@ -22,7 +22,7 @@ use super::agent_chat_view_model::{
     derive_agent_chat_view_model,
 };
 use super::agent_tool_group_presentation::AgentTranscriptRow;
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{Part, PromptMention};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation,
 };
@@ -33,7 +33,6 @@ use crate::ui::appearance::ActiveAppearance;
 use crate::ui::form_input::{InputEvent, TextInput};
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
-use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -89,10 +88,10 @@ pub struct AgentChatTabPanel {
     hidden_runtime_ids: Vec<String>,
     composer: Entity<TextInput>,
     /// The controller draft the composer last showed (text, mentions).
-    shown_draft: (String, Vec<Value>),
+    shown_draft: (String, Vec<PromptMention>),
     transcript: ListState,
     rows: Vec<AgentTranscriptRow>,
-    parts: HashMap<String, Value>,
+    parts: HashMap<String, std::sync::Arc<Part>>,
     row_signatures: Vec<(String, blake3::Hash)>,
     /// `seenPartIdsRef`: parts that already entered once do not animate.
     follow: bool,
@@ -538,9 +537,4 @@ impl Render for AgentChatTabPanel {
             .then(|| self.render_dock(&state, &view, window, cx));
         panel.children(status).child(conversation).children(dock)
     }
-}
-
-/// `entry.runtimeId ?? entry.provider` of a session value.
-pub(super) fn text_of(value: &Value) -> String {
-    js::string_or_empty(Some(value))
 }

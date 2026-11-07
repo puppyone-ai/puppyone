@@ -1,6 +1,7 @@
 //! `ui/agentErrorPresentation.ts`.
+use crate::agent::contract::dto::ErrorParam;
+use crate::features::desktop_agent::application::agent_error::ErrorDescriptor;
 use crate::localization::{Arg, bidi_isolate, t, tf};
-use serde_json::Value;
 
 /// `AgentErrorPresentation`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,27 +11,24 @@ pub struct AgentErrorPresentation {
 }
 
 /// `presentAgentError(error, t)`: an `AgentErrorDescriptor`.
-pub fn present_agent_error(error: Option<&Value>) -> Option<AgentErrorPresentation> {
-    let error = error.filter(|e| e.is_object())?;
-    let code = error["code"].as_str().unwrap_or("unknown");
-    let mut params: Vec<(String, Arg)> = error["params"]
-        .as_object()
-        .map(|params| {
-            params
-                .iter()
-                .map(|(key, value)| {
-                    let arg = match value {
-                        Value::String(text) => Arg::Text(bidi_isolate(text)),
-                        Value::Number(number) => number
-                            .as_i64()
-                            .map_or_else(|| Arg::Text(number.to_string()), Arg::Number),
-                        other => Arg::Text(other.to_string()),
-                    };
-                    (key.clone(), arg)
-                })
-                .collect()
+pub fn present_agent_error(error: Option<&ErrorDescriptor>) -> Option<AgentErrorPresentation> {
+    let error = error?;
+    let code = if error.code.is_empty() {
+        "unknown"
+    } else {
+        error.code.as_str()
+    };
+    let mut params: Vec<(String, Arg)> = error
+        .params
+        .iter()
+        .map(|(key, value)| {
+            let arg = match value {
+                ErrorParam::Text(text) => Arg::Text(bidi_isolate(text)),
+                ErrorParam::Number(number) => Arg::Number(*number),
+            };
+            (key.clone(), arg)
         })
-        .unwrap_or_default();
+        .collect();
     if code == "runtime-exited" && !params.iter().any(|(key, _)| key == "runtime") {
         params.push(("runtime".into(), Arg::Text(bidi_isolate(t("agent.name")))));
     }
@@ -40,9 +38,6 @@ pub fn present_agent_error(error: Option<&Value>) -> Option<AgentErrorPresentati
         .collect();
     Some(AgentErrorPresentation {
         summary: tf(&format!("agent.error.{code}"), &args),
-        detail: error["detail"]
-            .as_str()
-            .filter(|d| !d.is_empty())
-            .map(str::to_string),
+        detail: error.detail.clone().filter(|d| !d.is_empty()),
     })
 }

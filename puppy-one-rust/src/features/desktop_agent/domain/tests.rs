@@ -5,7 +5,8 @@ use super::agent_prompt_mentions::{
     normalize_agent_prompt_mentions, split_agent_prompt_mentions,
 };
 use super::agent_workspace_path::resolve_agent_workspace_provider_path;
-use crate::agent::contract::js;
+use crate::features::desktop_agent::fixtures::typed;
+use crate::text as js;
 use serde_json::json;
 use std::collections::HashSet;
 
@@ -15,9 +16,9 @@ fn keeps_utf16_ranges_stable_and_presents_a_file_as_one_segment() {
     let start = js::len16(&prompt[..prompt.find("@SECURITY.md").expect("mention")]);
     let mentions = normalize_agent_prompt_mentions(
         prompt,
-        &[
+        &[typed(
             json!({ "referenceId": "ref-security", "start": start, "end": start + "@SECURITY.md".len() }),
-        ],
+        )],
         None,
     );
     assert_eq!(
@@ -43,23 +44,25 @@ fn drops_stale_overlapping_and_out_of_range_decorations() {
         normalize_agent_prompt_mentions(
             "@a.md @b.md",
             &[
-                json!({ "referenceId": "ref-a", "start": 0, "end": 5 }),
-                json!({ "referenceId": "ref-b", "start": 3, "end": 11 }),
-                json!({ "referenceId": "ref-oob", "start": 12, "end": 99 }),
+                typed(json!({ "referenceId": "ref-a", "start": 0, "end": 5 })),
+                typed(json!({ "referenceId": "ref-b", "start": 3, "end": 11 })),
+                typed(json!({ "referenceId": "ref-oob", "start": 12, "end": 99 })),
             ],
             Some(&ids),
         ),
-        vec![json!({ "referenceId": "ref-a", "start": 0, "end": 5 })]
+        vec![typed::<crate::agent::contract::dto::PromptMention>(
+            json!({ "referenceId": "ref-a", "start": 0, "end": 5 })
+        )]
     );
 }
 
 #[test]
 fn sanitizes_control_characters_while_preserving_file_names() {
     assert_eq!(
-        agent_prompt_mention_text(&json!({
+        agent_prompt_mention_text(&typed(json!({
             "id": "external-notes", "kind": "staged-attachment", "displayName": "release\nnotes.md",
             "mime": "text/markdown", "size": 1, "status": "ready",
-        })),
+        }))),
         "@release notes.md"
     );
 }
@@ -67,32 +70,32 @@ fn sanitizes_control_characters_while_preserving_file_names() {
 #[test]
 fn uses_the_portable_workspace_relative_identity() {
     assert_eq!(
-        agent_prompt_mention_text(&json!({
+        agent_prompt_mention_text(&typed(json!({
             "id": "workspace-guides-notes", "kind": "workspace-entry", "entryType": "file",
             "relativePath": "docs/guides/notes.md", "displayName": "notes.md", "mime": "text/markdown",
             "size": 1, "status": "ready",
-        })),
+        }))),
         "@docs/guides/notes.md"
     );
 }
 
 #[test]
 fn reserves_visual_cards_for_raster_images() {
-    assert!(is_agent_media_reference(
-        &json!({ "displayName": "capture.png", "mime": "image/png" })
-    ));
-    assert!(!is_agent_media_reference(
-        &json!({ "displayName": "diagram.svg", "mime": "image/svg+xml" })
-    ));
-    assert!(is_agent_media_reference(
-        &json!({ "displayName": "photo.webp" })
-    ));
-    assert!(!is_agent_media_reference(
-        &json!({ "displayName": "notes.md", "mime": "text/markdown" })
-    ));
-    assert!(!is_agent_media_reference(&json!({
+    assert!(is_agent_media_reference(&typed(
+        json!({ "displayName": "capture.png", "mime": "image/png" })
+    )));
+    assert!(!is_agent_media_reference(&typed(
+        json!({ "displayName": "diagram.svg", "mime": "image/svg+xml" })
+    )));
+    assert!(is_agent_media_reference(&typed(
+        json!({ "displayName": "photo.webp" })
+    )));
+    assert!(!is_agent_media_reference(&typed(
+        json!({ "displayName": "notes.md", "mime": "text/markdown" })
+    )));
+    assert!(!is_agent_media_reference(&typed(json!({
         "kind": "workspace-entry", "entryType": "directory", "displayName": "assets.png", "mime": "inode/directory",
-    })));
+    }))));
 }
 
 #[test]

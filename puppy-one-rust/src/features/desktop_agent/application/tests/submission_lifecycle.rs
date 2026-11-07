@@ -1,9 +1,8 @@
 //! `tests/unit/agent/composer/desktop-agent.submission-lifecycle.test.ts`.
 use super::fake_client::FakeClient;
-use super::support::{Deferred, assert_match};
+use super::support::{Deferred, StateJson, assert_match};
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests::harness::run;
-use crate::agent::contract::display_types::AgentDisplay;
 use crate::agent::domain::agent_control_view::project_agent_control_view;
 use crate::agent::domain::agent_session_control::{
     create_agent_session_control, reduce_agent_session_control,
@@ -20,6 +19,7 @@ use crate::features::desktop_agent::application::agent_turn_submission_coordinat
     AgentTurnSubmissionCoordinator, AgentTurnSubmissionCoordinatorOptions,
 };
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
+use crate::features::desktop_agent::fixtures::{projection_json, projection_of, typed};
 use futures_util::FutureExt;
 use futures_util::future::{LocalBoxFuture, Shared};
 use serde_json::{Value, json};
@@ -39,7 +39,7 @@ struct Harness {
 
 impl Harness {
     fn state(&self) -> Value {
-        self.store.read(AgentControllerState::to_value)
+        self.store.read(StateJson::to_value)
     }
     fn patch(&self, patch: StatePatch) {
         self.store.patch(patch);
@@ -51,7 +51,7 @@ impl Harness {
 
 fn harness() -> Harness {
     let state = AgentControllerState {
-        session: Some(json!({ "id": "session" })),
+        session: Some(typed(json!({ "id": "session" }))),
         ..Default::default()
     };
     let store = Rc::new(AgentControllerStore::plain(state));
@@ -139,7 +139,7 @@ fn does_not_restore_or_redispatch_admitted_input_after_losing_the_receipt() {
             h.patch(
                 StatePatch::new()
                     .draft("new unsent text".into())
-                    .control(Some(project_agent_control_view(&control))),
+                    .control(Some(typed(project_agent_control_view(&control)))),
             );
             receipt.reject(AgentError::new("IPC receipt lost"));
             assert!(!pending.await.expect("submit"), "{status}");
@@ -184,7 +184,7 @@ fn reconnects_a_settled_provider_before_dispatching_the_next_turn() {
         )
         .expect("control")
         .unwrap_or(attached);
-        h.patch(StatePatch::new().control(Some(project_agent_control_view(&exited))));
+        h.patch(StatePatch::new().control(Some(typed(project_agent_control_view(&exited)))));
         assert!(h.coordinator.submit("continue").await.expect("submit"));
         assert_eq!(*h.order.borrow(), vec!["reconnect", "start"]);
     });
@@ -206,7 +206,7 @@ fn does_not_let_an_old_receipt_release_a_newer_conversations_lock() {
             .store
             .read(|state| state.session.clone())
             .expect("session");
-        session["id"] = json!("new-session");
+        session.id = "new-session".into();
         h.patch(StatePatch::new().session(Some(session)));
         let next = h.coordinator.submit("new input");
         old_receipt.reject(AgentError::new("late failure"));
@@ -255,11 +255,11 @@ fn does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation
 fn continues_a_degraded_turn_without_consuming_the_draft_or_references() {
     run(async {
         let h = harness();
-        let reference = json!({
+        let reference: crate::agent::contract::dto::DraftReference = typed(json!({
             "id": "draft-reference", "kind": "workspace-entry", "entryType": "file",
             "relativePath": "notes.md", "displayName": "notes.md", "status": "ready",
-        });
-        let mut projection = h.store.read(|state| state.projection.to_value());
+        }));
+        let mut projection = h.store.read(|state| projection_json(&state.projection));
         projection["terminalState"] = json!("completed");
         projection["turns"] = json!([{
             "id": "turn-degraded", "status": "completed", "startedAtSequence": 1, "startedAtMs": 1_000,
@@ -273,7 +273,7 @@ fn continues_a_degraded_turn_without_consuming_the_draft_or_references() {
             StatePatch::new()
                 .draft("My separate draft".into())
                 .references(vec![reference.clone()])
-                .projection(AgentDisplay::from_value(&projection).expect("projection")),
+                .projection(projection_of(&projection)),
         );
         assert!(
             h.coordinator

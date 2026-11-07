@@ -3,7 +3,6 @@
 //! an [`AgentChatTabPanel`] over a controller its project owns, so hiding
 //! or moving the tab never ends its session.
 use super::*;
-use crate::agent::contract::js;
 use crate::agent::host::agent_host::AgentHostHandle;
 use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
@@ -21,7 +20,6 @@ use crate::features::desktop_agent::ui::panel::{
     AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation, AgentRouting,
 };
 use crate::features::settings::agent_routing_preferences::AgentRoutingPreferences;
-use serde_json::json;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -225,28 +223,17 @@ impl Workbench {
         let port: Rc<dyn AgentClientPort> = agent.client.clone();
         let runtime = agent.runtime.clone();
         let root_path = root.to_string_lossy().into_owned();
-        let context = json!({
-            "projectId": uuid::Uuid::new_v4().to_string(),
-            "generation": uuid::Uuid::new_v4().to_string(),
-            "rootPath": root_path,
-        });
         let history_port = port.clone();
         let history = ConversationHistoryController::new(
             &root_path,
-            create_project_agent_client_provider(
-                context.clone(),
-                Rc::new(move || Some(history_port.clone())),
-            ),
+            create_project_agent_client_provider(Rc::new(move || Some(history_port.clone()))),
             runtime.clone(),
         );
         let registry = Rc::new(AgentControllerRegistry::new(
             &root_path,
             Rc::new(move |_item| {
                 let port = port.clone();
-                create_project_agent_client_provider(
-                    context.clone(),
-                    Rc::new(move || Some(port.clone())),
-                )
+                create_project_agent_client_provider(Rc::new(move || Some(port.clone())))
             }),
             runtime,
             false,
@@ -419,7 +406,7 @@ impl Workbench {
             let result = closing.await;
             this.update(cx, |s, cx| {
                 s.closing_agents.remove(&tab);
-                if js::truthy(&result) {
+                if result.closed() {
                     s.remove_tab(&root, tab, cx);
                 } else if s.root.as_ref() == Some(&root)
                     && s.project()
@@ -540,7 +527,7 @@ impl Workbench {
                     .projection
                     .messages
                     .iter()
-                    .any(|m| m["role"] == "assistant" && m["streaming"] != true)
+                    .any(|m| m.role == "assistant" && !m.streaming)
         })
     }
 

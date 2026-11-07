@@ -1,7 +1,7 @@
 //! `domain/agent-stream-presentation.ts`: Renderer-only smoothing of live
 //! assistant text, and the stable/tail split that keeps incomplete Markdown
 //! from remounting the live line.
-use crate::agent::contract::js;
+use crate::text;
 use regex::Regex;
 use std::sync::LazyLock;
 use unicode_segmentation::UnicodeSegmentation;
@@ -55,7 +55,7 @@ pub fn split_streaming_markdown(text: &str) -> (String, String) {
             continue;
         }
         if in_table {
-            if js::trim(content).is_empty() {
+            if text::trim(content).is_empty() {
                 safe_boundary = cursor;
                 in_table = false;
                 table_header_columns = None;
@@ -71,7 +71,7 @@ pub fn split_streaming_markdown(text: &str) -> (String, String) {
             in_table = false;
             table_header_columns = None;
         }
-        if js::trim(content).is_empty() {
+        if text::trim(content).is_empty() {
             safe_boundary = cursor;
             table_header_columns = None;
             continue;
@@ -109,7 +109,7 @@ fn gfm_table_header_column_count(line: &str) -> Option<usize> {
 fn is_gfm_table_delimiter(line: &str, header_columns: usize) -> bool {
     static CELL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^:?-+:?$").expect("cell"));
     split_gfm_table_cells(line).is_some_and(|cells| {
-        cells.len() == header_columns && cells.iter().all(|cell| CELL.is_match(js::trim(cell)))
+        cells.len() == header_columns && cells.iter().all(|cell| CELL.is_match(text::trim(cell)))
     })
 }
 
@@ -148,7 +148,7 @@ fn interrupts_gfm_table(line: &str) -> bool {
 /// Splits only structural pipes, leaving escaped pipes and inline code
 /// intact.
 fn split_gfm_table_cells(line: &str) -> Option<Vec<String>> {
-    let source: Vec<char> = js::trim(line).chars().collect();
+    let source: Vec<char> = text::trim(line).chars().collect();
     let mut cells: Vec<String> = Vec::new();
     let mut cell = String::new();
     let mut separators = 0;
@@ -239,10 +239,10 @@ pub fn advance_open_markdown_fence(
         return Some(OpenMarkdownFence {
             marker,
             length: run.len(),
-            info: js::trim(remainder).to_string(),
+            info: text::trim(remainder).to_string(),
         });
     };
-    if open.marker != marker || run.len() < open.length || !js::trim(remainder).is_empty() {
+    if open.marker != marker || run.len() < open.length || !text::trim(remainder).is_empty() {
         return Some(open);
     }
     None

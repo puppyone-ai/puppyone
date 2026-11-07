@@ -1,17 +1,16 @@
-//! The window's Agent client: the preload's `agent:*` bridge
-//! (`electron/preload.cjs`) and `getElectronAgentClient`, over
-//! [`AgentHostHandle`]. Requests run on the Agent host thread; its
-//! window-bound frames come back through the window's frame sink.
-use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
-use crate::agent::contract::operation_error::read_agent_operation_failure;
+//! The window's Agent client (`getElectronAgentClient` without the
+//! preload): typed requests to the [`AgentHostHandle`], whose answers and
+//! session frames come back on the window's executor.
+use crate::agent::agent_error::AgentError;
+use crate::agent::contract::dto::SessionFrame;
+use crate::agent::contract::protocol::StageFile;
+use crate::agent::contract::protocol::{AgentEvent, AgentOperation, AgentRequest};
 use crate::agent::host::agent_host::AgentHostHandle;
 use crate::features::desktop_agent::application::agent_client_port::{
     AgentClientPort, Cleanup, ClientFuture,
 };
 use crate::features::desktop_agent::application::agent_error::agent_operation_error;
 use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -20,43 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// `MAX_INLINE_ATTACHMENT_BYTES`.
 const MAX_INLINE_ATTACHMENT_BYTES: u64 = 25 * 1024 * 1024;
 
-/// The port method's IPC channel and, for commands, its dispatch kind.
-fn channel_for(method: &str) -> Option<(&'static str, Option<&'static str>)> {
-    Some(match method {
-        // `agent:providers-discover` is the stable IPC compatibility name. The
-        // feature-facing port uses product-accurate runtime vocabulary.
-        "discoverAgentRuntimes" | "discoverAgentProviders" => ("agent:providers-discover", None),
-        "discoverLocalAgentConnections" => ("agent:local-connections-discover", None),
-        "listAgentModels" => ("agent:models-list", None),
-        "readAgentAccount" => ("agent:account-read", None),
-        "createAgentSession" => ("agent:session-create", None),
-        "resumeAgentSession" => ("agent:session-resume", None),
-        "openAgentSession" => ("agent:session-open", None),
-        "replayAgentSession" => ("agent:session-replay", None),
-        "attachAgentSession" => ("agent:session-attach", None),
-        "acknowledgeAgentSession" => ("agent:session-feed-ack", None),
-        "readAgentSessionWatermark" => ("agent:session-feed-watermark", None),
-        "detachAgentSession" => ("agent:session-detach", None),
-        "listAgentSessions" => ("agent:sessions-list", None),
-        "forkAgentSession" => ("agent:session-fork", None),
-        "archiveAgentSession" => ("agent:session-archive", None),
-        "deleteAgentSession" => ("agent:session-delete", None),
-        "closeAgentSession" => ("agent:session-close", None),
-        "stageAgentAttachments" => ("agent:reference-stage", None),
-        "revokeAgentAttachments" => ("agent:reference-revoke", None),
-        "resolveAgentWorkspaceReferences" => ("agent:reference-resolve-workspace", None),
-        "pickAgentWorkspaceReferences" => ("agent:reference-pick-workspace", None),
-        "startAgentTurn" => ("agent:command-dispatch", Some("start")),
-        "steerAgentTurn" => ("agent:command-dispatch", Some("steer")),
-        "interruptAgentTurn" => ("agent:command-dispatch", Some("interrupt")),
-        "compactAgentSession" => ("agent:session-compact", None),
-        "resolveAgentApproval" => ("agent:command-dispatch", Some("approval")),
-        "resolveAgentQuestion" => ("agent:command-dispatch", Some("question")),
-        _ => return None,
-    })
-}
-
-type Listener = Rc<dyn Fn(Value)>;
+type Listener = Rc<dyn Fn(SessionFrame)>;
 
 /// One window's Agent client.
 pub struct AgentHostClient {
@@ -69,30 +32,28 @@ pub struct AgentHostClient {
 }
 
 impl AgentHostClient {
-    /// Opens `window`'s frame channel on the host and delivers its frames
+    /// Opens `window`'s event channel on the host and delivers its frames
     /// on `runtime` (the window's executor).
     pub fn connect(handle: AgentHostHandle, window: u64, runtime: &Rc<dyn UiRuntime>) -> Rc<Self> {
-        let (sender, mut frames) = tokio::sync::mpsc::unbounded_channel::<(String, Value)>();
+        let (sender, mut events) = tokio::sync::mpsc::unbounded_channel::<AgentEvent>();
         handle.open_window(
             window,
-            Box::new(move |channel, payload| {
-                let _ = sender.send((channel.to_string(), payload));
+            Box::new(move |event| {
+                let _ = sender.send(event);
             }),
         );
         let frame_listeners: Rc<RefCell<Vec<(u64, Listener)>>> = Rc::default();
         let listeners = Rc::downgrade(&frame_listeners);
         runtime.spawn(Box::pin(async move {
-            while let Some((channel, payload)) = frames.recv().await {
+            while let Some(event) = events.recv().await {
                 let Some(listeners) = listeners.upgrade() else {
                     return;
                 };
-                if channel != "agent:session-frame" {
-                    continue;
-                }
+                let AgentEvent::SessionFrame(frame) = event;
                 let current: Vec<Listener> =
                     listeners.borrow().iter().map(|(_, l)| l.clone()).collect();
                 for listener in current {
-                    listener(payload.clone());
+                    listener(frame.clone());
                 }
             }
         }));
@@ -110,42 +71,26 @@ impl AgentHostClient {
         self.window
     }
 
-    fn invoke(&self, channel: &'static str, request: Value) -> ClientFuture {
-        let reply = self.handle.invoke(self.window, channel, request);
-        Box::pin(async move { unwrap_operation(reply.await) })
+    fn send(&self, request: AgentRequest) -> ClientFuture {
+        let reply = self.handle.request(self.window, request);
+        Box::pin(async move { reply.await.map_err(agent_operation_error) })
     }
 
     /// `stageAgentAttachments(request)`: native paths are captured before
     /// any byte read; a file without one is sent inline within the in-flight
     /// budget.
-    fn stage(&self, request: Value) -> ClientFuture {
-        let files = request["files"].as_array().cloned().unwrap_or_default();
+    fn stage(&self, request: crate::agent::contract::protocol::StageReferences) -> ClientFuture {
+        let files = &request.files;
         if files.is_empty() || files.len() > 32 {
             return rejected("Select between 1 and 32 attachment files.");
         }
-        let mut context = json!({ "rootPath": request["rootPath"], "epoch": request["epoch"] });
-        if let Some(project) = request.get("projectContext") {
-            context["projectContext"] = project.clone();
+        if files.iter().all(|file| file.native_path().is_some()) {
+            return self.send(AgentRequest::StageReferences(request));
         }
-        let paths: Vec<Option<String>> = files
-            .iter()
-            .map(|file| {
-                file["path"]
-                    .as_str()
-                    .filter(|p| !js::trim(p).is_empty())
-                    .map(str::to_string)
-            })
-            .collect();
-        if paths.iter().all(Option::is_some) {
-            context["sourcePaths"] = json!(paths);
-            return self.invoke("agent:reference-stage", context);
-        }
+        let inline_files = || files.iter().filter(|file| file.native_path().is_none());
         let mut inline = 0u64;
-        for (file, path) in files.iter().zip(&paths) {
-            if path.is_some() {
-                continue;
-            }
-            let size = js::safe_integer(&file["size"]).filter(|size| *size > 0);
+        for file in inline_files() {
+            let size = Some(file.size).filter(|size| size.fract() == 0. && *size > 0.);
             let Some(size) = size else {
                 return rejected("The selected attachment is empty or invalid.");
             };
@@ -157,24 +102,14 @@ impl AgentHostClient {
                 "Attachments exceed the 25 MB in-flight safety limit. Try fewer files at a time.",
             );
         }
+        if inline_files().any(|file: &StageFile| {
+            file.bytes.as_ref().map_or(0, |bytes| bytes.len()) as f64 != file.size
+        }) {
+            return rejected("The selected attachment changed while it was being read.");
+        }
         self.pending_inline_bytes
             .fetch_add(inline, Ordering::SeqCst);
-        let mut sources = Vec::new();
-        for (file, path) in files.iter().zip(&paths) {
-            if let Some(path) = path {
-                sources.push(json!({ "path": path }));
-                continue;
-            }
-            let bytes = js::as_uint8array(&file["bytes"]).unwrap_or_default();
-            if js::safe_integer(&file["size"]) != Some(bytes.len() as i64) {
-                self.pending_inline_bytes
-                    .fetch_sub(inline, Ordering::SeqCst);
-                return rejected("The selected attachment changed while it was being read.");
-            }
-            sources.push(json!({ "name": file["name"], "bytes": file["bytes"] }));
-        }
-        context["sources"] = Value::Array(sources);
-        let call = self.invoke("agent:reference-stage", context);
+        let call = self.send(AgentRequest::StageReferences(request));
         let pending = self.pending_inline_bytes.clone();
         Box::pin(async move {
             let result = call.await;
@@ -189,43 +124,26 @@ fn rejected(message: &str) -> ClientFuture {
     Box::pin(async move { Err(error) })
 }
 
-/// The bridge wrapper: a structured failure envelope becomes an
-/// `AgentOperationError`.
-pub fn unwrap_operation(value: Value) -> AgentResult<Value> {
-    match read_agent_operation_failure(&value)? {
-        Some(failure) => Err(agent_operation_error(failure)),
-        None => Ok(value),
-    }
-}
-
 impl AgentClientPort for AgentHostClient {
-    fn implements(&self, method: &str) -> bool {
-        method == "onAgentSessionFrame" || channel_for(method).is_some()
+    fn supports(&self, operation: AgentOperation) -> bool {
+        AgentOperation::MAIN.contains(&operation)
     }
 
-    fn call(&self, method: &str, request: Value) -> ClientFuture {
-        let Some((channel, kind)) = channel_for(method) else {
-            return rejected(&format!("bridge.{method} is not a function"));
-        };
-        if method == "stageAgentAttachments" {
-            return self.stage(request);
-        }
-        let request = match kind {
-            Some(kind) => {
-                let mut request = if request.is_object() {
-                    request
-                } else {
-                    json!({})
-                };
-                request["kind"] = Value::from(kind);
-                request
+    fn delivers_frames(&self) -> bool {
+        true
+    }
+
+    fn request(&self, request: AgentRequest) -> ClientFuture {
+        match request {
+            AgentRequest::StageReferences(stage) => self.stage(stage),
+            AgentRequest::ManageExecutions | AgentRequest::TerminateExecution => {
+                rejected("The Agent host does not manage this window's executions.")
             }
-            None => request,
-        };
-        self.invoke(channel, request)
+            request => self.send(request),
+        }
     }
 
-    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(SessionFrame)>) -> Option<Cleanup> {
         let id = self.next_listener.get() + 1;
         self.next_listener.set(id);
         self.frame_listeners.borrow_mut().push((id, listener));

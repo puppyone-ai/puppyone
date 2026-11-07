@@ -31,6 +31,10 @@ pub struct ErrorProps {
     pub client_user_message_id: Option<String>,
     /// Any other property an adapter attached.
     pub extra: Option<Value>,
+    /// The structured failure an operation reported (`AgentOperationError`).
+    pub failure: Option<Box<crate::agent::contract::dto::OperationFailure>>,
+    /// A known failure's message parameters (`AgentKnownError`).
+    pub params: Option<crate::agent::contract::dto::ErrorParams>,
 }
 
 impl std::ops::Deref for AgentError {

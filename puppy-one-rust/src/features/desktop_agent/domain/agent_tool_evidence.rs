@@ -2,8 +2,8 @@
 //! and structured input. The source stays available for an explicit copy,
 //! but the view never receives an unbounded text run. Lengths and offsets
 //! count UTF-16 code units, as the product's do.
-use crate::agent::contract::js;
-use serde_json::{Map, Value};
+use crate::agent::contract::dto::{JsonBudget, RecordRef};
+use crate::text;
 
 /// `AgentToolEvidenceLimits`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,7 +188,7 @@ pub fn collect_agent_tool_result_lines(
     let mut total_lines = 0;
     for_each_line(&units, |start, end| {
         let value = units.slice(start, end);
-        if js::trim(&text(value)).is_empty() {
+        if text::trim(&text(value)).is_empty() {
             return true;
         }
         total_lines += 1;
@@ -207,18 +207,16 @@ pub fn collect_agent_tool_result_lines(
 
 /// `stringifyAgentToolInput(value)`: structured tool input serialized after
 /// aggregate node, text and depth budgets.
-pub fn stringify_agent_tool_input(value: &Value) -> Option<String> {
-    let mut state = InputBudget {
-        remaining_chars: INPUT_TEXT_BUDGET,
-        remaining_nodes: INPUT_NODE_BUDGET,
-    };
-    let bounded = bound_input_value(value, &mut state, 0);
-    let object = bounded.as_object()?;
-    if object.is_empty() {
-        return None;
-    }
-    let serialized = serde_json::to_string_pretty(&bounded).ok()?;
-    Some(js::head16(&serialized, 32 * 1024).to_string())
+pub fn stringify_agent_tool_input(input: RecordRef<'_>) -> Option<String> {
+    input.bounded_json(JsonBudget {
+        text: INPUT_TEXT_BUDGET,
+        nodes: INPUT_NODE_BUDGET,
+        collection: INPUT_COLLECTION_BUDGET,
+        depth: INPUT_DEPTH_BUDGET,
+        string: 4 * 1024,
+        key: 512,
+        output: 32 * 1024,
+    })
 }
 
 fn scan_text(source: &Units) -> (usize, usize) {
@@ -304,51 +302,5 @@ fn collect_tail(
         text: join(&texts),
         raw_chars: values.iter().map(|(_, raw)| raw).sum(),
         lines: values.len(),
-    }
-}
-
-struct InputBudget {
-    remaining_chars: usize,
-    remaining_nodes: usize,
-}
-
-fn bound_input_value(value: &Value, state: &mut InputBudget, depth: usize) -> Value {
-    if state.remaining_nodes == 0 || state.remaining_chars == 0 || depth > INPUT_DEPTH_BUDGET {
-        return Value::from("[truncated]");
-    }
-    state.remaining_nodes -= 1;
-    match value {
-        Value::String(string) => {
-            let length16 = js::len16(string);
-            let length = length16.min(state.remaining_chars).min(4 * 1024);
-            state.remaining_chars -= length;
-            if length16 > length {
-                Value::from(format!("{}…", js::head16(string, length.saturating_sub(1))))
-            } else {
-                value.clone()
-            }
-        }
-        Value::Array(entries) => Value::Array(
-            entries
-                .iter()
-                .take(INPUT_COLLECTION_BUDGET)
-                .map(|entry| bound_input_value(entry, state, depth + 1))
-                .collect(),
-        ),
-        Value::Object(entries) => {
-            let mut next = Map::new();
-            for (key, entry) in entries.iter().take(INPUT_COLLECTION_BUDGET) {
-                if state.remaining_nodes == 0 || state.remaining_chars == 0 {
-                    next.insert("…".into(), Value::from("[truncated]"));
-                    break;
-                }
-                next.insert(
-                    js::head16(key, 512).to_string(),
-                    bound_input_value(entry, state, depth + 1),
-                );
-            }
-            Value::Object(next)
-        }
-        _ => value.clone(),
     }
 }

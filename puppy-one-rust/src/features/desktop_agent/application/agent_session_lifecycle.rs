@@ -1,20 +1,36 @@
 //! `application/AgentSessionLifecycle.ts`: owns one tab's live connection;
 //! durable locator indexing remains Main-owned.
-use super::agent_client_port::{AgentClientProvider, require_bridge};
+use super::agent_client_port::{AgentClient as _, AgentClientProvider, require_bridge};
 use super::agent_controller_state::{AgentControllerPhase, AgentSessionPreparation, StatePatch};
 use super::agent_error::{create_agent_error, format_agent_error};
-use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSession};
+use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSessionFn};
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::display_state::create_empty_agent_display;
+use crate::agent::contract::dto::{AgentProjection, Receipt};
+use crate::agent::contract::protocol::{AgentOperation, CloseSession, CompactSession};
 use futures_util::future::LocalBoxFuture;
-use serde_json::{Value, json};
 use std::rc::Rc;
+
+/// `ItemCloseResult`: the session closed, stayed open, or the execution
+/// host's termination receipt.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CloseOutcome {
+    Closed,
+    Kept,
+    Terminated(Receipt),
+}
+
+impl CloseOutcome {
+    /// Whether the tab may go (the product's truthy result).
+    pub fn closed(&self) -> bool {
+        !matches!(self, Self::Kept)
+    }
+}
 
 pub struct AgentSessionLifecycleOptions {
     pub workspace_root: String,
     pub bridge_provider: AgentClientProvider,
     pub store: Rc<AgentControllerStore>,
-    pub create_session: CreateSession,
+    pub create_session: CreateSessionFn,
     pub apply_snapshot: ApplySnapshot,
     pub delete_session_ui: Rc<dyn Fn(&str)>,
 }
@@ -52,7 +68,7 @@ impl AgentSessionLifecycle {
                     StatePatch::new()
                         .phase(AgentControllerPhase::Creating)
                         .session(None)
-                        .projection(create_empty_agent_display())
+                        .projection(AgentProjection::default())
                         .error(None)
                         .pending_prompt(None)
                         .pending_intent(None)
@@ -88,13 +104,15 @@ impl AgentSessionLifecycle {
         else {
             return Box::pin(async {});
         };
-        let call =
-            require_bridge(&options.bridge_provider, &["compactAgentSession"]).map(|bridge| {
-                bridge.call(
-                    "compactAgentSession",
-                    json!({ "rootPath": options.workspace_root, "sessionId": session_id }),
-                )
-            });
+        let call = require_bridge(&options.bridge_provider, &[AgentOperation::CompactSession]).map(
+            |bridge| {
+                bridge.compact_session(CompactSession {
+                    root_path: options.workspace_root.clone(),
+                    session_id,
+                    ..CompactSession::default()
+                })
+            },
+        );
         Box::pin(async move {
             let result = match call {
                 Ok(call) => call.await,
@@ -108,17 +126,20 @@ impl AgentSessionLifecycle {
         })
     }
 
-    /// The termination receipt (`ItemCloseResult`), `true` once the session
-    /// closed, or `false`.
-    pub fn close_session(&self) -> LocalBoxFuture<'static, Value> {
+    /// The termination receipt (`ItemCloseResult`), closed once the
+    /// session closed, or kept.
+    pub fn close_session(&self) -> LocalBoxFuture<'static, CloseOutcome> {
         let options = self.0.clone();
         let bridge = (options.bridge_provider)();
-        let closing: LocalBoxFuture<'static, AgentResult<Value>> =
-            match bridge.filter(|b| b.implements("terminateAgentExecution")) {
-                Some(bridge) => bridge.call("terminateAgentExecution", Value::Null),
+        let closing: LocalBoxFuture<'static, AgentResult<CloseOutcome>> =
+            match bridge.filter(|b| b.supports(AgentOperation::TerminateExecution)) {
+                Some(bridge) => {
+                    let call = bridge.terminate_execution();
+                    Box::pin(async move { call.await.map(CloseOutcome::Terminated) })
+                }
                 None => {
                     let close = self.close_active_session(false);
-                    Box::pin(async move { close.await.map(|()| Value::Bool(true)) })
+                    Box::pin(async move { close.await.map(|()| CloseOutcome::Closed) })
                 }
             };
         Box::pin(async move {
@@ -126,7 +147,7 @@ impl AgentSessionLifecycle {
                 options
                     .store
                     .patch(StatePatch::new().error(Some(format_agent_error(&error))));
-                Value::Bool(false)
+                CloseOutcome::Kept
             })
         })
     }
@@ -136,9 +157,9 @@ impl AgentSessionLifecycle {
     /// policy does not apply to rollback.
     pub fn rollback_preparation(&self) -> LocalBoxFuture<'static, AgentResult<()>> {
         let bridge = (self.0.bridge_provider)();
-        if let Some(bridge) = bridge.filter(|b| b.implements("terminateAgentExecution")) {
-            let call = bridge.call("terminateAgentExecution", Value::Null);
-            return Box::pin(async move { call.await.map(|_| ()) });
+        if let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::TerminateExecution)) {
+            let call = bridge.terminate_execution();
+            return Box::pin(async move { call.await.map(drop) });
         }
         self.close_active_session(false)
     }
@@ -149,30 +170,19 @@ impl AgentSessionLifecycle {
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         let options = &self.0;
         let session = options.store.read(|state| state.session.clone());
-        let Some(session_id) = session
-            .as_ref()
-            .and_then(|s| s["id"].as_str())
-            .filter(|id| !id.is_empty())
-        else {
+        let Some(session) = session.filter(|s| !s.id.is_empty()) else {
             return Box::pin(async { Ok(()) });
         };
         let bridge = (options.bridge_provider)();
-        let Some(bridge) = bridge.filter(|b| b.implements("closeAgentSession")) else {
+        let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::CloseSession)) else {
             return Box::pin(async { Ok(()) });
         };
-        let mut request = json!({
-            "rootPath": options.workspace_root,
-            "sessionId": session_id,
-            "removePersistence": remove_persistence,
+        let call = bridge.close_session(CloseSession {
+            root_path: options.workspace_root.clone(),
+            session_id: session.id.clone(),
+            instance_id: session.instance().map(str::to_string),
+            remove_persistence: Some(remove_persistence),
         });
-        if let Some(instance_id) = session
-            .as_ref()
-            .and_then(|s| s["instanceId"].as_str())
-            .filter(|id| !id.is_empty())
-        {
-            request["instanceId"] = Value::from(instance_id);
-        }
-        let call = bridge.call("closeAgentSession", request);
-        Box::pin(async move { call.await.map(|_| ()) })
+        Box::pin(async move { call.await.map(drop) })
     }
 }

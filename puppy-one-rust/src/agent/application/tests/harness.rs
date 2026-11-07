@@ -549,18 +549,15 @@ pub fn create_service_harness(options: HarnessOptions) -> Harness {
     }
 }
 
-/// A sender's recorded `(channel, frame)` deliveries.
-pub type Frames = Rc<RefCell<Vec<(String, Value)>>>;
+/// A sender's recorded frames.
+pub type Frames = Rc<RefCell<Vec<Value>>>;
 
 /// `createSender(id)`: frames are recorded.
 pub fn create_sender(id: u64) -> (Sender, Frames) {
     let frames: Frames = Rc::default();
     let sink = frames.clone();
     (
-        Sender::new(
-            id,
-            Rc::new(move |channel, payload| sink.borrow_mut().push((channel.into(), payload))),
-        ),
+        Sender::new(id, Rc::new(move |frame| sink.borrow_mut().push(frame))),
         frames,
     )
 }

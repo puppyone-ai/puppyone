@@ -1,66 +1,69 @@
 //! `createProjectAgentClientProvider(context, getClient)`: a project-owned
-//! client captures its generation once, including deferred commands, and
-//! fills in a session's instance identity.
+//! client fills in the live instance of the sessions it has seen. (The
+//! product also stamps each request with its project generation for Main's
+//! IPC checks; the Agent host authorizes a window's roots instead.)
+use crate::agent::contract::dto::{SessionFailure, SessionFrame, SessionMetadata};
+use crate::agent::contract::protocol::{AgentOperation, AgentRequest, AgentResponse};
 use crate::features::desktop_agent::application::agent_client_port::{
     AgentClientPort, AgentClientProvider, Cleanup, ClientFuture, same_client,
 };
-use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 struct ProjectAgentClient {
     base: Rc<dyn AgentClientPort>,
-    context: Value,
     instances: Rc<RefCell<HashMap<String, String>>>,
 }
 
+/// The session (and its live instance) an answer reports.
+fn reported_session(response: &AgentResponse) -> Option<&SessionMetadata> {
+    match response {
+        AgentResponse::Snapshot(snapshot) => Some(&snapshot.session),
+        AgentResponse::FeedReceipt(receipt) => receipt.snapshot.as_ref().ok().map(|s| &s.session),
+        AgentResponse::Opened(crate::agent::contract::dto::SessionOpenResult::Opened(snapshot)) => {
+            Some(&snapshot.session)
+        }
+        _ => None,
+    }
+}
+
 impl AgentClientPort for ProjectAgentClient {
-    fn implements(&self, method: &str) -> bool {
-        self.base.implements(method)
+    fn supports(&self, operation: AgentOperation) -> bool {
+        self.base.supports(operation)
     }
 
-    fn call(&self, method: &str, request: Value) -> ClientFuture {
-        let mut input = if request.is_object() {
-            request
-        } else {
-            serde_json::json!({})
-        };
-        input["projectContext"] = self.context.clone();
-        if let Some(session_id) = input["sessionId"].as_str().map(str::to_string)
-            && input
-                .get("instanceId")
-                .is_none_or(|id| !crate::agent::contract::js::truthy(id))
+    fn delivers_frames(&self) -> bool {
+        self.base.delivers_frames()
+    }
+
+    fn request(&self, mut request: AgentRequest) -> ClientFuture {
+        if request.instance_id().is_none()
+            && let Some(session_id) = request.session_id().map(str::to_string)
             && let Some(instance) = self.instances.borrow().get(&session_id)
         {
-            input["instanceId"] = Value::from(instance.as_str());
+            request.set_instance_id(instance);
         }
-        let call = self.base.call(method, input);
+        let call = self.base.request(request);
         let instances = self.instances.clone();
         Box::pin(async move {
-            let value = call.await?;
-            let session = value
-                .get("session")
-                .filter(|s| s.is_object())
-                .or_else(|| value.get("snapshot").and_then(|s| s.get("session")));
-            if let Some(session) = session
-                && let (Some(id), Some(instance)) =
-                    (session["id"].as_str(), session["instanceId"].as_str())
-                && !instance.is_empty()
+            let response = call.await?;
+            if let Some(session) = reported_session(&response)
+                && let Some(instance) = session.instance()
             {
                 instances
                     .borrow_mut()
-                    .insert(id.to_string(), instance.to_string());
+                    .insert(session.id.clone(), instance.to_string());
             }
-            Ok(value)
+            Ok(response)
         })
     }
 
-    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_agent_session_frame(&self, listener: Rc<dyn Fn(SessionFrame)>) -> Option<Cleanup> {
         self.base.on_agent_session_frame(listener)
     }
 
-    fn on_agent_session_failure(&self, listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_agent_session_failure(&self, listener: Rc<dyn Fn(SessionFailure)>) -> Option<Cleanup> {
         self.base.on_agent_session_failure(listener)
     }
 }
@@ -70,7 +73,6 @@ type Cached = (Rc<dyn AgentClientPort>, Rc<dyn AgentClientPort>);
 
 /// `createProjectAgentClientProvider(context, getClient)`.
 pub fn create_project_agent_client_provider(
-    context: Value,
     get_client: AgentClientProvider,
 ) -> AgentClientProvider {
     let cache: RefCell<Option<Cached>> = RefCell::default();
@@ -84,7 +86,6 @@ pub fn create_project_agent_client_provider(
         }
         let client: Rc<dyn AgentClientPort> = Rc::new(ProjectAgentClient {
             base: current.clone(),
-            context: context.clone(),
             instances: instances.clone(),
         });
         *cache.borrow_mut() = Some((current, client.clone()));

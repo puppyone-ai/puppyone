@@ -1,10 +1,10 @@
 //! `domain/agent-activity-presentation.ts`: how a display activity
 //! (`AgentActivity`) reads as a tool, command, file change or output.
 use super::agent_tool_evidence::stringify_agent_tool_input;
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{ActivityFields, RecordRef};
 use crate::localization::{Arg, format_number, t, tf};
+use crate::text;
 use regex::Regex;
-use serde_json::{Map, Value};
 use std::sync::LazyLock;
 
 /// `AgentFileChangeSummary`.
@@ -19,49 +19,38 @@ pub struct AgentFileChangeSummary {
     pub truncated: bool,
 }
 
-/// `record(value)`: an object, or an empty one.
-fn record(value: &Value) -> Map<String, Value> {
-    value.as_object().cloned().unwrap_or_default()
+/// `text(value)`: a string, trimmed (anything else reads as empty).
+fn trimmed(value: Option<&str>) -> String {
+    value.map(|s| text::trim(s).to_string()).unwrap_or_default()
 }
 
-/// `text(value)`.
-fn text(value: &Value) -> String {
-    value
-        .as_str()
-        .map(|s| js::trim(s).to_string())
-        .unwrap_or_default()
-}
-
-/// `firstText(...values)`.
-fn first_text(values: &[&Value]) -> String {
-    for value in values {
-        if let Some(string) = value.as_str()
-            && !js::trim(string).is_empty()
-        {
-            return js::head16(js::trim(string), 64 * 1024).to_string();
+/// `firstText(...values)`: the first non-blank string.
+fn first_text(values: &[Option<&str>]) -> String {
+    for value in values.iter().flatten() {
+        if !text::trim(value).is_empty() {
+            return text::head16(text::trim(value), 64 * 1024).to_string();
         }
     }
     String::new()
 }
 
-/// A string property as is (`activity.label`).
-fn text_of(value: &Value) -> String {
-    value.as_str().unwrap_or_default().to_string()
-}
-
-fn get<'a>(map: &'a Map<String, Value>, key: &str) -> &'a Value {
-    map.get(key).unwrap_or(&Value::Null)
+/// `record(detail.input)`.
+fn input<A: ActivityFields + ?Sized>(activity: &A) -> RecordRef<'_> {
+    activity
+        .detail()
+        .record("input")
+        .unwrap_or_else(RecordRef::empty)
 }
 
 /// `agentActivityToolId(activity)`.
-pub fn agent_activity_tool_id(activity: &Value) -> String {
-    let detail_tool = &activity["detail"]["tool"];
-    let source = if js::truthy(detail_tool) {
-        detail_tool
+pub fn agent_activity_tool_id<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    let detail = activity.detail();
+    let source = if detail.truthy("tool") {
+        detail.text("tool")
     } else {
-        &activity["kind"]
+        Some(activity.kind())
     };
-    let tool = text(source).to_lowercase();
+    let tool = trimmed(source).to_lowercase();
     let known = match tool.as_str() {
         "bash" | "shell" | "command" => "bash",
         "read" => "read",
@@ -84,7 +73,7 @@ pub fn agent_activity_tool_id(activity: &Value) -> String {
 
 /// `agentActivityToolName(activity)`: the legacy English presentation the
 /// classification suites read. Product UI uses [`format_agent_tool_name`].
-pub fn agent_activity_tool_name(activity: &Value) -> String {
+pub fn agent_activity_tool_name<A: ActivityFields + ?Sized>(activity: &A) -> String {
     let id = agent_activity_tool_id(activity);
     let known = match id.as_str() {
         "bash" => "Bash",
@@ -123,112 +112,107 @@ pub fn format_agent_tool_name(tool: &str) -> String {
 }
 
 /// `formatAgentActivityLabel(activity, t)`.
-pub fn format_agent_activity_label(activity: &Value) -> String {
-    if let Some(label) = activity["label"].as_str().filter(|l| !l.is_empty()) {
-        return label.to_string();
+pub fn format_agent_activity_label<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    if !activity.label().is_empty() {
+        return activity.label().to_string();
     }
-    if activity["labelCode"] == "file-changes" {
-        let count = activity["detail"]["changes"].as_array().map_or(0, Vec::len) as i64;
+    if activity.label_code() == Some("file-changes") {
+        let count = activity.detail().list_len("changes").unwrap_or(0) as i64;
         return tf(
             "agent.activity.fileChanges",
             &[("count", Arg::Number(count))],
         );
     }
-    let code = activity["labelCode"].as_str().unwrap_or("tool-activity");
+    let code = activity.label_code().unwrap_or("tool-activity");
     t(&format!("agent.activity.{code}")).to_string()
 }
 
 /// `agentActivitySummary(activity)`.
-pub fn agent_activity_summary(activity: &Value) -> String {
-    let label = &activity["label"];
-    if activity["kind"] == "command" {
+pub fn agent_activity_summary<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    let label = Some(activity.label());
+    if activity.kind() == "command" {
         let command = command_for_activity(activity);
         return if command.is_empty() {
-            text_of(label)
+            activity.label().to_string()
         } else {
             command
         };
     }
-    if activity["kind"] == "file-change" {
+    if activity.kind() == "file-change" {
         let path = path_for_activity(activity);
         return if path.is_empty() {
-            text_of(label)
+            activity.label().to_string()
         } else {
             path
         };
     }
-    let detail = &activity["detail"];
-    let input = record(&detail["input"]);
+    let detail = activity.detail();
+    let input = input(activity);
     let tool = agent_activity_tool_id(activity);
     if ["grep", "glob", "search"].contains(&tool.as_str()) {
         return first_text(&[
-            get(&input, "pattern"),
-            &detail["query"],
-            get(&input, "query"),
-            &detail["path"],
-            get(&input, "path"),
+            input.text("pattern"),
+            detail.text("query"),
+            input.text("query"),
+            detail.text("path"),
+            input.text("path"),
             label,
         ]);
     }
     first_text(&[
-        &detail["description"],
-        &detail["path"],
-        get(&input, "path"),
-        get(&input, "file"),
-        get(&input, "file_path"),
-        get(&input, "filePath"),
-        &detail["query"],
-        get(&input, "query"),
-        get(&input, "pattern"),
+        detail.text("description"),
+        detail.text("path"),
+        input.text("path"),
+        input.text("file"),
+        input.text("file_path"),
+        input.text("filePath"),
+        detail.text("query"),
+        input.text("query"),
+        input.text("pattern"),
         label,
     ])
 }
 
 /// `isContextCompactionActivity(activity)`.
-pub fn is_context_compaction_activity(activity: &Value) -> bool {
+pub fn is_context_compaction_activity<A: ActivityFields + ?Sized>(activity: &A) -> bool {
     static EXACT: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^(?:compaction|context-compaction)$").expect("exact"));
     static PHRASE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)(?:compact(?:ed|ing|ion)?\s+(?:the\s+)?context|context\s+compact)")
             .expect("phrase")
     });
-    let detail = &activity["detail"];
-    let input = record(&detail["input"]);
+    let detail = activity.detail();
+    let input = input(activity);
     [
-        &detail["tool"],
-        &detail["kind"],
-        &detail["description"],
-        get(&input, "action"),
-        &activity["label"],
+        detail.text("tool"),
+        detail.text("kind"),
+        detail.text("description"),
+        input.text("action"),
+        Some(activity.label()),
     ]
     .into_iter()
-    .map(text)
+    .map(trimmed)
     .filter(|value| !value.is_empty())
     .any(|value| EXACT.is_match(&value.to_lowercase()) || PHRASE.is_match(&value))
 }
 
 /// `commandForActivity(activity)`.
-pub fn command_for_activity(activity: &Value) -> String {
-    let detail = &activity["detail"];
-    let input = record(&detail["input"]);
-    let metadata = record(&detail["metadata"]);
-    let raw_input = if detail["input"].is_string() {
-        detail["input"].clone()
-    } else {
-        Value::from("")
-    };
+pub fn command_for_activity<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    let detail = activity.detail();
+    let input = input(activity);
+    let metadata = detail.record("metadata").unwrap_or_else(RecordRef::empty);
     first_text(&[
-        &detail["command"],
-        get(&input, "command"),
-        get(&input, "cmd"),
-        get(&metadata, "command"),
-        &raw_input,
+        detail.text("command"),
+        input.text("command"),
+        input.text("cmd"),
+        metadata.text("command"),
+        detail.text("input"),
     ])
 }
 
 /// `visibleCommandForActivity(activity)`: the command as the user would have
 /// typed it, without a login-shell wrapper.
-pub fn visible_command_for_activity(activity: &Value) -> String {
+pub fn visible_command_for_activity<A: ActivityFields + ?Sized>(activity: &A) -> String {
     unwrap_login_shell(&command_for_activity(activity))
 }
 
@@ -242,7 +226,9 @@ pub struct AgentCommandPresentation {
 }
 
 /// `commandPresentationForActivity(activity)`.
-pub fn command_presentation_for_activity(activity: &Value) -> AgentCommandPresentation {
+pub fn command_presentation_for_activity<A: ActivityFields + ?Sized>(
+    activity: &A,
+) -> AgentCommandPresentation {
     static UNSAFE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[;&|<>`\n\r]").expect("unsafe"));
     static PRE: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?:^|\s)--pre(?:-glob)?(?:\s|=|$)").expect("pre"));
@@ -259,7 +245,7 @@ pub fn command_presentation_for_activity(activity: &Value) -> AgentCommandPresen
         tool: "bash",
         title: "Bash",
         summary: if command.is_empty() {
-            text_of(&activity["label"])
+            activity.label().to_string()
         } else {
             command.clone()
         },
@@ -300,90 +286,80 @@ pub fn command_presentation_for_activity(activity: &Value) -> AgentCommandPresen
 }
 
 /// `pathForActivity(activity)`.
-pub fn path_for_activity(activity: &Value) -> String {
-    let detail = &activity["detail"];
-    let input = record(&detail["input"]);
+pub fn path_for_activity<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    let detail = activity.detail();
+    let input = input(activity);
     let first_change = file_changes_for_activity(activity)
         .into_iter()
         .next()
-        .map_or(Value::Null, |change| Value::from(change.path));
+        .map(|change| change.path);
     first_text(&[
-        &detail["path"],
-        get(&input, "path"),
-        get(&input, "file"),
-        get(&input, "filepath"),
-        get(&input, "file_path"),
-        get(&input, "filePath"),
-        &first_change,
+        detail.text("path"),
+        input.text("path"),
+        input.text("file"),
+        input.text("filepath"),
+        input.text("file_path"),
+        input.text("filePath"),
+        first_change.as_deref(),
     ])
 }
 
 /// `outputForActivity(activity)`.
-pub fn output_for_activity(activity: &Value) -> String {
-    let detail = &activity["detail"];
-    let result = Value::from(canonical_tool_result_text(&detail["result"]));
-    let nested = if detail["detail"].is_string() {
-        detail["detail"].clone()
-    } else {
-        Value::from("")
-    };
+pub fn output_for_activity<A: ActivityFields + ?Sized>(activity: &A) -> String {
+    let detail = activity.detail();
+    let result = detail
+        .record("result")
+        .map(canonical_tool_result_text)
+        .unwrap_or_default();
     first_text(&[
-        &activity["output"],
-        &detail["outputPreview"],
-        &result,
-        &detail["content"],
-        &detail["error"],
-        &nested,
+        Some(activity.output()),
+        detail.text("outputPreview"),
+        Some(result.as_str()),
+        detail.text("content"),
+        detail.text("error"),
+        detail.text("detail"),
     ])
 }
 
-fn canonical_tool_result_text(value: &Value) -> String {
-    let result = record(value);
-    let content = get(&result, "content")
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let rendered: Vec<String> = content
-        .iter()
+fn canonical_tool_result_text(result: RecordRef<'_>) -> String {
+    let rendered: Vec<String> = result
+        .records("content")
+        .into_iter()
         .take(100)
-        .flat_map(|entry| {
-            let item = record(entry);
-            match get(&item, "type").as_str() {
-                Some("text") => vec![text(get(&item, "text"))],
-                Some("artifact") => vec![first_text(&[get(&item, "text"), get(&item, "uri")])],
-                Some("json") if item.contains_key("value") => {
-                    serde_json::to_string_pretty(get(&item, "value"))
-                        .into_iter()
-                        .collect()
-                }
-                _ => Vec::new(),
-            }
+        .flat_map(|item| match item.text("type") {
+            Some("text") => vec![trimmed(item.text("text"))],
+            Some("artifact") => vec![first_text(&[item.text("text"), item.text("uri")])],
+            Some("json") if item.has("value") => item.pretty("value").into_iter().collect(),
+            _ => Vec::new(),
         })
         .filter(|entry| !entry.is_empty())
         .collect();
-    let rendered = Value::from(rendered.join("\n"));
-    first_text(&[&rendered, get(&result, "error")])
+    let rendered = rendered.join("\n");
+    first_text(&[Some(rendered.as_str()), result.text("error")])
 }
 
 /// `commandMetadata(activity)`: `{ exitCode, durationMs }`.
-pub fn command_metadata(activity: &Value) -> (Option<f64>, Option<f64>) {
-    let detail = &activity["detail"];
-    let metadata = record(&detail["metadata"]);
-    let finite = |values: &[&Value]| values.iter().find_map(|value| js::finite_number(value));
+pub fn command_metadata<A: ActivityFields + ?Sized>(activity: &A) -> (Option<f64>, Option<f64>) {
+    let detail = activity.detail();
+    let metadata = detail.record("metadata").unwrap_or_else(RecordRef::empty);
+    let detail = detail.view();
+    let finite = |sources: &[(RecordRef<'_>, &str)]| {
+        sources.iter().find_map(|(record, key)| record.finite(key))
+    };
     (
         finite(&[
-            &detail["exitCode"],
-            get(&metadata, "exitCode"),
-            get(&metadata, "exit"),
-            get(&metadata, "code"),
+            (detail, "exitCode"),
+            (metadata, "exitCode"),
+            (metadata, "exit"),
+            (metadata, "code"),
         ]),
         finite(&[
-            &detail["duration"],
-            &detail["durationMs"],
-            &detail["elapsedMs"],
-            get(&metadata, "duration"),
-            get(&metadata, "durationMs"),
-            get(&metadata, "elapsed"),
+            (detail, "duration"),
+            (detail, "durationMs"),
+            (detail, "elapsedMs"),
+            (metadata, "duration"),
+            (metadata, "durationMs"),
+            (metadata, "elapsed"),
         ]),
     )
 }
@@ -419,44 +395,40 @@ pub fn format_agent_duration(value: f64) -> String {
 }
 
 /// `fileChangesForActivity(activity)`.
-pub fn file_changes_for_activity(activity: &Value) -> Vec<AgentFileChangeSummary> {
-    let Some(changes) = activity["detail"]["changes"].as_array() else {
-        return Vec::new();
-    };
-    changes
-        .iter()
+pub fn file_changes_for_activity<A: ActivityFields + ?Sized>(
+    activity: &A,
+) -> Vec<AgentFileChangeSummary> {
+    activity
+        .detail()
+        .records("changes")
+        .into_iter()
         .take(100)
-        .filter_map(|entry| {
-            let value = record(entry);
+        .filter_map(|value| {
             let path = first_text(&[
-                get(&value, "path"),
-                get(&value, "file"),
-                get(&value, "filepath"),
+                value.text("path"),
+                value.text("file"),
+                value.text("filepath"),
             ]);
             if path.is_empty() {
                 return None;
             }
-            let count = |key: &str| js::finite_number(get(&value, key)).map(bounded_count);
+            let count = |key: &str| value.finite(key).map(bounded_count);
             Some(AgentFileChangeSummary {
-                path: js::head16(&path, 4_096).to_string(),
+                path: text::head16(&path, 4_096).to_string(),
                 additions: count("additions"),
                 deletions: count("deletions"),
-                diff: get(&value, "diff").as_str().unwrap_or_default().to_string(),
-                blocks: get(&value, "blocks")
-                    .as_array()
-                    .map(|blocks| {
-                        blocks
-                            .iter()
-                            .take(100)
-                            .filter_map(|block| {
-                                let removed = block["removed"].as_str().map(str::to_string);
-                                let added = block["added"].as_str().map(str::to_string);
-                                (removed.is_some() || added.is_some()).then_some((removed, added))
-                            })
-                            .collect()
+                diff: value.text("diff").unwrap_or_default().to_string(),
+                blocks: value
+                    .records("blocks")
+                    .into_iter()
+                    .take(100)
+                    .filter_map(|block| {
+                        let removed = block.text("removed").map(str::to_string);
+                        let added = block.text("added").map(str::to_string);
+                        (removed.is_some() || added.is_some()).then_some((removed, added))
                     })
-                    .unwrap_or_default(),
-                truncated: get(&value, "truncated") == &Value::Bool(true),
+                    .collect(),
+                truncated: value.is_true("truncated"),
             })
         })
         .collect()
@@ -481,15 +453,12 @@ pub fn file_change_totals(changes: &[AgentFileChangeSummary]) -> Option<(i64, i6
 }
 
 /// `structuredInputForActivity(activity)`.
-pub fn structured_input_for_activity(activity: &Value) -> Option<String> {
-    let input = activity["detail"]["input"].as_object()?;
-    let visible: Map<String, Value> = input
-        .iter()
-        .filter(|(key, _)| !["command", "cmd", "patch", "diff", "content"].contains(&key.as_str()))
-        .take(20)
-        .map(|(key, value)| (key.clone(), value.clone()))
-        .collect();
-    stringify_agent_tool_input(&Value::Object(visible))
+pub fn structured_input_for_activity<A: ActivityFields + ?Sized>(activity: &A) -> Option<String> {
+    let input = activity.detail().record("input")?;
+    let visible = input.filtered(20, |key| {
+        !["command", "cmd", "patch", "diff", "content"].contains(&key)
+    });
+    stringify_agent_tool_input(visible.view())
 }
 
 fn bounded_count(value: f64) -> i64 {
@@ -524,13 +493,16 @@ fn unwrap_login_shell(command: &str) -> String {
         Regex::new(r#"^(?:/[^\s]+/)?(?:zsh|bash|sh)\s+-lc\s+(?:"([\s\S]*)"|'([\s\S]*)')$"#)
             .expect("login")
     });
-    let trimmed = js::trim(command);
+    let trimmed = text::trim(command);
     LOGIN
         .captures(trimmed)
         .and_then(|captures| captures.get(1).or_else(|| captures.get(2)))
         .map(|inner| inner.as_str())
         .filter(|inner| !inner.is_empty())
-        .map_or_else(|| trimmed.to_string(), |inner| js::trim(inner).to_string())
+        .map_or_else(
+            || trimmed.to_string(),
+            |inner| text::trim(inner).to_string(),
+        )
 }
 
 /// `readShellExecutable(command)`.
@@ -545,7 +517,7 @@ fn read_shell_executable(command: &str) -> String {
         LazyLock::new(|| Regex::new(r"(?:^|\s)-n(?:\s|$)").expect("n"));
     static BA_FLAG: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?:^|\s)-ba(?:\s|$)").expect("ba"));
-    let source = js::trim(command);
+    let source = text::trim(command);
     if source.is_empty() {
         return String::new();
     }

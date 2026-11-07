@@ -1,29 +1,41 @@
-//! `application/AgentClientPort.ts`: the Renderer-side port the window
-//! bridge implements. Methods keep the product's names
-//! (`"attachAgentSession"`, …); optional ones are named by
-//! [`AgentClientPort::implements`].
-use crate::agent::agent_error::AgentResult;
+//! `application/AgentClientPort.ts`: the Renderer-side port the window's
+//! Agent client implements. A request is one typed [`AgentRequest`]; its
+//! answer one typed [`AgentResponse`]. [`AgentClient`] gives each
+//! operation its own typed call; a client offers the optional operations
+//! [`AgentClientPort::supports`] names.
+use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::contract::dto::{
+    AccountState, DraftReference, FeedAcknowledgement, FeedReceipt, FeedWatermark,
+    LocalConnectionsSnapshot, Model, Receipt, RuntimeInspection, SessionFailure, SessionFrame,
+    SessionOpenResult, SessionSnapshot, SessionsPage,
+};
+use crate::agent::contract::protocol::*;
 use futures_util::future::LocalBoxFuture;
-use serde_json::Value;
 use std::rc::Rc;
 
 /// One port operation (`Promise<…>`).
-pub type ClientFuture = LocalBoxFuture<'static, AgentResult<Value>>;
+pub type ClientFuture<T = AgentResponse> = LocalBoxFuture<'static, AgentResult<T>>;
 /// An unsubscribe function.
 pub type Cleanup = Box<dyn FnOnce()>;
 
 /// The Agent client port.
 pub trait AgentClientPort {
-    /// Whether `method` exists (`typeof bridge.method === "function"`).
-    fn implements(&self, method: &str) -> bool;
-    /// `bridge[method](request)`.
-    fn call(&self, method: &str, request: Value) -> ClientFuture;
+    /// Whether the client offers `operation` (`typeof bridge.method ===
+    /// "function"`).
+    fn supports(&self, operation: AgentOperation) -> bool;
+    /// Whether the client delivers session frames
+    /// (`bridge.onAgentSessionFrame` exists).
+    fn delivers_frames(&self) -> bool {
+        false
+    }
+    /// Sends `request`.
+    fn request(&self, request: AgentRequest) -> ClientFuture;
     /// `bridge.onAgentSessionFrame?.(listener)`.
-    fn on_agent_session_frame(&self, _listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_agent_session_frame(&self, _listener: Rc<dyn Fn(SessionFrame)>) -> Option<Cleanup> {
         None
     }
     /// `bridge.onAgentSessionFailure?.(listener)`.
-    fn on_agent_session_failure(&self, _listener: Rc<dyn Fn(Value)>) -> Option<Cleanup> {
+    fn on_agent_session_failure(&self, _listener: Rc<dyn Fn(SessionFailure)>) -> Option<Cleanup> {
         None
     }
 }
@@ -36,18 +48,162 @@ pub fn same_client(a: &Rc<dyn AgentClientPort>, b: &Rc<dyn AgentClientPort>) -> 
     std::ptr::addr_eq(Rc::as_ptr(a), Rc::as_ptr(b))
 }
 
-/// `requireBridge(...methods)`: the bridge, when it implements every method.
+/// `requireBridge(...methods)`: the bridge, when it offers every
+/// operation.
 pub fn require_bridge(
     provider: &AgentClientProvider,
-    methods: &[&str],
+    operations: &[AgentOperation],
 ) -> AgentResult<Rc<dyn AgentClientPort>> {
     match provider() {
-        Some(bridge) if methods.iter().all(|method| bridge.implements(method)) => Ok(bridge),
+        Some(bridge)
+            if operations
+                .iter()
+                .all(|operation| bridge.supports(*operation)) =>
+        {
+            Ok(bridge)
+        }
         _ => Err(super::agent_error::agent_known_error(
             "native-bridge-unavailable",
             None,
         )),
     }
+}
+
+fn unexpected(operation: AgentOperation) -> AgentError {
+    AgentError::new(format!(
+        "The Agent client answered {} with another operation's result.",
+        operation.method()
+    ))
+    .with_name("TypeError")
+}
+
+macro_rules! typed_calls {
+    ($($(#[$meta:meta])* fn $name:ident($request:ty) -> $ret:ty = $variant:ident => |$response:ident| $read:expr;)*) => {
+        /// The port's operations, each with its request and answer types.
+        pub trait AgentClient {
+            $($(#[$meta])* fn $name(&self, request: $request) -> ClientFuture<$ret>;)*
+            /// `bridge.manageAgentExecutions()`.
+            fn manage_executions(&self) -> ClientFuture<Receipt>;
+            /// `bridge.terminateAgentExecution()`.
+            fn terminate_execution(&self) -> ClientFuture<Receipt>;
+        }
+        impl<P: AgentClientPort + ?Sized> AgentClient for P {
+            $(fn $name(&self, request: $request) -> ClientFuture<$ret> {
+                let call = self.request(AgentRequest::$variant(request));
+                Box::pin(async move {
+                    match call.await? {
+                        $response => $read.ok_or_else(|| unexpected(AgentOperation::$variant)),
+                    }
+                })
+            })*
+            fn manage_executions(&self) -> ClientFuture<Receipt> {
+                let call = self.request(AgentRequest::ManageExecutions);
+                Box::pin(async move {
+                    match call.await? {
+                        AgentResponse::Receipt(receipt) => Ok(receipt),
+                        _ => Err(unexpected(AgentOperation::ManageExecutions)),
+                    }
+                })
+            }
+            fn terminate_execution(&self) -> ClientFuture<Receipt> {
+                let call = self.request(AgentRequest::TerminateExecution);
+                Box::pin(async move {
+                    match call.await? {
+                        AgentResponse::Receipt(receipt) => Ok(receipt),
+                        _ => Err(unexpected(AgentOperation::TerminateExecution)),
+                    }
+                })
+            }
+        }
+    };
+}
+
+typed_calls! {
+    /// `discoverAgentRuntimes(request)`.
+    fn discover_runtimes(RuntimeQuery) -> RuntimeInspection = DiscoverRuntimes
+        => |response| match response { AgentResponse::Inspection(i) => Some(*i), _ => None };
+    /// `discoverLocalAgentConnections(request)`.
+    fn discover_local_connections(RuntimeQuery) -> LocalConnectionsSnapshot = DiscoverLocalConnections
+        => |response| match response { AgentResponse::LocalConnections(s) => Some(s), _ => None };
+    /// `listAgentModels(request)`.
+    fn list_models(RuntimeQuery) -> Vec<Model> = ListModels
+        => |response| match response { AgentResponse::Models(m) => Some(m), _ => None };
+    /// `readAgentAccount(request)`.
+    fn read_account(RuntimeQuery) -> Option<AccountState> = ReadAccount
+        => |response| match response { AgentResponse::Account(a) => Some(a), _ => None };
+    /// `createAgentSession(request)`.
+    fn create_session(CreateSession) -> SessionSnapshot = CreateSession
+        => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
+    /// `resumeAgentSession(request)`: `None` when there is nothing to resume.
+    fn resume_session(ResumeSession) -> Option<SessionSnapshot> = ResumeSession
+        => |response| match response {
+            AgentResponse::Snapshot(s) => Some(Some(*s)),
+            AgentResponse::NoSnapshot => Some(None),
+            _ => None,
+        };
+    /// `openAgentSession(request)`.
+    fn open_session(OpenSession) -> SessionOpenResult = OpenSession
+        => |response| match response { AgentResponse::Opened(r) => Some(r), _ => None };
+    /// `replayAgentSession(request)`.
+    fn replay_session(ReplaySession) -> SessionSnapshot = ReplaySession
+        => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
+    /// `attachAgentSession(request)`.
+    fn attach_session(SessionTarget) -> FeedReceipt = AttachSession
+        => |response| match response { AgentResponse::FeedReceipt(r) => Some(*r), _ => None };
+    /// `acknowledgeAgentSession(request)`.
+    fn acknowledge_session(FeedAck) -> FeedAcknowledgement = AcknowledgeFeed
+        => |response| match response { AgentResponse::FeedAcknowledgement(a) => Some(a), _ => None };
+    /// `readAgentSessionWatermark(request)`.
+    fn read_session_watermark(FeedTarget) -> FeedWatermark = ReadFeedWatermark
+        => |response| match response { AgentResponse::FeedWatermark(w) => Some(w), _ => None };
+    /// `detachAgentSession(request)`.
+    fn detach_session(FeedTarget) -> Receipt = DetachFeed
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `listAgentSessions(request)`.
+    fn list_sessions(ListSessions) -> SessionsPage = ListSessions
+        => |response| match response { AgentResponse::Sessions(p) => Some(*p), _ => None };
+    /// `forkAgentSession(request)`.
+    fn fork_session(HistoryAction) -> SessionSnapshot = ForkSession
+        => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
+    /// `archiveAgentSession(request)`.
+    fn archive_session(HistoryAction) -> Receipt = ArchiveSession
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `deleteAgentSession(request)`.
+    fn delete_session(HistoryAction) -> Receipt = DeleteSession
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `closeAgentSession(request)`.
+    fn close_session(CloseSession) -> Receipt = CloseSession
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `stageAgentAttachments(request)`.
+    fn stage_attachments(StageReferences) -> Vec<DraftReference> = StageReferences
+        => |response| match response { AgentResponse::References(r) => Some(r), _ => None };
+    /// `revokeAgentAttachments(request)`.
+    fn revoke_attachments(RevokeReferences) -> Receipt = RevokeReferences
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `resolveAgentWorkspaceReferences(request)`.
+    fn resolve_workspace_references(ResolveWorkspaceReferences) -> Vec<DraftReference> = ResolveWorkspaceReferences
+        => |response| match response { AgentResponse::References(r) => Some(r), _ => None };
+    /// `pickAgentWorkspaceReferences(request)`.
+    fn pick_workspace_references(WorkspaceTarget) -> Vec<DraftReference> = PickWorkspaceReferences
+        => |response| match response { AgentResponse::References(r) => Some(r), _ => None };
+    /// `startAgentTurn(request)`.
+    fn start_turn(StartTurn) -> Receipt = StartTurn
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `steerAgentTurn(request)`.
+    fn steer_turn(SteerTurn) -> Receipt = SteerTurn
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `interruptAgentTurn(request)`.
+    fn interrupt_turn(InterruptTurn) -> Receipt = InterruptTurn
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `compactAgentSession(request)`.
+    fn compact_session(CompactSession) -> Receipt = CompactSession
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `resolveAgentApproval(request)`.
+    fn resolve_approval(ResolveApproval) -> Receipt = ResolveApproval
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
+    /// `resolveAgentQuestion(request)`.
+    fn resolve_question(ResolveQuestion) -> Receipt = ResolveQuestion
+        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
 }
 
 /// The bytes or native path behind a Renderer `File`.
@@ -70,16 +226,20 @@ pub struct AgentFile {
 }
 
 impl AgentFile {
-    /// The file as a port request value (`files: [file]`).
-    pub fn to_value(&self) -> Value {
-        let mut value =
-            serde_json::json!({ "name": self.name, "type": self.mime, "size": self.size });
-        match &self.source {
-            AgentFileSource::Path(path) => value["path"] = Value::from(path.as_str()),
-            AgentFileSource::Bytes(bytes) => {
-                value["bytes"] = crate::agent::contract::js::uint8array(bytes)
-            }
+    /// The file as staging reads it.
+    pub fn to_stage_file(&self) -> StageFile {
+        StageFile {
+            name: self.name.clone(),
+            mime: self.mime.clone(),
+            size: self.size,
+            path: match &self.source {
+                AgentFileSource::Path(path) => Some(path.clone()),
+                AgentFileSource::Bytes(_) => None,
+            },
+            bytes: match &self.source {
+                AgentFileSource::Path(_) => None,
+                AgentFileSource::Bytes(bytes) => Some(std::sync::Arc::new((**bytes).clone())),
+            },
         }
-        value
     }
 }

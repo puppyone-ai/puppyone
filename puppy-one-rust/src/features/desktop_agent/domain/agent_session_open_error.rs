@@ -1,15 +1,15 @@
 //! `domain/agent-session-open-error.ts`: a structured Renderer error
 //! preserved through Workbench preparation.
 use crate::agent::agent_error::AgentError;
-use serde_json::Value;
+use crate::agent::contract::dto::SessionOpenFailure;
 
 /// `new AgentSessionOpenError({ code, message, retryable })`.
-pub fn agent_session_open_error(error: &Value) -> AgentError {
-    let mut opened = AgentError::new(error["message"].as_str().unwrap_or_default())
+pub fn agent_session_open_error(error: &SessionOpenFailure) -> AgentError {
+    let mut opened = AgentError::new(error.message.clone())
         .with_name("AgentSessionOpenError")
-        .with_retryable(error["retryable"] == true);
-    if let Some(code) = error["code"].as_str() {
-        opened = opened.with_code(code);
+        .with_retryable(error.retryable);
+    if !error.code.is_empty() {
+        opened = opened.with_code(&error.code);
     }
     opened
 }

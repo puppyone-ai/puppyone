@@ -2,19 +2,18 @@
 //! generation; disposing it releases local replicas only.
 use super::agent_client_port::AgentClientProvider;
 use super::agent_session_controller::AgentSessionController;
+use super::agent_session_lifecycle::CloseOutcome;
 use super::ui_runtime::{Task, UiRuntime, launch, resolved, unstarted};
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
 use futures_util::FutureExt;
 use futures_util::future::LocalBoxFuture;
-use serde_json::Value;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// What the registry needs of a controller.
 pub trait RegisteredController: Clone + 'static {
-    /// `closeTabSession()`: `true`, a termination receipt, or `false`.
-    fn close_tab_session(&self) -> LocalBoxFuture<'static, Value>;
+    /// `closeTabSession()`: closed, a termination receipt, or kept.
+    fn close_tab_session(&self) -> LocalBoxFuture<'static, CloseOutcome>;
     fn dispose(&self, preserve_draft: bool);
     fn rollback_preparation(&self) -> LocalBoxFuture<'static, AgentResult<()>>;
     /// `controller === other`.
@@ -22,7 +21,7 @@ pub trait RegisteredController: Clone + 'static {
 }
 
 impl RegisteredController for AgentSessionController {
-    fn close_tab_session(&self) -> LocalBoxFuture<'static, Value> {
+    fn close_tab_session(&self) -> LocalBoxFuture<'static, CloseOutcome> {
         AgentSessionController::close_tab_session(self).boxed_local()
     }
     fn dispose(&self, preserve_draft: bool) {
@@ -37,7 +36,7 @@ impl RegisteredController for AgentSessionController {
 }
 
 /// An in-flight close: its id, controller and result.
-type Closing<C> = (u64, C, Task<Value>);
+type Closing<C> = (u64, C, Task<CloseOutcome>);
 
 /// `new AgentControllerRegistry(root, createClient, preserveDraftOnDispose)`.
 pub struct AgentControllerRegistry<C: RegisteredController = AgentSessionController> {
@@ -102,9 +101,9 @@ impl<C: RegisteredController> AgentControllerRegistry<C> {
         Ok(controller)
     }
 
-    pub fn close(&self, id: &str) -> Task<Value> {
+    pub fn close(&self, id: &str) -> Task<CloseOutcome> {
         let Some(controller) = self.find(id) else {
-            return resolved(Value::Bool(true));
+            return resolved(CloseOutcome::Closed);
         };
         if let Some((_, _, pending)) = self
             .closing
@@ -122,7 +121,7 @@ impl<C: RegisteredController> AgentControllerRegistry<C> {
         let closed = controller.clone();
         let task = unstarted(async move {
             let result = closed.close_tab_session().await;
-            let result = if js::truthy(&result) {
+            let result = if result.closed() {
                 closed.dispose(false);
                 let mut controllers = controllers.borrow_mut();
                 if let Some(index) = controllers
@@ -133,7 +132,7 @@ impl<C: RegisteredController> AgentControllerRegistry<C> {
                 }
                 result
             } else {
-                Value::Bool(false)
+                CloseOutcome::Kept
             };
             closing
                 .borrow_mut()

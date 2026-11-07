@@ -1,13 +1,15 @@
 //! `application/ConversationHistoryController.ts`: project-scoped,
 //! query-only state owner. It never creates or resumes a live Chat session.
-use super::agent_client_port::{AgentClientPort, AgentClientProvider};
+use super::agent_client_port::{AgentClient as _, AgentClientPort, AgentClientProvider};
 use super::agent_error::agent_known_error;
 use super::ui_runtime::{Task, UiRuntime, detach, launch, resolved, unstarted};
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
+use crate::agent::contract::dto::{
+    CatalogCoverage, RuntimeCatalogEntry, SessionDiscovery, SessionMetadata, SessionsPage,
+};
+use crate::agent::contract::protocol::{ListSessions, RuntimeQuery};
 use crate::features::desktop_agent::domain::agent_backend_routing::list_enabled_agent_runtimes;
 use futures_util::future::{LocalBoxFuture, join, join_all};
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -26,16 +28,16 @@ pub struct NativeScanContinuation {
 /// `ConversationHistoryState`. Records keep their insertion order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ConversationHistoryState {
-    pub sessions: Vec<Value>,
-    pub runtimes: Vec<Value>,
+    pub sessions: Vec<SessionMetadata>,
+    pub runtimes: Vec<RuntimeCatalogEntry>,
     pub loading: bool,
     pub loaded: bool,
     pub refreshing: bool,
     pub loading_more: bool,
     pub next_cursors: Vec<(String, NativeScanContinuation)>,
     pub catalog_next_cursor: Option<String>,
-    pub sources: Vec<(String, Value)>,
-    pub catalog_coverage: Option<Value>,
+    pub sources: Vec<(String, SessionDiscovery)>,
+    pub catalog_coverage: Option<CatalogCoverage>,
     pub error: Option<String>,
 }
 
@@ -48,7 +50,7 @@ impl ConversationHistoryState {
             .map(|(_, c)| c)
     }
     /// `state.sources[runtimeId]`.
-    pub fn source(&self, runtime_id: &str) -> Option<&Value> {
+    pub fn source(&self, runtime_id: &str) -> Option<&SessionDiscovery> {
         self.sources
             .iter()
             .find(|(id, _)| id == runtime_id)
@@ -59,16 +61,16 @@ impl ConversationHistoryState {
 /// `Partial<ConversationHistoryState>`.
 #[derive(Default)]
 struct Patch {
-    sessions: Option<Vec<Value>>,
-    runtimes: Option<Vec<Value>>,
+    sessions: Option<Vec<SessionMetadata>>,
+    runtimes: Option<Vec<RuntimeCatalogEntry>>,
     loading: Option<bool>,
     loaded: Option<bool>,
     refreshing: Option<bool>,
     loading_more: Option<bool>,
     next_cursors: Option<Vec<(String, NativeScanContinuation)>>,
     catalog_next_cursor: Option<Option<String>>,
-    sources: Option<Vec<(String, Value)>>,
-    catalog_coverage: Option<Option<Value>>,
+    sources: Option<Vec<(String, SessionDiscovery)>>,
+    catalog_coverage: Option<Option<CatalogCoverage>>,
     error: Option<Option<String>>,
 }
 
@@ -102,12 +104,12 @@ fn message_of(error: &AgentError) -> String {
 }
 
 /// `withDeadline(operation, timeoutMs, label)`.
-async fn with_deadline(
+async fn with_deadline<T>(
     runtime: &Rc<dyn UiRuntime>,
-    operation: LocalBoxFuture<'static, AgentResult<Value>>,
+    operation: LocalBoxFuture<'static, AgentResult<T>>,
     timeout_ms: u64,
     label: &str,
-) -> AgentResult<Value> {
+) -> AgentResult<T> {
     let timer = runtime.sleep(timeout_ms);
     tokio::select! {
         biased;
@@ -117,47 +119,42 @@ async fn with_deadline(
 }
 
 /// `historyRuntimes(runtimes)`.
-fn history_runtimes(runtimes: &[Value]) -> Vec<Value> {
+fn history_runtimes(runtimes: &[RuntimeCatalogEntry]) -> Vec<RuntimeCatalogEntry> {
     runtimes
         .iter()
         .filter(|entry| {
-            entry["readiness"]["status"] == "ready"
-                && entry["descriptor"]["ownership"]["session"] == "runtime"
+            entry.readiness.is_ready()
+                && entry
+                    .descriptor
+                    .ownership
+                    .as_ref()
+                    .is_some_and(|o| o.session == "runtime")
         })
         .cloned()
         .collect()
 }
 
 /// `sortSessions(sessions)`: newest first, stable.
-fn sort_sessions(mut sessions: Vec<Value>) -> Vec<Value> {
-    sessions.sort_by(|left, right| {
-        js::locale_compare(
-            right["updatedAt"].as_str().unwrap_or_default(),
-            left["updatedAt"].as_str().unwrap_or_default(),
-        )
-    });
+fn sort_sessions(mut sessions: Vec<SessionMetadata>) -> Vec<SessionMetadata> {
+    sessions
+        .sort_by(|left, right| crate::text::locale_compare(&right.updated_at, &left.updated_at));
     sessions
 }
 
 /// `entry.runtimeId ?? entry.provider`.
-fn session_runtime(entry: &Value) -> Value {
-    match entry.get("runtimeId") {
-        Some(id) if !id.is_null() => id.clone(),
-        _ => entry.get("provider").cloned().unwrap_or(Value::Null),
-    }
+fn session_runtime(entry: &SessionMetadata) -> &str {
+    entry.runtime_id.as_deref().unwrap_or(&entry.provider)
 }
 
 /// `sourceWarnings(sources)`.
-fn source_warnings(sources: &[(String, Value)]) -> Option<String> {
+fn source_warnings(sources: &[(String, SessionDiscovery)]) -> Option<String> {
     let warnings: Vec<String> = sources
         .iter()
         .flat_map(|(id, source)| {
-            source["warnings"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(move |warning| format!("{id}: {}", js::to_js_string(Some(&warning))))
+            source
+                .warnings
+                .iter()
+                .map(move |warning| format!("{id}: {warning}"))
         })
         .collect();
     (!warnings.is_empty()).then(|| warnings.join("\n"))
@@ -177,13 +174,10 @@ where
 }
 
 /// `new Map(entries.map((entry) => [entry.id, entry])).values()`.
-fn dedupe_by_id(entries: Vec<Value>) -> Vec<Value> {
-    let mut merged: Vec<Value> = Vec::new();
+fn dedupe_by_id(entries: Vec<SessionMetadata>) -> Vec<SessionMetadata> {
+    let mut merged: Vec<SessionMetadata> = Vec::new();
     for entry in entries {
-        match merged
-            .iter_mut()
-            .find(|existing| existing["id"] == entry["id"])
-        {
+        match merged.iter_mut().find(|existing| existing.id == entry.id) {
             Some(existing) => *existing = entry,
             None => merged.push(entry),
         }
@@ -458,10 +452,11 @@ impl Inner {
     }
 
     async fn discover_runtimes(self: Rc<Self>, generation: u64, refresh: bool) -> AgentResult<()> {
-        let call = self.require_client()?.call(
-            "discoverAgentRuntimes",
-            json!({ "rootPath": self.workspace_root, "refresh": refresh }),
-        );
+        let call = self.require_client()?.discover_runtimes(RuntimeQuery {
+            root_path: Some(self.workspace_root.clone()),
+            refresh: Some(refresh),
+            ..RuntimeQuery::default()
+        });
         let inspection = with_deadline(
             &self.runtime,
             call,
@@ -546,10 +541,7 @@ impl Inner {
             }
             let runtimes = self.read(|state| history_runtimes(&state.runtimes));
             join_all(runtimes.iter().map(|runtime| {
-                let id = runtime["descriptor"]["id"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string();
+                let id = runtime.descriptor.id.clone();
                 self.clone().load_source(generation, id, None)
             }))
             .await;
@@ -617,17 +609,16 @@ impl Inner {
         continuation: Option<NativeScanContinuation>,
     ) {
         let result: AgentResult<()> = async {
-            let mut request = json!({
-                "rootPath": self.workspace_root,
-                "runtimeId": runtime_id,
-                "discoverNative": true,
-                "limit": HISTORY_PAGE_SIZE,
-            });
-            if let Some(continuation) = &continuation {
-                request["cursor"] = json!(continuation.cursor);
-                request["scanId"] = json!(continuation.scan_id);
-            }
-            let call = self.require_client()?.call("listAgentSessions", request);
+            let request = ListSessions {
+                root_path: self.workspace_root.clone(),
+                runtime_id: Some(runtime_id.clone()),
+                discover_native: Some(true),
+                limit: Some(HISTORY_PAGE_SIZE as i64),
+                cursor: continuation.as_ref().map(|c| c.cursor.clone()),
+                scan_id: continuation.as_ref().map(|c| c.scan_id.clone()),
+                ..ListSessions::default()
+            };
+            let call = self.require_client()?.list_sessions(request);
             let response = with_deadline(
                 &self.runtime,
                 call,
@@ -638,16 +629,16 @@ impl Inner {
             if !self.is_current(generation) {
                 return Ok(());
             }
-            let discovery = response["discovery"].clone();
-            if discovery["runtimeId"] != runtime_id.as_str() {
+            let discovery = response.discovery.clone();
+            if discovery.runtime_id.as_deref() != Some(runtime_id.as_str()) {
                 return Err(AgentError::new(
                     "History response has a different Agent identity.",
                 ));
             }
             let state = self.state.borrow().clone();
             let mut cursors = state.next_cursors.clone();
-            let next_cursor = discovery["nextCursor"].as_str().filter(|c| !c.is_empty());
-            let scan_id = discovery["scanId"].as_str().filter(|s| !s.is_empty());
+            let next_cursor = discovery.next_cursor.as_deref().filter(|c| !c.is_empty());
+            let scan_id = discovery.scan_id.as_deref().filter(|s| !s.is_empty());
             if let (Some(cursor), Some(scan_id)) = (next_cursor, scan_id) {
                 cursors = with_entry(
                     &cursors,
@@ -657,8 +648,8 @@ impl Inner {
                         scan_id: scan_id.to_string(),
                     },
                 );
-            } else if discovery["status"] == "failed"
-                && discovery["retryable"] != false
+            } else if discovery.status == "failed"
+                && discovery.retryable != Some(false)
                 && let Some(continuation) = &continuation
             {
                 cursors = with_entry(&cursors, &runtime_id, continuation.clone());
@@ -669,48 +660,43 @@ impl Inner {
             // Merge this native page immediately. Only explicit exclusions
             // remove rows; absence from a page is not evidence that a
             // conversation disappeared.
-            let excluded: Vec<Value> = response["excludedSessionIds"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default();
-            let mine = |entry: &&Value| session_runtime(entry) == runtime_id.as_str();
-            let others: Vec<Value> = state
+            let excluded: Vec<String> = response.excluded_session_ids.clone().unwrap_or_default();
+            let mine = |entry: &&SessionMetadata| session_runtime(entry) == runtime_id.as_str();
+            let others: Vec<SessionMetadata> = state
                 .sessions
                 .iter()
                 .filter(|e| !mine(e))
                 .cloned()
                 .collect();
-            let incoming: Vec<Value> = response["sessions"]
-                .as_array()
-                .map(|sessions| sessions.iter().filter(mine).cloned().collect())
-                .unwrap_or_default();
-            let retained: Vec<Value> =
-                if discovery["status"] == "failed" || response["sessionListKind"] == "page" {
-                    state.sessions.iter().filter(mine).cloned().collect()
-                } else {
-                    Vec::new()
-                };
+            let incoming: Vec<SessionMetadata> =
+                response.sessions.iter().filter(mine).cloned().collect();
+            let retained: Vec<SessionMetadata> = if discovery.status == "failed"
+                || response.session_list_kind.as_deref() == Some("page")
+            {
+                state.sessions.iter().filter(mine).cloned().collect()
+            } else {
+                Vec::new()
+            };
             let source_sessions = dedupe_by_id(retained.into_iter().chain(incoming).collect());
             self.catalog_request.set(self.catalog_request.get() + 1);
             let sessions = sort_sessions(
                 others
                     .into_iter()
                     .chain(source_sessions)
-                    .filter(|entry| !excluded.contains(&entry["id"]))
+                    .filter(|entry| !excluded.contains(&entry.id))
                     .collect(),
             );
             let catalog_next_cursor = (continuation.is_none())
                 .then(|| {
-                    response["catalogNextCursor"]
-                        .as_str()
+                    response
+                        .catalog_next_cursor
+                        .clone()
                         .filter(|c| !c.is_empty())
-                        .map(str::to_string)
                 })
                 .flatten();
             let coverage = response
-                .get("catalogCoverage")
-                .filter(|c| !c.is_null())
-                .cloned()
+                .catalog_coverage
+                .clone()
                 .or(state.catalog_coverage.clone());
             let error = source_warnings(&sources);
             self.patch(Patch {
@@ -729,15 +715,16 @@ impl Inner {
             if !self.is_current(generation) {
                 return;
             }
-            let failed = json!({
-                "runtimeId": runtime_id,
-                "status": "failed",
-                "indexed": 0,
-                "nextCursor": continuation.as_ref().map(|c| c.cursor.clone()),
-                "scanId": continuation.as_ref().map(|c| c.scan_id.clone()),
-                "retryable": true,
-                "warnings": [message_of(&error)],
-            });
+            let failed = SessionDiscovery {
+                runtime_id: Some(runtime_id.clone()),
+                status: "failed".into(),
+                indexed: 0,
+                next_cursor: continuation.as_ref().map(|c| c.cursor.clone()),
+                scan_id: continuation.as_ref().map(|c| c.scan_id.clone()),
+                retryable: Some(true),
+                warnings: vec![message_of(&error)],
+                ..SessionDiscovery::default()
+            };
             let sources = self.read(|state| with_entry(&state.sources, &runtime_id, failed));
             let error = source_warnings(&sources);
             self.patch(Patch {
@@ -748,13 +735,15 @@ impl Inner {
         }
     }
 
-    async fn load_catalog(self: Rc<Self>, generation: u64) -> AgentResult<Value> {
+    async fn load_catalog(self: Rc<Self>, generation: u64) -> AgentResult<SessionsPage> {
         let request = self.catalog_request.get() + 1;
         self.catalog_request.set(request);
-        let call = self.require_client()?.call(
-            "listAgentSessions",
-            json!({ "rootPath": self.workspace_root, "includeArchived": false, "discoverNative": false }),
-        );
+        let call = self.require_client()?.list_sessions(ListSessions {
+            root_path: self.workspace_root.clone(),
+            include_archived: Some(false),
+            discover_native: Some(false),
+            ..ListSessions::default()
+        });
         let response = with_deadline(
             &self.runtime,
             call,
@@ -764,18 +753,9 @@ impl Inner {
         .await?;
         if self.is_current(generation) && request == self.catalog_request.get() {
             self.patch(Patch {
-                sessions: Some(sort_sessions(
-                    response["sessions"].as_array().cloned().unwrap_or_default(),
-                )),
-                catalog_coverage: Some(
-                    response
-                        .get("catalogCoverage")
-                        .filter(|c| !c.is_null())
-                        .cloned(),
-                ),
-                catalog_next_cursor: Some(
-                    response["catalogNextCursor"].as_str().map(str::to_string),
-                ),
+                sessions: Some(sort_sessions(response.sessions.clone())),
+                catalog_coverage: Some(response.catalog_coverage.clone()),
+                catalog_next_cursor: Some(response.catalog_next_cursor.clone()),
                 ..Default::default()
             });
         }
@@ -784,26 +764,36 @@ impl Inner {
 
     async fn load_catalog_page(self: Rc<Self>, generation: u64, cursor: String) {
         let result: AgentResult<()> = async {
-            let call = self.require_client()?.call(
-                "listAgentSessions",
-                json!({ "rootPath": self.workspace_root, "discoverNative": false, "catalogCursor": cursor }),
-            );
-            let response = with_deadline(&self.runtime, call, AGENT_HISTORY_CATALOG_TIMEOUT_MS, "Chat history catalog").await?;
-            if !self.is_current(generation) || self.read(|state| state.catalog_next_cursor.as_deref() != Some(cursor.as_str())) {
+            let call = self.require_client()?.list_sessions(ListSessions {
+                root_path: self.workspace_root.clone(),
+                discover_native: Some(false),
+                catalog_cursor: Some(cursor.clone()),
+                ..ListSessions::default()
+            });
+            let response = with_deadline(
+                &self.runtime,
+                call,
+                AGENT_HISTORY_CATALOG_TIMEOUT_MS,
+                "Chat history catalog",
+            )
+            .await?;
+            if !self.is_current(generation)
+                || self.read(|state| state.catalog_next_cursor.as_deref() != Some(cursor.as_str()))
+            {
                 return Ok(());
             }
-            let excluded: Vec<Value> = response["excludedSessionIds"].as_array().cloned().unwrap_or_default();
+            let excluded: Vec<String> = response.excluded_session_ids.clone().unwrap_or_default();
             let current = self.read(|state| state.sessions.clone());
             let merged = dedupe_by_id(
                 current
                     .into_iter()
-                    .chain(response["sessions"].as_array().cloned().unwrap_or_default())
-                    .filter(|entry| !excluded.contains(&entry["id"]))
+                    .chain(response.sessions.clone())
+                    .filter(|entry| !excluded.contains(&entry.id))
                     .collect(),
             );
             self.patch(Patch {
                 sessions: Some(sort_sessions(merged)),
-                catalog_next_cursor: Some(response["catalogNextCursor"].as_str().map(str::to_string)),
+                catalog_next_cursor: Some(response.catalog_next_cursor.clone()),
                 ..Default::default()
             });
             Ok(())

@@ -1,8 +1,9 @@
-//! `electron/main/ipc/agent-ipc.mjs`: the `agent:*` request channels. Each
-//! request is parsed against the shared contract, its workspace root is
-//! authorized before the service sees it, turn references are authorized
-//! and leased in Main, and every response is asserted (failures become the
-//! plain operation-failure envelope).
+//! The Agent host's request entry (`electron/main/ipc/agent-ipc.mjs`'s
+//! handlers without the IPC). A window's [`AgentRequest`] is checked
+//! against the shared contract, its workspace root is authorized before
+//! the service sees it, turn references are authorized and leased here, and
+//! every answer is read against the operation's response contract before
+//! it leaves the host (a failure is the plain operation failure).
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_reference_authorization::{
     ReferenceBudget, ResolveResource, authorize_agent_references, workspace_draft_references,
@@ -11,7 +12,11 @@ use crate::agent::application::agent_input_policy::require_supported_agent_refer
 use crate::agent::application::agent_service::AgentService;
 use crate::agent::application::ports::Pending;
 use crate::agent::connections::local_agent_inventory::LocalAgentInventory;
+use crate::agent::contract::dto::OperationFailure;
 use crate::agent::contract::js;
+use crate::agent::contract::protocol::{
+    AgentOperation, AgentRequest, AgentResponse, ResponseError,
+};
 use crate::agent::contract::schema::{assert_agent_ipc_response, parse_agent_ipc_request};
 use crate::agent::infrastructure::attachments::agent_attachment_store::AgentAttachmentStore;
 use crate::agent::runtime::agent_operation_error::agent_operation_failure;
@@ -19,41 +24,9 @@ use crate::agent::sender::Sender;
 use serde_json::{Value, json};
 use std::rc::Rc;
 
-/// The channels this bridge registers (`ipcMain.handle(channel, …)`).
-pub const AGENT_IPC_CHANNELS: &[&str] = &[
-    "agent:providers-discover",
-    "agent:local-connections-discover",
-    "agent:models-list",
-    "agent:account-read",
-    "agent:session-create",
-    "agent:session-resume",
-    "agent:session-open",
-    "agent:session-replay",
-    "agent:session-attach",
-    "agent:session-feed-ack",
-    "agent:session-feed-watermark",
-    "agent:session-detach",
-    "agent:sessions-list",
-    "agent:session-fork",
-    "agent:session-archive",
-    "agent:session-delete",
-    "agent:session-close",
-    "agent:reference-stage",
-    "agent:reference-revoke",
-    "agent:reference-resolve-workspace",
-    "agent:reference-pick-workspace",
-    "agent:turn-steer",
-    "agent:turn-interrupt",
-    "agent:session-compact",
-    "agent:approval-resolve",
-    "agent:question-resolve",
-    "agent:turn-start",
-    "agent:command-dispatch",
-];
-
-/// The Agent service the bridge invokes (the in-process service or the
-/// item-host process service).
-pub trait AgentIpcService {
+/// The Agent service requests reach (the in-process service, or a test
+/// double).
+pub trait AgentRequestService {
     fn discover_providers(
         &self,
         sender: &Sender,
@@ -105,10 +78,10 @@ pub type ResolveWorkspaceResource = Rc<dyn Fn(&Sender, String, String) -> Pendin
 /// chosen paths (empty when cancelled).
 pub type PickWorkspacePaths = Rc<dyn Fn(&Sender, String) -> Pending<Vec<String>>>;
 
-/// `registerAgentIpcHandlers({ … })`.
+/// `registerAgentIpcHandlers({ … })`: what requests are handled with.
 #[derive(Clone)]
-pub struct AgentIpcHandlers {
-    pub agent_service: Rc<dyn AgentIpcService>,
+pub struct AgentRequests {
+    pub agent_service: Rc<dyn AgentRequestService>,
     pub local_agent_inventory: Option<LocalAgentInventory>,
     pub authorize_workspace_root: AuthorizeWorkspaceRoot,
     pub resolve_workspace_resource: Option<ResolveWorkspaceResource>,
@@ -120,22 +93,51 @@ fn invalid(message: &str) -> AgentError {
     AgentError::new(message)
 }
 
-impl AgentIpcHandlers {
-    /// Whether `channel` is registered.
-    pub fn handles(channel: &str) -> bool {
-        AGENT_IPC_CHANNELS.contains(&channel)
+/// The failure as plain data (`agentOperationFailure`).
+fn failure_of(error: AgentError) -> OperationFailure {
+    let envelope = agent_operation_failure(error);
+    serde_json::from_value(envelope["agentFailure"].clone()).unwrap_or_default()
+}
+
+impl AgentRequests {
+    /// Handles `request` from `sender`: its answer, or why it failed.
+    pub async fn handle(
+        &self,
+        sender: &Sender,
+        request: AgentRequest,
+    ) -> Result<AgentResponse, OperationFailure> {
+        let operation = request.operation();
+        let response = async {
+            let value = request.to_value()?;
+            self.dispatch(sender, operation, value).await
+        }
+        .await;
+        let read = response.and_then(|value| {
+            AgentResponse::read(operation, &value).map_err(|error| match error {
+                ResponseError::Failed(failure) => {
+                    AgentError::coded(&failure.code, failure.message.clone())
+                }
+                ResponseError::Invalid(message) => AgentError::new(message).with_name("TypeError"),
+            })
+        });
+        read.map_err(failure_of)
     }
 
-    /// `ipcMain.handle(channel, …)`'s listener: the response, or the
-    /// operation-failure envelope.
-    pub async fn handle(&self, sender: &Sender, channel: &str, raw: &Value) -> Value {
+    /// Handles `operation`'s request in its transport form: the answer, or
+    /// the operation-failure envelope (`ipcMain.handle`'s listener).
+    pub async fn handle_value(
+        &self,
+        sender: &Sender,
+        operation: AgentOperation,
+        raw: &Value,
+    ) -> Value {
         let result = async {
-            if !Self::handles(channel) {
-                return Err(invalid("Unsupported Agent IPC channel."));
+            if !AgentOperation::MAIN.contains(&operation) {
+                return Err(invalid("Unsupported Agent operation."));
             }
-            let request = parse_agent_ipc_request(channel, raw)?;
-            let response = self.dispatch(sender, channel, request).await?;
-            Ok(assert_agent_ipc_response(channel, &response)?)
+            let request = parse_agent_ipc_request(operation.channel(), raw)?;
+            let response = self.dispatch(sender, operation, request).await?;
+            Ok(assert_agent_ipc_response(operation.channel(), &response)?)
         }
         .await;
         result.unwrap_or_else(agent_operation_failure)
@@ -173,14 +175,20 @@ impl AgentIpcHandlers {
             .ok_or_else(|| invalid("Agent attachment staging is unavailable."))
     }
 
-    async fn dispatch(&self, sender: &Sender, channel: &str, request: Value) -> AgentResult<Value> {
+    async fn dispatch(
+        &self,
+        sender: &Sender,
+        operation: AgentOperation,
+        request: Value,
+    ) -> AgentResult<Value> {
+        use AgentOperation as O;
         let service = &self.agent_service;
-        match channel {
-            "agent:providers-discover" => {
+        match operation {
+            O::DiscoverRuntimes => {
                 let root = self.optional_root(sender, &request).await?;
                 service.discover_providers(sender, request, root).await
             }
-            "agent:local-connections-discover" => {
+            O::DiscoverLocalConnections => {
                 let root = self.optional_root(sender, &request).await?;
                 let Some(inventory) = self.local_agent_inventory.as_ref() else {
                     return Err(invalid("Local Agent inventory is unavailable."));
@@ -189,15 +197,15 @@ impl AgentIpcHandlers {
                     .discover(request.get("refresh") == Some(&Value::Bool(true)), root)
                     .await
             }
-            "agent:models-list" => {
+            O::ListModels => {
                 let root = self.optional_root(sender, &request).await?;
                 service.list_models(sender, request, root).await
             }
-            "agent:account-read" => {
+            O::ReadAccount => {
                 let root = self.optional_root(sender, &request).await?;
                 service.read_account(sender, request, root).await
             }
-            "agent:reference-stage" => {
+            O::StageReferences => {
                 let root = self.required_root(sender, &request).await?;
                 let staged = self
                     .attachments()?
@@ -211,7 +219,7 @@ impl AgentIpcHandlers {
                     .await?;
                 Ok(Value::Array(staged))
             }
-            "agent:reference-revoke" => {
+            O::RevokeReferences => {
                 let root = self.required_root(sender, &request).await?;
                 self.attachments()?.revoke(&json!({
                     "ownerId": sender.id(),
@@ -219,7 +227,7 @@ impl AgentIpcHandlers {
                     "tokens": request.get("tokens"),
                 }))
             }
-            "agent:reference-resolve-workspace" => {
+            O::ResolveWorkspaceReferences => {
                 let root = self.required_root(sender, &request).await?;
                 let paths = request["paths"].as_array().cloned().unwrap_or_default();
                 let mut budget = ReferenceBudget::default();
@@ -232,7 +240,7 @@ impl AgentIpcHandlers {
                 .await?;
                 Ok(Value::Array(workspace_draft_references(&authorized)))
             }
-            "agent:reference-pick-workspace" => {
+            O::PickWorkspaceReferences => {
                 let root = self.required_root(sender, &request).await?;
                 let Some(pick) = self.pick_workspace_paths.as_ref() else {
                     return Err(invalid("The workspace picker is unavailable."));
@@ -252,54 +260,34 @@ impl AgentIpcHandlers {
                 .await?;
                 Ok(Value::Array(workspace_draft_references(&authorized)))
             }
-            "agent:turn-start" => self.dispatch_start(sender, request).await,
-            "agent:turn-steer" => self.dispatch_steer(sender, request).await,
-            "agent:command-dispatch" => match request.get("kind").and_then(Value::as_str) {
-                Some("start") => self.dispatch_start(sender, request).await,
-                Some("steer") => self.dispatch_steer(sender, request).await,
-                Some("interrupt") => {
-                    let root = self.required_root(sender, &request).await?;
-                    service.interrupt_turn(sender, request, root).await
-                }
-                Some("approval") => {
-                    let root = self.required_root(sender, &request).await?;
-                    service.resolve_approval(sender, request, root).await
-                }
-                Some("question") => {
-                    let root = self.required_root(sender, &request).await?;
-                    service.resolve_question(sender, request, root).await
-                }
-                _ => Err(invalid("Unsupported Agent command kind.")),
-            },
+            O::StartTurn => self.dispatch_start(sender, request).await,
+            O::SteerTurn => self.dispatch_steer(sender, request).await,
+            O::ManageExecutions | O::TerminateExecution => {
+                Err(invalid("Unsupported Agent operation."))
+            }
             _ => {
                 let root = self.required_root(sender, &request).await?;
-                match channel {
-                    "agent:session-create" => service.create_session(sender, request, root).await,
-                    "agent:session-resume" => service.resume_session(sender, request, root).await,
-                    "agent:session-open" => service.open_session(sender, request, root).await,
-                    "agent:session-replay" => service.replay(sender, request, root).await,
-                    "agent:session-attach" => service.attach_session(sender, request, root).await,
-                    "agent:session-feed-ack" => {
-                        service.acknowledge_session(sender, request, root).await
-                    }
-                    "agent:session-feed-watermark" => {
+                match operation {
+                    O::CreateSession => service.create_session(sender, request, root).await,
+                    O::ResumeSession => service.resume_session(sender, request, root).await,
+                    O::OpenSession => service.open_session(sender, request, root).await,
+                    O::ReplaySession => service.replay(sender, request, root).await,
+                    O::AttachSession => service.attach_session(sender, request, root).await,
+                    O::AcknowledgeFeed => service.acknowledge_session(sender, request, root).await,
+                    O::ReadFeedWatermark => {
                         service.read_session_watermark(sender, request, root).await
                     }
-                    "agent:session-detach" => service.detach_session(sender, request, root).await,
-                    "agent:sessions-list" => service.list_sessions(sender, request, root).await,
-                    "agent:session-fork" => service.fork_session(sender, request, root).await,
-                    "agent:session-archive" => service.archive_session(sender, request, root).await,
-                    "agent:session-delete" => service.delete_session(sender, request, root).await,
-                    "agent:session-close" => service.close_session(sender, request, root).await,
-                    "agent:turn-interrupt" => service.interrupt_turn(sender, request, root).await,
-                    "agent:session-compact" => service.compact_session(sender, request, root).await,
-                    "agent:approval-resolve" => {
-                        service.resolve_approval(sender, request, root).await
-                    }
-                    "agent:question-resolve" => {
-                        service.resolve_question(sender, request, root).await
-                    }
-                    _ => Err(invalid("Unsupported Agent IPC channel.")),
+                    O::DetachFeed => service.detach_session(sender, request, root).await,
+                    O::ListSessions => service.list_sessions(sender, request, root).await,
+                    O::ForkSession => service.fork_session(sender, request, root).await,
+                    O::ArchiveSession => service.archive_session(sender, request, root).await,
+                    O::DeleteSession => service.delete_session(sender, request, root).await,
+                    O::CloseSession => service.close_session(sender, request, root).await,
+                    O::InterruptTurn => service.interrupt_turn(sender, request, root).await,
+                    O::CompactSession => service.compact_session(sender, request, root).await,
+                    O::ResolveApproval => service.resolve_approval(sender, request, root).await,
+                    O::ResolveQuestion => service.resolve_question(sender, request, root).await,
+                    _ => Err(invalid("Unsupported Agent operation.")),
                 }
             }
         }
@@ -484,8 +472,8 @@ impl AgentIpcHandlers {
     }
 }
 
-/// The in-process Agent service behind the bridge.
-impl AgentIpcService for AgentService {
+/// The in-process Agent service.
+impl AgentRequestService for AgentService {
     fn discover_providers(
         &self,
         _sender: &Sender,

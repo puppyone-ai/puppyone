@@ -154,7 +154,9 @@ impl Workbench {
         use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
         let client: std::rc::Rc<
             dyn crate::features::desktop_agent::application::agent_client_port::AgentClientPort,
-        > = std::rc::Rc::new(LabHistoryClient { populated });
+        > = std::rc::Rc::new(crate::features::desktop_agent::fixtures::JsonPort(
+            LabHistoryClient { populated },
+        ));
         let controller = ConversationHistoryController::new(
             "/reference/project",
             std::rc::Rc::new(move || Some(client.clone())),
@@ -185,18 +187,18 @@ struct LabHistoryClient {
     populated: bool,
 }
 
-impl crate::features::desktop_agent::application::agent_client_port::AgentClientPort
-    for LabHistoryClient
-{
-    fn implements(&self, method: &str) -> bool {
-        matches!(method, "discoverAgentRuntimes" | "listAgentSessions")
+impl crate::features::desktop_agent::fixtures::JsonAgent for LabHistoryClient {
+    fn supports(&self, operation: crate::agent::contract::protocol::AgentOperation) -> bool {
+        use crate::agent::contract::protocol::AgentOperation as O;
+        matches!(operation, O::DiscoverRuntimes | O::ListSessions)
     }
 
-    fn call(
+    fn answer(
         &self,
-        method: &str,
+        operation: crate::agent::contract::protocol::AgentOperation,
         request: serde_json::Value,
-    ) -> crate::features::desktop_agent::application::agent_client_port::ClientFuture {
+    ) -> crate::features::desktop_agent::fixtures::JsonAnswer {
+        use crate::agent::contract::protocol::AgentOperation as O;
         use serde_json::json;
         const NOW: i64 = 1_800_000_000_000;
         let runtimes = [
@@ -222,7 +224,7 @@ impl crate::features::desktop_agent::application::agent_client_port::AgentClient
             json!({
                 "id": format!("history-{id}"), "title": title, "runtimeId": runtime_id,
                 "runtime": runtime(runtime_id),
-                "updatedAt": crate::agent::contract::js::iso_string(NOW - age),
+                "updatedAt": crate::clock::iso_string(NOW - age),
             })
         };
         let sessions: Vec<serde_json::Value> = if self.populated {
@@ -256,8 +258,8 @@ impl crate::features::desktop_agent::application::agent_client_port::AgentClient
         } else {
             vec![]
         };
-        let result = match method {
-            "discoverAgentRuntimes" => json!({
+        let result = match operation {
+            O::DiscoverRuntimes => json!({
                 "runtimes": runtimes.iter().map(|(id, _)| json!({
                     "descriptor": runtime(id),
                     "readiness": { "runtimeId": id, "status": "ready", "code": "READY", "selectable": true },

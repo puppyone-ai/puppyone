@@ -5,10 +5,10 @@ use crate::agent::application::tests::harness::run;
 use crate::features::desktop_agent::application::agent_controller_registry::{
     AgentControllerRegistry, RegisteredController,
 };
+use crate::features::desktop_agent::application::agent_session_lifecycle::CloseOutcome;
 use crate::features::desktop_agent::application::ui_runtime::TokioUiRuntime;
 use futures_util::FutureExt;
 use futures_util::future::{LocalBoxFuture, Shared};
-use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -22,7 +22,7 @@ struct Mock {
     close_calls: Cell<usize>,
     dispose_calls: Cell<usize>,
     rollback_calls: Cell<usize>,
-    close_once: Once<Value>,
+    close_once: Once<CloseOutcome>,
     rollback_once: Once<()>,
 }
 
@@ -30,13 +30,13 @@ struct Mock {
 struct MockController(Rc<Mock>);
 
 impl RegisteredController for MockController {
-    fn close_tab_session(&self) -> LocalBoxFuture<'static, Value> {
+    fn close_tab_session(&self) -> LocalBoxFuture<'static, CloseOutcome> {
         self.0.close_calls.set(self.0.close_calls.get() + 1);
         let once = self.0.close_once.borrow_mut().pop_front();
         Box::pin(async move {
             match once {
                 Some(pending) => pending.await.expect("close"),
-                None => json!(true),
+                None => CloseOutcome::Closed,
             }
         })
     }
@@ -136,11 +136,11 @@ fn coalesces_close_requests_and_keeps_failed_closes_available_for_retry() {
         let first = owner.close("chat");
         let second = owner.close("chat");
         assert!(first.ptr_eq(&second));
-        resolve.send(json!(false)).expect("resolve");
-        assert_eq!(first.await, json!(false));
+        resolve.send(CloseOutcome::Kept).expect("resolve");
+        assert_eq!(first.await, CloseOutcome::Kept);
         assert!(owner.get("chat").expect("get").same(&controller));
         assert_eq!(instance(&instances, 0).dispose_calls.get(), 0);
-        assert_eq!(owner.close("chat").await, json!(true));
+        assert_eq!(owner.close("chat").await, CloseOutcome::Closed);
         assert_eq!(instance(&instances, 0).close_calls.get(), 2);
         assert_eq!(instance(&instances, 0).dispose_calls.get(), 1);
         assert!(!owner.get("chat").expect("get").same(&controller));
@@ -162,7 +162,7 @@ fn keeps_a_replacement_when_an_old_close_completes_late() {
         let close = owner.close("chat");
         owner.discard("chat").await;
         let replacement = owner.get("chat").expect("get");
-        resolve.send(json!(true)).expect("resolve");
+        resolve.send(CloseOutcome::Closed).expect("resolve");
         close.await;
         assert!(owner.get("chat").expect("get").same(&replacement));
         owner.dispose();
@@ -181,7 +181,7 @@ fn releases_local_replicas_once_and_cannot_resurrect_a_disposed_project() {
         assert_eq!(instance(&instances, 0).close_calls.get(), 0);
         let error = owner.get("chat").err().expect("released");
         assert!(error.message.contains("released"));
-        assert_eq!(owner.close("chat").await, json!(true));
+        assert_eq!(owner.close("chat").await, CloseOutcome::Closed);
         owner.discard("chat").await;
         assert_eq!(instances.borrow().len(), 1);
     });

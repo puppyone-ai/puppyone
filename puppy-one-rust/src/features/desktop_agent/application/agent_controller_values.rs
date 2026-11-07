@@ -1,42 +1,29 @@
 //! `application/agent-controller-values.ts`.
-use serde_json::Value;
+use crate::agent::contract::dto::{DraftReference, Model, RuntimeInspection};
 
 /// `chooseAgentMode(inspection, current)`.
-pub fn choose_agent_mode(inspection: Option<&Value>, current: Option<&str>) -> Option<String> {
-    let modes = inspection
-        .and_then(|i| i.get("modes"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let id = |mode: &Value| {
-        mode["id"]
-            .as_str()
-            .filter(|id| !id.is_empty())
-            .map(str::to_string)
-    };
+pub fn choose_agent_mode(
+    inspection: Option<&RuntimeInspection>,
+    current: Option<&str>,
+) -> Option<String> {
+    let modes = inspection.map(|i| i.mode_list()).unwrap_or_default();
+    let id = |id: &str| (!id.is_empty()).then(|| id.to_string());
     if let Some(current) = current.filter(|c| !c.is_empty())
-        && modes.iter().any(|mode| mode["id"] == current)
+        && modes.iter().any(|mode| mode.id == current)
     {
         return Some(current.to_string());
     }
     modes
         .iter()
-        .find(|mode| mode["isDefault"] == true)
-        .and_then(id)
-        .or_else(|| modes.first().and_then(id))
+        .find(|mode| mode.is_default)
+        .and_then(|mode| id(&mode.id))
+        .or_else(|| modes.first().and_then(|mode| id(&mode.id)))
 }
 
 /// `chooseAgentEffort(model, current)`.
-pub fn choose_agent_effort(model: Option<&Value>, current: Option<&str>) -> Option<String> {
-    let efforts: Vec<String> = model
-        .and_then(|m| m.get("variants"))
-        .and_then(Value::as_array)
-        .map(|v| {
-            v.iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
+pub fn choose_agent_effort(model: Option<&Model>, current: Option<&str>) -> Option<String> {
+    let efforts: &[String] = model
+        .and_then(|m| m.variants.as_deref())
         .unwrap_or_default();
     if let Some(current) = current.filter(|c| !c.is_empty())
         && efforts.iter().any(|e| e == current)
@@ -44,8 +31,7 @@ pub fn choose_agent_effort(model: Option<&Value>, current: Option<&str>) -> Opti
         return Some(current.to_string());
     }
     if let Some(default) = model
-        .and_then(|m| m.get("defaultVariant"))
-        .and_then(Value::as_str)
+        .and_then(|m| m.default_variant.as_deref())
         .filter(|d| efforts.iter().any(|e| e == d))
     {
         return Some(default.to_string());
@@ -58,31 +44,24 @@ pub fn choose_agent_effort(model: Option<&Value>, current: Option<&str>) -> Opti
 
 /// `mergeAgentReferences(current, incoming)`: bounded error rows stay
 /// visible instead of silently dropping an over-limit item.
-pub fn merge_agent_references(current: &[Value], incoming: &[Value]) -> Vec<Value> {
-    let mut merged: Vec<(Option<Value>, Value)> =
-        current.iter().fold(Vec::new(), |mut merged, entry| {
-            upsert(&mut merged, entry.get("id").cloned(), entry);
-            merged
-        });
-    for entry in incoming {
-        if let Some(id) = entry
-            .get("id")
-            .filter(|id| crate::agent::contract::js::truthy(id))
-        {
-            upsert(&mut merged, Some(id.clone()), entry);
-        }
+pub fn merge_agent_references(
+    current: &[DraftReference],
+    incoming: &[DraftReference],
+) -> Vec<DraftReference> {
+    let mut merged: Vec<DraftReference> = Vec::new();
+    let upsert = |merged: &mut Vec<DraftReference>, entry: &DraftReference| match merged
+        .iter_mut()
+        .find(|existing| existing.id == entry.id)
+    {
+        Some(slot) => *slot = entry.clone(),
+        None => merged.push(entry.clone()),
+    };
+    for entry in current {
+        upsert(&mut merged, entry);
     }
+    for entry in incoming.iter().filter(|entry| !entry.id.is_empty()) {
+        upsert(&mut merged, entry);
+    }
+    merged.truncate(64);
     merged
-        .into_iter()
-        .take(64)
-        .map(|(_, entry)| entry)
-        .collect()
-}
-
-/// `map.set(key, entry)`: an existing key keeps its position.
-fn upsert(merged: &mut Vec<(Option<Value>, Value)>, key: Option<Value>, entry: &Value) {
-    match merged.iter_mut().find(|(existing, _)| *existing == key) {
-        Some(slot) => slot.1 = entry.clone(),
-        None => merged.push((key, entry.clone())),
-    }
 }

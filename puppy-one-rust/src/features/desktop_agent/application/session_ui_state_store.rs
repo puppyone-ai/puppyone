@@ -1,13 +1,13 @@
 //! `application/SessionUiStateStore.ts`: Renderer-only ephemeral state
 //! keyed by application session id.
+use crate::agent::contract::dto::PromptMention;
 use crate::features::desktop_agent::domain::agent_ui_state::AgentViewportGeometry;
-use serde_json::Value;
 
 /// `SessionUiState`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SessionUiState {
     pub draft: String,
-    pub draft_mentions: Vec<Value>,
+    pub draft_mentions: Vec<PromptMention>,
     pub scroll_top: f64,
     /// `Record<string, number>` in insertion order.
     pub measurements: Vec<(String, f64)>,
@@ -32,7 +32,7 @@ impl Default for SessionUiState {
 #[derive(Clone, Debug, Default)]
 pub struct SessionUiPatch {
     pub draft: Option<String>,
-    pub draft_mentions: Option<Vec<Value>>,
+    pub draft_mentions: Option<Vec<PromptMention>>,
     pub scroll_top: Option<f64>,
     pub measurements: Option<Vec<(String, f64)>>,
     pub pinned: Option<bool>,
@@ -42,7 +42,7 @@ pub struct SessionUiPatch {
 pub const DEFAULT_MAX_ENTRIES: usize = 100;
 pub const DEFAULT_MAX_MEASUREMENTS_PER_SESSION: usize = 1_000;
 
-type Draft = (String, Vec<Value>);
+type Draft = (String, Vec<PromptMention>);
 
 /// `new SessionUiStateStore(maxEntries, maxMeasurementsPerSession)`.
 pub struct SessionUiStateStore {

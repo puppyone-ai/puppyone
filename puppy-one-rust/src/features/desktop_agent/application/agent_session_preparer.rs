@@ -1,13 +1,14 @@
 //! `application/AgentSessionPreparer.ts`: owns concurrency and stale-result
 //! cleanup for reusable native-session preparation.
-use super::agent_client_port::AgentClientProvider;
+use super::agent_client_port::{AgentClient as _, AgentClientProvider};
 use super::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation, StatePatch,
 };
 use super::agent_error::format_agent_error;
-use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSession};
+use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSessionFn};
 use super::ui_runtime::{Task, UiRuntime, launch, microtask, resolved, unstarted};
-use serde_json::{Value, json};
+use crate::agent::contract::dto::SessionSnapshot;
+use crate::agent::contract::protocol::{AgentOperation, CloseSession};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -16,7 +17,7 @@ pub struct AgentSessionPreparerOptions {
     pub bridge_provider: AgentClientProvider,
     pub store: Rc<AgentControllerStore>,
     pub runtime: Rc<dyn UiRuntime>,
-    pub create_session: CreateSession,
+    pub create_session: CreateSessionFn,
     pub apply_snapshot: ApplySnapshot,
 }
 
@@ -165,22 +166,21 @@ impl Inner {
                 .read(|state| selection == session_selection(state) && state.session.is_none())
     }
 
-    async fn close_stale(&self, snapshot: &Value) {
+    async fn close_stale(&self, snapshot: &SessionSnapshot) {
         let bridge = (self.options.bridge_provider)();
-        let Some(bridge) = bridge.filter(|b| b.implements("closeAgentSession")) else {
+        let Some(bridge) = bridge.filter(|b| b.supports(AgentOperation::CloseSession)) else {
             return;
         };
         // A stale Renderer must never publish state; native shutdown is best
         // effort.
-        let mut request = json!({
-            "rootPath": self.options.workspace_root,
-            "sessionId": snapshot["session"]["id"],
-            "removePersistence": true,
-        });
-        if let Some(instance_id) = snapshot["session"].get("instanceId") {
-            request["instanceId"] = instance_id.clone();
-        }
-        let _ = bridge.call("closeAgentSession", request).await;
+        let _ = bridge
+            .close_session(CloseSession {
+                root_path: self.options.workspace_root.clone(),
+                session_id: snapshot.session.id.clone(),
+                instance_id: snapshot.session.instance_id.clone(),
+                remove_persistence: Some(true),
+            })
+            .await;
     }
 }
 
@@ -192,7 +192,9 @@ fn can_prepare_session(state: &AgentControllerState) -> bool {
     let Some(inspection) = state.inspection.as_ref() else {
         return false;
     };
-    if state.phase != AgentControllerPhase::Ready || inspection["readiness"]["status"] != "ready" {
+    if state.phase != AgentControllerPhase::Ready
+        || !inspection.readiness.as_ref().is_some_and(|r| r.is_ready())
+    {
         return false;
     }
     if state
@@ -202,7 +204,7 @@ fn can_prepare_session(state: &AgentControllerState) -> bool {
     {
         return false;
     }
-    !state.capability("modelSelection")
+    !state.capability(crate::agent::contract::dto::Capability::ModelSelection)
         || state
             .selected_model
             .as_deref()

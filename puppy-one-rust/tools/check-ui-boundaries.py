@@ -110,9 +110,25 @@ for folder in ['src/features/desktop_agent/domain', 'src/features/desktop_agent/
     for path in (root / folder).rglob('*.rs'):
         if re.search(r'\bgpui\s*::|\bstd\s*::\s*(?:fs|process)|runtimes::|transports::|infrastructure::', path.read_text()):
             errors.append(f'{path.relative_to(root)}: Agent application/domain depends on a platform adapter')
+def fixture(path):
+    """Tests and the pixel lab's recorded fixtures may spell out JSON."""
+    return 'tests' in path.parts or path.name in ('tests.rs', 'fixture.rs', 'fixtures.rs')
 for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
-    if re.search(r'json!|\["(?:method|params|threadId|turnId)"\]|runtimes::|transports::', path.read_text()):
+    if fixture(path):
+        continue
+    source = path.read_text().split('#[cfg(test)]')[0]
+    if re.search(r'json!|\["(?:method|params|threadId|turnId)"\]|runtimes::|transports::', source):
         errors.append(f'{path.relative_to(root)}: Agent view owns wire protocol handling')
+# The Agent window works on the contract's types (`agent::contract::dto`,
+# `agent::contract::protocol`); JSON stays in the contract, and in the Cloud
+# Agent's API client.
+for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
+    if fixture(path) or (root / 'src/features/desktop_agent/infrastructure/cloud') in [path, *path.parents] \
+            or path == root / 'src/features/desktop_agent/infrastructure/cloud.rs':
+        continue
+    source = path.read_text().split('#[cfg(test)]')[0]
+    if re.search(r'serde_json|\bValue\b|json!|contract::js', source):
+        errors.append(f'{path.relative_to(root)}: Agent window code handles JSON instead of the contract types')
 for path in (root / 'src/model_connections').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration depends on presentation')

@@ -5,8 +5,10 @@ use serde_json::Value;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-/// Delivers one `agent:session-frame` to the window.
-pub type FrameSink = Rc<dyn Fn(&str, Value)>;
+/// Delivers one session frame (`agent:session-frame`) to the window, in
+/// its checked transport form; the host turns it into the window's
+/// typed event.
+pub type FrameSink = Rc<dyn Fn(Value)>;
 
 type Listeners = RefCell<Vec<(u64, Rc<dyn Fn()>)>>;
 
@@ -42,10 +44,10 @@ impl Sender {
         self.0.destroyed.get()
     }
 
-    /// `sender.send(channel, payload)`.
-    pub fn send(&self, channel: &str, payload: Value) {
+    /// `sender.send("agent:session-frame", frame)`.
+    pub fn send_frame(&self, frame: Value) {
         if !self.is_destroyed() {
-            (self.0.sink)(channel, payload);
+            (self.0.sink)(frame);
         }
     }
 

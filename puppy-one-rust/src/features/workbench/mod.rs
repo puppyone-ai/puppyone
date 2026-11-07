@@ -564,8 +564,7 @@ impl Workbench {
                                     runtime_id: state
                                         .session
                                         .as_ref()
-                                        .and_then(|s| s["runtimeId"].as_str())
-                                        .map(str::to_string)
+                                        .and_then(|s| s.runtime_id.clone())
                                         .or(state.selected_runtime_id),
                                     runtime: presentation
                                         .as_ref()
@@ -1628,7 +1627,10 @@ mod tests {
                 id: "agent:thread-1".into(),
                 title: "Saved chat".into(),
                 icon_key: None,
-                payload: serde_json::json!({ "kind": "agent-session", "runtimeId": "codex" }),
+                payload: crate::features::desktop_agent::domain::agent_chat_history_target::AgentChatHistoryPayload {
+                    runtime_id: "codex".into(),
+                    session_id: String::new(),
+                },
             };
             s.restore_history_target(0, tab, target, window, cx);
             // The tab stays the launcher; the failure keeps its target to retry.

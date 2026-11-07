@@ -131,12 +131,7 @@ fn texts(state: &CloudAgentState) -> Vec<(String, String)> {
     project_cloud_agent_runs(&state.runs)
         .messages
         .iter()
-        .map(|m| {
-            (
-                m["role"].as_str().unwrap_or_default().to_string(),
-                m["text"].as_str().unwrap_or_default().to_string(),
-            )
-        })
+        .map(|m| (m.role.clone(), m.text.clone()))
         .collect()
 }
 
@@ -287,9 +282,9 @@ fn stop_and_approvals_target_the_exact_run_and_a_retry_keeps_its_decision() {
     });
     let projection = project_cloud_agent_runs(&c.snapshot().runs);
     let approval = projection.approvals[0].clone();
-    assert_eq!(approval["kind"], "command");
-    assert_eq!(approval["command"], "ls");
-    let call = approval["requestId"].as_str().unwrap().to_string();
+    assert_eq!(approval.kind, "command");
+    assert_eq!(approval.command.as_deref(), Some("ls"));
+    let call = approval.request_id.clone();
     c.approve(call.clone(), true);
     std::thread::sleep(Duration::from_millis(150));
     c.approve(call.clone(), true);

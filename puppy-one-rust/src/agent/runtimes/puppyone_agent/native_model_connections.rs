@@ -69,6 +69,15 @@ fn model_entry(connection: &ModelConnection) -> Value {
     })
 }
 
+/// The catalog's revision: it changes whenever a connection, model or
+/// generation does.
+pub fn catalog_revision(connections: &[ModelConnection]) -> String {
+    connection_catalog(connections)["revision"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
 /// `modelConnections.catalog()`: connections and their ready catalogs.
 pub fn connection_catalog(connections: &[ModelConnection]) -> Value {
     let mut order: Vec<String> = Vec::new();

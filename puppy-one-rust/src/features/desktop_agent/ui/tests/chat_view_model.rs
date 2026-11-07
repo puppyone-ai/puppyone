@@ -1,10 +1,13 @@
 //! `agentChatViewModel.test.ts`, `desktop-agent.error-presentation.test.ts`
 //! and `desktop-agent.session-presentation.test.ts`.
-use crate::agent::contract::display_types::AgentDisplay;
+use crate::agent::contract::dto::{RuntimeInspection, SessionMetadata};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecovery, AgentDisplayRecoveryCause,
     AgentDisplayRecoveryPolicy, AgentDisplayRecoveryStage, AgentSessionPreparation,
     AgentSubmissionStage, ReplicaStatus,
+};
+use crate::features::desktop_agent::application::agent_error::{
+    ErrorDescriptor, create_agent_error,
 };
 use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControlId, AgentSessionControlOption, AgentSessionControlSelection,
@@ -13,6 +16,7 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
 use crate::features::desktop_agent::domain::agent_stream_presentation::{
     next_agent_stream_text, split_streaming_markdown,
 };
+use crate::features::desktop_agent::fixtures::{JsonEdit, edit_projection, typed};
 use crate::features::desktop_agent::ui::agent_chat_view_model::{
     AgentChatViewModel, AgentChatViewOptions, derive_agent_chat_runtime,
     derive_agent_chat_view_model,
@@ -20,7 +24,6 @@ use crate::features::desktop_agent::ui::agent_chat_view_model::{
 use crate::features::desktop_agent::ui::agent_error_presentation::present_agent_error;
 use crate::localization::t;
 use serde_json::{Value, json};
-use std::sync::Arc;
 
 fn ready_state() -> AgentControllerState {
     AgentControllerState {
@@ -29,7 +32,7 @@ fn ready_state() -> AgentControllerState {
         selected_runtime_id: Some("opencode".into()),
         selected_model: Some("model-1".into()),
         replica_status: ReplicaStatus::Live,
-        inspection: Some(json!({
+        inspection: Some(typed(json!({
             "runtime": { "id": "opencode", "displayName": "OpenCode", "kind": "harness" },
             "readiness": { "runtimeId": "opencode", "provider": "opencode", "status": "ready", "code": "READY", "version": "1", "minimumVersion": null, "message": "Ready" },
             "account": null,
@@ -42,7 +45,7 @@ fn ready_state() -> AgentControllerState {
                 "slashCommands": false, "sessionHistory": true, "usage": true, "accountState": true, "mcp": false, "skills": false,
                 "compaction": false,
             },
-        })),
+        }))),
         ..Default::default()
     }
 }
@@ -70,40 +73,40 @@ fn view(state: &AgentControllerState) -> AgentChatViewModel {
     view_with(state, options(), &[])
 }
 
-fn capabilities(state: &mut AgentControllerState) -> &mut Value {
-    &mut state.inspection.as_mut().expect("inspection")["capabilities"]
+fn inspection_json(state: &mut AgentControllerState) -> JsonEdit<'_, RuntimeInspection> {
+    JsonEdit::new(state.inspection.as_mut().expect("inspection"))
 }
 
 fn onboard() -> AgentControllerState {
     let mut state = ready_state();
-    capabilities(&mut state)["modelConnections"] = json!(true);
-    let readiness = &mut state.inspection.as_mut().expect("inspection")["readiness"];
-    readiness["status"] = json!("error");
-    readiness["code"] = json!("RUNTIME_SETUP_REQUIRED");
+    {
+        let mut inspection = inspection_json(&mut state);
+        inspection["capabilities"]["modelConnections"] = json!(true);
+        inspection["readiness"]["status"] = json!("error");
+        inspection["readiness"]["code"] = json!("RUNTIME_SETUP_REQUIRED");
+    }
     state.selected_model = None;
     state
 }
 
-fn session() -> Value {
-    json!({
+fn error(code: &str) -> ErrorDescriptor {
+    create_agent_error(code, None)
+}
+
+fn session() -> SessionMetadata {
+    typed(json!({
         "id": "session-1", "provider": "opencode", "providerSessionId": "native-1", "workspaceRoot": "/workspace",
         "title": "Saved chat", "createdAt": "2026-01-01", "updatedAt": "2026-01-01", "terminalState": "idle",
         "selectedModel": "model-1", "activeTurnId": null, "lastSequence": 0,
-    })
+    }))
 }
 
 fn push(state: &mut AgentControllerState, collection: &str) {
-    let mut display = state.projection.to_value();
-    display[collection]
-        .as_array_mut()
-        .expect("collection")
-        .push(json!({}));
-    state.projection = AgentDisplay::from_value(&display).unwrap_or_else(|_| {
-        let mut projection = state.projection.clone();
-        projection
-            .collection_mut(collection)
-            .push(Arc::new(json!({})));
-        projection
+    edit_projection(&mut state.projection, |display| {
+        display[collection]
+            .as_array_mut()
+            .expect("collection")
+            .push(json!({}));
     });
 }
 
@@ -262,7 +265,7 @@ fn blocks_missing_unregistered_and_pending_model_routes() {
         .routing_ready
     );
     let mut state = ready_state();
-    capabilities(&mut state)["modelSelection"] = json!(false);
+    inspection_json(&mut state)["capabilities"]["modelSelection"] = json!(false);
     state.selected_model = None;
     assert!(view(&state).routing_ready);
 }
@@ -270,7 +273,7 @@ fn blocks_missing_unregistered_and_pending_model_routes() {
 #[test]
 fn requires_compute_readiness_only_for_app_managed_models() {
     let mut state = ready_state();
-    capabilities(&mut state)["modelConnections"] = json!(true);
+    inspection_json(&mut state)["capabilities"]["modelConnections"] = json!(true);
     let model = view(&state);
     assert!(model.model_connections && !model.routing_ready && model.session_controls.is_empty());
     assert!(
@@ -330,7 +333,7 @@ fn retains_recovery_for_credential_failures() {
         "PROVIDER_CREDENTIALS_REJECTED",
     ] {
         let mut state = onboard();
-        state.inspection.as_mut().expect("inspection")["readiness"]["code"] = json!(code);
+        inspection_json(&mut state)["readiness"]["code"] = json!(code);
         let model = view_with(
             &state,
             AgentChatViewOptions {
@@ -354,7 +357,7 @@ fn excludes_saved_state_from_first_use_onboarding() {
             "model" => state.selected_model = Some("model-1".into()),
             "session" => state.session = Some(session()),
             "history" => push(&mut state, "messages"),
-            "error" => state.error = Some(json!({ "code": "event-gap" })),
+            "error" => state.error = Some(error("event-gap")),
             _ => state.phase = AgentControllerPhase::Failed,
         }
         assert!(!view(&state).compute_onboarding, "{reason}");
@@ -397,16 +400,16 @@ fn keeps_the_empty_overlay_for_drafts_but_hides_it_for_history_gaps_and_connecti
         .show_ready_empty_state
     );
     let mut state = ready_state();
-    state
-        .projection
-        .set("history", json!({ "coverage": "partial", "reason": null }));
+    edit_projection(&mut state.projection, |d| {
+        d["history"] = json!({ "coverage": "partial", "reason": null })
+    });
     assert!(!view(&state).show_ready_empty_state);
-    state
-        .projection
-        .set("history", json!({ "coverage": "complete", "reason": null }));
-    state
-        .projection
-        .set("connectionStatus", json!({ "state": "reconnecting" }));
+    edit_projection(&mut state.projection, |d| {
+        d["history"] = json!({ "coverage": "complete", "reason": null })
+    });
+    edit_projection(&mut state.projection, |d| {
+        d["connectionStatus"] = json!({ "state": "reconnecting" })
+    });
     assert!(!view(&state).show_ready_empty_state);
 }
 
@@ -433,7 +436,9 @@ fn keeps_attachment_only_submission_feedback_across_preparation_and_admission() 
         view(&state).submission_stage,
         Some(AgentSubmissionStage::PreparingSession)
     );
-    state.projection.set("runningTurnId", json!("turn-1"));
+    edit_projection(&mut state.projection, |d| {
+        d["runningTurnId"] = json!("turn-1")
+    });
     let model = view(&state);
     assert!(model.submission_stage.is_none() && model.running && model.compute_disabled);
 }
@@ -441,7 +446,7 @@ fn keeps_attachment_only_submission_feedback_across_preparation_and_admission() 
 #[test]
 fn preserves_silent_event_gap_recovery_without_suppressing_other_errors() {
     let mut state = ready_state();
-    state.error = Some(json!({ "code": "event-gap" }));
+    state.error = Some(error("event-gap"));
     state.display_recovery = Some(AgentDisplayRecovery {
         stage: AgentDisplayRecoveryStage::Silent,
         cause: AgentDisplayRecoveryCause::RevisionGap,
@@ -459,21 +464,20 @@ fn preserves_silent_event_gap_recovery_without_suppressing_other_errors() {
 #[test]
 fn keeps_read_only_capability_separate_from_route_readiness() {
     let mut state = ready_state();
-    capabilities(&mut state)["readOnly"] = json!(true);
+    inspection_json(&mut state)["capabilities"]["readOnly"] = json!(true);
     let model = view(&state);
     assert!(model.read_only && model.routing_ready && model.composer_disabled);
 }
 
 #[test]
 fn renders_an_ended_session_without_a_missing_message_fallback() {
-    let presented =
-        present_agent_error(Some(&json!({ "code": "session-ended" }))).expect("presented");
+    let presented = present_agent_error(Some(&error("session-ended"))).expect("presented");
     assert!(!presented.summary.is_empty());
     assert_ne!(presented.summary, "agent.error.session-ended");
 }
 
-fn inspection(models: Value, modes: Value) -> Value {
-    json!({
+fn inspection(models: Value, modes: Value) -> RuntimeInspection {
+    typed(json!({
         "selectedRuntimeId": "fixture", "readiness": null, "account": null, "models": models, "modes": modes, "warnings": [],
         "capabilities": {
             "streamingText": true, "structuredToolEvents": true, "commandOutputStreaming": true, "fileChangeEvents": true,
@@ -481,7 +485,7 @@ fn inspection(models: Value, modes: Value) -> Value {
             "attachments": true, "contextReferences": true, "modelSelection": true, "modeSelection": true, "slashCommands": true,
             "sessionHistory": true, "usage": true, "accountState": true, "mcp": true, "skills": true, "compaction": true,
         },
-    })
+    }))
 }
 
 #[test]

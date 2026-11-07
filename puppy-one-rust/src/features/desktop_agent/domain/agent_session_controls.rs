@@ -2,7 +2,7 @@
 //! surface projected into Renderer controls. Runtime identity never
 //! participates: a new Harness gets the same controls as soon as its
 //! adapter reports the corresponding normalized capabilities.
-use serde_json::Value;
+use crate::agent::contract::dto::{Capability, RuntimeInspection};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AgentSessionControlId {
@@ -34,67 +34,45 @@ pub struct AgentSessionControlSelection<'a> {
     pub selected_mode: Option<&'a str>,
 }
 
-fn text(value: &Value) -> String {
-    value.as_str().unwrap_or_default().to_string()
-}
-
-fn non_empty(value: &Value) -> Option<String> {
-    value.as_str().filter(|v| !v.is_empty()).map(str::to_string)
+fn non_empty(value: &str) -> Option<String> {
+    (!value.is_empty()).then(|| value.to_string())
 }
 
 /// `deriveAgentSessionControls(inspection, selection)`.
 pub fn derive_agent_session_controls(
-    inspection: Option<&Value>,
+    inspection: Option<&RuntimeInspection>,
     selection: AgentSessionControlSelection,
 ) -> Vec<AgentSessionControl> {
-    let Some(inspection) =
-        inspection.filter(|i| crate::agent::contract::js::truthy(&i["capabilities"]))
-    else {
+    let Some(inspection) = inspection.filter(|i| i.capabilities.is_some()) else {
         return Vec::new();
     };
-    let truthy = crate::agent::contract::js::truthy;
-    let models = inspection["models"].as_array().cloned().unwrap_or_default();
+    let models = &inspection.models;
     let mut controls = Vec::new();
-    if truthy(&inspection["capabilities"]["modelSelection"]) && !models.is_empty() {
+    if inspection.capability(Capability::ModelSelection) && !models.is_empty() {
         controls.push(AgentSessionControl {
             id: AgentSessionControlId::Model,
             value: selection.selected_model.map(str::to_string),
             options: models
                 .iter()
-                .map(|model| {
-                    let variants: Vec<String> = model["variants"]
-                        .as_array()
-                        .map(|v| {
-                            v.iter()
-                                .map(|v| match v {
-                                    Value::Null => String::new(),
-                                    v => crate::agent::contract::js::to_js_string(Some(v)),
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    AgentSessionControlOption {
-                        value: text(&model["model"]),
-                        label: text(&model["displayName"]),
-                        description: non_empty(&model["description"]),
-                        keywords: Some(format!(
-                            "{} {} {}",
-                            text(&model["id"]),
-                            text(&model["model"]),
-                            variants.join(" ")
-                        )),
-                    }
+                .map(|model| AgentSessionControlOption {
+                    value: model.model.clone(),
+                    label: model.display_name.clone(),
+                    description: non_empty(&model.description),
+                    keywords: Some(format!(
+                        "{} {} {}",
+                        model.id,
+                        model.model,
+                        model.variants.as_deref().unwrap_or_default().join(" ")
+                    )),
                 })
                 .collect(),
         });
     }
-    let selected_model = models.iter().find(|model| {
-        selection
-            .selected_model
-            .is_some_and(|s| model["model"] == s)
-    });
+    let selected_model = models
+        .iter()
+        .find(|model| selection.selected_model == Some(model.model.as_str()));
     if let Some(variants) = selected_model
-        .and_then(|model| model["variants"].as_array())
+        .and_then(|model| model.variants.as_ref())
         .filter(|v| !v.is_empty())
     {
         controls.push(AgentSessionControl {
@@ -103,15 +81,15 @@ pub fn derive_agent_session_controls(
             options: variants
                 .iter()
                 .map(|effort| AgentSessionControlOption {
-                    value: text(effort),
-                    label: text(effort),
+                    value: effort.clone(),
+                    label: effort.clone(),
                     ..Default::default()
                 })
                 .collect(),
         });
     }
-    if truthy(&inspection["capabilities"]["modeSelection"])
-        && let Some(modes) = inspection["modes"].as_array().filter(|m| !m.is_empty())
+    if inspection.capability(Capability::ModeSelection)
+        && let Some(modes) = inspection.modes.as_ref().filter(|m| !m.is_empty())
     {
         controls.push(AgentSessionControl {
             id: AgentSessionControlId::Mode,
@@ -119,14 +97,10 @@ pub fn derive_agent_session_controls(
             options: modes
                 .iter()
                 .map(|mode| AgentSessionControlOption {
-                    value: text(&mode["id"]),
-                    label: text(&mode["displayName"]),
-                    description: non_empty(&mode["description"]),
-                    keywords: Some(format!(
-                        "{} {}",
-                        text(&mode["id"]),
-                        text(&mode["displayName"])
-                    )),
+                    value: mode.id.clone(),
+                    label: mode.display_name.clone(),
+                    description: non_empty(&mode.description),
+                    keywords: Some(format!("{} {}", mode.id, mode.display_name)),
                 })
                 .collect(),
         });

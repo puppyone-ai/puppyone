@@ -37,7 +37,7 @@ pub fn resolve_agent_workspace_provider_path(
 }
 
 fn normalize_filesystem_path(value: &str) -> String {
-    let input = crate::agent::contract::js::trim(value).replace('\\', "/");
+    let input = crate::text::trim(value).replace('\\', "/");
     if input.is_empty() {
         return String::new();
     }

@@ -432,7 +432,7 @@ impl AgentSessionFeed {
             return;
         }
         match assert_agent_session_frame(&frame) {
-            Ok(()) => sender.send("agent:session-frame", frame),
+            Ok(()) => sender.send_frame(frame),
             Err(error) => {
                 self.logger.warn(
                     &format!(

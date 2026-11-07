@@ -68,6 +68,11 @@ pub fn agent_reference_mention_text(reference: &Value) -> String {
     format!("@{}", agent_reference_mention_label(reference))
 }
 
+/// [`agent_reference_mention_text`] of a draft reference.
+pub fn mention_text(reference: &super::dto::DraftReference) -> String {
+    agent_reference_mention_text(&serde_json::to_value(reference).unwrap_or_default())
+}
+
 fn safe_reference_display_name(value: Option<&Value>) -> String {
     let label = value
         .and_then(Value::as_str)

@@ -5,8 +5,8 @@
 //! `AgentNoticeActivity`, `AgentSystemActivity`, `AgentToolStepText`,
 //! `AgentToolGlyph`'s kind and `AgentActivityShell`'s status icon.
 use super::agent_tool_steps::{AgentToolStepKind, agent_tool_step_kind, is_active_tool_status};
-use crate::agent::contract::activity_semantics::is_agent_tool_activity;
-use crate::agent::contract::js;
+use crate::agent::contract::activity_semantics::is_tool_activity;
+use crate::agent::contract::dto::{Part, RecordRef};
 use crate::features::desktop_agent::domain::agent_activity_presentation::{
     agent_activity_summary, agent_activity_tool_id, command_for_activity, command_metadata,
     command_presentation_for_activity, file_change_totals, file_changes_for_activity,
@@ -18,8 +18,8 @@ use crate::features::desktop_agent::domain::agent_tool_evidence::{
     AGENT_TOOL_EVIDENCE_LIMITS, AgentToolResultLines, collect_agent_tool_result_lines,
 };
 use crate::localization::{Arg, format_number, t, tf};
+use crate::text;
 use regex::Regex;
-use serde_json::Value;
 use std::sync::LazyLock;
 
 /// `AgentToolGlyph`'s kind (`agentToolGlyphKind`).
@@ -40,7 +40,7 @@ pub enum AgentToolGlyphKind {
 
 /// `agentToolGlyphKind(tool)`.
 pub fn agent_tool_glyph_kind(tool: &str) -> AgentToolGlyphKind {
-    let normalized: String = js::trim(tool)
+    let normalized: String = text::trim(tool)
         .to_lowercase()
         .chars()
         .filter(|c| !c.is_whitespace() && *c != '_' && *c != '-')
@@ -51,7 +51,7 @@ pub fn agent_tool_glyph_kind(tool: &str) -> AgentToolGlyphKind {
         "edit" | "patch" | "applypatch" | "replace" => AgentToolGlyphKind::Edit,
         "write" | "writefile" | "create" | "createfile" => AgentToolGlyphKind::Write,
         "glob" | "list" | "listfiles" | "foldersearch" => AgentToolGlyphKind::List {
-            tree: js::trim(tool).to_lowercase() == "list",
+            tree: text::trim(tool).to_lowercase() == "list",
         },
         "fetch" | "webfetch" | "browse" => AgentToolGlyphKind::Fetch,
         "bash" | "shell" | "command" | "terminal" => AgentToolGlyphKind::Command,
@@ -132,7 +132,7 @@ impl StepSubject {
     pub fn path(path: &str) -> Self {
         static TRAILING: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"[\\/]+$").expect("trailing"));
-        let trimmed = TRAILING.replace(js::trim(path), "").to_string();
+        let trimmed = TRAILING.replace(text::trim(path), "").to_string();
         match trimmed.rfind(['/', '\\']) {
             None => Self::Path {
                 name: trimmed,
@@ -157,10 +157,10 @@ impl StepSubject {
 
 /// `firstLine(text)`.
 fn first_line(text: &str) -> String {
-    let line = js::trim(text).split('\n').next().unwrap_or_default();
+    let line = text::trim(text).split('\n').next().unwrap_or_default();
     let line = line.strip_suffix('\r').unwrap_or(line);
-    if js::len16(line) > 512 {
-        format!("{}…", js::head16(line, 512))
+    if text::len16(line) > 512 {
+        format!("{}…", text::head16(line, 512))
     } else {
         line.to_string()
     }
@@ -317,8 +317,8 @@ fn kind_key(kind: AgentToolStepKind) -> &'static str {
     }
 }
 
-fn status_of(activity: &Value) -> String {
-    activity["status"].as_str().unwrap_or_default().to_string()
+fn status_of(activity: &Part) -> String {
+    activity.status.clone()
 }
 
 fn glyph(tool: &str, status: &str) -> StepIcon {
@@ -329,12 +329,12 @@ fn glyph(tool: &str, status: &str) -> StepIcon {
 }
 
 /// `AgentPartRenderer` for an activity part.
-pub fn activity_view(part: &Value) -> ActivityView {
-    match part["kind"].as_str().unwrap_or_default() {
+pub fn activity_view(part: &Part) -> ActivityView {
+    match part.kind.as_str() {
         "reasoning" => reasoning_view(part),
         "plan" => ActivityView::Shell(Box::new(plan_shell(part))),
         "warning" | "error" => ActivityView::Notice {
-            error: part["kind"] == "error",
+            error: part.kind == "error",
             label: format_agent_activity_label(part),
         },
         "system" => system_view(part),
@@ -345,20 +345,20 @@ pub fn activity_view(part: &Value) -> ActivityView {
 
 /// `AgentToolRenderer`: the renderer registered for the tool, then for the
 /// kind, else the generic one.
-pub fn tool_view(part: &Value) -> ActivityView {
-    if !is_agent_tool_activity(part) {
+pub fn tool_view(part: &Part) -> ActivityView {
+    if !is_tool_activity(part) {
         return ActivityView::Hidden;
     }
-    let tool = match part["detail"]["tool"].as_str() {
-        Some(tool) => js::trim(tool).to_lowercase(),
-        None => js::trim(part["kind"].as_str().unwrap_or_default()).to_lowercase(),
+    let tool = match part.detail.text("tool") {
+        Some(tool) => text::trim(tool).to_lowercase(),
+        None => text::trim(&part.kind).to_lowercase(),
     };
     let renderer = match tool.as_str() {
         "command" | "bash" | "shell" => "command",
         "file-change" | "write" | "edit" | "apply_patch" | "patch" => "file-change",
         "read" | "glob" | "grep" | "search" | "list" => "file-query",
         "tool" | "webfetch" | "websearch" => "generic",
-        _ => match part["kind"].as_str().unwrap_or_default() {
+        _ => match part.kind.as_str() {
             "command" => "command",
             "file-change" => "file-change",
             _ => "generic",
@@ -375,7 +375,7 @@ pub fn tool_view(part: &Value) -> ActivityView {
 }
 
 /// `AgentCommandActivity`.
-fn command_shell(activity: &Value) -> ActivityShell {
+fn command_shell(activity: &Part) -> ActivityShell {
     let status = status_of(activity);
     let command = command_for_activity(activity);
     let output = output_for_activity(activity);
@@ -383,7 +383,7 @@ fn command_shell(activity: &Value) -> ActivityShell {
     let step_kind = agent_tool_step_kind(activity);
     let visible = visible_command_for_activity(activity);
     let visible = if visible.is_empty() {
-        activity["label"].as_str().unwrap_or_default().to_string()
+        activity.label.clone()
     } else {
         visible
     };
@@ -438,7 +438,7 @@ fn command_shell(activity: &Value) -> ActivityShell {
 
 /// `AgentFileChangeActivity`: nothing when it names no file and has no
 /// output.
-fn file_change_shell(activity: &Value) -> Option<ActivityShell> {
+fn file_change_shell(activity: &Part) -> Option<ActivityShell> {
     let status = status_of(activity);
     let changes = file_changes_for_activity(activity);
     let tool = agent_activity_tool_id(activity);
@@ -531,7 +531,7 @@ fn file_change_shell(activity: &Value) -> Option<ActivityShell> {
 }
 
 /// `AgentFileQueryActivity`.
-fn file_query_shell(activity: &Value) -> ActivityShell {
+fn file_query_shell(activity: &Part) -> ActivityShell {
     static NO_RESULTS: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)^no (?:matches|files|results)(?: found)?\.?$").expect("no results")
     });
@@ -547,7 +547,7 @@ fn file_query_shell(activity: &Value) -> ActivityShell {
     let countable =
         (tool == "grep" || tool == "glob") && !is_active_tool_status(&status) && !output.is_empty();
     let result_count = countable.then(|| {
-        if NO_RESULTS.is_match(js::trim(&output)) {
+        if NO_RESULTS.is_match(text::trim(&output)) {
             0
         } else {
             results.total_lines
@@ -593,30 +593,28 @@ fn file_query_shell(activity: &Value) -> ActivityShell {
     }
 }
 
-fn first_trimmed(values: &[&Value]) -> String {
+fn first_trimmed(values: &[Option<&str>]) -> String {
     values
         .iter()
-        .find_map(|value| value.as_str().map(js::trim).filter(|v| !v.is_empty()))
+        .flatten()
+        .map(|value| text::trim(value))
+        .find(|v| !v.is_empty())
         .unwrap_or_default()
         .to_string()
 }
 
 /// `fileQuerySubject(activity, stepKind, t)`.
-fn file_query_subject(activity: &Value, step_kind: AgentToolStepKind) -> Option<StepSubject> {
-    let detail = &activity["detail"];
-    let input = if detail["input"].is_object() {
-        detail["input"].clone()
-    } else {
-        Value::Null
-    };
+fn file_query_subject(activity: &Part, step_kind: AgentToolStepKind) -> Option<StepSubject> {
+    let detail = &activity.detail;
+    let input = detail.record("input").unwrap_or_else(RecordRef::empty);
     if step_kind == AgentToolStepKind::Search {
         let pattern = first_trimmed(&[
-            &input["pattern"],
-            &detail["query"],
-            &input["query"],
-            &input["glob"],
+            input.text("pattern"),
+            detail.text("query"),
+            input.text("query"),
+            input.text("glob"),
         ]);
-        let scope = first_trimmed(&[&input["path"], &detail["path"]]);
+        let scope = first_trimmed(&[input.text("path"), detail.text("path")]);
         if !pattern.is_empty() {
             let context = (!scope.is_empty())
                 .then(|| tf("agent.toolStep.searchScope", &[("path", Arg::Text(scope))]));
@@ -639,12 +637,12 @@ pub fn result_path(line: &str) -> Option<String> {
     if let Some(captures) = NUMBERED.captures(line) {
         return Some(captures[1].to_string());
     }
-    let plain = js::trim(line);
+    let plain = text::trim(line);
     (!plain.is_empty() && !plain.contains('\0') && !URL.is_match(plain)).then(|| plain.to_string())
 }
 
 /// `AgentGenericActivity`.
-fn generic_view(activity: &Value) -> ActivityView {
+fn generic_view(activity: &Part) -> ActivityView {
     if is_context_compaction_activity(activity) {
         return ActivityView::ContextDivider(t("agent.activity.contextCompacted").into());
     }
@@ -653,21 +651,18 @@ fn generic_view(activity: &Value) -> ActivityView {
     let output = output_for_activity(activity);
     let input = structured_input_for_activity(activity);
     let step_kind = agent_tool_step_kind(activity);
-    let detail = &activity["detail"];
-    let structured = if detail["input"].is_object() {
-        detail["input"].clone()
-    } else {
-        Value::Null
-    };
+    let detail = &activity.detail;
+    let structured = detail.record("input").unwrap_or_else(RecordRef::empty);
     let target = [
-        &structured["url"],
-        &structured["uri"],
-        &detail["url"],
-        &structured["query"],
-        &detail["query"],
+        structured.text("url"),
+        structured.text("uri"),
+        detail.text("url"),
+        structured.text("query"),
+        detail.text("query"),
     ]
     .into_iter()
-    .find_map(|value| value.as_str().filter(|v| !js::trim(v).is_empty()))
+    .flatten()
+    .find(|v| !text::trim(v).is_empty())
     .map(str::to_string);
     let title = if matches!(
         step_kind,
@@ -682,11 +677,11 @@ fn generic_view(activity: &Value) -> ActivityView {
     let repeated = [
         Some(title.as_str()),
         Some(tool.as_str()),
-        detail["tool"].as_str(),
+        detail.text("tool"),
     ]
     .into_iter()
     .flatten()
-    .any(|value| js::trim(value).to_lowercase() == js::trim(&summary).to_lowercase());
+    .any(|value| text::trim(value).to_lowercase() == text::trim(&summary).to_lowercase());
     let informative = !summary.is_empty() && !repeated;
     let subject = match target {
         Some(target) => Some(StepSubject::code(&target, None)),
@@ -716,14 +711,14 @@ fn generic_view(activity: &Value) -> ActivityView {
 
 /// `AgentReasoningActivity`: the live tail is the single authority for
 /// in-progress feedback; a settled public summary alone becomes a row.
-fn reasoning_view(activity: &Value) -> ActivityView {
+fn reasoning_view(activity: &Part) -> ActivityView {
     let status = status_of(activity);
-    let reasoning = match activity["detail"]["delta"].as_str() {
+    let reasoning = match activity.detail.text("delta") {
         Some(delta) => delta.to_string(),
         None => output_for_activity(activity),
     };
     if matches!(status.as_str(), "running" | "pending" | "in-progress")
-        || js::trim(&reasoning).is_empty()
+        || text::trim(&reasoning).is_empty()
     {
         return ActivityView::Hidden;
     }
@@ -750,38 +745,29 @@ fn reasoning_view(activity: &Value) -> ActivityView {
 }
 
 /// `AgentPlanActivity`.
-fn plan_shell(activity: &Value) -> ActivityShell {
+fn plan_shell(activity: &Part) -> ActivityShell {
     let status = status_of(activity);
-    let steps: Vec<PlanStep> = activity["detail"]["steps"]
-        .as_array()
-        .map(|steps| {
-            steps
-                .iter()
-                .take(100)
-                .map(|step| {
-                    let text = match step.get("step") {
-                        None | Some(Value::Null) => String::new(),
-                        Some(value) => js::to_js_string(Some(value)),
-                    };
-                    let status = match step.get("status") {
-                        None | Some(Value::Null) => "pending".to_string(),
-                        Some(value) => js::to_js_string(Some(value)),
-                    };
-                    PlanStep {
-                        step: js::head16(&text, 2_000).to_string(),
-                        status_label: plan_status_label(&status),
-                        status,
-                    }
-                })
-                .filter(|step| !step.step.is_empty())
-                .collect()
+    let steps: Vec<PlanStep> = activity
+        .detail
+        .records("steps")
+        .into_iter()
+        .take(100)
+        .map(|step| {
+            let text = step.display("step").unwrap_or_default();
+            let status = step.display("status").unwrap_or_else(|| "pending".into());
+            PlanStep {
+                step: text::head16(&text, 2_000).to_string(),
+                status_label: plan_status_label(&status),
+                status,
+            }
         })
-        .unwrap_or_default();
-    let detail = &activity["detail"];
-    let text = detail["text"]
-        .as_str()
-        .or_else(|| detail["explanation"].as_str())
-        .map(|text| js::head16(text, 64 * 1024).to_string())
+        .filter(|step| !step.step.is_empty())
+        .collect();
+    let detail = &activity.detail;
+    let text = detail
+        .text("text")
+        .or_else(|| detail.text("explanation"))
+        .map(|text| text::head16(text, 64 * 1024).to_string())
         .filter(|text| !text.is_empty());
     ActivityShell {
         title: t("agent.tool.plan").into(),
@@ -807,8 +793,8 @@ fn plan_status_label(status: &str) -> String {
 
 /// `AgentSystemActivity`: only context compaction belongs in the
 /// transcript.
-fn system_view(activity: &Value) -> ActivityView {
-    if activity["detail"]["category"] != "compaction" {
+fn system_view(activity: &Part) -> ActivityView {
+    if activity.detail.text("category") != Some("compaction") {
         return ActivityView::Hidden;
     }
     let status = status_of(activity);

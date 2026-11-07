@@ -138,6 +138,8 @@ fn removes_non_visual_usage_state_before_it_affects_row_adjacency() {
     let display = AgentDisplay::from_value(&projection).expect("display");
     let finalized =
         project_agent_display_control(&display, &create_agent_session_control("", "", "idle", 0));
+    let finalized = crate::agent::contract::dto::AgentProjection::project(&finalized, None)
+        .expect("typed display");
     let timeline = build_agent_timeline(&finalized, 34., None);
     let layout = build_agent_timeline_layout(
         &timeline.rows,

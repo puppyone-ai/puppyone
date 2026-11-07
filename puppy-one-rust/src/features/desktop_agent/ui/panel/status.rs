@@ -6,7 +6,8 @@ use super::super::agent_chat_view_model::AgentChatViewModel;
 use super::super::agent_error_presentation::present_agent_error;
 use super::super::agent_panel_presentation::present_runtime_readiness;
 use super::super::agent_theme::AgentTheme;
-use super::{AgentChatTabPanel, text_of};
+use super::AgentChatTabPanel;
+use crate::agent::contract::dto::{Activity, TurnRecovery};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryPolicy,
     AgentDisplayRecoveryStage,
@@ -19,7 +20,6 @@ use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
-use serde_json::Value;
 
 /// `.desktop-agent-button` tones.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -128,7 +128,7 @@ impl AgentChatTabPanel {
             && view
                 .panel_error
                 .as_ref()
-                .is_some_and(|e| e["code"] == "event-gap"))
+                .is_some_and(|e| e.code == "event-gap"))
             || recovery.is_some_and(|r| {
                 matches!(
                     r.policy,
@@ -219,12 +219,7 @@ impl AgentChatTabPanel {
                 if let Some(diagnostic) = readiness.diagnostic.as_ref() {
                     diagnostics.push(tf(
                         "agent.readiness.diagnostic",
-                        &[(
-                            "detail",
-                            Arg::Text(bidi_isolate(&crate::agent::contract::js::to_js_string(
-                                Some(diagnostic),
-                            ))),
-                        )],
+                        &[("detail", Arg::Text(bidi_isolate(diagnostic)))],
                     ));
                 }
             } else if let Some(detail) = detail.clone() {
@@ -510,12 +505,13 @@ impl AgentChatTabPanel {
         let m = theme::ty();
         let mut list = v_flex().gap(px(2.));
         for entry in &view.runtime.agent_runtimes {
-            let id = text_of(&entry["descriptor"]["id"]);
-            let name = text_of(&entry["descriptor"]["displayName"]);
-            let icon_key = entry["descriptor"]["iconKey"]
-                .as_str()
-                .unwrap_or(&id)
-                .to_string();
+            let id = entry.descriptor.id.clone();
+            let name = entry.descriptor.display_name.clone();
+            let icon_key = entry
+                .descriptor
+                .icon_key
+                .clone()
+                .unwrap_or_else(|| id.clone());
             let ready = is_selectable_agent_backend(entry);
             let runtime_id = id.clone();
             list = list.child(
@@ -734,7 +730,7 @@ impl AgentChatTabPanel {
     fn render_recovery_surface(
         &mut self,
         turn_id: &str,
-        recovery: &Value,
+        recovery: &TurnRecovery,
         view: &AgentChatViewModel,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -802,13 +798,13 @@ impl AgentChatTabPanel {
                         .gap(px(4.))
                         .child(detail(
                             "agent.recovery.degraded.code",
-                            text_of(&recovery["code"]),
+                            recovery.code.clone(),
                         ))
                         .child(detail(
                             "agent.recovery.degraded.scope",
                             t(&format!(
                                 "agent.recovery.degraded.scope.{}",
-                                text_of(&recovery["failureScope"])
+                                recovery.failure_scope
                             ))
                             .into(),
                         ))
@@ -816,7 +812,7 @@ impl AgentChatTabPanel {
                             "agent.recovery.degraded.transport",
                             t(&format!(
                                 "agent.recovery.degraded.transport.{}",
-                                text_of(&recovery["transportHealth"])
+                                recovery.transport_health
                             ))
                             .into(),
                         ))
@@ -824,7 +820,7 @@ impl AgentChatTabPanel {
                             "agent.recovery.degraded.sideEffects",
                             t(&format!(
                                 "agent.recovery.degraded.sideEffects.{}",
-                                text_of(&recovery["sideEffects"])
+                                recovery.side_effects
                             ))
                             .into(),
                         )),
@@ -886,17 +882,17 @@ impl AgentChatTabPanel {
         let palette = cx.palette();
         let a = AgentTheme::new(&palette);
         let m = theme::ty();
-        let notices: Vec<Value> = state
+        let notices: Vec<Activity> = state
             .projection
             .activities
             .iter()
             .filter(|activity| {
-                let label = activity["label"].as_str().is_some_and(|l| !l.is_empty());
-                let category = activity["detail"]["category"].as_str().unwrap_or_default();
-                let status = activity["status"].as_str().unwrap_or_default();
+                let label = !activity.label.is_empty();
+                let category = activity.detail.text("category").unwrap_or_default();
+                let status = activity.status.as_str();
                 label
-                    && (activity["kind"] == "notification"
-                        || (activity["kind"] == "system"
+                    && (activity.kind == "notification"
+                        || (activity.kind == "system"
                             && category != "compaction"
                             && !(category == "authentication"
                                 && ["completed", "succeeded"].contains(&status))))
@@ -906,20 +902,19 @@ impl AgentChatTabPanel {
         if notices.is_empty() {
             return None;
         }
-        let (prominent, quiet): (Vec<Value>, Vec<Value>) =
+        let (prominent, quiet): (Vec<Activity>, Vec<Activity>) =
             notices.into_iter().partition(|activity| {
-                ["running", "failed", "warning"]
-                    .contains(&activity["status"].as_str().unwrap_or_default())
+                ["running", "failed", "warning"].contains(&activity.status.as_str())
             });
         let open = self.provider_notices_open;
         let mut column = v_flex().gap(px(4.)).text_size(px(m.right.caption));
         for activity in &prominent {
-            let failed = activity["status"] == "failed";
+            let failed = activity.status == "failed";
             column = column.child(
                 div()
                     .whitespace_normal()
                     .text_color(if failed { palette.danger } else { a.text_muted })
-                    .child(text_of(&activity["label"])),
+                    .child(activity.label.clone()),
             );
         }
         if !quiet.is_empty() {
@@ -951,7 +946,7 @@ impl AgentChatTabPanel {
                         .pl(px(16.))
                         .whitespace_normal()
                         .text_color(a.text_subtle)
-                        .child(text_of(&activity["label"]))
+                        .child(activity.label.clone())
                 }));
             }
         }

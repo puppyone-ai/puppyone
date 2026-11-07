@@ -3,6 +3,7 @@
 pub mod agent_event_journal;
 pub mod agent_input_policy;
 pub mod agent_reference_policy;
+pub mod agent_requests;
 pub mod agent_runtime_catalog;
 pub mod agent_service;
 pub mod agent_session_store;

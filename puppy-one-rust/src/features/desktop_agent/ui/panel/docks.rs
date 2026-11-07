@@ -2,8 +2,11 @@
 //! pending interactions sit above the composer and cannot scroll away.
 use super::super::agent_chat_view_model::AgentChatViewModel;
 use super::super::agent_theme::AgentTheme;
+use super::AgentChatTabPanel;
 use super::status::{ButtonTone, agent_button};
-use super::{AgentChatTabPanel, text_of};
+use crate::agent::contract::dto::{Approval, Question, RecordRef};
+use crate::agent::contract::protocol::ApprovalDecision;
+use crate::features::desktop_agent::application::agent_session_controller::QuestionResolution;
 use crate::localization::{Arg, bidi_isolate, t, tf};
 use crate::theme;
 use crate::ui::appearance::ActiveAppearance;
@@ -12,11 +15,10 @@ use crate::ui::form_input::TextInput;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
-use serde_json::{Value, json};
 
 /// `normalizeApprovalCopy(value)`.
 fn normalize_copy(value: &str) -> String {
-    crate::agent::contract::js::trim(value)
+    crate::text::trim(value)
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -28,16 +30,14 @@ fn distinct_reason(reason: Option<&str>, title: &str) -> Option<String> {
     let reason = reason?;
     let normalized = normalize_copy(reason);
     (!normalized.is_empty() && normalized != normalize_copy(title))
-        .then(|| crate::agent::contract::js::trim(reason).to_string())
+        .then(|| crate::text::trim(reason).to_string())
 }
 
 /// `approvalActionLabel(action)`.
-fn action_label(action: &Value) -> String {
-    let kind = action["type"].as_str().unwrap_or("action");
-    let name = action["name"].as_str();
-    let target = action["path"]
-        .as_str()
-        .or_else(|| action["command"].as_str());
+fn action_label(action: RecordRef<'_>) -> String {
+    let kind = action.text("type").unwrap_or("action");
+    let name = action.text("name");
+    let target = action.text("path").or_else(|| action.text("command"));
     [Some(name.unwrap_or(kind)), target]
         .into_iter()
         .flatten()
@@ -71,7 +71,7 @@ impl AgentChatTabPanel {
     /// `AgentApprovalDock`.
     pub(super) fn render_approval_dock(
         &mut self,
-        approval: &Value,
+        approval: &Approval,
         queue_length: usize,
         view: &AgentChatViewModel,
         cx: &mut Context<Self>,
@@ -81,24 +81,15 @@ impl AgentChatTabPanel {
         let m = theme::ty();
         let resolving = view.approval_resolving;
         let runtime_label = view.runtime.runtime_label.clone();
-        let decisions: Vec<String> = approval["availableDecisions"]
-            .as_array()
-            .map(|d| {
-                d.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let decisions: Vec<String> = approval.available_decisions.clone();
         let can_allow_for_session = decisions.iter().any(|d| d == "acceptForSession");
-        let raw_title =
-            crate::agent::contract::js::trim(approval["title"].as_str().unwrap_or_default())
-                .to_string();
+        let raw_title = crate::text::trim(&approval.title).to_string();
         let title = if raw_title.is_empty() {
             t("agent.approval.required").to_string()
         } else {
             raw_title
         };
-        let reason = distinct_reason(approval["reason"].as_str(), &title);
+        let reason = distinct_reason(approval.reason.as_deref(), &title);
         let status = if resolving {
             t("agent.approval.resolving").to_string()
         } else if queue_length > 1 {
@@ -109,42 +100,24 @@ impl AgentChatTabPanel {
         } else {
             t("agent.approval.waiting").to_string()
         };
-        let command = approval["command"]
-            .as_str()
-            .filter(|c| !c.is_empty())
-            .map(str::to_string);
-        let cwd = approval["cwd"]
-            .as_str()
-            .filter(|c| !c.is_empty())
-            .map(str::to_string);
-        let network = approval["networkApprovalContext"]
-            .as_object()
-            .map(|context| {
-                format!(
-                    "{}://{}",
-                    context
-                        .get("protocol")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                    context
-                        .get("host")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                )
-            });
-        let grant_root = approval["grantRoot"]
-            .as_str()
-            .filter(|g| !g.is_empty())
-            .map(str::to_string);
+        let command = approval.command.clone().filter(|c| !c.is_empty());
+        let cwd = approval.cwd.clone().filter(|c| !c.is_empty());
+        let network = approval
+            .network_approval_context
+            .as_ref()
+            .map(|context| format!("{}://{}", context.protocol, context.host));
+        let grant_root = approval.grant_root.clone().filter(|g| !g.is_empty());
         let actions: Vec<String> = if command.is_none() {
-            approval["commandActions"]
-                .as_array()
-                .map(|actions| actions.iter().take(5).map(action_label).collect())
-                .unwrap_or_default()
+            approval
+                .command_actions
+                .iter()
+                .take(5)
+                .map(|action| action_label(action.view()))
+                .collect()
         } else {
             Vec::new()
         };
-        let policy = approval["policyChangeRequested"] == true;
+        let policy = approval.policy_change_requested;
         let meta = |text: String| {
             div()
                 .text_size(px(m.left.meta))
@@ -201,17 +174,18 @@ impl AgentChatTabPanel {
                 &[("agent", Arg::Text(bidi_isolate(&runtime_label)))],
             )));
         }
-        let request_id = approval["requestId"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
+        let request_id = approval.request_id.clone();
         let resolve = |decision: &'static str| {
             let request_id = request_id.clone();
             cx.listener(move |s: &mut Self, _, _, cx| {
                 match s.hosted() {
                     // `controller.approve(approval.requestId, decision === "accept")`.
                     Some(chat) => chat.approve(request_id.clone(), decision == "accept"),
-                    None => drop(s.controller.resolve_approval(Value::from(decision))),
+                    None => {
+                        if let Some(decision) = ApprovalDecision::parse(decision) {
+                            drop(s.controller.resolve_approval(decision));
+                        }
+                    }
                 }
                 cx.notify();
             })
@@ -294,7 +268,7 @@ impl AgentChatTabPanel {
     /// `AgentQuestionDock`.
     pub(super) fn render_question_dock(
         &mut self,
-        request: &Value,
+        request: &Question,
         queue_length: usize,
         view: &AgentChatViewModel,
         window: &mut Window,
@@ -304,8 +278,8 @@ impl AgentChatTabPanel {
         let a = AgentTheme::new(&t_);
         let m = theme::ty();
         let resolving = view.question_resolving;
-        let request_id = text_of(&request["requestId"]);
-        let questions = request["questions"].as_array().cloned().unwrap_or_default();
+        let request_id = request.request_id.clone();
+        let questions = request.questions.clone();
         let answers = self
             .question_answers
             .get(&request_id)
@@ -343,19 +317,17 @@ impl AgentChatTabPanel {
                 }),
         );
         for (index, question) in questions.iter().enumerate() {
-            let header = question["header"]
-                .as_str()
+            let header = Some(question.header.clone())
                 .filter(|h| !h.is_empty())
-                .map(str::to_string)
                 .unwrap_or_else(|| {
                     tf(
                         "agent.question.number",
                         &[("number", Arg::Number(index as i64 + 1))],
                     )
                 });
-            let options = question["options"].as_array().cloned().unwrap_or_default();
-            let multiple = question["multiple"] == true;
-            let custom = question["custom"] == true;
+            let options = question.options.clone();
+            let multiple = question.multiple;
+            let custom = question.custom;
             let selected = answers.get(&index).cloned().unwrap_or_default();
             let mut fieldset = v_flex()
                 .mt(px(10.))
@@ -371,15 +343,12 @@ impl AgentChatTabPanel {
                         .text_size(px(m.left.content))
                         .text_color(a.text_muted)
                         .whitespace_normal()
-                        .child(text_of(&question["question"])),
+                        .child(question.question.clone()),
                 );
             for option in &options {
-                let label = text_of(&option["label"]);
+                let label = option.label.clone();
                 let checked = selected.contains(&label);
-                let description = option["description"]
-                    .as_str()
-                    .filter(|d| !d.is_empty())
-                    .map(str::to_string);
+                let description = Some(option.description.clone()).filter(|d| !d.is_empty());
                 let (request, value) = (request_id.clone(), label.clone());
                 fieldset = fieldset.child(
                     h_flex()
@@ -455,10 +424,7 @@ impl AgentChatTabPanel {
                             cx.new(|cx| TextInput::new(placeholder, false, 8_000, window, cx));
                         let (request, option_labels) = (
                             request_id.clone(),
-                            options
-                                .iter()
-                                .map(|o| text_of(&o["label"]))
-                                .collect::<Vec<_>>(),
+                            options.iter().map(|o| o.label.clone()).collect::<Vec<_>>(),
                         );
                         cx.observe(&entity, move |s: &mut Self, input, cx| {
                             let custom = input.read(cx).text().to_string();
@@ -507,7 +473,10 @@ impl AgentChatTabPanel {
                     )
                     .on_click(cx.listener(move |s, _, _, cx| {
                         let _ = &skip_request;
-                        drop(s.controller.resolve_question(json!({ "rejected": true })));
+                        drop(s.controller.resolve_question(QuestionResolution {
+                            rejected: Some(true),
+                            ..QuestionResolution::default()
+                        }));
                         cx.notify();
                     })),
                 )
@@ -528,7 +497,10 @@ impl AgentChatTabPanel {
                         let values: Vec<Vec<String>> = (0..count)
                             .map(|index| answers.get(&index).cloned().unwrap_or_default())
                             .collect();
-                        drop(s.controller.resolve_question(json!({ "answers": values })));
+                        drop(s.controller.resolve_question(QuestionResolution {
+                            answers: Some(values),
+                            ..QuestionResolution::default()
+                        }));
                         cx.notify();
                     })),
                 ),
