@@ -8,7 +8,7 @@ export type OnboardingProjectGroup = Readonly<{
   title: ReactNode;
   /** One quiet line after the title: presence, or what this computer offers. */
   detail?: ReactNode;
-  /** The group's own named actions at the end of its head; the last one adds a project to it. */
+  /** The group's own controls at the end of its head. */
   actions?: ReactNode;
   /** The group cannot be used right now, as when its computer is offline. */
   inactive?: boolean;
@@ -38,9 +38,6 @@ export type OnboardingGroupsBase = Readonly<{
     title: string;
     items: readonly ProjectHomeItem[];
     render: (items: ProjectHomeItem[], sharing?: ProjectListSharing) => ReactNode;
-    /** How a project is started here. With it, the group stays even when it has none. */
-    entry?: ReactNode;
-    empty?: string;
   }> | null;
   /** False while the page is narrowed to some places; other computers are not one of them. */
   showOtherComputers: boolean;
@@ -63,10 +60,9 @@ export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: Proje
     if (index < 0) groups.unshift(personal);
     else groups[index] = personal;
   }
-  if (base.local && (localOnly.length || base.local.entry)) {
-    groups.push({ id: "local-only", title: base.local.title, alwaysShowHeading: true, actions: base.local.entry,
-      children: localOnly.length ? base.local.render(localOnly, sharing)
-        : <p className="onboarding-cloud-space-empty">{base.local.empty}</p> });
+  if (base.local && localOnly.length) {
+    groups.push({ id: "local-only", title: base.local.title, alwaysShowHeading: true,
+      children: base.local.render(localOnly, sharing) });
   }
   return groups.filter((group) => !group.empty || group.keepEmpty);
 }

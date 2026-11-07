@@ -1587,6 +1587,8 @@ function AppContent() {
       onDefaultLocation={defaultProjectLocation}
       onChooseLocation={chooseProjectLocation}
       onCreateProject={createProject}
+      cloudSpaces={activeCloudSession ? cloudSpaces.spaces : undefined}
+      onCreateCloudProject={createCloudProjectInSpace}
       onImportSource={importSource}
       onConnectSource={connectImportSource}
       onListResources={listImportResources}
@@ -1660,7 +1662,6 @@ function AppContent() {
         cloudSpacesStatus={cloudSpaces.status}
         onRetryCloudSpaces={cloudSpaces.refresh}
         onPublishToSpace={publishToCloudSpace}
-        onCreateCloudProject={createCloudProjectInSpace}
         onShareLocalFolder={homepageFolderSharing.request}
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}

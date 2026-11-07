@@ -65,8 +65,6 @@ export type MinimalOnboardingProps = {
   cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
   onRetryCloudSpaces?: () => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
-  /** Starts an empty Cloud project in a space and opens it. */
-  onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
   onShareLocalFolder?: (path: string) => Promise<void>;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
@@ -78,14 +76,14 @@ export type MinimalOnboardingProps = {
 const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
-/** Once there are projects, every way to start one moves to the head of the group it starts in. */
+/** Once there are projects, every way to start one moves to the head of the page. */
 function onboardingEntrySlots(hasProjects: boolean, {
   draggingFolder,
   ...entry
 }: ComponentProps<typeof OnboardingEntryMenu> & { draggingFolder: boolean }) {
-  if (hasProjects) return { group: <OnboardingEntryMenu {...entry} />, actions: null };
+  if (hasProjects) return { trailing: <OnboardingEntryMenu {...entry} />, actions: null };
   const { canCreateProject: _canCreateProject, onCreateProject: _onCreateProject, ...actions } = entry;
-  return { group: null, actions: <OnboardingEntryActions {...actions} draggingFolder={draggingFolder} /> };
+  return { trailing: null, actions: <OnboardingEntryActions {...actions} draggingFolder={draggingFolder} /> };
 }
 
 export function MinimalOnboarding({
@@ -108,7 +106,6 @@ export function MinimalOnboarding({
   cloudSpacesStatus = "signed-out",
   onRetryCloudSpaces,
   onPublishToSpace,
-  onCreateCloudProject,
   onShareLocalFolder,
   cloudOpening = false,
   onOpenCloudProject,
@@ -238,7 +235,6 @@ export function MinimalOnboarding({
     spaces: projectView.places.size === 0 || projectView.places.has("cloud") ? cloudSpaces : [],
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
-    onCreate: onCreateCloudProject,
     onDragEnd: () => setDraggingPath(null),
   });
   const entry = onboardingEntrySlots(hasProjects, {
@@ -260,14 +256,10 @@ export function MinimalOnboarding({
     localShare: onShareLocalFolder ? { draggingPath, busy,
       request: (path) => runOpening(path, () => onShareLocalFolder(path)),
       endDrag: () => setDraggingPath(null) } : undefined,
-    // This computer is where a project starts, so its group stays to start one in,
-    // unless the page is narrowed to other places.
-    local: localItems.length > 0 || (entry.group && (projectView.places.size === 0 || projectView.places.has("local"))) ? {
+    local: localItems.length > 0 ? {
       title: t("onboarding.sharing.localOnly"),
       items: localItems,
       render: projectList,
-      entry: entry.group,
-      empty: t("onboarding.sharing.localEmpty"),
     } : null,
     showOtherComputers: projectView.places.size === 0,
   };
@@ -298,7 +290,7 @@ export function MinimalOnboarding({
             <OnboardingProjectToolbar view={projectView} disabled={busy}>
               <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
             </OnboardingProjectToolbar>
-          )} />}
+          )} trailing={entry.trailing} />}
           primaryKind={hasProjects ? "projects" : "create"}
           primary={hasProjects ? projects : (
             <OnboardingCreateProjectAction

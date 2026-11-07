@@ -1,18 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { CloudSpace, ProjectHomeItem } from "../../lib/workspaceHomeModel";
-import { CloudProjectCreateButton } from "./CloudProjectCreateButton";
 import type { OnboardingProjectGroup } from "./OnboardingProjectGroups";
 
 /**
  * Space identity chooses the audience; a team's name is a selector, not another heading.
- * A group's one action starts a new Cloud project there; an existing project joins by drag.
+ * An existing project joins a group by being dragged in; New project starts one anywhere.
  */
-export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onCreate, onDragEnd }: {
+export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd }: {
   spaces: readonly CloudSpace[]; cloudItems: ProjectHomeItem[]; localItems: ProjectHomeItem[];
   renderProjects: (items: ProjectHomeItem[]) => ReactNode; draggingPath: string | null; busy: boolean;
-  onPublish?: (path: string, spaceId: string) => Promise<void>;
-  onCreate?: (spaceId: string, name: string) => Promise<void>; onDragEnd: () => void;
+  onPublish?: (path: string, spaceId: string) => Promise<void>; onDragEnd: () => void;
 }): OnboardingProjectGroup[] {
   const { t } = useLocalization();
   const [chosenTeam, setChosenTeam] = useState<string | null>(null);
@@ -28,16 +26,14 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
       id, title, alwaysShowHeading: true, empty: projects.length === 0,
-      // A space one can start projects in stays, empty or not, to start one in.
-      keepEmpty: Boolean((space.canCreateProjects && onCreate) || (space.kind === "team" && source && onPublish)),
+      // A space one can add projects to stays, empty or not, to drag one into.
+      keepEmpty: Boolean(space.canCreateProjects || (space.kind === "team" && source && onPublish)),
       // A personal-area drop means sharing from this computer, not uploading.
       // Homepage's device composition supplies that action; never fall back here.
       dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source), onDrop: () => {
         onDragEnd();
         if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,
-      actions: onCreate && space.canCreateProjects && <CloudProjectCreateButton spaceName={space.name} disabled={busy}
-        onCreate={(name) => onCreate(space.id, name)} />,
       children: projects.length ? renderProjects(projects) : <p className="onboarding-cloud-space-empty">
         {t(space.canCreateProjects ? "onboarding.spaces.empty" : "onboarding.spaces.readOnly")}
       </p>,
