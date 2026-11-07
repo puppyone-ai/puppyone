@@ -4,7 +4,7 @@
 //! per account (`/ai/trial`), and top-up checkouts (`/ai/checkouts`) opened
 //! only at the payment provider's HTTPS origin. A new session generation
 //! drops everything read under the old one.
-use crate::cloud_auth::model::ApiRequest;
+use crate::cloud::auth::model::ApiRequest;
 use gpui::*;
 use reqwest::Method;
 use serde_json::Value;
@@ -166,7 +166,8 @@ impl ManagedCompute {
     }
     /// Read the directory and the wallet; at most every 15 s unless forced.
     pub fn refresh(&mut self, force: bool, cx: &mut Context<Self>) {
-        let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
+        let Some((broker, binding)) = crate::features::cloud::account::broker_and_binding(cx)
+        else {
             if self.key.is_some() {
                 self.key = None;
                 self.balance = None;
@@ -273,7 +274,7 @@ impl ManagedCompute {
                         s.failed = false;
                         if claimed {
                             s.trial_claimed_for =
-                                crate::features::cloud_account::broker_and_binding(cx)
+                                crate::features::cloud::account::broker_and_binding(cx)
                                     .map(|(_, b)| b.user);
                         }
                     }
@@ -291,7 +292,7 @@ impl ManagedCompute {
     /// balance changes only when the service says so.
     pub fn checkout(&mut self, pack: String, cx: &mut Context<Self>) {
         let (Some((broker, binding)), Some(catalog)) = (
-            crate::features::cloud_account::broker_and_binding(cx),
+            crate::features::cloud::account::broker_and_binding(cx),
             self.catalog.clone(),
         ) else {
             return;

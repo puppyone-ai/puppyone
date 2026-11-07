@@ -178,7 +178,7 @@ impl Shell {
     /// `canReplaceMissingCloudProject`: signed in, the Project is gone, and
     /// the checkout has exactly the reviewed `puppyone` remote.
     fn missing_replaceable(&self, cx: &App) -> bool {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
             && matches!(
                 self.cloud.repository.read(cx).context,
                 Association::NotFound { .. }
@@ -245,7 +245,7 @@ impl Shell {
         let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
             && menu.action.as_ref().is_some_and(shares_through_cloud);
         let history =
-            self.hosted_project().is_some() && crate::features::cloud_account::has_account(cx);
+            self.hosted_project().is_some() && crate::features::cloud::account::has_account(cx);
         let current = MenuItem::new(place_label(menu.place))
             .icon_sized(place_icon(menu.place).with_size(px(15.)).stroke(1.75))
             .selected(true)
@@ -365,13 +365,13 @@ impl Shell {
     }
     /// `onSignIn`: Account settings with a session, else the browser.
     pub(super) fn sign_in_for_cloud(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if crate::features::cloud_account::has_account(cx) {
+        if crate::features::cloud::account::has_account(cx) {
             self.command(Command::Settings, window, cx);
             self.task_ui.settings.update(cx, |settings, cx| {
                 settings.select_page(crate::features::settings::Page::Account, cx)
             });
         } else {
-            crate::features::cloud_account::sign_in(cx);
+            crate::features::cloud::account::sign_in(cx);
         }
     }
     /// `openCloudDialogAt("initialize")`: the first publication of this
@@ -580,7 +580,7 @@ impl Shell {
                     .on_click(cx.listener(|s, _, _, cx| {
                         s.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
                         s.cloud.publish.update(cx, |p, cx| {
-                            p.start(crate::cloud_publication::Action::Initialize, cx)
+                            p.start(crate::cloud::publication::Action::Initialize, cx)
                         });
                         cx.notify();
                     })),

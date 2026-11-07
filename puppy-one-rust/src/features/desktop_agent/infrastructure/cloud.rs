@@ -19,7 +19,7 @@ mod projection;
 pub use projection::project_cloud_agent_runs;
 
 use crate::{
-    cloud_auth::Cancellation,
+    cloud::auth::Cancellation,
     wake::Wake,
     workspace::cloud::agent::{Client, Run, Session, Submission},
 };

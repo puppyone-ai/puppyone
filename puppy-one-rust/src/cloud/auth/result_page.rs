@@ -33,13 +33,15 @@ impl Outcome {
 fn data() -> &'static serde_json::Value {
     static DATA: OnceLock<serde_json::Value> = OnceLock::new();
     DATA.get_or_init(|| {
-        serde_json::from_str(include_str!("../../assets/auth/result-page.json"))
+        serde_json::from_str(include_str!("../../../assets/auth/result-page.json"))
             .expect("generated result page copy")
     })
 }
 fn font() -> &'static str {
     static FONT: OnceLock<String> = OnceLock::new();
-    FONT.get_or_init(|| STANDARD.encode(include_bytes!("../../assets/auth/Geist-Variable.woff2")))
+    FONT.get_or_init(|| {
+        STANDARD.encode(include_bytes!("../../../assets/auth/Geist-Variable.woff2"))
+    })
 }
 
 /// `matchLocale`.

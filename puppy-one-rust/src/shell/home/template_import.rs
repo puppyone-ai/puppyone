@@ -125,7 +125,7 @@ impl Shell {
         self.modals.iter().any(|m| {
             matches!(m, Modal::TemplateImport(import)
                 if import.detail.as_ref().is_some_and(|d| d.requires_sign_in))
-        }) && !crate::features::cloud_account::has_account(cx)
+        }) && !crate::features::cloud::account::has_account(cx)
     }
     /// "Get a copy": the release's verified files, under a name no folder
     /// has yet, then the project opens on its first document.
@@ -135,7 +135,7 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let needs_sign_in = self.template_needs_sign_in(cx);
-        let account = crate::features::cloud_account::broker_and_binding(cx);
+        let account = crate::features::cloud::account::broker_and_binding(cx);
         let Some(import) = self.template_import() else {
             return;
         };
@@ -169,7 +169,7 @@ impl Shell {
                 broker
                     .template_download(&binding, &url, &release, &Default::default())
                     .map_err(|error| match error {
-                        crate::cloud_auth::Error::Http(_) => {
+                        crate::cloud::auth::Error::Http(_) => {
                             "Template authorization failed. Please sign in again.".to_owned()
                         }
                         _ => SIGNED_OUT.to_owned(),
@@ -179,7 +179,7 @@ impl Shell {
                 &detail.id,
                 &detail.release_id,
                 authorize,
-                crate::features::cloud_agents::now_ms(),
+                crate::features::cloud::agents::now_ms(),
             )?;
             // `numberIfTaken`: a copy never fails for a name in use.
             let name = templates::free_name(&parent, &name)?;
@@ -224,8 +224,8 @@ impl Shell {
         let host = self.weak.clone();
         let busy = import.submitting || import.destination.choosing;
         let needs_sign_in = self.template_needs_sign_in(cx);
-        let signing_in = crate::features::cloud_account::status(cx)
-            == Some(crate::cloud_auth::Status::SigningIn);
+        let signing_in = crate::features::cloud::account::status(cx)
+            == Some(crate::cloud::auth::Status::SigningIn);
         let note = |text: String| {
             div()
                 .text_size(px(ty.meta))
@@ -382,7 +382,7 @@ impl Shell {
                             "onboarding.template.signIn"
                         }))
                         .disabled(signing_in)
-                        .on_click(|_, _, cx| crate::features::cloud_account::sign_in(cx)),
+                        .on_click(|_, _, cx| crate::features::cloud::account::sign_in(cx)),
                 ),
             );
         }

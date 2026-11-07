@@ -2,7 +2,7 @@
 //! `resourceDashboardApi`). Every response is held to the Project and
 //! identity asked for; a Dashboard row never carries a credential; a
 //! one-time credential is returned to its caller and never stored here.
-use crate::cloud_auth::{
+use crate::cloud::auth::{
     self as auth, Broker, Cancellation,
     model::{ApiRequest, Binding},
 };

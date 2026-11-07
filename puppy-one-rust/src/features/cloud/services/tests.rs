@@ -1,5 +1,5 @@
 use super::*;
-use crate::cloud_auth::model::ApiRequest;
+use crate::cloud::auth::model::ApiRequest;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::sync::Mutex;

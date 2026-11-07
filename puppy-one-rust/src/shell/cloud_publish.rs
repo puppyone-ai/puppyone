@@ -10,8 +10,8 @@
 //! whose focus starts on Cancel).
 use super::*;
 use crate::{
-    cloud_publication::{Action, Code, Stage},
-    features::cloud_publish::{CloudPublish, HeaderStatus, Organizations},
+    cloud::publication::{Action, Code, Stage},
+    features::cloud::publish::{CloudPublish, HeaderStatus, Organizations},
     localization::{t as tr, tf},
     ui::components::{Button, ButtonVariant, Dialog, Icon, ProductIcon},
 };
@@ -129,12 +129,12 @@ impl Shell {
             .modals
             .iter()
             .any(|m| matches!(m, Modal::CloudServices))
-            && (!enabled || !crate::features::cloud_account::has_account(cx))
+            && (!enabled || !crate::features::cloud::account::has_account(cx))
         {
             self.cloud_services.update(cx, |s, cx| s.close(cx));
         }
         let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
-            && crate::features::cloud_account::has_account(cx);
+            && crate::features::cloud::account::has_account(cx);
         self.cloud_services
             .update(cx, |s, cx| s.sync_sharing(sharing, cx));
         let root = self.workspace_root();
@@ -145,7 +145,7 @@ impl Shell {
                 self.cloud.repository.read(cx).context,
                 crate::workspace::cloud::repository::Context::LocalOnly
             )
-            && crate::features::cloud_account::has_account(cx);
+            && crate::features::cloud::account::has_account(cx);
         self.cloud.publish.update(cx, |p, cx| {
             p.sync(root.as_deref(), enabled, cx);
             if activating {
@@ -595,7 +595,7 @@ impl Shell {
         &self,
         dialog: Dialog,
         name: &str,
-        outcome: &crate::cloud_publication::Outcome,
+        outcome: &crate::cloud::publication::Outcome,
         cx: &mut Context<Self>,
     ) -> Dialog {
         use crate::workspace::cloud::publish::{Action as A, Cleanup, Project, Push};
@@ -840,8 +840,8 @@ impl Shell {
                 });
             });
         let session = crate::workspace::cloud::publish::Session::of(
-            crate::features::cloud_account::status(cx),
-            crate::features::cloud_account::has_account(cx),
+            crate::features::cloud::account::status(cx),
+            crate::features::cloud::account::has_account(cx),
         );
         if session != crate::workspace::cloud::publish::Session::SignedIn {
             let waiting = session == crate::workspace::cloud::publish::Session::SigningIn;
@@ -874,7 +874,7 @@ impl Shell {
                             "cloud.auth.signIn"
                         }))
                         .on_click(
-                            cx.listener(|_, _, _, cx| crate::features::cloud_account::sign_in(cx)),
+                            cx.listener(|_, _, _, cx| crate::features::cloud::account::sign_in(cx)),
                         ),
                 );
         }
@@ -887,7 +887,7 @@ impl Shell {
         };
         self.cloud.replace_url = None;
         let task = cx.background_executor().spawn(async move {
-            use crate::cloud_publication::git::{Cli, GitOps as _, Remote};
+            use crate::cloud::publication::git::{Cli, GitOps as _, Remote};
             match (Cli { helper: None }).remote(&root) {
                 Ok(Remote::Exact(url)) => Some(url),
                 _ => None,
@@ -916,7 +916,7 @@ impl Shell {
     pub(super) fn confirm_replace(&mut self, project: String, cx: &mut Context<Self>) {
         let (Some(root), Some((broker, binding)), Some(url)) = (
             self.workspace_root(),
-            crate::features::cloud_account::broker_and_binding(cx),
+            crate::features::cloud::account::broker_and_binding(cx),
             self.cloud.replace_url.clone(),
         ) else {
             return;
@@ -930,12 +930,12 @@ impl Shell {
         cx.notify();
         let task = cx.background_executor().spawn(async move {
             use crate::workspace::cloud::repository::{self, Context as Association};
-            let cancel = crate::cloud_auth::Cancellation::default();
+            let cancel = crate::cloud::auth::Cancellation::default();
             match repository::authorize(&broker, &binding, &project, &cancel) {
                 // Reachable again: keep the link (`reconnected`).
                 Ok(_) => Ok(false),
                 Err((Association::NotFound { .. }, _)) => {
-                    crate::cloud_publication::git::detach(&root, &url)
+                    crate::cloud::publication::git::detach(&root, &url)
                         .map(|_| true)
                         .map_err(|_| ())
                 }

@@ -8,7 +8,7 @@
 use super::*;
 use crate::{
     features::{
-        cloud_agents::{self, CopyStatus, Opener},
+        cloud::agents::{self as cloud_agents, CopyStatus, Opener},
         source_control::{relative_time, short_date},
     },
     localization::{t as tr, tf},
@@ -602,7 +602,7 @@ impl Shell {
                 })
                 .into_any_element();
         }
-        let api = crate::features::cloud_account::environment(cx)
+        let api = crate::features::cloud::account::environment(cx)
             .map(|e| e.api().to_owned())
             .unwrap_or_default();
         let prompt = connect_message(

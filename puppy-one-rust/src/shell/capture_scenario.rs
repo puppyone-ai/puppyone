@@ -461,14 +461,14 @@ impl Shell {
             ),
             Step::AgentsFixture(open_links) => {
                 self.cloud.capture_hosted = true;
-                let client = crate::features::cloud_agents::lab_client(*open_links);
+                let client = crate::features::cloud::agents::lab_client(*open_links);
                 let name = self.window.name.clone();
                 self.cloud.agents.update(cx, |a, cx| {
                     a.attach_client("lab-project", &name, client, cx)
                 });
             }
             Step::Agents(opener) => {
-                use crate::features::cloud_agents::Opener;
+                use crate::features::cloud::agents::Opener;
                 if !self.cloud.agents.read(cx).manageable {
                     return false;
                 }

@@ -3,12 +3,12 @@
 //! restoration settle. Signing in, having any project, or Continue locally
 //! completes it for good.
 use super::*;
-use crate::cloud_auth::Status;
+use crate::cloud::auth::Status;
 use gpui_kit::base::v_flex;
 
 impl Shell {
-    fn account_status(&self, cx: &App) -> Option<crate::cloud_auth::Snapshot> {
-        let service = cx.try_global::<crate::features::cloud_account::CloudAccountService>()?;
+    fn account_status(&self, cx: &App) -> Option<crate::cloud::auth::Snapshot> {
+        let service = cx.try_global::<crate::features::cloud::account::CloudAccountService>()?;
         service.0.read(cx).snapshot.clone()
     }
     /// `required`: available, settled, not completed, signed out, no project.
@@ -115,7 +115,7 @@ impl Shell {
                         .child(
                             action("first-run-sign-in", tr("cloud.auth.signIn"), true).on_click(
                                 cx.listener(|_, _, _, cx| {
-                                    crate::features::cloud_account::sign_in(cx)
+                                    crate::features::cloud::account::sign_in(cx)
                                 }),
                             ),
                         )

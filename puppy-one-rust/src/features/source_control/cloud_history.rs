@@ -16,7 +16,7 @@ use super::{
     view_action, view_header, view_title,
 };
 use crate::{
-    cloud_auth::{Broker, Cancellation, Error as AuthError, model::Binding},
+    cloud::auth::{Broker, Cancellation, Error as AuthError, model::Binding},
     localization::{self, t as tr, tf},
     platform::{
         git_diff::{FileDiff, Status},
@@ -177,7 +177,7 @@ struct Scope {
 }
 impl Scope {
     fn current(project: &str, cx: &App) -> Option<Self> {
-        let (broker, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
+        let (broker, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
         Some(Self {
             namespace: format!(
                 "{}\n{}\n{}\n",
@@ -1237,7 +1237,7 @@ mod tests {
             "created_at": "2026-10-28T10:00:00Z"})
     }
     /// A Cloud API that serves two pages and commit detail, counting reads.
-    fn responder(reads: Arc<std::sync::Mutex<Vec<String>>>) -> crate::cloud_auth::Responder {
+    fn responder(reads: Arc<std::sync::Mutex<Vec<String>>>) -> crate::cloud::auth::Responder {
         Arc::new(move |request| {
             let cursor = request
                 .query
@@ -1297,10 +1297,10 @@ mod tests {
         cx.executor().allow_parking();
         let reads = Arc::new(std::sync::Mutex::new(Vec::new()));
         let (broker, browser) =
-            crate::cloud_auth::responding_account_fixture(responder(reads.clone()));
-        cx.update(|cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+            crate::cloud::auth::responding_account_fixture(responder(reads.clone()));
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
         settle(cx, |cx| {
-            cx.update(|cx| crate::features::cloud_account::has_account(cx))
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
         });
         let view = cx.new(CloudHistory::new);
         view.update(cx, |h, cx| assert!(h.open("p1", cx)));
@@ -1368,10 +1368,10 @@ mod tests {
     fn the_list_and_detail_render_in_a_window(cx: &mut gpui::TestAppContext) {
         cx.executor().allow_parking();
         let reads = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder(reads));
-        cx.update(|cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder(reads));
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
         settle(cx, |cx| {
-            cx.update(|cx| crate::features::cloud_account::has_account(cx))
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
         });
         let (view, vcx) = cx.add_window_view(|_, cx| CloudHistory::new(cx));
         let draw = |vcx: &mut gpui::VisualTestContext| {

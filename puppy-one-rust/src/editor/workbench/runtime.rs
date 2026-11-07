@@ -248,8 +248,8 @@ impl Runtime {
     /// drafts; only a read root replaces what the window shows.
     pub fn open_cloud(
         &mut self,
-        broker: std::sync::Arc<crate::cloud_auth::Broker>,
-        binding: crate::cloud_auth::model::Binding,
+        broker: std::sync::Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
         project: String,
         wake: &Wake,
     ) {

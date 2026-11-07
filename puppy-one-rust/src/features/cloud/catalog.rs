@@ -9,7 +9,7 @@
 //! Homepage can appear whole at once. They prove nothing (every Cloud open is
 //! still authorized), are never used offline, and signing out removes them.
 use crate::{
-    cloud_auth::model::ApiRequest,
+    cloud::auth::model::ApiRequest,
     workspace::cloud::catalog::{ACTIVITY_CONCURRENCY, CloudEntry},
 };
 use gpui::*;
@@ -175,7 +175,7 @@ impl CloudCatalog {
     }
     /// The account scope of the cache (`[api, user]`, across sessions).
     fn scope(cx: &App) -> Option<String> {
-        let (_, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
+        let (_, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
         Some(serde_json::json!([binding.environment.api(), binding.user]).to_string())
     }
     /// `applyChange`: the change also reaches the cached list.
@@ -222,12 +222,12 @@ impl CloudCatalog {
     /// Loads for the current account once; `retry` forces a reload.
     pub fn ensure(&mut self, enabled: bool, retry: bool, cx: &mut Context<Self>) {
         let Some((broker, binding)) =
-            crate::features::cloud_account::broker_and_binding(cx).filter(|_| enabled)
+            crate::features::cloud::account::broker_and_binding(cx).filter(|_| enabled)
         else {
             // Signed out (not merely restoring): the names leave with it.
             if enabled
-                && crate::features::cloud_account::status(cx)
-                    == Some(crate::cloud_auth::Status::SignedOut)
+                && crate::features::cloud::account::status(cx)
+                    == Some(crate::cloud::auth::Status::SignedOut)
                 && let Some(dir) = &self.cache_dir
             {
                 cache::clear(dir);
@@ -252,8 +252,8 @@ impl CloudCatalog {
         // `beginLoading`: revalidating never empties the list, and an
         // account's cached list stands in for its first answer (never
         // offline, where the listing cannot answer).
-        let offline =
-            crate::features::cloud_account::status(cx) == Some(crate::cloud_auth::Status::Offline);
+        let offline = crate::features::cloud::account::status(cx)
+            == Some(crate::cloud::auth::Status::Offline);
         let scope = Self::scope(cx);
         let cached = (!own && !offline)
             .then(|| self.cache_dir.as_deref().zip(scope.as_deref()))
@@ -319,8 +319,8 @@ impl CloudCatalog {
     fn enrich(
         &mut self,
         projects: &[CloudEntry],
-        broker: std::sync::Arc<crate::cloud_auth::Broker>,
-        binding: crate::cloud_auth::model::Binding,
+        broker: std::sync::Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
         epoch: u64,
         cx: &mut Context<Self>,
     ) {

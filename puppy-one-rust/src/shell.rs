@@ -145,7 +145,7 @@ pub struct Shell {
     task_ui: TaskUi,
     /// Help → Feedback (`DesktopHelpLauncher`).
     feedback: Entity<crate::features::feedback::Feedback>,
-    cloud_services: Entity<crate::features::cloud_services::CloudServices>,
+    cloud_services: Entity<crate::features::cloud::services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     preference_slices: PreferenceSlices,
     pending: bool,
@@ -188,7 +188,7 @@ impl Shell {
                         && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
                         && (windows::count(cx) > 1
                             || !windows::last_close_quits(cx)
-                            || crate::features::cloud_account::close_ready(cx))
+                            || crate::features::cloud::account::close_ready(cx))
                 } else {
                     s.command(Command::Quit, window, cx);
                     false
@@ -197,7 +197,7 @@ impl Shell {
             .unwrap_or(true)
         });
         if let Some(account) = cx
-            .try_global::<crate::features::cloud_account::CloudAccountService>()
+            .try_global::<crate::features::cloud::account::CloudAccountService>()
             .map(|s| s.0.clone())
         {
             cx.observe(&account, |s, _, cx| {
@@ -240,10 +240,10 @@ impl Shell {
         let mut s = Self {
             window_key: crate::features::agent_presence::owner(window),
             cloud: window_cloud::WindowCloud::new(
-                crate::features::cloud_catalog::global(cx),
+                crate::features::cloud::catalog::global(cx),
                 Self::new_cloud_publish(cx),
                 Self::new_repository_cloud(cx),
-                cx.new(|_| crate::features::cloud_agents::CloudAgents::new()),
+                cx.new(|_| crate::features::cloud::agents::CloudAgents::new()),
             ),
             window: window_project::WindowProject {
                 name: if fixture {
@@ -294,7 +294,7 @@ impl Shell {
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             feedback: cx.new(|cx| crate::features::feedback::Feedback::new(window, cx)),
             cloud_services: cx
-                .new(|cx| crate::features::cloud_services::CloudServices::new(window, cx)),
+                .new(|cx| crate::features::cloud::services::CloudServices::new(window, cx)),
             preferences,
             preference_slices: Default::default(),
             pending: false,
@@ -639,7 +639,7 @@ impl Shell {
         .detach();
         cx.subscribe(
             &s.cloud_services,
-            |s, _, _: &crate::features::cloud_services::Close, cx| {
+            |s, _, _: &crate::features::cloud::services::Close, cx| {
                 s.modals.remove(|m| matches!(m, Modal::CloudServices));
                 cx.notify();
             },
@@ -647,7 +647,7 @@ impl Shell {
         .detach();
         cx.subscribe(
             &s.cloud_services,
-            |s, _, _: &crate::features::cloud_services::ResumePublication, cx| {
+            |s, _, _: &crate::features::cloud::services::ResumePublication, cx| {
                 s.resume_publication(cx)
             },
         )
@@ -829,7 +829,7 @@ impl Shell {
     fn apply_projections(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let p = self.preferences.read(cx).state.clone();
         // The built-in Agent offers PuppyOne compute only while Payments is on.
-        crate::cloud_auth::set_payments(p.experimental.payments);
+        crate::cloud::auth::set_payments(p.experimental.payments);
         crate::editor::markdown::core::commands::block_move::set_enabled(
             p.experimental.markdown_block_drag,
         );
@@ -1481,7 +1481,7 @@ impl Shell {
             // it; closing one of several windows (or, on macOS, the last
             // one) leaves it running.
             if windows::count(cx) <= 1 && windows::last_close_quits(cx) {
-                match crate::features::cloud_account::prepare_close(cx) {
+                match crate::features::cloud::account::prepare_close(cx) {
                     Ok(true) => {}
                     Ok(false) => return,
                     Err(error) => {
@@ -1665,7 +1665,7 @@ impl Shell {
         });
         match project {
             Some(project) => {
-                use crate::features::cloud_services::Section;
+                use crate::features::cloud::services::Section;
                 let share = crate::features::flags::share_enabled(&self.preferences, cx);
                 self.cloud_services.update(cx, |s, cx| {
                     s.share = share;
@@ -1735,7 +1735,7 @@ impl Shell {
     /// `cloudWorkspaceShareResource`: the selected folder, else the active
     /// document, else the authorized root.
     fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
-        let link = crate::features::cloud_account::broker_and_binding(cx)
+        let link = crate::features::cloud::account::broker_and_binding(cx)
             .zip(self.window.cloud.clone())
             .ok_or("Cloud link unavailable")
             .and_then(|((_, binding), project)| {
@@ -1767,7 +1767,8 @@ impl Shell {
         }
         self.window.cloud = Some(project.clone());
         self.window.authority = account;
-        let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
+        let Some((broker, binding)) = crate::features::cloud::account::broker_and_binding(cx)
+        else {
             self.show_error(crate::localization::t(
                 "cloud.message.project-sign-in-required",
             ));

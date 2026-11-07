@@ -6,7 +6,7 @@
 //! a dependency hint; project authorization and runtime availability are
 //! independent facts. Only allowlisted reason codes and numeric statuses
 //! survive as diagnostics; server prose never becomes copy.
-use crate::cloud_auth::Error as AuthError;
+use crate::cloud::auth::Error as AuthError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {

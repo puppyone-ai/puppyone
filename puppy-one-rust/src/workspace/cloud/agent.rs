@@ -3,7 +3,7 @@
 //! workbench (`agent-client.md`). Every answer must belong to that Project;
 //! receipts must echo their request. Event reads are bounded batches —
 //! closing a read cancels only the subscription, never the server-owned run.
-use crate::cloud_auth::{
+use crate::cloud::auth::{
     self as auth, Broker, Cancellation, StreamEvent,
     model::{ApiRequest, Binding},
 };

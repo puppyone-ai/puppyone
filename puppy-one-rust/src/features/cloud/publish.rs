@@ -3,7 +3,7 @@
 //! a worker (Git, keychain and Cloud are blocking); its stages and outcome
 //! come back here. The run outlives its dialog: the Header states it and
 //! reopens the same view.
-use crate::cloud_publication::{
+use crate::cloud::publication::{
     Action, Coordinator, Outcome, Request, Stage,
     api::{self, CloudOps, Organization},
     git, vault,
@@ -58,7 +58,7 @@ fn publication_of(busy: bool, stopped: Option<&str>, project: &str) -> Publicati
 
 /// Builds the coordinator for an account (tests replace it).
 pub type Factory = Arc<
-    dyn Fn(Arc<crate::cloud_auth::Broker>, crate::cloud_auth::model::Binding) -> Coordinator
+    dyn Fn(Arc<crate::cloud::auth::Broker>, crate::cloud::auth::model::Binding) -> Coordinator
         + Send
         + Sync,
 >;
@@ -69,7 +69,7 @@ pub fn install_factory(factory: Factory, cx: &mut App) {
     cx.set_global(FactoryOverride(factory));
 }
 fn coordinator(cx: &App) -> Option<Coordinator> {
-    let (broker, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
+    let (broker, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
     if let Some(factory) = cx.try_global::<FactoryOverride>() {
         return Some((factory.0)(broker, binding));
     }
@@ -121,7 +121,7 @@ impl CloudPublish {
     /// The checkout this window shows under the current account; a change
     /// reads the saved operation again.
     pub fn sync(&mut self, root: Option<&Path>, enabled: bool, cx: &mut Context<Self>) {
-        let account = crate::features::cloud_account::broker_and_binding(cx)
+        let account = crate::features::cloud::account::broker_and_binding(cx)
             .map(|(_, b)| format!("{}\n{}", b.user, b.environment.api()));
         let key = root
             .filter(|_| enabled)
@@ -145,7 +145,7 @@ impl CloudPublish {
         cx.notify();
     }
     fn request(&self, action: Action, cx: &App) -> Option<Request> {
-        let (_, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
+        let (_, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
         let root = self.root.clone()?;
         let pending = self.outcome.as_ref().and_then(|o| o.record.as_ref());
         let branch = pending
@@ -212,7 +212,8 @@ impl CloudPublish {
         ) {
             return;
         }
-        let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
+        let Some((broker, binding)) = crate::features::cloud::account::broker_and_binding(cx)
+        else {
             return;
         };
         let epoch = self.epoch;

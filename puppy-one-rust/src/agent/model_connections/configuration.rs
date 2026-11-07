@@ -78,7 +78,7 @@ pub fn managed() -> Vec<ModelConnection> {
     /// Account key, read time, catalog models and whether credit remains.
     type Directory = (String, Instant, Vec<(String, String)>, bool);
     static CACHE: Mutex<Option<Directory>> = Mutex::new(None);
-    let Some((broker, binding)) = crate::cloud_auth::current() else {
+    let Some((broker, binding)) = crate::cloud::auth::current() else {
         return vec![];
     };
     let key = format!(
@@ -99,7 +99,7 @@ pub fn managed() -> Vec<ModelConnection> {
                 broker
                     .request(
                         &binding,
-                        &crate::cloud_auth::model::ApiRequest {
+                        &crate::cloud::auth::model::ApiRequest {
                             idempotency_key: None,
                             method: reqwest::Method::GET,
                             path: path.into(),

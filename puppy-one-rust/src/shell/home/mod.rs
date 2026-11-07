@@ -290,7 +290,7 @@ impl Shell {
         if !self.home_visible() || self.restoring() {
             return false;
         }
-        let account = crate::features::cloud_account::broker_and_binding(cx)
+        let account = crate::features::cloud::account::broker_and_binding(cx)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx))
             .map(|(_, b)| format!("{}\n{}", b.environment.api(), b.user));
         if self.homepage.released_for.as_ref() == Some(&account) {
@@ -301,10 +301,13 @@ impl Shell {
         // the list (a cached stand-in is not the account's own answer).
         let catalog = self.cloud.catalog.read(cx);
         let catalog_settled = account.is_none()
-            || matches!(catalog.state, crate::features::cloud_catalog::State::Failed)
+            || matches!(
+                catalog.state,
+                crate::features::cloud::catalog::State::Failed
+            )
             || (matches!(
                 catalog.state,
-                crate::features::cloud_catalog::State::Ready(_)
+                crate::features::cloud::catalog::State::Ready(_)
             ) && catalog.fresh);
         let settled = !self.homepage.reading && self.homepage.read_for.is_some() && catalog_settled;
         if settled || since.elapsed() >= FIRST_PAINT_BUDGET {
@@ -322,8 +325,8 @@ impl Shell {
     /// current account's catalog, and a folder links to one only through
     /// its freshly read, trusted Project-root locator.
     pub(super) fn project_items(&self, cx: &App) -> Vec<Item> {
-        use crate::features::cloud_catalog::State;
-        let account = crate::features::cloud_account::broker_and_binding(cx)
+        use crate::features::cloud::catalog::State;
+        let account = crate::features::cloud::account::broker_and_binding(cx)
             .map(|(_, binding)| binding)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx));
         let catalog = self.cloud.catalog.read(cx);
@@ -666,12 +669,12 @@ impl Shell {
     /// a failure (with what helps) or an empty catalog lead it; then the
     /// account's initial, or Sign in.
     pub(super) fn homepage_account(&self, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::cloud_account::Status;
-        use crate::features::cloud_catalog::State;
+        use crate::features::cloud::account::Status;
+        use crate::features::cloud::catalog::State;
         let t = cx.palette();
         let ty = theme::ty().header;
         let account = cx
-            .try_global::<crate::features::cloud_account::CloudAccountService>()
+            .try_global::<crate::features::cloud::account::CloudAccountService>()
             .map(|s| s.0.read(cx).snapshot.clone())
             .unwrap_or_default();
         let status = account.as_ref().map(|a| a.status);
@@ -714,7 +717,7 @@ impl Shell {
                             .label(tr("cloud.common.retry"))
                             .on_click(cx.listener(move |s, _, _, cx| {
                                 if sign_in {
-                                    crate::features::cloud_account::sign_in(cx);
+                                    crate::features::cloud::account::sign_in(cx);
                                 } else {
                                     s.refresh_cloud_catalog(true, cx);
                                 }
@@ -795,7 +798,7 @@ impl Shell {
                 .pr(px(8.))
                 .text_size(px(ty.content))
                 .line_height(px(ty.line_height))
-                .on_click(cx.listener(|_, _, _, cx| crate::features::cloud_account::sign_in(cx)))
+                .on_click(cx.listener(|_, _, _, cx| crate::features::cloud::account::sign_in(cx)))
                 .into_any_element(),
         });
         h_flex()

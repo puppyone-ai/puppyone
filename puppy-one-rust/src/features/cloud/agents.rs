@@ -4,7 +4,7 @@
 //! owner may read the list, so a 403 ends the asking for good; a bad network
 //! keeps what is known instead of emptying the Header.
 use crate::{
-    features::{cloud_account, source_control::relative_time},
+    features::{cloud::account, source_control::relative_time},
     localization::{t as tr, tf},
     workspace::cloud::{
         agents::{self, Admission, AgentRequest, Client, Inventory, WorkspaceAgent},
@@ -148,7 +148,7 @@ impl CloudAgents {
         cx: &mut Context<Self>,
     ) {
         let target = project.and_then(|(project, name)| {
-            let (broker, binding) = cloud_account::broker_and_binding(cx)?;
+            let (broker, binding) = account::broker_and_binding(cx)?;
             let key = format!(
                 "{}\n{}\n{}\n{project}",
                 binding.environment.api(),
@@ -550,7 +550,7 @@ impl CloudAgents {
 /// Captures: a project with Agents at work, at rest and asking to join.
 #[cfg(feature = "dev-capture")]
 pub fn lab_client(open_links: bool) -> Client {
-    use crate::{cloud_auth::model::ApiRequest, workspace::cloud::services::Transport};
+    use crate::{cloud::auth::model::ApiRequest, workspace::cloud::services::Transport};
     use serde_json::{Value, json};
     struct Lab(bool);
     impl Transport for Lab {
@@ -598,7 +598,7 @@ impl Default for CloudAgents {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cloud_auth::model::ApiRequest;
+    use crate::cloud::auth::model::ApiRequest;
     use crate::workspace::cloud::services::Transport;
     use core::prelude::v1::test;
     use gpui::TestAppContext;

@@ -340,7 +340,7 @@ impl Shell {
                 self.focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
-                let Some(client) = crate::features::cloud_services::services_client(cx) else {
+                let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
                 if let Some(Modal::RenameProject(rename)) = self.modals.top_mut() {
@@ -543,7 +543,7 @@ impl Shell {
                 self.focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
-                let Some(client) = crate::features::cloud_services::services_client(cx) else {
+                let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
                 if let Some(Modal::ConfirmProject(confirm)) = self.modals.top_mut() {

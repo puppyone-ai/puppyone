@@ -12,7 +12,7 @@ use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 impl SettingsWorkspaceSurface {
     pub(super) fn account(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::cloud_account::Status;
+        use crate::features::cloud::account::Status;
         let model = self.cloud.as_ref().map(|c| c.read(cx));
         let snapshot = model.and_then(|m| m.snapshot.clone());
         let unavailable = model.and_then(|m| m.unavailable);
@@ -191,7 +191,7 @@ impl SettingsWorkspaceSurface {
     /// `AccountAICredits`: the available balance; without Cloud (no Plan
     /// page) Account also sells the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::managed_compute::{Reason, global, money};
+        use crate::features::cloud::managed_compute::{Reason, global, money};
         let compute = global(cx);
         let state = compute.read(cx);
         let reason = state.reason(true);

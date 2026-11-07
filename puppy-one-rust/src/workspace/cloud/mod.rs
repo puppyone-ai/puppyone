@@ -24,7 +24,7 @@ pub mod share;
 mod tests;
 use super::{Workspace, contracts::*, ports::*};
 use crate::{
-    cloud_auth::{
+    cloud::auth::{
         Broker, Cancellation,
         model::{ApiRequest, Binding},
     },
@@ -101,7 +101,7 @@ pub fn prepare_running(
 /// Why an exact target was refused, before it becomes a provider error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Refusal {
-    Auth(crate::cloud_auth::Error),
+    Auth(crate::cloud::auth::Error),
     /// A malformed context, or one for another Project or Scope.
     Invalid,
     /// The account may not read the Project's content.

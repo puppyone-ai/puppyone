@@ -5,7 +5,7 @@ use super::{
     model,
 };
 use crate::{
-    cloud_auth::{self as auth, Cancellation, StreamEvent},
+    cloud::auth::{self as auth, Cancellation, StreamEvent},
     workspace::{contracts::*, ports::*},
 };
 use reqwest::Method;

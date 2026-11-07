@@ -903,7 +903,7 @@ fn managed_inference_reads_the_wallet_first() {
         &binding(&broker),
         &serde_json::json!({"model": "m", "messages": []}),
         "11111111-1111-4111-8111-111111111111",
-        &crate::cloud_auth::Cancellation::default(),
+        &crate::cloud::auth::Cancellation::default(),
         &mut |_| Ok(()),
     );
     assert_eq!(result.err(), Some(Error::Http(402)));

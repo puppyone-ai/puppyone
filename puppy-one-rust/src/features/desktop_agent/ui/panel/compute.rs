@@ -50,7 +50,7 @@ pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
     use crate::agent::model_connections::configuration;
     let mut connections = configuration::load().unwrap_or_default();
     let managed = configuration::managed();
-    let signed_in = crate::cloud_auth::current().is_some();
+    let signed_in = crate::cloud::auth::current().is_some();
     let available = !managed.is_empty();
     connections.extend(managed);
     let catalog = connection_catalog(&connections);

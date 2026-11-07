@@ -23,7 +23,7 @@
 //! (generation replaced), `non_sse_responses_fail_closed_and_transport_reconnects_are_bounded`
 //! and `streaming_auth_refresh_and_planned_renewal_do_not_exhaust_reconnect_budget` (SSE drops).
 use super::*;
-use crate::cloud_auth::{self as auth, Environment};
+use crate::cloud::auth::{self as auth, Environment};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::Value;
 use std::{

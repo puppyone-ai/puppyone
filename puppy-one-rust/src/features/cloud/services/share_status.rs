@@ -168,7 +168,7 @@ impl CloudServices {
             .into_iter()
             .filter(|s| s.active())
             .collect();
-        let url = cloud_account::environment(cx)
+        let url = super::super::account::environment(cx)
             .map(|e| services::mcp_server_url(e.api()))
             .unwrap_or_default();
         let now = chrono::Utc::now().timestamp();

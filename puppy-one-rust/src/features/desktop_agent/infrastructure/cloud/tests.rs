@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    cloud_auth::model::ApiRequest,
+    cloud::auth::model::ApiRequest,
     workspace::cloud::agent::{Error, Event, Transport},
 };
 use core::prelude::v1::test;

@@ -6,8 +6,7 @@ mod assets;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
 mod capture;
-mod cloud_auth;
-mod cloud_publication;
+mod cloud;
 mod documents;
 mod editor;
 mod features;
@@ -163,7 +162,7 @@ fn main() {
         if background {
             capture::run_in_background();
         }
-        features::cloud_account::install(!background, cx);
+        features::cloud::account::install(!background, cx);
         // Captures paint a development build's analytics state without files.
         #[cfg(feature = "dev-capture")]
         if background {

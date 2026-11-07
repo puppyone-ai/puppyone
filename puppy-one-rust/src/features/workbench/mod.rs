@@ -1456,7 +1456,7 @@ mod tests {
     #[gpui::test]
     fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppContext) {
         use crate::{
-            cloud_auth::{Cancellation, model::ApiRequest},
+            cloud::auth::{Cancellation, model::ApiRequest},
             features::desktop_agent::infrastructure::cloud::Hub,
             workspace::cloud::agent::{Client, Error, Event, Transport},
         };

@@ -6,7 +6,7 @@
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
-    features::cloud_services::billing_client,
+    features::cloud::services::billing_client,
     localization::{t as tr, tf},
     theme::Theme,
     ui::components::{Button, ButtonVariant, SettingsSection, SettingsSubsection, ValueRow},

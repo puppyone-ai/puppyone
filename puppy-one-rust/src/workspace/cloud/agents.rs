@@ -4,7 +4,7 @@
 //! copied, so looking mints nothing; only the owner may read or change any
 //! of it.
 use super::services::{Error, Result, Transport, decode, segment};
-use crate::cloud_auth::model::ApiRequest;
+use crate::cloud::auth::model::ApiRequest;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use reqwest::Method;
 use serde::Deserialize;

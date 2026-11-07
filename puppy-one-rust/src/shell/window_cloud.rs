@@ -6,8 +6,8 @@
 //! window's project record ([`super::window_project`]).
 use super::{cloud_agents_ui::AgentsAnchor, share_panel::SharePanel};
 use crate::features::{
-    cloud_agents::CloudAgents, cloud_catalog::CloudCatalog, cloud_publish::CloudPublish,
-    repository_cloud::RepositoryCloud,
+    cloud::agents::CloudAgents, cloud::catalog::CloudCatalog, cloud::publish::CloudPublish,
+    cloud::repository::RepositoryCloud,
 };
 use gpui::Entity;
 

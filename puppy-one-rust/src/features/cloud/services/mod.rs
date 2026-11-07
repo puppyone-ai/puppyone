@@ -6,7 +6,7 @@
 //! a newer one replaced is dropped. A one-time credential lives in this view
 //! only, until it closes.
 use crate::{
-    features::{cloud_account, cloud_publish::Publication},
+    features::{cloud::account, cloud::publish::Publication},
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::{
@@ -177,7 +177,7 @@ impl EventEmitter<ResumePublication> for CloudServices {}
 
 /// The signed-in account's Project requests (Homepage rename and delete).
 pub fn services_client(cx: &App) -> Option<Client> {
-    let (broker, binding) = cloud_account::broker_and_binding(cx)?;
+    let (broker, binding) = account::broker_and_binding(cx)?;
     Some(Client::new(Arc::new(services::BrokerTransport {
         broker,
         binding,
@@ -187,7 +187,7 @@ pub fn services_client(cx: &App) -> Option<Client> {
 
 /// The signed-in account's billing requests (Settings → Plan).
 pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Client> {
-    let (broker, binding) = cloud_account::broker_and_binding(cx)?;
+    let (broker, binding) = account::broker_and_binding(cx)?;
     Some(crate::workspace::cloud::billing::Client::new(Arc::new(
         services::BrokerTransport {
             broker,
@@ -394,7 +394,7 @@ impl CloudServices {
     }
     /// Opens on `section` of `project` for the signed-in account.
     pub fn open(&mut self, project: String, section: Section, cx: &mut Context<Self>) {
-        let Some((broker, binding)) = cloud_account::broker_and_binding(cx) else {
+        let Some((broker, binding)) = account::broker_and_binding(cx) else {
             return;
         };
         let client = Client::new(Arc::new(services::BrokerTransport {
@@ -1871,7 +1871,7 @@ impl CloudServices {
         let id = self.project.clone().unwrap_or_default();
         let manage = self.can_manage();
         let task = !matches!(self.section, Section::Mcp | Section::Cli);
-        let server = cloud_account::environment(cx)
+        let server = account::environment(cx)
             .map(|e| services::mcp_server_url(e.api()))
             .unwrap_or_default();
         let mut page = v_flex()
@@ -2646,7 +2646,7 @@ impl CloudServices {
                     ));
                 }
                 let landed = connected || flow.target.channel == share::Channel::Link;
-                let environment = cloud_account::environment(cx);
+                let environment = account::environment(cx);
                 if flow.target.channel == share::Channel::Mcp {
                     let server = environment
                         .as_ref()
@@ -3201,7 +3201,7 @@ impl CloudServices {
     fn team(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let ty = theme::ty().ui;
         let team = self.team.clone();
-        let web = cloud_account::environment(cx).map(|e| e.web().to_owned());
+        let web = account::environment(cx).map(|e| e.web().to_owned());
         let mut page = v_flex().gap(px(12.)).child(self.heading(t));
         page = page.children(self.organization_chooser(cx));
         let invite = Button::new("cloud-invite")
@@ -3341,7 +3341,7 @@ struct LabCloud {
 impl services::Transport for LabCloud {
     fn request(
         &self,
-        request: crate::cloud_auth::model::ApiRequest,
+        request: crate::cloud::auth::model::ApiRequest,
     ) -> services::Result<serde_json::Value> {
         let surface = |id: &str, kind: &str, status: &str| {
             json!({"id": id, "project_id": "lab", "kind": kind, "status": status, "name": "Claude",

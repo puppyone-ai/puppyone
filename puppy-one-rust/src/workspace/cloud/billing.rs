@@ -4,7 +4,7 @@
 //! for the server's state. A mutation's idempotency key is stable across
 //! retries of one intent and never crosses an account or Organization.
 use super::services::{Error, Result, Transport};
-use crate::cloud_auth::model::ApiRequest;
+use crate::cloud::auth::model::ApiRequest;
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{Value, json};

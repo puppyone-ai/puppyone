@@ -650,9 +650,9 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
 fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // The place menu shows only with an account service and Cloud on.
-    let (broker, browser) = crate::cloud_auth::account_fixture();
+    let (broker, browser) = crate::cloud::auth::account_fixture();
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
@@ -1646,14 +1646,14 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
 fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let (broker, browser) =
-        crate::cloud_auth::responding_account_fixture(with_catalog(cloud_project_responder()));
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        crate::cloud::auth::responding_account_fixture(with_catalog(cloud_project_responder()));
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the hosted Project", &|s, _| {
@@ -1696,14 +1696,14 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
         }
         base(request)
     }));
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the Agents", &|s, cx| {
@@ -1730,7 +1730,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
         assert_eq!(s.popover, Some(Popover::Agents));
         assert_eq!(
             s.cloud.agents.read(cx).opener,
-            crate::features::cloud_agents::Opener::Invite
+            crate::features::cloud::agents::Opener::Invite
         );
     });
     cx.simulate_click(seat.center(), Modifiers::none());
@@ -1789,7 +1789,7 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
 }
 
 /// A Cloud API for one hosted Project root with a single file.
-fn cloud_project_responder() -> crate::cloud_auth::Responder {
+fn cloud_project_responder() -> crate::cloud::auth::Responder {
     std::sync::Arc::new(|request| {
         let project = "project-a";
         let path = request.path.as_str();
@@ -1862,9 +1862,9 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("a.md"), "# A\n").unwrap();
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::account_fixture();
+    let (broker, browser) = crate::cloud::auth::account_fixture();
     cx.update(|_, cx| {
-        let account = crate::features::cloud_account::install_fixture(broker, browser, cx);
+        let account = crate::features::cloud::account::install_fixture(broker, browser, cx);
         account.update(cx, |a, _| a.sign_out());
     });
     view.update(cx, |s, cx| {
@@ -1872,7 +1872,7 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
-    while cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+    while cx.update(|_, cx| crate::features::cloud::account::has_account(cx)) {
         cx.run_until_parked();
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -1926,7 +1926,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         "http://127.0.0.1:18080/git/project-a.git",
     ]);
     let project = cloud_project_responder();
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         if request.path.ends_with("/projects/") {
             return Ok(serde_json::json!({"code": 0, "data": [
                 {"id": "project-a", "name": "Fixture Cloud", "updated_at": "2026-01-01T00:00:00Z",
@@ -1940,9 +1940,9 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         project(request)
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences.update(cx, |p, _| {
@@ -2007,9 +2007,9 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
 fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let (broker, browser) =
-        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
     let account =
-        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
@@ -2036,7 +2036,7 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
         }
     };
     settle(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle(&view, cx, "the hosted Project", &|s, _| {
@@ -2058,22 +2058,22 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
 fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // A responder that never answers the root read keeps the opening going.
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(|request| {
         if request.path.ends_with("/workbench/files") {
             std::thread::sleep(std::time::Duration::from_millis(400));
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
-    while !cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+    while !cx.update(|_, cx| crate::features::cloud::account::has_account(cx)) {
         cx.run_until_parked();
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -2101,23 +2101,23 @@ fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let roots = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counted = roots.clone();
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         if request.path.ends_with("/repository-context") {
             counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             std::thread::sleep(std::time::Duration::from_millis(150));
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
-    while !cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+    while !cx.update(|_, cx| crate::features::cloud::account::has_account(cx)) {
         cx.run_until_parked();
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -2145,9 +2145,9 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
     let (view, cx) = setup(cx);
     // The fixture transport has no event stream: the subscription fails.
     let (broker, browser) =
-        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
@@ -2175,7 +2175,7 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         }
     };
     settle(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle(&view, cx, "the hosted Project", &|s, _| {
@@ -2211,17 +2211,17 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
     let (view, cx) = setup(cx);
     let attempts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counted = attempts.clone();
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         if request.path.ends_with("/repository-context")
             && counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0
         {
-            return Err(crate::cloud_auth::Error::Response(503, None));
+            return Err(crate::cloud::auth::Error::Response(503, None));
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
@@ -2249,7 +2249,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         }
     };
     settle(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle(&view, cx, "the recovery", &|s, _| {
@@ -2352,7 +2352,7 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
     // The server's one Project: its name, or gone.
     let server = std::sync::Arc::new(std::sync::Mutex::new(Some(String::from("Fixture Cloud"))));
     let seen = requests.clone();
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         seen.lock()
             .unwrap()
             .push(format!("{} {}", request.method, request.path));
@@ -2381,8 +2381,8 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
         })
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
@@ -2441,7 +2441,7 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut TestAppContext) {
     use super::project_place::Action;
-    use crate::cloud_publication::tests::{Fake, coordinator};
+    use crate::cloud::publication::tests::{Fake, coordinator};
     let (temp, fake) = Fake::new();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("a.md"), "# A\n").unwrap();
@@ -2451,17 +2451,17 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
         .status()
         .unwrap();
     let (view, cx) = setup(cx);
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(|request| {
         if request.path.ends_with("/organizations/") {
             return Ok(serde_json::json!({"code": 0, "data": [{"id": "org-1", "name": "Mine"}]}));
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
         let fake = fake.clone();
-        crate::features::cloud_publish::install_factory(
+        crate::features::cloud::publish::install_factory(
             std::sync::Arc::new(move |_, _| coordinator(&fake).0),
             cx,
         );
@@ -2471,7 +2471,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
         s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
@@ -2494,7 +2494,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     // background while the Header states the run.
     view.update(cx, |s, cx| {
         s.cloud.publish.update(cx, |p, cx| {
-            p.start(crate::cloud_publication::Action::Initialize, cx)
+            p.start(crate::cloud::publication::Action::Initialize, cx)
         })
     });
     settle_cloud(&view, cx, "the publication", &|s, cx| {
@@ -2507,13 +2507,13 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     view.read_with(cx, |s, cx| {
         assert_eq!(
             s.cloud.publish.read(cx).header_status(),
-            Some(crate::features::cloud_publish::HeaderStatus::Completed)
+            Some(crate::features::cloud::publish::HeaderStatus::Completed)
         );
         // The folder stays open: its Cloud project is another project.
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
         assert!(s.hosted_project().is_none());
         assert!(
-            crate::cloud_publication::journal::Journal::in_git_dir(&fake.git_dir)
+            crate::cloud::publication::journal::Journal::in_git_dir(&fake.git_dir)
                 .read()
                 .unwrap()
                 .is_none()
@@ -2541,17 +2541,17 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
     git(&["remote", "add", "puppyone", url]);
     let authorizations = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counted = authorizations.clone();
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         if request.path.ends_with("/repository-context") {
             counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            return Err(crate::cloud_auth::Error::Http(404));
+            return Err(crate::cloud::auth::Error::Http(404));
         }
         cloud_project_responder()(request)
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     view.update(cx, |s, cx| {
         s.preferences
@@ -2579,7 +2579,7 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
         }
     };
     settle(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
         s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
@@ -2623,9 +2623,9 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
 #[gpui::test]
 fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::account_fixture();
+    let (broker, browser) = crate::cloud::auth::account_fixture();
     let account = cx.update(|_, cx| {
-        let account = crate::features::cloud_account::install_fixture(broker, browser, cx);
+        let account = crate::features::cloud::account::install_fixture(broker, browser, cx);
         account.update(cx, |a, _| a.sign_out());
         account
     });
@@ -2636,7 +2636,7 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
         })
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
-    while cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+    while cx.update(|_, cx| crate::features::cloud::account::has_account(cx)) {
         cx.run_until_parked();
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -3109,7 +3109,7 @@ struct Linked {
 /// Cloud on; `responder` answers the Cloud API.
 fn linked_checkout(
     cx: &mut TestAppContext,
-    responder: crate::cloud_auth::Responder,
+    responder: crate::cloud::auth::Responder,
 ) -> (Entity<Shell>, &mut VisualTestContext, Linked) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
@@ -3135,15 +3135,15 @@ fn linked_checkout(
         );
     }
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     let kept = broker.clone();
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
         s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
@@ -3151,7 +3151,7 @@ fn linked_checkout(
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
-    let relogin = Box::new(move || crate::cloud_auth::relogin(&kept, "alice"));
+    let relogin = Box::new(move || crate::cloud::auth::relogin(&kept, "alice"));
     (
         view,
         cx,
@@ -3186,7 +3186,7 @@ fn settle_cloud(
     }
 }
 /// `GET /projects/` with `project-a`, else `fallback`.
-fn with_catalog(fallback: crate::cloud_auth::Responder) -> crate::cloud_auth::Responder {
+fn with_catalog(fallback: crate::cloud::auth::Responder) -> crate::cloud::auth::Responder {
     std::sync::Arc::new(move |request| {
         if request.path.contains("/projects/") && !request.path.contains("/projects/project-a") {
             return Ok(serde_json::json!({"code": 0, "data": [
@@ -3201,7 +3201,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
     let base = cloud_project_responder();
     let responder = with_catalog(std::sync::Arc::new(move |request| {
         if request.path.ends_with("/repository-context") {
-            return Err(crate::cloud_auth::Error::Http(403));
+            return Err(crate::cloud::auth::Error::Http(403));
         }
         base(request)
     }));
@@ -3221,7 +3221,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
         assert_eq!(
             s.cloud.catalog.read(cx).state,
-            crate::features::cloud_catalog::State::Ready(vec![
+            crate::features::cloud::catalog::State::Ready(vec![
                 crate::workspace::cloud::catalog::CloudEntry {
                     id: "project-a".into(),
                     name: "Fixture Cloud".into(),
@@ -3241,7 +3241,7 @@ fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestA
     let base = cloud_project_responder();
     let responder = with_catalog(std::sync::Arc::new(move |request| {
         if request.path.ends_with("/workbench/files") {
-            return Err(crate::cloud_auth::Error::Http(503));
+            return Err(crate::cloud::auth::Error::Http(503));
         }
         base(request)
     }));
@@ -3280,14 +3280,14 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
         let failing = failing.clone();
         std::sync::Arc::new(move |request| {
             if failing.load(Ordering::SeqCst) && request.path.ends_with("/workbench/files") {
-                return Err(crate::cloud_auth::Error::Http(503));
+                return Err(crate::cloud::auth::Error::Http(503));
             }
             base(request)
         })
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
@@ -3295,7 +3295,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         matches!(
             s.cloud.catalog.read(cx).state,
-            crate::features::cloud_catalog::State::Ready(_)
+            crate::features::cloud::catalog::State::Ready(_)
         )
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
@@ -3309,7 +3309,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     settle_cloud(&view, cx, "the reloaded catalog", &|s, cx| {
         matches!(
             s.cloud.catalog.read(cx).state,
-            crate::features::cloud_catalog::State::Ready(_)
+            crate::features::cloud::catalog::State::Ready(_)
         )
     });
     view.update(cx, |s, _| {
@@ -3345,18 +3345,18 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
-    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "the sign-in gate", &|s, cx| {
-        let signed_in = crate::features::cloud_account::has_account(cx);
+        let signed_in = crate::features::cloud::account::has_account(cx);
         !signed_in
             && s.cloud.repository.read(cx).context.cloud_state(signed_in) == CloudState::SignedOut
     });
     relogin();
     settle_cloud(&view, cx, "signing in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     settle_cloud(&view, cx, "the same Project", &|s, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
             && s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
@@ -3423,7 +3423,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
 /// with the product's code and action; the failure never navigates.
 #[gpui::test]
 fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut TestAppContext) {
-    use crate::cloud_auth::{Error, ServiceCode};
+    use crate::cloud::auth::{Error, ServiceCode};
     use crate::workspace::cloud::opening::Recovery;
     let cases: Vec<(&str, Error, &str, Recovery)> = vec![
         (
@@ -3527,16 +3527,16 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
     for (suffix, error, _, _) in &cases {
         let base = cloud_project_responder();
         let (suffix, error) = (*suffix, *error);
-        let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
             if request.path.ends_with(suffix) {
                 return Err(error);
             }
             base(request)
         });
-        let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
         settle_cloud(&view, cx, "sign-in", &|_, cx| {
-            crate::features::cloud_account::has_account(cx)
+            crate::features::cloud::account::has_account(cx)
         });
         view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
         settle_cloud(&view, cx, "the recovery", &|s, _| {
@@ -3577,7 +3577,7 @@ fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
     command(&view, cx, Command::CloudServices);
-    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "the closed dialog", &|s, _| {
         !s.modals.iter().any(|m| matches!(m, Modal::CloudServices))
     });
@@ -3652,12 +3652,12 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
 /// only once the journal is gone.
 #[gpui::test]
 fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAppContext) {
-    use crate::cloud_publication::{
+    use crate::cloud::publication::{
         Action, Code, Coordinator,
         journal::Journal,
         tests::{Fake, coordinator},
     };
-    use crate::features::cloud_publish::Publication;
+    use crate::features::cloud::publish::Publication;
     use std::sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
@@ -3666,7 +3666,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
     fake.fail_next_push(Code::PushFailed);
     let issued = Arc::new(AtomicUsize::new(0));
     let finished_first = Arc::new(AtomicBool::new(false));
-    let responder: crate::cloud_auth::Responder = {
+    let responder: crate::cloud::auth::Responder = {
         let (issued, finished_first) = (issued.clone(), finished_first.clone());
         let git_dir = fake.git_dir.clone();
         let base = cloud_project_responder();
@@ -3689,7 +3689,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
     // One vault across both runs, as the Keychain is.
     let vault = coordinator(&fake).1;
     cx.update(|_, cx| {
-        crate::features::cloud_publish::install_factory(
+        crate::features::cloud::publish::install_factory(
             Arc::new(move |_, _| Coordinator {
                 git: fake.clone(),
                 cloud: fake.clone(),
@@ -3741,14 +3741,14 @@ fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
     );
     let (view, cx) = setup(cx);
     let (broker, browser) =
-        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
         s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
@@ -3805,7 +3805,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
 fn the_plan_page_never_shows_another_organizations_usage(cx: &mut TestAppContext) {
     use crate::features::settings::Page;
     for (owner, shown) in [("org-1", true), ("org-2", false)] {
-        let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
             Ok(match request.path.as_str() {
                 "/organizations/" => serde_json::json!([{"id": "org-1", "name": "One"}]),
                 "/billing/organizations/org-1/summary" => serde_json::json!({"org_id": "org-1",
@@ -3817,10 +3817,10 @@ fn the_plan_page_never_shows_another_organizations_usage(cx: &mut TestAppContext
             })
         });
         let (view, cx) = setup(cx);
-        let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
         settle_cloud(&view, cx, "sign-in", &|_, cx| {
-            crate::features::cloud_account::has_account(cx)
+            crate::features::cloud::account::has_account(cx)
         });
         let settings = view.read_with(cx, |s, _| s.task_ui.settings.clone());
         settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
@@ -3852,13 +3852,13 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
         Arc::new(AtomicUsize::new(0)),
         Arc::new(AtomicBool::new(false)),
     );
-    let responder: crate::cloud_auth::Responder = {
+    let responder: crate::cloud::auth::Responder = {
         let (reads, down) = (reads.clone(), down.clone());
         Arc::new(move |request| {
             if request.path.starts_with("/billing") || request.path == "/organizations/" {
                 reads.fetch_add(1, Ordering::SeqCst);
                 if down.load(Ordering::SeqCst) {
-                    return Err(crate::cloud_auth::Error::Response(503, None));
+                    return Err(crate::cloud::auth::Error::Response(503, None));
                 }
             }
             Ok(match request.path.as_str() {
@@ -3877,10 +3877,10 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
         })
     };
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     let settings = view.read_with(cx, |s, _| s.task_ui.settings.clone());
     view.update(cx, |s, cx| {
@@ -3956,15 +3956,15 @@ fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppConte
 /// stand in), and Escape abandons it for the Homepage again.
 #[gpui::test]
 fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppContext) {
-    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(|request| {
         if request.path.ends_with("/workbench/files") {
             std::thread::sleep(std::time::Duration::from_millis(600));
         }
         cloud_project_responder()(request)
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(with_catalog(responder));
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.window.fixture = false;
         s.preferences
@@ -4115,7 +4115,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
 /// the settled order), and signing out removes it.
 #[gpui::test]
 fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mut TestAppContext) {
-    use crate::features::cloud_catalog::State;
+    use crate::features::cloud::catalog::State;
     use std::sync::atomic::{AtomicBool, Ordering};
     let dir = tempfile::tempdir().unwrap();
     let slow = std::sync::Arc::new(AtomicBool::new(false));
@@ -4129,8 +4129,8 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         })
     });
     let (view, cx) = setup(cx);
-    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
@@ -4138,7 +4138,7 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         s.cloud.catalog.update(cx, |c, _| c.cache_dir = Some(cache));
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
+        crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
     settle_cloud(&view, cx, "the fresh catalog", &|s, cx| {
@@ -4161,9 +4161,9 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         s.cloud.catalog.read(cx).fresh
     });
     // Signing out removes the names.
-    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
-        !crate::features::cloud_account::has_account(cx)
+        !crate::features::cloud::account::has_account(cx)
     });
     // The fixture account was installed after the window, so the shell
     // does not observe it; the app's account change refreshes the catalog.

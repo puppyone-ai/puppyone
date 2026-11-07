@@ -36,7 +36,7 @@ enum Surface {
     Feedback(Entity<crate::features::feedback::Feedback>),
     Coachmark(crate::shell::coachmarks::Coachmark),
     /// Cached entries, or the skeleton without them.
-    CloudServices(Entity<crate::features::cloud_services::CloudServices>),
+    CloudServices(Entity<crate::features::cloud::services::CloudServices>),
     Shell(Entity<crate::shell::Shell>),
 }
 
@@ -96,7 +96,7 @@ impl Lab {
             .apply(Some(window), cx);
         cx.set_reduce_motion(std::env::var("PUPPYONE_REDUCE_MOTION").as_deref() == Ok("1"));
         // References render with the account available and signed out.
-        crate::features::cloud_account::install_offline(cx);
+        crate::features::cloud::account::install_offline(cx);
         let gallery = scenario.strip_prefix("gallery");
         let editor_file = scenario.strip_prefix("editor-").and_then(|case| {
             Some(match case {
@@ -213,7 +213,7 @@ impl Lab {
                 cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
                 Surface::Feedback(feedback)
             } else if let Some(page) = shell.strip_prefix("cloud-services-") {
-                use crate::features::cloud_services::{CloudServices, Section};
+                use crate::features::cloud::services::{CloudServices, Section};
                 let section = match page {
                     "history" => Section::History,
                     "mcp" => Section::Mcp,

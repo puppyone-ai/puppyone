@@ -2,7 +2,7 @@
 //! reads, watches, readiness checks and status polling never allocate/resume.
 use super::{Prepared, Target, model, prepare_verified};
 use crate::{
-    cloud_auth::{
+    cloud::auth::{
         Broker, Cancellation, Error as AuthError,
         model::{ApiRequest, Binding},
     },
@@ -264,7 +264,7 @@ pub fn prepare(
 #[cfg(test)]
 mod tests {
     use super::{Failure, Recovery};
-    use crate::cloud_auth::Error;
+    use crate::cloud::auth::Error;
 
     #[test]
     fn opening_failures_preserve_status_and_access_recovery() {

@@ -9,7 +9,7 @@
 //! jitter; a returning window may probe once more. Late results of an older
 //! key are dropped.
 use crate::{
-    cloud_auth::Cancellation,
+    cloud::auth::Cancellation,
     workspace::cloud::{
         recovery::{Controller, Next},
         repository::{self, Context as Association, Precheck},
@@ -51,9 +51,9 @@ impl RepositoryCloud {
     /// The checkout (`None`: no local project) under the current account.
     /// A changed key discards the old resolution and resolves again.
     pub fn sync(&mut self, root: Option<&Path>, enabled: bool, cx: &mut Context<Self>) {
-        let account = crate::features::cloud_account::broker_and_binding(cx)
+        let account = crate::features::cloud::account::broker_and_binding(cx)
             .map(|(_, b)| format!("{}\n{}\n{}", b.user, b.epoch, b.environment.api()));
-        let api = crate::features::cloud_account::environment(cx).map(|e| e.api().to_owned());
+        let api = crate::features::cloud::account::environment(cx).map(|e| e.api().to_owned());
         let key = root.filter(|_| enabled).map(|root| {
             format!(
                 "{}\n{}\n{}",
@@ -103,8 +103,8 @@ impl RepositoryCloud {
             cx.notify();
             return;
         };
-        let account = crate::features::cloud_account::broker_and_binding(cx);
-        let environment = crate::features::cloud_account::environment(cx);
+        let account = crate::features::cloud::account::broker_and_binding(cx);
+        let environment = crate::features::cloud::account::environment(cx);
         let api = environment.as_ref().map(|e| e.api().to_owned());
         let hosted_git_origin = environment.as_ref().and_then(|e| e.hosted_git_origin());
         let cancel = Cancellation::default();

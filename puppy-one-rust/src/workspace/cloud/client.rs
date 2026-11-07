@@ -1,6 +1,6 @@
 use super::{model, model::Runtime};
 use crate::{
-    cloud_auth::{self as auth, Broker, Cancellation, ServiceCode},
+    cloud::auth::{self as auth, Broker, Cancellation, ServiceCode},
     workspace::contracts::*,
 };
 use auth::model::{ApiRequest, Binding};

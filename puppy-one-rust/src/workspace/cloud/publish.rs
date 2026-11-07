@@ -17,10 +17,10 @@ pub enum Session {
 impl Session {
     /// The account's sign-in state: a browser round trip in flight is
     /// `SigningIn`.
-    pub fn of(status: Option<crate::cloud_auth::Status>, signed_in: bool) -> Self {
+    pub fn of(status: Option<crate::cloud::auth::Status>, signed_in: bool) -> Self {
         if signed_in {
             Self::SignedIn
-        } else if status == Some(crate::cloud_auth::Status::SigningIn) {
+        } else if status == Some(crate::cloud::auth::Status::SigningIn) {
             Self::SigningIn
         } else {
             Self::SignedOut

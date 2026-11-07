@@ -71,30 +71,30 @@ async fn complete_managed(
     body: Value,
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
-    let (broker, binding) = crate::cloud_auth::current().ok_or_else(|| {
+    let (broker, binding) = crate::cloud::auth::current().ok_or_else(|| {
         crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
     })?;
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<Vec<u8>, String>>();
-    let cancel = crate::cloud_auth::Cancellation::default();
+    let cancel = crate::cloud::auth::Cancellation::default();
     let guard = cancel.clone();
     std::thread::spawn(move || {
         let request_id = uuid::Uuid::new_v4().to_string();
         let sink_tx = tx.clone();
         let result = broker.completion(&binding, &body, &request_id, &cancel, &mut |event| {
-            if let crate::cloud_auth::StreamEvent::Data(bytes) = event
+            if let crate::cloud::auth::StreamEvent::Data(bytes) = event
                 && sink_tx.send(Ok(bytes.to_vec())).is_err()
             {
-                return Err(crate::cloud_auth::Error::Cancelled);
+                return Err(crate::cloud::auth::Error::Cancelled);
             }
             Ok(())
         });
         if let Err(error) = result {
             let _ = tx.send(Err(match error {
-                crate::cloud_auth::Error::Http(402)
-                | crate::cloud_auth::Error::Response(402, _) => {
+                crate::cloud::auth::Error::Http(402)
+                | crate::cloud::auth::Error::Response(402, _) => {
                     crate::localization::t("agent.compute.paymentUnavailable").to_owned()
                 }
-                crate::cloud_auth::Error::Cancelled => "Turn stopped".to_owned(),
+                crate::cloud::auth::Error::Cancelled => "Turn stopped".to_owned(),
                 _ => {
                     "PuppyOne compute did not complete the request; it was not replayed".to_owned()
                 }
@@ -102,7 +102,7 @@ async fn complete_managed(
         }
     });
     // Dropping the turn cancels the request.
-    struct Stop(crate::cloud_auth::Cancellation);
+    struct Stop(crate::cloud::auth::Cancellation);
     impl Drop for Stop {
         fn drop(&mut self) {
             self.0.cancel();

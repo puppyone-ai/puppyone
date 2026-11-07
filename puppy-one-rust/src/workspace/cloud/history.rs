@@ -8,7 +8,7 @@
 //! `has_more` agrees with the cursor. Pages merge only within one snapshot;
 //! a different snapshot, ancestry that changed between pages, a page that
 //! made no progress, or HTTP 409 restarts from the first page.
-use crate::cloud_auth::model::ApiRequest;
+use crate::cloud::auth::model::ApiRequest;
 use reqwest::Method;
 use serde_json::Value;
 use std::{

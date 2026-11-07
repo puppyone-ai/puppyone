@@ -283,7 +283,7 @@ fn native_pkce_and_email_handoffs_use_the_real_http_adapter_once() {
         assert!(path.starts_with("/auth/return/"));
         let replay = send(&host, &request);
         assert!(replay.starts_with("HTTP/1.1 409") || replay.starts_with("HTTP/1.1 404"));
-        let reveal = crate::cloud_auth::reveal_requests();
+        let reveal = crate::cloud::auth::reveal_requests();
         let returned = send(
             &host,
             &format!("POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\n\r\n"),

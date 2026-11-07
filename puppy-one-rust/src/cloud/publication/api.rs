@@ -2,7 +2,7 @@
 //! and credential issue carry the operation id as `Idempotency-Key`, so a
 //! retry after a lost response returns the same Project and credential.
 use super::{Code, PublishError, journal::Record};
-use crate::cloud_auth::{
+use crate::cloud::auth::{
     Broker, Error as AuthError,
     model::{ApiRequest, Binding},
 };

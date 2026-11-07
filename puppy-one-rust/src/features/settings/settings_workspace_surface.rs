@@ -32,7 +32,7 @@ pub struct SettingsWorkspaceSurface {
     pub(super) page: Page,
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
     pub(super) agents: Entity<crate::features::agent_settings::AgentSettings>,
-    pub(super) cloud: Option<Entity<crate::features::cloud_account::CloudAccount>>,
+    pub(super) cloud: Option<Entity<crate::features::cloud::account::CloudAccount>>,
     pub(super) plan_page: super::main::plan_settings_view::PlanPage,
     pub(super) repository: Entity<RepositorySettings>,
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
@@ -78,7 +78,7 @@ impl SettingsWorkspaceSurface {
         if !self.preferences.read(cx).state.experimental.payments {
             return;
         }
-        let compute = crate::features::managed_compute::global(cx);
+        let compute = crate::features::cloud::managed_compute::global(cx);
         compute.update(cx, |c, cx| c.refresh(false, cx));
         if self.compute_timer.is_none() {
             self.compute_timer = Some(cx.spawn(async move |this, cx| {
@@ -88,7 +88,7 @@ impl SettingsWorkspaceSurface {
                         .await;
                     let alive = this.update(cx, |s, cx| {
                         if s.page == Page::Account {
-                            crate::features::managed_compute::global(cx)
+                            crate::features::cloud::managed_compute::global(cx)
                                 .update(cx, |c, cx| c.refresh(true, cx));
                         }
                     });
@@ -104,7 +104,7 @@ impl SettingsWorkspaceSurface {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let compute = crate::features::managed_compute::global(cx);
+        let compute = crate::features::cloud::managed_compute::global(cx);
         cx.observe(&compute, |_, _, cx| cx.notify()).detach();
         // Product Analytics follows the process-wide telemetry state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
@@ -144,7 +144,7 @@ impl SettingsWorkspaceSurface {
         )
         .detach();
         let cloud = cx
-            .try_global::<crate::features::cloud_account::CloudAccountService>()
+            .try_global::<crate::features::cloud::account::CloudAccountService>()
             .map(|s| s.0.clone());
         if let Some(cloud) = &cloud {
             cx.observe(cloud, |_, _, cx| cx.notify()).detach();

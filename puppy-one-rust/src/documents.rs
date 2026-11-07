@@ -208,7 +208,7 @@ pub struct Documents {
     cloud_run: Arc<std::sync::atomic::AtomicU64>,
     /// The newer Cloud document held back while unsaved input is preserved.
     deferred_document: Option<Document>,
-    cloud_cancel: Option<crate::cloud_auth::Cancellation>,
+    cloud_cancel: Option<crate::cloud::auth::Cancellation>,
     /// The editor task scope (its window): reads are admitted there and
     /// retired when the window closes.
     pub task_scope: String,
@@ -918,14 +918,14 @@ impl Documents {
     /// a local folder. Cancellation and failures keep the current workspace.
     pub fn open_cloud(
         &mut self,
-        broker: Arc<crate::cloud_auth::Broker>,
-        binding: crate::cloud_auth::model::Binding,
+        broker: Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
         project_id: String,
         ctx: &Wake,
     ) {
         use crate::workspace::cloud::{Target, opening};
         self.cancel_cloud();
-        let cancel = crate::cloud_auth::Cancellation::default();
+        let cancel = crate::cloud::auth::Cancellation::default();
         self.cloud_cancel = Some(cancel.clone());
         let phase = self.cloud_phase.clone();
         *phase.lock().unwrap() = Some(opening::Phase::Checking);

@@ -9,14 +9,14 @@
 //! selection, and `ProjectNavigationFailure` for a Cloud opening.
 use super::*;
 use crate::{
-    features::repository_cloud::RepositoryCloud,
+    features::cloud::repository::RepositoryCloud,
     localization::t as tr,
     ui::components::{Button, ButtonVariant, Dialog},
     workspace::cloud::opening::{Failure, Recovery},
 };
 
 pub(super) fn account_key(cx: &App) -> Option<String> {
-    crate::features::cloud_account::broker_and_binding(cx)
+    crate::features::cloud::account::broker_and_binding(cx)
         .map(|(_, b)| format!("{}\n{}\n{}", b.user, b.epoch, b.environment.api()))
 }
 

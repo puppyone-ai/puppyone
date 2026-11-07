@@ -10,7 +10,7 @@
 //! 4. `POST /projects/{id}/repository-context` for the exact target, with
 //!    401 / 403 / 404 / retryable failures told apart.
 use super::{Refusal, Target, authorize_target, locator, recovery};
-use crate::cloud_auth::{Broker, Cancellation, Error as AuthError, model::Binding};
+use crate::cloud::auth::{Broker, Cancellation, Error as AuthError, model::Binding};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Context {

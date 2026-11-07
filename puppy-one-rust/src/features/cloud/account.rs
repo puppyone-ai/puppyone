@@ -1,6 +1,6 @@
 //! App-owned public authentication projection. Views never receive credentials.
-pub use crate::cloud_auth::Status;
-use crate::cloud_auth::{Broker, Environment, Error, Snapshot};
+pub use crate::cloud::auth::Status;
+use crate::cloud::auth::{Broker, Environment, Error, Snapshot};
 use gpui::*;
 use std::sync::Arc;
 
@@ -38,11 +38,11 @@ impl CloudAccount {
     }
     fn attach(
         broker: Arc<Broker>,
-        browser: async_channel::Receiver<crate::cloud_auth::BrowserEvent>,
+        browser: async_channel::Receiver<crate::cloud::auth::BrowserEvent>,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut updates = broker.subscribe();
-        crate::cloud_auth::install_current(Some(broker.clone()));
+        crate::cloud::auth::install_current(Some(broker.clone()));
         broker.restore();
         let snapshot = Some(updates.borrow_and_update().clone());
         cx.spawn(async move |this, cx| {
@@ -79,7 +79,7 @@ impl CloudAccount {
         .detach();
         // "Return to PuppyOne Desktop": the app and its key window come
         // forward.
-        let reveal = crate::cloud_auth::reveal_requests();
+        let reveal = crate::cloud::auth::reveal_requests();
         cx.spawn(async move |_, cx| {
             while reveal.recv().await.is_ok() {
                 cx.update(|cx| {
@@ -175,7 +175,7 @@ impl Drop for CloudAccount {
 }
 /// The broker and the signed-in binding, for Cloud requests made on the
 /// account's behalf (catalog, opening). `None` while signed out.
-pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud_auth::model::Binding)> {
+pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud::auth::model::Binding)> {
     let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
     let binding = account.snapshot.as_ref()?.account.as_ref()?.binding.clone();
     Some((account.broker.clone()?, binding))
@@ -184,7 +184,7 @@ pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud_auth::m
 #[cfg(test)]
 pub fn install_fixture(
     broker: Arc<Broker>,
-    browser: async_channel::Receiver<crate::cloud_auth::BrowserEvent>,
+    browser: async_channel::Receiver<crate::cloud::auth::BrowserEvent>,
     cx: &mut App,
 ) -> Entity<CloudAccount> {
     let account = cx.new(|cx| CloudAccount::attach(broker, browser, cx));
@@ -203,7 +203,7 @@ pub fn sign_in(cx: &App) {
     }
 }
 /// The account's sign-in status, once the Broker has reported one.
-pub fn status(cx: &App) -> Option<crate::cloud_auth::Status> {
+pub fn status(cx: &App) -> Option<crate::cloud::auth::Status> {
     let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
     account.snapshot.as_ref().map(|s| s.status)
 }
@@ -267,7 +267,7 @@ mod tests {
             install(false, cx);
             assert!(cx.try_global::<CloudAccountService>().is_none());
         });
-        let (broker, browser) = crate::cloud_auth::account_fixture();
+        let (broker, browser) = crate::cloud::auth::account_fixture();
         let account = cx.new(|cx| CloudAccount::attach(broker, browser, cx));
         cx.update(|cx| cx.set_global(CloudAccountService(account.clone())));
         for expected in [Status::Authenticated, Status::SignedOut] {
