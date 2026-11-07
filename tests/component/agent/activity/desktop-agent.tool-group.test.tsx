@@ -407,7 +407,7 @@ function toolPart(
   tool: string,
   commandOrPath: string,
   output: string,
-): AgentPart {
+): Extract<AgentPart, { kind: "tool" | "command" }> {
   return {
     id,
     turnId,

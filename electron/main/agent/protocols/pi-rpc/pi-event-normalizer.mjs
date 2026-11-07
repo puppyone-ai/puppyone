@@ -1,5 +1,6 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
 import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
+import { piFileQueryResult } from "./pi-file-query-result.mjs";
 
 /** @param {{ turnId?: string | null, providerSessionId?: string | null, namespace?: string, runtimeLabel?: string }} [options] */
 export function createPiEventState({
@@ -129,7 +130,7 @@ export function normalizePiHistory(messages, providerSessionId, options = {}) {
       const metadata = tools.get(toolCallId) ?? { toolName: text(message.toolName) || "tool", args: {} };
       events.push(event("tool.completed", state, toolCallId, {
         ...toolPayload(metadata.toolName, metadata.args, message.isError ? "failed" : "completed"),
-        outputPreview: resultText(message).slice(-32 * 1024),
+        ...piFileQueryResult(canonicalToolName(metadata.toolName), metadata.args, resultText(message), message.isError),
         restored: true,
       }));
     }
@@ -239,7 +240,7 @@ function finishTool(message, state) {
   }
   const result = [event("tool.completed", state, toolCallId, {
     ...payload,
-    outputPreview: output.slice(-32 * 1024),
+    ...piFileQueryResult(canonicalToolName(previous.toolName), previous.args, output, message.isError),
   })];
   if (path && ["edit", "write"].includes(canonicalToolName(previous.toolName))) {
     result.push(event("file.change.updated", state, toolCallId, {

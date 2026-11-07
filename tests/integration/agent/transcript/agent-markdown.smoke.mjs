@@ -1,27 +1,41 @@
 #!/usr/bin/env electron
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain, WebContentsView, session } from "electron";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createMermaidRendererHost } from "../../../../electron/main/mermaid/renderer-host.mjs";
+import { createMermaidRenderService } from "../../../../electron/main/mermaid/render-service.mjs";
+import { registerMermaidIpc } from "../../../../electron/main/ipc/mermaid-ipc.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const indexPath = path.join(repoRoot, "dist", "index.html");
 const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-agent-markdown-"));
 app.setPath("userData", path.join(tempRoot, "user-data"));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
+// Keep explicit success/failure ownership through async host and profile cleanup.
+app.on("window-all-closed", () => {});
 
 let ownerWindow = null;
 let renderProcessFailure = null;
+let mermaidService = null;
 
 async function runSmoke() {
   await fsp.access(indexPath);
+  mermaidService = createMermaidRenderService({ createHost: () => createMermaidRendererHost({
+    WebContentsView, session,
+    url: pathToFileURL(path.join(repoRoot, "dist/src/platform/mermaid/host.html")).href,
+    assetRoot: pathToFileURL(path.join(repoRoot, "dist/")).href,
+    preload: path.join(repoRoot, "electron/mermaid-preload.cjs"),
+  }) });
+  registerMermaidIpc({ ipcMain, service: mermaidService });
   ownerWindow = new BrowserWindow({
     show: false,
     width: 760,
     height: 900,
     webPreferences: {
+      preload: path.join(repoRoot, "tests/support/agent/mermaid-smoke-preload.cjs"),
       backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
@@ -32,8 +46,12 @@ async function runSmoke() {
     renderProcessFailure = `${details.reason}:${details.exitCode}`;
   });
 
+  for (const theme of ["light", "dark"]) await inspectTheme(theme);
+}
+
+async function inspectTheme(theme) {
   const url = pathToFileURL(indexPath);
-  url.searchParams.set("theme", "dark");
+  url.searchParams.set("theme", theme);
   url.searchParams.set("state", "streaming-table");
   url.hash = "agent-visual-smoke";
   await ownerWindow.loadURL(url.href);
@@ -43,6 +61,11 @@ async function runSmoke() {
     true,
   );
   await waitFor("document.querySelector('.desktop-agent-mermaid.is-ready .po-safe-mermaid-svg-root')?.shadowRoot?.querySelector('svg')");
+  await ownerWindow.webContents.executeJavaScript(
+    "document.querySelectorAll('.desktop-agent-tool-fold-row').forEach(button => button.click())",
+    true,
+  );
+  await waitFor("document.querySelector('.desktop-agent-tool-group-item .desktop-agent-tool-row')");
 
   const result = await ownerWindow.webContents.executeJavaScript(`(() => {
     const viewports = [...document.querySelectorAll('.desktop-agent-markdown-table-scroll')];
@@ -91,6 +114,19 @@ async function runSmoke() {
         fontSize: composerStyle.fontSize,
         lineHeight: composerStyle.lineHeight,
       } : null,
+      toolTypography: [...document.querySelectorAll('.desktop-agent-tool-row')].map(row => ({
+        fontSize: getComputedStyle(row).fontSize,
+        lineHeight: getComputedStyle(row).lineHeight,
+        childSizes: [...row.querySelectorAll('.desktop-agent-tool-name, .desktop-agent-tool-summary, .desktop-agent-tool-subject-code')]
+          .map(child => getComputedStyle(child).fontSize),
+      })),
+      toolGlyphs: [...document.querySelectorAll('.desktop-agent-tool-glyph')].map(glyph => ({
+        width: getComputedStyle(glyph).width,
+        height: getComputedStyle(glyph).height,
+        strokeWidth: getComputedStyle(glyph).strokeWidth,
+        vectorEffects: [...glyph.querySelectorAll('path, circle, rect, line, polyline, polygon, ellipse')]
+          .map(shape => getComputedStyle(shape).vectorEffect),
+      })),
       documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   })()`, true);
@@ -107,16 +143,23 @@ async function runSmoke() {
   assert(result.taskStates[0]?.checked === true && result.taskStates[1]?.checked === false, "Task-list state was not preserved.");
   assert(result.mermaidUsesShadowDom && result.mermaidHasSvg, "Mermaid did not use the shared safe Shadow DOM mount.");
   assert(result.chineseTypography?.fontSize === "14px", `Agent response missed the conversation reading scale: ${JSON.stringify(result.chineseTypography)}`);
-  assert(result.chineseTypography?.fontWeight === "500", `Chinese Agent copy missed its optical reading weight: ${JSON.stringify(result.chineseTypography)}`);
-  assert(result.chineseTypography?.lineHeight === "22px", `Agent response missed the intended reading line height: ${JSON.stringify(result.chineseTypography)}`);
+  assert(result.chineseTypography?.fontWeight === "400", `Agent copy diverged from the shared Sidebar weight: ${JSON.stringify(result.chineseTypography)}`);
+  assert(result.chineseTypography?.lineHeight === "22.4px", `Agent response missed the 1.6 reading line height: ${JSON.stringify(result.chineseTypography)}`);
   assert(result.chineseTypography?.emphasisWeight === "600", `Agent emphasis escaped the restrained weight ramp: ${JSON.stringify(result.chineseTypography)}`);
   assert(result.chineseTypography?.letterSpacing === "normal" || result.chineseTypography?.letterSpacing === "0px", `Agent copy retained non-neutral tracking: ${JSON.stringify(result.chineseTypography)}`);
-  assert(result.userMessageTypography?.fontSize === "14px" && result.userMessageTypography?.lineHeight === "21px", `Sent prompts escaped the shared conversation scale: ${JSON.stringify(result.userMessageTypography)}`);
+  assert(result.userMessageTypography?.fontSize === "14px" && result.userMessageTypography?.lineHeight === "22.4px", `Sent prompts escaped the shared conversation scale: ${JSON.stringify(result.userMessageTypography)}`);
   assert(result.composerTypography?.fontSize === "14px" && result.composerTypography?.lineHeight === "21px", `Composer copy escaped the shared conversation scale: ${JSON.stringify(result.composerTypography)}`);
   assert(result.documentOverflow <= 1, "Agent Markdown introduced page-level horizontal overflow.");
+  assert(result.toolTypography.length > 0 && result.toolTypography.every(row =>
+    row.fontSize === "12px" && row.lineHeight === "19px" && row.childSizes.every(size => size === "12px")),
+  `Tool summaries and expanded rows missed the compact type scale: ${JSON.stringify(result.toolTypography)}`);
+  assert(result.toolGlyphs.length > 0 && result.toolGlyphs.every(glyph =>
+    glyph.width === "16px" && glyph.height === "16px" && glyph.strokeWidth === "1.25px"
+      && glyph.vectorEffects.length > 0 && glyph.vectorEffects.every(effect => effect === "non-scaling-stroke")),
+  `Tool glyphs missed the shared fine stroke: ${JSON.stringify(result.toolGlyphs)}`);
   if (renderProcessFailure) throw new Error(`Agent Markdown smoke renderer exited: ${renderProcessFailure}`);
 
-  console.log(JSON.stringify({ schema: "puppyone-agent-markdown-smoke/v1", ...result }, null, 2));
+  console.log(JSON.stringify({ schema: "puppyone-agent-markdown-smoke/v1", theme, ...result }, null, 2));
 }
 
 async function waitFor(expression, timeoutMs = 20_000) {
@@ -135,6 +178,7 @@ function assert(condition, message) {
 }
 
 async function finish(exitCode) {
+  await mermaidService?.dispose();
   ownerWindow?.destroy();
   await fsp.rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
   app.exit(exitCode);

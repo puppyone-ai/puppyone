@@ -67,6 +67,17 @@ function normalizeActivityPayload(payload, workspaceRoot, pathApi, replacements)
       return typeof normalized.path === "string" ? [normalized] : [];
     });
   }
+  if (Array.isArray(next.outputPaths)) {
+    next.outputPaths = next.outputPaths.slice(0, 80).flatMap((candidate) => {
+      const normalized = normalizeAgentWorkspaceEventPath(workspaceRoot, candidate, pathApi);
+      if (!normalized) return [];
+      replacements.set(candidate, normalized);
+      return [normalized];
+    });
+    if (typeof next.outputPreview === "string") {
+      next.outputPreview = next.outputPreview.split("\n").map(line => replacements.get(line) ?? line).join("\n");
+    }
+  }
   return next;
 }
 
