@@ -39,8 +39,6 @@ export type OnboardingGroupsBase = Readonly<{
     items: readonly ProjectHomeItem[];
     render: (items: ProjectHomeItem[], sharing?: ProjectListSharing) => ReactNode;
   }> | null;
-  /** False while the page is narrowed to some places; other computers are not one of them. */
-  showOtherComputers: boolean;
 }>;
 
 /** Known sharing survives offline/paused state; storage location never changes its audience. */

@@ -710,13 +710,8 @@ span.homepage-cloud-feedback {
   transform: translateX(-50%);
 }
 
-/* Fixed, so that a tick appearing beside a choice cannot move the menu under the pointer. */
-.onboarding-view-menu.is-multiple {
-  width: 216px;
-}
-
-/* Three quiet icons just before New: what is shown, in what order and how it is
-   arranged. Filters in force grow leftwards, so that nothing moves under the pointer. */
+/* Two quiet icons just before New: in what order the projects are, and how they
+   are arranged. */
 .onboarding-project-toolbar {
   display: flex;
   min-width: 0;
@@ -736,45 +731,6 @@ span.homepage-cloud-feedback {
 .onboarding-view-menu-root {
   position: relative;
   flex: none;
-}
-
-/* A filter in force, named on the toolbar and one press from being taken off. */
-.onboarding-filter-chip {
-  display: inline-flex;
-  min-width: 0;
-  flex: 0 1 auto;
-  height: var(--po-control-size-compact);
-  align-items: center;
-  gap: 4px;
-  padding-inline: 8px 6px;
-  border: 0;
-  border-radius: var(--desktop-control-radius);
-  background: var(--po-control);
-  color: var(--po-text);
-  cursor: var(--po-clickable-cursor, default);
-  font-family: var(--po-font-sans);
-  font-size: var(--onboarding-caption-font-size);
-  font-weight: var(--onboarding-row-font-weight);
-  transition: background 130ms ease-out;
-}
-
-.onboarding-filter-chip > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.onboarding-filter-chip svg {
-  flex: 0 0 auto;
-}
-
-.onboarding-filter-chip:hover:not(:disabled) {
-  background: var(--po-control-hover);
-}
-
-.onboarding-filter-chip:focus-visible {
-  outline: 2px solid var(--po-focus-ring);
-  outline-offset: -2px;
 }
 
 .onboarding-view-menu-root .po-icon-button[aria-expanded="true"] {
