@@ -449,16 +449,18 @@ impl Shell {
                 )
             }),
             Step::AgentsFixture(open_links) => {
-                self.cloud.capture_hosted = true;
                 let client = crate::features::cloud::agents::lab_client(*open_links);
                 let name = self.session.project.name.clone();
-                self.cloud.agents.update(cx, |a, cx| {
-                    a.attach_client("lab-project", &name, client, cx)
+                self.cloud.update(cx, |c, cx| {
+                    c.capture_hosted = true;
+                    c.agents.update(cx, |a, cx| {
+                        a.attach_client("lab-project", &name, client, cx)
+                    });
                 });
             }
             Step::Agents(opener) => {
                 use crate::features::cloud::agents::Opener;
-                if !self.cloud.agents.read(cx).manageable {
+                if !self.cloud.read(cx).agents.read(cx).manageable {
                     return false;
                 }
                 let opener = match opener.as_str() {
@@ -466,13 +468,13 @@ impl Shell {
                     "invite" => Opener::Invite,
                     id => Opener::Agent(id.to_owned()),
                 };
-                self.press_agents(opener, cx);
+                self.cloud.update(cx, |c, cx| c.press_agents(opener, cx));
             }
             Step::ManageAgents => {
-                if !self.cloud.agents.read(cx).manageable {
+                if !self.cloud.read(cx).agents.read(cx).manageable {
                     return false;
                 }
-                self.open_manage_agents(cx);
+                self.cloud.update(cx, |c, cx| c.open_manage_agents(cx));
             }
             Step::FileMenu(menu) => {
                 if let Some(file) = &mut self.file {

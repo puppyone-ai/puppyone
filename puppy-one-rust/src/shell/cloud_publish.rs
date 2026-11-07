@@ -8,10 +8,11 @@
 //! progress — running (only **Continue in background**), or standing still
 //! where it stopped (**Retry**, and **Discard** with an inline confirmation
 //! whose focus starts on Cancel).
+use super::window_cloud::WindowCloud;
 use super::*;
 use crate::{
     cloud::publication::{Action, Code, Stage},
-    features::cloud::publish::{CloudPublish, HeaderStatus, Organizations},
+    features::cloud::publish::{HeaderStatus, Organizations},
     localization::{t as tr, tf},
     ui::components::{Button, ButtonVariant, Dialog, Icon, ProductIcon},
 };
@@ -76,50 +77,32 @@ pub(super) fn failure_copy(code: Code) -> &'static str {
     }
 }
 
-impl Shell {
-    pub(super) fn new_cloud_publish(cx: &mut Context<Self>) -> Entity<CloudPublish> {
-        let entity = cx.new(|_| CloudPublish::default());
-        cx.observe(&entity, |s, publish, cx| {
-            // A finished publication resolves the association again; a
-            // waiting Header switch then continues to the new Project.
-            if publish.read(cx).published.is_some()
-                && s.cloud.publish_reported != publish.read(cx).published
-            {
-                s.cloud.publish_reported = publish.read(cx).published.clone();
-                s.cloud.repository.update(cx, |r, cx| r.retry(cx));
-            }
-            s.report_publication(cx);
-            cx.notify()
-        })
-        .detach();
-        entity
-    }
+impl WindowCloud {
     /// The Share wizard waits on the first publication of its Project.
     pub(super) fn report_publication(&mut self, cx: &mut Context<Self>) {
-        let Some(project) = self.cloud_services.read(cx).project().map(str::to_owned) else {
+        let Some(project) = self.services.read(cx).project().map(str::to_owned) else {
             return;
         };
-        let publish = self.cloud.publish.read(cx);
+        let publish = self.publish.read(cx);
         let publication = publish.publication(&project);
         let failure = publish
             .outcome
             .as_ref()
             .and_then(|o| o.error.as_ref())
             .map(|e| tr(failure_copy(e.code)).to_owned());
-        self.cloud_services
+        self.services
             .update(cx, |s, cx| s.sync_publication(publication, failure, cx));
     }
     /// `publish.start` from the wizard: the run outlives its dialog as any
     /// other does, and the Header states it.
     pub(super) fn resume_publication(&mut self, cx: &mut Context<Self>) {
-        let started = self.cloud.publish.update(cx, |p, cx| {
+        let started = self.publish.update(cx, |p, cx| {
             let action = p.push_action();
             p.start(action, cx);
             p.running.is_some()
         });
         if !started {
-            self.cloud_services
-                .update(cx, |s, cx| s.publication_refused(cx));
+            self.services.update(cx, |s, cx| s.publication_refused(cx));
         }
     }
     pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
@@ -128,22 +111,22 @@ impl Shell {
         if self.dialog_open(DialogKey::CloudServices, cx)
             && (!enabled || !crate::features::cloud::account::has_account(cx))
         {
-            self.cloud_services.update(cx, |s, cx| s.close(cx));
+            self.services.update(cx, |s, cx| s.close(cx));
         }
         let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
             && crate::features::cloud::account::has_account(cx);
-        self.cloud_services
+        self.services
             .update(cx, |s, cx| s.sync_sharing(sharing, cx));
-        let root = self.workspace_root();
+        let root = self.root();
         // The activation page asks for the owning organization only while it
         // shows for a folder without a Cloud project.
         let activating = self.dialog_open(DialogKey::CloudPublish, cx)
             && matches!(
-                self.cloud.repository.read(cx).context,
+                self.repository.read(cx).context,
                 crate::workspace::cloud::repository::Context::LocalOnly
             )
             && crate::features::cloud::account::has_account(cx);
-        self.cloud.publish.update(cx, |p, cx| {
+        self.publish.update(cx, |p, cx| {
             p.sync(root.as_deref(), enabled, cx);
             if activating {
                 p.load_organizations(cx);
@@ -151,7 +134,7 @@ impl Shell {
         });
     }
     pub(super) fn project_display_name(&self, cx: &App) -> String {
-        self.workspace_root()
+        self.root()
             .and_then(|root| {
                 self.preferences
                     .read(cx)
@@ -161,11 +144,11 @@ impl Shell {
                     .find(|p| p.path == root)
                     .map(|p| p.name.clone())
             })
-            .unwrap_or_else(|| self.session.project.name.clone())
+            .unwrap_or_else(|| self.session().name.clone())
     }
     /// The Cloud switch dialog for a checkout with no Cloud Project yet.
     pub(super) fn publish_dialog(&self, dialog: Dialog, cx: &mut Context<Self>) -> Dialog {
-        let publish = self.cloud.publish.read(cx);
+        let publish = self.publish.read(cx);
         let name = self.project_display_name(cx);
         let pending = publish
             .outcome
@@ -319,7 +302,7 @@ impl Shell {
     fn activation_view(&self, dialog: Dialog, name: &str, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
         let m = theme::ty();
-        let publish = self.cloud.publish.read(cx);
+        let publish = self.publish.read(cx);
         let title = if name.trim().is_empty() {
             tr("cloud.activation.project.headlineFallback").to_owned()
         } else {
@@ -416,7 +399,7 @@ impl Shell {
                                     .label(org.name.clone())
                                     .on_click(cx.listener(move |s, _, _, cx| {
                                         let id = id.clone();
-                                        s.cloud.publish.update(cx, |p, cx| p.select(id, cx));
+                                        s.publish.update(cx, |p, cx| p.select(id, cx));
                                     }))
                             }),
                         )),
@@ -453,7 +436,7 @@ impl Shell {
                     // `CloudGitPrerequisite`: the confirmation comes first.
                     .on_click(cx.listener(|s, _, w, cx| {
                         s.open_dialog(DialogKey::ConfirmPublish, cx);
-                        s.focus_dialogs(w, cx);
+                        s.dialog_focus.focus(w, cx);
                         cx.notify();
                     })),
             )
@@ -599,7 +582,7 @@ impl Shell {
     ) -> Dialog {
         use crate::workspace::cloud::publish::{Action as A, Cleanup, Project, Push};
         let t = cx.palette();
-        let publish = self.cloud.publish.read(cx);
+        let publish = self.publish.read(cx);
         let busy = publish.reading;
         let confirming = publish.confirming_discard;
         let state = outcome.state.clone();
@@ -690,9 +673,9 @@ impl Shell {
                                 Button::new("publish-discard-cancel")
                                     .variant(ButtonVariant::Secondary)
                                     .label(tr("cloud.common.cancel"))
-                                    .track_focus(&self.dialog_focus(cx))
+                                    .track_focus(&self.dialog_focus.clone())
                                     .on_click(cx.listener(|s, _, _, cx| {
-                                        s.cloud.publish.update(cx, |p, cx| {
+                                        s.publish.update(cx, |p, cx| {
                                             p.confirming_discard = false;
                                             cx.notify();
                                         })
@@ -704,7 +687,7 @@ impl Shell {
                                     .label(tr("cloud.initialize.resume.abandonConfirm"))
                                     .disabled(busy)
                                     .on_click(cx.listener(|s, _, _, cx| {
-                                        s.cloud.publish.update(cx, |p, cx| p.discard(cx))
+                                        s.publish.update(cx, |p, cx| p.discard(cx))
                                     })),
                             ),
                     ),
@@ -722,7 +705,7 @@ impl Shell {
                     }))
                     .disabled(busy)
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.cloud.publish.update(cx, |p, cx| {
+                        s.publish.update(cx, |p, cx| {
                             p.confirming_discard = true;
                             cx.notify();
                         })
@@ -730,22 +713,21 @@ impl Shell {
             );
         }
         if finish_cleanup {
-            dialog =
-                dialog.footer(
-                    Button::new("publish-finish-cleanup")
-                        .variant(ButtonVariant::Solid)
-                        .label(tr(if busy {
-                            "cloud.initialize.resume.discarding"
-                        } else {
-                            "cloud.initialize.resume.abandon"
-                        }))
-                        .disabled(busy)
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.cloud.publish.update(cx, |p, cx| p.discard(cx))
-                        })),
-                );
+            dialog = dialog.footer(
+                Button::new("publish-finish-cleanup")
+                    .variant(ButtonVariant::Solid)
+                    .label(tr(if busy {
+                        "cloud.initialize.resume.discarding"
+                    } else {
+                        "cloud.initialize.resume.abandon"
+                    }))
+                    .disabled(busy)
+                    .on_click(
+                        cx.listener(|s, _, _, cx| s.publish.update(cx, |p, cx| p.discard(cx))),
+                    ),
+            );
         } else if can_push {
-            let action = self.cloud.publish.read(cx).push_action();
+            let action = self.publish.read(cx).push_action();
             dialog = dialog.footer(
                 Button::new("publish-retry")
                     .variant(ButtonVariant::Solid)
@@ -756,7 +738,7 @@ impl Shell {
                     }))
                     .disabled(busy || confirming)
                     .on_click(cx.listener(move |s, _, _, cx| {
-                        s.cloud.publish.update(cx, |p, cx| p.start(action, cx))
+                        s.publish.update(cx, |p, cx| p.start(action, cx))
                     })),
             );
         }
@@ -770,8 +752,8 @@ impl Shell {
     }
     /// `CloudPublishHeaderStatus`: beside the location, while a publication
     /// runs, after it finished, or when it stopped; it reopens the same view.
-    pub(super) fn publish_header_mark(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let status = self.cloud.publish.read(cx).header_status()?;
+    pub(super) fn publish_header_mark(&self, cx: &App) -> Option<AnyElement> {
+        let status = self.publish.read(cx).header_status()?;
         let t = cx.palette();
         let (icon, label) = match status {
             HeaderStatus::Running => (
@@ -808,9 +790,9 @@ impl Shell {
         Some(
             crate::ui::components::IconButton::new("publish-header-status", icon)
                 .label(tr(label))
-                .on_click(cx.listener(move |s, _, w, cx| {
+                .on_click(self.listener(move |s, _, w, cx| {
                     if status == HeaderStatus::Completed {
-                        s.cloud.publish.update(cx, |p, cx| {
+                        s.publish.update(cx, |p, cx| {
                             p.published = None;
                             cx.notify();
                         });
@@ -831,7 +813,7 @@ impl Shell {
         let dialog = Dialog::new("cloud-publish")
             .width(600.)
             .title(tr("cloud.activation.project.title"))
-            .focus_handle(self.dialog_focus(cx))
+            .focus_handle(self.dialog_focus.clone())
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
                     s.close_dialog(DialogKey::CloudPublish, cx);
@@ -881,10 +863,10 @@ impl Shell {
     }
     /// Review the `puppyone` remote as it is now, off the main thread.
     pub(super) fn begin_replace(&mut self, cx: &mut Context<Self>) {
-        let Some(root) = self.workspace_root() else {
+        let Some(root) = self.root() else {
             return;
         };
-        self.cloud.replace_url = None;
+        self.replace_url = None;
         let task = cx.background_executor().spawn(async move {
             use crate::cloud::publication::git::{Cli, GitOps as _, Remote};
             match (Cli { helper: None }).remote(&root) {
@@ -896,11 +878,11 @@ impl Shell {
             let url = task.await;
             let _ = this.update(cx, |s, cx| {
                 if url.is_none()
-                    && let Some(replace) = s.cloud.replace.as_mut()
+                    && let Some(replace) = s.replace.as_mut()
                 {
                     replace.failed = true;
                 }
-                s.cloud.replace_url = url;
+                s.replace_url = url;
                 cx.notify();
             });
         })
@@ -912,13 +894,13 @@ impl Shell {
     /// first publication follows (`onDone("replaced")`).
     pub(super) fn confirm_replace(&mut self, project: String, cx: &mut Context<Self>) {
         let (Some(root), Some((broker, binding)), Some(url)) = (
-            self.workspace_root(),
+            self.root(),
             crate::features::cloud::account::broker_and_binding(cx),
-            self.cloud.replace_url.clone(),
+            self.replace_url.clone(),
         ) else {
             return;
         };
-        if let Some(replace) = self.cloud.replace.as_mut() {
+        if let Some(replace) = self.replace.as_mut() {
             replace.busy = true;
             replace.failed = false;
         }
@@ -942,15 +924,15 @@ impl Shell {
             let _ = this.update(cx, |s, cx| {
                 match result {
                     Ok(replaced) => {
-                        s.cloud.replace = None;
+                        s.replace = None;
                         s.close_dialog(DialogKey::ReplaceCloud, cx);
-                        s.cloud.repository.update(cx, |r, cx| r.retry(cx));
+                        s.repository.update(cx, |r, cx| r.retry(cx));
                         if replaced && !s.dialog_open(DialogKey::CloudPublish, cx) {
                             s.open_dialog(DialogKey::CloudPublish, cx);
                         }
                     }
                     Err(()) => {
-                        if let Some(replace) = s.cloud.replace.as_mut() {
+                        if let Some(replace) = s.replace.as_mut() {
                             replace.busy = false;
                             replace.failed = true;
                         }

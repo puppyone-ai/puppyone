@@ -166,18 +166,14 @@ impl Homepage {
         actions: Entity<ProjectActions>,
         dialogs: &Entity<DialogLayer>,
         window_focus: FocusHandle,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         // The list, the first run and the intro follow what they read.
         cx.observe(&preferences, |h, _, cx| h.refresh(cx)).detach();
         cx.observe(&catalog, |h, _, cx| h.refresh(cx)).detach();
         cx.observe(&actions, |_, _, cx| cx.notify()).detach();
-        if let Some(account) = cx
-            .try_global::<crate::features::cloud::account::CloudAccountService>()
-            .map(|s| s.0.clone())
-        {
-            cx.observe(&account, |h, _, cx| h.refresh(cx)).detach();
-        }
+        crate::features::cloud::account::observe(window, cx, |h, _, cx| h.refresh(cx)).detach();
         // The disclosure follows the analytics state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();

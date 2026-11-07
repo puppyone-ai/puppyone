@@ -109,7 +109,7 @@ pub struct Shell {
     /// the owner key and the applied title.
     session: session::WindowSession,
     /// The window's Cloud: catalog, association, publication, Agents, Share.
-    cloud: window_cloud::WindowCloud,
+    cloud: Entity<window_cloud::WindowCloud>,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
     project_actions: Entity<project_actions::ProjectActions>,
     dark: bool,
@@ -122,8 +122,6 @@ pub struct Shell {
     rail: bool,
     /// Window dialogs, bottom to top, and the Settings and Help content.
     dialogs: Entity<DialogLayer>,
-    /// The layer's focus, for the dialogs the window draws on it.
-    dialog_focus: FocusHandle,
     /// What the right sidebar shows: the Agent workbench, Changes / History
     /// and a hosted Project's History.
     sidebar: right_sidebar::RightSidebar,
@@ -138,7 +136,6 @@ pub struct Shell {
     explorer_session: Entity<ExplorerSession>,
     explorer: Entity<Explorer>,
     home: Entity<home::Homepage>,
-    cloud_services: Entity<crate::features::cloud::services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     preference_slices: PreferenceSlices,
     /// The editor area's hosts, drops, resizes and save notices.
@@ -185,17 +182,13 @@ impl Shell {
             })
             .unwrap_or(true)
         });
-        if let Some(account) = cx
-            .try_global::<crate::features::cloud::account::CloudAccountService>()
-            .map(|s| s.0.clone())
-        {
-            cx.observe(&account, |s, _, cx| {
-                s.refresh_cloud_catalog(false, cx);
-                s.session.wake.notify();
-                cx.notify();
-            })
-            .detach();
-        }
+        crate::features::cloud::account::observe(window, cx, |s, window, cx| {
+            s.refresh_cloud_catalog(false, cx);
+            s.guard_cloud_authority(window, cx);
+            s.session.wake.notify();
+            cx.notify();
+        })
+        .detach();
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this
@@ -228,7 +221,6 @@ impl Shell {
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let key = crate::features::agent_presence::owner(window);
         let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
-        let dialog_focus = dialogs.read(cx).focus_handle().clone();
         let catalog = crate::features::cloud::catalog::global(cx);
         let project_actions = cx.new(|cx| {
             project_actions::ProjectActions::new(
@@ -246,6 +238,7 @@ impl Shell {
                 project_actions.clone(),
                 &dialogs,
                 focus.clone(),
+                window,
                 cx,
             )
         });
@@ -276,12 +269,16 @@ impl Shell {
                 title: None,
                 home: false,
             },
-            cloud: window_cloud::WindowCloud::new(
-                catalog,
-                Self::new_cloud_publish(cx),
-                Self::new_repository_cloud(cx),
-                cx.new(|_| crate::features::cloud::agents::CloudAgents::new()),
-            ),
+            cloud: cx.new(|cx| {
+                window_cloud::WindowCloud::new(
+                    preferences.clone(),
+                    catalog,
+                    &dialogs,
+                    focus.clone(),
+                    window,
+                    cx,
+                )
+            }),
             project_actions,
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
@@ -291,7 +288,6 @@ impl Shell {
             },
             rail: false,
             dialogs,
-            dialog_focus,
             sidebar: right_sidebar::RightSidebar::new(
                 if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
                     right_sidebar::Surface::Git
@@ -314,8 +310,6 @@ impl Shell {
                 })
             },
             home,
-            cloud_services: cx
-                .new(|cx| crate::features::cloud::services::CloudServices::new(window, cx)),
             preferences,
             preference_slices: Default::default(),
             editor: editor_area::EditorArea::new(cx.new(crate::editor::host::DocumentEditor::new)),
@@ -352,7 +346,7 @@ impl Shell {
         cx.observe(&s.home, |_, _, cx| cx.notify()).detach();
         cx.subscribe(&s.project_actions, |s, _, event, cx| {
             match event {
-                project_actions::ActionsEvent::Opened => s.popover = None,
+                project_actions::ActionsEvent::Opened => s.set_popover(None, cx),
                 project_actions::ActionsEvent::Renamed { path, name } => {
                     if s.workspace_root().as_deref() == Some(path.as_path()) {
                         s.session.project.name = name.clone();
@@ -381,6 +375,8 @@ impl Shell {
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
                 s.preferences_changed(w, cx);
                 s.refresh_cloud_catalog(false, cx);
+                // Cloud turned off revokes a hosted selection.
+                s.guard_cloud_authority(w, cx);
                 if s.session.project.restore_last && s.preferences.read(cx).loaded {
                     s.session.project.restore_last = false;
                     if let Some(path) = windows::last_active_project(cx)
@@ -448,8 +444,12 @@ impl Shell {
                     .dialogs
                     .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
                 ExplorerEvent::Error(error) => s.show_error(error.clone(), cx),
-                ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
-                ExplorerEvent::Share { path } => s.share_folder(path, window, cx),
+                ExplorerEvent::CopyLink { path, folder } => {
+                    s.cloud.update(cx, |c, cx| c.copy_link(path, *folder, cx))
+                }
+                ExplorerEvent::Share { path } => {
+                    s.cloud.update(cx, |c, cx| c.share_folder(path, window, cx))
+                }
             }
             s.receive(window, cx);
             cx.notify();
@@ -468,6 +468,7 @@ impl Shell {
             PaneEvent::OpenChanged => {
                 s.constrain_window(window, cx);
                 s.push_explorer_host(window, cx);
+                s.guard_cloud_history(cx);
             }
             PaneEvent::PulledOut => s.sidebar.pulled_out(),
         })
@@ -541,15 +542,12 @@ impl Shell {
             },
         )
         .detach();
-        cx.observe(&s.cloud.agents, |_, _, cx| cx.notify()).detach();
-        // A hidden window is not polled for its Agents, and catches up
-        // when it returns.
-        let agents = s.cloud.agents.downgrade();
-        window
-            .observe_window_visibility(move |visibility, _, cx| {
-                let _ = agents.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
-            })
-            .detach();
+        // What the Cloud asks of the window.
+        cx.subscribe_in(&s.cloud, window, |s, _, event, w, cx| {
+            s.cloud_event(event, w, cx)
+        })
+        .detach();
+        cx.observe(&s.cloud, |_, _, cx| cx.notify()).detach();
         // Leaving the window abandons an editor drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
             let active = window.is_window_active();
@@ -566,7 +564,7 @@ impl Shell {
                 // `browser-window-focus`: bounded foreground activity.
                 crate::features::telemetry::note_foreground(cx);
                 // A returning window may probe the Cloud association once.
-                s.cloud.repository.update(cx, |r, cx| r.probe(cx));
+                s.cloud.update(cx, |c, cx| c.probe(cx));
                 // A file window watches nothing: the file is read again
                 // when the window comes back (FileModeDocument's `focus`).
                 if s.file_mode() {
@@ -689,21 +687,6 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        cx.subscribe(
-            &s.cloud_services,
-            |s, _, _: &crate::features::cloud::services::Close, cx| {
-                s.close_dialog(DialogKey::CloudServices, cx);
-                cx.notify();
-            },
-        )
-        .detach();
-        cx.subscribe(
-            &s.cloud_services,
-            |s, _, _: &crate::features::cloud::services::ResumePublication, cx| {
-                s.resume_publication(cx)
-            },
-        )
-        .detach();
         let mut workspace = if cfg!(test) || !launch.from_args {
             launch.workspace.clone()
         } else {
@@ -777,8 +760,6 @@ impl Shell {
             s.session.project.restore_last = true;
         }
         windows::register(window.window_handle(), cx.weak_entity(), cx);
-        cx.observe(&s.cloud.catalog, |_, _, cx| cx.notify())
-            .detach();
         // `DesktopDialogRoot`'s focus keeper: a control disabled or removed
         // while it holds focus drops focus out of the dialog; focus returns
         // to the nearest surface still there (the dialog's own).
@@ -936,7 +917,7 @@ impl Shell {
         let home = self.home_visible();
         let view = session::SessionView {
             home,
-            listing: home || self.popover.is_some(),
+            listing: home || self.popover == Some(Popover::Project),
             workspace: files.workspace.is_some(),
             root: self.workspace_root(),
             busy: self.session.picking
@@ -945,9 +926,98 @@ impl Shell {
                 || files.cloud_opening().is_some(),
             cloud_opening: files.cloud_opening().is_some(),
             restoring: self.restoring(),
+            name: self.session.project.name.clone(),
+            cloud_project: self.session.project.cloud.clone(),
+            hosted: self.hosted_project(),
+            opening: self.opening(),
+            file_mode: self.file_mode(),
         };
-        self.home.update(cx, |h, cx| h.set_session(view, cx));
+        self.home
+            .update(cx, |h, cx| h.set_session(view.clone(), cx));
+        let popover = self.popover;
+        self.cloud.update(cx, |c, cx| {
+            c.set_session(view, cx);
+            c.set_popover(popover, cx);
+        });
+        self.guard_cloud_history(cx);
     }
+    /// The Header card or menu that is open: one at a time.
+    fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
+        if self.popover != popover {
+            // Share opens on a snapshot of what is open.
+            if popover == Some(Popover::Share) {
+                let resource = match self.explorer_session.read(cx).selected_folder() {
+                    Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
+                    None => self
+                        .session
+                        .files
+                        .opened()
+                        .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
+                };
+                self.cloud
+                    .update(cx, |c, cx| c.snapshot_share_panel(resource, cx));
+            }
+            self.popover = popover;
+            self.sync_session_view(cx);
+            cx.notify();
+        }
+    }
+    /// What the Cloud asks of the window.
+    fn cloud_event(
+        &mut self,
+        event: &window_cloud::CloudEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use window_cloud::CloudEvent;
+        match event {
+            CloudEvent::OpenProject(path) => return self.open_project(path.clone(), window, cx),
+            CloudEvent::OpenCloud(project) => self.open_cloud(project.clone(), cx),
+            CloudEvent::Command(command) => return self.command(*command, window, cx),
+            CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
+            CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
+            CloudEvent::Error(error) => self.show_error(error.clone(), cx),
+        }
+        self.receive(window, cx);
+        cx.notify();
+    }
+    /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
+    /// focus it held; drafts, widths and sessions stay.
+    fn close_workspace_sidebars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.sidebar.is(Surface::CloudHistory) {
+            self.sidebar.close_cloud_history(cx);
+        }
+        self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
+        self.set_popover(None, cx);
+        self.focus.focus(window, cx);
+    }
+    /// The hosted Project's authority: when it no longer holds, the opening
+    /// in flight is cancelled and a Cloud project on screen leaves for the
+    /// Homepage.
+    pub(super) fn guard_cloud_authority(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = if crate::features::flags::cloud_enabled(&self.preferences, cx) {
+            cloud_authority::account_key(cx)
+        } else {
+            None
+        };
+        if self.session.project.authority.is_none() || self.session.project.authority == current {
+            return;
+        }
+        self.session.project.authority = None;
+        self.session.files.cancel_cloud();
+        if self.popover == Some(Popover::Share) {
+            self.set_popover(None, cx);
+        }
+        if self.hosted_project().is_some() {
+            self.close_workspace_sidebars(window, cx);
+            self.session.files.deactivate();
+            self.session.home = true;
+            self.receive(window, cx);
+        }
+        self.session.project.cloud = None;
+        cx.notify();
+    }
+
     /// What the Homepage asks for.
     fn home_event(&mut self, event: &home::HomeEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
@@ -955,7 +1025,7 @@ impl Shell {
                 return self.open_project(path.clone(), window, cx);
             }
             home::HomeEvent::OpenCloud(project) => {
-                self.popover = None;
+                self.set_popover(None, cx);
                 self.open_cloud(project.clone(), cx);
             }
             home::HomeEvent::OpenCreated {
@@ -990,7 +1060,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.popover = None;
+        self.set_popover(None, cx);
         match (&item.local_path, &item.cloud_project) {
             (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
             (None, Some(project)) => self.open_cloud(project.clone(), cx),
@@ -1027,27 +1097,10 @@ impl Shell {
         self.dialogs
             .update(cx, |d, cx| while d.remove(&matches, cx).is_some() {});
     }
-    /// Closes the feature dialog `key`; `false` when it was not open.
-    fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) -> bool {
-        self.dialogs.update(cx, |d, cx| d.close(key, cx))
-    }
-    fn dialog_open(&self, key: DialogKey, cx: &App) -> bool {
-        self.dialogs.read(cx).contains(key)
-    }
-    /// The layer's focus, which a dialog keeps while it is open.
-    fn dialog_focus(&self, _: &App) -> FocusHandle {
-        self.dialog_focus.clone()
-    }
+    /// The dialog layer takes the keyboard.
     fn focus_dialogs(&self, window: &mut Window, cx: &mut App) {
-        self.dialog_focus.focus(window, cx);
-    }
-    /// A feature dialog this window renders: `key` on the layer, drawn and
-    /// dismissed by the shell.
-    fn open_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
-        let owner = self.weak.clone();
-        self.dialogs.update(cx, |d, cx| {
-            d.open_for(key, owner, Self::owned_dialog, Self::dismiss_owned, cx)
-        });
+        let focus = self.dialogs.read(cx).focus_handle().clone();
+        focus.focus(window, cx);
     }
     /// The Settings page `page`, opened.
     fn open_settings(
@@ -1138,66 +1191,7 @@ impl Shell {
         if !self.session.files.cloud_conflict() && self.session.files.error.take().is_some() {
             return;
         }
-        match self.dialogs.read(cx).top_key() {
-            // The window's own feature dialogs answer here, not deferred.
-            Some(key) if self.owns_dialog(key) => self.dismiss_owned(key, window, cx),
-            _ => self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx)),
-        }
-    }
-    /// The window's own feature dialogs: the Cloud flows (the Homepage,
-    /// the project actions, the rename and the Cloud services keep theirs).
-    fn owns_dialog(&self, key: DialogKey) -> bool {
-        matches!(
-            key,
-            DialogKey::CloudPublish
-                | DialogKey::ConfirmPublish
-                | DialogKey::ReplaceCloud
-                | DialogKey::CloudRecovery
-                | DialogKey::ManageAgents
-        )
-    }
-    /// Draws the feature dialog `key` from the state it keeps here.
-    fn owned_dialog(
-        &mut self,
-        key: DialogKey,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        match key {
-            DialogKey::CloudPublish => Some(self.cloud_publish_dialog(cx).into_any_element()),
-            DialogKey::ConfirmPublish => {
-                Some(self.publish_confirmation_dialog(cx).into_any_element())
-            }
-            DialogKey::ReplaceCloud => self
-                .cloud
-                .replace
-                .as_ref()
-                .map(|r| self.replace_cloud_dialog(r, cx).into_any_element()),
-            DialogKey::CloudRecovery => self.cloud.recovery.as_ref().map(|(project, failure)| {
-                self.cloud_open_recovery_dialog(project, failure, cx)
-                    .into_any_element()
-            }),
-            DialogKey::ManageAgents => Some(self.manage_agents_dialog(cx).into_any_element()),
-            _ => None,
-        }
-        .unwrap_or_else(|| Empty.into_any_element())
-    }
-    /// Escape on the feature dialog `key`, each with its own cancel.
-    fn dismiss_owned(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
-        match key {
-            DialogKey::CloudPublish | DialogKey::ConfirmPublish => {
-                self.close_dialog(key, cx);
-            }
-            // A replacement on its way cannot be dismissed.
-            DialogKey::ReplaceCloud => {
-                if !self.cloud.replace.as_ref().is_some_and(|r| r.busy) {
-                    self.close_replace_cloud(cx);
-                }
-            }
-            DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
-            DialogKey::ManageAgents => self.close_manage_agents(window, cx),
-            _ => {}
-        }
+        self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx));
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.session.picking || self.session.files.busy() || self.session.files.folder_busy {
@@ -1469,7 +1463,7 @@ impl Shell {
                 self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
             }
             Command::Settings => {
-                self.popover = None;
+                self.set_popover(None, cx);
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 let root = self.workspace_root();
                 self.dialogs.update(cx, |d, cx| {
@@ -1479,7 +1473,7 @@ impl Shell {
                 self.focus_dialogs(window, cx);
             }
             Command::Feedback => {
-                self.popover = None;
+                self.set_popover(None, cx);
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 self.open_modal(Modal::Task(Task::Feedback), cx);
                 let feedback = self.dialogs.read(cx).feedback.clone();
@@ -1487,22 +1481,16 @@ impl Shell {
                 message.focus(window, cx);
             }
             Command::ProjectMenu => {
-                self.popover = if self.popover == Some(Popover::Project) {
-                    None
-                } else {
-                    Some(Popover::Project)
-                };
+                let next = (self.popover != Some(Popover::Project)).then_some(Popover::Project);
+                self.set_popover(next, cx);
                 self.project_focus.focus(window, cx);
             }
             Command::LocationMenu => {
-                self.popover = if self.popover == Some(Popover::Place) {
-                    None
-                } else {
-                    Some(Popover::Place)
-                };
+                let next = (self.popover != Some(Popover::Place)).then_some(Popover::Place);
+                self.set_popover(next, cx);
             }
             Command::Home => {
-                self.popover = None;
+                self.set_popover(None, cx);
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !self.home_visible() {
                     self.home.update(cx, |h, _| h.hold_list());
@@ -1578,12 +1566,14 @@ impl Shell {
                 self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
                 self.session.files.error = None;
             }
-            Command::CloudServices => self.open_cloud_share(String::new(), window, cx),
+            Command::CloudServices => self
+                .cloud
+                .update(cx, |c, cx| c.open_share(String::new(), window, cx)),
             Command::CloudHistory => {
                 let Some(project) = self.hosted_project() else {
                     return;
                 };
-                self.popover = None;
+                self.set_popover(None, cx);
                 let open = self.panes.read(cx).right().open;
                 let open = self.sidebar.toggle_cloud_history(open, &project, cx);
                 self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
@@ -1599,7 +1589,7 @@ impl Shell {
                 self.receive(window, cx);
             }
             Command::ManageExecutions => {
-                self.popover = None;
+                self.set_popover(None, cx);
                 self.close_modal(|m| matches!(m, Modal::Executions), cx);
                 self.open_modal(Modal::Executions, cx);
                 self.focus_dialogs(window, cx);
@@ -1642,11 +1632,9 @@ impl Shell {
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
         if let Some(failure) = self.session.files.take_cloud_failure() {
             self.session.project.recovery_details = false;
-            self.cloud.recovery = Some((
-                self.session.project.cloud.clone().unwrap_or_default(),
-                failure,
-            ));
-            self.open_dialog(DialogKey::CloudRecovery, cx);
+            let project = self.session.project.cloud.clone().unwrap_or_default();
+            self.cloud
+                .update(cx, |c, cx| c.show_recovery(project, failure, cx));
         }
         // `finishInterceptedClose`: a close a document could not finish asks
         // whether to keep the window or close anyway, instead of the error.
@@ -1928,17 +1916,7 @@ impl Shell {
     }
     /// `useHomepageCloudProjects`: load or revalidate the account catalog.
     pub(super) fn refresh_cloud_catalog(&mut self, retry: bool, cx: &mut Context<Self>) {
-        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
-        self.cloud
-            .catalog
-            .update(cx, |c, cx| c.ensure(enabled, retry, cx));
-    }
-    /// Captures: the Header shows the Cloud tools.
-    fn capture_hosted(&self) -> bool {
-        #[cfg(feature = "dev-capture")]
-        return self.cloud.capture_hosted;
-        #[cfg(not(feature = "dev-capture"))]
-        false
+        self.cloud.update(cx, |c, cx| c.refresh_catalog(retry, cx));
     }
     /// The hosted Project this window shows (a Cloud workspace, no local root).
     fn hosted_project(&self) -> Option<String> {
@@ -1948,59 +1926,6 @@ impl Shell {
             .as_ref()
             .filter(|ws| ws.local_root().is_none())
             .and(self.session.project.cloud.clone())
-    }
-    /// `openShareWizard`: the open Project's Share section, starting from
-    /// `path` (empty is the whole Project). A hosted Project is its own;
-    /// a checkout's is the one it resolved to.
-    fn open_cloud_share(&mut self, path: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.popover = None;
-        let project = self.hosted_project().or_else(|| {
-            let cloud = self.cloud.repository.read(cx);
-            cloud.context.project().map(str::to_owned)
-        });
-        match project {
-            Some(project) => {
-                use crate::features::cloud::services::Section;
-                let share = crate::features::flags::share_enabled(&self.preferences, cx);
-                self.cloud_services.update(cx, |s, cx| {
-                    s.share = share;
-                    s.open(project, Section::Share, cx);
-                    s.start_from(path, cx);
-                });
-                self.report_publication(cx);
-                let services = self.cloud_services.clone();
-                let dismissed = services.downgrade();
-                self.dialogs.update(cx, |d, cx| {
-                    d.open_owned(
-                        DialogKey::CloudServices,
-                        move |_, _, _| services.clone().into_any_element(),
-                        move |_, cx| {
-                            let _ = dismissed.update(cx, |s, cx| s.close(cx));
-                        },
-                        cx,
-                    )
-                });
-                self.focus_dialogs(window, cx);
-            }
-            // No Cloud Project yet: the value page and its publisher.
-            None => self.put_in_cloud(window, cx),
-        }
-    }
-    /// "Share with…": `providerPath`, the folder relative to the Project.
-    fn share_folder(
-        &mut self,
-        path: &std::path::Path,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !crate::features::flags::share_enabled(&self.preferences, cx) {
-            return;
-        }
-        let path: Vec<_> = path
-            .components()
-            .map(|part| part.as_os_str().to_string_lossy())
-            .collect();
-        self.open_cloud_share(path.join("/"), window, cx);
     }
     /// History closed itself (Close, Back): the sidebar closes on it.
     fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
@@ -2035,32 +1960,6 @@ impl Shell {
             .guard_cloud_history(open, project.as_deref(), cx)
         {
             self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
-        }
-    }
-    /// Explicit Cloud opening of a hosted Project root in this window.
-    /// `cloudWorkspaceShareResource`: the selected folder, else the active
-    /// document, else the authorized root.
-    fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
-        let link = crate::features::cloud::account::broker_and_binding(cx)
-            .zip(self.session.project.cloud.clone())
-            .ok_or("Cloud link unavailable")
-            .and_then(|((_, binding), project)| {
-                crate::workspace::cloud::locator::resource_url(
-                    binding.environment.web(),
-                    &project,
-                    &path.to_string_lossy(),
-                    folder,
-                )
-            });
-        match link {
-            Ok(link) => cx.write_to_clipboard(ClipboardItem::new_string(link)),
-            Err(detail) => self.show_error(
-                crate::localization::tf(
-                    "workspace.node.error.operationFailedDetail",
-                    &[("detail", detail.into())],
-                ),
-                cx,
-            ),
         }
     }
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
@@ -2104,7 +2003,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.popover = None;
+        self.set_popover(None, cx);
         if self
             .session
             .files
@@ -2346,7 +2245,7 @@ impl Shell {
             if crate::features::flags::cloud_enabled(&self.preferences, cx) {
                 let (retry, account) = (self.weak.clone(), self.weak.clone());
                 bar = bar.action(header::cloud_status(
-                    &self.cloud.catalog,
+                    &self.cloud.read(cx).catalog,
                     self.session.files.cloud_opening().is_some(),
                     empty,
                     move |_, cx| {
@@ -2369,7 +2268,7 @@ impl Shell {
         let hosted = if opening {
             self.session.files.cloud_opening().is_some()
         } else {
-            self.hosted_project().is_some() || self.capture_hosted()
+            self.hosted_project().is_some() || self.cloud.read(cx).capture_hosted()
         };
         let (changes, agent, tabs) = {
             let p = &self.preferences.read(cx).state;
@@ -2409,10 +2308,12 @@ impl Shell {
             bar = bar.tabs(self.editor_tabs(cx));
         }
         if hosted {
-            if let Some(agents) = self.agents_control(cx) {
+            if let Some(agents) = self.cloud.read(cx).agents_control(cx) {
                 bar = bar.action(agents);
             }
-            bar = bar.action(self.share_control(cx)).divider(cx);
+            bar = bar
+                .action(self.cloud.read(cx).share_control(cx))
+                .divider(cx);
         } else {
             // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
             let share = self.workspace_root().is_some()
@@ -2522,11 +2423,6 @@ impl Render for Shell {
             window.request_animation_frame();
         }
         self.sync_editor(window, cx);
-        self.guard_cloud_history(cx);
-        self.sync_cloud_agents(cx);
-        self.sync_repository_cloud(cx);
-        self.sync_cloud_publish(cx);
-        self.guard_cloud_authority(window, cx);
         self.sync_coachmarks(cx);
         self.sync_window_title(window);
         #[cfg(feature = "dev-capture")]
@@ -2652,7 +2548,7 @@ impl Shell {
         let mut layers = vec![];
         // `.desktop-workspace-notice-stack`: the local folder's Cloud notice
         // leads the workspace's own warning.
-        let mut folder_notice = self.local_folder_notice_view(cx);
+        let mut folder_notice = self.cloud.read(cx).local_folder_notice_view(cx);
         if folder_notice.is_some() && self.session.project.notice.is_none() {
             layers.push(
                 NoticeStack::new(

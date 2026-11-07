@@ -4,6 +4,7 @@
 //! row names what it opens, so a file called anything still reads as a file.
 //! The links grant nothing: people sign in with their own access. Agents are
 //! invited from their own card.
+use super::window_cloud::WindowCloud;
 use super::*;
 use crate::{
     localization::t as tr,
@@ -98,40 +99,33 @@ pub(super) fn share_targets(
     targets
 }
 
-impl Shell {
-    /// One snapshot when Share opens owns the copied locators: the selected
-    /// folder, else the active document, else the root.
-    pub(super) fn snapshot_share_panel(&mut self, cx: &App) {
+impl WindowCloud {
+    /// One snapshot when Share opens owns the copied locators: `resource`
+    /// is the selected folder, else the active document (`true` for a
+    /// folder), else the root.
+    pub(super) fn snapshot_share_panel(&mut self, resource: Option<(String, bool)>, cx: &App) {
         let targets = (|| {
             let (_, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
-            let project = self.hosted_project()?;
-            let resource = match self.explorer_session.read(cx).selected_folder() {
-                Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
-                None => self
-                    .session
-                    .files
-                    .opened()
-                    .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
-            };
+            let project = self.hosted()?;
             Some(share_targets(
                 binding.environment.web(),
                 &project,
-                &self.session.project.name,
+                &self.session().name,
                 None,
                 resource.as_ref().map(|(p, d)| (p.as_str(), *d)),
             ))
         })()
         .unwrap_or_default();
-        self.cloud.share_panel = SharePanel {
+        self.share_panel = SharePanel {
             targets,
             copied: None,
         };
     }
     /// The Header's Share button and the card it opens.
-    pub(super) fn share_control(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn share_control(&self, cx: &App) -> AnyElement {
         let open = self.popover == Some(Popover::Share);
         let host = self.weak.clone();
-        let panel = self.cloud.share_panel.clone();
+        let panel = self.share_panel.clone();
         let t = cx.palette();
         let copy_host = self.weak.clone();
         PopoverMenu::new("cloud-share-panel")
@@ -141,11 +135,8 @@ impl Shell {
             .on_open_change(move |opened, _, cx| {
                 let _ = host.update(cx, |s, cx| {
                     if *opened != (s.popover == Some(Popover::Share)) {
-                        if *opened {
-                            s.snapshot_share_panel(cx);
-                        }
-                        s.popover = opened.then_some(Popover::Share);
-                        cx.notify();
+                        // The window snapshots what is open, then shows it.
+                        s.show_popover(opened.then_some(Popover::Share), cx);
                     }
                 });
             })
@@ -162,7 +153,7 @@ fn share_card(
     panel: SharePanel,
     t: Theme,
     max_height: Pixels,
-    host: WeakEntity<Shell>,
+    host: WeakEntity<WindowCloud>,
 ) -> Stateful<Div> {
     let ty = theme::ty().ui;
     let heading = v_flex()
@@ -248,7 +239,7 @@ fn share_card(
                         .on_click(move |_, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
                             let _ = host.update(cx, |s, cx| {
-                                s.cloud.share_panel.copied = Some(id);
+                                s.share_panel.copied = Some(id);
                                 cx.notify();
                             });
                         }),

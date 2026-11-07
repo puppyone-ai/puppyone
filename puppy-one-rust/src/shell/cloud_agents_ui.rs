@@ -5,6 +5,7 @@
 //! comes first, since only the owner can move it on; then whoever is at
 //! work. The marks are the same in the Header and in the lists, so an Agent
 //! looks like itself in both (`ReachMemberMark`).
+use super::window_cloud::WindowCloud;
 use super::*;
 use crate::{
     features::{
@@ -177,12 +178,12 @@ fn mark_button(id: SharedString, label: String, pressed: bool, t: Theme) -> Stat
         .tooltip(crate::ui::components::tooltip(label))
 }
 
-impl Shell {
+impl WindowCloud {
     /// `CloudWorkspaceHeaderTools`' Agents anchor: the marks, the overflow
     /// count and the invite seat, and the card they open. Nothing when the
     /// account may not manage the list and nobody is in it.
-    pub(super) fn agents_control(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let agents = self.cloud.agents.read(cx);
+    pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
+        let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         if !listed && !agents.manageable {
             return None;
@@ -270,7 +271,7 @@ impl Shell {
                 .on_click(press(Opener::Invite)),
             );
         }
-        let anchor = self.cloud.agents_anchor.clone();
+        let anchor = self.agents_anchor.clone();
         let trigger = div()
             .relative()
             .flex()
@@ -307,20 +308,18 @@ impl Shell {
     /// A mark, the count or the seat was pressed.
     pub(super) fn press_agents(&mut self, opener: Opener, cx: &mut Context<Self>) {
         let open = self.popover == Some(Popover::Agents);
-        let show = self.cloud.agents.update(cx, |a, _| a.press(opener, open));
-        self.popover = show.then_some(Popover::Agents);
-        cx.notify();
+        let show = self.agents.update(cx, |a, _| a.press(opener, open));
+        self.show_popover(show.then_some(Popover::Agents), cx);
     }
     fn close_agents(&mut self, cx: &mut Context<Self>) {
         if self.popover == Some(Popover::Agents) {
-            self.popover = None;
-            cx.notify();
+            self.show_popover(None, cx);
         }
     }
     /// `onManage`: the card gives way to Manage agents.
     pub(super) fn open_manage_agents(&mut self, cx: &mut Context<Self>) {
-        self.popover = None;
-        self.cloud.agents.update(cx, |a, cx| a.open_manage(cx));
+        self.show_popover(None, cx);
+        self.agents.update(cx, |a, cx| a.open_manage(cx));
         if !self.dialog_open(DialogKey::ManageAgents, cx) {
             self.open_dialog(DialogKey::ManageAgents, cx);
         }
@@ -328,32 +327,32 @@ impl Shell {
     }
     pub(super) fn close_manage_agents(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_dialog(DialogKey::ManageAgents, cx);
-        self.cloud.agents.update(cx, |a, cx| a.close_manage(cx));
-        self.focus.focus(window, cx);
+        self.agents.update(cx, |a, cx| a.close_manage(cx));
+        self.focus_window(window, cx);
         cx.notify();
     }
     /// The hosted Project at its root keeps its Agents current; anything
     /// else forgets them, and Manage agents goes with them.
     pub(super) fn sync_cloud_agents(&mut self, cx: &mut Context<Self>) {
-        let project = self
-            .hosted_project()
-            .filter(|_| !self.opening() && !self.file_mode() && self.cloud_enabled(cx));
+        let project = self.hosted().filter(|_| {
+            !self.session().opening && !self.session().file_mode && self.cloud_enabled(cx)
+        });
         let open = self.popover == Some(Popover::Agents);
-        let name = self.session.project.name.clone();
-        self.cloud.agents.update(cx, |a, cx| {
+        let name = self.session().name.clone();
+        self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
-        if self.cloud.agents.read(cx).manage.is_none() {
+        if self.agents.read(cx).manage.is_none() {
             self.close_dialog(DialogKey::ManageAgents, cx);
         }
         if open && self.agents_control_hidden(cx) {
-            self.popover = None;
+            self.show_popover(None, cx);
         }
     }
     /// The card has nothing to stand on once nobody is listed and the list
     /// cannot be managed.
     fn agents_control_hidden(&self, cx: &App) -> bool {
-        let agents = self.cloud.agents.read(cx);
+        let agents = self.agents.read(cx);
         agents.agents.is_empty() && agents.requests.is_empty() && !agents.manageable
     }
 
@@ -361,8 +360,8 @@ impl Shell {
     fn agents_panel(&self, cx: &App) -> Stateful<Div> {
         let t = cx.palette();
         let ty = theme::ty().ui;
-        let agents = self.cloud.agents.read(cx);
-        let entity = self.cloud.agents.clone();
+        let agents = self.agents.read(cx);
+        let entity = self.agents.clone();
         let control = agents.manageable;
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let now = cloud_agents::now_ms() / 1000;
@@ -386,7 +385,7 @@ impl Shell {
         let mut card =
             share_panel::card("cloud-agents-panel", t, PANEL_WIDTH, PANEL_INSET, px(560.))
                 .gap(px(PANEL_GAP));
-        let anchor = self.cloud.agents_anchor.clone();
+        let anchor = self.agents_anchor.clone();
         let host = self.weak.clone();
         card = card.on_mouse_down_out(move |event, _, cx| {
             if !anchor.get().contains(&event.position) {
@@ -560,8 +559,8 @@ impl Shell {
     fn agents_invite(&self, compact: bool, cx: &App) -> AnyElement {
         let t = cx.palette();
         let ty = theme::ty().ui;
-        let agents = self.cloud.agents.read(cx);
-        let entity = self.cloud.agents.clone();
+        let agents = self.agents.read(cx);
+        let entity = self.agents.clone();
         let waiting = agents.waiting();
         let note = |id: &'static str| {
             h_flex()
@@ -769,8 +768,8 @@ impl Shell {
     pub(super) fn manage_agents_dialog(&self, cx: &App) -> Dialog {
         let t = cx.palette();
         let ty = theme::ty().ui;
-        let agents = self.cloud.agents.read(cx);
-        let entity = self.cloud.agents.clone();
+        let agents = self.agents.read(cx);
+        let entity = self.agents.clone();
         let host = self.weak.clone();
         let now = cloud_agents::now_ms() / 1000;
         let ground = t.panel;

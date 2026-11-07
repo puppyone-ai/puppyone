@@ -40,6 +40,16 @@ pub(super) struct SessionView {
     pub cloud_opening: bool,
     /// The launch reopens the last project (`RestoringWorkspaceScreen`).
     pub restoring: bool,
+    /// The shown project's name.
+    pub name: String,
+    /// The hosted Project this window opened (`None` for a local folder).
+    pub cloud_project: Option<String>,
+    /// The hosted Project on screen: a Cloud workspace with no local root.
+    pub hosted: Option<String>,
+    /// A project is on its way in and the window shows its preparation.
+    pub opening: bool,
+    /// A file window (File Mode): one file, no project.
+    pub file_mode: bool,
 }
 
 /// The project this window shows and how it came to show it: its name, the

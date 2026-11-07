@@ -8,7 +8,9 @@
 //! the other project of a linked pair. It never moves one project between
 //! this computer and the Cloud. Inviting a person and connecting an agent
 //! sit under putting it in the Cloud; a Cloud project's History follows.
+use super::window_cloud::{CloudEvent, WindowCloud};
 use super::*;
+use crate::workspace::cloud::catalog::Item;
 use crate::{
     localization::{t as tr, tf},
     ui::components::{
@@ -163,53 +165,50 @@ fn place_icon(place: Place) -> Icon {
     })
 }
 
-impl Shell {
+impl WindowCloud {
     /// The open local folder's notice, while Cloud is on.
     pub(super) fn local_folder_notice(&self, cx: &App) -> Option<Notice> {
         if !crate::features::flags::cloud_enabled(&self.preferences, cx)
-            || self.file_mode()
-            || self.hosted_project().is_some()
-            || self.workspace_root().is_none()
+            || self.session().file_mode
+            || self.hosted().is_some()
+            || self.root().is_none()
         {
             return None;
         }
-        notice_of(&self.cloud.repository.read(cx).context)
+        notice_of(&self.repository.read(cx).context)
     }
     /// `canReplaceMissingCloudProject`: signed in, the Project is gone, and
     /// the checkout has exactly the reviewed `puppyone` remote.
     fn missing_replaceable(&self, cx: &App) -> bool {
         crate::features::cloud::account::has_account(cx)
             && matches!(
-                self.cloud.repository.read(cx).context,
+                self.repository.read(cx).context,
                 Association::NotFound { .. }
             )
-            && self.workspace_root().is_some()
+            && self.root().is_some()
     }
     /// The Header place menu's state (`placeMenu`), absent without Cloud.
-    pub(super) fn place_menu(&self, cx: &App) -> Option<PlaceMenu> {
+    /// `items` is the shared project list, where a hosted Project finds the
+    /// folder linked to it.
+    pub(super) fn place_menu(&self, items: &[Item], cx: &App) -> Option<PlaceMenu> {
         if !crate::features::flags::cloud_enabled(&self.preferences, cx) {
             return None;
         }
-        let hosted = self.hosted_project();
+        let hosted = self.hosted();
         let place = if hosted.is_some() {
             Place::Cloud
         } else {
             Place::Local
         };
         let linked_folder = hosted.as_ref().and_then(|project| {
-            self.home
-                .read(cx)
-                .project_items(cx)
-                .into_iter()
+            items
+                .iter()
                 .find(|i| i.linked.as_ref().is_some_and(|l| &l.id == project))
-                .and_then(|i| Some((PathBuf::from(i.local_path?), i.label)))
+                .and_then(|i| Some((PathBuf::from(i.local_path.clone()?), i.label.clone())))
         });
-        let unhosted = matches!(
-            self.cloud.repository.read(cx).context,
-            Association::LocalOnly
-        );
-        let publish_pending = self.cloud.publish.read(cx).header_status().is_some()
-            && self.cloud.publish.read(cx).published.is_none();
+        let unhosted = matches!(self.repository.read(cx).context, Association::LocalOnly);
+        let publish_pending = self.publish.read(cx).header_status().is_some()
+            && self.publish.read(cx).published.is_none();
         Some(resolve(
             place,
             unhosted,
@@ -220,10 +219,10 @@ impl Shell {
         ))
     }
     /// `.desktop-titlebar-place-button`: the place's mark and name.
-    pub(super) fn place_control(&self, menu: &PlaceMenu, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn place_button(&self, menu: &PlaceMenu) -> Button {
         let ty = theme::ty().header;
         let label = place_label(menu.place);
-        let button = Button::new("project-place")
+        Button::new("project-place")
             .variant(ButtonVariant::Titlebar)
             .icon(place_icon(menu.place).with_size(px(16.)).stroke(1.75))
             .label(label)
@@ -231,9 +230,7 @@ impl Shell {
             .px(px(6.))
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
-            .font_weight(FontWeight::MEDIUM);
-        self.header_popover(Popover::Place, button, cx)
-            .into_any_element()
+            .font_weight(FontWeight::MEDIUM)
     }
     /// `ProjectPlaceRows`: the current place as a fact, then the Cloud
     /// action with inviting and connecting under it, then History.
@@ -246,8 +243,7 @@ impl Shell {
         let host = self.weak.clone();
         let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
             && menu.action.as_ref().is_some_and(shares_through_cloud);
-        let history =
-            self.hosted_project().is_some() && crate::features::cloud::account::has_account(cx);
+        let history = self.hosted().is_some() && crate::features::cloud::account::has_account(cx);
         let current = MenuItem::new(place_label(menu.place))
             .icon_sized(place_icon(menu.place).with_size(px(15.)).stroke(1.75))
             .selected(true)
@@ -316,7 +312,7 @@ impl Shell {
             MenuItem::new(tr("shell.projectReach.invitePerson"))
                 .icon_sized(Icon::new("user-plus").small().stroke(1.8))
                 .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.open_cloud_share(String::new(), w, cx));
+                    let _ = host.update(cx, |s, cx| s.open_share(String::new(), w, cx));
                 })
         });
         let connect = sharing.then(|| {
@@ -324,15 +320,17 @@ impl Shell {
             MenuItem::new(tr("shell.projectReach.connectAgent"))
                 .icon_sized(Icon::new("plug").small().stroke(1.8))
                 .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.open_cloud_share(String::new(), w, cx));
+                    let _ = host.update(cx, |s, cx| s.open_share(String::new(), w, cx));
                 })
         });
         let history = history.then(|| {
             let host = host.clone();
             MenuItem::new(tr("source-control.history.title"))
                 .icon_sized(Icon::new("history").with_size(px(15.)).stroke(1.75))
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.command(Command::CloudHistory, w, cx));
+                .on_click(move |_, cx| {
+                    let _ = host.update(cx, |_, cx| {
+                        cx.emit(CloudEvent::Command(Command::CloudHistory))
+                    });
                 })
         });
         move |surface| {
@@ -355,20 +353,22 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.popover = None;
+        self.show_popover(None, cx);
         match action {
             Action::PutInCloud { .. } => self.put_in_cloud(window, cx),
-            Action::OpenCloudProject { project, .. } => self.open_cloud(project, cx),
+            Action::OpenCloudProject { project, .. } => cx.emit(CloudEvent::OpenCloud(project)),
             Action::SignIn => self.sign_in_for_cloud(window, cx),
             Action::PutInCloudAgain => self.replace_cloud_connection(window, cx),
-            Action::OpenLocalFolder { path, .. } => self.open_project(path, window, cx),
+            Action::OpenLocalFolder { path, .. } => cx.emit(CloudEvent::OpenProject(path)),
         }
         cx.notify();
     }
     /// `onSignIn`: Account settings with a session, else the browser.
-    pub(super) fn sign_in_for_cloud(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn sign_in_for_cloud(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         if crate::features::cloud::account::has_account(cx) {
-            self.open_settings(crate::features::settings::Page::Account, window, cx);
+            cx.emit(CloudEvent::OpenSettings(
+                crate::features::settings::Page::Account,
+            ));
         } else {
             crate::features::cloud::account::sign_in(cx);
         }
@@ -376,56 +376,55 @@ impl Shell {
     /// `openCloudDialogAt("initialize")`: the first publication of this
     /// folder, which creates its own Cloud project.
     pub(super) fn put_in_cloud(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.workspace_root().is_none() {
+        if self.root().is_none() {
             return;
         }
-        self.popover = None;
+        self.show_popover(None, cx);
         if !self.dialog_open(DialogKey::CloudPublish, cx) {
             self.open_dialog(DialogKey::CloudPublish, cx);
+            // The activation page asks for the owning organization.
+            self.refresh(cx);
         }
-        self.focus_dialogs(window, cx);
+        self.dialog_focus.focus(window, cx);
         cx.notify();
     }
     pub(super) fn close_replace_cloud(&mut self, cx: &mut Context<Self>) {
-        self.cloud.replace = None;
+        self.replace = None;
         self.close_dialog(DialogKey::ReplaceCloud, cx);
     }
     /// `setReplacingMissingCloudProject(true)`.
     pub(super) fn replace_cloud_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Association::NotFound { project } = self.cloud.repository.read(cx).context.clone()
-        else {
+        let Association::NotFound { project } = self.repository.read(cx).context.clone() else {
             return;
         };
-        self.cloud.replace = Some(ReplaceCloud {
+        self.replace = Some(ReplaceCloud {
             project,
             busy: false,
             failed: false,
         });
         self.open_dialog(DialogKey::ReplaceCloud, cx);
-        self.focus_dialogs(window, cx);
+        self.dialog_focus.focus(window, cx);
         self.begin_replace(cx);
     }
     /// `LocalFolderCloudNotice`: the folder stays usable; this only says
     /// what its Cloud project means and offers the one action that helps.
-    pub(super) fn local_folder_notice_view(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<FloatingNotice> {
+    pub(super) fn local_folder_notice_view(&self, cx: &App) -> Option<FloatingNotice> {
         let notice = self.local_folder_notice(cx)?;
-        let root = self.workspace_root()?;
+        let root = self.root()?;
         let key = notice_key(&root, &notice);
-        if self.cloud.dismissed_notice.as_deref() == Some(key.as_str()) {
+        if self.dismissed_notice.as_deref() == Some(key.as_str()) {
             return None;
         }
         let host = self.weak.clone();
-        let action = |id: &'static str,
-                      label: &'static str,
-                      run: fn(&mut Shell, &mut Window, &mut Context<Shell>)| {
-            let host = host.clone();
-            NoticeAction::new(id, label, move |w, cx| {
-                let _ = host.update(cx, |s, cx| run(s, w, cx));
-            })
-        };
+        let action =
+            |id: &'static str,
+             label: &'static str,
+             run: fn(&mut WindowCloud, &mut Window, &mut Context<WindowCloud>)| {
+                let host = host.clone();
+                NoticeAction::new(id, label, move |w, cx| {
+                    let _ = host.update(cx, |s, cx| run(s, w, cx));
+                })
+            };
         let replaceable = self.missing_replaceable(cx);
         let (tone, message, action) = match &notice {
             Notice::Linked {
@@ -447,7 +446,9 @@ impl Shell {
                         "local-folder-notice-open",
                         tr("cloud.localFolderNotice.openProject"),
                         move |_, cx| {
-                            let _ = host.update(cx, |s, cx| s.open_cloud(project.clone(), cx));
+                            let _ = host.update(cx, |_, cx| {
+                                cx.emit(CloudEvent::OpenCloud(project.clone()))
+                            });
                         },
                     )
                 });
@@ -513,7 +514,7 @@ impl Shell {
                     "local-folder-notice-retry",
                     tr("common.action.retry"),
                     |s, _, cx| {
-                        s.cloud.repository.update(cx, |r, cx| r.retry(cx));
+                        s.repository.update(cx, |r, cx| r.retry(cx));
                     },
                 )),
             ),
@@ -523,7 +524,7 @@ impl Shell {
             .tone(tone)
             .on_dismiss(move |_, cx| {
                 let _ = dismiss.update(cx, |s, cx| {
-                    s.cloud.dismissed_notice = Some(key.clone());
+                    s.dismissed_notice = Some(key.clone());
                     cx.notify();
                 });
             });
@@ -580,10 +581,10 @@ impl Shell {
                 Button::new("cloud-publish-confirm")
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.common.confirm"))
-                    .track_focus(&self.dialog_focus(cx))
+                    .track_focus(&self.dialog_focus.clone())
                     .on_click(cx.listener(|s, _, _, cx| {
                         s.close_dialog(DialogKey::ConfirmPublish, cx);
-                        s.cloud.publish.update(cx, |p, cx| {
+                        s.publish.update(cx, |p, cx| {
                             p.start(crate::cloud::publication::Action::Initialize, cx)
                         });
                         cx.notify();
@@ -649,8 +650,8 @@ impl Shell {
                 Button::new("cloud-replace-confirm")
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.replaceConfirm"))
-                    .disabled(busy || self.cloud.replace_url.is_none())
-                    .track_focus(&self.dialog_focus(cx))
+                    .disabled(busy || self.replace_url.is_none())
+                    .track_focus(&self.dialog_focus.clone())
                     .on_click(
                         cx.listener(move |s, _, _, cx| s.confirm_replace(project.clone(), cx)),
                     ),

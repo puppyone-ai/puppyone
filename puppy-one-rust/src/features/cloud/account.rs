@@ -173,6 +173,35 @@ impl Drop for CloudAccount {
         }
     }
 }
+/// Runs `on_change` whenever the account changes: its snapshot, or the
+/// account itself when the service is installed or replaced (a window may
+/// open before the account owner exists).
+pub fn observe<V: 'static>(
+    window: &mut Window,
+    cx: &mut Context<V>,
+    on_change: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
+) -> Subscription {
+    let on_change = std::rc::Rc::new(on_change);
+    let current = std::rc::Rc::new(std::cell::RefCell::new(None::<Subscription>));
+    let attach = {
+        let (on_change, current) = (on_change.clone(), current.clone());
+        move |window: &mut Window, cx: &mut Context<V>| {
+            let account = cx.try_global::<CloudAccountService>().map(|s| s.0.clone());
+            let subscription = account.map(|account| {
+                let on_change = on_change.clone();
+                cx.observe_in(&account, window, move |v, _, window, cx| {
+                    on_change(v, window, cx)
+                })
+            });
+            *current.borrow_mut() = subscription;
+        }
+    };
+    attach(window, cx);
+    cx.observe_global_in::<CloudAccountService>(window, move |v, window, cx| {
+        attach(window, cx);
+        on_change(v, window, cx);
+    })
+}
 /// The broker and the signed-in binding, for Cloud requests made on the
 /// account's behalf (catalog, opening). `None` while signed out.
 pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud::auth::model::Binding)> {

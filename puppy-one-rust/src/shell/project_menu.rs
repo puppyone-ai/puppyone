@@ -63,14 +63,16 @@ impl Shell {
             .line_height(px(ty.line_height))
             .font_weight(FontWeight::MEDIUM);
         // The place and the publication wait while a project is entered.
-        let place = self.place_menu(cx).filter(|_| opening.is_none());
+        let items = self.home.read(cx).project_items(cx);
+        let cloud = self.cloud.read(cx);
+        let place = cloud.place_menu(&items, cx).filter(|_| opening.is_none());
         h_flex()
             .min_w_0()
             .gap(px(2.))
             .child(self.header_popover(Popover::Project, project, cx))
             .when_some(place, |d, menu| {
-                d.child(self.place_control(&menu, cx))
-                    .children(self.publish_header_mark(cx))
+                d.child(self.header_popover(Popover::Place, cloud.place_button(&menu), cx))
+                    .children(cloud.publish_header_mark(cx))
             })
     }
     /// `trigger` and the header popover it opens.
@@ -96,7 +98,7 @@ impl Shell {
                 let _ = host.update(cx, |s, cx| {
                     let open = s.popover == Some(popover);
                     if *opened != open {
-                        s.popover = opened.then_some(popover);
+                        s.set_popover(opened.then_some(popover), cx);
                         cx.notify();
                     }
                 });
@@ -120,8 +122,10 @@ impl Shell {
                     });
                 }
                 Popover::Place => {
-                    if let Some(place) = self.place_menu(cx) {
-                        let fill = self.place_rows(place, cx);
+                    let items = self.home.read(cx).project_items(cx);
+                    let cloud = self.cloud.read(cx);
+                    if let Some(place) = cloud.place_menu(&items, cx) {
+                        let fill = cloud.place_rows(place, cx);
                         menu = menu.menu(move |surface, _, _| {
                             fill(
                                 surface
@@ -155,6 +159,7 @@ impl Shell {
             .map(|p| p.to_string_lossy().into_owned());
         let hosted = self.hosted_project();
         let t = cx.palette();
+        let copied = self.cloud.read(cx).copied_path.clone();
         let projects = self
             .home
             .read(cx)
@@ -164,7 +169,7 @@ impl Shell {
             .map(|(index, item)| {
                 let selected = (item.local_path.is_some() && item.local_path == current)
                     || (hosted.is_some() && item.cloud_project == hosted);
-                self.project_item(index, item, selected, t)
+                self.project_item(index, item, selected, copied.as_ref(), t)
             })
             .collect::<Vec<_>>();
         let home = MenuItem::new(tr("shell.workspaceSwitcher.home"))
@@ -195,6 +200,7 @@ impl Shell {
         index: usize,
         item: crate::workspace::cloud::catalog::Item,
         current: bool,
+        copied: Option<&(String, std::time::Instant)>,
         t: Theme,
     ) -> MenuItem {
         let open_host = self.weak.clone();
@@ -216,11 +222,7 @@ impl Shell {
             );
         if let Some(path) = item.local_path.clone() {
             let copy_host = self.weak.clone();
-            let copied = self
-                .cloud
-                .copied_path
-                .as_ref()
-                .is_some_and(|(p, at)| *p == path && at.elapsed() < COPIED_FOR);
+            let copied = copied.is_some_and(|(p, at)| *p == path && at.elapsed() < COPIED_FOR);
             let copy_label = tr(if copied {
                 "common.action.copied"
             } else {
@@ -241,7 +243,8 @@ impl Shell {
                     cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
                     let _ = copy_host.update(cx, |s, cx| {
-                        s.cloud.copied_path = Some((copy_path.clone(), std::time::Instant::now()));
+                        let copied = (copy_path.clone(), std::time::Instant::now());
+                        s.cloud.update(cx, |c, _| c.copied_path = Some(copied));
                         cx.notify();
                         // The check gives way after its moment.
                         cx.spawn(async move |this, cx| {
@@ -258,7 +261,7 @@ impl Shell {
         }
         row.on_click(move |w, cx| {
             let _ = open_host.update(cx, |s, cx| {
-                s.popover = None;
+                s.set_popover(None, cx);
                 if current {
                     cx.notify();
                 } else {

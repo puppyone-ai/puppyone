@@ -7,72 +7,34 @@
 //! (`useAccountCloudWorkspace`): signing out, another account, a new
 //! session generation, another API or Cloud turned off revokes the hosted
 //! selection, and `ProjectNavigationFailure` for a Cloud opening.
-use super::*;
+use super::{
+    dialogs::DialogKey,
+    window_cloud::{CloudEvent, WindowCloud},
+};
 use crate::{
-    features::cloud::repository::RepositoryCloud,
     localization::t as tr,
-    ui::components::{Button, ButtonVariant, Dialog},
+    theme,
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, ButtonVariant, Dialog},
+    },
     workspace::cloud::opening::{Failure, Recovery},
 };
+use gpui::{prelude::*, *};
 
 pub(super) fn account_key(cx: &App) -> Option<String> {
     crate::features::cloud::account::broker_and_binding(cx)
         .map(|(_, b)| format!("{}\n{}\n{}", b.user, b.epoch, b.environment.api()))
 }
 
-impl Shell {
-    pub(super) fn new_repository_cloud(cx: &mut Context<Self>) -> Entity<RepositoryCloud> {
-        let entity = cx.new(|_| RepositoryCloud::new());
-        cx.observe(&entity, |_, _, cx| cx.notify()).detach();
-        entity
-    }
-    pub(super) fn cloud_enabled(&self, cx: &App) -> bool {
-        crate::features::flags::cloud_enabled(&self.preferences, cx)
-    }
+impl WindowCloud {
     /// Keep the open folder's association current for the account.
     pub(super) fn sync_repository_cloud(&mut self, cx: &mut Context<Self>) {
         // A file window has no project and so no Cloud project.
-        let root = self.workspace_root().filter(|_| !self.file_mode());
+        let root = self.root().filter(|_| !self.session().file_mode);
         let enabled = self.cloud_enabled(cx);
-        self.cloud
-            .repository
+        self.repository
             .update(cx, |r, cx| r.sync(root.as_deref(), enabled, cx));
-    }
-    /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
-    /// focus it held; drafts, widths and sessions stay.
-    fn close_workspace_sidebars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.sidebar.is(Surface::CloudHistory) {
-            self.sidebar.close_cloud_history(cx);
-        }
-        self.panes.update(cx, |p, cx| p.set_right_open(false, cx));
-        self.popover = None;
-        self.focus.focus(window, cx);
-    }
-    /// The hosted Project's authority: when it no longer holds, the opening
-    /// in flight is cancelled and a Cloud project on screen leaves for the
-    /// Homepage.
-    pub(super) fn guard_cloud_authority(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current = if self.cloud_enabled(cx) {
-            account_key(cx)
-        } else {
-            None
-        };
-        if self.session.project.authority.is_none() || self.session.project.authority == current {
-            return;
-        }
-        self.session.project.authority = None;
-        self.session.files.cancel_cloud();
-        if self.popover == Some(Popover::Share) {
-            self.popover = None;
-        }
-        if self.hosted_project().is_some() {
-            self.close_workspace_sidebars(window, cx);
-            self.session.files.deactivate();
-            self.session.home = true;
-            self.receive(window, cx);
-        }
-        self.session.project.cloud = None;
-        cx.notify();
     }
     /// `ProjectNavigationFailure` for a Cloud opening: why, Close, and Retry
     /// or Account where they help.
@@ -90,7 +52,7 @@ impl Shell {
         let mut dialog = Dialog::new("cloud-open-recovery")
             .width(420.)
             .title(tr("cloud.opening.failedTitle"))
-            .focus_handle(self.dialog_focus(cx))
+            .focus_handle(self.dialog_focus.clone())
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
                     s.close_cloud_recovery(cx);
@@ -125,23 +87,25 @@ impl Shell {
                     .label(tr("cloud.common.retry"))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         s.close_cloud_recovery(cx);
-                        s.open_cloud(project.clone(), cx);
+                        cx.emit(CloudEvent::OpenCloud(project.clone()));
                     })),
             ),
             Recovery::Account => dialog.footer(
                 Button::new("cloud-open-account")
                     .variant(ButtonVariant::Solid)
                     .label(tr("settings.sidebar.account"))
-                    .on_click(cx.listener(|s, _, w, cx| {
+                    .on_click(cx.listener(|s, _, _, cx| {
                         s.close_cloud_recovery(cx);
-                        s.open_settings(crate::features::settings::Page::Account, w, cx);
+                        cx.emit(CloudEvent::OpenSettings(
+                            crate::features::settings::Page::Account,
+                        ));
                     })),
             ),
             Recovery::None => dialog,
         }
     }
     pub(super) fn close_cloud_recovery(&mut self, cx: &mut Context<Self>) {
-        self.cloud.recovery = None;
+        self.recovery = None;
         self.close_dialog(DialogKey::CloudRecovery, cx);
     }
 }

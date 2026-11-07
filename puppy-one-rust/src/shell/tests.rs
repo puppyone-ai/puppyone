@@ -1757,18 +1757,16 @@ fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppCo
     settle_cloud(&view, cx, "the hosted Project", &|s, _| {
         s.hosted_project().as_deref() == Some("project-a")
     });
-    view.update(cx, |s, cx| {
-        s.snapshot_share_panel(cx);
-        s.popover = Some(Popover::Share);
-        cx.notify();
-    });
+    view.update(cx, |s, cx| s.set_popover(Some(Popover::Share), cx));
     draw(cx);
     // The fixture's project id is not one the website can address, so the
     // card says the project cannot be shared yet (the links themselves are
     // `share_panel::tests`).
     let card = cx.debug_bounds("cloud-workspace-share").unwrap();
     assert!((f32::from(card.size.width) - 380.).abs() < 0.5);
-    view.read_with(cx, |s, _| assert!(s.cloud.share_panel.targets.is_empty()));
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).share_panel.targets.is_empty())
+    });
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, _| assert!(s.popover.is_none()));
 }
@@ -1805,7 +1803,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the Agents", &|s, cx| {
-        s.cloud.agents.read(cx).manageable
+        s.cloud.read(cx).agents.read(cx).manageable
     });
     draw(cx);
     let request = cx.debug_bounds("cloud-workspace-agent:r1").unwrap();
@@ -1827,7 +1825,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     view.read_with(cx, |s, cx| {
         assert_eq!(s.popover, Some(Popover::Agents));
         assert_eq!(
-            s.cloud.agents.read(cx).opener,
+            s.cloud.read(cx).agents.read(cx).opener,
             crate::features::cloud::agents::Opener::Invite
         );
     });
@@ -1847,6 +1845,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     cx.simulate_click(manage.center(), Modifiers::none());
     settle_cloud(&view, cx, "Manage agents", &|s, cx| {
         s.cloud
+            .read(cx)
             .agents
             .read(cx)
             .manage
@@ -1860,7 +1859,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
-        assert!(s.cloud.agents.read(cx).manage.is_none());
+        assert!(s.cloud.read(cx).agents.read(cx).manage.is_none());
     });
 }
 
@@ -1872,7 +1871,7 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     view.read_with(cx, |s, cx| {
         assert!(!s.right_shows(Surface::CloudHistory, cx))
     });
-    // A History sidebar left without its scope closes on the next frame.
+    // A History sidebar without its scope closes as it opens.
     view.update(cx, |s, cx| {
         assert!(!s.sidebar.toggle_cloud_history(false, "project", cx));
         s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
@@ -1918,13 +1917,13 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     let (view, cx, Linked { root, _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     let windows = cx.update(|_, cx| cx.windows().len());
     let local_key = view.read_with(cx, |s, _| {
         s.session.files.workspace_key().unwrap().to_owned()
     });
-    let menu = view.read_with(cx, |s, cx| s.place_menu(cx).unwrap());
+    let menu = view.read_with(cx, |s, cx| s.place_menu_now(cx).unwrap());
     assert_eq!(menu.place, Place::Local);
     let Some(action @ Action::OpenCloudProject { .. }) = menu.action else {
         panic!("no Open Cloud project: {menu:?}")
@@ -1932,7 +1931,10 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     // ⌘-less: the Header command opens the same menu.
     command(&view, cx, Command::LocationMenu);
     view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Place)));
-    view.update_in(cx, |s, w, cx| s.run_place_action(action, w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.cloud
+            .update(cx, |c, cx| c.run_place_action(action, w, cx))
+    });
     view.read_with(cx, |s, cx| {
         assert!(s.popover.is_none());
         // The Header names the Cloud project while it opens.
@@ -1944,7 +1946,7 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     view.read_with(cx, |s, cx| {
         assert_eq!(s.session.project.name, "Fixture Cloud");
         assert_ne!(s.session.files.workspace_key(), Some(local_key.as_str()));
-        assert_eq!(s.place_menu(cx).unwrap().place, Place::Cloud);
+        assert_eq!(s.place_menu_now(cx).unwrap().place, Place::Cloud);
     });
     assert_eq!(cx.update(|_, cx| cx.windows().len()), windows);
     // The folder is its own project again, in this window too.
@@ -1985,7 +1987,9 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
-    view.update_in(cx, |s, w, cx| s.put_in_cloud(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.cloud.update(cx, |c, cx| c.put_in_cloud(w, cx))
+    });
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert!(s.has_dialog("CloudPublish", cx));
@@ -2186,8 +2190,9 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
         assert!(s.session.files.cloud_opening().is_some())
     });
     view.update(cx, |s, cx| {
-        s.preferences
-            .update(cx, |p, _| p.state.experimental.cloud_workspace = false)
+        s.preferences.update(cx, |p, cx| {
+            p.change(|p| p.experimental.cloud_workspace = false, cx)
+        })
     });
     draw(cx);
     view.read_with(cx, |s, _| {
@@ -2362,7 +2367,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         s.has_dialog("CloudRecovery", cx)
     });
     view.update(cx, |s, cx| {
-        let Some((project, failure)) = s.cloud.recovery.as_ref() else {
+        let Some((project, failure)) = s.cloud.read(cx).recovery.as_ref() else {
             panic!("no recovery")
         };
         let (project, failure) = (project.clone(), failure.clone());
@@ -2374,13 +2379,12 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
             failure.recovery,
             crate::workspace::cloud::opening::Recovery::Retry
         ));
-        s.session.project.recovery_details = true;
         cx.notify();
     });
     draw(cx);
     // Retry repeats the same opening, which now succeeds.
     view.update(cx, |s, cx| {
-        s.close_cloud_recovery(cx);
+        s.cloud.update(cx, |c, cx| c.close_cloud_recovery(cx));
         s.open_cloud("project-a".into(), cx);
     });
     settle(&view, cx, "the retried opening", &|s, _| {
@@ -2610,24 +2614,27 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     });
     // No Cloud remote: the place menu's one action is Put in the Cloud.
     settle_cloud(&view, cx, "the place menu", &|s, cx| {
-        s.place_menu(cx).and_then(|m| m.action) == Some(Action::PutInCloud { continuing: false })
+        s.place_menu_now(cx).and_then(|m| m.action)
+            == Some(Action::PutInCloud { continuing: false })
     });
     view.update_in(cx, |s, w, cx| {
-        s.run_place_action(Action::PutInCloud { continuing: false }, w, cx)
+        s.cloud.update(cx, |c, cx| {
+            c.run_place_action(Action::PutInCloud { continuing: false }, w, cx)
+        })
     });
     settle_cloud(&view, cx, "the organization", &|s, cx| {
         s.has_dialog("CloudPublish", cx)
-            && s.cloud.publish.read(cx).selected.as_deref() == Some("org-1")
+            && s.cloud.read(cx).publish.read(cx).selected.as_deref() == Some("org-1")
     });
     // Upload to Cloud runs the publication; the dialog can go to the
     // background while the Header states the run.
     view.update(cx, |s, cx| {
-        s.cloud.publish.update(cx, |p, cx| {
+        s.cloud.read(cx).publish.clone().update(cx, |p, cx| {
             p.start(crate::cloud::publication::Action::Initialize, cx)
         })
     });
     settle_cloud(&view, cx, "the publication", &|s, cx| {
-        let p = s.cloud.publish.read(cx);
+        let p = s.cloud.read(cx).publish.read(cx);
         if let Some(error) = p.outcome.as_ref().and_then(|o| o.error.as_ref()) {
             panic!("{error:?}");
         }
@@ -2635,7 +2642,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     });
     view.read_with(cx, |s, cx| {
         assert_eq!(
-            s.cloud.publish.read(cx).header_status(),
+            s.cloud.read(cx).publish.read(cx).header_status(),
             Some(crate::features::cloud::publish::HeaderStatus::Completed)
         );
         // The folder stays open: its Cloud project is another project.
@@ -2717,26 +2724,32 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
     });
     settle(&view, cx, "the missing association", &|s, cx| {
         matches!(
-            s.cloud.repository.read(cx).context,
+            s.cloud.read(cx).repository.read(cx).context,
             crate::workspace::cloud::repository::Context::NotFound { .. }
         )
     });
     // Signed in with exactly the reviewed remote: Put in the Cloud again.
     view.read_with(cx, |s, cx| {
         assert_eq!(
-            s.place_menu(cx).and_then(|m| m.action),
+            s.place_menu_now(cx).and_then(|m| m.action),
             Some(super::project_place::Action::PutInCloudAgain)
         )
     });
-    view.update_in(cx, |s, w, cx| s.replace_cloud_connection(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.cloud
+            .update(cx, |c, cx| c.replace_cloud_connection(w, cx))
+    });
     settle(&view, cx, "the reviewed remote", &|s, cx| {
-        s.cloud.replace_url.as_deref() == Some(url) && s.has_dialog("ReplaceCloud", cx)
+        s.cloud.read(cx).replace_url.as_deref() == Some(url) && s.has_dialog("ReplaceCloud", cx)
     });
     let before = authorizations.load(std::sync::atomic::Ordering::SeqCst);
-    view.update(cx, |s, cx| s.confirm_replace("project-a".into(), cx));
+    view.update(cx, |s, cx| {
+        s.cloud
+            .update(cx, |c, cx| c.confirm_replace("project-a".into(), cx))
+    });
     settle(&view, cx, "the local detach", &|s, cx| {
         matches!(
-            s.cloud.repository.read(cx).context,
+            s.cloud.read(cx).repository.read(cx).context,
             crate::workspace::cloud::repository::Context::LocalOnly
         )
     });
@@ -2753,24 +2766,24 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
 #[gpui::test]
 fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    // A signed-out account (a restored session would complete the first
+    // run as soon as it is seen).
     let (broker, browser) = crate::cloud::auth::account_fixture();
-    let account = cx.update(|_, cx| {
-        let account = crate::features::cloud::account::install_fixture(broker, browser, cx);
-        account.update(cx, |a, _| a.sign_out());
-        account
-    });
-    view.update(cx, |s, cx| {
-        s.preferences.update(cx, |p, _| {
-            p.loaded = true;
-            p.state.experimental.cloud_workspace = true;
-        })
-    });
+    broker.sign_out();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
-    while cx.update(|_, cx| crate::features::cloud::account::has_account(cx)) {
-        cx.run_until_parked();
+    while broker.subscribe().borrow().status != crate::cloud::auth::Status::SignedOut {
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
+    let account =
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    cx.run_until_parked();
+    view.update(cx, |s, cx| {
+        s.preferences.update(cx, |p, cx| {
+            p.loaded = true;
+            p.change(|p| p.experimental.cloud_workspace = true, cx);
+        })
+    });
     draw(cx);
     view.read_with(cx, |s, cx| assert!(s.home.read(cx).first_run_sign_in(cx)));
     // Continue locally completes it for good.
@@ -3370,7 +3383,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
     }));
     let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the refusal", &|s, cx| {
-        s.cloud.repository.read(cx).context
+        s.cloud.read(cx).repository.read(cx).context
             == crate::workspace::cloud::repository::Context::NotAuthorized
     });
     // The catalog still loads and lists the Cloud Project (merged by the
@@ -3385,7 +3398,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
     view.update(cx, |s, cx| {
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
         assert_eq!(
-            s.cloud.catalog.read(cx).state,
+            s.cloud.read(cx).catalog.read(cx).state,
             crate::features::cloud::catalog::State::Ready(vec![
                 crate::workspace::cloud::catalog::CloudEntry {
                     id: "project-a".into(),
@@ -3412,12 +3425,13 @@ fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestA
     }));
     let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the failure", &|s, cx| {
         s.has_dialog("CloudRecovery", cx)
             && s.cloud
+                .read(cx)
                 .recovery
                 .as_ref()
                 .is_some_and(|(p, _)| p == "project-a")
@@ -3465,7 +3479,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         matches!(
-            s.cloud.catalog.read(cx).state,
+            s.cloud.read(cx).catalog.read(cx).state,
             crate::features::cloud::catalog::State::Ready(_)
         )
     });
@@ -3477,7 +3491,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
     settle_cloud(&view, cx, "the reloaded catalog", &|s, cx| {
         matches!(
-            s.cloud.catalog.read(cx).state,
+            s.cloud.read(cx).catalog.read(cx).state,
             crate::features::cloud::catalog::State::Ready(_)
         )
     });
@@ -3485,6 +3499,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
         assert!(
             s.has_dialog("CloudRecovery", cx)
                 && s.cloud
+                    .read(cx)
                     .recovery
                     .as_ref()
                     .is_some_and(|(p, _)| p == "project-a")
@@ -3494,7 +3509,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     // Retry repeats that opening, not a list refresh.
     failing.store(false, Ordering::SeqCst);
     view.update(cx, |s, cx| {
-        s.close_cloud_recovery(cx);
+        s.cloud.update(cx, |c, cx| c.close_cloud_recovery(cx));
         s.open_cloud("project-a".into(), cx);
     });
     settle_cloud(&view, cx, "the reopened project", &|s, _| {
@@ -3513,13 +3528,19 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
     let (view, cx, Linked { relogin, _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "the sign-in gate", &|s, cx| {
         let signed_in = crate::features::cloud::account::has_account(cx);
         !signed_in
-            && s.cloud.repository.read(cx).context.cloud_state(signed_in) == CloudState::SignedOut
+            && s.cloud
+                .read(cx)
+                .repository
+                .read(cx)
+                .context
+                .cloud_state(signed_in)
+                == CloudState::SignedOut
     });
     relogin();
     settle_cloud(&view, cx, "signing in", &|_, cx| {
@@ -3527,14 +3548,14 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
     });
     settle_cloud(&view, cx, "the same Project", &|s, cx| {
         crate::features::cloud::account::has_account(cx)
-            && s.cloud.repository.read(cx).context.project() == Some("project-a")
+            && s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
         assert!(!matches!(
-            s.cloud.repository.read(cx).context,
+            s.cloud.read(cx).repository.read(cx).context,
             Context::LocalOnly | Context::NotFound { .. }
         ));
-        assert!(s.cloud.publish.read(cx).outcome.is_none());
+        assert!(s.cloud.read(cx).publish.read(cx).outcome.is_none());
     });
 }
 
@@ -3558,7 +3579,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     });
     let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.sidebar.workbench.read(cx).cloud_location())
@@ -3713,11 +3734,11 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
             s.has_dialog("CloudRecovery", cx)
         });
         view.update(cx, |s, cx| {
-            let failure = s.cloud.recovery.as_ref().map(|(_, f)| f.clone());
+            let failure = s.cloud.read(cx).recovery.as_ref().map(|(_, f)| f.clone());
             let failure = failure.unwrap();
             seen.push((failure.code, failure.recovery));
             assert!(s.hosted_project().is_none());
-            s.close_cloud_recovery(cx);
+            s.cloud.update(cx, |c, cx| c.close_cloud_recovery(cx));
         });
     }
     let expected: Vec<_> = cases.iter().map(|(_, _, c, r)| (*c, *r)).collect();
@@ -3731,7 +3752,7 @@ fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut
     let (view, cx, Linked { _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     command(&view, cx, Command::CloudServices);
     view.read_with(cx, |s, cx| {
@@ -3756,7 +3777,7 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     let (view, cx, Linked { _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     let explorer = explorer_of(&view, cx);
     settle_cloud(&view, cx, "the rows", &|s, cx| {
@@ -3807,7 +3828,7 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert!(s.has_dialog("CloudServices", cx));
-        assert_eq!(s.cloud_services.read(cx).share_start(), "docs");
+        assert_eq!(s.cloud.read(cx).services.read(cx).share_start(), "docs");
     });
 }
 
@@ -3848,7 +3869,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
     };
     let (view, cx, Linked { _temp, .. }) = linked_checkout(cx, with_catalog(responder));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     // One vault across both runs, as the Keychain is.
     let vault = coordinator(&fake).1;
@@ -3863,20 +3884,20 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
         )
     });
     view.update(cx, |s, cx| {
-        s.cloud.publish.update(cx, |p, cx| {
+        s.cloud.read(cx).publish.clone().update(cx, |p, cx| {
             p.selected = Some("org-1".into());
             p.start(Action::Initialize, cx)
         })
     });
     settle_cloud(&view, cx, "the stopped push", &|s, cx| {
-        s.cloud.publish.read(cx).publication("project-a") == Publication::Pending
+        s.cloud.read(cx).publish.read(cx).publication("project-a") == Publication::Pending
     });
 
     command(&view, cx, Command::CloudServices);
-    let services = view.read_with(cx, |s, _| s.cloud_services.clone());
+    let services = view.read_with(cx, |s, cx| s.cloud.read(cx).services.clone());
     services.update(cx, |s, cx| s.share_now(cx));
     settle_cloud(&view, cx, "the share", &|s, cx| {
-        s.cloud_services.read(cx).share_ready()
+        s.cloud.read(cx).services.read(cx).share_ready()
     });
     assert_eq!(issued.load(SeqCst), 1);
     assert!(
@@ -3885,7 +3906,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
     );
     view.read_with(cx, |s, cx| {
         assert_eq!(
-            s.cloud.publish.read(cx).published.as_deref(),
+            s.cloud.read(cx).publish.read(cx).published.as_deref(),
             Some("project-a")
         );
     });
@@ -3937,7 +3958,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     let (view, cx, Linked { _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.repository.read(cx).context.project() == Some("project-a")
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         s.home
@@ -4214,7 +4235,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         assert_eq!(s.layout.explorer.w, 0.);
         // Not remembered as a project, never shared or put in the Cloud.
         assert!(s.preferences.read(cx).state.recent_projects.is_empty());
-        assert!(s.local_folder_notice(cx).is_none());
+        assert!(s.cloud.read(cx).local_folder_notice(cx).is_none());
         // Nothing watches the file.
         assert!(!s.session.files.watching());
     });
@@ -4304,30 +4325,34 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
         let cache = dir.path().to_path_buf();
-        s.cloud.catalog.update(cx, |c, _| c.cache_dir = Some(cache));
+        s.cloud
+            .read(cx)
+            .catalog
+            .clone()
+            .update(cx, |c, _| c.cache_dir = Some(cache));
     });
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
     settle_cloud(&view, cx, "the fresh catalog", &|s, cx| {
-        let c = s.cloud.catalog.read(cx);
+        let c = s.cloud.read(cx).catalog.read(cx);
         c.fresh && matches!(c.state, State::Ready(_))
     });
     assert!(dir.path().join("cloud-project-catalog.v1.json").exists());
     // The next launch: the cached list shows at once, not yet settled.
     slow.store(true, Ordering::SeqCst);
     view.update(cx, |s, cx| {
-        s.cloud.catalog.update(cx, |c, _| c.forget());
+        s.cloud.read(cx).catalog.clone().update(cx, |c, _| c.forget());
         s.refresh_cloud_catalog(false, cx);
-        let c = s.cloud.catalog.read(cx);
+        let c = s.cloud.read(cx).catalog.read(cx);
         assert!(!c.fresh);
         assert!(
             matches!(&c.state, State::Ready(entries) if entries.iter().any(|e| e.name == "Fixture Cloud"))
         );
     });
     settle_cloud(&view, cx, "the fresh answer", &|s, cx| {
-        s.cloud.catalog.read(cx).fresh
+        s.cloud.read(cx).catalog.read(cx).fresh
     });
     // Signing out removes the names.
     cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
@@ -4366,5 +4391,13 @@ impl Shell {
     }
     fn has_dialog(&self, name: &str, cx: &App) -> bool {
         self.dialog_names(cx).iter().any(|n| n == name)
+    }
+}
+
+impl Shell {
+    /// The Header place menu as it would open now.
+    fn place_menu_now(&self, cx: &App) -> Option<super::project_place::PlaceMenu> {
+        let items = self.home.read(cx).project_items(cx);
+        self.cloud.read(cx).place_menu(&items, cx)
     }
 }
