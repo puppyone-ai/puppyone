@@ -123,6 +123,7 @@ function HomepageComputersFixture() {
       : items} projectEntryController={projectEntry}
       cloudSpaces={params.has("spaces") ? spaces : []}
       onPublishToSpace={async (path, spaceId) => setTarget({ path, spaceId })}
+      onCreateCloudProject={async () => {}}
       onShareLocalFolder={sharing.request}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={() => {}}

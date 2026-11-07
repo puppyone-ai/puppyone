@@ -928,22 +928,31 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
-/* Where a project lives, under its name, only where a group mixes places. Elsewhere the
-   group's heading already says it, and the tooltip still does. */
-.onboarding-project-tile-place {
-  display: none;
+/* A tile's one line: the name, and in a shared group the small mark of where it lives. */
+.onboarding-project-tile-label {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
-.onboarding-project-group[data-project-group="personal-shared"] .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-place {
-  display: block;
-  max-width: 100%;
-  margin-block-start: -6px;
-  overflow: hidden;
+/* Where a shared project lives, in the page's quiet ink: the Cloud or a computer. The
+   group already says who can open it; the local group needs no mark at all. */
+.onboarding-project-place-mark {
+  display: none;
+  flex: none;
   color: var(--po-text-subtle);
-  font-size: var(--onboarding-caption-font-size);
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.onboarding-project-group:is([data-project-group="team-shared"], [data-project-group="personal-shared"], [data-project-group="shared-unresolved"]) .onboarding-project-place-mark {
+  display: inline-flex;
+}
+
+.onboarding-project-row .onboarding-project-place-mark {
+  margin-inline-start: 6px;
+  vertical-align: -1px;
 }
 
 .onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-actions, .onboarding-project-cloud-link) {

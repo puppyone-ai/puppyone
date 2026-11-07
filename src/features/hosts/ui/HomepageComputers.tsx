@@ -1,9 +1,5 @@
-import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { Check, Pause, Play, Plus, Square, Trash2 } from "lucide-react";
+import { useLocalization } from "@puppyone/localization";
 import { useState } from "react";
-import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
-import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
-import { OnboardingGroupMenu } from "../../../components/onboarding/OnboardingGroupMenu";
 import {
   onboardingBaseGroups,
   OnboardingProjectGroups,
@@ -17,19 +13,6 @@ import type { HostFolderSelection } from "../model/hostFolderSelection";
 import { HostFolderSharingDialog, type HostFolderSharingTarget } from "./HostFolderSharingDialog";
 import { RemoteFolderList } from "./RemoteFolderList";
 
-
-type RelativeTime = (value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions) => string;
-
-function lastSeen(value: string | null, format: RelativeTime): string | null {
-  if (!value) return null;
-  const elapsed = Date.parse(value) - Date.now();
-  if (Number.isNaN(elapsed)) return null;
-  const minutes = Math.round(elapsed / 60_000);
-  if (Math.abs(minutes) < 60) return format(minutes, "minute", { numeric: "auto" });
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 48) return format(hours, "hour", { numeric: "auto" });
-  return format(Math.round(hours / 24), "day", { numeric: "auto" });
-}
 
 /** Device folders join the same personal audience as hosted projects, not new device groups. */
 export function HomepageComputers({ session, apiBase, onOpen, base }: {
@@ -84,43 +67,27 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   if (share) {
     const candidates = (local?.items ?? []).filter((item) => !item.hostFolderId || !sharedFolderIds.has(item.hostFolderId));
     const source = candidates.find((item) => item.localPath === share.draggingPath);
+    // The personal area is always there to drop into: dragging a folder in is how it
+    // is shared, and every computer signed in to this account can then open it.
     const index = groups.findIndex((group) => group.id === "personal-shared");
-    if (source || index >= 0) {
-      const previous = groups[index];
-      const personal: OnboardingProjectGroup = {
-        ...previous, id: "personal-shared", title: base.personalSharedTitle,
-        alwaysShowHeading: true,
-        dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy, onDrop: () => {
-          share.endDrag();
-          if (source && !share.busy) void share.request(source.localPath);
-        } } : undefined,
-        children: previous?.children ?? <p className="onboarding-cloud-space-empty">{t("hosts.place.share")}</p>,
-      };
-      if (index < 0) groups.push(personal);
-      else groups[index] = personal;
-    }
-    // When the personal area is empty, expose the same action on the local
-    // heading so keyboard users never need a drag to reveal their destination.
-    const personalIndex = groups.findIndex((group) => group.id === "personal-shared");
-    const menuIndex = personalIndex >= 0 ? personalIndex : groups.findIndex((group) => group.id === "local-only");
-    // Sharing replaces the personal area's own addition; local-only keeps its New project.
-    const shareMenu = <OnboardingGroupMenu label={t("hosts.place.share")} text={t("onboarding.sharing.shareFolder")}
-      icon={<Plus size={14} strokeWidth={1.85} aria-hidden="true" />} disabled={share.busy || candidates.length === 0}>
-      {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
-        onClick={() => { close(); share.endDrag(); void share.request(item.localPath); }} />)}
-    </OnboardingGroupMenu>;
-    if (menuIndex >= 0) groups[menuIndex] = { ...groups[menuIndex],
-      actions: personalIndex >= 0 ? shareMenu : <>{shareMenu}{groups[menuIndex].actions}</>,
+    const previous = groups[index];
+    const personal: OnboardingProjectGroup = {
+      ...previous, id: "personal-shared", title: base.personalSharedTitle,
+      alwaysShowHeading: true, empty: false,
+      dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy, onDrop: () => {
+        share.endDrag();
+        if (source && !share.busy) void share.request(source.localPath);
+      } } : undefined,
+      children: previous && !previous.empty ? previous.children
+        : <p className="onboarding-cloud-space-empty">{t("onboarding.spaces.empty")}</p>,
     };
+    if (index < 0) groups.push(personal);
+    else groups[index] = personal;
   }
-  const controls = groups.findIndex((group) => group.id === "personal-shared");
-  const controlsIndex = controls >= 0 ? controls : groups.findIndex((group) => group.id === "local-only");
-  if (controlsIndex >= 0 && (catalog.thisComputerId || others.length)) {
-    const group = groups[controlsIndex];
-    groups[controlsIndex] = { ...group,
-      detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} />,
-      actions: <><ThisComputerMenu catalog={catalog} others={others} />{group.actions}</>,
-    };
+  const personalIndex = groups.findIndex((group) => group.id === "personal-shared");
+  if (personalIndex >= 0 && catalog.thisComputerId) {
+    groups[personalIndex] = { ...groups[personalIndex],
+      detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} /> };
   }
   return <>
     <OnboardingProjectGroups label={base.label} groups={groups}
@@ -129,15 +96,6 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
       onClose={() => setSharingTarget(null)} />}
   </>;
 
-}
-
-function ComputerPresence({ device }: { device: HostCatalogDevice }) {
-  const { t, formatRelativeTime } = useLocalization();
-  const seen = lastSeen(device.last_seen_at, formatRelativeTime);
-  let text = t("hosts.catalog.offline");
-  if (device.online) text = t("hosts.catalog.online");
-  else if (seen) text = t("hosts.catalog.lastSeen", { time: seen });
-  return <span className="onboarding-project-group-presence" data-online={device.online || undefined}>{text}</span>;
 }
 
 /** What this computer offers its owner's other computers, in one line. */
@@ -155,41 +113,6 @@ function ThisComputerDetail({ catalog, offering }: { catalog: HostCatalog; offer
   return <span className="onboarding-project-group-presence" data-online={(sharing?.state === "online" && !sharing.paused) || undefined}>
     {[text, running > 0 && t("hosts.execution.running", { count: running })].filter(Boolean).join(" · ")}
   </span>;
-}
-
-function ThisComputerMenu({ catalog, others }: { catalog: HostCatalog; others: readonly HostCatalogDevice[] }) {
-  const { t } = useLocalization();
-  const sharing = catalog.sharing;
-  const running = sharing?.running?.length ?? 0;
-  const deviceId = catalog.thisComputerId;
-  return <OnboardingGroupMenu label={t("onboarding.sharing.computers")} text={t("onboarding.sharing.computers")}>
-    {(close) => <>
-      {deviceId && <DesktopMenuItem icon={sharing?.paused ? <Play size={14} /> : <Pause size={14} />}
-        label={t(sharing?.paused ? "hosts.sharing.resume" : "hosts.sharing.pause")}
-        onClick={() => { close(); void catalog.run(async () => window.puppyoneDesktop?.setHostSharingPaused({
-          paused: !sharing?.paused, expectedSession: catalog.expectedSession }), "hosts.catalog.updateFailure"); }} />}
-      {catalog.autostart?.supported && <DesktopMenuItem role="menuitemcheckbox" aria-checked={catalog.autostart.enabled}
-        icon={<span aria-hidden="true" />} label={t("hosts.sharing.startAtLogin")}
-        trailing={catalog.autostart.enabled ? <Check size={14} aria-hidden="true" /> : undefined}
-        onClick={() => { void catalog.setAutostart(!catalog.autostart?.enabled); }} />}
-      {running > 0 && <DesktopMenuItem icon={<Square size={14} />}
-        label={`${t("hosts.execution.stopAll")} (${running})`}
-        onClick={() => { close(); void catalog.run(async () => window.puppyoneDesktop?.stopRemoteHostSessions?.(),
-          "hosts.catalog.updateFailure"); }} />}
-      {deviceId && <>
-        <DesktopMenuSeparator />
-        <DesktopMenuItem destructive icon={<Trash2 size={14} />} label={t("hosts.catalog.removeComputer")}
-          onClick={() => { close(); void catalog.run(async () => window.puppyoneDesktop?.revokeHostDevice({
-            deviceId, expectedSession: catalog.expectedSession }), "hosts.catalog.removeFailure"); }} />
-      </>}
-      {others.length > 0 && <DesktopMenuSeparator />}
-      {others.map((device) => <DesktopMenuItem key={device.id} destructive icon={<Trash2 size={14} />}
-        label={t("onboarding.sharing.removeComputer", { host: bidiIsolate(device.name) })}
-        detail={<ComputerPresence device={device} />}
-        onClick={() => { close(); void catalog.run(async () => window.puppyoneDesktop?.revokeHostDevice({
-          deviceId: device.id, expectedSession: catalog.expectedSession }), "hosts.catalog.removeFailure"); }} />)}
-    </>}
-  </OnboardingGroupMenu>;
 }
 
 function HomepageComputersNote({ catalog }: { catalog: HostCatalog }) {
