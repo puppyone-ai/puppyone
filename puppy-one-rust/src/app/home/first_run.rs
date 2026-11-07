@@ -8,8 +8,7 @@ use gpui_kit::base::v_flex;
 
 impl Homepage {
     fn account_status(&self, cx: &App) -> Option<crate::cloud::auth::Snapshot> {
-        let service = cx.try_global::<crate::features::cloud::account::CloudAccountService>()?;
-        service.0.read(cx).snapshot.clone()
+        crate::features::cloud::account::snapshot(cx)
     }
     /// `required`: available, settled, not completed, signed out, no project.
     pub(in crate::app) fn first_run_sign_in(&self, cx: &App) -> bool {

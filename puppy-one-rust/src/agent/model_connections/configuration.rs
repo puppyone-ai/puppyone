@@ -72,13 +72,13 @@ impl ModelConnection {
 /// The managed connection (`withManagedConnection`): one PuppyOne entry per
 /// catalog model while Payments is on, the account is signed in and the
 /// wallet has credit. The directory is reused for a minute.
-pub fn managed() -> Vec<ModelConnection> {
+pub fn managed(account: &dyn super::ComputeAccount) -> Vec<ModelConnection> {
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
     /// Account key, read time, catalog models and whether credit remains.
     type Directory = (String, Instant, Vec<(String, String)>, bool);
     static CACHE: Mutex<Option<Directory>> = Mutex::new(None);
-    let Some((broker, binding)) = crate::cloud::auth::current() else {
+    let Some((broker, binding)) = account.current() else {
         return vec![];
     };
     let key = format!(

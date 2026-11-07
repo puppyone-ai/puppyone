@@ -22,14 +22,18 @@ pub const DEFAULT_CONTEXT_WINDOW: u64 = 128_000;
 pub type ConnectionSource =
     Rc<dyn Fn() -> LocalBoxFuture<'static, AgentResult<Vec<ModelConnection>>>>;
 
-/// The production source, off the host thread.
-pub fn configured_connections() -> ConnectionSource {
-    Rc::new(|| {
-        Box::pin(async {
-            tokio::task::spawn_blocking(|| {
+/// The production source, off the host thread: the saved connections and
+/// PuppyOne compute through `account`.
+pub fn configured_connections(
+    account: crate::agent::model_connections::ComputeAccountRef,
+) -> ConnectionSource {
+    Rc::new(move || {
+        let account = account.clone();
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || {
                 let mut connections =
                     configuration::load().map_err(crate::agent::agent_error::AgentError::new)?;
-                connections.extend(configuration::managed());
+                connections.extend(configuration::managed(account.as_ref()));
                 Ok(connections)
             })
             .await

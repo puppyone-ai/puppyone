@@ -15,7 +15,7 @@ use gpui::{App, Entity};
 /// it; the organization group then offers Billing.
 pub const CLOUD_BILLING: bool = true;
 pub fn account_available(cx: &App) -> bool {
-    cx.has_global::<crate::features::cloud::account::CloudAccountService>()
+    crate::features::cloud::account::available(cx)
 }
 pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
     account_available(cx) && preferences.read(cx).state.experimental.cloud_workspace

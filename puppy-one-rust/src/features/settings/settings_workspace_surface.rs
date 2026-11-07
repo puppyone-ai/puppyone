@@ -143,9 +143,7 @@ impl SettingsWorkspaceSurface {
             |_, _, _: &crate::ui::form_input::InputEvent, cx| cx.notify(),
         )
         .detach();
-        let cloud = cx
-            .try_global::<crate::features::cloud::account::CloudAccountService>()
-            .map(|s| s.0.clone());
+        let cloud = crate::features::cloud::account::account(cx);
         if let Some(cloud) = &cloud {
             cx.observe(cloud, |_, _, cx| cx.notify()).detach();
         }

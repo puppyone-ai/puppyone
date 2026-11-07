@@ -31,7 +31,10 @@ mod tools;
 /// `verifyConnectionModel`: a two-step tool round trip — the model must call
 /// `puppyone_connection_check` with the exact token, then answer the tool's
 /// result with text. It may incur charges; nothing else is touched.
-pub async fn verify(connection: &configuration::ModelConnection) -> Result<(), String> {
+pub async fn verify(
+    connection: &configuration::ModelConnection,
+    account: &dyn crate::agent::model_connections::ComputeAccount,
+) -> Result<(), String> {
     use serde_json::json;
     const TOKEN: &str = "puppyone-model-check";
     let tool = json!([{"type": "function", "function": {
@@ -43,7 +46,8 @@ pub async fn verify(connection: &configuration::ModelConnection) -> Result<(), S
         json!({"role": "system", "content": "This is a connection compatibility test. Call puppyone_connection_check with the exact token supplied by the user. Do not use any other tool."}),
         json!({"role": "user", "content": TOKEN}),
     ];
-    let first = model_client::complete(connection, &context, tool.clone(), |_, _| {}).await?;
+    let first =
+        model_client::complete(connection, account, &context, tool.clone(), |_, _| {}).await?;
     let call = first
         .calls
         .iter()
@@ -61,7 +65,7 @@ pub async fn verify(connection: &configuration::ModelConnection) -> Result<(), S
     context.push(
         json!({"role": "tool", "tool_call_id": call["id"], "content": "Connection check passed."}),
     );
-    let second = model_client::complete(connection, &context, tool, |_, _| {}).await?;
+    let second = model_client::complete(connection, account, &context, tool, |_, _| {}).await?;
     if second.text.trim().is_empty() {
         return Err("VERIFICATION_FAILED".into());
     }
@@ -139,7 +143,10 @@ mod verify_tests {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(verify(connection))
+            .block_on(verify(
+                connection,
+                &crate::agent::model_connections::NoComputeAccount,
+            ))
     }
 
     #[test]

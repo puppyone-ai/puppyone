@@ -349,10 +349,7 @@ pub(super) fn cloud_status(
     use crate::features::cloud::catalog::State;
     let t = cx.palette();
     let ty = theme::ty().header;
-    let account = cx
-        .try_global::<crate::features::cloud::account::CloudAccountService>()
-        .map(|s| s.0.read(cx).snapshot.clone())
-        .unwrap_or_default();
+    let account = crate::features::cloud::account::snapshot(cx);
     let status = account.as_ref().map(|a| a.status);
     let email = account
         .as_ref()

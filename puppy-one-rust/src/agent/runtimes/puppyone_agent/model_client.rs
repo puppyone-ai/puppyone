@@ -21,6 +21,7 @@ impl Completion {
 }
 pub async fn complete(
     connection: &ModelConnection,
+    account: &dyn crate::agent::model_connections::ComputeAccount,
     context: &[Value],
     tool_schema: Value,
     mut delta: impl FnMut(&str, &str),
@@ -28,7 +29,7 @@ pub async fn complete(
     connection.validate()?;
     let body = json!({"model":connection.model,"messages":context,"tools":tool_schema,"stream":true,"stream_options":{"include_usage":true}});
     if connection.managed {
-        return complete_managed(body, delta).await;
+        return complete_managed(account, body, delta).await;
     }
     let mut request = reqwest::Client::builder()
         .redirect_policy(reqwest::redirect::Policy::none())
@@ -68,10 +69,11 @@ pub async fn complete(
 /// sends the request once; its stream feeds the same parser. A lost
 /// response is not replayed — it may already have been charged.
 async fn complete_managed(
+    account: &dyn crate::agent::model_connections::ComputeAccount,
     body: Value,
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
-    let (broker, binding) = crate::cloud::auth::current().ok_or_else(|| {
+    let (broker, binding) = account.current().ok_or_else(|| {
         crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
     })?;
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<Vec<u8>, String>>();

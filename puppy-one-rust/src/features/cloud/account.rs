@@ -1,10 +1,16 @@
 //! App-owned public authentication projection. Views never receive credentials.
+//!
+//! The account is one app global, reached only through this module's
+//! entries: [`account`] (the entity, to observe or read its public
+//! snapshot), [`snapshot`], [`observe`], [`broker_and_binding`] (for Cloud
+//! requests made on the account's behalf) and the sign-in commands. No
+//! other module names the global.
 pub use crate::cloud::auth::Status;
 use crate::cloud::auth::{Broker, Environment, Error, Snapshot};
 use gpui::*;
 use std::sync::Arc;
 
-pub struct CloudAccountService(pub Entity<CloudAccount>);
+struct CloudAccountService(Entity<CloudAccount>);
 impl Global for CloudAccountService {}
 pub struct CloudAccount {
     pub snapshot: Option<Snapshot>,
@@ -201,6 +207,22 @@ pub fn observe<V: 'static>(
         attach(window, cx);
         on_change(v, window, cx);
     })
+}
+/// The account, once the app installed it (Cloud on and configured).
+pub fn account(cx: &App) -> Option<Entity<CloudAccount>> {
+    cx.try_global::<CloudAccountService>().map(|s| s.0.clone())
+}
+/// Whether the app has an account owner: Cloud is on and configured.
+pub fn available(cx: &App) -> bool {
+    cx.has_global::<CloudAccountService>()
+}
+/// The account's public snapshot, once the Broker has reported one.
+pub fn snapshot(cx: &App) -> Option<Snapshot> {
+    cx.try_global::<CloudAccountService>()?
+        .0
+        .read(cx)
+        .snapshot
+        .clone()
 }
 /// The broker and the signed-in binding, for Cloud requests made on the
 /// account's behalf (catalog, opening). `None` while signed out.

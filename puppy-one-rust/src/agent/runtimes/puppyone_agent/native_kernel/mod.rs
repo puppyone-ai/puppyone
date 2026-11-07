@@ -482,15 +482,19 @@ impl Kernel {
 }
 
 /// The production [`Complete`]: the leased connection through the native
-/// model client (PuppyOne compute through the signed-in broker).
-pub fn configured_complete() -> Complete {
-    Rc::new(|request: CompleteRequest| {
+/// model client (PuppyOne compute through `account`'s broker).
+pub fn configured_complete(
+    account: crate::agent::model_connections::ComputeAccountRef,
+) -> Complete {
+    Rc::new(move |request: CompleteRequest| {
+        let account = account.clone();
         Box::pin(async move {
             let configuration = request.configuration.clone();
             let model_id = request.model_id.clone();
+            let reader = account.clone();
             let connection = tokio::task::spawn_blocking(move || {
                 let mut connections = super::configuration::load()?;
-                connections.extend(super::configuration::managed());
+                connections.extend(super::configuration::managed(reader.as_ref()));
                 super::native_model_connections::resolve_leased_connection(
                     &configuration,
                     &model_id,
@@ -503,6 +507,7 @@ pub fn configured_complete() -> Complete {
             let delta = request.delta.clone();
             super::model_client::complete(
                 &connection,
+                account.as_ref(),
                 &request.context,
                 request.tools,
                 |kind, text| delta(kind, text),

@@ -49,8 +49,11 @@ fn local_endpoint(endpoint: &str) -> bool {
 pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
     use crate::agent::model_connections::configuration;
     let mut connections = configuration::load().unwrap_or_default();
-    let managed = configuration::managed();
-    let signed_in = crate::cloud::auth::current().is_some();
+    use crate::agent::model_connections::ComputeAccount as _;
+    let account =
+        crate::features::desktop_agent::infrastructure::host::agent_host_global::CloudCompute;
+    let managed = configuration::managed(&account);
+    let signed_in = account.current().is_some();
     let available = !managed.is_empty();
     connections.extend(managed);
     let catalog = connection_catalog(&connections);

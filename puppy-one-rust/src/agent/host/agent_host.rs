@@ -74,9 +74,11 @@ pub struct AgentHostHandle {
 }
 
 /// The production composition's paths and identity.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct AgentHostOptions {
     pub user_data_path: PathBuf,
+    /// The account PuppyOne compute bills (none: no managed compute).
+    pub compute_account: Option<crate::agent::model_connections::ComputeAccountRef>,
     pub app_version: String,
     pub app_path: Option<String>,
     pub executable_path: Option<String>,
@@ -287,6 +289,10 @@ fn production_services(
     // app's model connections.
     use crate::agent::runtimes::puppyone_agent::{native_kernel, native_model_connections};
     let user_data = options.user_data_path.to_string_lossy().into_owned();
+    let compute = options
+        .compute_account
+        .clone()
+        .unwrap_or_else(|| std::sync::Arc::new(crate::agent::model_connections::NoComputeAccount));
     let registry = create_default_agent_runtime_host(DefaultRuntimeHostOptions {
         app_version: Some(options.app_version.clone()),
         app_path: options.app_path.clone(),
@@ -298,11 +304,11 @@ fn production_services(
         ))),
         model_connection_port: Some(Rc::new(
             native_model_connections::NativeModelConnectionPort::new(
-                native_model_connections::configured_connections(),
+                native_model_connections::configured_connections(compute.clone()),
             ),
         )),
         puppyone_agent_spawner: Some(native_kernel::native_kernel_spawner(
-            native_kernel::configured_complete(),
+            native_kernel::configured_complete(compute),
         )),
         ..Default::default()
     })?;
