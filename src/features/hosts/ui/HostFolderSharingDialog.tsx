@@ -61,7 +61,7 @@ export function HostFolderSharingDialog({ target, catalog, onClose }: {
   const share = async () => {
     if (target.kind !== "share") return;
     const result = await change(async () => window.puppyoneDesktop?.registerHostFolder({
-      rootPath: target.rootPath, writable: writableChoice }), "hosts.register.failure");
+      rootPath: target.rootPath, writable: writableChoice, expectedSession: catalog.expectedSession }), "hosts.register.failure");
     const registered = result?.value;
     if (registered && "folderId" in registered) {
       rememberSharedFolder(target.rootPath, registered.folderId);

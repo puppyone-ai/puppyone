@@ -32,7 +32,7 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
-import { HomepageComputers, useHostFolderPlace } from "./features/hosts";
+import { HomepageComputers, useHomepageFolderSharing, useHostFolderPlace } from "./features/hosts";
 import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
@@ -1401,6 +1401,12 @@ function AppContent() {
     navigateDesktopView, openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow,
     restoringWorkspace, selectCloudProjectRef, setSwitcherOpen, t,
   });
+  const homepageFolderSharing = useHomepageFolderSharing({
+    enabled: hostDevicesEnabled && Boolean(window.puppyoneDesktop && desktopCloudApiBaseUrl),
+    session: activeCloudSession, apiBase: desktopCloudApiBaseUrl,
+    workspacePath: cloudWorkspaceActive || shownHostFolder || projectNavigation.pending ? null : workspace?.path ?? null,
+    workspaceName: workspace?.name ?? "", openProject: selectProject, returnHome: goToHomepage,
+  });
   const publishToCloudSpace = useCloudSpacePublishIntent({ authority: cloudSpaces.authority,
     workspacePath: workspace?.path ?? null, openProject: selectProject,
     onReady: (target) => { openCloudPublish(); setCloudPublishTarget(target); },
@@ -1630,7 +1636,7 @@ function AppContent() {
         onContinueLocally={firstRunSignIn.complete} />,
     );
     return themeRuntime(
-      <MinimalOnboarding
+      <MinimalOnboarding key={cloudSpaces.authority ?? "local"}
         projectEntryController={projectEntryFlow}
         canCreateProject
         canImport
@@ -1646,6 +1652,7 @@ function AppContent() {
         cloudSpacesStatus={cloudSpaces.status}
         onRetryCloudSpaces={cloudSpaces.refresh}
         onPublishToSpace={publishToCloudSpace}
+        onShareLocalFolder={homepageFolderSharing.request}
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
@@ -1810,6 +1817,7 @@ function AppContent() {
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       {hostFolderPlace.dialog}
+      {homepageFolderSharing.dialog}
       <DesktopTitlebarActions {...chromeActionProps} />
     </>
   );

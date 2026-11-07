@@ -8,7 +8,7 @@ import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../featu
 import { useProjectEntryFlow } from "../../features/app-shell/ProjectEntryFlow";
 import { ProjectPlaceRows } from "../../features/app-shell/project-place/ProjectPlaceMenu";
 import { resolveProjectPlaceMenu } from "../../features/app-shell/project-place/projectPlaceMenuState";
-import { HomepageComputers, useHostFolderPlace } from "../../features/hosts";
+import { HomepageComputers, useHomepageFolderSharing, useHostFolderPlace } from "../../features/hosts";
 import { DesktopMenuSurface } from "../../components/DesktopMenu";
 import { useHostCatalog } from "../../features/hosts/data/useHostCatalog";
 import { HostFolderSharingDialog } from "../../features/hosts/ui/HostFolderSharingDialog";
@@ -67,6 +67,14 @@ window.puppyoneDesktop = {
   onHostStatus: () => () => {},
   getHostAutostart: async () => ({ supported: true, enabled: true }),
   setHostAutostart: async ({ enabled }: { enabled: boolean }) => ({ supported: true, enabled }),
+  // A deterministic in-memory approval result, never a real Host registration.
+  registerHostFolder: async ({ rootPath, writable }: { rootPath: string; writable?: boolean }) => {
+    const name = rootPath.split("/").pop()!;
+    const folderId = `fixture-${name}`;
+    devices[0] = { ...devices[0], folders: [...devices[0].folders.filter((item) => item.id !== folderId),
+      folder(folderId, name, writable)] };
+    return { deviceId: THIS, folderId };
+  },
 } as unknown as NonNullable<typeof window.puppyoneDesktop>;
 resetDesktopPlatformCapabilitiesForTests();
 
@@ -88,6 +96,10 @@ export function HomepageComputersVisualSmokeHarness() {
 
 function HomepageComputersFixture() {
   const [target, setTarget] = useState<{ path: string; spaceId: string } | null>(null);
+  const [sharingPath, setSharingPath] = useState<string | null>(null);
+  const sharing = useHomepageFolderSharing({ enabled: true, session, apiBase: API,
+    workspacePath: sharingPath, workspaceName: sharingPath?.split("/").pop() ?? "",
+    openProject: async (path) => setSharingPath(path), returnHome: async () => setSharingPath(null) });
   const spaces = [{ id: "personal", name: "Alex", kind: "personal" as const, canCreateProjects: true },
     { id: "team", name: "Design team", kind: "team" as const, canCreateProjects: true },
     { id: "empty", name: "New team", kind: "team" as const, canCreateProjects: true }];
@@ -111,9 +123,11 @@ function HomepageComputersFixture() {
       : items} projectEntryController={projectEntry}
       cloudSpaces={params.has("spaces") ? spaces : []}
       onPublishToSpace={async (path, spaceId) => setTarget({ path, spaceId })}
+      onShareLocalFolder={sharing.request}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={() => {}}
       projectGroups={(base) => <HomepageComputers session={session} apiBase={API} base={base} onOpen={() => {}} />} />
+    {sharing.dialog}
     {target && <CloudPublishDialog onClose={() => setTarget(null)}><CloudGitPrerequisite
       activeSection="initialize" projectName={target.path.split("/").pop()} publishBusy={false} publishEnabled
       publishError={null} progressStage={null} organizations={spaces} selectedOrganizationId={target.spaceId}

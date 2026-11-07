@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { registerHostIpcHandlers } from "../../../../electron/main/ipc/host-ipc.mjs";
+import { createSenderWorkspaceAuthorization } from "../../../../electron/main/workspace-authorization.mjs";
 import { connectControlClient } from "../../../../electron/host-service/control.mjs";
 import { runHostService } from "../../../../electron/host-service/runtime.mjs";
 
@@ -118,11 +119,39 @@ describe("host IPC", () => {
     const event = { sender: {} };
     await expect(handlers.get("host:register-folder")(event, { rootPath: "/etc" })).rejects.toThrow("Unauthorized root");
     expect(promptCount).toBe(0);
+    await expect(handlers.get("host:register-folder")(event, { rootPath: "/authorized",
+      expectedSession: { userId: "previous-owner", generation: "one" } })).rejects.toThrow("Account changed before sharing");
+    expect(promptCount).toBe(0);
     expect(await handlers.get("host:register-folder")(event, { rootPath: "/authorized" })).toEqual({ cancelled: true });
     expect(promptCount).toBe(1);
     // Nothing shared: status never starts a host service.
     expect((await handlers.get("host:status")()).state).toBe("off");
     host.dispose();
+  });
+
+  it.each(["account", "folder"])("rejects a %s change during native approval before starting Host", async (changed) => {
+    const userData = await temporaryRoot();
+    const folder = path.join(userData, "Draft");
+    const nextFolder = path.join(userData, "Other");
+    await fs.mkdir(folder); await fs.mkdir(nextFolder);
+    let assignedRoot = folder;
+    let session = { user_id: owner, session_generation: "one", api_base_url: apiBase };
+    const handlers = new Map();
+    let starts = 0;
+    const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+      app: { getPath: () => userData }, apiBase, auth: { readSession: async () => session },
+      authorizeWorkspaceRoot: createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: () => [assignedRoot] }),
+      dialog: { showMessageBox: async () => {
+        if (changed === "account") session = { ...session, user_id: other };
+        else assignedRoot = nextFolder;
+        return { response: 1 };
+      } }, BrowserWindow: { fromWebContents: () => ({}) }, t: (id) => id,
+      hostService: { ensure: async () => { starts++; throw new Error("must not start"); } } });
+    cleanup.push(() => ipc.dispose());
+    await expect(handlers.get("host:register-folder")({ sender: {} }, { rootPath: folder,
+      expectedSession: { userId: owner, generation: "one" } })).rejects.toThrow(changed === "account"
+      ? "Account changed during approval" : "does not match the workspace assigned");
+    expect(starts).toBe(0);
   });
 
   it("shares through the host service, which keeps sharing after Desktop quits and resumes on its own", async () => {
