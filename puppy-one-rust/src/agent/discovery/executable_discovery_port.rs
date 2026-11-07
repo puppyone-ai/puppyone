@@ -7,10 +7,10 @@ use super::command_environment::{
     EnvMap, EnvironmentSnapshot, ReadEnvironmentOptions, read_user_command_environment,
 };
 use crate::agent::agent_error::AgentResult;
-use crate::agent::event_loop::AbortSignal;
-use crate::platform::windows::registered_applications::{
+use crate::agent::discovery::windows::registered_applications::{
     RegisteredApplication, find_registered_applications,
 };
+use crate::agent::event_loop::AbortSignal;
 use futures_util::future::LocalBoxFuture;
 use std::path::PathBuf;
 use std::rc::Rc;

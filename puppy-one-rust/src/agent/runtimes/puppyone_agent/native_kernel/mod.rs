@@ -524,8 +524,8 @@ pub fn native_kernel_readiness(user_data_path: &str, executable_path: &str) -> A
             "{BUILT_IN_AGENT_DISPLAY_NAME} launch paths are unavailable."
         )));
     }
-    let base: crate::platform::common::command_environment::EnvMap = std::env::vars().collect();
-    let platform = crate::platform::common::bounded_process_probe::node_platform();
+    let base: crate::agent::discovery::command_environment::EnvMap = std::env::vars().collect();
+    let platform = crate::agent::discovery::bounded_process_probe::node_platform();
     let environment = super::puppyone_agent_environment::build_puppyone_agent_environment(
         &base, &profile, platform,
     )?;

@@ -3,9 +3,9 @@
 //! platform environment acquisition share these budgets.
 use super::command_environment::EnvMap;
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::windows::process_invocation::resolve_process_invocation;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path::flavor::{posix_is_absolute, win32_is_absolute};
-use crate::platform::windows::process_invocation::resolve_process_invocation;
 use futures_util::future::LocalBoxFuture;
 use std::path::PathBuf;
 use std::rc::Rc;

@@ -286,7 +286,7 @@ impl ClaudeSpawn {
     fn resolve_node_executable(&self, path_value: Option<&str>) -> Option<String> {
         let options = &self.0.options;
         let platform = options.platform.clone().unwrap_or_else(|| {
-            crate::platform::common::bounded_process_probe::node_platform().to_string()
+            crate::agent::discovery::bounded_process_probe::node_platform().to_string()
         });
         let windows = platform == "win32";
         let separator = if windows { ';' } else { ':' };

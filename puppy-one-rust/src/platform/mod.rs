@@ -2,8 +2,6 @@ pub mod accessibility;
 pub mod agent_activity;
 pub mod app_preview;
 pub mod build_identity;
-#[allow(dead_code)]
-pub mod common;
 pub mod database;
 pub mod desktop;
 pub mod drag_out;
@@ -17,8 +15,6 @@ pub mod git_history;
 pub mod git_watch;
 pub mod host_budget;
 pub mod image_transcode;
-#[allow(dead_code)]
-pub mod local_agent_installation;
 pub mod local_agent_setup;
 pub mod locale_format;
 pub mod office;
@@ -38,8 +34,6 @@ pub mod themes;
 pub mod ui_state_store;
 pub mod watchdog;
 pub mod webview;
-#[allow(dead_code)]
-pub mod windows;
 
 /// The native product's data directory, separate from the Electron product's
 /// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).

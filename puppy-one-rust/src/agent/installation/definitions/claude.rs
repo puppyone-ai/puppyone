@@ -1,8 +1,6 @@
 //! `local-agent-installation/definitions/claude.mjs`.
 use super::{executable_name, join};
-use crate::platform::local_agent_installation::installation_definition::{
-    CandidateSpec, InstallationDefinition,
-};
+use crate::agent::installation::installation_definition::{CandidateSpec, InstallationDefinition};
 
 /// `claudeInstallationDefinition`.
 pub fn claude_installation_definition() -> InstallationDefinition {

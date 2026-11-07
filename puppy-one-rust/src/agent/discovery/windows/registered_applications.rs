@@ -1,9 +1,9 @@
 //! `platform/windows/registered-applications.mjs`: resolve Windows desktop
 //! applications from OS-owned registration instead of install-directory
 //! guesses.
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path::flavor::{win32_basename, win32_is_absolute, win32_join};
-use crate::platform::common::command_environment::EnvMap;
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;

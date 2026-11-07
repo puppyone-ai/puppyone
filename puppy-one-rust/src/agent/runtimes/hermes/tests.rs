@@ -7,13 +7,13 @@ use super::hermes_discovery::{
 use super::hermes_history_source::hermes_history_source;
 use super::hermes_identity::HERMES_RUNTIME_DESCRIPTOR;
 use crate::agent::application::tests_support::run_local;
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::protocols::acp::acp_runtime_adapter::AcpAdapterOptions;
 use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
 use crate::agent::transports::bounded_process_probe::ProbeResult;
 use crate::agent::transports::jsonl_rpc_connection::ConnectionOptions;
 use crate::agent::transports::rpc_connection::RpcConnection;
 use crate::agent::transports::rpc_connection::fake::FakeConnection;
-use crate::platform::common::command_environment::EnvMap;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::RefCell;

@@ -1,9 +1,7 @@
 //! `local-agent-installation/definitions/codex.mjs`.
 use super::{executable_name, join};
-use crate::platform::local_agent_installation::installation_definition::{
-    CandidateSpec, InstallationDefinition,
-};
-use crate::platform::local_agent_installation::managed_installation_layout::managed_installation_candidate;
+use crate::agent::installation::installation_definition::{CandidateSpec, InstallationDefinition};
+use crate::agent::installation::managed_installation_layout::managed_installation_candidate;
 
 /// `codexInstallationDefinition`.
 pub fn codex_installation_definition() -> InstallationDefinition {

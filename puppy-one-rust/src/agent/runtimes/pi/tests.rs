@@ -5,6 +5,7 @@ use super::pi_identity::PI_RUNTIME_DESCRIPTOR;
 use super::pi_rpc_adapter::pi_rpc_adapter;
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests_support::run_local;
+use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::domain::agent_session_actor::{ActorOptions, AgentSessionActor, EventInput};
 use crate::agent::protocols::pi_rpc::pi_rpc_client::fake::FakePiClient;
 use crate::agent::protocols::pi_rpc::pi_rpc_client::{PiClient, PiClientFactory};
@@ -12,7 +13,6 @@ use crate::agent::protocols::pi_rpc::pi_rpc_runtime_adapter::{
     PiAdapterOptions, PiRpcRuntimeAdapter,
 };
 use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
-use crate::platform::common::command_environment::{EnvMap, EnvironmentSnapshot};
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};

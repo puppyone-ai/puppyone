@@ -3,9 +3,9 @@
 //! integration contract.
 use super::bounded_probe_command::{create_probe_environment, run_bounded_probe_command};
 use super::executable_candidates::assert_executable_identity;
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::installation::executable_resolver::ResolvedCandidate;
 use crate::agent::transports::bounded_process_probe::ProbeOptions;
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::local_agent_installation::executable_resolver::ResolvedCandidate;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;

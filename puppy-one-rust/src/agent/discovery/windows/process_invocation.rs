@@ -1,8 +1,8 @@
 //! `platform/windows/process-invocation.mjs`: Windows batch entrypoints
 //! need cmd.exe; native binaries keep argv semantics.
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::node_path::flavor::{win32_is_absolute, win32_join};
-use crate::platform::common::command_environment::EnvMap;
 
 /// A resolved launch: file, arguments and whether they are verbatim.
 #[derive(Clone, Debug, PartialEq, Eq)]

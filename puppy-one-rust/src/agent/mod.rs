@@ -12,6 +12,9 @@ pub mod bootstrap;
 #[allow(dead_code)]
 pub mod cache;
 pub mod connections;
+// Executable discovery and the local installations it resolves
+// (`electron/main/platform/common`, `electron/main/local-agent-installation`).
+pub mod discovery;
 // The migration lands bottom-up; consumers arrive with the layers above.
 #[allow(dead_code)]
 pub mod contract;
@@ -21,6 +24,7 @@ pub mod event_loop;
 #[allow(dead_code)]
 pub mod host;
 pub mod infrastructure;
+pub mod installation;
 #[allow(dead_code)]
 pub mod ipc;
 #[allow(dead_code)]

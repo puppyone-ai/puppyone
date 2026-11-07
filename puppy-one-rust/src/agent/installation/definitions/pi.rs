@@ -1,6 +1,6 @@
 //! `local-agent-installation/definitions/pi.mjs`.
 use super::{executable_name, join};
-use crate::platform::local_agent_installation::installation_definition::{
+use crate::agent::installation::installation_definition::{
     CandidateSpec, IdentityPolicy, InstallationDefinition,
 };
 use std::path::Path;

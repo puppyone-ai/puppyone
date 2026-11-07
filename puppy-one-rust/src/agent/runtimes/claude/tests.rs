@@ -17,12 +17,12 @@ use super::claude_prompt_input::{
 use super::claude_spawn::{ClaudeSpawn, ClaudeSpawnOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::tests_support::run_local;
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::{AbortController, AbortSignal};
 use crate::agent::runtime::agent_runtime_port::{
     AgentRuntimeAdapter, is_agent_provider_session_unavailable_error,
 };
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionOptions, ProcessIo, Spawner};
-use crate::platform::common::command_environment::EnvMap;
 use base64::Engine;
 use core::prelude::v1::test;
 use futures_util::future::LocalBoxFuture;

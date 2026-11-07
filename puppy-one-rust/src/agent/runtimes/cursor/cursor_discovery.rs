@@ -4,15 +4,15 @@ use crate::agent::agent_events::redact_secret_text;
 use crate::agent::connections::probes::cursor_local_probe::probe_cursor_local;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::Obj;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::transports::bounded_process_probe::ProbeRunner;
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::executable_discovery_port::{
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::platform::local_agent_installation::executable_resolver::{
+use crate::agent::event_loop::AbortSignal;
+use crate::agent::installation::executable_resolver::{
     LocalAgentExecutableResolver, Observation, ResolvedCandidate,
 };
+use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::path::PathBuf;

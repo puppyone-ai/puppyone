@@ -10,12 +10,12 @@ use super::tools::local_agent_tool_registry::{
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
 use crate::agent::contract::local_connection_schema::sanitize_agent_local_connections_snapshot;
-use crate::agent::event_loop::{AbortController, AbortSignal, SharedTask, shared, spawn};
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::executable_discovery_port::{
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::platform::local_agent_installation::executable_resolver::{
+use crate::agent::event_loop::{AbortController, AbortSignal, SharedTask, shared, spawn};
+use crate::agent::installation::executable_resolver::{
     LocalAgentExecutableResolver, Observation, ResolutionContext, ResolvedCandidate,
 };
 use futures_util::future::{LocalBoxFuture, try_join_all};

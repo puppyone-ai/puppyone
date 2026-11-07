@@ -10,9 +10,9 @@ pub mod sessions;
 mod tests;
 
 use crate::agent::agent_error::AgentResult;
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::{AbortController, AbortSignal};
 use crate::agent::transports::jsonl_rpc_connection::ProcessIo;
-use crate::platform::common::command_environment::EnvMap;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::rc::Rc;

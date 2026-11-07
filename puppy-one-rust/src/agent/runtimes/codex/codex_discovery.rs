@@ -3,6 +3,8 @@ use crate::agent::agent_error::AgentResult;
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::Obj;
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 #[allow(unused_imports)]
@@ -10,8 +12,6 @@ pub use crate::agent::transports::executable_discovery::compare_versions;
 use crate::agent::transports::executable_discovery::{
     DiscoverExecutableOptions, build_agent_environment, discover_executable, parse_semantic_version,
 };
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::executable_discovery_port::ReadEnvironment;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::rc::Rc;

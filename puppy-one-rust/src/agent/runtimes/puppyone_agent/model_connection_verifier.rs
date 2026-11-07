@@ -42,7 +42,7 @@ pub fn create_puppyone_model_verifier(
             let environment = build_puppyone_agent_environment(
                 &std::env::vars().collect(),
                 &profile.to_string_lossy(),
-                crate::platform::common::bounded_process_probe::node_platform(),
+                crate::agent::discovery::bounded_process_probe::node_platform(),
             )?;
             let spawn = spawn_with_model_configuration(configuration, None);
             let mut io = spawn(

@@ -1255,8 +1255,8 @@ mod discovery {
         discover_codex_executable, parse_codex_version,
     };
     use crate::agent::application::tests_support::run_local;
-    use crate::platform::common::bounded_process_probe::{ProbeRunner, default_probe_runner};
-    use crate::platform::common::command_environment::{EnvMap, EnvironmentSnapshot};
+    use crate::agent::discovery::bounded_process_probe::{ProbeRunner, default_probe_runner};
+    use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
     use core::prelude::v1::test;
     use std::cell::RefCell;
     use std::os::unix::fs::PermissionsExt;

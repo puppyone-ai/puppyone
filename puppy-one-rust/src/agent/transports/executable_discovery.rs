@@ -2,20 +2,20 @@
 //! the platform; the runtime owns readiness probes.
 use crate::agent::agent_error::AgentResult;
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path;
-use crate::platform::common::bounded_process_probe::{
+use crate::agent::discovery::bounded_process_probe::{
     ProbeOptions, ProbeResult, ProbeRunner, default_probe_runner, node_platform,
 };
-use crate::platform::common::command_environment::{EnvMap, normalize_environment};
-use crate::platform::common::executable_discovery_port::{
+use crate::agent::discovery::command_environment::{EnvMap, normalize_environment};
+use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::platform::local_agent_installation::executable_resolver::{
+use crate::agent::event_loop::AbortSignal;
+use crate::agent::installation::executable_resolver::{
     AcceptCandidate, LocalAgentExecutableResolver, Observation, ObservationRequest,
     ResolutionContext, assert_executable_identity, resolve_executable_observation,
 };
-use crate::platform::local_agent_installation::installation_definition::{CandidateSpec, NameSpec};
+use crate::agent::installation::installation_definition::{CandidateSpec, NameSpec};
+use crate::agent::node_path;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::Value;

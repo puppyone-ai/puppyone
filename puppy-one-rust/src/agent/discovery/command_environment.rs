@@ -2,9 +2,9 @@
 //! command environment per scan. No completed environment cache.
 use super::bounded_process_probe::{ProbeOptions, ProbeRunner, default_probe_runner};
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::windows::command_environment::read_windows_command_environment;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path::flavor::{posix_basename, posix_is_absolute};
-use crate::platform::windows::command_environment::read_windows_command_environment;
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

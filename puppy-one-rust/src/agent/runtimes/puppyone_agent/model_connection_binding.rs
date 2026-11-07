@@ -89,7 +89,7 @@ pub fn spawn_with_model_configuration(configuration: Value, spawn: Option<Spawne
     let payload = configuration.to_string().into_bytes();
     Rc::new(move |options: &ConnectionOptions| {
         let mut options = options.clone();
-        let env: crate::platform::common::command_environment::EnvMap = options
+        let env: crate::agent::discovery::command_environment::EnvMap = options
             .env
             .clone()
             .unwrap_or_default()
@@ -193,7 +193,7 @@ impl ModelConnectionBinding {
 
     /// `binding.createClient(options)`.
     pub fn create_client(&self, mut options: PiClientOptions) -> AgentResult<Rc<dyn PiClient>> {
-        let env: crate::platform::common::command_environment::EnvMap = options
+        let env: crate::agent::discovery::command_environment::EnvMap = options
             .env
             .clone()
             .unwrap_or_default()

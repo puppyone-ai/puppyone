@@ -2,7 +2,7 @@
 //! Agent SDK's native catalog values.
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
-use crate::platform::common::command_environment::EnvMap;
+use crate::agent::discovery::command_environment::EnvMap;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;

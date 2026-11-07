@@ -60,6 +60,16 @@ fn status_path(folder: &Path) -> PathBuf {
     folder.join("\u{0}error")
 }
 
+/// `DEFAULT_EXPLORER_EXCLUDE_PATTERNS`: what the Explorer hides unless hidden
+/// files are shown.
+pub const DEFAULT_EXCLUDE_PATTERNS: [&str; 6] = [
+    "**/.git",
+    "**/.puppyone",
+    "**/.svn",
+    "**/.hg",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+];
 /// Explorer visibility (`createExplorerDataPort`): with hidden files shown no
 /// filtering applies; otherwise exclude patterns (bare names match anywhere).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -539,9 +549,7 @@ mod tests {
             ],
             visibility: Visibility {
                 show_hidden: false,
-                patterns: crate::features::settings::preference_types::DEFAULT_EXCLUDE_PATTERNS
-                    .map(String::from)
-                    .to_vec(),
+                patterns: DEFAULT_EXCLUDE_PATTERNS.map(String::from).to_vec(),
             },
             ..Tree::new()
         };

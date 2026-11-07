@@ -2,8 +2,8 @@
 //! environment the product-owned worker inherits.
 use super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::node_path;
-use crate::platform::common::command_environment::EnvMap;
 
 const EXACT_ENVIRONMENT_KEYS: &[&str] = &[
     "PATH",

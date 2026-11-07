@@ -11,11 +11,11 @@ use super::installation_registry::{
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::discovery_io_budget::run_discovery_io;
+use crate::agent::discovery::executable_discovery_port::ExecutableDiscoveryPort;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path;
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::discovery_io_budget::run_discovery_io;
-use crate::platform::common::executable_discovery_port::ExecutableDiscoveryPort;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -876,24 +876,6 @@ fn normalize_names(names: &[NameSpec], platform: &str, extensions: &[String]) ->
         .iter()
         .take(MAX_NAMES)
         .flat_map(|value| match value {
-            NameSpec::Recipe {
-                file_name,
-                invoked_as,
-                args_prefix,
-            } => {
-                let invoked = invoked_as
-                    .clone()
-                    .filter(|v| !v.is_empty())
-                    .unwrap_or_else(|| file_name.clone());
-                executable_names(file_name, platform, extensions)
-                    .into_iter()
-                    .map(|file_name| Descriptor {
-                        file_name,
-                        invoked_as: js::head16(&invoked, 80).to_string(),
-                        args_prefix: normalize_args(args_prefix),
-                    })
-                    .collect::<Vec<_>>()
-            }
             NameSpec::Text(text) => {
                 let trimmed = js::trim(text);
                 if trimmed.is_empty() {

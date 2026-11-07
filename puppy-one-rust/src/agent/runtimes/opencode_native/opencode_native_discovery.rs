@@ -3,6 +3,8 @@
 use crate::agent::agent_error::AgentResult;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::{self, Obj};
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtimes::hermes::hermes_discovery::runtime_readiness;
 use crate::agent::runtimes::opencode_protocol::opencode_security_policy::OPEN_CODE_HOST_SAFETY_ENVIRONMENT;
@@ -12,8 +14,6 @@ use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, run_bounded,
 };
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::executable_discovery_port::ReadEnvironment;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::rc::Rc;

@@ -1,8 +1,6 @@
 //! `local-agent-installation/definitions/hermes.mjs`.
 use super::{executable_name, join};
-use crate::platform::local_agent_installation::installation_definition::{
-    CandidateSpec, InstallationDefinition,
-};
+use crate::agent::installation::installation_definition::{CandidateSpec, InstallationDefinition};
 
 /// `hermesInstallationDefinition`.
 pub fn hermes_installation_definition() -> InstallationDefinition {

@@ -1,9 +1,9 @@
 //! `local-agent-installation/definitions/workbuddy.mjs`.
 use super::join;
-use crate::agent::node_path::flavor::{win32_dirname, win32_join};
-use crate::platform::local_agent_installation::installation_definition::{
+use crate::agent::installation::installation_definition::{
     CandidateSpec, IdentityPolicy, InstallationDefinition, ManifestPolicy,
 };
+use crate::agent::node_path::flavor::{win32_dirname, win32_join};
 
 const MACOS_APP_CLI_RELATIVE_PATH: &[&str] = &[
     "Contents",

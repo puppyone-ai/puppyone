@@ -6,15 +6,15 @@ use super::executable_candidates::assert_executable_identity;
 use super::versioned_local_agent_probe::normalize_probe_source;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::AbortSignal;
+use crate::agent::installation::executable_resolver::ResolvedCandidate;
 use crate::agent::node_path;
 use crate::agent::transports::bounded_process_probe::{ProbeOptions, ProbeRunner};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionEvent, ConnectionOptions, RequestOptions,
 };
 use crate::agent::transports::rpc_connection::{ConnectionFactory, jsonl_rpc_connection_factory};
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::local_agent_installation::executable_resolver::ResolvedCandidate;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::{Value, json};

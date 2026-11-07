@@ -1,7 +1,7 @@
 //! `local-agent-installation/candidate-identity.mjs`: verify ambiguous
 //! executable names with bounded, read-only evidence.
 use super::executable_resolver::{ResolvedCandidate, safe_absolute_path};
-use super::installation_definition::{IdentityPolicy, InstallationDefinition, ManifestPolicy};
+use super::installation_definition::{IdentityPolicy, ManifestPolicy};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -15,18 +15,8 @@ pub mod policy {
     pub const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 }
 
-/// `verifyLocalAgentCandidateIdentity(definition, candidate)`.
-pub fn verify_local_agent_candidate_identity(
-    definition: &InstallationDefinition,
-    candidate: &ResolvedCandidate,
-) -> bool {
-    let Some(policy) = definition.identity_policy.as_ref() else {
-        return true;
-    };
-    verify_candidate_identity(policy, candidate)
-}
-
-/// The policy half of [`verify_local_agent_candidate_identity`].
+/// `verifyLocalAgentCandidateIdentity`: whether `candidate` passes the
+/// definition's identity policy.
 pub fn verify_candidate_identity(policy: &IdentityPolicy, candidate: &ResolvedCandidate) -> bool {
     if matches!(
         candidate.source.as_str(),

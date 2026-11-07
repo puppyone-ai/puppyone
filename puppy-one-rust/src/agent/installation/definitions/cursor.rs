@@ -1,9 +1,9 @@
 //! `local-agent-installation/definitions/cursor.mjs`.
 use super::join;
-use crate::platform::local_agent_installation::installation_definition::{
+use crate::agent::installation::installation_definition::{
     CandidateSpec, IdentityPolicy, InstallationDefinition,
 };
-use crate::platform::local_agent_installation::managed_installation_layout::managed_installation_candidate;
+use crate::agent::installation::managed_installation_layout::managed_installation_candidate;
 
 /// `cursorInstallationDefinition`.
 pub fn cursor_installation_definition() -> InstallationDefinition {

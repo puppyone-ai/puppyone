@@ -10,10 +10,10 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::{self, Obj};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path;
 use crate::agent::transports::executable_discovery::{BoundedRun, RunBounded, run_bounded};
-use crate::platform::common::command_environment::EnvMap;
 use serde_json::{Value, json};
 use std::rc::Rc;
 
@@ -62,7 +62,7 @@ pub async fn discover_puppyone_agent_worker(
             .into_owned()
     });
     let platform = options.platform.clone().unwrap_or_else(|| {
-        crate::platform::common::bounded_process_probe::node_platform().to_string()
+        crate::agent::discovery::bounded_process_probe::node_platform().to_string()
     });
     let base_env = options
         .env

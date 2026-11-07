@@ -1,10 +1,10 @@
 //! `platform/windows/command-environment.mjs`: a new child of Desktop
 //! inherits its old PATH, so the persistent PATH is read afresh.
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::bounded_process_probe::{ProbeOptions, ProbeRunner};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::node_path::flavor::{win32_is_absolute, win32_join};
-use crate::platform::common::bounded_process_probe::{ProbeOptions, ProbeRunner};
-use crate::platform::common::command_environment::EnvMap;
 use serde_json::Value;
 use std::path::Path;
 

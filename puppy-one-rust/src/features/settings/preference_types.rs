@@ -35,14 +35,7 @@ pub enum GitSidebarLayout {
     Dividers,
 }
 
-pub const DEFAULT_EXCLUDE_PATTERNS: [&str; 6] = [
-    "**/.git",
-    "**/.puppyone",
-    "**/.svn",
-    "**/.hg",
-    "**/.DS_Store",
-    "**/Thumbs.db",
-];
+pub use crate::model::DEFAULT_EXCLUDE_PATTERNS;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct FilesVisibility {

@@ -8,16 +8,16 @@ use super::executable_resolver::{
 };
 use super::installation_definition::NameSpec;
 use crate::agent::application::tests_support::run_local;
-use crate::agent::event_loop::AbortController;
-use crate::platform::common::bounded_process_probe::{
+use crate::agent::discovery::bounded_process_probe::{
     ProbeOptions, ProbeResult, run_bounded_process_probe,
 };
-use crate::platform::common::command_environment::{
+use crate::agent::discovery::command_environment::{
     EnvMap, EnvironmentSnapshot, ReadEnvironmentOptions, read_user_command_environment,
 };
-use crate::platform::common::executable_discovery_port::{
+use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
+use crate::agent::event_loop::AbortController;
 use core::prelude::v1::test;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -51,7 +51,7 @@ fn env(pairs: &[(&str, &str)]) -> EnvMap {
 }
 
 fn platform() -> String {
-    crate::platform::common::bounded_process_probe::node_platform().into()
+    crate::agent::discovery::bounded_process_probe::node_platform().into()
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn accepts_configured_paths_with_spaces_and_skips_broken_or_non_executable_candi
         assert_eq!(resolve_first_executable(request("")).await.unwrap(), None);
         // On PATH, the broken link is skipped and the plain file is evidence.
         assert_eq!(
-            crate::platform::local_agent_installation::executable_resolver::resolve_executable_observation(
+            crate::agent::installation::executable_resolver::resolve_executable_observation(
                 request(&bin.to_string_lossy())
             )
             .await
@@ -335,7 +335,7 @@ fn reads_the_login_shell_environment_between_private_markers() {
             ("PATH", "/usr/bin"),
             ("DISABLE_AUTO_UPDATE", "keep"),
         ]);
-        let framed: crate::platform::common::bounded_process_probe::ProbeRunner = Rc::new(
+        let framed: crate::agent::discovery::bounded_process_probe::ProbeRunner = Rc::new(
             |file, args, options| {
                 Box::pin(async move {
                     assert_eq!(file, "/bin/zsh");
@@ -379,7 +379,7 @@ fn reads_the_login_shell_environment_between_private_markers() {
                 ("DISABLE_AUTO_UPDATE", "keep")
             ])
         );
-        let failing: crate::platform::common::bounded_process_probe::ProbeRunner =
+        let failing: crate::agent::discovery::bounded_process_probe::ProbeRunner =
             Rc::new(|_, _, _| {
                 Box::pin(async {
                     Ok(ProbeResult {

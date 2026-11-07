@@ -1,10 +1,10 @@
 //! `connections/probes/bounded-probe-command.mjs`: a minimal probe
 //! environment that never forwards credential-shaped variables.
 use crate::agent::agent_error::AgentResult;
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::transports::bounded_process_probe::{
     ProbeOptions, ProbeResult, run_bounded_process_probe,
 };
-use crate::platform::common::command_environment::EnvMap;
 
 pub const LOCAL_AGENT_PROBE_TIMEOUT_MS: u64 = 1_500;
 pub const LOCAL_AGENT_PROBE_MAX_OUTPUT_BYTES: usize = 16 * 1024;

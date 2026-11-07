@@ -1,8 +1,8 @@
 //! `local-agent-installation/installation-definition.mjs`: one validated
 //! installation definition (names, candidate paths and identity policy).
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::windows::registered_applications::RegisteredApplication;
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::windows::registered_applications::RegisteredApplication;
 use regex::Regex;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
@@ -26,15 +26,11 @@ static MANIFEST_FILE: LazyLock<Regex> =
 static MANIFEST_PROPERTY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9_]{0,79}$").expect("pattern"));
 
-/// One `executableNames` entry: `"cursor agent"` or `{ fileName, invokedAs, argsPrefix }`.
+/// One `executableNames` entry: the executable and its leading arguments,
+/// `"cursor agent"`. (The product's object form has no definition using it.)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NameSpec {
     Text(String),
-    Recipe {
-        file_name: String,
-        invoked_as: Option<String>,
-        args_prefix: Vec<String>,
-    },
 }
 
 impl From<&str> for NameSpec {
@@ -255,17 +251,7 @@ fn validate_identity_policy(definition: &InstallationDefinition) -> AgentResult<
     let invocations: Vec<String> = definition
         .executable_names
         .iter()
-        .map(|entry| match entry {
-            NameSpec::Text(text) => text.clone(),
-            NameSpec::Recipe {
-                file_name,
-                invoked_as,
-                ..
-            } => invoked_as
-                .clone()
-                .filter(|v| !v.is_empty())
-                .unwrap_or_else(|| file_name.clone()),
-        })
+        .map(|NameSpec::Text(text)| text.clone())
         .collect();
     if policy
         .required_for_invocations

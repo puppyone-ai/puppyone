@@ -5,6 +5,8 @@ use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::{self, Obj};
+use crate::agent::discovery::command_environment::EnvMap;
+use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtimes::hermes::hermes_discovery::runtime_readiness;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
@@ -12,8 +14,6 @@ use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, parse_semantic_version, run_bounded,
 };
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::common::executable_discovery_port::ReadEnvironment;
 use regex::Regex;
 use serde_json::Value;
 use std::path::{Path, PathBuf};

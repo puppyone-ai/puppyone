@@ -5,11 +5,11 @@ use super::codex_tool::codex_local_tool;
 use super::cursor_tool::cursor_local_tool;
 use super::opencode_tool::opencode_local_tool;
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::AbortSignal;
-use crate::platform::common::command_environment::EnvMap;
-use crate::platform::local_agent_installation::executable_resolver::ResolvedCandidate;
-use crate::platform::local_agent_installation::installation_definition::NameSpec;
-use crate::platform::local_agent_installation::installation_registry::{
+use crate::agent::installation::executable_resolver::ResolvedCandidate;
+use crate::agent::installation::installation_definition::NameSpec;
+use crate::agent::installation::installation_registry::{
     DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY, get_local_agent_installation_definition,
 };
 use futures_util::future::LocalBoxFuture;
@@ -69,10 +69,8 @@ pub fn local_agent_tool_registry_defaults() -> Vec<LocalAgentToolDescriptor> {
 }
 
 fn name_of(spec: &NameSpec) -> String {
-    match spec {
-        NameSpec::Text(name) => name.clone(),
-        NameSpec::Recipe { file_name, .. } => file_name.clone(),
-    }
+    let NameSpec::Text(name) = spec;
+    name.clone()
 }
 
 /// `createLocalAgentToolRegistry(descriptors)`.

@@ -52,8 +52,3 @@ pub async fn run_discovery_io<T: Send + 'static>(
         reason = cancelled => Err(reason),
     }
 }
-
-/// The slots currently held (`pendingTasks`).
-pub fn pending_tasks() -> usize {
-    PENDING_TASKS.load(Ordering::Acquire)
-}

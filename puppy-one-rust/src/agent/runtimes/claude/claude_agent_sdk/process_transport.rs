@@ -3,11 +3,11 @@
 //! exit observation.
 use super::{CLAUDE_AGENT_SDK_VERSION, QueryOptions, SpawnOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::event_loop::{AbortController, AbortSignal, set_timeout, spawn};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionOptions, ProcessIo, spawn_managed_process,
 };
-use crate::platform::common::command_environment::EnvMap;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -157,7 +157,7 @@ impl ProcessTransport {
         else {
             return Err(AgentError::new(format!(
                 "Native CLI binary for {}-{} not found. Reinstall @anthropic-ai/claude-agent-sdk without --omit=optional, or set options.pathToClaudeCodeExecutable.",
-                crate::platform::common::bounded_process_probe::node_platform(),
+                crate::agent::discovery::bounded_process_probe::node_platform(),
                 std::env::consts::ARCH,
             )));
         };

@@ -12,10 +12,10 @@ use super::{
 };
 use crate::agent::agent_error::AgentResult;
 use crate::agent::application::tests_support::run_local;
+use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::runtimes::claude::claude_message_channel::ClaudeMessageChannel;
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionOptions, ProcessIo, Spawner};
 use crate::agent::transports::test_support::{FakeChild, fake_spawner};
-use crate::platform::common::command_environment::EnvMap;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::RefCell;

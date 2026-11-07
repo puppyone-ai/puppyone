@@ -24,15 +24,15 @@ use super::tools::local_agent_tool_registry::{
 use super::tools::opencode_tool::opencode_local_tool;
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests_support::{run_local, run_paused_local};
+use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
+use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::event_loop::AbortController;
+use crate::agent::installation::executable_resolver::{
+    ObservationRequest, ResolvedCandidate, resolve_first_executable,
+};
 use crate::agent::transports::bounded_process_probe::{ProbeResult, ProbeRunner};
 use crate::agent::transports::rpc_connection::ConnectionFactory;
 use crate::agent::transports::rpc_connection::fake::FakeConnection;
-use crate::platform::common::command_environment::{EnvMap, EnvironmentSnapshot};
-use crate::platform::common::executable_discovery_port::ReadEnvironment;
-use crate::platform::local_agent_installation::executable_resolver::{
-    ObservationRequest, ResolvedCandidate, resolve_first_executable,
-};
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -208,7 +208,7 @@ fn registers_every_terminal_launched_agent_and_verifies_generic_local_versions()
         let candidate = resolve_first_executable(ObservationRequest {
             names: vec!["claude".into()],
             configured_paths: vec![claude.to_string_lossy().into_owned()],
-            platform: crate::platform::common::bounded_process_probe::node_platform().into(),
+            platform: crate::agent::discovery::bounded_process_probe::node_platform().into(),
             ..Default::default()
         })
         .await
@@ -756,7 +756,7 @@ fn accepts_a_real_cursor_shaped_cli_whose_version_and_status_each_exceed_the_gen
         let candidate = resolve_first_executable(ObservationRequest {
             names: vec!["cursor-agent".into()],
             configured_paths: vec![script.to_string_lossy().into_owned()],
-            platform: crate::platform::common::bounded_process_probe::node_platform().into(),
+            platform: crate::agent::discovery::bounded_process_probe::node_platform().into(),
             ..Default::default()
         })
         .await
