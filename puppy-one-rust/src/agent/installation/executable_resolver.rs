@@ -10,12 +10,12 @@ use super::installation_registry::{
     get_local_agent_installation_definition,
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::discovery_io_budget::run_discovery_io;
 use crate::agent::discovery::executable_discovery_port::ExecutableDiscoveryPort;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths;
+use crate::text;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -130,7 +130,7 @@ pub struct ResolutionContext {
     pub environment_complete: bool,
     pub environment_reason_code: Option<String>,
     pub executable_search: SearchContext,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
 }
 
 /// `acceptCandidate(candidate)`, run under the discovery budget.
@@ -156,7 +156,7 @@ impl LocalAgentExecutableResolver {
     /// `resolver.createContext({ signal })`.
     pub async fn create_context(
         &self,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> AgentResult<ResolutionContext> {
         let snapshot = self
             .discovery_port
@@ -197,7 +197,7 @@ impl LocalAgentExecutableResolver {
         };
         let signal = context.signal.clone();
         if let Some(signal) = signal.as_ref() {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         let port = &self.discovery_port;
         let environment = context.environment.clone();
@@ -215,7 +215,7 @@ impl LocalAgentExecutableResolver {
                 Ok(found) => registered_applications = found,
                 Err(_) => {
                     if let Some(signal) = signal.as_ref() {
-                        signal.throw_if_aborted()?;
+                        signal.check()?;
                     }
                 }
             }
@@ -374,7 +374,7 @@ pub struct ObservationRequest {
     pub accept_candidate: Option<AcceptCandidate>,
     pub env: EnvMap,
     pub platform: String,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
 }
 
 /// `push(filename, descriptor, source, recipe)` while ordering candidates.
@@ -403,8 +403,8 @@ fn is_explicit_source(value: &str) -> bool {
     )
 }
 
-fn signal_check(signal: Option<&AbortSignal>) -> AgentResult<()> {
-    signal.map_or(Ok(()), AbortSignal::throw_if_aborted)
+fn signal_check(signal: Option<&CancelSignal>) -> AgentResult<()> {
+    signal.map_or(Ok(()), CancelSignal::check)
 }
 
 /// `resolveExecutableObservation(options)`.
@@ -677,7 +677,7 @@ fn build_candidates(
         });
     };
     let push_configured = |entry: &CandidateSpec, push: &mut PushCandidate<'_>| {
-        let name = node_path::basename(&entry.path);
+        let name = paths::file_name(&entry.path);
         let descriptor = descriptors
             .iter()
             .find(|descriptor| descriptor.file_name == name)
@@ -877,7 +877,7 @@ fn normalize_names(names: &[NameSpec], platform: &str, extensions: &[String]) ->
         .take(MAX_NAMES)
         .flat_map(|value| match value {
             NameSpec::Text(text) => {
-                let trimmed = js::trim(text);
+                let trimmed = text::trim(text);
                 if trimmed.is_empty() {
                     return Vec::new();
                 }
@@ -888,7 +888,7 @@ fn normalize_names(names: &[NameSpec], platform: &str, extensions: &[String]) ->
                     .into_iter()
                     .map(|file_name| Descriptor {
                         file_name,
-                        invoked_as: js::head16(trimmed, 80).to_string(),
+                        invoked_as: text::head16(trimmed, 80).to_string(),
                         args_prefix: args_prefix.clone(),
                     })
                     .collect()
@@ -926,7 +926,7 @@ fn normalize_args(value: &[String]) -> Vec<String> {
     value
         .iter()
         .take(4)
-        .filter(|entry| js::len16(entry) <= 4_096 && !entry.contains(['\r', '\n', '\0']))
+        .filter(|entry| text::len16(entry) <= 4_096 && !entry.contains(['\r', '\n', '\0']))
         .cloned()
         .collect()
 }
@@ -937,7 +937,7 @@ fn normalize_environment_overrides(value: &[(String, String)]) -> Vec<(String, S
         .take(8)
         .filter(|(key, entry)| {
             OVERRIDE_KEY.is_match(key)
-                && js::len16(entry) <= 4_096
+                && text::len16(entry) <= 4_096
                 && !entry.contains(['\r', '\n', '\0'])
         })
         .cloned()
@@ -947,8 +947,8 @@ fn normalize_environment_overrides(value: &[(String, String)]) -> Vec<(String, S
 /// `safeAbsolutePath(value)`.
 pub fn safe_absolute_path(value: &str) -> bool {
     !value.is_empty()
-        && js::len16(value) <= 4_096
-        && node_path::is_absolute(value)
+        && text::len16(value) <= 4_096
+        && paths::is_absolute(value)
         && !value.contains(['\r', '\n', '\0'])
 }
 

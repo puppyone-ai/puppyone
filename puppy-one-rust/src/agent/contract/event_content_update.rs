@@ -2,6 +2,7 @@
 //! semantics shared by live projection and replay checkpointing. Adapters
 //! describe facts; consumers do not reinterpret them.
 use super::js;
+use crate::text;
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,12 +74,12 @@ pub fn apply_agent_event_content_update(
         UpdateMode::Replace => incoming.to_string(),
         UpdateMode::Append => format!("{existing}{incoming}"),
     };
-    let length = js::len16(&combined);
+    let length = text::len16(&combined);
     let bounded = limit.unwrap_or(length);
     Some(AppliedContentUpdate {
         field: update.field,
         mode: update.mode,
-        text: js::head16(&combined, bounded).to_string(),
+        text: text::head16(&combined, bounded).to_string(),
         truncated: length > bounded,
     })
 }

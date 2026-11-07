@@ -23,13 +23,13 @@ use super::codex_reference_input::{CODEX_NATIVE_IMAGE_MIME_TYPES, build_codex_tu
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{AbortSignal, spawn};
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
 };
 use crate::agent::runtime::agent_session_history_port::SessionHistoryPort;
 use crate::agent::runtime::native_persistence_reporter::NativePersistenceReporter;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionEvent, ConnectionOptions, RequestOptions, Spawner,
 };
@@ -44,6 +44,7 @@ use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::LazyLock;
 use tokio::sync::oneshot;
+use tokio::task::spawn_local;
 
 /// `CODEX_CAPABILITIES`.
 pub static CODEX_CAPABILITIES: LazyLock<Value> = LazyLock::new(|| {
@@ -511,10 +512,10 @@ impl CodexAppServerAdapter {
         &self,
         cursor: Option<String>,
         limit: Option<Value>,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> AgentResult<Value> {
         if let Some(signal) = signal.as_ref() {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         self.connect().await?;
         let request = self.0.history_request()?;
@@ -731,7 +732,7 @@ impl CodexAppServerAdapter {
                     // evidence. The RPC response may still arrive later; a late
                     // timeout must not retire a live connection after the turn
                     // has already started or completed.
-                    spawn(async move {
+                    spawn_local(async move {
                         let _ = rpc.await;
                     });
                     Ok(json!({ "turn": { "id": turn_id } }))
@@ -965,14 +966,14 @@ impl SessionHistoryPort for CodexHistoryPort {
         &self,
         cursor: Option<String>,
         limit: usize,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> AdapterFuture<'_, Value> {
         Box::pin(
             self.0
                 .discover_sessions(cursor, Some(Value::from(limit)), Some(signal)),
         )
     }
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         Box::pin(self.0.read_history_result())
     }
 }

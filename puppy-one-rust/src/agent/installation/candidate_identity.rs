@@ -2,6 +2,7 @@
 //! executable names with bounded, read-only evidence.
 use super::executable_resolver::{ResolvedCandidate, safe_absolute_path};
 use super::installation_definition::{IdentityPolicy, ManifestPolicy};
+use crate::text;
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -168,7 +169,7 @@ fn normalize_evidence_values(values: &[String]) -> Vec<String> {
     values
         .iter()
         .take(policy::MAX_IDENTITY_VALUES)
-        .filter(|value| !value.is_empty() && crate::agent::contract::js::len16(value) <= 160)
+        .filter(|value| !value.is_empty() && text::len16(value) <= 160)
         .map(|value| value.to_lowercase())
         .collect()
 }

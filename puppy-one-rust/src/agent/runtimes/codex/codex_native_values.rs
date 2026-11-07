@@ -2,6 +2,8 @@
 //! into the provider-neutral shapes.
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
+use crate::clock;
+use crate::text;
 use serde_json::{Map, Value, json};
 
 const CODEX_REASONING_EFFORTS: &[&str] = &["none", "minimal", "low", "medium", "high", "xhigh"];
@@ -182,14 +184,14 @@ pub fn normalize_network_approval_context(value: Option<&Value>) -> Value {
         value
             .get(key)
             .and_then(Value::as_str)
-            .map(js::trim)
+            .map(text::trim)
             .unwrap_or("")
     };
     let (host, protocol) = (field("host"), field("protocol"));
     if host.is_empty() || protocol.is_empty() {
         return Value::Null;
     }
-    json!({ "host": js::head16(host, 512), "protocol": js::head16(protocol, 40) })
+    json!({ "host": text::head16(host, 512), "protocol": text::head16(protocol, 40) })
 }
 
 /// `String(value || fallback)`.
@@ -221,8 +223,8 @@ pub fn normalize_codex_questions(value: Option<&Value>) -> Vec<Value> {
                                 None => js::string_or_empty(Some(option)),
                             };
                             json!({
-                                "label": js::head16(&label, 300),
-                                "description": js::head16(&js::string_or_empty(option.get("description")), 1_000),
+                                "label": text::head16(&label, 300),
+                                "description": text::head16(&js::string_or_empty(option.get("description")), 1_000),
                             })
                         })
                         .filter(|option| option["label"].as_str().is_some_and(|l| !l.is_empty()))
@@ -232,8 +234,8 @@ pub fn normalize_codex_questions(value: Option<&Value>) -> Vec<Value> {
             json!({
                 "id": string_or_null(question.get("id"))
                     .map_or_else(|| format!("question-{}", index + 1), str::to_string),
-                "header": js::head16(&or_text(question.get("header"), || format!("Question {}", index + 1)), 160),
-                "question": js::head16(&or_text(question.get("question"), || "Input required".into()), 2_000),
+                "header": text::head16(&or_text(question.get("header"), || format!("Question {}", index + 1)), 160),
+                "question": text::head16(&or_text(question.get("question"), || "Input required".into()), 2_000),
                 "multiple": js::truthy_opt(question.get("multiple")) || js::truthy_opt(question.get("multiSelect")),
                 "custom": question.get("custom") != Some(&Value::Bool(false)),
                 "options": options,
@@ -252,7 +254,7 @@ pub fn codex_question_answers(questions: &[Value], answers: Option<&Value>) -> V
             .map(|values| {
                 values
                     .iter()
-                    .map(|v| js::head16(&js::to_js_string(Some(v)), 2_000).to_string())
+                    .map(|v| text::head16(&js::to_js_string(Some(v)), 2_000).to_string())
                     .collect()
             })
             .unwrap_or_default();
@@ -286,9 +288,9 @@ pub fn string_or_null_value(value: Option<&Value>) -> Value {
 pub fn to_iso_from_seconds(value: Option<&Value>) -> String {
     match value.and_then(js::finite_number) {
         Some(seconds) if (seconds * 1000.0).abs() <= 8.64e15 => {
-            js::iso_string((seconds * 1000.0).trunc() as i64)
+            clock::iso_string((seconds * 1000.0).trunc() as i64)
         }
-        _ => js::now_iso(),
+        _ => clock::now_iso(),
     }
 }
 

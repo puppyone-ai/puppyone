@@ -3,12 +3,13 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js;
-use crate::agent::event_loop::{Timer, set_timeout, spawn};
+use crate::agent::tasks::spawn_after;
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionOptions, ProcessIo, RequestOptions, Spawner, spawn_managed_process,
 };
 use crate::agent::transports::jsonl_stream::{Framed, JsonlFramer};
 use crate::agent::transports::native_request_ledger::{NativeRequestLedger, Taken};
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::{Map, Value, json};
@@ -16,8 +17,11 @@ use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::LazyLock;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc};
+use tokio::task::JoinHandle;
+use tokio::task::spawn_local;
 
 pub const PI_RPC_MAX_LINE_BYTES: usize = 8 * 1024 * 1024;
 const DEFAULT_MAX_STDERR_BYTES: usize = 64 * 1024;
@@ -139,7 +143,7 @@ struct Inner {
     exit_info: RefCell<Option<Value>>,
     exit_expected: Cell<bool>,
     close_reason: RefCell<Option<String>>,
-    force_kill_timer: RefCell<Option<Timer>>,
+    force_kill_timer: RefCell<Option<JoinHandle<()>>>,
     kill: Rc<dyn Fn(bool) -> bool>,
     writer: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
     queued_bytes: Rc<Cell<usize>>,
@@ -153,12 +157,12 @@ struct Inner {
 pub struct PiRpcClient(Rc<Inner>);
 
 fn valid_argument(value: &str) -> bool {
-    js::len16(value) <= 4_096 && !value.contains(['\r', '\n', '\0'])
+    text::len16(value) <= 4_096 && !value.contains(['\r', '\n', '\0'])
 }
 
 fn validate_launch(executable_path: &str, args: &[String], cwd: &str) -> AgentResult<()> {
     let type_error = |message: &str| AgentError::new(message).with_name("TypeError");
-    if !crate::agent::node_path::is_absolute(executable_path)
+    if !crate::platform::paths::is_absolute(executable_path)
         || executable_path.contains(['\r', '\n', '\0'])
     {
         return Err(type_error("Pi RPC requires an absolute executable path."));
@@ -166,7 +170,7 @@ fn validate_launch(executable_path: &str, args: &[String], cwd: &str) -> AgentRe
     if args.len() > 16 || args.iter().any(|arg| !valid_argument(arg)) {
         return Err(type_error("Pi RPC process arguments are invalid."));
     }
-    if !crate::agent::node_path::is_absolute(cwd) || cwd.contains(['\r', '\n', '\0']) {
+    if !crate::platform::paths::is_absolute(cwd) || cwd.contains(['\r', '\n', '\0']) {
         return Err(type_error("Pi RPC requires an absolute working directory."));
     }
     Ok(())
@@ -227,7 +231,7 @@ impl PiRpcClient {
             Err(error) => {
                 let client = Self::with(&options, Rc::new(|_| false));
                 let target = client.clone();
-                spawn(async move { target.handle_exit(None, None, Some(error)) });
+                spawn_local(async move { target.handle_exit(None, None, Some(error)) });
                 return Ok(client);
             }
         };
@@ -245,7 +249,7 @@ impl PiRpcClient {
         {
             let target = client.clone();
             let queued = client.0.queued_bytes.clone();
-            spawn(async move {
+            spawn_local(async move {
                 while let Some(line) = lines.recv().await {
                     let length = line.len();
                     let written = match stdin.write_all(&line).await {
@@ -265,7 +269,7 @@ impl PiRpcClient {
         }
         {
             let target = client.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let mut framer = JsonlFramer::new(target.0.max_line_bytes);
                 let mut buffer = vec![0u8; 64 * 1024];
                 while let Ok(count) = stdout.read(&mut buffer).await {
@@ -288,7 +292,7 @@ impl PiRpcClient {
         }
         {
             let target = client.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let mut buffer = vec![0u8; 8192];
                 while let Ok(count) = stderr.read(&mut buffer).await {
                     if count == 0 {
@@ -300,7 +304,7 @@ impl PiRpcClient {
         }
         {
             let target = client.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let (code, signal, error) = exit.await;
                 target.handle_exit(code, signal, error);
             });
@@ -392,7 +396,7 @@ impl PiRpcClient {
         options: RequestOptions,
     ) -> AgentResult<Value> {
         if let Some(signal) = options.signal.as_ref()
-            && signal.aborted()
+            && signal.is_cancelled()
         {
             return Err(signal.reason().unwrap_or_else(|| {
                 AgentError::new("Native RPC request aborted before dispatch.")
@@ -483,12 +487,15 @@ impl PiRpcClient {
         (self.0.kill)(false);
         if self.exit_info().is_none() && self.0.force_kill_timeout_ms > 0 {
             let target = self.clone();
-            let timer = set_timeout(self.0.force_kill_timeout_ms, move || {
-                target.0.force_kill_timer.borrow_mut().take();
-                if target.exit_info().is_none() {
-                    (target.0.kill)(true);
-                }
-            });
+            let timer = spawn_after(
+                Duration::from_millis(self.0.force_kill_timeout_ms),
+                move || {
+                    target.0.force_kill_timer.borrow_mut().take();
+                    if target.exit_info().is_none() {
+                        (target.0.kill)(true);
+                    }
+                },
+            );
             *self.0.force_kill_timer.borrow_mut() = Some(timer);
         }
     }
@@ -612,7 +619,7 @@ impl PiRpcClient {
             return;
         }
         if let Some(timer) = self.0.force_kill_timer.borrow_mut().take() {
-            timer.clear();
+            timer.abort();
         }
         let expected = self.0.exit_expected.get();
         let error_text = match &error {

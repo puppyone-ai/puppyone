@@ -5,12 +5,13 @@ use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRun
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, parse_semantic_version, run_bounded,
 };
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -52,7 +53,7 @@ pub fn create_pi_discovery(
 /// `discoverPiExecutable(options)`.
 pub async fn discover_pi_executable(
     options: PiDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let mut discovery =
         DiscoverExecutableOptions::new("Pi", Rc::new(|value| parse_semantic_version(value, "")));
@@ -106,7 +107,7 @@ pub async fn discover_pi_executable(
                             "message",
                             "This Pi installation does not expose its official RPC mode.",
                         )
-                        .set("diagnostic", js::head16(output.trim(), 4_000))
+                        .set("diagnostic", text::head16(output.trim(), 4_000))
                         .build();
                 }
             }

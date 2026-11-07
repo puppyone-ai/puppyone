@@ -10,7 +10,7 @@ use crate::agent::agent_error::AgentResult;
 use crate::agent::discovery::windows::registered_applications::{
     RegisteredApplication, find_registered_applications,
 };
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use futures_util::future::LocalBoxFuture;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -21,7 +21,7 @@ pub type ReadEnvironment = Rc<
         EnvMap,
         PathBuf,
         String,
-        Option<AbortSignal>,
+        Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<EnvironmentSnapshot>>,
 >;
 
@@ -29,7 +29,7 @@ pub type ReadEnvironment = Rc<
 pub type FindRegisteredApplications = Rc<
     dyn Fn(
         Vec<String>,
-        Option<AbortSignal>,
+        Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<Vec<RegisteredApplication>>>,
 >;
 
@@ -76,7 +76,7 @@ impl ExecutableDiscoveryPort {
         let find_registered_applications =
             options.find_registered_applications.unwrap_or_else(|| {
                 let (platform, environment) = (node_platform.clone(), env.clone());
-                Rc::new(move |names: Vec<String>, signal: Option<AbortSignal>| {
+                Rc::new(move |names: Vec<String>, signal: Option<CancelSignal>| {
                     let (platform, environment) = (platform.clone(), environment.clone());
                     Box::pin(async move {
                         find_registered_applications(
@@ -94,7 +94,7 @@ impl ExecutableDiscoveryPort {
             env,
             homedir: options
                 .homedir
-                .unwrap_or_else(crate::agent::node_path::homedir),
+                .unwrap_or_else(crate::platform::paths::home_dir),
             read_environment: options
                 .read_environment
                 .unwrap_or_else(default_read_environment),
@@ -105,7 +105,7 @@ impl ExecutableDiscoveryPort {
     /// `port.captureEnvironment({ signal })`.
     pub fn capture_environment(
         &self,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<EnvironmentSnapshot>> {
         (self.read_environment)(
             self.env.clone(),
@@ -119,7 +119,7 @@ impl ExecutableDiscoveryPort {
     pub fn find_registered_applications(
         &self,
         application_names: Vec<String>,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<Vec<RegisteredApplication>>> {
         (self.find_registered_applications)(application_names, signal)
     }

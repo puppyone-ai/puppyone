@@ -1,12 +1,13 @@
 //! `transcript/turn-timing.mjs`.
 use crate::agent::contract::js;
+use crate::clock;
 use serde_json::Value;
 
 const MAX_TURN_DURATION_MS: i64 = 30 * 24 * 60 * 60 * 1_000;
 
 /// `parseAgentEventTime(value)`.
 pub fn parse_agent_event_time(value: Option<&Value>) -> Option<i64> {
-    js::date_parse(value?.as_str()?)
+    clock::date_parse(value?.as_str()?)
 }
 
 /// `readAgentTurnDurationMs(value, startedAtMs, emittedAt)`.

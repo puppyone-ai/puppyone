@@ -7,7 +7,7 @@ use super::process_transport::{ProcessTransport, abort_error, is_abort_error};
 use super::{CanUseTool, ClaudeQuery, PermissionOptions, PromptSource, QueryOptions, SystemPrompt};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{AbortController, SharedTask, shared, spawn};
+use crate::agent::tasks::{Canceller, SharedTask, shared};
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -15,6 +15,7 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::{Notify, oneshot};
+use tokio::task::spawn_local;
 
 type Pending = oneshot::Sender<AgentResult<Value>>;
 
@@ -30,10 +31,10 @@ pub struct ProcessQuery(Rc<Inner>);
 
 struct Inner {
     transport: ProcessTransport,
-    abort: AbortController,
+    abort: Canceller,
     can_use_tool: Option<CanUseTool>,
     pending: RefCell<HashMap<String, Pending>>,
-    cancel_controllers: RefCell<HashMap<String, AbortController>>,
+    cancel_controllers: RefCell<HashMap<String, Canceller>>,
     queue: RefCell<VecDeque<Value>>,
     end: RefCell<Option<StreamEnd>>,
     messages: Notify,
@@ -80,20 +81,20 @@ pub fn query(prompt: Rc<dyn PromptSource>, options: QueryOptions) -> AgentResult
         last_error_result_text: RefCell::default(),
         initialization: RefCell::default(),
     }));
-    spawn(query.clone().read_messages());
+    spawn_local(query.clone().read_messages());
     let initialize = {
         let query = query.clone();
         let system_prompt = options.system_prompt.clone();
         shared(async move { query.initialize(system_prompt).await })
     };
-    spawn({
+    spawn_local({
         let initialize = initialize.clone();
         async move {
             let _ = initialize.await;
         }
     });
     *query.0.initialization.borrow_mut() = Some(initialize);
-    spawn(query.clone().stream_input(prompt));
+    spawn_local(query.clone().stream_input(prompt));
     Ok(query)
 }
 
@@ -123,14 +124,14 @@ impl ProcessQuery {
         if inner.cleanup_performed.replace(true) {
             return;
         }
-        let controllers: Vec<AbortController> = inner
+        let controllers: Vec<Canceller> = inner
             .cancel_controllers
             .borrow_mut()
             .drain()
             .map(|(_, c)| c)
             .collect();
         for controller in controllers {
-            controller.abort(abort_error("The operation was aborted."));
+            controller.cancel(abort_error("The operation was aborted."));
         }
         inner.transport.close();
         let reason = error
@@ -219,7 +220,7 @@ impl ProcessQuery {
                             if request.pointer("/request/subtype").and_then(Value::as_str)
                                 == Some("can_use_tool")
                             {
-                                spawn(self.clone().handle_control_request(request.clone()));
+                                spawn_local(self.clone().handle_control_request(request.clone()));
                             }
                         }
                     }
@@ -227,14 +228,14 @@ impl ProcessQuery {
                 return;
             }
             "control_request" => {
-                spawn(self.clone().handle_control_request(message));
+                spawn_local(self.clone().handle_control_request(message));
                 return;
             }
             "control_cancel_request" => {
                 let id = js::to_js_string(message.get("request_id"));
                 let controller = self.0.cancel_controllers.borrow_mut().remove(&id);
                 if let Some(controller) = controller {
-                    controller.abort(abort_error("The operation was aborted."));
+                    controller.cancel(abort_error("The operation was aborted."));
                 }
                 return;
             }
@@ -275,7 +276,7 @@ impl ProcessQuery {
     /// `handleControlRequest(request)`.
     async fn handle_control_request(self, message: Value) {
         let id = js::to_js_string(message.get("request_id"));
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         self.0
             .cancel_controllers
             .borrow_mut()
@@ -304,7 +305,7 @@ impl ProcessQuery {
     async fn process_control_request(
         &self,
         message: &Value,
-        controller: &AbortController,
+        controller: &Canceller,
     ) -> AgentResult<Value> {
         let request = message.get("request").cloned().unwrap_or(Value::Null);
         let field = |key: &str| request.get(key).filter(|v| !v.is_null()).cloned();
@@ -393,12 +394,12 @@ impl ProcessQuery {
         let signal = self.0.abort.signal();
         loop {
             let notified = self.0.first_result_notify.notified();
-            if self.0.first_result.get() || signal.aborted() {
+            if self.0.first_result.get() || signal.is_cancelled() {
                 return;
             }
             tokio::select! {
                 () = notified => {}
-                _ = signal.aborted_reason() => return,
+                _ = signal.cancelled() => return,
             }
         }
     }
@@ -408,7 +409,7 @@ impl ProcessQuery {
         let mut count = 0;
         while let Some(message) = prompt.next().await {
             count += 1;
-            if self.0.abort.signal().aborted() {
+            if self.0.abort.signal().is_cancelled() {
                 break;
             }
             if let Err(error) = self
@@ -417,7 +418,7 @@ impl ProcessQuery {
                 .write(format!("{}\n", js::stringify(&message)))
             {
                 if !is_abort_error(&error) {
-                    self.0.abort.abort(error);
+                    self.0.abort.cancel(error);
                 }
                 return;
             }

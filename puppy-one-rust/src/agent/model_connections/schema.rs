@@ -1,6 +1,7 @@
 //! `shared/model-connections/schema.mjs`: the model-connection error codes
 //! and model routes the Agent runtime shares with Settings.
 use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::text;
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -25,11 +26,8 @@ pub fn connection_id(value: &str) -> AgentResult<String> {
 
 /// `text(value, max)`.
 fn text(value: &str, max: usize) -> AgentResult<String> {
-    let trimmed = crate::agent::contract::js::trim(value);
-    if trimmed.is_empty()
-        || crate::agent::contract::js::len16(value) > max
-        || CONTROL.is_match(value)
-    {
+    let trimmed = text::trim(value);
+    if trimmed.is_empty() || text::len16(value) > max || CONTROL.is_match(value) {
         return Err(connection_error("INVALID_CONFIGURATION"));
     }
     Ok(trimmed.to_string())
@@ -60,10 +58,7 @@ pub fn parse_model_route(value: Option<&str>) -> AgentResult<ModelRoute> {
         Some(slash) => (&value[..slash], &value[slash + 1..]),
         // `value.slice(0, -1)` and `value.slice(0)` without a separator.
         None => (
-            crate::agent::contract::js::head16(
-                value,
-                crate::agent::contract::js::len16(value).saturating_sub(1),
-            ),
+            text::head16(value, text::len16(value).saturating_sub(1)),
             value,
         ),
     };

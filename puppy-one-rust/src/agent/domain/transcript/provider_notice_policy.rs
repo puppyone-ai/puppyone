@@ -2,6 +2,7 @@
 use super::transcript_indexes::Projection;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::sync::LazyLock;
@@ -83,7 +84,7 @@ pub fn provider_activity_identity(
 /// `isNonDiagnosticProviderStatusMessage(value)`: hides persisted
 /// lifecycle-only notices emitted by older adapters.
 pub fn is_non_diagnostic_provider_status_message(value: &str) -> bool {
-    NON_DIAGNOSTIC.is_match(js::trim(value))
+    NON_DIAGNOSTIC.is_match(text::trim(value))
 }
 
 /// `legacyProviderConnectionUpdate(event, label)`: replay migration for
@@ -136,8 +137,8 @@ fn correlated_provider_turn_id(projection: &Projection, event: &Value) -> Option
 }
 
 fn provider_message_fingerprint(value: &str) -> String {
-    let lower = js::trim(value).to_lowercase();
-    js::head16(&SPACES.replace_all(&lower, " "), 2_048).to_string()
+    let lower = text::trim(value).to_lowercase();
+    text::head16(&SPACES.replace_all(&lower, " "), 2_048).to_string()
 }
 
 fn provider_notice_id(scope: &str, fingerprint: &str) -> String {

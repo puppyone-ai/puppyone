@@ -256,7 +256,7 @@ fn drives_the_native_stream_json_control_protocol() {
 
         let interrupt = {
             let query = query.clone();
-            crate::agent::event_loop::spawn(async move { query.interrupt().await.unwrap() })
+            tokio::task::spawn_local(async move { query.interrupt().await.unwrap() })
         };
         settle().await;
         let request = control_requests(&child, "interrupt");
@@ -586,7 +586,7 @@ fn claude_agent_sdk_live_initialization_handshake() {
             .trim()
             .to_string()
         });
-        let controller = crate::agent::event_loop::AbortController::new();
+        let controller = crate::agent::tasks::Canceller::new();
         let mut options = base_options();
         options.env = None;
         options.cwd = Some(std::env::temp_dir().to_string_lossy().into_owned());
@@ -615,7 +615,7 @@ fn claude_agent_sdk_live_initialization_handshake() {
                 .map(|a| a.keys().cloned().collect::<Vec<_>>())
         );
         assert!(models > 0);
-        controller.abort(crate::agent::agent_error::AgentError::new("done"));
+        controller.cancel(crate::agent::agent_error::AgentError::new("done"));
         query.close();
     });
 }

@@ -1,7 +1,6 @@
 //! `desktop-agent.tool-evidence.test.ts` and
 //! `desktop-agent.tool-presentation.test.ts`.
 use crate::agent::contract::dto::Activity;
-use crate::agent::contract::js;
 use crate::features::desktop_agent::domain::agent_activity_presentation::{
     command_presentation_for_activity, output_for_activity,
 };
@@ -10,6 +9,7 @@ use crate::features::desktop_agent::domain::agent_tool_evidence::{
     create_agent_tool_evidence_preview, stringify_agent_tool_input,
 };
 use crate::features::desktop_agent::fixtures::typed;
+use crate::text;
 use serde_json::{Map, Value, json};
 
 #[test]
@@ -35,7 +35,8 @@ fn bounds_adversarial_many_line_output_while_retaining_head_and_tail() {
     assert!(preview.head.contains("line-0"));
     assert!(preview.tail.contains("line-19999"));
     assert!(
-        js::len16(&preview.head) + js::len16(&preview.tail) <= AGENT_TOOL_EVIDENCE_LIMITS.max_chars
+        text::len16(&preview.head) + text::len16(&preview.tail)
+            <= AGENT_TOOL_EVIDENCE_LIMITS.max_chars
     );
     assert!(preview.omitted_lines > 19_000);
 }
@@ -46,7 +47,7 @@ fn bounds_one_pathological_line() {
         create_agent_tool_evidence_preview(&"x".repeat(2_000_000), AGENT_TOOL_EVIDENCE_LIMITS);
     assert!(preview.truncated);
     assert_eq!(preview.total_lines, 1);
-    assert!(js::len16(&preview.head) <= AGENT_TOOL_EVIDENCE_LIMITS.max_line_chars);
+    assert!(text::len16(&preview.head) <= AGENT_TOOL_EVIDENCE_LIMITS.max_line_chars);
     assert_eq!(preview.tail, "");
     assert!(preview.omitted_chars > 1_900_000);
 }
@@ -76,7 +77,7 @@ fn serializes_wide_structured_input_within_an_aggregate_budget() {
     let input: crate::agent::contract::dto::Record =
         crate::features::desktop_agent::fixtures::typed(Value::Object(input));
     let serialized = stringify_agent_tool_input(input.view()).expect("serialized");
-    assert!(js::len16(&serialized) <= 32 * 1024);
+    assert!(text::len16(&serialized) <= 32 * 1024);
     assert!(serialized.contains("truncated"));
 }
 

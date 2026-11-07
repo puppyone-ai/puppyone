@@ -8,10 +8,10 @@ use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::installation::executable_resolver::{
     LocalAgentExecutableResolver, Observation, ResolvedCandidate,
 };
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
@@ -67,10 +67,10 @@ fn environment_value(environment: &EnvMap) -> Value {
 /// `discoverCursorBackend(options)`.
 pub async fn discover_cursor_backend(
     options: CursorDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     if let Some(signal) = signal.as_ref() {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     let env = options
         .env

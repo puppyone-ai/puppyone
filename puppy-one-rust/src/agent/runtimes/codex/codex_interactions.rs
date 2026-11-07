@@ -8,6 +8,7 @@ use super::codex_native_values::{
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::{bound_renderer_value, redact_secrets};
 use crate::agent::contract::js;
+use crate::clock;
 use serde_json::{Value, json};
 
 /// One pending native approval request.
@@ -241,7 +242,7 @@ pub fn codex_handle_server_request(adapter: &Inner, message: &Value) {
             .get("startedAtMs")
             .filter(|v| js::finite_number(v).is_some())
             .cloned()
-            .unwrap_or_else(|| Value::from(js::now_ms())),
+            .unwrap_or_else(|| Value::from(clock::now_ms())),
     });
     adapter.emit(json!({
         "type": "approval.requested",

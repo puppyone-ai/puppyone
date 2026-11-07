@@ -2,18 +2,19 @@
 //! OpenCode installation.
 use crate::agent::agent_error::AgentResult;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtimes::hermes::hermes_discovery::runtime_readiness;
 use crate::agent::runtimes::opencode_protocol::opencode_security_policy::OPEN_CODE_HOST_SAFETY_ENVIRONMENT;
 use crate::agent::runtimes::opencode_protocol::opencode_version::parse_open_code_version;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, run_bounded,
 };
+use crate::text;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -48,7 +49,7 @@ pub fn create_user_open_code_discovery(
 /// `discoverUserOpenCodeExecutable(options)`.
 pub async fn discover_user_open_code_executable(
     options: OpenCodeDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let mut discovery =
         DiscoverExecutableOptions::new("OpenCode", Rc::new(parse_open_code_version));
@@ -97,7 +98,7 @@ pub async fn discover_user_open_code_executable(
                         "message",
                         "This OpenCode installation does not expose a usable Agent Client Protocol endpoint.",
                     )
-                    .set("diagnostic", js::head16(output.trim(), 4_000))
+                    .set("diagnostic", text::head16(output.trim(), 4_000))
                     .build();
             }
             Ok(_) => {}

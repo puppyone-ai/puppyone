@@ -5,7 +5,7 @@ use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRun
 use crate::agent::contract::js::Obj;
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 #[allow(unused_imports)]
 pub use crate::agent::transports::executable_discovery::compare_versions;
@@ -48,7 +48,7 @@ pub fn create_codex_discovery(
 /// `discoverCodexExecutable(options)`.
 pub async fn discover_codex_executable(
     options: CodexDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let mut discovery = DiscoverExecutableOptions::new("Codex", Rc::new(parse_codex_version));
     discovery.installation_id = Some("codex".into());

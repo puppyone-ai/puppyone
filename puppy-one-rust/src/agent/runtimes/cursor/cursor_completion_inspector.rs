@@ -3,8 +3,8 @@
 //! entire final assistant message. This exact compatibility signature stays
 //! at the provider boundary; generic ACP and Renderer code never parse prose.
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::js;
 use crate::agent::protocols::acp::acp_runtime_adapter::CompletionInspector;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -86,7 +86,7 @@ fn find_known_failure(value: Option<&Value>) -> Option<String> {
 fn normalized_text(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
-        .map(|text| js::head16(text, 300).to_string())
+        .map(|text| text::head16(text, 300).to_string())
         .unwrap_or_default()
 }
 
@@ -116,13 +116,13 @@ impl CompletionInspector for CursorCompletionInspector {
                     let mut messages = self.assistant_messages.borrow_mut();
                     match messages.iter_mut().find(|(message, _)| *message == id) {
                         Some((_, text)) => {
-                            let remaining = MAX_ASSISTANT_TEXT.saturating_sub(js::len16(text));
+                            let remaining = MAX_ASSISTANT_TEXT.saturating_sub(text::len16(text));
                             if remaining > 0 {
-                                text.push_str(js::head16(delta, remaining));
+                                text.push_str(text::head16(delta, remaining));
                             }
                         }
                         None => {
-                            messages.push((id, js::head16(delta, MAX_ASSISTANT_TEXT).to_string()))
+                            messages.push((id, text::head16(delta, MAX_ASSISTANT_TEXT).to_string()))
                         }
                     }
                 }

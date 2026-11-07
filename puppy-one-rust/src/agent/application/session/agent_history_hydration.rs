@@ -3,10 +3,10 @@
 use super::super::agent_event_journal::AgentEventJournal;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::domain::agent_session_model::SessionRef;
-use crate::agent::event_loop::AbortController;
 use crate::agent::runtime::agent_history_read_result::assert_agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::is_agent_provider_session_unavailable_error;
 use crate::agent::runtime::agent_session_history_port::resolve_agent_session_history_port;
+use crate::agent::tasks::Canceller;
 use serde_json::{Value, json};
 use std::time::Duration;
 
@@ -22,12 +22,12 @@ pub async fn hydrate_agent_session(
         let history = resolve_agent_session_history_port(adapter.as_ref())?;
         let read = match history.filter(|h| h.implements("hydrate")) {
             Some(history) => {
-                let controller = AbortController::new();
+                let controller = Canceller::new();
                 let hydrated = tokio::select! {
                     result = history.hydrate(controller.signal()) => result?,
                     _ = tokio::time::sleep(Duration::from_millis(timeout_ms)) => {
                         let error = AgentError::new("Opening native history timed out.");
-                        controller.abort(error.clone());
+                        controller.cancel(error.clone());
                         return Err(error);
                     }
                 };

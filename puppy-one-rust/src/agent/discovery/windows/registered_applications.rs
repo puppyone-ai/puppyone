@@ -2,8 +2,9 @@
 //! applications from OS-owned registration instead of install-directory
 //! guesses.
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path::flavor::{win32_basename, win32_is_absolute, win32_join};
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths::flavor::{win32_basename, win32_is_absolute, win32_join};
+use crate::text;
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -40,7 +41,7 @@ pub async fn find_registered_applications(
     node_platform: &str,
     environment: &EnvMap,
     application_names: &[String],
-    signal: Option<&AbortSignal>,
+    signal: Option<&CancelSignal>,
 ) -> crate::agent::agent_error::AgentResult<Vec<RegisteredApplication>> {
     if node_platform != "win32" {
         return Ok(Vec::new());
@@ -51,7 +52,7 @@ pub async fn find_registered_applications(
     let mut seen = HashSet::new();
     for application_name in names {
         if let Some(signal) = signal {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         let values = futures_util::future::join_all(
             registration_keys(&application_name)
@@ -60,7 +61,7 @@ pub async fn find_registered_applications(
         )
         .await;
         if let Some(signal) = signal {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         for value in values {
             let Some(executable_path) = registered_executable_path(value.as_deref(), environment)
@@ -144,9 +145,8 @@ pub fn registered_executable_path(value: Option<&str>, environment: &EnvMap) -> 
         .and_then(|captures| captures.get(1))
         .map(|m| m.as_str().trim().to_string())
         .unwrap_or_default();
-    (crate::agent::contract::js::len16(&executable_path) <= 4_096
-        && win32_is_absolute(&executable_path))
-    .then_some(executable_path)
+    (text::len16(&executable_path) <= 4_096 && win32_is_absolute(&executable_path))
+        .then_some(executable_path)
 }
 
 fn expand_windows_environment(value: &str, environment: &EnvMap) -> String {

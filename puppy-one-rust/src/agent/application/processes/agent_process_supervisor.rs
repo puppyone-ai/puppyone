@@ -1,7 +1,7 @@
 //! `application/processes/agent-process-supervisor.mjs`: a small fair
 //! semaphore for expensive native Agent process starts.
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
@@ -68,10 +68,10 @@ impl AgentProcessSupervisor {
     pub async fn run_start<T, F: Future<Output = AgentResult<T>>>(
         &self,
         label: &str,
-        signal: Option<&AbortSignal>,
+        signal: Option<&CancelSignal>,
         operation: impl FnOnce() -> F,
     ) -> AgentResult<T> {
-        if signal.is_some_and(AbortSignal::aborted) {
+        if signal.is_some_and(CancelSignal::is_cancelled) {
             return Err(abort_error());
         }
         let (ready, admitted) = oneshot::channel();
@@ -97,7 +97,7 @@ impl AgentProcessSupervisor {
             Some(signal) => {
                 tokio::select! {
                     result = wait => result,
-                    _ = signal.aborted_reason() => {
+                    _ = signal.cancelled() => {
                         let mut state = self.0.borrow_mut();
                         if state.queue.iter().any(|waiter| waiter.id == id) {
                             state.queue.retain(|waiter| waiter.id != id);
@@ -114,7 +114,7 @@ impl AgentProcessSupervisor {
         };
         admission?;
         let _permit = Permit(self.0.clone());
-        if signal.is_some_and(AbortSignal::aborted) {
+        if signal.is_some_and(CancelSignal::is_cancelled) {
             return Err(abort_error());
         }
         operation().await

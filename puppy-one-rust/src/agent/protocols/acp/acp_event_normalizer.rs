@@ -4,6 +4,7 @@ use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redac
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::native_session_id::native_session_id;
 use crate::agent::runtime::agent_file_change_evidence::create_agent_file_change_evidence;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
@@ -68,7 +69,7 @@ pub struct AcpEventNormalizer {
 fn text(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(s, limit).to_string())
+        .map(|s| text::head16(s, limit).to_string())
         .unwrap_or_default()
 }
 
@@ -121,17 +122,17 @@ fn event(
 
 /// `appendBounded(current, incoming, limit)` in UTF-16 units.
 fn append_bounded(current: &str, incoming: &str, limit: usize) -> String {
-    let remaining = limit.saturating_sub(js::len16(current));
+    let remaining = limit.saturating_sub(text::len16(current));
     if remaining > 0 {
-        format!("{current}{}", js::head16(incoming, remaining))
+        format!("{current}{}", text::head16(incoming, remaining))
     } else {
-        js::head16(current, limit).to_string()
+        text::head16(current, limit).to_string()
     }
 }
 
 /// `str.slice(-limit)` in UTF-16 units.
 fn last16(value: &str, limit: usize) -> &str {
-    js::tail16(value, js::len16(value).saturating_sub(limit))
+    text::tail16(value, text::len16(value).saturating_sub(limit))
 }
 
 /// `value || fallback` over text properties.
@@ -189,10 +190,10 @@ fn render_tool_output(content: Option<&Value>, raw_output: Option<&Value>) -> St
         return rendered;
     }
     match raw_output {
-        Some(Value::String(output)) => js::head16(output, 256 * 1024).to_string(),
+        Some(Value::String(output)) => text::head16(output, 256 * 1024).to_string(),
         None => String::new(),
         Some(output) => serde_json::to_string_pretty(output)
-            .map(|json| js::head16(&json, 256 * 1024).to_string())
+            .map(|json| text::head16(&json, 256 * 1024).to_string())
             .unwrap_or_else(|_| "[unserializable tool output]".into()),
     }
 }
@@ -215,7 +216,7 @@ fn infer_acp_tool_name(
     input: &Map<String, Value>,
     previous: &str,
 ) -> String {
-    let title = js::head16(label, 300).trim().to_lowercase();
+    let title = text::head16(label, 300).trim().to_lowercase();
     let title_token = TITLE_TOKEN
         .captures(&title)
         .and_then(|captures| captures.get(1))
@@ -447,7 +448,7 @@ impl AcpEventNormalizer {
         };
         let current = &mut self.messages[index].1;
         current.truncated =
-            current.truncated || js::len16(&current.text) + js::len16(&delta) > MESSAGE_LIMIT;
+            current.truncated || text::len16(&current.text) + text::len16(&delta) > MESSAGE_LIMIT;
         current.text = append_bounded(&current.text, &delta, MESSAGE_LIMIT);
         let kind = if role == "assistant" {
             "assistant.delta"

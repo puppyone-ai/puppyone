@@ -1,9 +1,10 @@
 //! `shared/agent-contract/local-connection-schema.mjs`.
-use super::js::{self, Obj};
+use super::js::Obj;
 use super::validation::{
     Contract, assert_array, assert_record, contract_error, enum_value, required_opaque_id,
     required_string,
 };
+use crate::clock;
 use serde_json::Value;
 
 pub const INSTALLATION_STATES: &[&str] = &["not-found", "detected", "unsupported", "broken"];
@@ -39,7 +40,7 @@ pub fn sanitize_agent_local_connections_snapshot(value: &Value) -> Contract<Valu
         return Err(contract_error("connections", "contains too many entries"));
     }
     let scanned_at = required_string(snapshot.get("scannedAt"), "scannedAt", 64)?;
-    if js::date_parse(&scanned_at).is_none() {
+    if clock::date_parse(&scanned_at).is_none() {
         return Err(contract_error("scannedAt", "must be an ISO timestamp"));
     }
     let warnings = assert_array(snapshot.get("warnings"), "Local Agent warnings")?;

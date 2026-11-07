@@ -1,6 +1,6 @@
 //! `runtime-resolution/runtime-readiness-store.mjs`: process-local,
 //! generation-stamped snapshots. Launch data never leaves Main.
-use crate::agent::contract::js;
+use crate::clock;
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -38,7 +38,7 @@ impl RuntimeReadinessStore {
         Self {
             snapshots: Rc::default(),
             generation: Rc::default(),
-            now: now.unwrap_or_else(|| Rc::new(js::now_ms)),
+            now: now.unwrap_or_else(|| Rc::new(clock::now_ms)),
             success_ttl_ms: success_ttl_ms.unwrap_or(DEFAULT_SUCCESS_TTL_MS),
         }
     }

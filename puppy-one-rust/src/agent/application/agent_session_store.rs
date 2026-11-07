@@ -3,12 +3,12 @@
 use super::agent_input_policy::{normalize_required_id, require_sender_id};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::domain::agent_session_model::SessionRef;
-use crate::agent::event_loop::spawn;
 use crate::agent::sender::Sender;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use tokio::task::spawn_local;
 
 /// `projectSessionError(code, message, retryable)`.
 pub fn project_session_error(code: &str, message: &str, retryable: bool) -> AgentError {
@@ -255,7 +255,7 @@ impl AgentSessionStore {
         .into_iter()
         .next()?;
         if let Some(timer) = retired.state_mut().persist_timer.take() {
-            timer.clear();
+            timer.abort();
         }
         self.remove(&retired);
         Some(retired)
@@ -271,7 +271,7 @@ impl AgentSessionStore {
                 continue;
             }
             if let Some(timer) = session.state_mut().persist_timer.take() {
-                timer.clear();
+                timer.abort();
             }
             self.remove(&session);
         }
@@ -303,7 +303,7 @@ impl AgentSessionStore {
             state.borrow_mut().owner_cleanups.remove(&owner);
             let callback = callback.borrow().clone();
             if let Some(callback) = callback {
-                spawn(async move { callback(owner) });
+                spawn_local(async move { callback(owner) });
             }
         });
         self.state.borrow_mut().owner_cleanups.insert(

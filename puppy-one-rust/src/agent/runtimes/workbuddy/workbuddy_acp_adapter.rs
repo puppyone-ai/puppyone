@@ -5,13 +5,13 @@ use super::workbuddy_config_directory::work_buddy_config_directory;
 use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use super::workbuddy_history_source::work_buddy_history_source;
 use crate::agent::agent_error::AgentResult;
-use crate::agent::node_path;
 use crate::agent::protocols::acp::acp_client::AcpClient;
 use crate::agent::protocols::acp::acp_runtime_adapter::{AcpAdapterOptions, AcpRuntimeAdapter};
 use crate::agent::runtimes::hermes::hermes_acp_adapter::{
     readiness_args_prefix, readiness_environment,
 };
 use crate::agent::transports::jsonl_rpc_connection::rpc_error_code;
+use crate::platform::paths;
 use serde_json::{Map, Value};
 use std::rc::Rc;
 
@@ -24,7 +24,7 @@ pub fn work_buddy_acp_adapter(
     options.source_scope_id = Some(work_buddy_history_source(
         &channel,
         &environment,
-        &node_path::homedir(),
+        &paths::home_dir(),
     ));
     options.account_type = Some(channel.id.into());
     options.created_title = Some(format!("New {} session", channel.display_name));
@@ -47,7 +47,7 @@ pub fn work_buddy_acp_adapter(
                     .and_then(Value::as_str)
                     .map(str::to_string)
             };
-            let directory = work_buddy_config_directory(&channel, &read, &node_path::homedir())
+            let directory = work_buddy_config_directory(&channel, &read, &paths::home_dir())
                 .to_string_lossy()
                 .into_owned();
             let mut overlay: Map<String, Value> = WORKBUDDY_HOST_ENVIRONMENT

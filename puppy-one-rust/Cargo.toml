@@ -44,6 +44,7 @@ zeroize = "1"
 httparse = "1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+tokio-util = "0.7"
 futures-util = "0.3"
 icu_collator = "=2.3.0"
 icu_normalizer = "=2.3.0"

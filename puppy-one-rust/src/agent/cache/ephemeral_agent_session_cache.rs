@@ -8,8 +8,10 @@ use crate::agent::agent_events::{count_text_bytes, is_agent_event_envelope, reda
 use crate::agent::application::ports::{Pending, SessionCache};
 use crate::agent::contract::js;
 use crate::agent::contract::native_session_id::native_session_id;
-use crate::agent::event_loop::{SharedTask, shared};
 use crate::agent::migrations::legacy_session_format::canonical_runtime_id;
+use crate::agent::tasks::{SharedTask, shared};
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -69,7 +71,7 @@ impl EphemeralAgentSessionCache {
                 ));
             }
         });
-        crate::agent::event_loop::spawn(legacy_cleanup.clone());
+        tokio::task::spawn_local(legacy_cleanup.clone());
         Self(Rc::new(Inner {
             records: RefCell::default(),
             legacy_cleanup,
@@ -142,7 +144,7 @@ impl EphemeralAgentSessionCache {
     /// `cache.archive(sessionId, archivedAt)`.
     pub async fn archive(&self, session_id: &str, archived_at: Option<String>) {
         self.ready().await;
-        let archived_at = archived_at.unwrap_or_else(js::now_iso);
+        let archived_at = archived_at.unwrap_or_else(clock::now_iso);
         for entry in self.0.records.borrow_mut().iter_mut() {
             if entry["sessionId"] == session_id {
                 entry["archivedAt"] = json!(archived_at);
@@ -261,7 +263,7 @@ fn remove_legacy_journals(legacy_path: &Path) -> std::io::Result<()> {
 }
 
 fn by_updated_descending(left: &Value, right: &Value) -> std::cmp::Ordering {
-    js::locale_compare(
+    text::locale_compare(
         &js::to_js_string(right.get("updatedAt")),
         &js::to_js_string(left.get("updatedAt")),
     )
@@ -375,7 +377,7 @@ fn normalize_id(value: Option<&Value>) -> AgentResult<String> {
 
 fn normalize_path(value: Option<&Value>) -> AgentResult<String> {
     match value.and_then(Value::as_str) {
-        Some(path) if !path.is_empty() && js::len16(path) <= 4_096 => Ok(path.to_string()),
+        Some(path) if !path.is_empty() && text::len16(path) <= 4_096 => Ok(path.to_string()),
         _ => Err(AgentError::new("Invalid Agent workspace path.")),
     }
 }
@@ -383,19 +385,19 @@ fn normalize_path(value: Option<&Value>) -> AgentResult<String> {
 fn normalize_text(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|text| js::head16(js::trim(text), limit).to_string())
+        .map(|text| text::head16(text::trim(text), limit).to_string())
         .unwrap_or_default()
 }
 
 /// `normalizeDate(value)`.
 fn normalize_date(value: Option<&Value>) -> String {
     let milliseconds = match value.filter(|v| js::truthy(v)) {
-        None => Some(js::now_ms()),
-        Some(Value::String(text)) => js::date_parse(text),
+        None => Some(clock::now_ms()),
+        Some(Value::String(text)) => clock::date_parse(text),
         Some(Value::Number(number)) => number.as_f64().filter(|n| n.is_finite()).map(|n| n as i64),
         Some(_) => None,
     };
-    milliseconds.map_or_else(js::now_iso, js::iso_string)
+    milliseconds.map_or_else(clock::now_iso, clock::iso_string)
 }
 
 fn normalize_sequence(value: Option<&Value>) -> i64 {

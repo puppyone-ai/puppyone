@@ -10,6 +10,7 @@ use crate::agent::contract::event_content_update::{
 };
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use serde_json::{Value, json};
 
 pub const MAX_CHECKPOINT_EVENTS_PER_TURN: usize = 512;
@@ -186,15 +187,15 @@ fn merge_adjacent_text_delta(previous: &Value, event: &Value) -> Option<Value> {
     };
     let was_truncated = update.mode == UpdateMode::Append
         && previous.field("truncated") == Some(&Value::Bool(true));
-    let length = js::len16(&combined);
+    let length = text::len16(&combined);
     let truncated = was_truncated || length > limit;
-    let marker_length = js::len16(TRUNCATION_MARKER);
+    let marker_length = text::len16(TRUNCATION_MARKER);
     let text = if event.event_type() == "command.output.delta" {
         if truncated {
             let keep = limit - marker_length;
             format!(
                 "{TRUNCATION_MARKER}{}",
-                js::tail16(&combined, length.saturating_sub(keep))
+                text::tail16(&combined, length.saturating_sub(keep))
             )
         } else {
             combined
@@ -204,7 +205,7 @@ fn merge_adjacent_text_delta(previous: &Value, event: &Value) -> Option<Value> {
     } else if length > limit {
         format!(
             "{}{TRUNCATION_MARKER}",
-            js::head16(&combined, limit - marker_length)
+            text::head16(&combined, limit - marker_length)
         )
     } else {
         combined

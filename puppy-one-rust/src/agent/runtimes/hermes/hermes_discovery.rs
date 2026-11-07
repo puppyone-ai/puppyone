@@ -5,12 +5,13 @@ use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRun
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, parse_semantic_version, run_bounded,
 };
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ pub fn create_hermes_discovery(
 /// `discoverHermesExecutable(options)`.
 pub async fn discover_hermes_executable(
     options: HermesDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let mut discovery =
         DiscoverExecutableOptions::new("Hermes Agent", Rc::new(parse_hermes_version));
@@ -119,13 +120,13 @@ pub async fn discover_hermes_executable(
                             "message",
                             "Hermes Agent is installed, but its official ACP dependencies are unavailable. Run `hermes acp --check` in a terminal.",
                         )
-                        .set("diagnostic", js::head16(output.trim(), 4_000))
+                        .set("diagnostic", text::head16(output.trim(), 4_000))
                         .build();
                 }
             }
             Err(error) => {
                 if let Some(signal) = signal.as_ref() {
-                    signal.throw_if_aborted()?;
+                    signal.check()?;
                 }
                 readiness = Obj::from(&discovered)
                     .set("status", "protocol-unavailable")

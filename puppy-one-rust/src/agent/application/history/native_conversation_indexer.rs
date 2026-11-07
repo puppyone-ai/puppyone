@@ -9,11 +9,13 @@ use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::history_schema::{
     history_cursor, history_locators, history_page_size, limits,
 };
-use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{AbortController, SharedTask, shared};
+use crate::agent::contract::js::Obj;
 use crate::agent::runtime::agent_runtime_port::{AdapterOptions, AgentRuntimeAdapter};
 use crate::agent::runtime::agent_runtime_registry::AgentRuntimeRegistry;
 use crate::agent::runtime::agent_session_history_port::resolve_agent_session_history_port;
+use crate::agent::tasks::{Canceller, SharedTask, shared};
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -48,7 +50,7 @@ struct Scan {
     source_scope_id: RefCell<Option<String>>,
     started_revision: Cell<Option<i64>>,
     pending: RefCell<Option<SharedTask<Value>>>,
-    controller: RefCell<Option<AbortController>>,
+    controller: RefCell<Option<Canceller>>,
 }
 
 struct Resource {
@@ -89,7 +91,7 @@ fn failed(runtime_id: &str, error: &AgentError) -> Value {
         .set("retryable", error.retryable != Some(false))
         .set(
             "warnings",
-            vec![js::head16(&redact_secret_text(&error.message), 4_000).to_string()],
+            vec![text::head16(&redact_secret_text(&error.message), 4_000).to_string()],
         )
         .build()
 }
@@ -137,7 +139,7 @@ impl NativeConversationIndexer {
 
     fn expire(&self, scan: &Rc<Scan>, reason: Option<AgentError>) {
         if let (Some(controller), Some(reason)) = (scan.controller.borrow().clone(), reason) {
-            controller.abort(reason);
+            controller.cancel(reason);
         }
         self.0.scans.borrow_mut().remove(&scan.id);
         let mut latest = self.0.latest.borrow_mut();
@@ -164,7 +166,7 @@ impl NativeConversationIndexer {
                     Some(false),
                 ));
             }
-            let now = js::now_ms();
+            let now = clock::now_ms();
             let expired: Vec<Rc<Scan>> = self
                 .0
                 .scans
@@ -291,18 +293,19 @@ impl NativeConversationIndexer {
     }
 
     async fn run_page(&self, scan: Rc<Scan>, cursor: Option<String>, limit: usize) -> Value {
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         *scan.controller.borrow_mut() = Some(controller.clone());
         let remaining = self
             .0
             .discovery_timeout_ms
-            .min(self.0.scan_timeout_ms - (js::now_ms() - scan.started_at))
+            .min(self.0.scan_timeout_ms - (clock::now_ms() - scan.started_at))
             .max(1) as u64;
         let timer = {
             let controller = controller.clone();
-            crate::agent::event_loop::set_timeout(remaining, move || {
-                controller.abort(history_failure("History query timed out.", None, None))
-            })
+            crate::agent::tasks::spawn_after(
+                std::time::Duration::from_millis(remaining),
+                move || controller.cancel(history_failure("History query timed out.", None, None)),
+            )
         };
         let indexed = Rc::new(Cell::new(0i64));
         let commit_pending = Rc::new(Cell::new(false));
@@ -319,7 +322,7 @@ impl NativeConversationIndexer {
                         Some(false),
                     ));
                 }
-                signal.throw_if_aborted()
+                signal.check()
             }) as Guard
         };
         let page = observe_history_operation(
@@ -336,7 +339,7 @@ impl NativeConversationIndexer {
             &controller.signal(),
         )
         .await;
-        timer.clear();
+        timer.abort();
         let result = match page.and_then(|page| guard().map(|()| page)) {
             Ok(None) => {
                 self.expire(&scan, None);
@@ -408,7 +411,7 @@ impl NativeConversationIndexer {
         scan: &Rc<Scan>,
         cursor: Option<String>,
         limit: usize,
-        controller: &AbortController,
+        controller: &Canceller,
         guard: Guard,
         indexed: Rc<Cell<i64>>,
         commit_pending: Rc<Cell<bool>>,
@@ -520,7 +523,7 @@ impl NativeConversationIndexer {
                         }
                         let snapshot = result["coverage"]["snapshotId"].as_str().map(str::to_string);
                         let proof = result["coverage"]["scopeComplete"] == true
-                            && snapshot.as_ref().is_some_and(|s| !s.is_empty() && js::len16(s) <= 1024);
+                            && snapshot.as_ref().is_some_and(|s| !s.is_empty() && text::len16(s) <= 1024);
                         let authoritative = scan.authoritative.get()
                             && proof
                             && scan.snapshot.borrow().as_ref().is_none_or(|previous| Some(previous) == snapshot.as_ref());
@@ -565,7 +568,7 @@ impl NativeConversationIndexer {
                             scan.cursors.borrow_mut().insert(cursor.clone());
                         }
                         *scan.next_cursor.borrow_mut() = next_cursor.clone();
-                        scan.expires_at.set(js::now_ms() + SCAN_TTL_MS);
+                        scan.expires_at.set(clock::now_ms() + SCAN_TTL_MS);
                         Ok(Some(json!({
                             "nextCursor": next_cursor, "authoritative": authoritative, "sourceScopeId": source_scope_id,
                             "sessions": committed["sessions"], "truncated": committed["truncated"],

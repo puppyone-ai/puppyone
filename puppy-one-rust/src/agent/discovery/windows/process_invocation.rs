@@ -2,7 +2,7 @@
 //! need cmd.exe; native binaries keep argv semantics.
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::node_path::flavor::{win32_is_absolute, win32_join};
+use crate::platform::paths::flavor::{win32_is_absolute, win32_join};
 
 /// A resolved launch: file, arguments and whether they are verbatim.
 #[derive(Clone, Debug, PartialEq, Eq)]

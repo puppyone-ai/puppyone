@@ -4,6 +4,7 @@
 //! reading rules (a string is text, `Boolean(value)`, `Number.isFinite`);
 //! their JSON never leaves the contract.
 use super::super::js;
+use crate::text;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -229,11 +230,14 @@ impl RecordRef<'_> {
             state.nodes -= 1;
             match value {
                 Value::String(string) => {
-                    let length16 = js::len16(string);
+                    let length16 = text::len16(string);
                     let length = length16.min(state.chars).min(budget.string);
                     state.chars -= length;
                     if length16 > length {
-                        Value::from(format!("{}…", js::head16(string, length.saturating_sub(1))))
+                        Value::from(format!(
+                            "{}…",
+                            text::head16(string, length.saturating_sub(1))
+                        ))
                     } else {
                         value.clone()
                     }
@@ -253,7 +257,7 @@ impl RecordRef<'_> {
                             break;
                         }
                         next.insert(
-                            js::head16(key, budget.key).to_string(),
+                            text::head16(key, budget.key).to_string(),
                             bound(entry, budget, state, depth + 1),
                         );
                     }
@@ -272,7 +276,7 @@ impl RecordRef<'_> {
             return None;
         }
         let serialized = serde_json::to_string_pretty(&bounded).ok()?;
-        Some(js::head16(&serialized, budget.output).to_string())
+        Some(text::head16(&serialized, budget.output).to_string())
     }
 }
 

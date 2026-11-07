@@ -6,7 +6,6 @@ use crate::agent::application::ports::{
     AttachmentStore, Guard, HistoryCatalog, Logger, Pending, SessionCache,
 };
 use crate::agent::contract::js::Obj;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AdapterOptions, AgentRuntimeAdapter,
 };
@@ -15,6 +14,8 @@ use crate::agent::runtime::agent_runtime_registry::{
 };
 use crate::agent::runtime::agent_session_history_port::SessionHistoryPort;
 use crate::agent::sender::Sender;
+use crate::agent::tasks::CancelSignal;
+use crate::clock;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -65,7 +66,7 @@ impl RuntimeDiscovery for ReadyDiscovery {
     fn discover(
         &self,
         _refresh: bool,
-        _signal: AbortSignal,
+        _signal: CancelSignal,
     ) -> LocalBoxFuture<'static, AgentResult<Value>> {
         Box::pin(async {
             Ok(json!({
@@ -166,7 +167,7 @@ impl FakeAdapter {
 }
 
 fn now() -> String {
-    crate::agent::contract::js::now_iso()
+    clock::now_iso()
 }
 
 impl AgentRuntimeAdapter for FakeAdapter {
@@ -266,14 +267,14 @@ impl SessionHistoryPort for FakeHistory {
         &self,
         _cursor: Option<String>,
         _limit: usize,
-        _signal: AbortSignal,
+        _signal: CancelSignal,
     ) -> AdapterFuture<'_, Value> {
         let sessions = self.sessions.clone();
         Box::pin(async move {
             Ok(json!({ "supported": true, "sessions": sessions, "nextCursor": null }))
         })
     }
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         self.reads.set(self.reads.get() + 1);
         let events = self.events.clone();
         let thread = self.thread.clone().unwrap_or_else(|| "thread-1".into());

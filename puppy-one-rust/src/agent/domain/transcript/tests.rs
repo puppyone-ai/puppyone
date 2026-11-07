@@ -10,6 +10,7 @@ use crate::agent::contract::activity_semantics::is_agent_transcript_activity;
 use crate::agent::contract::display_types::AgentDisplay;
 use crate::agent::contract::js;
 use crate::agent::domain::agent_session_control::{create_agent_session_control, reduce_control};
+use crate::clock;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 
@@ -68,7 +69,7 @@ fn event(
         "providerSessionId": "thread-1",
         "turnId": turn_id,
         "itemId": item_id,
-        "emittedAt": js::iso_string(sequence * 1000),
+        "emittedAt": clock::iso_string(sequence * 1000),
         "type": event_type,
         "payload": payload,
     })

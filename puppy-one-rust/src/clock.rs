@@ -91,3 +91,23 @@ pub fn iso_string(milliseconds: i64) -> String {
 pub fn now_iso() -> String {
     iso_string(now_ms())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn dates_parse_like_date_parse() {
+        assert_eq!(date_parse("1970-01-01T00:00:01.5Z"), Some(1_500));
+        assert_eq!(date_parse("1970-01-02"), Some(86_400_000));
+        assert_eq!(date_parse("1970-01-01T01:00:00+01:00"), Some(0));
+        assert_eq!(date_parse("not-a-date"), None);
+        assert_eq!(date_parse("2026-13-01"), None);
+        assert_eq!(iso_string(1_500), "1970-01-01T00:00:01.500Z");
+        assert_eq!(
+            iso_string(date_parse("2026-08-30T00:00:00Z").unwrap()),
+            "2026-08-30T00:00:00.000Z"
+        );
+    }
+}

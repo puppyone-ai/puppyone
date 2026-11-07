@@ -7,8 +7,9 @@ use crate::agent::contract::history_schema::{
     history_cursor, history_locators, history_native_id, limits,
 };
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
+use crate::clock;
+use crate::platform::paths;
 use serde_json::{Value, json};
 
 /// `discoverAcpHistory({ client, workspaceRoot, fallbackTitle }, { cursor, signal })`.
@@ -17,10 +18,10 @@ pub async fn discover_acp_history(
     workspace_root: &str,
     fallback_title: &str,
     cursor: Option<&str>,
-    signal: Option<&AbortSignal>,
+    signal: Option<&CancelSignal>,
 ) -> AgentResult<Value> {
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     let capabilities = client.agent_capabilities().unwrap_or_else(|| json!({}));
     let list = capabilities
@@ -41,7 +42,7 @@ pub async fn discover_acp_history(
         )
         .await?;
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     let invalid =
         || AgentError::new("ACP history returned an invalid session page.").with_name("TypeError");
@@ -56,14 +57,14 @@ pub async fn discover_acp_history(
     {
         return Err(invalid());
     }
-    let workspace = node_path::resolve_one(workspace_root);
+    let workspace = paths::absolute(workspace_root);
     let locators: Vec<Value> = sessions
         .iter()
         .filter(|entry| match entry.get("cwd").filter(|cwd| js::truthy(cwd)) {
             None => true,
             Some(cwd) => cwd
                 .as_str()
-                .is_some_and(|cwd| node_path::resolve_one(cwd) == workspace),
+                .is_some_and(|cwd| paths::absolute(cwd) == workspace),
         })
         .map(|entry| {
             let updated = entry.get("updatedAt").filter(|v| !v.is_null());
@@ -77,7 +78,7 @@ pub async fn discover_acp_history(
                 "title": title,
                 "createdAt": normalize_date(entry.get("createdAt").filter(|v| !v.is_null()).or(updated)),
                 "updatedAt": match updated {
-                    None => Some(js::iso_string(0)),
+                    None => Some(clock::iso_string(0)),
                     Some(updated) => normalize_date(Some(updated)),
                 },
                 "updatedAtKnown": updated.is_some(),

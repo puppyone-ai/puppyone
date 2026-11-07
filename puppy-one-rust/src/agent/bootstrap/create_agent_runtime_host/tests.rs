@@ -4,8 +4,8 @@ use super::{
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::tests_support::run_local;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtime::agent_runtime_registry::RuntimeDiscovery;
+use crate::agent::tasks::CancelSignal;
 use core::prelude::v1::test;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
@@ -17,7 +17,7 @@ impl RuntimeDiscovery for Fixed {
     fn discover(
         &self,
         _refresh: bool,
-        _signal: AbortSignal,
+        _signal: CancelSignal,
     ) -> LocalBoxFuture<'static, AgentResult<Value>> {
         let readiness = self.0.clone();
         Box::pin(async move { Ok(readiness) })
@@ -30,7 +30,7 @@ impl RuntimeDiscovery for Broken {
     fn discover(
         &self,
         _refresh: bool,
-        _signal: AbortSignal,
+        _signal: CancelSignal,
     ) -> LocalBoxFuture<'static, AgentResult<Value>> {
         Box::pin(async { Err(AgentError::new("cursor discovery failed")) })
     }

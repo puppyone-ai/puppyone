@@ -1,5 +1,6 @@
 //! `shared/agent-contract/reference-identity.mjs`.
 use super::js;
+use crate::text;
 use serde_json::Value;
 
 const MAX_WORKSPACE_RELATIVE_PATH_LENGTH: usize = 4_096;
@@ -16,7 +17,7 @@ fn is_control(c: char) -> bool {
 /// characters are rejected instead of being silently repaired.
 pub fn normalize_agent_workspace_relative_path(value: Option<&Value>) -> Option<String> {
     let value = value?.as_str()?;
-    if value.is_empty() || js::len16(value) > MAX_WORKSPACE_RELATIVE_PATH_LENGTH {
+    if value.is_empty() || text::len16(value) > MAX_WORKSPACE_RELATIVE_PATH_LENGTH {
         return None;
     }
     let bytes = value.as_bytes();
@@ -50,7 +51,7 @@ pub fn agent_reference_mention_label(reference: &Value) -> String {
         && let Some(relative_path) = normalize_agent_workspace_relative_path(field("relativePath"))
     {
         let label = if relative_path != "." {
-            js::head16(&relative_path, MAX_REFERENCE_LABEL_LENGTH).to_string()
+            text::head16(&relative_path, MAX_REFERENCE_LABEL_LENGTH).to_string()
         } else {
             safe_reference_display_name(display_name())
         };
@@ -81,7 +82,7 @@ fn safe_reference_display_name(value: Option<&Value>) -> String {
                 .chars()
                 .map(|c| if is_control(c) { ' ' } else { c })
                 .collect();
-            js::head16(js::trim(&spaced), MAX_REFERENCE_LABEL_LENGTH).to_string()
+            text::head16(text::trim(&spaced), MAX_REFERENCE_LABEL_LENGTH).to_string()
         })
         .unwrap_or_default();
     if label.is_empty() {

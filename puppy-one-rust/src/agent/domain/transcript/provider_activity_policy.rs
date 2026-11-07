@@ -4,6 +4,7 @@ use super::transcript_indexes::Projection;
 pub use crate::agent::contract::activity_semantics::is_agent_transcript_activity as is_transcript_activity;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -20,7 +21,7 @@ pub fn classify_provider_activity(event: &Value) -> Value {
             .flatten()
             .find(|v| js::truthy(v))
     };
-    let label = js::head16(js::str_or_empty(first_truthy("message", "label")), 4_000).to_string();
+    let label = text::head16(js::str_or_empty(first_truthy("message", "label")), 4_000).to_string();
     if event.event_type() == "provider.notification" || legacy_notice {
         let severity = event
             .field("severity")
@@ -39,11 +40,11 @@ pub fn classify_provider_activity(event: &Value) -> Value {
             .set(
                 "detail",
                 Obj::new()
-                    .set("message", js::head16(event.text("message"), 4_000))
+                    .set("message", text::head16(event.text("message"), 4_000))
                     .set("severity", severity)
                     .set(
                         "source",
-                        js::head16(js::str_or_empty(first_truthy("source", "label")), 200),
+                        text::head16(js::str_or_empty(first_truthy("source", "label")), 200),
                     )
                     .build(),
             )

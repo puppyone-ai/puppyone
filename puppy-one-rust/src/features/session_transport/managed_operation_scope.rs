@@ -1,7 +1,7 @@
 //! `session-transport/ManagedOperationScope.ts`: operations owned by one
 //! scope are released together, and a scoped wait ends with the scope.
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::event_loop::{AbortController, AbortSignal};
+use crate::agent::tasks::{CancelSignal, Canceller};
 use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
 use std::cell::RefCell;
 use std::future::Future;
@@ -12,7 +12,7 @@ type Release = Rc<dyn Fn()>;
 /// `new ManagedOperationScope()`.
 #[derive(Clone, Default)]
 pub struct ManagedOperationScope {
-    controller: AbortController,
+    controller: Canceller,
     operations: Rc<RefCell<Vec<(String, Release)>>>,
 }
 
@@ -22,7 +22,7 @@ impl ManagedOperationScope {
     }
 
     /// `scope.signal`.
-    pub fn signal(&self) -> AbortSignal {
+    pub fn signal(&self) -> CancelSignal {
         self.controller.signal()
     }
 
@@ -33,7 +33,7 @@ impl ManagedOperationScope {
 
     /// `scope.own(id, release)`: the returned closure disowns it.
     pub fn own(&self, id: &str, release: Rc<dyn Fn()>) -> Box<dyn Fn()> {
-        if self.signal().aborted() {
+        if self.signal().is_cancelled() {
             release();
             return Box::new(|| {});
         }
@@ -64,11 +64,11 @@ impl ManagedOperationScope {
 
     /// `scope.cancel()`.
     pub fn cancel(&self) {
-        if self.signal().aborted() {
+        if self.signal().is_cancelled() {
             return;
         }
         self.controller
-            .abort(AgentError::new("The operation scope was cancelled."));
+            .cancel(AgentError::new("The operation scope was cancelled."));
         let releases: Vec<Release> = self
             .operations
             .borrow_mut()
@@ -100,17 +100,17 @@ pub fn scoped_timeout_ms(error: &AgentError) -> Option<u64> {
 pub async fn wait_for_scoped_operation<T>(
     runtime: &Rc<dyn UiRuntime>,
     operation: impl Future<Output = AgentResult<T>>,
-    signal: &AbortSignal,
+    signal: &CancelSignal,
     timeout_ms: u64,
 ) -> AgentResult<T> {
     let cancelled = || AgentError::new("The operation scope was cancelled.");
-    if signal.aborted() {
+    if signal.is_cancelled() {
         return Err(cancelled());
     }
     let timer = runtime.sleep(timeout_ms);
     tokio::select! {
         biased;
-        _ = signal.aborted_reason() => Err(cancelled()),
+        _ = signal.cancelled() => Err(cancelled()),
         result = operation => result,
         () = timer => Err(scoped_operation_timeout_error(timeout_ms)),
     }

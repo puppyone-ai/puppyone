@@ -6,7 +6,9 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::ports::{AttachmentStore, Pending};
 use crate::agent::contract::js;
-use crate::agent::event_loop::{SharedTask, shared, spawn};
+use crate::agent::tasks::{SharedTask, shared};
+use crate::clock;
+use crate::text;
 use base64::Engine;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -17,6 +19,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::LazyLock;
+use tokio::task::spawn_local;
 
 const MAX_REFERENCES: usize = 32;
 const MAX_REFERENCE_BYTES: u64 = 25 * 1024 * 1024;
@@ -133,7 +136,7 @@ fn owner(value: Option<&Value>) -> AgentResult<i64> {
 fn workspace(value: Option<&Value>) -> AgentResult<String> {
     value
         .and_then(Value::as_str)
-        .filter(|root| crate::agent::node_path::is_absolute(root))
+        .filter(|root| crate::platform::paths::is_absolute(root))
         .map(str::to_string)
         .ok_or_else(|| error("Agent attachment workspace is invalid."))
 }
@@ -192,7 +195,7 @@ impl AgentAttachmentStore {
         Ok(Self(Rc::new(Inner {
             root_path: options.root_path,
             process_directory,
-            now: options.now.unwrap_or_else(|| Rc::new(js::now_ms)),
+            now: options.now.unwrap_or_else(|| Rc::new(clock::now_ms)),
             ttl_ms: options.ttl_ms.unwrap_or(DEFAULT_TTL_MS),
             source_stat: options.source_stat.unwrap_or_else(|| {
                 Rc::new(|file: &std::fs::File| Ok(FileSnapshot::of(&file.metadata()?)))
@@ -231,7 +234,7 @@ impl AgentAttachmentStore {
         create_private_directory(&inner.process_directory)?;
         let interval = inner.ttl_ms.clamp(1_000, 60_000) as u64;
         let weak = Rc::downgrade(&self.0);
-        let task = spawn(async move {
+        let task = spawn_local(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(interval)).await;
                 let Some(inner) = weak.upgrade() else {
@@ -286,7 +289,7 @@ impl AgentAttachmentStore {
             let Some(bytes) = bytes.filter(|_| {
                 input.get("path").is_none()
                     && !name.is_empty()
-                    && js::len16(name) <= 512
+                    && text::len16(name) <= 512
                     && !INLINE_NAME.is_match(name)
             }) else {
                 return Err(error("The inline attachment is invalid."));
@@ -345,7 +348,7 @@ impl AgentAttachmentStore {
             Input::Path(path) => {
                 let Some(path) = path
                     .as_str()
-                    .filter(|p| crate::agent::node_path::is_absolute(p))
+                    .filter(|p| crate::platform::paths::is_absolute(p))
                 else {
                     return Err(error("The selected attachment could not be resolved."));
                 };
@@ -832,7 +835,7 @@ fn safe_display_name(value: Option<String>) -> String {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "attachment".into());
     let cleaned = CONTROL.replace_all(&raw, "");
-    let name = js::head16(js::trim(&cleaned), 512);
+    let name = text::head16(text::trim(&cleaned), 512);
     if name.is_empty() {
         "attachment".into()
     } else {
@@ -851,7 +854,7 @@ fn safe_staging_error(message: &str, source_paths: &[String], process_directory:
         .expect("pattern")
         .replace_all(&message, " ")
         .into_owned();
-    let message = js::head16(&message, 500).to_string();
+    let message = text::head16(&message, 500).to_string();
     if message.is_empty() {
         "The attachment could not be staged safely.".into()
     } else {

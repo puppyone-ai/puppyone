@@ -19,6 +19,8 @@ use super::validation::{
     positive_integer, required_opaque_id, required_string, required_string_with, type_error,
 };
 use super::workspace_resource_reference::parse_workspace_resource_reference;
+use crate::clock;
+use crate::text;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 
@@ -865,7 +867,7 @@ fn assert_control_prompt_mentions(mentions: &[Value], prompt: &str, label: &str)
             &format!("may contain at most {MAX_REFERENCE_COUNT} entries"),
         ));
     }
-    let length = js::len16(prompt) as i64;
+    let length = text::len16(prompt) as i64;
     for (index, entry) in mentions.iter().enumerate() {
         let at = format!("{label}[{index}]");
         let mention = assert_record(Some(entry), &at)?;
@@ -1311,8 +1313,8 @@ fn safe_warnings(value: Option<&Value>, label: &str) -> Contract<Vec<String>> {
 
 fn iso_timestamp(value: Option<&Value>, label: &str) -> Contract<String> {
     let input = required_string(value, label, 64)?;
-    js::date_parse(&input)
-        .map(js::iso_string)
+    clock::date_parse(&input)
+        .map(clock::iso_string)
         .ok_or_else(|| contract_error(label, "must be an ISO timestamp"))
 }
 

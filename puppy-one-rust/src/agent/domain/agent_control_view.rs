@@ -1,6 +1,7 @@
 //! `domain/agent-control-view.mjs`: IPC control metadata. Input bodies and
 //! native blocker payloads belong to Main.
 use crate::agent::contract::js::{self, Obj};
+use crate::text;
 use serde_json::Value;
 
 /// `projectAgentControlView(control)`.
@@ -29,7 +30,7 @@ pub fn project_agent_control_view(control: &Value) -> Value {
             let error = record
                 .get("error")
                 .and_then(Value::as_str)
-                .map_or(Value::Null, |e| Value::from(js::head16(e, 1024)));
+                .map_or(Value::Null, |e| Value::from(text::head16(e, 1024)));
             js::with(&record, "error", error)
         })
         .collect();

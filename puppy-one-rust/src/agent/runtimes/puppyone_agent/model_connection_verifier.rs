@@ -5,8 +5,8 @@ use super::model_connection_binding::spawn_with_model_configuration;
 use super::puppyone_agent_discovery::PUPPYONE_AGENT_WORKER_PATH;
 use super::puppyone_agent_environment::build_puppyone_agent_environment;
 use crate::agent::agent_error::AgentResult;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::model_connections::schema::connection_error;
+use crate::agent::tasks::CancelSignal;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ use tokio::io::AsyncReadExt;
 
 /// `verifyModel(configuration, { signal })`.
 pub type ModelVerifier =
-    Rc<dyn Fn(Value, Option<AbortSignal>) -> LocalBoxFuture<'static, AgentResult<()>>>;
+    Rc<dyn Fn(Value, Option<CancelSignal>) -> LocalBoxFuture<'static, AgentResult<()>>>;
 
 /// `createPuppyOneModelVerifier({ appPath, userDataPath, executablePath })`.
 pub fn create_puppyone_model_verifier(
@@ -35,7 +35,7 @@ pub fn create_puppyone_model_verifier(
             executable_path.clone(),
         );
         Box::pin(async move {
-            if signal.as_ref().is_some_and(AbortSignal::aborted) {
+            if signal.as_ref().is_some_and(CancelSignal::is_cancelled) {
                 return Err(connection_error("CANCELLED"));
             }
             let profile = user_data_path.join("agent-runtime/puppyone-agent");
@@ -64,7 +64,7 @@ pub fn create_puppyone_model_verifier(
             let mut stdout = std::mem::replace(&mut io.stdout, Box::new(tokio::io::empty()));
             // Drain stderr, but never log supplier errors or credentials.
             let mut stderr = std::mem::replace(&mut io.stderr, Box::new(tokio::io::empty()));
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 let mut sink = Vec::new();
                 let _ = stderr.read_to_end(&mut sink).await;
             });
@@ -86,7 +86,7 @@ pub fn create_puppyone_model_verifier(
             let cancelled = async {
                 match signal.as_ref() {
                     Some(signal) => {
-                        signal.aborted_reason().await;
+                        signal.cancelled().await;
                     }
                     None => futures_util::future::pending::<()>().await,
                 }
@@ -100,9 +100,12 @@ pub fn create_puppyone_model_verifier(
             if stopped {
                 kill(false);
                 let kill = kill.clone();
-                drop(crate::agent::event_loop::set_timeout(2_000, move || {
-                    kill(true);
-                }));
+                drop(crate::agent::tasks::spawn_after(
+                    std::time::Duration::from_millis(2_000),
+                    move || {
+                        kill(true);
+                    },
+                ));
             }
             let (code, _, _) = io.exit.await;
             // Timeout, cancellation and an oversized answer all stop the worker.

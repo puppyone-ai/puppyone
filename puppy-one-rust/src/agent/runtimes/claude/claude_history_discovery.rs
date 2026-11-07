@@ -7,8 +7,8 @@ use crate::agent::contract::history_schema::{
     history_cursor, history_locators, history_native_id, history_page_size,
 };
 use crate::agent::contract::js;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths;
 use serde_json::{Value, json};
 
 /// `discoverClaudeHistory({ sdk, workspaceRoot }, { cursor, limit, signal })`.
@@ -17,10 +17,10 @@ pub async fn discover_claude_history(
     workspace_root: &str,
     cursor: Option<&str>,
     limit: Option<&Value>,
-    signal: Option<&AbortSignal>,
+    signal: Option<&CancelSignal>,
 ) -> AgentResult<Value> {
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     if !sdk.implements("listSessions") {
         return Ok(json!({ "supported": false, "sessions": [], "nextCursor": null }));
@@ -54,7 +54,7 @@ pub async fn discover_claude_history(
         })
         .await?;
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     if page.len() > page_size
         || page
@@ -66,14 +66,14 @@ pub async fn discover_claude_history(
                 .with_name("TypeError"),
         );
     }
-    let root = node_path::resolve_one(workspace_root);
+    let root = paths::absolute(workspace_root);
     let locators: Vec<Value> = page
         .iter()
         .filter(|entry| {
             entry
                 .get("cwd")
                 .filter(|cwd| js::truthy(cwd))
-                .is_none_or(|cwd| node_path::resolve_one(js::to_js_string(Some(cwd))) == root)
+                .is_none_or(|cwd| paths::absolute(js::to_js_string(Some(cwd))) == root)
         })
         .map(|entry| {
             let title = ["customTitle", "summary", "firstPrompt"]

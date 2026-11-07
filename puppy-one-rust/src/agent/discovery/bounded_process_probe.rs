@@ -4,8 +4,9 @@
 use super::command_environment::EnvMap;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::windows::process_invocation::resolve_process_invocation;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path::flavor::{posix_is_absolute, win32_is_absolute};
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths::flavor::{posix_is_absolute, win32_is_absolute};
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -22,7 +23,7 @@ pub struct ProbeOptions {
     pub cwd: Option<PathBuf>,
     pub timeout_ms: u64,
     pub max_output_bytes: usize,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     pub label: String,
     pub platform: String,
     pub isolated_process_group: bool,
@@ -88,7 +89,7 @@ fn validate_launch(executable_path: &str, args: &[String]) -> AgentResult<()> {
     if args.len() > 16
         || args
             .iter()
-            .any(|arg| crate::agent::contract::js::len16(arg) > 4_096 || unsafe_text(arg))
+            .any(|arg| text::len16(arg) > 4_096 || unsafe_text(arg))
     {
         return Err(
             AgentError::new("Local Agent probe arguments are invalid.").with_name("TypeError")
@@ -126,7 +127,11 @@ pub async fn run_bounded_process_probe(
     validate_launch(executable_path, args)?;
     let label = options.label.clone();
     let failure = |reason: &str| AgentError::new(format!("{label} {reason}"));
-    if options.signal.as_ref().is_some_and(AbortSignal::aborted) {
+    if options
+        .signal
+        .as_ref()
+        .is_some_and(CancelSignal::is_cancelled)
+    {
         return Err(failure("was cancelled."));
     }
     let inherited: EnvMap;
@@ -193,7 +198,7 @@ pub async fn run_bounded_process_probe(
     let cancelled = async {
         match options.signal.as_ref() {
             Some(signal) => {
-                signal.aborted_reason().await;
+                signal.cancelled().await;
             }
             None => futures_util::future::pending::<()>().await,
         }

@@ -10,12 +10,13 @@ use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::runtime_schema::{
     normalize_capability_snapshot, sanitize_agent_runtime_descriptor,
 };
-use crate::agent::event_loop::{SharedTask, shared};
 use crate::agent::runtime::agent_runtime_port::{AdapterOptions, assert_agent_runtime_inspection};
 use crate::agent::runtime::agent_runtime_registry::{
     AgentRuntimeRegistry, RuntimeCatalogEntry, public_runtime_readiness,
 };
 use crate::agent::runtime::agent_runtime_resolution::agent_runtime_resolution_error;
+use crate::agent::tasks::{SharedTask, shared};
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -385,7 +386,7 @@ fn failed_inspection_readiness(public: &Value, protocol_fallback: bool, message:
         .join(" ");
         return Obj::from(public)
             .set("selectable", false)
-            .set("diagnostic", js::head16(&diagnostic, 4_000))
+            .set("diagnostic", text::head16(&diagnostic, 4_000))
             .build();
     }
     Obj::from(public)

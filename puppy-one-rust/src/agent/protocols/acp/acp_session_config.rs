@@ -1,5 +1,6 @@
 //! `protocols/acp/acp-session-config.mjs`: models, modes and reasoning
 //! efforts from ACP session config options (or their legacy fields).
+use crate::text;
 use serde_json::Value;
 
 /// One selectable entry.
@@ -22,7 +23,7 @@ pub struct ConfigState {
 fn text(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| crate::agent::contract::js::head16(s.trim(), 2_000).to_string())
+        .map(|s| text::head16(s.trim(), 2_000).to_string())
         .unwrap_or_default()
 }
 

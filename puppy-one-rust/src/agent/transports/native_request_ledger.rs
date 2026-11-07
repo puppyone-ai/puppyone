@@ -3,7 +3,7 @@
 //! are retained; issued ids outside that window are still recognized so an
 //! old reply cannot poison an otherwise healthy stream.
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -77,7 +77,7 @@ impl NativeRequestLedger {
         id: &str,
         method: &str,
         timeout_ms: u64,
-        signal: Option<&AbortSignal>,
+        signal: Option<&CancelSignal>,
         timeout_error: impl FnOnce() -> AgentError,
         abort_error: impl FnOnce() -> AgentError,
         write: impl FnOnce() -> AgentResult<()>,
@@ -105,7 +105,7 @@ impl NativeRequestLedger {
         let aborted = async {
             match signal {
                 Some(signal) => {
-                    signal.aborted_reason().await;
+                    signal.cancelled().await;
                 }
                 None => std::future::pending::<()>().await,
             }

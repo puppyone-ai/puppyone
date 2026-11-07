@@ -10,6 +10,7 @@ use crate::agent::contract::reference_input::{
 };
 use crate::agent::domain::agent_reference_error::{agent_reference_error, codes};
 use crate::agent::sender::Sender;
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -86,7 +87,7 @@ pub fn requires_runtime_setup(account_state: &Value) -> bool {
 
 /// `requireWorkspaceRoot(value)`.
 pub fn require_workspace_root(value: Option<&str>) -> AgentResult<()> {
-    if value.is_none_or(|root| js::trim(root).is_empty()) {
+    if value.is_none_or(|root| text::trim(root).is_empty()) {
         return Err(AgentError::new(
             "No authorized local workspace is assigned to this Agent session.",
         ));
@@ -126,11 +127,11 @@ pub fn require_sender_id(sender: &Sender) -> AgentResult<u64> {
 pub fn normalize_prompt(value: Option<&Value>, allow_empty: bool) -> AgentResult<String> {
     let Some(text) = value
         .and_then(Value::as_str)
-        .filter(|t| allow_empty || !js::trim(t).is_empty())
+        .filter(|t| allow_empty || !text::trim(t).is_empty())
     else {
         return Err(AgentError::new("Enter a message for the Agent."));
     };
-    if js::len16(text) > 128 * 1024 {
+    if text::len16(text) > 128 * 1024 {
         return Err(AgentError::new("The Agent message is too large."));
     }
     Ok(text.to_string())
@@ -149,9 +150,9 @@ pub fn normalize_required_id(value: Option<&Value>, label: &str) -> AgentResult<
 pub fn normalize_optional_string(value: Option<&Value>) -> Option<String> {
     value
         .and_then(Value::as_str)
-        .map(js::trim)
+        .map(text::trim)
         .filter(|t| !t.is_empty())
-        .map(|t| js::head16(t, 200).to_string())
+        .map(|t| text::head16(t, 200).to_string())
 }
 
 /// `normalizeRuntimeId(value)`.
@@ -192,7 +193,7 @@ pub fn normalize_authorized_references(value: &[Value]) -> AgentResult<Vec<Value
             }
             let path = entry["path"]
                 .as_str()
-                .filter(|p| !p.is_empty() && js::len16(p) <= 4_096);
+                .filter(|p| !p.is_empty() && text::len16(p) <= 4_096);
             let Some(path) = path else {
                 return Err(AgentError::new("Agent reference path is invalid."));
             };
@@ -294,7 +295,7 @@ pub fn normalize_prompt_reference_mentions(
         .iter()
         .filter_map(|r| Some((r["id"].as_str()?, r)))
         .collect();
-    let length = js::len16(prompt) as i64;
+    let length = text::len16(prompt) as i64;
     let mut boundary = 0;
     entries
         .iter()
@@ -332,7 +333,7 @@ pub fn normalize_prompt_reference_mentions(
                     "Agent prompt reference mention range is invalid.",
                 ));
             }
-            if js::slice16(prompt, start as usize, end as usize)
+            if text::slice16(prompt, start as usize, end as usize)
                 != agent_reference_mention_text(reference)
             {
                 return Err(AgentError::new(
@@ -392,9 +393,9 @@ pub fn compile_agent_prompt_reference_mentions(
             let path = reference["path"].as_str().unwrap_or("");
             compiled = format!(
                 "{}{}{}",
-                js::head16(&compiled, start),
+                text::head16(&compiled, start),
                 quote_native_path(path),
-                js::tail16(&compiled, end)
+                text::tail16(&compiled, end)
             );
         }
     }
@@ -544,7 +545,7 @@ pub fn normalize_reference_displays(references: &[Value]) -> Vec<Value> {
                         .then(|| {
                             reference["relativePath"]
                                 .as_str()
-                                .map(|p| js::head16(p, 4_096).to_string())
+                                .map(|p| text::head16(p, 4_096).to_string())
                         })
                         .flatten(),
                 )
@@ -568,9 +569,9 @@ pub fn normalize_reference_displays(references: &[Value]) -> Vec<Value> {
 fn normalize_reference_display_name(value: Option<&Value>) -> Option<String> {
     value
         .and_then(Value::as_str)
-        .map(js::trim)
+        .map(text::trim)
         .filter(|t| !t.is_empty())
-        .map(|t| js::head16(t, 512).to_string())
+        .map(|t| text::head16(t, 512).to_string())
 }
 
 /// `normalizeQuestionAnswers(value, questions)`: one row of answers per
@@ -603,7 +604,7 @@ pub fn normalize_question_answers(
             .map(|row| {
                 row.iter()
                     .filter_map(Value::as_str)
-                    .map(|entry| js::head16(js::trim(entry), 4_000).to_string())
+                    .map(|entry| text::head16(text::trim(entry), 4_000).to_string())
                     .filter(|entry| !entry.is_empty())
                     .take(20)
                     .collect()
@@ -649,7 +650,7 @@ fn is_bounded_data_url(value: Option<&Value>) -> bool {
     let Some(text) = value.and_then(Value::as_str) else {
         return false;
     };
-    if js::len16(text) > MAX_REFERENCE_SNAPSHOT_URL_LENGTH {
+    if text::len16(text) > MAX_REFERENCE_SNAPSHOT_URL_LENGTH {
         return false;
     }
     let Some(marker) = text.find(";base64,") else {

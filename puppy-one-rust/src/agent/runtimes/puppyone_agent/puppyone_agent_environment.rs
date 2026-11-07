@@ -3,7 +3,7 @@
 use super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::node_path;
+use crate::platform::paths;
 
 const EXACT_ENVIRONMENT_KEYS: &[&str] = &[
     "PATH",
@@ -111,7 +111,7 @@ pub fn build_puppyone_agent_environment(
     profile_path: &str,
     platform: &str,
 ) -> AgentResult<EnvMap> {
-    if !node_path::is_absolute(profile_path) {
+    if !paths::is_absolute(profile_path) {
         return Err(AgentError::new(format!(
             "{BUILT_IN_AGENT_DISPLAY_NAME} requires an absolute managed profile path."
         ))
@@ -126,7 +126,7 @@ pub fn build_puppyone_agent_environment(
         })
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    let home = node_path::resolve_one(profile_path);
+    let home = paths::absolute(profile_path);
     environment.insert("TERM".into(), "dumb".into());
     environment.insert("PUPPYONE_AGENT".into(), "1".into());
     environment.insert(

@@ -10,14 +10,16 @@ use super::pi_rpc_client::{
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redact_secrets};
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
 };
 use crate::agent::runtime::agent_session_history_port::SessionHistoryPort;
 use crate::agent::runtime::native_persistence_reporter::NativePersistenceReporter;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::jsonl_rpc_connection::{RequestOptions, Spawner};
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
@@ -221,7 +223,7 @@ pub struct Inner {
 fn bounded(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(s.trim(), limit).to_string())
+        .map(|s| text::head16(s.trim(), limit).to_string())
         .unwrap_or_default()
 }
 
@@ -504,7 +506,7 @@ impl Inner {
             self.emit(json!({
                 "type": "session.updated",
                 "providerSessionId": self.session(),
-                "payload": { "title": js::head16(title, 200) },
+                "payload": { "title": text::head16(title, 200) },
             }));
             return;
         }
@@ -515,7 +517,7 @@ impl Inner {
                 .filter(|m| js::truthy(m))
                 .map(|m| js::to_js_string(Some(m)))
                 .unwrap_or_else(|| fallback.clone());
-            let text = js::head16(raw.trim(), 4_000).to_string();
+            let text = text::head16(raw.trim(), 4_000).to_string();
             let text = if text.is_empty() { fallback } else { text };
             let severity = message
                 .get("notifyType")
@@ -788,7 +790,7 @@ fn pi_account_state(
         .filter_map(|provider| provider["displayName"].as_str())
         .collect::<Vec<_>>()
         .join(", ");
-    let plan = js::head16(&plan, 300).to_string();
+    let plan = text::head16(&plan, 300).to_string();
     json!({
         "account": {
             "type": account_type,
@@ -830,7 +832,7 @@ fn provider_session(state: &Value, runtime_label: &str) -> Value {
         "title": non_empty(bounded(state.get("sessionName"), 200)).unwrap_or_else(|| format!("{runtime_label} session")),
         "model": qualified_model(state.get("model")),
         "effort": non_empty(bounded(state.get("thinkingLevel"), 40)),
-        "updatedAt": js::now_iso(),
+        "updatedAt": clock::now_iso(),
     })
 }
 
@@ -937,7 +939,7 @@ impl PiRpcRuntimeAdapter {
                         let Some(file) = file.filter(|_| state["sessionId"] == id.as_str()) else {
                             return Ok(None);
                         };
-                        if !crate::agent::node_path::is_absolute(file) {
+                        if !crate::platform::paths::is_absolute(file) {
                             return Ok(None);
                         }
                         // Stat only the exact artifact returned by the native
@@ -1769,7 +1771,7 @@ impl SessionHistoryPort for PiHistoryPort {
     fn implements(&self, method: &str) -> bool {
         method == "hydrate"
     }
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         Box::pin(self.0.read_history_result())
     }
 }

@@ -5,8 +5,9 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::reference_input::classify_agent_attachment;
 use crate::agent::domain::agent_reference_error::{agent_reference_error, codes};
-use crate::agent::node_path;
 use crate::agent::security::authorized_workspace_reference_prompt::authorized_workspace_reference_path;
+use crate::platform::paths;
+use crate::text;
 use base64::Engine;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -33,7 +34,7 @@ pub struct AcpReferenceProfile {
 fn text(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(js::trim(s), limit).to_string())
+        .map(|s| text::head16(text::trim(s), limit).to_string())
         .unwrap_or_default()
 }
 
@@ -96,7 +97,7 @@ pub fn materialize_acp_references(
             let path = reference
                 .get("path")
                 .and_then(Value::as_str)
-                .filter(|path| node_path::is_absolute(path));
+                .filter(|path| paths::is_absolute(path));
             let (Some(path), true) = (path, ["image", "text", "binary"].contains(&kind)) else {
                 return Err(unsupported_attachment_error(kind));
             };
@@ -183,7 +184,7 @@ pub fn build_acp_prompt_blocks(
             if let Some(path) = reference
                 .get("path")
                 .and_then(Value::as_str)
-                .filter(|path| ["text", "binary"].contains(&kind) && node_path::is_absolute(path))
+                .filter(|path| ["text", "binary"].contains(&kind) && paths::is_absolute(path))
             {
                 blocks.push(resource_link(path, reference));
                 continue;
@@ -193,7 +194,7 @@ pub fn build_acp_prompt_blocks(
         let filename = reference
             .get("path")
             .and_then(Value::as_str)
-            .map(|path| node_path::resolve_one(path).to_string_lossy().into_owned());
+            .map(|path| paths::absolute(path).to_string_lossy().into_owned());
         let Some(filename) = filename.filter(|_| {
             authorized_workspace_reference_path(reference, Some(workspace_root)).is_some()
         }) else {
@@ -220,7 +221,7 @@ pub fn path_to_file_url(filename: &str) -> String {
 fn resource_link(filename: &str, reference: &Value) -> Value {
     let name = text(display_name(reference), 300);
     let name = if name.is_empty() {
-        node_path::basename(filename)
+        paths::file_name(filename)
     } else {
         name
     };
@@ -244,7 +245,7 @@ fn resource_link(filename: &str, reference: &Value) -> Value {
 fn data_url_parts(value: Option<&Value>) -> Option<(String, String)> {
     let value = value?.as_str()?;
     let limit = (ACP_INLINE_IMAGE_MAX_BYTES as usize * 4).div_ceil(3) + 256;
-    if js::len16(value) > limit {
+    if text::len16(value) > limit {
         return None;
     }
     let captures = DATA_URL.captures(value)?;

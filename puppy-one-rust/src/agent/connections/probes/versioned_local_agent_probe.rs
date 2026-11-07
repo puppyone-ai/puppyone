@@ -42,7 +42,7 @@ pub async fn probe_versioned_local_agent(
     id: &str,
     display_name: &str,
     env: &EnvMap,
-    signal: Option<crate::agent::event_loop::AbortSignal>,
+    signal: Option<crate::agent::tasks::CancelSignal>,
 ) -> Value {
     let base = json!({
         "id": id,

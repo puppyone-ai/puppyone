@@ -5,6 +5,7 @@
 //! never need to infer filesystem identity.
 use crate::agent::contract::js;
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use serde_json::{Map, Value};
 use std::path::{Component, Path, PathBuf};
 
@@ -65,7 +66,7 @@ pub fn normalize_agent_workspace_event_path(
     candidate: &str,
 ) -> Option<String> {
     let root_path = Path::new(workspace_root);
-    if !root_path.is_absolute() || js::trim(candidate).is_empty() || candidate.contains("://") {
+    if !root_path.is_absolute() || text::trim(candidate).is_empty() || candidate.contains("://") {
         return None;
     }
     let root = resolve(Path::new("/"), root_path);

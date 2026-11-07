@@ -13,6 +13,7 @@ use crate::agent::domain::agent_session_model::{
     require_connected_session, session_metadata, session_snapshot,
 };
 use crate::agent::sender::Sender;
+use crate::clock;
 use serde_json::{Value, json};
 
 #[derive(Clone)]
@@ -172,7 +173,7 @@ impl AgentSessionCommands {
         }
         self.runtime
             .cache()
-            .archive(session_id.clone(), js::now_iso())
+            .archive(session_id.clone(), clock::now_iso())
             .await?;
         Ok(json!({ "sessionId": session_id, "archived": true }))
     }

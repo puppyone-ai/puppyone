@@ -6,12 +6,12 @@ use super::cursor_tool::cursor_local_tool;
 use super::opencode_tool::opencode_local_tool;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
 use crate::agent::installation::installation_definition::NameSpec;
 use crate::agent::installation::installation_registry::{
     DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY, get_local_agent_installation_definition,
 };
+use crate::agent::tasks::CancelSignal;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::Value;
@@ -28,7 +28,7 @@ pub struct LocalToolProbeRequest {
     pub app_version: String,
     pub workspace_root: Option<String>,
     pub env: EnvMap,
-    pub signal: AbortSignal,
+    pub signal: CancelSignal,
 }
 
 /// A tool's probe: its evidence for `deriveLocalConnection`.

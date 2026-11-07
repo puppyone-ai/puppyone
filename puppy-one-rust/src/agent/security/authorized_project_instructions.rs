@@ -4,7 +4,7 @@
 //! workspace, no external symlink target, and a strict byte limit. The
 //! backend's own system prompt remains authoritative.
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::node_path;
+use crate::platform::paths;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::io::Read;
@@ -37,7 +37,7 @@ pub fn load_authorized_project_instructions(
     workspace_root: &str,
     instruction_names: Option<&[&str]>,
 ) -> AgentResult<Option<Value>> {
-    let canonical_root = std::fs::canonicalize(node_path::resolve_one(workspace_root))?;
+    let canonical_root = std::fs::canonicalize(paths::absolute(workspace_root))?;
     let names = normalize_instruction_names(
         instruction_names.unwrap_or(DEFAULT_PROJECT_INSTRUCTION_NAMES),
     )?;
@@ -48,7 +48,7 @@ pub fn load_authorized_project_instructions(
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.into()),
         };
-        if !node_path::is_same_or_inside(&canonical_root, &canonical) {
+        if !paths::is_same_or_inside(&canonical_root, &canonical) {
             return Err(AgentError::new(format!(
                 "{name} resolves outside the authorized workspace."
             )));

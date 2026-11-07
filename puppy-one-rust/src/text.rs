@@ -63,3 +63,19 @@ pub fn locale_compare(left: &str, right: &str) -> std::cmp::Ordering {
     }
     COLLATOR.with(|collator| collator.compare(left, right))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn strings_count_utf16_code_units() {
+        assert_eq!(len16("a😀b"), 4);
+        assert_eq!(head16("a😀b", 2), "a");
+        assert_eq!(head16("a😀b", 3), "a😀");
+        assert_eq!(slice16("héllo", 1, 3), "él");
+        assert_eq!(tail16("a😀b", 3), "b");
+        assert_eq!(trim("\u{feff} x \n"), "x");
+    }
+}

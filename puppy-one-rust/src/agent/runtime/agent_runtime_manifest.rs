@@ -5,6 +5,7 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::runtime_schema::sanitize_agent_runtime_descriptor;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::sync::LazyLock;
@@ -64,12 +65,12 @@ fn exact_keys(value: &Map<String, Value>, label: &str, allowed: &[&str]) -> Agen
 fn text(value: Option<&Value>, label: &str, limit: usize) -> AgentResult<String> {
     let Some(text) = value
         .and_then(Value::as_str)
-        .filter(|t| !js::trim(t).is_empty())
+        .filter(|t| !text::trim(t).is_empty())
     else {
         return Err(invalid(label, "must be non-empty text"));
     };
-    let normalized = js::trim(text);
-    if js::len16(normalized) > limit {
+    let normalized = text::trim(text);
+    if text::len16(normalized) > limit {
         return Err(invalid(label, &format!("exceeds {limit} characters")));
     }
     Ok(normalized.to_string())

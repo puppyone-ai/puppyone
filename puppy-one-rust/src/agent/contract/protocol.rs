@@ -10,6 +10,7 @@ use super::js;
 use super::operation_error::read_agent_operation_failure;
 use super::schema::{assert_agent_ipc_response, parse_agent_ipc_request};
 use super::validation::Contract;
+use crate::text;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -332,7 +333,7 @@ impl StageFile {
     pub fn native_path(&self) -> Option<&str> {
         self.path
             .as_deref()
-            .filter(|path| !js::trim(path).is_empty())
+            .filter(|path| !text::trim(path).is_empty())
     }
 }
 

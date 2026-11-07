@@ -7,7 +7,8 @@ use crate::agent::contract::reference_identity::normalize_agent_workspace_relati
 use crate::agent::contract::workspace_resource_reference::{
     is_workspace_resource_reference, parse_workspace_resource_reference,
 };
-use crate::agent::node_path;
+use crate::platform::paths;
+use crate::text;
 use base64::Engine;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
@@ -72,7 +73,7 @@ pub async fn authorize_agent_references(
     {
         return Err(error("Agent file reference budget is invalid."));
     }
-    let canonical_root = std::fs::canonicalize(node_path::resolve_one(workspace_root))?;
+    let canonical_root = std::fs::canonicalize(paths::absolute(workspace_root))?;
     let mut authorized = Vec::new();
     let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
     for reference in references.iter().take(MAX_REFERENCES) {
@@ -101,7 +102,7 @@ pub async fn authorize_agent_references(
                         .map(str::to_string)
                 }),
         };
-        let Some(requested) = requested.filter(|p| !js::trim(p).is_empty()) else {
+        let Some(requested) = requested.filter(|p| !text::trim(p).is_empty()) else {
             return Err(error("Agent workspace references require a valid path."));
         };
         let resource_uri = is_workspace_resource_reference(&requested).then(|| requested.clone());
@@ -119,8 +120,8 @@ pub async fn authorize_agent_references(
         }
         let resource = match resolve_resource.as_ref() {
             Some(resolve) => {
-                let request = if node_path::is_absolute(&requested) {
-                    let relative = node_path::relative(&canonical_root, &requested);
+                let request = if paths::is_absolute(&requested) {
+                    let relative = paths::relative(&canonical_root, &requested);
                     if relative.is_empty() {
                         ".".to_string()
                     } else {
@@ -143,15 +144,15 @@ pub async fn authorize_agent_references(
             .and_then(|r| r.get("absolutePath").and_then(Value::as_str))
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| {
-                if node_path::is_absolute(&requested) {
-                    node_path::resolve_one(&requested)
+                if paths::is_absolute(&requested) {
+                    paths::absolute(&requested)
                 } else {
-                    node_path::resolve(&canonical_root, &requested)
+                    paths::resolve(&canonical_root, &requested)
                 }
             });
         let canonical = std::fs::canonicalize(&resolved)
             .map_err(|_| error("An Agent file reference no longer exists."))?;
-        if !node_path::is_same_or_inside(&owning_root, &canonical) {
+        if !paths::is_same_or_inside(&owning_root, &canonical) {
             return Err(error(
                 "Agent file references must stay inside the assigned workspace.",
             ));
@@ -206,7 +207,7 @@ pub async fn authorize_agent_references(
         budget.remaining_references -= 1;
         seen.insert(canonical.clone());
         let request_path = {
-            let relative = node_path::relative(&owning_root, &canonical);
+            let relative = paths::relative(&owning_root, &canonical);
             if relative.is_empty() {
                 ".".to_string()
             } else {
@@ -347,7 +348,7 @@ fn safe_display_name(value: Option<String>) -> String {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "workspace item".into());
     let cleaned = CONTROL.replace_all(&raw, "");
-    let name = js::head16(js::trim(&cleaned), 512);
+    let name = text::head16(text::trim(&cleaned), 512);
     if name.is_empty() {
         "workspace item".into()
     } else {

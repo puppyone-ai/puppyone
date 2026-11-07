@@ -9,7 +9,7 @@ use super::session_feed::{advance, settle, wait_for};
 use super::support::{Deferred, Deferreds, StateJson as _, assert_match, j, matches, typed};
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests::harness::{run, run_paused};
-use crate::agent::contract::js;
+use crate::clock;
 use crate::features::desktop_agent::application::agent_client_port::{
     AgentClientPort, AgentFile, AgentFileSource,
 };
@@ -328,7 +328,7 @@ fn event(
 ) -> Value {
     json!({
         "schemaVersion": 1, "sequence": sequence, "sessionId": session_id, "runtimeId": "opencode", "provider": "opencode",
-        "providerSessionId": "native-1", "turnId": turn_id, "itemId": item_id, "emittedAt": js::iso_string(sequence * 1_000),
+        "providerSessionId": "native-1", "turnId": turn_id, "itemId": item_id, "emittedAt": clock::iso_string(sequence * 1_000),
         "type": kind, "payload": payload,
     })
 }

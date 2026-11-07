@@ -9,13 +9,13 @@ use crate::agent::discovery::command_environment::{EnvMap, normalize_environment
 use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::installation::executable_resolver::{
     AcceptCandidate, LocalAgentExecutableResolver, Observation, ObservationRequest,
     ResolutionContext, assert_executable_identity, resolve_executable_observation,
 };
 use crate::agent::installation::installation_definition::{CandidateSpec, NameSpec};
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::Value;
@@ -60,7 +60,7 @@ pub struct DiscoverExecutableOptions {
     pub validate_candidate: Option<ValidateCandidate>,
     pub search_path: bool,
     pub read_environment: Option<ReadEnvironment>,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     /// `spawn` for the version probe.
     pub run_probe: Option<ProbeRunner>,
 }
@@ -91,11 +91,7 @@ impl DiscoverExecutableOptions {
 /// `discoverExecutable(options)`: the runtime's internal readiness.
 pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentResult<Value> {
     let signal = options.signal.clone();
-    let abort = || {
-        signal
-            .as_ref()
-            .map_or(Ok(()), AbortSignal::throw_if_aborted)
-    };
+    let abort = || signal.as_ref().map_or(Ok(()), CancelSignal::check);
     abort()?;
     let env = options
         .env
@@ -105,7 +101,7 @@ pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentRes
         .platform
         .clone()
         .unwrap_or_else(|| node_platform().into());
-    let homedir = options.homedir.clone().unwrap_or_else(node_path::homedir);
+    let homedir = options.homedir.clone().unwrap_or_else(paths::home_dir);
     let label = options.label.clone();
     let mut context: Option<ResolutionContext> = None;
     let observation = match options.installation_id.as_deref() {
@@ -156,7 +152,7 @@ pub async fn discover_executable(options: DiscoverExecutableOptions) -> AgentRes
             let names = if options.executable_names.is_empty() {
                 let mut names: Vec<NameSpec> = Vec::new();
                 for file in &candidates {
-                    let name = NameSpec::Text(node_path::basename(file));
+                    let name = NameSpec::Text(paths::file_name(file));
                     if !names.contains(&name) {
                         names.push(name);
                     }
@@ -350,7 +346,7 @@ pub struct BoundedRun {
     pub timeout_ms: u64,
     pub max_bytes: usize,
     pub label: String,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
 }
 
 /// An injectable `runBounded` (`probe`).

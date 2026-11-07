@@ -9,7 +9,6 @@ use super::acp_methods::{
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::spawn;
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionEvent, RequestOptions, rpc_error_code,
 };
@@ -19,6 +18,7 @@ use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use tokio::task::spawn_local;
 
 const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 30_000;
 
@@ -399,7 +399,7 @@ fn handle_request(weak: Weak<Inner>, message: Value) {
     let params = message.get("params").cloned().unwrap_or(Value::Null);
     let connection = inner.connection.clone();
     drop(inner);
-    spawn(async move {
+    spawn_local(async move {
         let outcome = match handler(params).await {
             Ok(result) => connection.respond(id, result),
             Err(error) => connection.respond_error(id, -32603, &redact_secret_text(&error.message)),

@@ -2,6 +2,7 @@
 use super::ephemeral_agent_session_cache::{EphemeralAgentSessionCache, policy};
 use crate::agent::application::tests_support::run_local;
 use crate::agent::contract::js;
+use crate::clock;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 
@@ -35,7 +36,7 @@ fn event(sequence: i64, kind: &str, payload: Value) -> Value {
         "providerSessionId": "thread-1",
         "turnId": "turn-1",
         "itemId": null,
-        "emittedAt": js::iso_string(sequence * 1_000),
+        "emittedAt": clock::iso_string(sequence * 1_000),
         "type": kind,
         "payload": payload,
     })

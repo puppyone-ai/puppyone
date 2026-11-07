@@ -13,11 +13,11 @@ use crate::agent::domain::agent_session_model::{
     SessionRecordInput, SessionRef, apply_provider_session, create_agent_session_record,
     persisted_record_from_session, session_metadata, session_snapshot,
 };
-use crate::agent::event_loop::shared;
 use crate::agent::migrations::legacy_session_format::resolve_persisted_runtime_id;
 use crate::agent::runtime::agent_operation_error::sanitize_agent_operation_error;
 use crate::agent::runtime::agent_runtime_port::is_agent_provider_session_unavailable_error;
 use crate::agent::sender::Sender;
+use crate::agent::tasks::shared;
 use futures_util::future::join_all;
 use serde_json::{Value, json};
 use std::cell::RefCell;

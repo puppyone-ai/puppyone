@@ -11,9 +11,10 @@ use crate::agent::agent_events::redact_secret_text;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::executable_discovery::{BoundedRun, RunBounded, run_bounded};
+use crate::platform::paths;
+use crate::text;
 use serde_json::{Value, json};
 use std::rc::Rc;
 
@@ -49,15 +50,15 @@ pub fn create_puppyone_agent_discovery(
 /// `discoverPuppyOneAgentWorker(options)`.
 pub async fn discover_puppyone_agent_worker(
     options: PuppyOneDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let worker_path = options.app_path.as_deref().map(|app| {
-        node_path::resolve(app, PUPPYONE_AGENT_WORKER_PATH)
+        paths::resolve(app, PUPPYONE_AGENT_WORKER_PATH)
             .to_string_lossy()
             .into_owned()
     });
     let profile_path = options.user_data_path.as_deref().map(|data| {
-        node_path::resolve(data, "agent-runtime/puppyone-agent")
+        paths::resolve(data, "agent-runtime/puppyone-agent")
             .to_string_lossy()
             .into_owned()
     });
@@ -75,7 +76,7 @@ pub async fn discover_puppyone_agent_worker(
     let executable_path = options
         .executable_path
         .clone()
-        .filter(|path| node_path::is_absolute(path));
+        .filter(|path| paths::is_absolute(path));
     let base = json!({
         "provider": PUPPYONE_AGENT_RUNTIME_ID,
         "runtimeId": PUPPYONE_AGENT_RUNTIME_ID,
@@ -90,7 +91,7 @@ pub async fn discover_puppyone_agent_worker(
     });
     let probed = async {
         if let Some(signal) = signal.as_ref() {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         let (Some(worker), Some(profile), Some(executable)) =
             (worker_path.as_ref(), profile_path.as_ref(), executable_path.as_ref())
@@ -160,7 +161,7 @@ pub async fn discover_puppyone_agent_worker(
         Ok(readiness) => Ok(readiness),
         Err(error) => {
             if let Some(signal) = signal.as_ref() {
-                signal.throw_if_aborted()?;
+                signal.check()?;
             }
             Ok(Obj::from(&base)
                 .set("status", "error")
@@ -183,7 +184,7 @@ pub fn parse_puppyone_worker_probe(value: &str) -> AgentResult<Value> {
         .map(|line| line.trim_end_matches('\r'))
         .filter(|line| !line.is_empty())
         .collect();
-    if lines.len() != 1 || js::len16(lines[0]) > 4_000 {
+    if lines.len() != 1 || text::len16(lines[0]) > 4_000 {
         return Err(AgentError::new(format!(
             "{BUILT_IN_AGENT_DISPLAY_NAME} worker returned an invalid probe."
         )));

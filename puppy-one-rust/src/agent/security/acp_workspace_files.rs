@@ -9,7 +9,8 @@
 use super::authorized_project_instructions::open_no_follow;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
-use crate::agent::node_path;
+use crate::platform::paths;
+use crate::text;
 use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::io::{Read, Seek, Write};
@@ -44,7 +45,7 @@ impl AcpWorkspaceFileSystem {
         self.canonical_root
             .borrow_mut()
             .get_or_insert_with(|| {
-                std::fs::canonicalize(node_path::resolve_one(&self.workspace_root))
+                std::fs::canonicalize(paths::absolute(&self.workspace_root))
                     .map_err(AgentError::from)
             })
             .clone()
@@ -187,7 +188,7 @@ fn same_file_identity(expected: &std::fs::Metadata, actual: &std::fs::Metadata) 
 
 fn workspace_path(raw_path: Option<&Value>) -> AgentResult<&str> {
     match raw_path.and_then(Value::as_str) {
-        Some(path) if !path.is_empty() && js::len16(path) <= 4_096 => Ok(path),
+        Some(path) if !path.is_empty() && text::len16(path) <= 4_096 => Ok(path),
         _ => Err(AgentError::new("ACP workspace path is invalid.")),
     }
 }
@@ -198,7 +199,7 @@ fn canonical_existing_file(
     references: &[Value],
 ) -> AgentResult<PathBuf> {
     let raw_path = workspace_path(raw_path)?;
-    let target = node_path::resolve(root, raw_path);
+    let target = paths::resolve(root, raw_path);
     let canonical = std::fs::canonicalize(&target)
         .map_err(|_| AgentError::new("ACP workspace file does not exist."))?;
     if !is_inside(root, &canonical) {
@@ -230,15 +231,15 @@ fn canonical_existing_file(
 }
 
 fn is_inside(root: &Path, target: &Path) -> bool {
-    let relative = node_path::relative(root, target);
+    let relative = paths::relative(root, target);
     relative != ".."
         && !relative.starts_with(&format!("..{MAIN_SEPARATOR_STR}"))
-        && !node_path::is_absolute(&relative)
+        && !paths::is_absolute(&relative)
 }
 
 fn ensure_canonical_parent(root: &Path, parent: &Path) -> AgentResult<()> {
     assert_inside(root, parent)?;
-    let relative = node_path::relative(root, parent);
+    let relative = paths::relative(root, parent);
     let mut current = root.to_path_buf();
     for segment in relative.split(MAIN_SEPARATOR_STR).filter(|s| !s.is_empty()) {
         current.push(segment);
@@ -269,14 +270,14 @@ fn ensure_canonical_parent(root: &Path, parent: &Path) -> AgentResult<()> {
 
 fn resolve_workspace_path(root: &Path, raw_path: Option<&Value>) -> AgentResult<PathBuf> {
     let raw_path = workspace_path(raw_path)?;
-    let target = node_path::resolve(root, raw_path);
+    let target = paths::resolve(root, raw_path);
     assert_inside(root, &target)?;
     Ok(target)
 }
 
 fn assert_inside(root: &Path, target: &Path) -> AgentResult<()> {
-    let relative = node_path::relative(root, target);
-    if relative.starts_with("..") || node_path::is_absolute(&relative) {
+    let relative = paths::relative(root, target);
+    if relative.starts_with("..") || paths::is_absolute(&relative) {
         return Err(AgentError::new(
             "ACP file access must stay inside the authorized workspace.",
         ));

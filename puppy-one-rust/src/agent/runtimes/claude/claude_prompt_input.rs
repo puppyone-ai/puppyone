@@ -3,10 +3,10 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
 use crate::agent::domain::agent_reference_error::{agent_reference_error, codes};
-use crate::agent::node_path;
 use crate::agent::security::authorized_workspace_reference_prompt::{
     authorized_workspace_reference_path, format_authorized_workspace_reference_prompt,
 };
+use crate::platform::paths;
 use base64::Engine;
 use serde_json::{Value, json};
 
@@ -34,7 +34,7 @@ pub fn build_claude_user_message_content(
         let Some(filename) = reference
             .get("path")
             .and_then(Value::as_str)
-            .map(|path| node_path::resolve_one(path).to_string_lossy().into_owned())
+            .map(|path| paths::absolute(path).to_string_lossy().into_owned())
         else {
             return Err(reference_error(
                 codes::INVALID_INPUT,

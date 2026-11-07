@@ -4,7 +4,7 @@
 //! The caller still owns authorization. This helper only preserves the
 //! common delivery contract and refuses paths outside the session or the
 //! individual reference's Main-authorized owning root.
-use crate::agent::node_path;
+use crate::platform::paths;
 use serde_json::Value;
 
 const WORKSPACE_REFERENCE_HEADING: &str = "Authorized context files for this turn:";
@@ -68,7 +68,7 @@ pub fn authorized_workspace_reference_path(
         }
         _ => workspace_root,
     };
-    let root = node_path::resolve_one(owning_root);
-    let filename = node_path::resolve(&root, path);
-    node_path::is_same_or_inside(&root, &filename).then(|| filename.to_string_lossy().into_owned())
+    let root = paths::absolute(owning_root);
+    let filename = paths::resolve(&root, path);
+    paths::is_same_or_inside(&root, &filename).then(|| filename.to_string_lossy().into_owned())
 }

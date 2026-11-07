@@ -2,14 +2,17 @@
 //! schedules process-local recovery snapshots.
 use super::ports::{Logger, SessionCache};
 use crate::agent::agent_events::redact_secret_text;
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::contract::types::AgentEventView;
 use crate::agent::domain::agent_event_workspace_paths::normalize_agent_event_workspace_paths;
 use crate::agent::domain::agent_session_actor::EventInput;
 use crate::agent::domain::agent_session_model::{SessionRef, terminal_state_from_control};
-use crate::agent::event_loop::{set_timeout, spawn};
+use crate::agent::tasks::spawn_after;
+use crate::text;
 use serde_json::{Value, json};
 use std::rc::Rc;
+use std::time::Duration;
+use tokio::task::spawn_local;
 
 pub const PERSIST_DEBOUNCE_MS: u64 = 750;
 
@@ -45,7 +48,7 @@ impl AgentEventJournal {
             Err(error) => {
                 // A bad display item must not terminate the native stream consumer. Keep
                 // the failure visible and let later, valid native objects continue.
-                let event_type = js::head16(adapter_event.event_type(), 80).to_string();
+                let event_type = text::head16(adapter_event.event_type(), 80).to_string();
                 let event_type = if adapter_event.get("type").is_some_and(Value::is_string) {
                     event_type
                 } else {
@@ -55,7 +58,7 @@ impl AgentEventJournal {
                     "Agent display translation rejected an item",
                     json!({ "type": event_type, "stage": "main-commit" }),
                 );
-                let diagnostic = js::head16(&redact_secret_text(&error.0), 1_000).to_string();
+                let diagnostic = text::head16(&redact_secret_text(&error.0), 1_000).to_string();
                 let envelope = session
                     .actor
                     .append_event(EventInput {
@@ -114,10 +117,10 @@ impl AgentEventJournal {
         }
         let journal = self.clone();
         let target = session.clone();
-        let timer = set_timeout(PERSIST_DEBOUNCE_MS, move || {
+        let timer = spawn_after(Duration::from_millis(PERSIST_DEBOUNCE_MS), move || {
             target.state_mut().persist_timer = None;
             let journal = journal.clone();
-            spawn(async move { journal.persist_now(&target).await });
+            spawn_local(async move { journal.persist_now(&target).await });
         });
         session.state_mut().persist_timer = Some(timer);
     }

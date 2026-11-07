@@ -14,16 +14,18 @@ use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::agent::event_loop::{AbortController, AbortSignal, SharedTask, shared, spawn};
 use crate::agent::installation::executable_resolver::{
     LocalAgentExecutableResolver, Observation, ResolutionContext, ResolvedCandidate,
 };
+use crate::agent::tasks::{CancelSignal, Canceller, SharedTask, shared};
+use crate::clock;
 use futures_util::future::{LocalBoxFuture, try_join_all};
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
+use tokio::task::spawn_local;
 
 pub const CACHE_TTL_MS: i64 = 5 * 60 * 1_000;
 pub const PERSISTED_CACHE_TTL_MS: i64 = 24 * 60 * 60 * 1_000;
@@ -72,7 +74,7 @@ struct Inner {
     probes: HashMap<String, LocalToolProbe>,
     cached: RefCell<Option<(i64, Value)>>,
     in_flight: RefCell<Option<(u64, SharedTask<AgentResult<Value>>)>>,
-    active_controller: RefCell<Option<AbortController>>,
+    active_controller: RefCell<Option<Canceller>>,
     persisted_cache_loaded: Cell<bool>,
     scan_generation: Cell<u64>,
     disposed: Cell<bool>,
@@ -108,7 +110,7 @@ pub fn create_local_agent_inventory(
     Ok(LocalAgentInventory(Rc::new(Inner {
         app_version: options.app_version.unwrap_or_else(|| "0.0.0".into()),
         env,
-        now: options.now.unwrap_or_else(|| Rc::new(js::now_ms)),
+        now: options.now.unwrap_or_else(|| Rc::new(clock::now_ms)),
         cache_ttl_ms: options.cache_ttl_ms.unwrap_or(CACHE_TTL_MS),
         persisted_cache_ttl_ms: options
             .persisted_cache_ttl_ms
@@ -150,7 +152,7 @@ impl LocalAgentInventory {
                 return Box::pin(task);
             }
             if let Some(controller) = inner.active_controller.borrow().as_ref() {
-                controller.abort(abort_error("Local Agent inventory scan was superseded."));
+                controller.cancel(abort_error("Local Agent inventory scan was superseded."));
             }
         }
         let started_at = (inner.now)();
@@ -162,7 +164,7 @@ impl LocalAgentInventory {
         }
         let read_persisted = !refresh && !inner.persisted_cache_loaded.get();
         inner.persisted_cache_loaded.set(true);
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         let generation = inner.scan_generation.get() + 1;
         inner.scan_generation.set(generation);
         *inner.active_controller.borrow_mut() = Some(controller.clone());
@@ -193,7 +195,7 @@ impl LocalAgentInventory {
             result
         });
         *inner.in_flight.borrow_mut() = Some((generation, task.clone()));
-        spawn({
+        spawn_local({
             let task = task.clone();
             async move {
                 let _ = task.await;
@@ -208,7 +210,7 @@ impl LocalAgentInventory {
         workspace_root: Option<String>,
         started_at: i64,
         generation: u64,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> AgentResult<Value> {
         let inner = &self.0;
         let persisted = if read_persisted {
@@ -222,7 +224,9 @@ impl LocalAgentInventory {
             None => self.scan(workspace_root, started_at, &signal).await?,
         };
         let superseded = || {
-            inner.disposed.get() || generation != inner.scan_generation.get() || signal.aborted()
+            inner.disposed.get()
+                || generation != inner.scan_generation.get()
+                || signal.is_cancelled()
         };
         if superseded() {
             return Err(abort_error("Local Agent inventory scan was superseded."));
@@ -331,7 +335,7 @@ impl LocalAgentInventory {
         &self,
         workspace_root: Option<String>,
         started_at: i64,
-        signal: &AbortSignal,
+        signal: &CancelSignal,
     ) -> AgentResult<Value> {
         let inner = &self.0;
         let (context, context_error) = if inner.resolve_candidate.is_some() {
@@ -382,7 +386,7 @@ impl LocalAgentInventory {
                         false,
                     )),
                     Err(error)
-                        if signal.aborted() || error.name.as_deref() == Some("AbortError") =>
+                        if signal.is_cancelled() || error.name.as_deref() == Some("AbortError") =>
                     {
                         Err(error)
                     }
@@ -408,7 +412,7 @@ impl LocalAgentInventory {
                 .iter()
                 .map(|(_, result, _)| derive_local_connection(Some(result), None))
                 .collect::<Vec<_>>(),
-            "scannedAt": js::iso_string(started_at),
+            "scannedAt": clock::iso_string(started_at),
             "warnings": outcomes
                 .iter()
                 .filter(|(_, _, failed)| *failed)
@@ -443,7 +447,7 @@ impl LocalAgentInventory {
         inner.disposed.set(true);
         inner.scan_generation.set(inner.scan_generation.get() + 1);
         if let Some(controller) = inner.active_controller.borrow_mut().take() {
-            controller.abort(abort_error("Local Agent inventory is closed."));
+            controller.cancel(abort_error("Local Agent inventory is closed."));
         }
         *inner.cached.borrow_mut() = None;
     }

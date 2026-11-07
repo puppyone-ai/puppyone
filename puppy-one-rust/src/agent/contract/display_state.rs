@@ -3,6 +3,7 @@
 use super::display_types::{AgentDisplay, Entry, same};
 use super::js::{self, Obj};
 use super::validation::{Contract, type_error};
+use crate::text;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -128,12 +129,12 @@ fn collection_delta(
             match (old_value.and_then(Value::as_str), value.as_str()) {
                 (Some(old_text), Some(text))
                     if APPENDABLE.contains(&field.as_str())
-                        && js::len16(old_text) > 128
+                        && text::len16(old_text) > 128
                         && text.starts_with(old_text) =>
                 {
                     append.insert(
                         field.clone(),
-                        json!({ "offset": js::len16(old_text), "text": &text[old_text.len()..] }),
+                        json!({ "offset": text::len16(old_text), "text": &text[old_text.len()..] }),
                     );
                 }
                 _ => {
@@ -248,7 +249,7 @@ fn apply_collection_delta(
                 let Some(old_text) = old
                     .get(field)
                     .and_then(Value::as_str)
-                    .filter(|t| Some(js::len16(t) as i64) == offset)
+                    .filter(|t| Some(text::len16(t) as i64) == offset)
                 else {
                     return Err(type_error("Agent display text revision is stale."));
                 };

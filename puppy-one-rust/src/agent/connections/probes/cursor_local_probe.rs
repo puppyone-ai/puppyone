@@ -5,11 +5,12 @@ use super::bounded_probe_command::{create_probe_environment, run_bounded_probe_c
 use super::executable_candidates::assert_executable_identity;
 use super::versioned_local_agent_probe::normalize_probe_source;
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::{ProbeOptions, ProbeResult, ProbeRunner};
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::sync::LazyLock;
@@ -77,7 +78,7 @@ fn broken_cursor(source: Option<&str>, diagnostic: Option<String>) -> Value {
         .set("authentication", "error")
         .opt(
             "diagnostic",
-            diagnostic.map(|d| js::head16(d.trim(), 4_000).to_string()),
+            diagnostic.map(|d| text::head16(d.trim(), 4_000).to_string()),
         )
         .build()
 }
@@ -89,7 +90,7 @@ fn probe_failure_diagnostic(probe: &str, result: &ProbeResult) -> String {
         (None, None) => "an unknown exit status".into(),
     };
     let output = format!("{}\n{}", result.stdout, result.stderr);
-    let output = js::head16(output.trim(), 3_500);
+    let output = text::head16(output.trim(), 3_500);
     if output.is_empty() {
         format!("Cursor {probe} probe ended with {termination}.")
     } else {
@@ -103,7 +104,7 @@ pub async fn probe_cursor_local(
     candidate: Option<&ResolvedCandidate>,
     run_command: Option<ProbeRunner>,
     env: &EnvMap,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> Value {
     let Some(candidate) = candidate else {
         return base_cursor(None)

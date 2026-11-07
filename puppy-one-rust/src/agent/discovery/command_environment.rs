@@ -3,8 +3,8 @@
 use super::bounded_process_probe::{ProbeOptions, ProbeRunner, default_probe_runner};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::windows::command_environment::read_windows_command_environment;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path::flavor::{posix_basename, posix_is_absolute};
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths::flavor::{posix_basename, posix_is_absolute};
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ pub struct ReadEnvironmentOptions {
     pub env: EnvMap,
     pub platform: String,
     pub homedir: PathBuf,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     pub run_probe: Option<ProbeRunner>,
     pub timeout_ms: Option<u64>,
 }
@@ -45,7 +45,7 @@ pub struct ReadEnvironmentOptions {
 pub async fn read_user_command_environment(
     options: ReadEnvironmentOptions,
 ) -> AgentResult<EnvironmentSnapshot> {
-    let abort = |signal: Option<&AbortSignal>| signal.map_or(Ok(()), AbortSignal::throw_if_aborted);
+    let abort = |signal: Option<&CancelSignal>| signal.map_or(Ok(()), CancelSignal::check);
     abort(options.signal.as_ref())?;
     let inherited = normalize_environment(options.env.iter(), &options.platform);
     let run_probe = options
@@ -124,7 +124,7 @@ async fn read_posix_command_environment(
     env: &EnvMap,
     platform: &str,
     homedir: &Path,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
     run_probe: &ProbeRunner,
     timeout_ms: u64,
 ) -> AgentResult<EnvMap> {

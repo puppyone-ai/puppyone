@@ -6,7 +6,9 @@
 use super::{ForkSessionOptions, ListSessionsOptions, SessionMessagesOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::node_path;
+use crate::clock;
+use crate::platform::paths;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
@@ -49,7 +51,7 @@ fn nfc(value: &str) -> String {
 /// `getClaudeConfigHomeDir()` (`p6`).
 pub fn claude_config_dir() -> PathBuf {
     let root = std::env::var("CLAUDE_CONFIG_DIR").ok().unwrap_or_else(|| {
-        node_path::homedir()
+        paths::home_dir()
             .join(".claude")
             .to_string_lossy()
             .into_owned()
@@ -394,7 +396,7 @@ fn first_prompt_of(entry: &Value, command_fallback: &mut String) -> Option<Strin
     }
     for text in texts {
         let flattened = text.replace('\n', " ");
-        let text = js::trim(&flattened);
+        let text = text::trim(&flattened);
         if text.is_empty() {
             continue;
         }
@@ -405,13 +407,13 @@ fn first_prompt_of(entry: &Value, command_fallback: &mut String) -> Option<Strin
             continue;
         }
         if let Some(input) = BASH_INPUT.captures(text) {
-            return Some(format!("! {}", js::trim(&input[1])));
+            return Some(format!("! {}", text::trim(&input[1])));
         }
         if SKIPPED_PROMPT.is_match(text) {
             continue;
         }
-        if js::len16(text) > 200 {
-            return Some(format!("{}…", js::trim(js::head16(text, 200))));
+        if text::len16(text) > 200 {
+            return Some(format!("{}…", text::trim(text::head16(text, 200))));
         }
         return Some(text.to_string());
     }
@@ -455,7 +457,8 @@ fn session_info(session_id: &str, lite: &Lite, project_path: Option<&str>) -> Op
         .or_else(|| non_empty(last_string_field(tail, "aiTitle")))
         .or_else(|| non_empty(last_string_field(head, "aiTitle")));
     let first_prompt = non_empty(Some(first_prompt(head)));
-    let created_at = first_string_field(head, "timestamp").and_then(|value| js::date_parse(&value));
+    let created_at =
+        first_string_field(head, "timestamp").and_then(|value| clock::date_parse(&value));
     let summary = custom_title
         .clone()
         .or_else(|| non_empty(last_string_field(tail, "lastPrompt")))
@@ -1227,7 +1230,7 @@ fn fork_entries(
         return Err(no_messages());
     }
     let forked = uuid::Uuid::new_v4().to_string();
-    let now = js::now_iso();
+    let now = clock::now_iso();
     let mut entries = Vec::new();
     for (index, entry) in kept.iter().enumerate() {
         let mut parent = Value::Null;
@@ -1296,7 +1299,7 @@ fn fork_entries(
     let title = options
         .title
         .as_deref()
-        .map(js::trim)
+        .map(text::trim)
         .filter(|title| !title.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| {

@@ -1,9 +1,10 @@
-//! Node's `path` module as the product's Main process uses it: lexical
-//! `resolve`, `relative` and `basename` on the host's path flavor. No call
-//! touches the file system.
+//! Lexical path arithmetic on the host's path flavor: absolute paths,
+//! `relative` paths between two of them, containment and file names, with
+//! the same answers as Node's `path` module that the product's Main process
+//! uses. No call touches the file system.
 use std::path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf};
 
-/// `path.normalize(path)` for an absolute path: drops `.` and folds `..`
+/// The absolute `path` with `.` dropped and `..` folded (Node `path.normalize`): drops `.` and folds `..`
 /// without walking above the root.
 pub fn normalize(path: &Path) -> PathBuf {
     let mut normalized = PathBuf::new();
@@ -22,12 +23,13 @@ pub fn normalize(path: &Path) -> PathBuf {
     normalized
 }
 
-/// `path.resolve(input)`: relative to the process working directory.
-pub fn resolve_one(input: impl AsRef<Path>) -> PathBuf {
+/// `input` made absolute against the process working directory (Node
+/// `path.resolve(input)`).
+pub fn absolute(input: impl AsRef<Path>) -> PathBuf {
     resolve(std::env::current_dir().unwrap_or_default(), input)
 }
 
-/// `path.resolve(base, input)`.
+/// `input` made absolute against `base` (Node `path.resolve(base, input)`).
 pub fn resolve(base: impl AsRef<Path>, input: impl AsRef<Path>) -> PathBuf {
     let input = input.as_ref();
     if input.is_absolute() {
@@ -52,11 +54,12 @@ fn same_component(left: &Component<'_>, right: &Component<'_>) -> bool {
     }
 }
 
-/// `path.relative(from, to)`: `""` for the same path, `..` segments to
-/// leave `from`, and `to` itself across Windows drives.
+/// The path from `from` to `to`: `""` for the same path, `..` segments to
+/// leave `from`, and `to` itself across Windows drives (Node
+/// `path.relative`).
 pub fn relative(from: impl AsRef<Path>, to: impl AsRef<Path>) -> String {
-    let from = resolve_one(from);
-    let to = resolve_one(to);
+    let from = absolute(from);
+    let to = absolute(to);
     let from: Vec<Component<'_>> = from.components().collect();
     let target: Vec<Component<'_>> = to.components().collect();
     let common = from
@@ -76,32 +79,33 @@ pub fn relative(from: impl AsRef<Path>, to: impl AsRef<Path>) -> String {
     parts.join(MAIN_SEPARATOR_STR)
 }
 
-/// `path.isAbsolute(value)`.
+/// Whether `value` is an absolute path on this host.
 pub fn is_absolute(value: &str) -> bool {
     Path::new(value).is_absolute()
 }
 
-/// `path.basename(value)`.
-pub fn basename(value: &str) -> String {
+/// The last component of `value`, or `""`.
+pub fn file_name(value: &str) -> String {
     Path::new(value)
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
 }
 
-/// The product's `isSameOrInside(root, filename)`: `relative === "" ||
-/// (!relative.startsWith("..") && !path.isAbsolute(relative))`.
+/// Whether `target` is `root` or lies inside it, lexically (the product's
+/// `isSameOrInside(root, filename)`).
 pub fn is_same_or_inside(root: impl AsRef<Path>, target: impl AsRef<Path>) -> bool {
     let relative = relative(root, target);
     relative.is_empty() || (!relative.starts_with("..") && !is_absolute(&relative))
 }
 
-/// `os.homedir()`.
-pub fn homedir() -> PathBuf {
+/// The user's home directory, or an empty path.
+pub fn home_dir() -> PathBuf {
     std::env::home_dir().unwrap_or_default()
 }
 
-/// Node's `path.posix` and `path.win32` on strings, whatever the host.
+/// POSIX and Windows path strings, whatever the host (Node `path.posix`
+/// and `path.win32`).
 pub mod flavor {
     /// `path.posix.isAbsolute(value)`.
     pub fn posix_is_absolute(value: &str) -> bool {
@@ -180,6 +184,6 @@ mod tests {
         assert!(is_same_or_inside("/w", "/w"));
         assert!(!is_same_or_inside("/w", "/wx"));
         assert!(!is_same_or_inside("/w", "/"));
-        assert_eq!(basename("/usr/bin/codex"), "codex");
+        assert_eq!(file_name("/usr/bin/codex"), "codex");
     }
 }

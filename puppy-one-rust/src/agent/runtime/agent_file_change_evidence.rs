@@ -4,6 +4,7 @@
 use super::agent_file_change_blocks::{bound_file_change_blocks, file_change_blocks};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::sync::LazyLock;
@@ -95,7 +96,7 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
         let Some(path) = entry
             .get("path")
             .and_then(Value::as_str)
-            .filter(|p| !js::trim(p).is_empty())
+            .filter(|p| !text::trim(p).is_empty())
         else {
             continue;
         };
@@ -105,7 +106,7 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
             .cloned()
             .unwrap_or(Value::from("update"));
         let mut change = Obj::new()
-            .set("path", js::head16(path, 4096))
+            .set("path", text::head16(path, 4096))
             .set("kind", kind);
         let mut preview = String::new();
         let mut counts: Option<(usize, usize)> = None;
@@ -114,8 +115,8 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
         let fragments = entry.get("fragments").and_then(Value::as_array);
         if let Some(source) = text("diff") {
             is_patch = true;
-            preview = js::head16(source, MAX_SOURCE).to_string();
-            let long = js::len16(source) > MAX_SOURCE;
+            preview = text::head16(source, MAX_SOURCE).to_string();
+            let long = text::len16(source) > MAX_SOURCE;
             counts = if long { None } else { count_diff_lines(source) };
             if long {
                 change.insert("truncated", true);
@@ -136,7 +137,7 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
                     truncated = true;
                     continue;
                 };
-                remaining_source -= (js::len16(before) + js::len16(after)) as i64;
+                remaining_source -= (text::len16(before) + text::len16(after)) as i64;
                 if remaining_source < 0 || Instant::now() >= deadline {
                     truncated = true;
                     break;
@@ -194,8 +195,8 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
             }
         } else if let Some(after) = text("after") {
             // Write can overwrite an existing file. Its new text alone cannot prove a diff.
-            preview = js::head16(after, MAX_SOURCE).to_string();
-            if js::len16(after) > MAX_SOURCE {
+            preview = text::head16(after, MAX_SOURCE).to_string();
+            if text::len16(after) > MAX_SOURCE {
                 change.insert("truncated", true);
             }
         }
@@ -224,11 +225,11 @@ pub fn create_agent_file_change_evidence(entries: &[Value]) -> Vec<Value> {
         remaining_blocks = remaining_blocks.saturating_sub(bounded.blocks.len());
         change.insert("blocks", bounded.blocks);
         remaining_preview = remaining_preview.saturating_sub(bounded.used);
-        if bounded.truncated || js::len16(&safe_preview) > remaining_preview {
+        if bounded.truncated || text::len16(&safe_preview) > remaining_preview {
             change.insert("truncated", true);
         }
-        let diff = js::head16(&safe_preview, remaining_preview).to_string();
-        remaining_preview -= js::len16(&diff);
+        let diff = text::head16(&safe_preview, remaining_preview).to_string();
+        remaining_preview -= text::len16(&diff);
         change.insert("diff", diff);
         out.push(change.build());
     }

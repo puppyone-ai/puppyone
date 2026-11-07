@@ -3,7 +3,7 @@
 use super::agent_runtime_port::{AdapterFuture, AgentRuntimeAdapter};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::native_session_id::native_session_id;
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use serde_json::Value;
 use std::rc::Rc;
 
@@ -18,12 +18,12 @@ pub trait SessionHistoryPort {
         &self,
         _cursor: Option<String>,
         _limit: usize,
-        _signal: AbortSignal,
+        _signal: CancelSignal,
     ) -> AdapterFuture<'_, Value> {
         Box::pin(async { Err(AgentError::new("History discovery is unsupported.")) })
     }
     /// `port.hydrate({ signal })`.
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         Box::pin(async { Err(AgentError::new("History hydration is unsupported.")) })
     }
 }

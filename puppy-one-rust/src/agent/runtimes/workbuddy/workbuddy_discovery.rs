@@ -4,16 +4,17 @@ use super::workbuddy_config_directory::work_buddy_config_directory;
 use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRuntimeDiscovery};
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::runtimes::hermes::hermes_discovery::runtime_readiness;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, parse_semantic_version, run_bounded,
 };
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -69,7 +70,7 @@ fn work_buddy_probe_environment(mut environment: EnvMap) -> EnvMap {
 pub async fn discover_work_buddy_executable(
     channel: WorkBuddyChannel,
     options: WorkBuddyDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let mut discovery =
         DiscoverExecutableOptions::new(channel.display_name, Rc::new(parse_work_buddy_version));
@@ -135,13 +136,13 @@ pub async fn discover_work_buddy_executable(
                                 channel.display_name
                             ),
                         )
-                        .set("diagnostic", js::head16(help.trim(), 4_000))
+                        .set("diagnostic", text::head16(help.trim(), 4_000))
                         .build();
                 }
             }
             Err(error) => {
                 if let Some(signal) = signal.as_ref() {
-                    signal.throw_if_aborted()?;
+                    signal.check()?;
                 }
                 readiness = Obj::from(&result)
                     .set("status", "protocol-unavailable")
@@ -176,7 +177,7 @@ pub fn build_work_buddy_environment(
 ) -> EnvMap {
     let mut environment = build_agent_environment(base, login, platform);
     let read = |key: &str| environment.get(key).cloned();
-    let default_home = crate::agent::node_path::homedir();
+    let default_home = crate::platform::paths::home_dir();
     let directory = work_buddy_config_directory(channel, &read, homedir.unwrap_or(&default_home))
         .to_string_lossy()
         .into_owned();

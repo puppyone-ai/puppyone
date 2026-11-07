@@ -20,6 +20,7 @@ use crate::agent::contract::display_types::AgentDisplay;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::schema::assert_agent_session_control;
 use crate::agent::contract::types::AgentEventView;
+use crate::clock;
 use serde_json::{Map, Value, json};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
@@ -111,7 +112,7 @@ fn uuid() -> String {
 
 impl AgentSessionActor {
     pub fn new(options: ActorOptions) -> Result<Self, ActorError> {
-        let clock = options.clock.unwrap_or_else(|| Box::new(js::now_ms));
+        let clock = options.clock.unwrap_or_else(|| Box::new(clock::now_ms));
         let events: VecDeque<Value> = options.events.into_iter().collect();
         let sequence = events
             .iter()
@@ -275,7 +276,9 @@ impl AgentSessionActor {
         let string = |key: &str| event.get(key).and_then(Value::as_str).map(str::to_string);
         let envelope = create_agent_event_envelope(EnvelopeInput {
             sequence: self.sequence + 1,
-            emitted_at: Some(string("emittedAt").unwrap_or_else(|| js::iso_string((self.clock)()))),
+            emitted_at: Some(
+                string("emittedAt").unwrap_or_else(|| clock::iso_string((self.clock)())),
+            ),
             session_id: input.session_id,
             runtime_id: input.runtime_id,
             provider_session_id: string("providerSessionId").or(input.provider_session_id),

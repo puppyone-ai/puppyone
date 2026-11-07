@@ -1,6 +1,7 @@
 //! `shared/agent-contract/reference-input.mjs`: what kind of attachment a
 //! file is, and whether a runtime accepts it.
 use super::js;
+use crate::text;
 use serde_json::Value;
 
 pub const AGENT_ATTACHMENT_KINDS: &[&str] = &["image", "text", "audio", "video", "binary"];
@@ -115,7 +116,7 @@ pub fn accepted_agent_attachment_picker_types(capabilities: &Value) -> Vec<Strin
             .into_iter()
             .chain(list(input, "extensions"))
         {
-            let value = js::trim(&value).to_lowercase();
+            let value = text::trim(&value).to_lowercase();
             if !value.is_empty() && !types.contains(&value) {
                 types.push(value);
             }
@@ -171,11 +172,11 @@ fn mime_matches(pattern: &str, mime: &str) -> bool {
 }
 
 fn normalize_mime(value: &str) -> String {
-    js::trim(value.split(';').next().unwrap_or("")).to_lowercase()
+    text::trim(value.split(';').next().unwrap_or("")).to_lowercase()
 }
 
 fn normalize_extension(value: &str) -> String {
-    let extension = js::trim(value).to_lowercase();
+    let extension = text::trim(value).to_lowercase();
     if extension.starts_with('.') || extension.is_empty() {
         extension
     } else {
@@ -184,7 +185,7 @@ fn normalize_extension(value: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    let name = js::trim(value).to_lowercase();
+    let name = text::trim(value).to_lowercase();
     name.rfind('.')
         .map(|dot| name[dot..].to_string())
         .unwrap_or_default()

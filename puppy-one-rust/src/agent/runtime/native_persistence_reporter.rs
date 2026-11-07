@@ -1,7 +1,7 @@
 //! `runtime/native-persistence-reporter.mjs`: coalesce provider-owned
 //! persistence checks. A native turn receipt is not sufficient.
 use crate::agent::agent_error::AgentResult;
-use crate::agent::event_loop::{SharedTask, shared};
+use crate::agent::tasks::{SharedTask, shared};
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
@@ -54,7 +54,7 @@ impl NativePersistenceReporter {
             *flight_slot.borrow_mut() = None;
         });
         *self.flight.borrow_mut() = Some(flight.clone());
-        crate::agent::event_loop::spawn(flight.clone());
+        tokio::task::spawn_local(flight.clone());
         flight
     }
 }

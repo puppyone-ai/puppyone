@@ -3,12 +3,12 @@
 //! until it exits, so the adapter can wait for its own processes.
 use super::claude_agent_sdk::{SpawnClaudeCodeProcess, SpawnOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
-use crate::agent::event_loop::{AbortSignal, Timer, set_timeout, spawn};
-use crate::agent::node_path;
+use crate::agent::tasks::{CancelSignal, spawn_after};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionOptions, ProcessIo, Spawner, spawn_managed_process,
 };
+use crate::platform::paths;
+use crate::text;
 use futures_util::FutureExt;
 use futures_util::future::{LocalBoxFuture, join_all};
 use regex::Regex;
@@ -19,6 +19,8 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::sync::Notify;
+use tokio::task::JoinHandle;
+use tokio::task::spawn_local;
 
 static NODE_ENTRYPOINT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\.(?:c?js|mjs)$").expect("pattern"));
@@ -44,11 +46,11 @@ pub struct ClaudeSpawnOptions {
 
 /// One owned process (`lease`).
 struct Lease {
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
     exited: Cell<bool>,
     exit: Notify,
     kill: Rc<dyn Fn(bool) -> bool>,
-    kill_timer: RefCell<Option<Timer>>,
+    kill_timer: RefCell<Option<JoinHandle<()>>>,
     stopping: Cell<bool>,
     abort_listener: Cell<Option<u64>>,
 }
@@ -61,13 +63,16 @@ impl Lease {
         }
         (self.kill)(false);
         let lease = Rc::downgrade(self);
-        *self.kill_timer.borrow_mut() = Some(set_timeout(FORCE_KILL_MS, move || {
-            if let Some(lease) = lease.upgrade()
-                && !lease.exited.get()
-            {
-                (lease.kill)(true);
-            }
-        }));
+        *self.kill_timer.borrow_mut() = Some(spawn_after(
+            Duration::from_millis(FORCE_KILL_MS),
+            move || {
+                if let Some(lease) = lease.upgrade()
+                    && !lease.exited.get()
+                {
+                    (lease.kill)(true);
+                }
+            },
+        ));
     }
 
     async fn wait(self: Rc<Self>) -> AgentResult<()> {
@@ -120,7 +125,7 @@ impl ClaudeSpawn {
         if inner.closed.get() {
             return Err(AgentError::new("Claude Code process owner has closed."));
         }
-        options.signal.throw_if_aborted()?;
+        options.signal.check()?;
         let mut command = options.command.clone();
         let mut args = options.args.clone();
         let path_value = options.env.get("PATH").map(String::as_str);
@@ -137,14 +142,14 @@ impl ClaudeSpawn {
         {
             command = node;
         }
-        if !node_path::is_absolute(&command) || invalid_text(&command) {
+        if !paths::is_absolute(&command) || invalid_text(&command) {
             return Err(AgentError::new(
                 "Claude Code process command must be an absolute validated path.",
             ));
         }
         if args
             .iter()
-            .any(|argument| js::len16(argument) > 4_096 || invalid_text(argument))
+            .any(|argument| text::len16(argument) > 4_096 || invalid_text(argument))
         {
             return Err(AgentError::new(
                 "Claude Code process arguments are invalid.",
@@ -153,7 +158,7 @@ impl ClaudeSpawn {
         let Some(cwd) = options
             .cwd
             .as_deref()
-            .filter(|cwd| node_path::is_absolute(cwd) && !invalid_text(cwd))
+            .filter(|cwd| paths::is_absolute(cwd) && !invalid_text(cwd))
         else {
             return Err(AgentError::new(
                 "Claude Code process working directory must be absolute.",
@@ -186,18 +191,18 @@ impl ClaudeSpawn {
         let observed = exit.shared();
         let owner = Rc::downgrade(&self.0);
         let released = lease.clone();
-        spawn({
+        spawn_local({
             let observed = observed.clone();
             async move {
                 let _ = observed.await;
                 released.exited.set(true);
                 if let Some(timer) = released.kill_timer.borrow_mut().take() {
-                    timer.clear();
+                    timer.abort();
                 }
                 if let (Some(listener), Some(signal)) =
                     (released.abort_listener.take(), released.signal.as_ref())
                 {
-                    signal.remove_listener(listener);
+                    signal.forget(listener);
                 }
                 if let Some(owner) = owner.upgrade() {
                     owner
@@ -212,7 +217,7 @@ impl ClaudeSpawn {
         let stderr: Box<dyn AsyncRead + Unpin> =
             std::mem::replace(&mut io.stderr, Box::new(tokio::io::empty()));
         let on_stderr = inner.options.on_stderr.clone();
-        spawn(async move {
+        spawn_local(async move {
             let mut stderr = stderr;
             let mut buffer = vec![0u8; 16 * 1024];
             while let Ok(read) = stderr.read(&mut buffer).await {
@@ -221,16 +226,16 @@ impl ClaudeSpawn {
                 }
                 if let Some(on_stderr) = on_stderr.as_ref() {
                     let chunk = String::from_utf8_lossy(&buffer[..read]);
-                    let start = js::len16(&chunk).saturating_sub(8_192);
-                    on_stderr(js::tail16(&chunk, start));
+                    let start = text::len16(&chunk).saturating_sub(8_192);
+                    on_stderr(text::tail16(&chunk, start));
                 }
             }
         });
-        if options.signal.aborted() {
+        if options.signal.is_cancelled() {
             lease.stop();
         } else {
             let target = Rc::downgrade(&lease);
-            let listener = options.signal.add_listener(move || {
+            let listener = options.signal.on_cancel(move || {
                 if let Some(lease) = target.upgrade() {
                     lease.stop();
                 }
@@ -244,7 +249,7 @@ impl ClaudeSpawn {
     /// `signal` (or every process).
     pub fn wait_for_exit_of(
         &self,
-        signal: Option<&AbortSignal>,
+        signal: Option<&CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         let leases: Vec<Rc<Lease>> = self
             .0
@@ -299,7 +304,7 @@ impl ClaudeSpawn {
         for directory in path_value
             .unwrap_or("")
             .split(separator)
-            .filter(|d| node_path::is_absolute(d))
+            .filter(|d| paths::is_absolute(d))
         {
             for name in names {
                 candidates.push(Path::new(directory).join(name));
@@ -348,7 +353,7 @@ impl SpawnClaudeCodeProcess for ClaudeSpawn {
     }
     fn wait_for_exit(
         &self,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         self.wait_for_exit_of(signal.as_ref())
     }

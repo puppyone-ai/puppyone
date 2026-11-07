@@ -16,8 +16,8 @@ pub use turn::{Complete, CompleteRequest};
 
 use super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::event_loop::spawn;
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionOptions, ProcessIo, Spawner};
+use crate::text;
 use serde_json::{Value, json};
 use session::Session;
 use std::cell::{Cell, RefCell};
@@ -28,6 +28,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot, watch};
+use tokio::task::spawn_local;
 
 /// How the client launched the kernel (`parseWorkerArguments` with the
 /// worker's environment and bootstrap envelope).
@@ -81,7 +82,7 @@ fn parse_launch(options: &ConnectionOptions) -> Result<Launch, String> {
             other => {
                 return Err(format!(
                     "Unsupported {BUILT_IN_AGENT_DISPLAY_NAME} worker argument: {}",
-                    crate::agent::contract::js::head16(other, 120)
+                    text::head16(other, 120)
                 ));
             }
         }
@@ -131,7 +132,7 @@ pub fn native_kernel_spawner(complete: Complete) -> Spawner {
             let (stop, stopped) = watch::channel(false);
             let launch = parse_launch(options);
             let complete = complete.clone();
-            spawn(async move {
+            spawn_local(async move {
                 match launch.and_then(|launch| Kernel::start(launch, complete)) {
                     Err(message) => {
                         // A worker that cannot start reports on stderr and exits;
@@ -149,7 +150,7 @@ pub fn native_kernel_spawner(complete: Complete) -> Spawner {
                         while let Ok(Some(_)) = stdin.next_line().await {}
                     }
                     Ok((kernel, lines)) => {
-                        let writer = spawn(write_lines(lines, worker_stdout));
+                        let writer = spawn_local(write_lines(lines, worker_stdout));
                         kernel.serve(worker_stdin, stopped).await;
                         kernel.close();
                         let _ = writer.await;
@@ -331,7 +332,7 @@ impl Kernel {
             "set_session_name" => {
                 let name = message["name"]
                     .as_str()
-                    .map(|n| crate::agent::contract::js::head16(n.trim(), 200).to_string());
+                    .map(|n| text::head16(n.trim(), 200).to_string());
                 self.session.borrow_mut().name = name.filter(|n| !n.is_empty());
                 self.persist().map(|()| json!({}))
             }
@@ -346,7 +347,7 @@ impl Kernel {
             }
             "compact" => {
                 let kernel = self.clone();
-                spawn(async move {
+                spawn_local(async move {
                     let result = turn::compact(&kernel).await;
                     kernel.respond(&id, "compact", result);
                 });
@@ -438,7 +439,7 @@ impl Kernel {
         });
         *self.run.borrow_mut() = Some(run.clone());
         let kernel = self.clone();
-        spawn(async move {
+        spawn_local(async move {
             turn::run(&kernel, &run, aborted_signal, model, user).await;
             let mut current = kernel.run.borrow_mut();
             if current
@@ -521,10 +522,10 @@ pub fn configured_complete(
 pub fn native_kernel_readiness(user_data_path: &str, executable_path: &str) -> AgentResult<Value> {
     use super::puppyone_agent_identity::PUPPYONE_AGENT_RUNTIME_ID;
     use super::puppyone_agent_kernel::{PUPPYONE_PI_KERNEL, PUPPYONE_PI_KERNEL_PROTOCOL};
-    let profile = crate::agent::node_path::resolve(user_data_path, "agent-runtime/puppyone-agent")
+    let profile = crate::platform::paths::resolve(user_data_path, "agent-runtime/puppyone-agent")
         .to_string_lossy()
         .into_owned();
-    if !crate::agent::node_path::is_absolute(executable_path) {
+    if !crate::platform::paths::is_absolute(executable_path) {
         return Err(AgentError::new(format!(
             "{BUILT_IN_AGENT_DISPLAY_NAME} launch paths are unavailable."
         )));

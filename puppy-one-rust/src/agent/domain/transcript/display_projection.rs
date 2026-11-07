@@ -14,6 +14,7 @@ use super::turn_timing::{parse_agent_event_time, read_agent_turn_duration_ms};
 use crate::agent::contract::display_types::Entry;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use serde_json::{Map, Value};
 
 /// `options` of the projection: hydration reads legacy connection warnings
@@ -474,7 +475,7 @@ fn estimate_part_height(part: &Value) -> i64 {
     match part.get("kind").and_then(Value::as_str).unwrap_or("") {
         "user" => 64,
         "assistant" => {
-            let length = js::len16(js::str_or_empty(part.get("text"))) as i64;
+            let length = text::len16(js::str_or_empty(part.get("text"))) as i64;
             640.min(50 + ((length + 63) / 64) * 20)
         }
         "turn-summary" => 32,

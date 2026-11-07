@@ -1,12 +1,13 @@
 //! `runtime/agent-operation-error.mjs`.
 use crate::agent::agent_error::AgentError;
 use crate::agent::agent_events::redact_secret_text;
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
+use crate::text;
 use serde_json::Value;
 
 /// `sanitizeAgentOperationError(value)`.
 pub fn sanitize_agent_operation_error(mut error: AgentError) -> AgentError {
-    let message = js::head16(&redact_secret_text(&error.message), 4_000).to_string();
+    let message = text::head16(&redact_secret_text(&error.message), 4_000).to_string();
     error.message = if message.is_empty() {
         "Agent operation failed.".into()
     } else {
@@ -32,7 +33,7 @@ pub fn agent_operation_failure(error: AgentError) -> Value {
     let bounded = |value: &Option<String>| {
         value
             .as_ref()
-            .map(|v| js::head16(&redact_secret_text(v), 160).to_string())
+            .map(|v| text::head16(&redact_secret_text(v), 160).to_string())
     };
     let failure = Obj::new()
         .set("schemaVersion", 1)
@@ -41,7 +42,7 @@ pub fn agent_operation_failure(error: AgentError) -> Value {
             error
                 .code
                 .as_ref()
-                .map(|c| js::head16(c, 160).to_string())
+                .map(|c| text::head16(c, 160).to_string())
                 .unwrap_or_else(|| "AGENT_OPERATION_FAILED".into()),
         )
         .set("message", error.message.clone())

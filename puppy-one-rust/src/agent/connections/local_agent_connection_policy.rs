@@ -2,6 +2,7 @@
 //! public local connection. Only a detected, signed-in, protocol-compatible
 //! installation with models is selectable.
 use crate::agent::contract::js;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
@@ -201,7 +202,7 @@ fn normalize_id(value: Option<&Value>) -> String {
         .filter(|v| js::truthy(v))
         .map(|v| js::to_js_string(Some(v)))
         .unwrap_or_else(|| "local-agent".into());
-    let normalized = js::trim(&raw).to_lowercase();
+    let normalized = text::trim(&raw).to_lowercase();
     if ID.is_match(&normalized) {
         normalized
     } else {
@@ -210,8 +211,8 @@ fn normalize_id(value: Option<&Value>) -> String {
 }
 
 fn safe_version(value: Option<&Value>) -> Option<String> {
-    let normalized = js::trim(value.and_then(Value::as_str).unwrap_or(""));
-    (!normalized.is_empty() && js::len16(normalized) <= 80 && VERSION.is_match(normalized))
+    let normalized = text::trim(value.and_then(Value::as_str).unwrap_or(""));
+    (!normalized.is_empty() && text::len16(normalized) <= 80 && VERSION.is_match(normalized))
         .then(|| normalized.to_string())
 }
 
@@ -219,12 +220,12 @@ fn safe_version(value: Option<&Value>) -> Option<String> {
 fn safe_text(value: Option<&Value>, fallback: &str, limit: usize) -> String {
     let normalized = value
         .and_then(Value::as_str)
-        .map(|text| js::trim(&LINE_BREAKS.replace_all(text, " ")).to_string())
+        .map(|text| text::trim(&LINE_BREAKS.replace_all(text, " ")).to_string())
         .unwrap_or_default();
     let text = if normalized.is_empty() {
         fallback.to_string()
     } else {
         normalized
     };
-    js::head16(&text, limit).to_string()
+    text::head16(&text, limit).to_string()
 }

@@ -5,6 +5,7 @@
 //! measures the entries it rebuilt.
 use super::display_types::Entry;
 use super::js;
+use crate::text;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex, Weak};
@@ -41,7 +42,7 @@ fn measure(value: &Value) -> EntryMetrics {
         m.nodes += 1;
         m.depth = m.depth.max(depth);
         match value {
-            Value::String(text) => m.longest_text = m.longest_text.max(js::len16(text)),
+            Value::String(text) => m.longest_text = m.longest_text.max(text::len16(text)),
             Value::Number(n) => m.non_finite |= !n.as_f64().is_some_and(f64::is_finite),
             Value::Array(items) => items.iter().for_each(|item| walk(item, depth + 1, m)),
             Value::Object(map) => map.iter().for_each(|(key, item)| {

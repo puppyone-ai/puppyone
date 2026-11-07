@@ -2,6 +2,7 @@
 //! contract schema is built from. A failure is the product's `TypeError`
 //! (`Invalid Agent contract: <path> <reason>.`).
 use super::js::{self, Obj};
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::sync::LazyLock;
@@ -93,12 +94,12 @@ pub fn required_string_with(
     let normalized = if rule.preserve_whitespace {
         text
     } else {
-        js::trim(text)
+        text::trim(text)
     };
-    if !rule.allow_empty && js::trim(normalized).is_empty() {
+    if !rule.allow_empty && text::trim(normalized).is_empty() {
         return Err(contract_error(label, "must not be empty"));
     }
-    if js::len16(normalized) > limit {
+    if text::len16(normalized) > limit {
         return Err(contract_error(
             label,
             &format!("exceeds {limit} characters"),

@@ -4,15 +4,17 @@
 use super::{CLAUDE_AGENT_SDK_VERSION, QueryOptions, SpawnOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::{AbortController, AbortSignal, set_timeout, spawn};
+use crate::agent::tasks::{CancelSignal, Canceller, spawn_after};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionOptions, ProcessIo, spawn_managed_process,
 };
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc};
+use tokio::task::spawn_local;
 
 /// `Tx`: the grace a closed CLI gets to exit on stdin EOF.
 const CLOSE_GRACE_MS: u64 = 2_000;
@@ -130,8 +132,8 @@ struct ExitState {
 pub struct ProcessTransport(Rc<Inner>);
 
 struct Inner {
-    abort: AbortSignal,
-    forwarded: AbortController,
+    abort: CancelSignal,
+    forwarded: Canceller,
     writer: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
     input_ended: Cell<bool>,
     stdout: RefCell<Option<Box<dyn AsyncRead + Unpin>>>,
@@ -149,7 +151,7 @@ impl Clone for ProcessTransport {
 
 impl ProcessTransport {
     /// Launches the CLI (`initialize()`).
-    pub fn spawn(options: &QueryOptions, abort: &AbortController) -> AgentResult<Self> {
+    pub fn spawn(options: &QueryOptions, abort: &Canceller) -> AgentResult<Self> {
         let Some(executable) = options
             .path_to_claude_code_executable
             .clone()
@@ -170,7 +172,7 @@ impl ProcessTransport {
                 std::iter::once(executable).chain(args).collect(),
             )
         };
-        let forwarded = AbortController::new();
+        let forwarded = Canceller::new();
         let spawn_options = SpawnOptions {
             command,
             args,
@@ -191,7 +193,7 @@ impl ProcessTransport {
             pid: _,
         } = io;
         let (writer, mut queue) = mpsc::unbounded_channel::<Vec<u8>>();
-        spawn(async move {
+        spawn_local(async move {
             let mut stdin = stdin;
             while let Some(bytes) = queue.recv().await {
                 if stdin.write_all(&bytes).await.is_err() || stdin.flush().await.is_err() {
@@ -213,9 +215,9 @@ impl ProcessTransport {
             abort_listener: Cell::new(None),
         }));
         let abort_signal = abort.signal();
-        spawn(async move {
+        spawn_local(async move {
             let (code, signal, error): ExitSignal = exit.await;
-            let exit_error = if abort_signal.aborted() {
+            let exit_error = if abort_signal.is_cancelled() {
                 Some(abort_error("Claude Code process aborted by user"))
             } else if let Some(error) = error {
                 Some(AgentError::new(format!(
@@ -230,16 +232,16 @@ impl ProcessTransport {
             state.notify.notify_waiters();
         });
         let weak = Rc::downgrade(&transport.0);
-        let listener = abort.signal().add_listener(move || {
+        let listener = abort.signal().on_cancel(move || {
             if let Some(inner) = weak.upgrade() {
                 ProcessTransport(inner).close();
             }
         });
         transport.0.abort_listener.set(Some(listener));
-        if abort.signal().aborted() {
+        if abort.signal().is_cancelled() {
             transport.close();
         }
-        transport.0.ready.set(!abort.signal().aborted());
+        transport.0.ready.set(!abort.signal().is_cancelled());
         Ok(transport)
     }
 
@@ -251,7 +253,7 @@ impl ProcessTransport {
     /// `write(data)`.
     pub fn write(&self, data: String) -> AgentResult<()> {
         let inner = &self.0;
-        if inner.abort.aborted() {
+        if inner.abort.is_cancelled() {
             return Err(abort_error("Operation aborted"));
         }
         if !inner.ready.get() {
@@ -295,13 +297,13 @@ impl ProcessTransport {
         inner.writer.borrow_mut().take();
         inner.input_ended.set(true);
         if let Some(listener) = inner.abort_listener.take() {
-            inner.abort.remove_listener(listener);
+            inner.abort.forget(listener);
         }
         let forward = {
             let (abort, forwarded) = (inner.abort.clone(), inner.forwarded.clone());
             move || {
                 if let Some(reason) = abort.reason() {
-                    forwarded.abort(reason);
+                    forwarded.cancel(reason);
                 }
             }
         };
@@ -309,20 +311,26 @@ impl ProcessTransport {
             forward();
         } else {
             let (exit, kill) = (inner.exit.clone(), inner.kill.clone());
-            drop(set_timeout(CLOSE_GRACE_MS, move || {
-                if exit.exited.get() {
-                    forward();
-                    return;
-                }
-                kill(false);
-                let (exit, kill) = (exit.clone(), kill.clone());
-                drop(set_timeout(FORCE_KILL_MS, move || {
-                    if !exit.exited.get() {
-                        kill(true);
+            drop(spawn_after(
+                Duration::from_millis(CLOSE_GRACE_MS),
+                move || {
+                    if exit.exited.get() {
+                        forward();
+                        return;
                     }
-                }));
-                forward();
-            }));
+                    kill(false);
+                    let (exit, kill) = (exit.clone(), kill.clone());
+                    drop(spawn_after(
+                        Duration::from_millis(FORCE_KILL_MS),
+                        move || {
+                            if !exit.exited.get() {
+                                kill(true);
+                            }
+                        },
+                    ));
+                    forward();
+                },
+            ));
         }
         inner.ready.set(false);
     }
@@ -380,7 +388,7 @@ fn spawn_local_process(
     })?;
     let mut stderr: Box<dyn AsyncRead + Unpin> =
         std::mem::replace(&mut io.stderr, Box::new(tokio::io::empty()));
-    spawn(async move {
+    spawn_local(async move {
         let mut buffer = vec![0u8; 8_192];
         while let Ok(read) = stderr.read(&mut buffer).await {
             if read == 0 {
@@ -396,7 +404,7 @@ fn spawn_local_process(
         }
     });
     let kill = io.kill.clone();
-    options.signal.add_listener(move || {
+    options.signal.on_cancel(move || {
         kill(false);
     });
     Ok(io)

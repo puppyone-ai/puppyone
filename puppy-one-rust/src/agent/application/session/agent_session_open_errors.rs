@@ -2,7 +2,7 @@
 //! diagnostics stay behind one bounded product error contract.
 use crate::agent::agent_error::AgentError;
 use crate::agent::agent_events::redact_secret_text;
-use crate::agent::contract::js;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
@@ -42,7 +42,7 @@ pattern!(
 
 /// `classifySessionOpenFailure(error)`.
 pub fn classify_session_open_failure(error: &AgentError) -> Value {
-    let message = js::head16(&redact_secret_text(&error.message), 1_000).to_string();
+    let message = text::head16(&redact_secret_text(&error.message), 1_000).to_string();
     let code = error.code.as_deref().unwrap_or("");
     if code == "HISTORY_SOURCE_CHANGED" {
         return session_open_failure(

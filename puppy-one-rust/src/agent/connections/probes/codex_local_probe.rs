@@ -5,16 +5,17 @@ use super::bounded_probe_command::{create_probe_environment, run_bounded_probe_c
 use super::executable_candidates::assert_executable_identity;
 use super::versioned_local_agent_probe::normalize_probe_source;
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
-use crate::agent::node_path;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::{ProbeOptions, ProbeRunner};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionEvent, ConnectionOptions, RequestOptions,
 };
 use crate::agent::transports::rpc_connection::{ConnectionFactory, jsonl_rpc_connection_factory};
+use crate::platform::paths;
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -42,7 +43,7 @@ pub struct InspectRequest {
     pub app_version: String,
     pub workspace_root: Option<String>,
     pub env: EnvMap,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     pub connection_factory: Option<ConnectionFactory>,
 }
 
@@ -60,7 +61,7 @@ pub struct CodexProbeOptions {
     pub app_version: Option<String>,
     pub workspace_root: Option<String>,
     pub env: Option<EnvMap>,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
 }
 
 fn base_codex(source: Option<&str>) -> Obj {
@@ -191,7 +192,7 @@ pub async fn probe_codex_local(options: CodexProbeOptions) -> Value {
                 options
                     .workspace_root
                     .clone()
-                    .unwrap_or_else(|| node_path::homedir().to_string_lossy().into_owned()),
+                    .unwrap_or_else(|| paths::home_dir().to_string_lossy().into_owned()),
             ),
             env: create_probe_environment(&env),
             signal: options.signal.clone(),
@@ -231,7 +232,11 @@ fn cancelled() -> AgentError {
 /// `inspectCodexProtocol(request)`: `initialize`, then `account/read` and
 /// `model/list` on a bounded connection that refuses server requests.
 pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Value> {
-    if request.signal.as_ref().is_some_and(AbortSignal::aborted) {
+    if request
+        .signal
+        .as_ref()
+        .is_some_and(CancelSignal::is_cancelled)
+    {
         return Err(cancelled());
     }
     let factory = request
@@ -248,7 +253,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
                 .workspace_root
                 .clone()
                 .filter(|root| !root.is_empty())
-                .unwrap_or_else(|| node_path::homedir().to_string_lossy().into_owned()),
+                .unwrap_or_else(|| paths::home_dir().to_string_lossy().into_owned()),
         ),
         env: Some(request.env.clone().into_iter().collect()),
         max_line_bytes: Some(256 * 1024),
@@ -275,7 +280,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
     }
     let listener = request.signal.as_ref().map(|signal| {
         let target = Rc::downgrade(&connection);
-        signal.add_listener(move || {
+        signal.on_cancel(move || {
             if let Some(connection) = target.upgrade() {
                 connection.dispose("Codex inventory probe cancelled.", false);
             }
@@ -286,7 +291,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
         ..Default::default()
     };
     let result = async {
-        if request.signal.as_ref().is_some_and(AbortSignal::aborted) {
+        if request.signal.as_ref().is_some_and(CancelSignal::is_cancelled) {
             connection.dispose("Codex inventory probe cancelled.", false);
             return Err(cancelled());
         }
@@ -297,7 +302,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
                     "clientInfo": {
                         "name": "puppyone_desktop_inventory",
                         "title": "PuppyOne Desktop",
-                        "version": js::head16(
+                        "version": text::head16(
                             if request.app_version.is_empty() { "0.0.0" } else { &request.app_version },
                             80,
                         ),
@@ -329,7 +334,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
     }
     .await;
     if let (Some(signal), Some(listener)) = (request.signal.as_ref(), listener) {
-        signal.remove_listener(listener);
+        signal.forget(listener);
     }
     connection.dispose("Codex inventory probe complete.", false);
     result

@@ -5,6 +5,7 @@ use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redac
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::native_session_id::native_session_id;
 use crate::agent::runtime::agent_file_change_evidence::create_agent_file_change_evidence;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -55,7 +56,7 @@ fn safe_id_str(value: Option<&str>) -> Option<String> {
 fn text(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(s, 32_768).to_string())
+        .map(|s| text::head16(s, 32_768).to_string())
         .unwrap_or_default()
 }
 
@@ -204,7 +205,7 @@ pub fn normalize_claude_message(message: &Value, state: &mut ClaudeEventState) -
                 .take(200)
                 .map(|file| {
                     json!({
-                        "path": js::head16(&text(file.get("filename")), 4_096),
+                        "path": text::head16(&text(file.get("filename")), 4_096),
                         "status": if js::truthy_opt(file.get("error")) { "failed" } else { "updated" },
                     })
                 })
@@ -589,14 +590,14 @@ fn normalize_tool_results(
             let (name, input) = metadata.unwrap_or_else(|| ("Tool".into(), json!({})));
             let name = if name.is_empty() { "Tool".to_string() } else { name };
             let redacted = redact_secret_text(&output);
-            let start = js::len16(&redacted).saturating_sub(16 * 1024);
+            let start = text::len16(&redacted).saturating_sub(16 * 1024);
             let payload = Obj::from(&tool_payload(
                 Some(&name),
                 &input,
                 if failed { "failed" } else { "completed" },
             ))
             .set("result", result)
-            .set("outputPreview", js::tail16(&redacted, start))
+            .set("outputPreview", text::tail16(&redacted, start))
             .build();
             event(
                 "tool.completed",
@@ -759,7 +760,7 @@ fn tool_label(name: Option<&str>, input: &Value) -> String {
             return description;
         }
         let command = text(input.get("command"));
-        let command = js::head16(&command, 240);
+        let command = text::head16(&command, 240);
         return if command.is_empty() {
             "Run command".into()
         } else {
@@ -775,14 +776,14 @@ fn tool_label(name: Option<&str>, input: &Value) -> String {
     if !path.is_empty() {
         return format!("{} {path}", name.unwrap_or("Tool"));
     }
-    name.map(|n| js::head16(n, 32_768).to_string())
+    name.map(|n| text::head16(n, 32_768).to_string())
         .unwrap_or_else(|| "Tool".into())
 }
 
 fn canonical_tool_name(name: &str) -> String {
-    let text = js::head16(name, 32_768);
+    let text = text::head16(name, 32_768);
     let normalized = TOOL_SEPARATORS
-        .replace_all(&js::trim(text).to_lowercase(), "")
+        .replace_all(&text::trim(text).to_lowercase(), "")
         .into_owned();
     let known = match normalized.as_str() {
         "bash" | "shell" => Some("bash"),

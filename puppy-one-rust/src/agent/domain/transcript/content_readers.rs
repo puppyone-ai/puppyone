@@ -3,6 +3,7 @@
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
 use crate::agent::migrations::legacy_file_change_evidence::legacy_file_change_evidence;
+use crate::text;
 use serde_json::{Map, Value};
 
 const ACTIVITY_STATUS_ALIASES: &[(&str, &str)] = &[
@@ -33,7 +34,7 @@ const ACTIVITY_STATUS_ALIASES: &[(&str, &str)] = &[
 pub fn normalize_agent_activity_status(value: Option<&Value>, fallback: &str) -> String {
     let normalized = value
         .and_then(Value::as_str)
-        .map(|s| js::trim(s).to_lowercase())
+        .map(|s| text::trim(s).to_lowercase())
         .unwrap_or_default();
     if normalized.is_empty() {
         return fallback.to_string();
@@ -56,7 +57,7 @@ pub fn read_questions(value: Option<&Value>) -> Value {
             .take(8)
             .filter(|entry| entry.is_object())
             .filter_map(|record| {
-                let question = js::head16(js::str_or_empty(record.get("question")), 2_000);
+                let question = text::head16(js::str_or_empty(record.get("question")), 2_000);
                 if question.is_empty() {
                     return None;
                 }
@@ -69,13 +70,13 @@ pub fn read_questions(value: Option<&Value>) -> Value {
                             .take(20)
                             .filter(|option| option.is_object())
                             .filter_map(|item| {
-                                let label = js::head16(js::str_or_empty(item.get("label")), 200);
+                                let label = text::head16(js::str_or_empty(item.get("label")), 200);
                                 (!label.is_empty()).then(|| {
                                     Obj::new()
                                         .set("label", label)
                                         .set(
                                             "description",
-                                            js::head16(
+                                            text::head16(
                                                 js::str_or_empty(item.get("description")),
                                                 600,
                                             ),
@@ -90,7 +91,7 @@ pub fn read_questions(value: Option<&Value>) -> Value {
                     Obj::new()
                         .set(
                             "header",
-                            js::head16(js::str_or_empty(record.get("header")), 80),
+                            text::head16(js::str_or_empty(record.get("header")), 80),
                         )
                         .set("question", question)
                         .set("multiple", js::truthy_opt(record.get("multiple")))
@@ -228,7 +229,7 @@ fn read_provider_message_at(value: Option<&Value>, depth: usize) -> String {
         return String::new();
     }
     if let Some(text) = value.as_str() {
-        let text = js::trim(text);
+        let text = text::trim(text);
         if text.is_empty() {
             return String::new();
         }
@@ -240,7 +241,7 @@ fn read_provider_message_at(value: Option<&Value>, depth: usize) -> String {
                 return nested;
             }
         }
-        return js::head16(text, 32_768).to_string();
+        return text::head16(text, 32_768).to_string();
     }
     if !value.is_object() {
         return String::new();
@@ -285,8 +286,8 @@ pub fn read_network_approval_context(value: Option<&Value>) -> Value {
     let Some(record) = value.filter(|v| v.is_object()) else {
         return Value::Null;
     };
-    let host = js::trim(js::str_or_empty(record.get("host")));
-    let protocol = js::trim(js::str_or_empty(record.get("protocol")));
+    let host = text::trim(js::str_or_empty(record.get("host")));
+    let protocol = text::trim(js::str_or_empty(record.get("protocol")));
     if host.is_empty() || protocol.is_empty() {
         return Value::Null;
     }
@@ -338,7 +339,7 @@ fn bound_projection_value(value: &Value, depth: usize) -> Value {
         return Value::from("[truncated]");
     }
     match value {
-        Value::String(text) => Value::from(js::head16(text, 64 * 1024)),
+        Value::String(text) => Value::from(text::head16(text, 64 * 1024)),
         Value::Array(entries) => Value::Array(
             entries
                 .iter()
@@ -351,7 +352,7 @@ fn bound_projection_value(value: &Value, depth: usize) -> Value {
                 .take(40)
                 .map(|(key, entry)| {
                     (
-                        js::head16(key, 100).to_string(),
+                        text::head16(key, 100).to_string(),
                         bound_projection_value(entry, depth + 1),
                     )
                 })

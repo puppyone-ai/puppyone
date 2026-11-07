@@ -3,6 +3,7 @@
 //! The journal stays intact; only its display projection is enriched.
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_file_change_evidence::create_agent_file_change_evidence;
+use crate::text;
 use serde_json::Value;
 
 /// `legacyFileChangeEvidence(payload)`.
@@ -21,7 +22,7 @@ pub fn legacy_file_change_evidence(payload: &Value) -> Option<Vec<Value>> {
             .filter(|(_, c)| {
                 c.get("path")
                     .and_then(Value::as_str)
-                    .is_some_and(|p| !js::trim(p).is_empty())
+                    .is_some_and(|p| !text::trim(p).is_empty())
             })
             .map(|(index, _)| index)
             .take(100)

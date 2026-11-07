@@ -13,12 +13,14 @@ use crate::agent::contract::runtime_schema::{
     normalize_capability_snapshot, sanitize_agent_runtime_descriptor,
 };
 use crate::agent::contract::types::AgentEventView;
-use crate::agent::event_loop::{SharedTask, Timer};
 use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
 use crate::agent::sender::Sender;
+use crate::agent::tasks::SharedTask;
+use crate::clock;
 use serde_json::Value;
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
+use tokio::task::JoinHandle;
 
 const MAX_REPLAY_EVENTS: usize = 1_000;
 
@@ -54,8 +56,8 @@ pub struct SessionState {
     pub title: String,
     pub created_at: String,
     pub updated_at: String,
-    pub persist_timer: Option<Timer>,
-    pub interrupt_fallback_timer: Option<Timer>,
+    pub persist_timer: Option<JoinHandle<()>>,
+    pub interrupt_fallback_timer: Option<JoinHandle<()>>,
     pub closing: bool,
     pub closed: bool,
     pub lifecycle_event_seen: bool,
@@ -137,7 +139,7 @@ pub fn create_agent_session_record(input: SessionRecordInput) -> AgentResult<Ses
                 .unwrap_or("Agent")
         )
     });
-    let now = js::now_iso();
+    let now = clock::now_iso();
     Ok(Rc::new(AgentSession {
         actor,
         instance_id: uuid::Uuid::new_v4().to_string(),
@@ -420,7 +422,7 @@ pub fn apply_provider_session(session: &AgentSession, provider_session: &Value) 
     if let Some(created) = text("createdAt") {
         state.created_at = created;
     }
-    state.updated_at = text("updatedAt").unwrap_or_else(js::now_iso);
+    state.updated_at = text("updatedAt").unwrap_or_else(clock::now_iso);
 }
 
 fn list(value: Option<&Value>) -> Vec<Value> {

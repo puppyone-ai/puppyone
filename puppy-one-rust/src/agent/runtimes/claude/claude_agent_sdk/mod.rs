@@ -11,7 +11,7 @@ mod tests;
 
 use crate::agent::agent_error::AgentResult;
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::{AbortController, AbortSignal};
+use crate::agent::tasks::{CancelSignal, Canceller};
 use crate::agent::transports::jsonl_rpc_connection::ProcessIo;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
@@ -32,7 +32,7 @@ pub type CanUseTool =
 /// `canUseTool`'s options, from a `can_use_tool` control request.
 #[derive(Clone, Default)]
 pub struct PermissionOptions {
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     pub suggestions: Option<Value>,
     pub blocked_path: Option<Value>,
     pub decision_reason: Option<Value>,
@@ -46,7 +46,7 @@ pub struct PermissionOptions {
 impl PermissionOptions {
     /// The options object as JavaScript callers pass it
     /// (`{ toolUseID, title, suggestions, … }`).
-    pub fn from_json(value: &Value, signal: Option<AbortSignal>) -> Self {
+    pub fn from_json(value: &Value, signal: Option<CancelSignal>) -> Self {
         let field = |key: &str| value.get(key).filter(|v| !v.is_null()).cloned();
         Self {
             signal,
@@ -79,7 +79,7 @@ pub struct SpawnOptions {
     pub args: Vec<String>,
     pub cwd: Option<String>,
     pub env: EnvMap,
-    pub signal: AbortSignal,
+    pub signal: CancelSignal,
 }
 
 /// `options.spawnClaudeCodeProcess`: launches the native CLI.
@@ -88,7 +88,7 @@ pub trait SpawnClaudeCodeProcess {
     /// `spawnClaudeCodeProcess.waitForExit?.({ signal })`.
     fn wait_for_exit(
         &self,
-        _signal: Option<AbortSignal>,
+        _signal: Option<CancelSignal>,
     ) -> LocalBoxFuture<'static, AgentResult<()>> {
         Box::pin(async { Ok(()) })
     }
@@ -97,7 +97,7 @@ pub trait SpawnClaudeCodeProcess {
 /// `query({ prompt, options })`'s `options`.
 #[derive(Clone, Default)]
 pub struct QueryOptions {
-    pub abort_controller: Option<AbortController>,
+    pub abort_controller: Option<Canceller>,
     pub cwd: Option<String>,
     /// `None` inherits the host environment.
     pub env: Option<EnvMap>,

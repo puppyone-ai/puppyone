@@ -308,10 +308,10 @@ fn listen_for_abort(
             let _ = resolve.send(response);
         }
     };
-    if signal.aborted() {
+    if signal.is_cancelled() {
         cancel();
     } else {
-        signal.add_listener(cancel);
+        signal.on_cancel(cancel);
     }
 }
 

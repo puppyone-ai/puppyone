@@ -3,6 +3,7 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::history_schema::history_cursor;
 use crate::agent::contract::js::{self, Obj};
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -388,7 +389,7 @@ fn is_exclude_turns_unsupported(error: &AgentError) -> bool {
 
 fn optional_id(value: Option<&str>) -> Option<String> {
     value
-        .map(js::trim)
+        .map(text::trim)
         .filter(|id| !id.is_empty())
         .map(str::to_string)
 }

@@ -6,6 +6,7 @@ use super::super::puppyone_agent_kernel::PUPPYONE_AGENT_SYSTEM_PROMPT;
 use super::super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use super::tools::{self, Policy};
 use super::{Kernel, Run};
+use crate::clock;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -35,7 +36,7 @@ pub type Complete =
     Rc<dyn Fn(CompleteRequest) -> LocalBoxFuture<'static, Result<Completion, String>>>;
 
 fn now() -> i64 {
-    crate::agent::contract::js::now_ms()
+    clock::now_ms()
 }
 
 /// A Pi user message from a `prompt`/`steer` payload (`{ message, images }`).

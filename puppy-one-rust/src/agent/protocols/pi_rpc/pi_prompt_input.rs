@@ -3,10 +3,11 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js;
 use crate::agent::domain::agent_reference_error::{agent_reference_error, codes};
-use crate::agent::node_path;
 use crate::agent::security::authorized_workspace_reference_prompt::{
     authorized_workspace_reference_path, format_authorized_workspace_reference_prompt,
 };
+use crate::platform::paths;
+use crate::text;
 use base64::Engine;
 use serde_json::{Value, json};
 
@@ -37,7 +38,7 @@ pub fn build_pi_turn_input(
     let label = runtime_label
         .map(str::trim)
         .filter(|l| !l.is_empty())
-        .map(|l| js::head16(l, 80).to_string())
+        .map(|l| text::head16(l, 80).to_string())
         .unwrap_or_else(|| "Pi".into());
     let mut path_references = Vec::new();
     let mut images = Vec::new();
@@ -131,13 +132,11 @@ fn resolve_reference_path(reference: &Value, workspace_root: Option<&str>) -> Ag
             "Pi received an invalid reference input.",
         ));
     };
-    if node_path::is_absolute(path) {
-        return Ok(node_path::resolve_one(path).to_string_lossy().into_owned());
+    if paths::is_absolute(path) {
+        return Ok(paths::absolute(path).to_string_lossy().into_owned());
     }
-    match workspace_root.filter(|root| node_path::is_absolute(root)) {
-        Some(root) => Ok(node_path::resolve(root, path)
-            .to_string_lossy()
-            .into_owned()),
+    match workspace_root.filter(|root| paths::is_absolute(root)) {
+        Some(root) => Ok(paths::resolve(root, path).to_string_lossy().into_owned()),
         None => Err(reference_error(
             codes::UNAUTHORIZED,
             "Pi requires an assigned workspace root.",

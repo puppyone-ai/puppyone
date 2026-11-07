@@ -18,10 +18,10 @@ use super::claude_spawn::{ClaudeSpawn, ClaudeSpawnOptions};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::tests_support::run_local;
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::{AbortController, AbortSignal};
 use crate::agent::runtime::agent_runtime_port::{
     AgentRuntimeAdapter, is_agent_provider_session_unavailable_error,
 };
+use crate::agent::tasks::{CancelSignal, Canceller};
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionOptions, ProcessIo, Spawner};
 use base64::Engine;
 use core::prelude::v1::test;
@@ -1010,7 +1010,7 @@ fn spawn_options(
     command: &str,
     args: &[&str],
     env: &[(&str, &str)],
-    signal: AbortSignal,
+    signal: CancelSignal,
 ) -> SpawnOptions {
     SpawnOptions {
         command: command.into(),
@@ -1040,7 +1040,7 @@ fn routes_node_backed_cli_entrypoints_through_an_absolute_node_executable() {
                 "/tools/claude/cli.js",
                 &["--output-format", "stream-json"],
                 &[("PATH", "/runtime/bin")],
-                AbortSignal::default(),
+                CancelSignal::default(),
             ))
             .unwrap();
         let launched = children.launched.borrow()[0].clone();
@@ -1061,7 +1061,7 @@ fn closes_every_owned_process_and_waits_for_exit_before_releasing_the_sdk_adapte
             spawn: Some(children.spawner()),
             ..Default::default()
         });
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         launch
             .launch(spawn_options(
                 "/tools/claude",
@@ -1075,15 +1075,15 @@ fn closes_every_owned_process_and_waits_for_exit_before_releasing_the_sdk_adapte
                 "/tools/claude",
                 &[],
                 &[],
-                AbortSignal::default(),
+                CancelSignal::default(),
             ))
             .unwrap();
-        controller.abort(AgentError::new("aborted"));
+        controller.cancel(AgentError::new("aborted"));
         assert_eq!(children.kills.borrow()[0], [false]);
         let closed = Rc::new(Cell::new(false));
         let disposing = {
             let (launch, closed) = (launch.clone(), closed.clone());
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 launch.dispose().await.unwrap();
                 closed.set(true);
             })
@@ -1100,7 +1100,7 @@ fn closes_every_owned_process_and_waits_for_exit_before_releasing_the_sdk_adapte
                 "/tools/claude",
                 &[],
                 &[],
-                AbortSignal::default(),
+                CancelSignal::default(),
             ))
             .err()
             .unwrap();
@@ -1123,7 +1123,7 @@ fn rejects_relative_commands_and_control_characters_before_spawning() {
                 "claude",
                 &[],
                 &[("PATH", "/usr/bin")],
-                AbortSignal::default(),
+                CancelSignal::default(),
             ))
             .err()
             .unwrap();
@@ -1133,7 +1133,7 @@ fn rejects_relative_commands_and_control_characters_before_spawning() {
                 "/tools/claude",
                 &["--model\nunsafe"],
                 &[],
-                AbortSignal::default(),
+                CancelSignal::default(),
             ))
             .err()
             .unwrap();

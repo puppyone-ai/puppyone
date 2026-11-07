@@ -5,6 +5,7 @@
 use super::super::puppyone_agent_kernel::PUPPYONE_AGENT_APPROVAL_PROTOCOL;
 use super::super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use super::super::tools as workspace;
+use crate::text;
 use serde_json::{Map, Value, json};
 use sha2::Digest as _;
 use std::path::{Component, Path, PathBuf};
@@ -134,7 +135,7 @@ fn bounded_value(value: &Value, depth: usize) -> Value {
         return Value::from("[nested]");
     }
     match value {
-        Value::String(text) => Value::from(crate::agent::contract::js::head16(text, 8_192)),
+        Value::String(text) => Value::from(text::head16(text, 8_192)),
         Value::Array(items) => Value::Array(
             items
                 .iter()
@@ -147,7 +148,7 @@ fn bounded_value(value: &Value, depth: usize) -> Value {
                 .take(64)
                 .map(|(key, entry)| {
                     (
-                        crate::agent::contract::js::head16(key, 120).to_string(),
+                        text::head16(key, 120).to_string(),
                         bounded_value(entry, depth + 1),
                     )
                 })
@@ -203,7 +204,7 @@ fn approval_request(tool_call_id: &str, tool: &str, input: &Value) -> Value {
         "kind": kind,
         "title": title,
         "description": subject
-            .map(|s| crate::agent::contract::js::head16(&s, 2_000).to_string())
+            .map(|s| text::head16(&s, 2_000).to_string())
             .unwrap_or_else(|| format!("{BUILT_IN_AGENT_DISPLAY_NAME} requested a tool action.")),
         "reason": format!("{BUILT_IN_AGENT_DISPLAY_NAME} requires approval before commands, file mutations, or non-read-only tools."),
         "command": command,

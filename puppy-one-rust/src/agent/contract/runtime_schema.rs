@@ -6,6 +6,7 @@ use super::validation::{
     Contract, assert_array, assert_record, assert_runtime_id, enum_value, required_string,
     type_error,
 };
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::sync::LazyLock;
@@ -387,10 +388,10 @@ fn string_list(value: Option<&Value>, predicate: impl Fn(&str) -> bool) -> Vec<S
     let mut out: Vec<String> = Vec::new();
     for entry in entries {
         let Some(text) = entry.as_str() else { continue };
-        if text.is_empty() || js::len16(text) > 160 {
+        if text.is_empty() || text::len16(text) > 160 {
             continue;
         }
-        let normalized = js::trim(text).to_lowercase();
+        let normalized = text::trim(text).to_lowercase();
         if predicate(&normalized) && !out.contains(&normalized) {
             out.push(normalized);
         }
@@ -616,6 +617,6 @@ fn assert_named_entry(value: &Value, label: &str, id_key: &str) -> Contract<()> 
 fn bounded_optional_text(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|text| js::head16(js::trim(text), limit).to_string())
+        .map(|text| text::head16(text::trim(text), limit).to_string())
         .unwrap_or_default()
 }

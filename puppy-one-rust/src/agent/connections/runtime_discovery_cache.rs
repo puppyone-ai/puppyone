@@ -1,9 +1,9 @@
 //! `connections/runtime-discovery-cache.mjs`: a bounded, refreshable and
 //! single-flight cache for one runtime discovery.
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::js;
-use crate::agent::event_loop::{AbortSignal, SharedTask, shared};
 use crate::agent::runtime::agent_runtime_registry::RuntimeDiscovery;
+use crate::agent::tasks::{CancelSignal, SharedTask, shared};
+use crate::clock;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -26,7 +26,7 @@ const TRANSIENT_CODES: &[&str] = &[
 ];
 
 /// `load({ signal })`.
-pub type DiscoveryLoad = Rc<dyn Fn(AbortSignal) -> LocalBoxFuture<'static, AgentResult<Value>>>;
+pub type DiscoveryLoad = Rc<dyn Fn(CancelSignal) -> LocalBoxFuture<'static, AgentResult<Value>>>;
 
 /// `createCachedRuntimeDiscovery(load, { now, positiveTtlMs, transientTtlMs })` options.
 #[derive(Clone)]
@@ -39,7 +39,7 @@ pub struct CacheOptions {
 impl Default for CacheOptions {
     fn default() -> Self {
         Self {
-            now: Rc::new(js::now_ms),
+            now: Rc::new(clock::now_ms),
             positive_ttl_ms: policy::POSITIVE_TTL_MS,
             transient_ttl_ms: policy::TRANSIENT_TTL_MS,
         }
@@ -88,11 +88,11 @@ impl RuntimeDiscovery for CachedRuntimeDiscovery {
     fn discover(
         &self,
         refresh: bool,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> LocalBoxFuture<'static, AgentResult<Value>> {
         let (load, options, state) = (self.load.clone(), self.options.clone(), self.state.clone());
         Box::pin(async move {
-            signal.throw_if_aborted()?;
+            signal.check()?;
             enum Next {
                 Cached(Value),
                 Join(SharedTask<AgentResult<Value>>),
@@ -124,7 +124,7 @@ impl RuntimeDiscovery for CachedRuntimeDiscovery {
                         let id = current.next_flight;
                         let first = signal.clone();
                         let task = shared(async move {
-                            first.throw_if_aborted()?;
+                            first.check()?;
                             load(first).await
                         });
                         current.in_flight = Some((generation, id, task.clone()));
@@ -151,7 +151,7 @@ impl RuntimeDiscovery for CachedRuntimeDiscovery {
                 }
             }
             let value = result?;
-            signal.throw_if_aborted()?;
+            signal.check()?;
             let mut current = state.borrow_mut();
             if current.generation == request_generation {
                 let ttl = if is_transient(&value) {
@@ -210,7 +210,7 @@ mod tests {
             let now = Rc::new(Cell::new(0));
             let (load, calls) = counted(readiness("READY", "ready", "READY"));
             let discovery = CachedRuntimeDiscovery::new(load, clock(&now, 100, 10));
-            let signal = AbortSignal::default();
+            let signal = CancelSignal::default();
             let (first, second) = futures_util::future::join(
                 discovery.discover(false, signal.clone()),
                 discovery.discover(false, signal.clone()),
@@ -233,7 +233,7 @@ mod tests {
             let now = Rc::new(Cell::new(0));
             let (load, calls) = counted(readiness("AUTHENTICATION_PROBE_TIMED_OUT", "error", "x"));
             let discovery = CachedRuntimeDiscovery::new(load, clock(&now, 100, 10));
-            let signal = AbortSignal::default();
+            let signal = CancelSignal::default();
             discovery.discover(false, signal.clone()).await.unwrap();
             now.set(9);
             discovery.discover(false, signal.clone()).await.unwrap();
@@ -262,7 +262,7 @@ mod tests {
                 })
             });
             let discovery = Rc::new(CachedRuntimeDiscovery::new(load, None));
-            let signal = AbortSignal::default();
+            let signal = CancelSignal::default();
             let old_flight = {
                 let (discovery, signal) = (discovery.clone(), signal.clone());
                 tokio::task::spawn_local(async move { discovery.discover(false, signal).await })

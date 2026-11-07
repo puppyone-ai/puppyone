@@ -17,7 +17,7 @@ use crate::agent::discovery::command_environment::{
 use crate::agent::discovery::executable_discovery_port::{
     DiscoveryPortOptions, ExecutableDiscoveryPort, ReadEnvironment,
 };
-use crate::agent::event_loop::AbortController;
+use crate::agent::tasks::Canceller;
 use core::prelude::v1::test;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -290,8 +290,8 @@ fn kills_a_probe_that_exceeds_its_timeout_or_combined_output_budget() {
         .await
         .unwrap_err();
         assert!(overflow.message.contains("safety limit"));
-        let controller = AbortController::new();
-        controller.abort(crate::agent::agent_error::AgentError::new("stop"));
+        let controller = Canceller::new();
+        controller.cancel(crate::agent::agent_error::AgentError::new("stop"));
         let cancelled = run_bounded_process_probe(
             "/bin/sleep",
             &["5".into()],

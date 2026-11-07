@@ -495,7 +495,7 @@ fn shares_first_load_between_all_readers_and_writers_instead_of_observing_a_temp
         let read = {
             let restarted = restarted.clone();
             let id = initial["sessionId"].as_str().unwrap().to_string();
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 let found = restarted.find_by_id(&id, None).await.unwrap().unwrap();
                 assert_eq!(found["providerSessionId"], "existing");
             })
@@ -503,7 +503,7 @@ fn shares_first_load_between_all_readers_and_writers_instead_of_observing_a_temp
         let finished = Rc::new(Cell::new(false));
         let write = {
             let (restarted, finished) = (restarted.clone(), finished.clone());
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 restarted.upsert_native(&record("new")).await.unwrap();
                 finished.set(true);
             })
@@ -646,7 +646,7 @@ fn serves_the_last_committed_catalog_while_a_disk_write_is_still_settling() {
         let renames = file_system.renames.get();
         let write = {
             let catalog = catalog.clone();
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 catalog.upsert_native(&record("pending")).await.unwrap();
             })
         };

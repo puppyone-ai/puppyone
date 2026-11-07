@@ -22,15 +22,19 @@ use crate::agent::domain::agent_session_control::is_agent_execution_settled;
 use crate::agent::domain::agent_session_model::{
     SessionRef, apply_inspection, apply_provider_session, persisted_record_from_session,
 };
-use crate::agent::event_loop::{SharedTask, set_timeout, shared, spawn};
 use crate::agent::runtime::agent_runtime_port::{
     AdapterOptions, AgentRuntimeAdapter, assert_agent_runtime_inspection,
 };
 use crate::agent::runtime::agent_runtime_registry::AgentRuntimeRegistry;
 use crate::agent::runtime::agent_session_history_port::resolve_agent_session_history_port;
 use crate::agent::runtime::history_source_scope::assert_history_source_scope;
+use crate::agent::tasks::{SharedTask, shared, spawn_after};
+use crate::clock;
+use crate::text;
 use serde_json::{Value, json};
 use std::rc::{Rc, Weak};
+use std::time::Duration;
+use tokio::task::spawn_local;
 
 const INTERRUPT_CONFIRMATION_TIMEOUT_MS: u64 = 5_000;
 const MAX_TURN_DURATION_MS: f64 = 30.0 * 24.0 * 60.0 * 60.0 * 1_000.0;
@@ -120,7 +124,7 @@ impl AgentSessionRuntime {
         let requested = normalize_runtime_id(value);
         if value
             .and_then(Value::as_str)
-            .is_some_and(|v| !js::trim(v).is_empty())
+            .is_some_and(|v| !text::trim(v).is_empty())
             && requested.is_none()
         {
             return Err(AgentError::new("Agent runtime id is invalid."));
@@ -191,7 +195,7 @@ impl AgentSessionRuntime {
                 }
                 session.state_mut().native_persistence_confirmed = true;
                 let journal = runtime.0.journal.clone();
-                spawn(async move { journal.persist_now(&session).await });
+                spawn_local(async move { journal.persist_now(&session).await });
             }) as Rc<dyn Fn(Value)>
         };
         let readiness = Obj::from(internal_readiness)
@@ -437,7 +441,7 @@ impl AgentSessionRuntime {
         if event_type == "session.updated"
             && let Some(title) = event["payload"]["title"].as_str()
         {
-            session.state_mut().title = js::head16(title, 200).to_string();
+            session.state_mut().title = text::head16(title, 200).to_string();
         }
         if event_type == "turn.started" {
             let pending_prompt = session.pending_prompt();
@@ -483,7 +487,7 @@ impl AgentSessionRuntime {
                 session.state_mut().private_reference_paths.clear();
                 let attachments = self.0.attachments.clone();
                 let target = session.clone();
-                spawn(async move {
+                spawn_local(async move {
                     revoke_active_agent_references(&target, attachments.as_ref()).await
                 });
             }
@@ -601,19 +605,21 @@ impl AgentSessionRuntime {
         let runtime = self.clone();
         let target = Rc::downgrade(session);
         let turn = turn_id.to_string();
-        let timer = set_timeout(INTERRUPT_CONFIRMATION_TIMEOUT_MS, move || {
-            let Some(session) = target.upgrade() else {
-                return;
-            };
-            session.state_mut().interrupt_fallback_timer = None;
-            if !runtime.0.store.is_current(&session)
-                || session.closing()
-                || session.active_turn_id().as_deref() != Some(turn.as_str())
-            {
-                return;
-            }
-            let name = session.runtime_display_name();
-            runtime.emit(
+        let timer = spawn_after(
+            Duration::from_millis(INTERRUPT_CONFIRMATION_TIMEOUT_MS),
+            move || {
+                let Some(session) = target.upgrade() else {
+                    return;
+                };
+                session.state_mut().interrupt_fallback_timer = None;
+                if !runtime.0.store.is_current(&session)
+                    || session.closing()
+                    || session.active_turn_id().as_deref() != Some(turn.as_str())
+                {
+                    return;
+                }
+                let name = session.runtime_display_name();
+                runtime.emit(
                 &session,
                 json!({
                     "type": "provider.warning",
@@ -626,14 +632,15 @@ impl AgentSessionRuntime {
                     },
                 }),
             );
-        });
+            },
+        );
         session.state_mut().interrupt_fallback_timer = Some(timer);
     }
 
     /// `runtimeSession.clearInterruptFallback(session)`.
     pub fn clear_interrupt_fallback(&self, session: &SessionRef) {
         if let Some(timer) = session.state_mut().interrupt_fallback_timer.take() {
-            timer.clear();
+            timer.abort();
         }
     }
 
@@ -655,9 +662,9 @@ impl AgentSessionRuntime {
         {
             let attachments = self.0.attachments.clone();
             let target = session.clone();
-            spawn(
-                async move { revoke_active_agent_references(&target, attachments.as_ref()).await },
-            );
+            spawn_local(async move {
+                revoke_active_agent_references(&target, attachments.as_ref()).await
+            });
         }
         // Process death proves that the connection ended, not that the native turn
         // failed. Only a correlated native terminal event may settle execution.
@@ -676,14 +683,14 @@ impl AgentSessionRuntime {
             json!({ "type": "adapter.exited", "adapterGeneration": generation, "reason": reason }),
         );
         if let Some(timer) = session.state_mut().persist_timer.take() {
-            timer.clear();
+            timer.abort();
         }
         let journal = self.0.journal.clone();
         let target = session.clone();
-        spawn(async move { journal.persist_now(&target).await });
+        spawn_local(async move { journal.persist_now(&target).await });
         if let Some(adapter) = session.state_mut().adapter.take() {
             let logger = self.0.logger.clone();
-            spawn(async move {
+            spawn_local(async move {
                 if let Err(error) = adapter.dispose().await {
                     logger.warn(
                         &format!(
@@ -714,7 +721,7 @@ impl AgentSessionRuntime {
             let mut state = session.state_mut();
             state.closing = true;
             if let Some(timer) = state.persist_timer.take() {
-                timer.clear();
+                timer.abort();
             }
         }
         self.clear_interrupt_fallback(session);
@@ -856,7 +863,7 @@ fn with_turn_duration(payload: &Value, started_at_ms: Option<i64>) -> Value {
     };
     let duration = match candidate {
         Some(value) if value.is_finite() && value >= 0.0 => Some(value),
-        _ => started_at_ms.map(|started| (js::now_ms() - started) as f64),
+        _ => started_at_ms.map(|started| (clock::now_ms() - started) as f64),
     };
     let base = if payload.is_object() {
         payload.clone()

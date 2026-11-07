@@ -1,6 +1,6 @@
 //! `application/history/history-operation.mjs`.
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::event_loop::{AbortSignal, race_abort};
+use crate::agent::tasks::{CancelSignal, until_cancelled};
 use std::future::Future;
 
 /// `historyFailure(message, code, retryable)`.
@@ -13,7 +13,7 @@ pub fn history_failure(message: &str, code: Option<&str>, retryable: Option<bool
 /// each caller still owns and releases its native resources.
 pub async fn observe_history_operation<T>(
     operation: impl Future<Output = AgentResult<T>>,
-    signal: &AbortSignal,
+    signal: &CancelSignal,
 ) -> AgentResult<T> {
-    race_abort(signal, operation).await
+    until_cancelled(signal, operation).await
 }

@@ -26,10 +26,10 @@ use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests_support::{run_local, run_paused_local};
 use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortController;
 use crate::agent::installation::executable_resolver::{
     ObservationRequest, ResolvedCandidate, resolve_first_executable,
 };
+use crate::agent::tasks::Canceller;
 use crate::agent::transports::bounded_process_probe::{ProbeResult, ProbeRunner};
 use crate::agent::transports::rpc_connection::ConnectionFactory;
 use crate::agent::transports::rpc_connection::fake::FakeConnection;
@@ -377,7 +377,7 @@ fn still_kills_an_unresponsive_cursor_status_process_and_blocks_selection() {
 #[test]
 fn disposes_an_in_flight_codex_protocol_probe_when_application_inventory_is_cancelled() {
     run_local(async {
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         let connection = FakeConnection::new();
         {
             let target = Rc::downgrade(&connection);
@@ -404,7 +404,7 @@ fn disposes_an_in_flight_codex_protocol_probe_when_application_inventory_is_canc
                 signal: Some(controller.signal()),
                 connection_factory: Some(factory),
             };
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 let error = inspect_codex_protocol(request).await.unwrap_err();
                 assert!(error.message.contains("connection closed"));
             })
@@ -415,7 +415,7 @@ fn disposes_an_in_flight_codex_protocol_probe_when_application_inventory_is_canc
         let requests = connection.requests.borrow().clone();
         assert_eq!(requests[0]["method"], "initialize");
         assert_eq!(requests[0]["timeoutMs"], 1_500);
-        controller.abort(AgentError::new("cancelled"));
+        controller.cancel(AgentError::new("cancelled"));
         pending.await.unwrap();
         assert_eq!(
             connection.disposals.borrow()[0].0,
@@ -563,7 +563,7 @@ fn lets_explicit_refresh_supersede_an_in_flight_scan_without_caching_aborted_fai
                 let first = calls.get() == 1;
                 Box::pin(async move {
                     if first {
-                        request.signal.aborted_reason().await;
+                        request.signal.cancelled().await;
                         return Err(AgentError::new("cancelled").with_name("AbortError"));
                     }
                     Ok(ready_codex())

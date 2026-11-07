@@ -62,7 +62,7 @@ impl AgentQuitCoordinator {
             .unwrap_or_else(|| self.agent_service.session_count());
         let resources = self.agent_service.has_runtime_resources();
         if retained == 0 && !resources {
-            crate::agent::event_loop::spawn({
+            tokio::task::spawn_local({
                 let drain = self.agent_service.close_all();
                 async move {
                     let _ = drain.await;
@@ -82,7 +82,7 @@ impl AgentQuitCoordinator {
             self.logger.clone(),
             self.draining.clone(),
         );
-        crate::agent::event_loop::spawn(async move {
+        tokio::task::spawn_local(async move {
             if let Err(error) = drain.await {
                 logger(&format!(
                     "puppyone failed to drain Agent sessions during quit: {error}"

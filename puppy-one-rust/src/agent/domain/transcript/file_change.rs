@@ -2,6 +2,7 @@
 use super::content_readers::activity_id;
 use super::transcript_indexes::{Projection, revise};
 use crate::agent::contract::js;
+use crate::text;
 use serde_json::Value;
 
 /// `hasRenderableFileChange(payload)`: rejects empty runtime placeholders
@@ -12,7 +13,7 @@ pub fn has_renderable_file_change(payload: &Value) -> bool {
         .get("input")
         .filter(|v| v.is_object())
         .unwrap_or(&empty);
-    let present = |value: Option<&Value>| !js::trim(js::str_or_empty(value)).is_empty();
+    let present = |value: Option<&Value>| !text::trim(js::str_or_empty(value)).is_empty();
     let has_path = [
         payload.get("path"),
         input.get("path"),

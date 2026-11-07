@@ -3,6 +3,7 @@
 use crate::agent::contract::constants::limits::MAX_CONTROL_REASON_LENGTH;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use serde_json::Value;
 
 /// `reduceAgentRecoveries(previous, event, control)`.
@@ -107,7 +108,7 @@ pub fn reduce_agent_recoveries(previous: &[Value], event: &Value, control: &Valu
                 event
                     .field("message")
                     .and_then(Value::as_str)
-                    .map(|m| js::head16(m, MAX_CONTROL_REASON_LENGTH).to_string())
+                    .map(|m| text::head16(m, MAX_CONTROL_REASON_LENGTH).to_string())
                     .unwrap_or_default(),
             )
             .set("attempt", positive(event.field("attempt")))

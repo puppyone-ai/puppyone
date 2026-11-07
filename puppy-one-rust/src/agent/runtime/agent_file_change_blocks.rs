@@ -1,5 +1,6 @@
 //! `electron/main/agent/runtime/agent-file-change-blocks.mjs`.
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::sync::LazyLock;
@@ -83,12 +84,12 @@ pub fn bound_file_change_blocks(blocks: &[Value], budget: usize, max_blocks: usi
                 continue;
             };
             let available = budget.saturating_sub(used);
-            let length = js::len16(text);
+            let length = text::len16(text);
             if length > available {
                 truncated = true;
             }
             if available > 0 || length == 0 {
-                next.insert(key, js::head16(text, available));
+                next.insert(key, text::head16(text, available));
                 any = true;
             }
             used += length.min(available);

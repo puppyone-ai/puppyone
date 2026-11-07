@@ -3,6 +3,8 @@
 use super::js::{self, Obj};
 pub use super::native_session_id::native_session_id as history_native_id;
 use super::validation::{Contract, type_error};
+use crate::clock;
+use crate::text;
 use serde_json::Value;
 
 /// `agentHistoryLimits`.
@@ -18,7 +20,7 @@ pub fn history_cursor(value: Option<&Value>) -> Contract<Option<String>> {
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) if s.is_empty() => Ok(None),
-        Some(Value::String(s)) if js::len16(s) <= limits::CURSOR => Ok(Some(s.clone())),
+        Some(Value::String(s)) if text::len16(s) <= limits::CURSOR => Ok(Some(s.clone())),
         Some(_) => Err(type_error(
             "Native history returned an invalid continuation cursor.",
         )),
@@ -86,13 +88,13 @@ pub fn history_locators(value: Option<&Value>, limit: Option<usize>) -> Contract
 /// `historyDate(value)`: a normalized ISO timestamp.
 pub fn history_date(value: Option<&Value>) -> Option<String> {
     let text = value?.as_str()?;
-    if js::len16(text) > 64 {
+    if text::len16(text) > 64 {
         return None;
     }
-    js::date_parse(text).map(js::iso_string)
+    clock::date_parse(text).map(clock::iso_string)
 }
 
 fn bounded(value: Option<&Value>, limit: usize) -> Option<String> {
-    let text = js::head16(js::trim(value?.as_str()?), limit);
+    let text = text::head16(text::trim(value?.as_str()?), limit);
     (!text.is_empty()).then(|| text.to_string())
 }

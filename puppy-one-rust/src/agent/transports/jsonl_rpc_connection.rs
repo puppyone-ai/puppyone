@@ -8,13 +8,17 @@ use super::native_request_ledger::{LateResponse, NativeRequestLedger, Taken};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{AbortSignal, Timer, set_timeout, spawn};
+use crate::agent::tasks::{CancelSignal, spawn_after};
+use crate::text;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc};
+use tokio::task::JoinHandle;
+use tokio::task::spawn_local;
 
 pub const JSONL_RPC_MAX_LINE_BYTES: usize = 1024 * 1024;
 const DEFAULT_MAX_STDERR_BYTES: usize = 64 * 1024;
@@ -164,7 +168,7 @@ pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<Process
 #[derive(Clone, Default)]
 pub struct RequestOptions {
     pub timeout_ms: Option<u64>,
-    pub signal: Option<AbortSignal>,
+    pub signal: Option<CancelSignal>,
     pub on_late_response: Option<LateResponse>,
 }
 
@@ -182,7 +186,7 @@ struct Inner {
     exit_info: RefCell<Option<Value>>,
     exit_expected: Cell<bool>,
     close_reason: RefCell<Option<String>>,
-    force_kill_timer: RefCell<Option<Timer>>,
+    force_kill_timer: RefCell<Option<JoinHandle<()>>>,
     pid: Option<u32>,
     kill: Rc<dyn Fn(bool) -> bool>,
     writer: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
@@ -196,7 +200,7 @@ struct Inner {
 pub struct JsonlRpcConnection(Rc<Inner>);
 
 fn valid_argument(value: &str) -> bool {
-    js::len16(value) <= 4_096 && !value.contains(['\r', '\n', '\0'])
+    text::len16(value) <= 4_096 && !value.contains(['\r', '\n', '\0'])
 }
 
 impl JsonlRpcConnection {
@@ -235,7 +239,7 @@ impl JsonlRpcConnection {
                 let connection = Self::with(&options, None, Rc::new(|_| false));
                 // A launch failure arrives as the process `error` event.
                 let target = connection.clone();
-                spawn(async move { target.handle_exit(None, None, Some(error)) });
+                spawn_local(async move { target.handle_exit(None, None, Some(error)) });
                 return Ok(connection);
             }
         };
@@ -253,7 +257,7 @@ impl JsonlRpcConnection {
         {
             let target = connection.clone();
             let queued = connection.0.queued_bytes.clone();
-            spawn(async move {
+            spawn_local(async move {
                 while let Some(line) = lines.recv().await {
                     let length = line.len();
                     let written = stdin.write_all(&line).await;
@@ -274,7 +278,7 @@ impl JsonlRpcConnection {
         }
         {
             let target = connection.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let mut framer = JsonlFramer::new(target.0.max_line_bytes);
                 let mut buffer = vec![0u8; 64 * 1024];
                 loop {
@@ -299,7 +303,7 @@ impl JsonlRpcConnection {
         }
         {
             let target = connection.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let mut buffer = vec![0u8; 8192];
                 while let Ok(count) = stderr.read(&mut buffer).await {
                     if count == 0 {
@@ -311,7 +315,7 @@ impl JsonlRpcConnection {
         }
         {
             let target = connection.clone();
-            spawn(async move {
+            spawn_local(async move {
                 let (code, signal, error) = exit.await;
                 target.handle_exit(code, signal, error);
             });
@@ -409,7 +413,7 @@ impl JsonlRpcConnection {
         options: RequestOptions,
     ) -> AgentResult<Value> {
         if let Some(signal) = options.signal.as_ref()
-            && signal.aborted()
+            && signal.is_cancelled()
         {
             return Err(signal.reason().unwrap_or_else(|| {
                 AgentError::new("Native RPC request aborted before dispatch.")
@@ -504,12 +508,15 @@ impl JsonlRpcConnection {
         (self.0.kill)(false);
         if self.exit_info().is_none() && self.0.force_kill_timeout_ms > 0 {
             let target = self.clone();
-            let timer = set_timeout(self.0.force_kill_timeout_ms, move || {
-                target.0.force_kill_timer.borrow_mut().take();
-                if target.exit_info().is_none() {
-                    (target.0.kill)(true);
-                }
-            });
+            let timer = spawn_after(
+                Duration::from_millis(self.0.force_kill_timeout_ms),
+                move || {
+                    target.0.force_kill_timer.borrow_mut().take();
+                    if target.exit_info().is_none() {
+                        (target.0.kill)(true);
+                    }
+                },
+            );
             *self.0.force_kill_timer.borrow_mut() = Some(timer);
         }
     }
@@ -658,7 +665,7 @@ impl JsonlRpcConnection {
             return;
         }
         if let Some(timer) = self.0.force_kill_timer.borrow_mut().take() {
-            timer.clear();
+            timer.abort();
         }
         let expected = self.0.exit_expected.get();
         let error_text = match &error {

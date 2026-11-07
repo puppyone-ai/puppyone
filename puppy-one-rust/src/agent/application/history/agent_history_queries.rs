@@ -7,11 +7,12 @@ use super::native_conversation_indexer::NativeConversationIndexer;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::domain::agent_conversation_metadata::public_session_record;
-use crate::agent::event_loop::{AbortController, set_timeout};
 use crate::agent::migrations::legacy_session_format::resolve_persisted_runtime_id;
 use crate::agent::sender::Sender;
+use crate::agent::tasks::{Canceller, spawn_after};
 use serde_json::{Value, json};
 use std::rc::Rc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct AgentHistoryQueries {
@@ -55,11 +56,11 @@ impl AgentHistoryQueries {
                 "indexed": 0, "warnings": [],
             }),
         };
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         let timeout = {
             let controller = controller.clone();
-            set_timeout(2_000, move || {
-                controller.abort(history_failure(
+            spawn_after(Duration::from_millis(2_000), move || {
+                controller.cancel(history_failure(
                     "History catalog read timed out.",
                     None,
                     None,
@@ -93,7 +94,7 @@ impl AgentHistoryQueries {
             Ok((records, coverage))
         };
         let result = observe_history_operation(read, &controller.signal()).await;
-        timeout.clear();
+        timeout.abort();
         let (records, coverage) = result?;
         let (mut sessions, next_cursor, excluded) = match records {
             Value::Array(sessions) => (sessions, None, None),

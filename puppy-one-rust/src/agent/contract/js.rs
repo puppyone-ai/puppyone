@@ -1,14 +1,13 @@
-//! The JavaScript value semantics the Agent contract is written in. The
-//! product's Main process and Renderer exchange plain JSON objects; the
-//! port keeps them as [`serde_json::Value`] and reproduces the few language
-//! rules the contract depends on: string `length` and `slice` count UTF-16
-//! code units, `Number.isSafeInteger`, truthiness, `Date.parse` and
-//! `toISOString`, `encodeURIComponent` and `Uint8Array` payloads.
+//! The JavaScript value semantics of the Agent's wire JSON. Provider
+//! protocols, the persisted session files the Electron product shares, and
+//! the Agent host's Main-side reducers keep plain JSON objects as
+//! [`serde_json::Value`]; this reproduces the language rules they depend on:
+//! `Number.isSafeInteger`, truthiness, `String(value)`,
+//! `encodeURIComponent` and `Uint8Array` payloads. Text measured in UTF-16
+//! code units is [`crate::text`]; time is [`crate::clock`].
+use crate::text::trim;
 use base64::Engine as _;
 use serde_json::{Map, Value};
-
-pub use crate::clock::{date_parse, iso_string, now_iso, now_ms};
-pub use crate::text::{head16, len16, locale_compare, slice16, tail16, trim};
 
 /// `Number.MAX_SAFE_INTEGER`.
 pub const MAX_SAFE_INTEGER: i64 = (1 << 53) - 1;
@@ -297,16 +296,6 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn strings_count_utf16_code_units() {
-        assert_eq!(len16("a😀b"), 4);
-        assert_eq!(head16("a😀b", 2), "a");
-        assert_eq!(head16("a😀b", 3), "a😀");
-        assert_eq!(slice16("héllo", 1, 3), "él");
-        assert_eq!(tail16("a😀b", 3), "b");
-        assert_eq!(trim("\u{feff} x \n"), "x");
-    }
-
-    #[test]
     fn safe_integers_follow_number_is_safe_integer() {
         assert!(is_safe_integer(&json!(3)));
         assert!(is_safe_integer(&json!(3.0)));
@@ -315,20 +304,6 @@ mod tests {
         assert!(!is_safe_integer(&json!(9_007_199_254_740_992u64)));
         assert_eq!(number(2.0), json!(2));
         assert!(!truthy(&json!(0)) && !truthy(&json!("")) && truthy(&json!([])));
-    }
-
-    #[test]
-    fn dates_parse_like_date_parse() {
-        assert_eq!(date_parse("1970-01-01T00:00:01.5Z"), Some(1_500));
-        assert_eq!(date_parse("1970-01-02"), Some(86_400_000));
-        assert_eq!(date_parse("1970-01-01T01:00:00+01:00"), Some(0));
-        assert_eq!(date_parse("not-a-date"), None);
-        assert_eq!(date_parse("2026-13-01"), None);
-        assert_eq!(iso_string(1_500), "1970-01-01T00:00:01.500Z");
-        assert_eq!(
-            iso_string(date_parse("2026-08-30T00:00:00Z").unwrap()),
-            "2026-08-30T00:00:00.000Z"
-        );
     }
 
     #[test]

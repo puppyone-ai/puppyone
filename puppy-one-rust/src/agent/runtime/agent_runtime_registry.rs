@@ -11,7 +11,7 @@ use crate::agent::contract::js::Obj;
 use crate::agent::contract::runtime_schema::{
     assert_agent_runtime_readiness, sanitize_agent_runtime_descriptor,
 };
-use crate::agent::event_loop::{AbortSignal, SharedTask, shared};
+use crate::agent::tasks::{CancelSignal, SharedTask, shared};
 use futures_util::future::{LocalBoxFuture, join_all};
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
@@ -24,7 +24,7 @@ pub trait RuntimeDiscovery {
     fn discover(
         &self,
         refresh: bool,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> LocalBoxFuture<'static, AgentResult<Value>>;
 }
 

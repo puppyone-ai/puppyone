@@ -9,6 +9,7 @@ use super::validation::{
     is_opaque_id, non_negative_integer, optional_nullable_opaque_id, optional_opaque_id,
     positive_integer, required_string, required_string_with,
 };
+use crate::text;
 use serde_json::{Map, Value};
 
 const ACTIVITY_PAYLOAD_KEYS: &[&str] = &[
@@ -385,7 +386,7 @@ fn assert_prompt_mentions(
     let Some(mentions) = value.and_then(Value::as_array).filter(|m| m.len() <= 32) else {
         return Err(contract_error(&label, "must contain at most 32 entries"));
     };
-    let length = js::len16(js::str_or_empty(prompt)) as i64;
+    let length = text::len16(js::str_or_empty(prompt)) as i64;
     let mut boundary = 0;
     for (index, entry) in mentions.iter().enumerate() {
         let label = format!("{label}[{index}]");

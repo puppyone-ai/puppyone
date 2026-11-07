@@ -29,8 +29,6 @@ use super::claude_spawn::{ClaudeSpawnOptions, create_claude_spawn};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{AbortController, AbortSignal, SharedTask, shared, spawn};
-use crate::agent::node_path;
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
 };
@@ -40,6 +38,10 @@ use crate::agent::security::authorized_project_instructions::{
     format_authorized_project_instructions, load_authorized_project_instructions,
 };
 use crate::agent::security::authorized_workspace_reference_prompt::format_authorized_workspace_reference_prompt;
+use crate::agent::tasks::{CancelSignal, Canceller, SharedTask, shared};
+use crate::clock;
+use crate::platform::paths;
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -49,6 +51,7 @@ use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::LazyLock;
 use std::time::Duration;
+use tokio::task::spawn_local;
 
 const INSPECTION_TIMEOUT_MS: u64 = 30_000;
 const CLAUDE_PROJECT_INSTRUCTION_NAMES: &[&str] = &["CLAUDE.md", "AGENTS.md", "CONTEXT.md"];
@@ -174,7 +177,7 @@ pub struct Inner {
     resuming: Cell<bool>,
     active_turn_id: RefCell<Option<String>>,
     active_query: RefCell<Option<Rc<dyn ClaudeQuery>>>,
-    active_controller: RefCell<Option<AbortController>>,
+    active_controller: RefCell<Option<Canceller>>,
     active_state: RefCell<Option<ActiveState>>,
     message_channel: RefCell<Option<ClaudeMessageChannel>>,
     query_configuration_key: RefCell<Option<String>>,
@@ -190,13 +193,13 @@ pub struct Inner {
 pub struct ClaudeAgentSdkAdapter(Rc<Inner>);
 
 /// `idleInput(signal)`: a prompt that ends only when inspection aborts.
-struct IdleInput(AbortSignal);
+struct IdleInput(CancelSignal);
 
 impl PromptSource for IdleInput {
     fn next(&self) -> LocalBoxFuture<'static, Option<Value>> {
         let signal = self.0.clone();
         Box::pin(async move {
-            signal.aborted_reason().await;
+            signal.cancelled().await;
             None
         })
     }
@@ -393,9 +396,9 @@ impl ClaudeAgentSdkAdapter {
                     Rc::new(create_claude_spawn(ClaudeSpawnOptions {
                         on_stderr: Some(Rc::new(move |data: &str| {
                             let diagnostic = redact_secret_text(data);
-                            let diagnostic = js::trim(&diagnostic);
-                            let start = js::len16(diagnostic).saturating_sub(4_000);
-                            let diagnostic = js::tail16(diagnostic, start);
+                            let diagnostic = text::trim(&diagnostic);
+                            let start = text::len16(diagnostic).saturating_sub(4_000);
+                            let diagnostic = text::tail16(diagnostic, start);
                             if !diagnostic.is_empty()
                                 && let Some(logger) = logger.as_ref()
                             {
@@ -411,7 +414,7 @@ impl ClaudeAgentSdkAdapter {
                 } else {
                     json!({})
                 },
-                workspace_root: node_path::resolve_one(&options.workspace_root)
+                workspace_root: paths::absolute(&options.workspace_root)
                     .to_string_lossy()
                     .into_owned(),
                 app_version: options.app_version.clone(),
@@ -495,11 +498,7 @@ impl ClaudeAgentSdkAdapter {
     }
 
     /// `#queryOptions({ … })`.
-    fn query_options(
-        &self,
-        controller: &AbortController,
-        selection: QuerySelection,
-    ) -> QueryOptions {
+    fn query_options(&self, controller: &Canceller, selection: QuerySelection) -> QueryOptions {
         let inner = &self.0;
         let append =
             format_authorized_project_instructions(selection.project_instructions.as_ref());
@@ -543,9 +542,9 @@ impl ClaudeAgentSdkAdapter {
             spawn_claude_code_process: Some(inner.spawn.clone()),
             stderr: Some(Rc::new(move |data: &str| {
                 let diagnostic = redact_secret_text(data);
-                let diagnostic = js::trim(&diagnostic);
-                let start = js::len16(diagnostic).saturating_sub(4_000);
-                let diagnostic = js::tail16(diagnostic, start);
+                let diagnostic = text::trim(&diagnostic);
+                let start = text::len16(diagnostic).saturating_sub(4_000);
+                let diagnostic = text::tail16(diagnostic, start);
                 if !diagnostic.is_empty()
                     && let Some(logger) = logger.as_ref()
                 {
@@ -565,7 +564,7 @@ impl ClaudeAgentSdkAdapter {
     pub async fn inspect_now(&self) -> AgentResult<Value> {
         let inner = &self.0;
         let sdk = inner.load_sdk()?;
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         let query = sdk.query(
             Rc::new(IdleInput(controller.signal())),
             self.query_options(
@@ -633,7 +632,7 @@ impl ClaudeAgentSdkAdapter {
             }))
         }
         .await;
-        controller.abort(AgentError::new("This operation was aborted").with_name("AbortError"));
+        controller.cancel(AgentError::new("This operation was aborted").with_name("AbortError"));
         query.close();
         inner.spawn.wait_for_exit(Some(controller.signal())).await?;
         result
@@ -644,11 +643,11 @@ impl ClaudeAgentSdkAdapter {
         &self,
         cursor: Option<&str>,
         limit: Option<&Value>,
-        signal: Option<&AbortSignal>,
+        signal: Option<&CancelSignal>,
     ) -> AgentResult<Value> {
         self.0.assert_usable()?;
         if let Some(signal) = signal {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         let sdk = self.0.load_sdk()?;
         discover_claude_history(&*sdk, &self.0.workspace_root, cursor, limit, signal).await
@@ -666,7 +665,7 @@ impl ClaudeAgentSdkAdapter {
         let id = uuid::Uuid::new_v4().to_string();
         *inner.session_id.borrow_mut() = Some(id.clone());
         inner.resuming.set(false);
-        let now = js::now_iso();
+        let now = clock::now_iso();
         Ok(json!({
             "providerSessionId": id,
             "title": "New Claude Code session",
@@ -753,7 +752,7 @@ impl ClaudeAgentSdkAdapter {
             &inner.workspace_root,
         )?;
         let turn_id = format!("claude:{}", uuid::Uuid::new_v4());
-        let controller = AbortController::new();
+        let controller = Canceller::new();
         let state = Rc::new(RefCell::new(ClaudeEventState::new(
             Some(&turn_id),
             inner.resuming.get(),
@@ -974,7 +973,7 @@ impl ClaudeAgentSdkAdapter {
     async fn ensure_persistent_query(
         &self,
         sdk: &dyn ClaudeSdk,
-        controller: &AbortController,
+        controller: &Canceller,
         model: Option<String>,
         effort: Option<String>,
         mode: Option<String>,
@@ -1042,7 +1041,7 @@ impl ClaudeAgentSdkAdapter {
         *inner.query_configuration_key.borrow_mut() = Some(configuration_key);
         let consumer = shared(self.clone().consume_persistent(query.clone(), channel));
         *inner.query_consumer.borrow_mut() = Some(consumer.clone());
-        spawn(consumer);
+        spawn_local(consumer);
         let initialized = with_timeout(
             query.initialization_result(),
             INSPECTION_TIMEOUT_MS,
@@ -1077,7 +1076,8 @@ impl ClaudeAgentSdkAdapter {
             channel.close();
         }
         if let Some(controller) = controller.as_ref() {
-            controller.abort(AgentError::new("This operation was aborted").with_name("AbortError"));
+            controller
+                .cancel(AgentError::new("This operation was aborted").with_name("AbortError"));
         }
         if let Some(query) = query {
             query.close();
@@ -1161,7 +1161,7 @@ impl SessionHistoryPort for ClaudeHistoryPort {
         &self,
         cursor: Option<String>,
         limit: usize,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> AdapterFuture<'_, Value> {
         Box::pin(async move {
             self.0
@@ -1169,7 +1169,7 @@ impl SessionHistoryPort for ClaudeHistoryPort {
                 .await
         })
     }
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         Box::pin(self.0.read_history_result())
     }
 }

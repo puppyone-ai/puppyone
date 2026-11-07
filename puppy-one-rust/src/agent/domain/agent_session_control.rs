@@ -5,6 +5,8 @@ use super::agent_recovery::reduce_agent_recoveries;
 use crate::agent::contract::constants::{AGENT_IDLE_DISCONNECT_REASON, limits};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::clock;
+use crate::text;
 use serde_json::{Map, Value, json};
 
 pub const MAX_COMMAND_RECORDS: usize = 128;
@@ -437,7 +439,7 @@ impl State {
                 let emitted_at = event
                     .get("emittedAt")
                     .and_then(Value::as_str)
-                    .and_then(js::date_parse)
+                    .and_then(clock::date_parse)
                     .filter(|ms| *ms != 0)
                     .map_or(Value::Null, Value::from);
                 if payload.get("restored") == Some(&Value::Bool(true)) {
@@ -833,7 +835,7 @@ impl State {
                             .as_str()
                             .map(str::to_string)
                             .unwrap_or_else(|| e.to_string());
-                        Value::from(js::head16(&text, limits::MAX_COMMAND_ERROR_LENGTH))
+                        Value::from(text::head16(&text, limits::MAX_COMMAND_ERROR_LENGTH))
                     })
                     .unwrap_or(Value::Null),
             )
@@ -1060,7 +1062,7 @@ fn matches_pending_submission(submission: &Value, identity: &Value) -> bool {
 
 fn bounded_reason(value: Option<&Value>) -> Value {
     match value.and_then(Value::as_str).filter(|v| !v.is_empty()) {
-        Some(text) => Value::from(js::head16(text, limits::MAX_CONTROL_REASON_LENGTH)),
+        Some(text) => Value::from(text::head16(text, limits::MAX_CONTROL_REASON_LENGTH)),
         None => Value::Null,
     }
 }
@@ -1069,7 +1071,7 @@ fn bounded_command_error(value: &str) -> Value {
     if value.is_empty() {
         Value::Null
     } else {
-        Value::from(js::head16(value, limits::MAX_COMMAND_ERROR_LENGTH))
+        Value::from(text::head16(value, limits::MAX_COMMAND_ERROR_LENGTH))
     }
 }
 

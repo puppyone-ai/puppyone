@@ -15,6 +15,7 @@ use crate::agent::infrastructure::attachments::agent_attachment_store::{
     AgentAttachmentStore, AttachmentStoreOptions,
 };
 use crate::agent::sender::Sender;
+use crate::clock;
 use base64::Engine;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
@@ -123,7 +124,7 @@ fn ipc_snapshot() -> Value {
     let actor =
         crate::agent::domain::agent_session_actor::AgentSessionActor::new(Default::default())
             .unwrap();
-    let now = crate::agent::contract::js::now_iso();
+    let now = clock::now_iso();
     let snapshot = actor.snapshot();
     crate::agent::contract::js::Obj::new()
         .set("cursor", snapshot.cursor)

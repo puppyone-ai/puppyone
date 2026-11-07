@@ -2,6 +2,7 @@
 //! under the managed profile's `sessions` folder, one file per session and
 //! project. `--no-session` keeps the session in memory.
 use super::super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
+use crate::clock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -44,7 +45,7 @@ fn file(profile: &Path, cwd: &Path, id: &str) -> PathBuf {
 impl Session {
     /// `SessionManager.create(cwd, sessionDir)` or `.inMemory(cwd)`.
     pub fn create(cwd: &Path, in_memory: bool) -> Self {
-        let now = crate::agent::contract::js::now_ms();
+        let now = clock::now_ms();
         Self {
             version: 1,
             id: uuid::Uuid::new_v4().to_string(),
@@ -89,7 +90,7 @@ impl Session {
         if self.in_memory {
             return Ok(());
         }
-        self.updated_at = crate::agent::contract::js::now_ms();
+        self.updated_at = clock::now_ms();
         let bytes = serde_json::to_vec(self).map_err(|e| e.to_string())?;
         if bytes.len() as u64 > MAX_SESSION_BYTES {
             return Err(format!(

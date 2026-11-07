@@ -6,11 +6,13 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::ports::{Guard, HistoryCatalog, Pending};
 use crate::agent::contract::history_schema::{history_date, history_native_id};
 use crate::agent::contract::js::{self, Obj};
-use crate::agent::event_loop::{SharedTask, shared};
 use crate::agent::migrations::legacy_session_format::{
     migrated_runtime_descriptor, resolve_persisted_runtime_id,
 };
-use crate::agent::node_path;
+use crate::agent::tasks::{SharedTask, shared};
+use crate::clock;
+use crate::platform::paths;
+use crate::text;
 use base64::Engine;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
@@ -449,7 +451,7 @@ impl AgentConversationCatalog {
                 .unwrap_or_else(|| Value::from("native-discovery")),
         );
         merged.insert("availability", "available");
-        merged.insert("lastSeenAt", js::now_iso());
+        merged.insert("lastSeenAt", clock::now_iso());
         merged.insert("unavailableAt", Value::Null);
         Self::put(draft, &merged.build())
     }
@@ -465,11 +467,11 @@ impl AgentConversationCatalog {
                 "The \"paths[0]\" argument must be of type string. Received undefined",
             ));
         };
-        let root = node_path::resolve_one(workspace_root)
+        let root = paths::absolute(workspace_root)
             .to_string_lossy()
             .into_owned();
         let source = scope.source_scope_id.as_deref().unwrap_or("default");
-        let reconciled_at = scope.reconciled_at.clone().unwrap_or_else(js::now_iso);
+        let reconciled_at = scope.reconciled_at.clone().unwrap_or_else(clock::now_iso);
         let started = scope.started_revision.unwrap_or(self.0.revision.get());
         let seen: HashSet<&str> = scope
             .provider_session_ids
@@ -627,7 +629,7 @@ impl AgentConversationCatalog {
         id: &str,
         unavailable_at: Option<String>,
     ) -> AgentResult<bool> {
-        let at = unavailable_at.unwrap_or_else(js::now_iso);
+        let at = unavailable_at.unwrap_or_else(clock::now_iso);
         self.update(
             id,
             json!({ "availability": "unavailable", "unavailableAt": at }),
@@ -637,7 +639,7 @@ impl AgentConversationCatalog {
 
     /// `catalog.archive(id, archivedAt)`.
     pub async fn archive(&self, id: &str, archived_at: Option<String>) -> AgentResult<bool> {
-        let at = archived_at.unwrap_or_else(js::now_iso);
+        let at = archived_at.unwrap_or_else(clock::now_iso);
         self.update(id, json!({ "archivedAt": at })).await
     }
 
@@ -926,8 +928,7 @@ fn safe_id(value: Option<&Value>) -> Option<String> {
 
 /// `absolutePath(value)`.
 fn absolute_path(value: &str) -> Option<String> {
-    node_path::is_absolute(value)
-        .then(|| node_path::resolve_one(value).to_string_lossy().into_owned())
+    paths::is_absolute(value).then(|| paths::absolute(value).to_string_lossy().into_owned())
 }
 
 fn absolute(value: Option<&Value>) -> Option<String> {
@@ -936,7 +937,7 @@ fn absolute(value: Option<&Value>) -> Option<String> {
 
 /// `bounded(value, limit)`: a trimmed, non-empty string.
 fn bounded(value: Option<&Value>, limit: usize) -> Option<String> {
-    let text = js::head16(js::trim(value?.as_str()?), limit);
+    let text = text::head16(text::trim(value?.as_str()?), limit);
     (!text.is_empty()).then(|| text.to_string())
 }
 
@@ -1075,6 +1076,6 @@ fn normalize_runtime(value: &Value, runtime_id: &str) -> Value {
 /// `compareRecords(left, right)`: newest first, then product id.
 fn compare_records(left: &Value, right: &Value) -> std::cmp::Ordering {
     let text = |value: &Value, key: &str| js::to_js_string(value.get(key));
-    js::locale_compare(&text(right, "updatedAt"), &text(left, "updatedAt"))
-        .then_with(|| js::locale_compare(&text(left, "sessionId"), &text(right, "sessionId")))
+    text::locale_compare(&text(right, "updatedAt"), &text(left, "updatedAt"))
+        .then_with(|| text::locale_compare(&text(left, "sessionId"), &text(right, "sessionId")))
 }

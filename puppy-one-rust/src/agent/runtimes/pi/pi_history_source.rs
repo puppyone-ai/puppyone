@@ -1,14 +1,14 @@
 //! `runtimes/pi/pi-history-source.mjs`.
-use crate::agent::node_path;
 use crate::agent::runtime::history_source_scope::{
     history_storage_path, local_history_source_scope,
 };
+use crate::platform::paths;
 use std::path::PathBuf;
 
 /// `piHistorySource(env)`: `(sourceScopeId, root)`.
 pub fn pi_history_source(env: &dyn Fn(&str) -> Option<String>) -> (String, PathBuf) {
     let read = |key: &str| env(key).filter(|value| !value.is_empty());
-    let homedir = node_path::homedir();
+    let homedir = paths::home_dir();
     let home = read("HOME").map_or_else(|| homedir.clone(), PathBuf::from);
     let default_root = homedir.join(".pi/agent");
     let root = history_storage_path(

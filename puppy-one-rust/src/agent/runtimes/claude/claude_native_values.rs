@@ -3,6 +3,8 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::discovery::command_environment::EnvMap;
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
@@ -18,7 +20,7 @@ const EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
 pub fn bounded(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|text| js::head16(js::trim(text), limit).to_string())
+        .map(|text| text::head16(text::trim(text), limit).to_string())
         .unwrap_or_default()
 }
 
@@ -194,8 +196,8 @@ pub fn humanize(value: &str) -> String {
 pub fn normalize_date(value: Option<&Value>) -> String {
     let milliseconds = match value {
         Some(Value::Number(number)) => number.as_f64().filter(|n| n.is_finite()).map(|n| n as i64),
-        Some(Value::String(text)) if !text.is_empty() => js::date_parse(text),
-        _ => Some(js::now_ms()),
+        Some(Value::String(text)) if !text.is_empty() => clock::date_parse(text),
+        _ => Some(clock::now_ms()),
     };
-    milliseconds.map_or_else(js::now_iso, js::iso_string)
+    milliseconds.map_or_else(clock::now_iso, clock::iso_string)
 }

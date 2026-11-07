@@ -5,6 +5,7 @@ use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::transports::bounded_process_probe::{
     ProbeOptions, ProbeResult, run_bounded_process_probe,
 };
+use crate::text;
 
 pub const LOCAL_AGENT_PROBE_TIMEOUT_MS: u64 = 1_500;
 pub const LOCAL_AGENT_PROBE_MAX_OUTPUT_BYTES: usize = 16 * 1024;
@@ -35,9 +36,7 @@ pub fn create_probe_environment(base: &EnvMap) -> EnvMap {
         .iter()
         .filter_map(|key| {
             base.get(*key)
-                .filter(|value| {
-                    crate::agent::contract::js::len16(value) <= 8_192 && !value.contains('\0')
-                })
+                .filter(|value| text::len16(value) <= 8_192 && !value.contains('\0'))
                 .map(|value| (key.to_string(), value.clone()))
         })
         .collect();

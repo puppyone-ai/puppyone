@@ -322,7 +322,7 @@ fn scripted_worker() -> (
             recorded.borrow_mut().push(options.clone());
             let io = spawner(options)?;
             let child = responder.clone();
-            crate::agent::event_loop::spawn(async move {
+            tokio::task::spawn_local(async move {
                 let mut answered = 0;
                 loop {
                     let messages = child.messages();

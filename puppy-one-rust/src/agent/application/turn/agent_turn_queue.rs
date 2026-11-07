@@ -6,12 +6,12 @@ use super::agent_start_transaction::StartContext;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::contract::js::Obj;
 use crate::agent::domain::agent_session_model::SessionRef;
-use crate::agent::event_loop::spawn;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use tokio::task::spawn_local;
 
 pub const MAX_QUEUED_TURNS: usize = 20;
 
@@ -113,12 +113,12 @@ impl AgentTurnQueue {
                 Some("exited" | "disconnected")
             ) {
                 let queue = queue.clone();
-                spawn(async move { queue.discard_session(&session).await });
+                spawn_local(async move { queue.discard_session(&session).await });
                 return;
             }
             let settled = queue.clone();
             let settled_session = session.clone();
-            spawn(async move { settled.discard_settled(&settled_session).await });
+            spawn_local(async move { settled.discard_settled(&settled_session).await });
             queue.schedule(&session);
         });
         self.state
@@ -139,7 +139,7 @@ impl AgentTurnQueue {
         self.state.borrow_mut().draining.insert(identity.clone());
         let queue = self.clone();
         let session = session.clone();
-        spawn(async move {
+        spawn_local(async move {
             queue.drain_one(&session).await;
             queue.state.borrow_mut().draining.remove(&identity);
             if !session.provider_exited() {

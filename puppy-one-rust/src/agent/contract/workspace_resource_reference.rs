@@ -3,6 +3,7 @@
 //! grant.
 use super::js;
 use super::validation::{Contract, type_error};
+use crate::text;
 
 const PREFIX: &str = "puppyone-local://workspace/";
 
@@ -23,7 +24,7 @@ fn unsafe_segment(segment: &str) -> bool {
 
 /// `parseWorkspaceResourceReference(value)`.
 pub fn parse_workspace_resource_reference(value: &str) -> Contract<WorkspaceResource> {
-    if js::len16(value) > 16_384 || !value.starts_with(PREFIX) {
+    if text::len16(value) > 16_384 || !value.starts_with(PREFIX) {
         return Err(type_error("A local workspace resource URI is required."));
     }
     let mut segments = Vec::new();

@@ -17,12 +17,12 @@ use super::session::agent_session_runtime::AgentSessionRuntime;
 use super::turn::agent_turn_coordinator::AgentTurnCoordinator;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::domain::agent_session_model::SessionRef;
-use crate::agent::event_loop::spawn;
 use crate::agent::runtime::agent_runtime_registry::AgentRuntimeRegistry;
 use crate::agent::sender::Sender;
 use futures_util::future::join;
 use serde_json::Value;
 use std::rc::Rc;
+use tokio::task::spawn_local;
 
 /// `createAgentService({ runtimeRegistry, sessionCache, conversationCatalog, logger, attachmentStore, processSupervisor })`.
 pub struct AgentServiceOptions {
@@ -87,7 +87,7 @@ impl AgentService {
             let lifecycle = lifecycle.clone();
             store.set_on_owner_destroyed(Rc::new(move |owner| {
                 let lifecycle = lifecycle.clone();
-                spawn(async move {
+                spawn_local(async move {
                     if let Err(error) = lifecycle.close_sessions_for_window(owner).await {
                         eprintln!(
                             "Unable to stop Agent resources after window destruction: {error}"

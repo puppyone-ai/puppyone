@@ -23,7 +23,7 @@ pub(crate) fn join(base: impl AsRef<std::path::Path>, segments: &[&str]) -> Stri
     for segment in segments {
         path.push(segment);
     }
-    crate::agent::node_path::normalize(&path)
+    crate::platform::paths::normalize(&path)
         .to_string_lossy()
         .into_owned()
 }

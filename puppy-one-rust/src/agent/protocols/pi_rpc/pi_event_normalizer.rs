@@ -3,6 +3,7 @@
 use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redact_secrets};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_file_change_evidence::create_agent_file_change_evidence;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
@@ -91,7 +92,7 @@ fn safe_namespace(value: &str) -> String {
 fn text(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(s, 32 * 1024).to_string())
+        .map(|s| text::head16(s, 32 * 1024).to_string())
         .unwrap_or_default()
 }
 
@@ -124,7 +125,7 @@ fn non_negative_number(value: Option<&Value>) -> f64 {
 
 /// `str.slice(-limit)` in UTF-16 units.
 fn last16(value: &str, limit: usize) -> String {
-    js::tail16(value, js::len16(value).saturating_sub(limit)).to_string()
+    text::tail16(value, text::len16(value).saturating_sub(limit)).to_string()
 }
 
 fn event(kind: &str, state: &PiEventState, item_id: Option<&str>, payload: Value) -> Value {
@@ -792,7 +793,7 @@ fn tool_kind(name: &str) -> &'static str {
 fn tool_label(name: &str, args: &Value) -> String {
     let normalized = canonical_tool_name(name);
     if normalized == "bash" {
-        let command = js::head16(&text(args.get("command")), 240).to_string();
+        let command = text::head16(&text(args.get("command")), 240).to_string();
         return if command.is_empty() {
             "Run command".into()
         } else {

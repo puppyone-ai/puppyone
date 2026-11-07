@@ -4,6 +4,7 @@ use super::codex_native_values::{string_or_null, string_or_null_value, to_iso_fr
 use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redact_secrets};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_file_change_evidence::create_agent_file_change_evidence;
+use crate::text;
 use serde_json::{Value, json};
 
 /// An event without an item identity.
@@ -46,7 +47,7 @@ fn coalesce(value: Option<&Value>, fallback: impl Into<Value>) -> Value {
 
 /// `str.slice(-limit)` in UTF-16 units.
 fn last16(value: &str, limit: usize) -> &str {
-    js::tail16(value, js::len16(value).saturating_sub(limit))
+    text::tail16(value, text::len16(value).saturating_sub(limit))
 }
 
 /// `normalizeCodexNotification(message)`.
@@ -459,7 +460,7 @@ pub fn read_codex_user_message_text(item: Option<&Value>) -> String {
                 .join("\n")
         })
         .unwrap_or_default();
-    js::head16(&text, 128 * 1024).to_string()
+    text::head16(&text, 128 * 1024).to_string()
 }
 
 fn finite(value: Option<&Value>) -> Value {
@@ -527,7 +528,7 @@ pub fn summarize_tool_item(item: &Value, phase: &str) -> Option<Value> {
             };
             let mut summary = Obj::new()
                 .set("kind", if mcp { "mcp" } else { "tool" })
-                .set("tool", js::trim(&tool_name).to_lowercase())
+                .set("tool", text::trim(&tool_name).to_lowercase())
                 .opt("label", label)
                 .set("status", normalize_tool_status(item.get("status"), phase))
                 .set("input", coalesce(item.get("arguments"), Value::Null))
@@ -733,7 +734,7 @@ pub fn extract_codex_error_text(value: Option<&Value>, depth: usize) -> String {
     }
     match value {
         Value::String(text) => {
-            let text = js::trim(text);
+            let text = text::trim(text);
             if text.is_empty() {
                 return String::new();
             }
@@ -748,7 +749,7 @@ pub fn extract_codex_error_text(value: Option<&Value>, depth: usize) -> String {
                     }
                 }
             }
-            js::head16(text, 32_768).to_string()
+            text::head16(text, 32_768).to_string()
         }
         Value::Object(_) => {
             let nested = |candidate: Option<&Value>| extract_codex_error_text(candidate, depth + 1);

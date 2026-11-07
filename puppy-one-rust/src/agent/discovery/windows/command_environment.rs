@@ -3,8 +3,8 @@
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::bounded_process_probe::{ProbeOptions, ProbeRunner};
 use crate::agent::discovery::command_environment::EnvMap;
-use crate::agent::event_loop::AbortSignal;
-use crate::agent::node_path::flavor::{win32_is_absolute, win32_join};
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths::flavor::{win32_is_absolute, win32_join};
 use serde_json::Value;
 use std::path::Path;
 
@@ -12,7 +12,7 @@ use std::path::Path;
 pub async fn read_windows_command_environment(
     env: &EnvMap,
     homedir: &Path,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
     run_probe: &ProbeRunner,
     timeout_ms: u64,
 ) -> AgentResult<EnvMap> {

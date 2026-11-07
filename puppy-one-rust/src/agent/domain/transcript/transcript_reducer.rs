@@ -26,6 +26,7 @@ use crate::agent::contract::event_content_update::{
 };
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::types::AgentEventView;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::collections::HashSet;
@@ -67,7 +68,7 @@ fn read_prompt_mentions(value: Option<&Value>, prompt: &str, references: &[Value
         return Vec::new();
     };
     let reference_ids: HashSet<&str> = references.iter().filter_map(|r| r["id"].as_str()).collect();
-    let length = js::len16(prompt) as i64;
+    let length = text::len16(prompt) as i64;
     let mut boundary = 0;
     entries
         .iter()
@@ -185,7 +186,7 @@ fn apply_legacy_agent_event(next: &mut Projection, event: &Value, options: Proje
             next.d.set("sessionState", "active");
             next.d.set("runningTurnId", event.turn_value());
             next.d.set("terminalState", Value::Null);
-            let prompt = js::head16(event.text("prompt"), MAX_MESSAGE_TEXT).to_string();
+            let prompt = text::head16(event.text("prompt"), MAX_MESSAGE_TEXT).to_string();
             let references = read_reference_displays(event.field("referenceDisplays"));
             let prompt_mentions =
                 read_prompt_mentions(event.field("promptMentions"), &prompt, &references);
@@ -549,8 +550,8 @@ fn apply_legacy_agent_event(next: &mut Projection, event: &Value, options: Proje
 }
 
 fn tail_bounded(text: &str, limit: usize) -> String {
-    let length = js::len16(text);
-    js::tail16(text, length.saturating_sub(limit)).to_string()
+    let length = text::len16(text);
+    text::tail16(text, length.saturating_sub(limit)).to_string()
 }
 
 fn read_reference_displays(value: Option<&Value>) -> Vec<Value> {
@@ -581,13 +582,13 @@ fn read_reference_displays(value: Option<&Value>) -> Vec<Value> {
                 candidate
                     .get(key)
                     .and_then(Value::as_str)
-                    .map(|v| js::head16(v, limit).to_string())
+                    .map(|v| text::head16(v, limit).to_string())
             };
             Some(
                 Obj::new()
                     .set("id", id)
                     .set("kind", kind)
-                    .set("displayName", js::head16(&clean, 512))
+                    .set("displayName", text::head16(&clean, 512))
                     .opt("relativePath", text("relativePath", 4_096))
                     .opt("workspaceName", text("workspaceName", 512))
                     .opt("mime", text("mime", 200))
@@ -609,7 +610,7 @@ fn read_reference_displays(value: Option<&Value>) -> Vec<Value> {
 /// original ledger position and locally-known reference metadata remain
 /// stable.
 fn upsert_user_message(projection: &mut Projection, event: &Value) {
-    let text = js::head16(event.text("text"), MAX_MESSAGE_TEXT).to_string();
+    let text = text::head16(event.text("text"), MAX_MESSAGE_TEXT).to_string();
     let references = read_reference_displays(event.field("referenceDisplays"));
     let prompt_mentions = read_prompt_mentions(event.field("promptMentions"), &text, &references);
     let sequence = event.sequence();
@@ -828,7 +829,7 @@ fn upsert_assistant(
         base_id
     };
     let existing_index = if create_segment { None } else { latest_index };
-    let segment_length = js::len16(&segmented_text);
+    let segment_length = text::len16(&segmented_text);
     let (d, indexes) = projection.split();
     if let Some(index) = existing_index {
         let existing = d.messages[index].clone();
@@ -839,7 +840,7 @@ fn upsert_assistant(
             if boundary_after_latest && !create_segment {
                 existing_text.to_string()
             } else {
-                js::head16(&segmented_text, MAX_MESSAGE_TEXT).to_string()
+                text::head16(&segmented_text, MAX_MESSAGE_TEXT).to_string()
             }
         } else {
             append_bounded(existing_text, &segmented_text, MAX_MESSAGE_TEXT)
@@ -849,7 +850,7 @@ fn upsert_assistant(
                 segment_length > MAX_MESSAGE_TEXT
             } else {
                 existing.get("truncated") == Some(&Value::Bool(true))
-                    || js::len16(existing_text) + segment_length > MAX_MESSAGE_TEXT
+                    || text::len16(existing_text) + segment_length > MAX_MESSAGE_TEXT
             };
         d.messages[index] = revise(&existing, |m| {
             m.insert("text".into(), next_text.into());
@@ -865,7 +866,7 @@ fn upsert_assistant(
         .set("role", "assistant")
         .set("turnId", turn_value.clone())
         .set("itemId", event.item_value())
-        .set("text", js::head16(&segmented_text, MAX_MESSAGE_TEXT))
+        .set("text", text::head16(&segmented_text, MAX_MESSAGE_TEXT))
         .set(
             "truncated",
             truncated_payload || segment_length > MAX_MESSAGE_TEXT,
@@ -1002,10 +1003,11 @@ fn upsert_activity(
                     );
                     let text = match &mutation {
                         Some(mutation) => mutation.text.clone(),
-                        None => {
-                            js::head16(js::str_or_empty(safe_detail.get(field)), MAX_ACTIVITY_TEXT)
-                                .to_string()
-                        }
+                        None => text::head16(
+                            js::str_or_empty(safe_detail.get(field)),
+                            MAX_ACTIVITY_TEXT,
+                        )
+                        .to_string(),
                     };
                     let mut detail = Obj::from(&existing["detail"])
                         .spread(&safe_detail)
@@ -1075,10 +1077,13 @@ fn upsert_activity(
 }
 
 fn append_bounded(current: &str, incoming: &str, limit: usize) -> String {
-    let current_length = js::len16(current);
+    let current_length = text::len16(current);
     if current_length < limit {
-        format!("{current}{}", js::head16(incoming, limit - current_length))
+        format!(
+            "{current}{}",
+            text::head16(incoming, limit - current_length)
+        )
     } else {
-        js::head16(current, limit).to_string()
+        text::head16(current, limit).to_string()
     }
 }

@@ -6316,6 +6316,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "tokio-util",
  "unicode-linebreak",
  "unicode-normalization",
  "unicode-segmentation",

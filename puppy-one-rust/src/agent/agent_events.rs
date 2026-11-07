@@ -6,6 +6,8 @@ use crate::agent::contract::event_schema::{
 };
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::validation::{Contract, type_error};
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::sync::LazyLock;
@@ -95,7 +97,7 @@ pub fn create_agent_event_envelope(input: EnvelopeInput) -> Contract<Value> {
         .set("providerSessionId", input.provider_session_id)
         .set("turnId", input.turn_id)
         .set("itemId", input.item_id)
-        .set("emittedAt", input.emitted_at.unwrap_or_else(js::now_iso))
+        .set("emittedAt", input.emitted_at.unwrap_or_else(clock::now_iso))
         .set("type", input.event_type.clone())
         .set(
             "payload",
@@ -136,9 +138,9 @@ fn normalize_display_payload(event_type: &str, payload: &Value) -> Contract<Valu
     // Text completeness is explicit. A generic metadata preview must never
     // silently become an authoritative replacement for an accumulated answer.
     let truncated = payload.get("truncated") == Some(&Value::Bool(true))
-        || js::len16(&text) > display_limits::MAX_TEXT;
+        || text::len16(&text) > display_limits::MAX_TEXT;
     let mut object = Obj::from(&redact_secrets(&bound_renderer_value(&metadata)))
-        .set(field, js::head16(&text, display_limits::MAX_TEXT));
+        .set(field, text::head16(&text, display_limits::MAX_TEXT));
     if truncated {
         object.insert("truncated", true);
     }
@@ -229,7 +231,7 @@ fn bound_with_state(
     state.remaining_nodes -= 1;
     match value {
         Value::String(text) => {
-            let length = js::len16(text) as i64;
+            let length = text::len16(text) as i64;
             let visible = length
                 .min(max_string_length as i64)
                 .min(state.remaining_text)
@@ -241,7 +243,7 @@ fn bound_with_state(
             let separator = if visible > 0 { "\n" } else { "" };
             Value::String(format!(
                 "{}{separator}… output truncated",
-                js::head16(text, visible as usize)
+                text::head16(text, visible as usize)
             ))
         }
         Value::Array(entries) => {

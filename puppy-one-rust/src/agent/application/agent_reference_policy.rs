@@ -8,8 +8,9 @@ use super::agent_input_policy::{
 };
 use super::ports::AttachmentStore;
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js::{self, Obj};
+use crate::agent::contract::js::Obj;
 use crate::agent::domain::agent_session_model::{AgentSession, ReferenceClaim};
+use crate::clock;
 use regex::Regex;
 use serde_json::Value;
 use std::rc::Rc;
@@ -112,7 +113,7 @@ pub fn begin_agent_turn_references(
 ) -> AgentResult<()> {
     let result = session.actor.dispatch(serde_json::json!({
         "type": "submission.prepared",
-        "startedAtMs": js::now_ms(),
+        "startedAtMs": clock::now_ms(),
         "submission": {
             "commandId": identity.command_id,
             "operationId": identity.operation_id,

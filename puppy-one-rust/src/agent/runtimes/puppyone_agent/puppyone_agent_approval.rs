@@ -1,7 +1,7 @@
 //! `runtimes/puppyone-agent/puppyone-agent-approval.mjs`: decode only the
 //! private, versioned approval request the bundled worker emits.
 use super::puppyone_agent_kernel::PUPPYONE_AGENT_APPROVAL_PROTOCOL;
-use crate::agent::contract::js;
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
@@ -12,7 +12,7 @@ static SAFE_ID: LazyLock<Regex> =
 fn bounded(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|text| js::head16(js::trim(text), limit).to_string())
+        .map(|text| text::head16(text::trim(text), limit).to_string())
         .unwrap_or_default()
 }
 
@@ -26,7 +26,7 @@ pub fn parse_puppyone_agent_approval_request(message: &Value) -> Option<Value> {
     let encoded = message
         .get("message")
         .and_then(Value::as_str)
-        .filter(|m| js::len16(m) <= 32 * 1024)?;
+        .filter(|m| text::len16(m) <= 32 * 1024)?;
     let value: Value = serde_json::from_str(encoded).ok()?;
     if value.get("schema").and_then(Value::as_str) != Some(PUPPYONE_AGENT_APPROVAL_PROTOCOL) {
         return None;

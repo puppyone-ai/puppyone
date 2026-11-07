@@ -25,8 +25,6 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::native_session_id::native_session_id;
-use crate::agent::event_loop::{AbortSignal, spawn};
-use crate::agent::node_path;
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
@@ -37,10 +35,13 @@ use crate::agent::security::acp_workspace_files::AcpWorkspaceFileSystem;
 use crate::agent::security::authorized_project_instructions::{
     format_authorized_project_instructions, load_authorized_project_instructions,
 };
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionEvent, ConnectionOptions};
 use crate::agent::transports::rpc_connection::{
     ConnectionFactory, RpcConnection, jsonl_rpc_connection_factory,
 };
+use crate::clock;
+use crate::platform::paths;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Map, Value, json};
 use std::cell::{Cell, RefCell};
@@ -49,6 +50,7 @@ use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::LazyLock;
 use std::time::Duration;
+use tokio::task::spawn_local;
 
 const METADATA_SETTLE_MS: u64 = 75;
 
@@ -672,7 +674,7 @@ impl Inner {
 
     /// `#providerSession({ title, model, effort, mode })`.
     fn provider_session(&self, title: &str, model: &Value, effort: &Value, mode: &Value) -> Value {
-        let now = js::now_iso();
+        let now = clock::now_iso();
         let config = self.session_config.borrow();
         let pick = |current: &Option<String>, fallback: &Value| {
             current
@@ -722,7 +724,7 @@ impl AcpRuntimeAdapter {
         }
         let display_name =
             js::str_or_empty(options.runtime_descriptor.get("displayName")).to_string();
-        let workspace_root = node_path::resolve_one(&options.workspace_root)
+        let workspace_root = paths::absolute(&options.workspace_root)
             .to_string_lossy()
             .into_owned();
         let report = options
@@ -1033,12 +1035,12 @@ impl AcpRuntimeAdapter {
     pub async fn discover_sessions(
         &self,
         cursor: Option<String>,
-        signal: Option<AbortSignal>,
+        signal: Option<CancelSignal>,
     ) -> AgentResult<Value> {
         let inner = &self.0;
         inner.assert_usable()?;
         if let Some(signal) = signal.as_ref() {
-            signal.throw_if_aborted()?;
+            signal.check()?;
         }
         self.connect("history").await?;
         let result = async {
@@ -1264,7 +1266,7 @@ impl AcpRuntimeAdapter {
         let inner = self.0.clone();
         let client = inner.client();
         let session_id = inner.session();
-        spawn(async move {
+        spawn_local(async move {
             let result = match client {
                 Some(client) => {
                     client
@@ -1797,11 +1799,11 @@ impl SessionHistoryPort for AcpHistoryPort {
         &self,
         cursor: Option<String>,
         _limit: usize,
-        signal: AbortSignal,
+        signal: CancelSignal,
     ) -> AdapterFuture<'_, Value> {
         Box::pin(self.0.discover_sessions(cursor, Some(signal)))
     }
-    fn hydrate(&self, _signal: AbortSignal) -> AdapterFuture<'_, Value> {
+    fn hydrate(&self, _signal: CancelSignal) -> AdapterFuture<'_, Value> {
         let result = self.0.read_history_result();
         Box::pin(async move { result })
     }

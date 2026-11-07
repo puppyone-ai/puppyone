@@ -6,14 +6,14 @@ use super::agent_prompt_mentions::{
 };
 use super::agent_workspace_path::resolve_agent_workspace_provider_path;
 use crate::features::desktop_agent::fixtures::typed;
-use crate::text as js;
+use crate::text;
 use serde_json::json;
 use std::collections::HashSet;
 
 #[test]
 fn keeps_utf16_ranges_stable_and_presents_a_file_as_one_segment() {
     let prompt = "看一下 @SECURITY.md 然后总结";
-    let start = js::len16(&prompt[..prompt.find("@SECURITY.md").expect("mention")]);
+    let start = text::len16(&prompt[..prompt.find("@SECURITY.md").expect("mention")]);
     let mentions = normalize_agent_prompt_mentions(
         prompt,
         &[typed(

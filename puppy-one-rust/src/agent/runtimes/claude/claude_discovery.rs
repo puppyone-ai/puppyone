@@ -7,12 +7,13 @@ use crate::agent::connections::runtime_discovery_cache::{CacheOptions, CachedRun
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
 use crate::agent::transports::executable_discovery::{
     BoundedRun, DiscoverExecutableOptions, DiscoverFn, RunBounded, build_agent_environment,
     discover_executable, environment_map, run_bounded,
 };
+use crate::text;
 use regex::Regex;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -86,7 +87,7 @@ fn make_temp_dir(tmpdir: &Path, prefix: &str) -> std::io::Result<PathBuf> {
 /// `discoverClaudeRuntime(options)`.
 pub async fn discover_claude_runtime(
     options: ClaudeDiscoveryOptions,
-    signal: Option<AbortSignal>,
+    signal: Option<CancelSignal>,
 ) -> AgentResult<Value> {
     let loader = options
         .sdk_loader
@@ -296,7 +297,7 @@ fn has_secure_sdk_capabilities(help: &str) -> bool {
 pub fn parse_claude_version(value: &str) -> Option<String> {
     value.lines().find_map(|line| {
         VERSION_LINE
-            .captures(js::trim(line))
+            .captures(text::trim(line))
             .map(|captures| captures[1].to_string())
     })
 }

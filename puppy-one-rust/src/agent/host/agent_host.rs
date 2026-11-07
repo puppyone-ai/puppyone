@@ -335,7 +335,7 @@ fn production_services(
     })?;
     {
         let store = attachment_store.clone();
-        crate::agent::event_loop::spawn(async move {
+        tokio::task::spawn_local(async move {
             if let Err(error) = store.initialize().await {
                 eprintln!("puppyone failed to initialize Agent attachment staging: {error}");
             }

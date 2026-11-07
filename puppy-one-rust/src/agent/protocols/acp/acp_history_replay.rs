@@ -6,6 +6,7 @@
 //! by live turns. This object is process-local and has no persistence path.
 use super::acp_event_normalizer::AcpEventNormalizer;
 use crate::agent::contract::js::{self, Obj};
+use crate::text;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -139,7 +140,7 @@ impl AcpHistoryReplay {
         self.accepting_anonymous_user_chunks = native_message_id.is_none();
         let delta = content_text(update.get("content"));
         let prompt = &mut self.turns[turn].prompt;
-        if js::len16(prompt) + js::len16(&delta) > MAX_HISTORY_PROMPT_LENGTH {
+        if text::len16(prompt) + text::len16(&delta) > MAX_HISTORY_PROMPT_LENGTH {
             self.truncated = true;
         }
         *prompt = append_bounded(prompt, &delta, MAX_HISTORY_PROMPT_LENGTH);
@@ -211,7 +212,7 @@ fn content_text(content: Option<&Value>) -> String {
                 .find(|value| js::truthy(value));
             value
                 .and_then(Value::as_str)
-                .map(|s| js::head16(s, 4_096).to_string())
+                .map(|s| text::head16(s, 4_096).to_string())
                 .unwrap_or_default()
         }
         _ => String::new(),
@@ -231,11 +232,11 @@ fn unique_id(base: &str, used: &HashSet<String>) -> String {
 }
 
 fn append_bounded(previous: &str, delta: &str, limit: usize) -> String {
-    let remaining = limit.saturating_sub(js::len16(previous));
+    let remaining = limit.saturating_sub(text::len16(previous));
     if remaining > 0 {
-        format!("{previous}{}", js::head16(delta, remaining))
+        format!("{previous}{}", text::head16(delta, remaining))
     } else {
-        js::head16(previous, limit).to_string()
+        text::head16(previous, limit).to_string()
     }
 }
 

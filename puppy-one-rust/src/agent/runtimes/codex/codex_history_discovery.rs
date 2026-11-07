@@ -6,7 +6,7 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::history_schema::{
     history_cursor, history_locators, history_native_id, history_page_size,
 };
-use crate::agent::event_loop::AbortSignal;
+use crate::agent::tasks::CancelSignal;
 use serde_json::{Value, json};
 
 /// `discoverCodexHistory({ request, workspaceRoot }, { cursor, limit, signal })`.
@@ -15,10 +15,10 @@ pub async fn discover_codex_history(
     workspace_root: &str,
     cursor: Option<&str>,
     limit: Option<&Value>,
-    signal: Option<&AbortSignal>,
+    signal: Option<&CancelSignal>,
 ) -> AgentResult<Value> {
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     let page_size = history_page_size(limit);
     let cursor = history_cursor(cursor.map(Value::from).as_ref())?;
@@ -36,7 +36,7 @@ pub async fn discover_codex_history(
     )
     .await?;
     if let Some(signal) = signal {
-        signal.throw_if_aborted()?;
+        signal.check()?;
     }
     let invalid = || {
         AgentError::new("Codex history returned an invalid session page.").with_name("TypeError")

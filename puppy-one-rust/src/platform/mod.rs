@@ -18,6 +18,7 @@ pub mod image_transcode;
 pub mod local_agent_setup;
 pub mod locale_format;
 pub mod office;
+pub mod paths;
 pub mod pdf;
 pub mod preference_storage;
 pub mod process;

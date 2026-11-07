@@ -18,6 +18,7 @@ use crate::agent::domain::transcript::transcript_reducer::{
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionEvent, jsonl_rpc_error_response};
 use crate::agent::transports::rpc_connection::RpcConnection;
 use crate::agent::transports::rpc_connection::fake::FakeConnection;
+use crate::clock;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::rc::Rc;
@@ -337,7 +338,7 @@ fn uses_the_live_normalizer_for_messages_tool_patches_output_and_file_changes() 
             js::with(
                 &js::with(event, "sequence", index as i64 + 1),
                 "emittedAt",
-                js::iso_string(index as i64 * 1_000),
+                clock::iso_string(index as i64 * 1_000),
             )
         })
         .collect();

@@ -2,7 +2,7 @@
 //! input channel that keeps one Claude Code query alive across turns.
 use super::claude_agent_sdk::PromptSource;
 use crate::agent::agent_error::{AgentError, AgentResult};
-use crate::agent::contract::js;
+use crate::text;
 use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -143,7 +143,7 @@ pub fn create_claude_user_message(content: &Value, session_id: &str) -> AgentRes
 
 fn valid_claude_content(value: &Value) -> bool {
     if let Some(text) = value.as_str() {
-        return !js::trim(text).is_empty() && js::len16(text) <= MAX_MESSAGE_CHARACTERS;
+        return !text::trim(text).is_empty() && text::len16(text) <= MAX_MESSAGE_CHARACTERS;
     }
     let Some(blocks) = value.as_array() else {
         return false;
@@ -158,8 +158,8 @@ fn valid_claude_content(value: &Value) -> bool {
         if kind == Some("text")
             && let Some(text) = block.get("text").and_then(Value::as_str)
         {
-            text_characters += js::len16(text);
-            has_text |= !js::trim(text).is_empty();
+            text_characters += text::len16(text);
+            has_text |= !text::trim(text).is_empty();
             continue;
         }
         let source = block.get("source");

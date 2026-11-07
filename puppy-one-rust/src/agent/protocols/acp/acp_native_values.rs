@@ -4,6 +4,8 @@ use super::acp_session_config::ConfigState;
 use crate::agent::agent_error::AgentError;
 use crate::agent::contract::js;
 use crate::agent::contract::native_session_id::native_session_id;
+use crate::clock;
+use crate::text;
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::sync::LazyLock;
@@ -188,13 +190,13 @@ pub fn safe_id_value(value: Option<&Value>) -> Option<String> {
 pub fn text(value: Option<&Value>, limit: usize) -> String {
     value
         .and_then(Value::as_str)
-        .map(|s| js::head16(js::trim(s), limit).to_string())
+        .map(|s| text::head16(text::trim(s), limit).to_string())
         .unwrap_or_default()
 }
 
 /// `normalizeDate(value)`.
 pub fn normalize_date(value: Option<&Value>) -> Option<String> {
-    js::date_parse(value?.as_str()?).map(js::iso_string)
+    clock::date_parse(value?.as_str()?).map(clock::iso_string)
 }
 
 static EMPTY: LazyLock<Map<String, Value>> = LazyLock::new(Map::new);
