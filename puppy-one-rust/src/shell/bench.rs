@@ -135,8 +135,8 @@ fn pane_motion_frame_cost() {
         bench::draw(cx);
     }
     let renders =
-        |cx: &mut VisualTestContext| view.read_with(cx, |s, cx| s.explorer.read(cx).renders);
-    let edge = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.layout.editor.x);
+        |cx: &mut VisualTestContext| view.read_with(cx, |s, cx| s.explorer.view.read(cx).renders);
+    let edge = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout.editor.x);
     // A toggle, then frames until the edge settles at `target`.
     let toggle = |cx: &mut VisualTestContext, label: &str, target: f32| {
         let before = renders(cx);

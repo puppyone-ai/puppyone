@@ -33,6 +33,7 @@ use crate::{
     ui::components::ButtonVariant,
     workspace::Workspace,
 };
+#[cfg(feature = "dev-capture")]
 pub(crate) use builtin::{settings_dialog, task_backdrop};
 use gpui::{prelude::*, *};
 use std::{path::PathBuf, rc::Rc, sync::Arc};
@@ -131,6 +132,10 @@ pub(super) enum DialogEvent {
     Rename { path: PathBuf, name: String },
     /// A dialog's answer the shell shows as a notice.
     Error(String),
+    /// Settings forgot a project (`onUnlinkWorkspace`).
+    ForgetProject(PathBuf),
+    /// Settings changed the model connections: Agents read them again.
+    ModelConfigurationChanged,
 }
 
 pub(super) struct DialogLayer {
@@ -165,10 +170,25 @@ impl DialogLayer {
             |s, _, _: &crate::features::feedback::Close, cx| s.close_tasks(cx),
         )
         .detach();
+        let settings = cx.new(|cx| SettingsWorkspaceSurface::new(preferences, window, cx));
+        cx.subscribe(&settings, |s, _, event, cx| {
+            use crate::features::settings::SettingsEvent;
+            match event {
+                SettingsEvent::Close => s.close_tasks(cx),
+                SettingsEvent::ModelConfigurationChanged => {
+                    cx.emit(DialogEvent::ModelConfigurationChanged)
+                }
+                SettingsEvent::ForgetProject(path) => {
+                    s.close_tasks(cx);
+                    cx.emit(DialogEvent::ForgetProject(path.clone()));
+                }
+            }
+        })
+        .detach();
         Self {
             stack: Vec::new(),
             focus: cx.focus_handle(),
-            settings: cx.new(|cx| SettingsWorkspaceSurface::new(preferences, window, cx)),
+            settings,
             feedback,
             owner,
             status: None,

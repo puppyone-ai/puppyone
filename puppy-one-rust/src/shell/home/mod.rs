@@ -174,6 +174,29 @@ impl Homepage {
         cx.observe(&catalog, |h, _, cx| h.refresh(cx)).detach();
         cx.observe(&actions, |_, _, cx| cx.notify()).detach();
         crate::features::cloud::account::observe(window, cx, |h, _, cx| h.refresh(cx)).detach();
+        // Dev builds replay the intro (Alt+Shift+L, `KeyL`).
+        if cfg!(debug_assertions) {
+            let home = cx.weak_entity();
+            let own = window.window_handle();
+            cx.intercept_keystrokes(move |event, window, cx| {
+                let k = &event.keystroke;
+                if window.window_handle() != own
+                    || !k.key.eq_ignore_ascii_case("l")
+                    || !k.modifiers.alt
+                    || !k.modifiers.shift
+                    || k.modifiers.platform
+                    || k.modifiers.control
+                {
+                    return;
+                }
+                let _ = home.update(cx, |h, cx| {
+                    if h.replay_intro(cx) {
+                        cx.stop_propagation();
+                    }
+                });
+            })
+            .detach();
+        }
         // The disclosure follows the analytics state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();

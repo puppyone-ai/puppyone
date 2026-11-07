@@ -45,6 +45,65 @@ pub struct Launch {
     /// The process arguments apply to the first window only.
     pub from_args: bool,
 }
+/// What a window opens on, resolved from its [`Launch`] and (for the first
+/// window) the process arguments and the capture environment.
+pub(super) struct LaunchPlan {
+    /// A file window's file, and whether a capture holds it loading.
+    pub file: Option<(PathBuf, bool)>,
+    /// The folder to open.
+    pub workspace: Option<PathBuf>,
+    /// The document to open first, once the project is in: the arguments'
+    /// (when they were read), else the launch's.
+    pub open_first: Option<Option<PathBuf>>,
+    /// No project: open the last active one once preferences load
+    /// (`readLastActiveWorkspaceComposition`).
+    pub restore_last: bool,
+}
+impl Launch {
+    pub(super) fn plan(&self, fixture: bool) -> LaunchPlan {
+        let mut workspace = if cfg!(test) || !self.from_args {
+            self.workspace.clone()
+        } else {
+            std::env::var_os("PUPPYONE_WORKSPACE").map(PathBuf::from)
+        };
+        let mut open_first = None;
+        // `findLaunchTargetArg`: the first window opens the folder the
+        // command line names (a named file has its own window, from main).
+        if !cfg!(test) && self.from_args {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let parsed = parse_launch_args(std::env::args_os().skip(1), &cwd);
+            open_first = Some(parsed.open);
+            if let Some(path) = parsed.target.filter(|p| p.is_dir()) {
+                workspace = Some(path);
+            }
+        }
+        // Dev captures open a file window with `PUPPYONE_FILE_MODE` (a path
+        // that is not there opens on the unavailable state), and may hold
+        // it loading (`PUPPYONE_FILE_HOLD`).
+        #[cfg(feature = "dev-capture")]
+        let file = self.file.clone().or_else(|| {
+            std::env::var_os("PUPPYONE_FILE_MODE")
+                .filter(|_| self.from_args)
+                .map(PathBuf::from)
+                .map(|p| p.canonicalize().unwrap_or(p))
+        });
+        #[cfg(not(feature = "dev-capture"))]
+        let file = self.file.clone();
+        let hold =
+            cfg!(feature = "dev-capture") && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
+        if workspace.is_some() && self.open.is_some() {
+            open_first = Some(self.open.clone());
+        }
+        let restore_last =
+            file.is_none() && workspace.is_none() && self.from_args && !fixture && !cfg!(test);
+        LaunchPlan {
+            file: file.map(|file| (file, hold)),
+            workspace,
+            open_first,
+            restore_last,
+        }
+    }
+}
 struct PendingLaunch(Option<Launch>);
 impl Global for PendingLaunch {}
 

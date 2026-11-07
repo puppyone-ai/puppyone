@@ -113,6 +113,8 @@ impl DocumentSession {
 pub(super) struct WindowSession {
     /// The documents runtime.
     pub docs: Entity<DocumentSession>,
+    /// The project this window shows and how it came to show it.
+    pub project: Entity<super::project::ProjectLifecycle>,
     /// This window's budget owner (`ownerId`), shared with its hosts.
     pub key: String,
     /// The window title, represented file and edited mark last applied.
@@ -154,4 +156,44 @@ pub(super) struct SessionView {
     pub entries: u64,
     /// The visual fixture project shows.
     pub fixture: bool,
+}
+
+impl WindowSession {
+    /// `resolveWindowTitle`: "PuppyOne - <project>" with the project's
+    /// folder as the represented file (`root`, with its `name`); nothing in
+    /// full screen, where macOS shows it. A file window (`file`: its name,
+    /// its path, unsaved) is titled by its file and shows when it is
+    /// unsaved. Applied only when it changed.
+    pub fn apply_title(
+        &mut self,
+        window: &mut Window,
+        file: Option<(String, PathBuf, bool)>,
+        root: Option<PathBuf>,
+        name: &str,
+    ) {
+        let (title, path, edited) = match file {
+            Some((title, path, dirty)) => (title, Some(path), dirty),
+            None => {
+                let app = super::windows::APP_NAME;
+                let title = if root.is_some() && !name.is_empty() {
+                    format!("{app} - {name}")
+                } else {
+                    app.to_owned()
+                };
+                (title, root, false)
+            }
+        };
+        let title = if window.is_fullscreen() {
+            String::new()
+        } else {
+            title
+        };
+        let next = (title, path, edited);
+        if self.title.as_ref() != Some(&next) {
+            window.set_window_title(&next.0);
+            window.set_document_path(next.1.as_deref());
+            window.set_window_edited(next.2);
+            self.title = Some(next);
+        }
+    }
 }

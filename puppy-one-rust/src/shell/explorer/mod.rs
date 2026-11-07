@@ -47,6 +47,13 @@ pub(in crate::shell) use rows::DragNodes;
 use session::FileOp;
 pub(in crate::shell) use session::{Activation, ExplorerSession, FileClipboard, SessionEvent};
 
+/// The project's Explorer: its session (the tree, selection, clipboard and
+/// pins, kept per project) and its view in the left column.
+pub(in crate::shell) struct ExplorerPane {
+    pub session: Entity<ExplorerSession>,
+    pub view: Entity<Explorer>,
+}
+
 /// What the Explorer reads from the shell, pushed when it changes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::shell) struct Host {

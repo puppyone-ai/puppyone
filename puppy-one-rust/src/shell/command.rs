@@ -290,7 +290,7 @@ mod route {
             window: &mut Window,
             cx: &mut Context<Self>,
         ) {
-            if self.project.update(cx, |p, cx| p.pick(window, cx)) {
+            if self.session.project.update(cx, |p, cx| p.pick(window, cx)) {
                 self.push_explorer_host(window, cx);
             }
         }
@@ -403,13 +403,13 @@ mod route {
                 }
                 Command::CancelFileClose => {
                     windows::cancel_quit(cx);
-                    self.focus.focus(window, cx);
+                    self.frame.focus.focus(window, cx);
                     cx.notify();
                     return;
                 }
                 Command::Quit if self.sidebar.read(cx).workbench.read(cx).has_running(cx) => {
                     self.open_modal(Modal::ConfirmQuit, cx);
-                    self.focus.focus(window, cx);
+                    self.frame.focus.focus(window, cx);
                     cx.notify();
                     return;
                 }
@@ -429,7 +429,7 @@ mod route {
                 Command::KeepWindowOpen => {
                     self.close_modal(|m| matches!(m, Modal::CloseAnyway), cx);
                     windows::cancel_quit(cx);
-                    self.focus.focus(window, cx);
+                    self.frame.focus.focus(window, cx);
                     cx.notify();
                     return;
                 }
@@ -462,7 +462,7 @@ mod route {
                             d.set_root(root, cx);
                             d.open(Modal::Task(Task::Settings), cx);
                         });
-                        self.focus.focus(window, cx);
+                        self.frame.focus.focus(window, cx);
                     }
                     Command::Quit => self.session.docs.update(cx, |d, _| d.begin(Intent::Quit)),
                     _ => {}
@@ -527,7 +527,7 @@ mod route {
                 }
                 Command::Settings => {
                     self.set_popover(None, cx);
-                    self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                    self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                     let root = self.workspace_root(cx);
                     self.dialogs.update(cx, |d, cx| {
                         d.set_root(root, cx);
@@ -537,7 +537,7 @@ mod route {
                 }
                 Command::Feedback => {
                     self.set_popover(None, cx);
-                    self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                    self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                     self.open_modal(Modal::Task(Task::Feedback), cx);
                     let feedback = self.dialogs.read(cx).feedback.clone();
                     let message = feedback.read(cx).message.focus_handle(cx);
@@ -557,11 +557,11 @@ mod route {
                 }
                 Command::Home => {
                     self.set_popover(None, cx);
-                    self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                    self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                     if !self.home_visible(cx) {
                         self.home.update(cx, |h, _| h.hold_list());
                     }
-                    self.project.update(cx, |p, _| p.home = true);
+                    self.session.project.update(cx, |p, _| p.home = true);
                 }
                 // With no dialog open, Escape closes a menu.
                 // Escape cancels a Cloud opening; whatever showed stays.
@@ -586,7 +586,7 @@ mod route {
                         .update(cx, |h, cx| h.back(cx));
                 }
                 Command::Escape => {
-                    let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                    let closed = self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                     if !closed && self.chrome.read(cx).popover.is_some() {
                         self.set_popover(None, cx);
                         let focus = self.chrome.read(cx).project_focus.clone();
@@ -664,7 +664,7 @@ mod route {
                             .clone();
                         history.focus(window, cx);
                     } else {
-                        self.focus.focus(window, cx);
+                        self.frame.focus.focus(window, cx);
                     }
                 }
                 Command::ReloadCloudBaseline => {
@@ -681,14 +681,14 @@ mod route {
                 }
                 Command::CloseExecutions => {
                     self.close_modal(|m| matches!(m, Modal::Executions), cx);
-                    self.focus.focus(window, cx);
+                    self.frame.focus.focus(window, cx);
                 }
                 Command::Changes => {
                     if self.files(cx).workspace.is_none() {
                         return;
                     }
                     self.sidebar.update(cx, |s, cx| s.toggle_git(cx));
-                    self.focus.focus(window, cx);
+                    self.frame.focus.focus(window, cx);
                 }
                 _ => {}
             }
@@ -712,6 +712,360 @@ mod route {
                 .iter()
                 .position(|id| Some(id) == catalog.active.as_ref())?;
             Some((editors, active))
+        }
+    }
+
+    /// What the window's owners ask of it.
+    impl Shell {
+        /// The Header card or menu that is open: one at a time.
+        pub(in crate::shell) fn set_popover(
+            &mut self,
+            popover: Option<Popover>,
+            cx: &mut Context<Self>,
+        ) {
+            if self.chrome.read(cx).popover != popover {
+                // Share opens on a snapshot of what is open.
+                if popover == Some(Popover::Share) {
+                    let resource = match self.explorer.session.read(cx).selected_folder() {
+                        Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
+                        None => self
+                            .files(cx)
+                            .opened()
+                            .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
+                    };
+                    self.cloud
+                        .update(cx, |c, cx| c.snapshot_share_panel(resource, cx));
+                }
+                self.chrome.update(cx, |c, cx| c.set_popover(popover, cx));
+                self.sync_session_view(cx);
+                cx.notify();
+            }
+        }
+        /// What the Header and the rail ask of the window.
+        pub(in crate::shell) fn chrome_event(
+            &mut self,
+            event: &chrome::ChromeEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            use chrome::ChromeEvent;
+            match event {
+                ChromeEvent::Command(command) => self.command(*command, window, cx),
+                ChromeEvent::Popover(popover) => self.set_popover(*popover, cx),
+                ChromeEvent::OpenItem(item) => self.open_item(item, window, cx),
+                ChromeEvent::OpenProject(path) => self.open_project(path.clone(), window, cx),
+                ChromeEvent::RefreshCatalog => self.refresh_cloud_catalog(true, cx),
+                ChromeEvent::OpenSettings(page) => self.open_settings(*page, window, cx),
+                // The project rail takes room from the panes.
+                ChromeEvent::RailChanged => {
+                    self.constrain_window(window, cx);
+                    self.push_explorer_host(window, cx);
+                }
+            }
+        }
+        /// What the Cloud asks of the window.
+        pub(in crate::shell) fn cloud_event(
+            &mut self,
+            event: &window_cloud::CloudEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            use window_cloud::CloudEvent;
+            match event {
+                CloudEvent::OpenProject(path) => {
+                    return self.open_project(path.clone(), window, cx);
+                }
+                CloudEvent::OpenCloud(project) => self.open_cloud(project.clone(), cx),
+                CloudEvent::Command(command) => return self.command(*command, window, cx),
+                CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
+                CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
+                CloudEvent::Error(error) => self.show_error(error.clone(), cx),
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
+        /// focus it held; drafts, widths and sessions stay.
+        pub(in crate::shell) fn close_workspace_sidebars(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            self.sidebar.update(cx, |s, cx| s.collapse(cx));
+            self.set_popover(None, cx);
+            self.frame.focus.focus(window, cx);
+        }
+        /// The hosted Project's authority: when it no longer holds, the opening
+        /// in flight is cancelled and a Cloud project on screen leaves for the
+        /// Homepage.
+        pub(in crate::shell) fn guard_cloud_authority(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            let current = if crate::features::flags::cloud_enabled(&self.prefs.store, cx) {
+                cloud_authority::account_key(cx)
+            } else {
+                None
+            };
+            let Some(hosted) = self
+                .session
+                .project
+                .update(cx, |p, cx| p.revoke_authority(current, cx))
+            else {
+                return;
+            };
+            if self.chrome.read(cx).popover == Some(Popover::Share) {
+                self.set_popover(None, cx);
+            }
+            if hosted {
+                self.close_workspace_sidebars(window, cx);
+                self.receive(window, cx);
+            }
+            cx.notify();
+        }
+        /// What the Homepage asks for.
+        pub(in crate::shell) fn home_event(
+            &mut self,
+            event: &home::HomeEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                home::HomeEvent::OpenProject(path) => {
+                    return self.open_project(path.clone(), window, cx);
+                }
+                home::HomeEvent::OpenCloud(project) => {
+                    self.set_popover(None, cx);
+                    self.open_cloud(project.clone(), cx);
+                }
+                home::HomeEvent::OpenCreated {
+                    path,
+                    open,
+                    new_window,
+                } => {
+                    let (path, open) = (path.clone(), open.clone());
+                    if *new_window {
+                        cx.defer(move |cx| {
+                            if let Err(error) = windows::open_created(path, open, cx) {
+                                eprintln!("Could not open the new window: {error:#}");
+                            }
+                        });
+                        return;
+                    }
+                    self.set_popover(None, cx);
+                    self.session
+                        .project
+                        .update(cx, |p, cx| p.open_created(path, open, cx));
+                }
+                home::HomeEvent::Command(command) => return self.command(*command, window, cx),
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// Opens an entry of the Header's project menu in this window: a local
+        /// folder, or a Cloud project (`selectCloudProject`).
+        pub(in crate::shell) fn open_item(
+            &mut self,
+            item: &crate::workspace::cloud::catalog::Item,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            self.set_popover(None, cx);
+            match (&item.local_path, &item.cloud_project) {
+                (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
+                (None, Some(project)) => self.open_cloud(project.clone(), cx),
+                _ => {}
+            }
+            cx.notify();
+        }
+        /// The Settings page `page`, opened.
+        pub(in crate::shell) fn open_settings(
+            &mut self,
+            page: crate::features::settings::Page,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            let settings = self.dialogs.read(cx).settings.clone();
+            settings.update(cx, |settings, cx| settings.select_page(page, cx));
+            self.command(Command::Settings, window, cx);
+        }
+        /// What the dialog layer asks of the window.
+        pub(in crate::shell) fn dialog_event(
+            &mut self,
+            event: &DialogEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                DialogEvent::Command(command) => return self.command(*command, window, cx),
+                DialogEvent::Closed => self.frame.focus.focus(window, cx),
+                DialogEvent::Error(error) => {
+                    self.show_error(error.clone(), cx);
+                    self.frame.focus.focus(window, cx);
+                }
+                DialogEvent::ModelConfigurationChanged => {
+                    let workbench = self.sidebar.read(cx).workbench.clone();
+                    workbench.update(cx, |w, cx| w.reload_agent_configuration(cx));
+                }
+                DialogEvent::ForgetProject(path) => {
+                    let path = path.clone();
+                    self.prefs
+                        .store
+                        .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
+                    if self.workspace_root(cx).as_deref() == Some(path.as_path()) {
+                        return self.command(Command::Home, window, cx);
+                    }
+                }
+                DialogEvent::Rename { path, name } => {
+                    let (path, name) = (path.clone(), name.clone());
+                    self.explorer
+                        .session
+                        .update(cx, |session, cx| session.rename(path, name, cx));
+                    self.frame.focus.focus(window, cx);
+                }
+                DialogEvent::Created {
+                    workspace,
+                    parent,
+                    path,
+                    folder,
+                    nodes,
+                } => {
+                    self.frame.focus.focus(window, cx);
+                    if !self
+                        .files(cx)
+                        .workspace
+                        .as_ref()
+                        .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
+                    {
+                        return;
+                    }
+                    if let Err(error) = nodes {
+                        self.show_error(
+                            crate::localization::tf(
+                                "native.create.refreshFailed",
+                                &[("error", error.to_string().into())],
+                            ),
+                            cx,
+                        );
+                    }
+                    let listing = nodes.as_ref().ok().cloned();
+                    let (parent, path) = (parent.clone(), path.clone());
+                    self.explorer
+                        .session
+                        .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
+                    if !folder && !self.files(cx).allow_quit {
+                        self.session
+                            .docs
+                            .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
+                    }
+                }
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// Open the create form for `kind` in `parent` (the Explorer's menus).
+        pub(in crate::shell) fn start_create(
+            &mut self,
+            kind: crate::features::create_new::create_entry_menu_registry::Entry,
+            parent: PathBuf,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            let Some(ws) = self.files(cx).workspace.clone() else {
+                return;
+            };
+            if self.files(cx).busy() || self.modal(cx) || !kind.available() {
+                return;
+            }
+            self.dialogs
+                .update(cx, |d, cx| d.create_entry(ws, parent, kind, window, cx));
+        }
+        /// What the right sidebar's surfaces ask of the window.
+        pub(in crate::shell) fn sidebar_event(
+            &mut self,
+            event: &right_sidebar::SidebarEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            use right_sidebar::SidebarEvent;
+            match event {
+                SidebarEvent::OpenFile(path) => {
+                    let path = path.clone();
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
+                }
+                // `handleAgentOpenFile`: a path inside the chat's project opens
+                // in the editor.
+                SidebarEvent::OpenAgentFile { root, path } => {
+                    use crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path as resolve;
+                    if let Some(path) = resolve(&root.to_string_lossy(), path) {
+                        let path = root.join(path);
+                        self.session
+                            .docs
+                            .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
+                    }
+                    return cx.notify();
+                }
+                SidebarEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
+                // A hosted run's accepted changes: reread the Cloud tree and
+                // revalidate the open document (a draft is kept).
+                SidebarEvent::CloudPublished => {
+                    if self.hosted_project(cx).is_none() {
+                        return;
+                    }
+                    self.explorer
+                        .session
+                        .update(cx, |e, cx| e.refresh_published(cx));
+                    self.session.docs.update(cx, |d, _| d.observe_publication());
+                }
+                SidebarEvent::Closed => self.frame.focus.focus(window, cx),
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        pub(in crate::shell) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
+            if let Err(error) = self
+                .session
+                .project
+                .update(cx, |p, cx| p.open_cloud(project, cx))
+            {
+                self.show_error(error, cx);
+            }
+            cx.notify();
+        }
+        /// Switch to a remembered project (`onSelectProject`).
+        pub(in crate::shell) fn open_project(
+            &mut self,
+            path: PathBuf,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            self.set_popover(None, cx);
+            self.session
+                .project
+                .update(cx, |p, cx| p.open_project(path, cx));
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// `resumeWorkspace`: a hosted Project opens again explicitly (its
+        /// retained documents rebind to the new lease); a local folder
+        /// subscribes again. Both reread what the Explorer has loaded.
+        pub(in crate::shell) fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
+            match self.hosted_project(cx) {
+                Some(project) => self.open_cloud(project, cx),
+                None => self.explorer.session.update(cx, |e, cx| e.resubscribe(cx)),
+            }
+            cx.notify();
+        }
+        /// `useHomepageCloudProjects`: load or revalidate the account catalog.
+        pub(in crate::shell) fn refresh_cloud_catalog(
+            &mut self,
+            retry: bool,
+            cx: &mut Context<Self>,
+        ) {
+            self.cloud.update(cx, |c, cx| c.refresh_catalog(retry, cx));
         }
     }
 }

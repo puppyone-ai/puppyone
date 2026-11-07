@@ -174,11 +174,11 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let Some(mut scenario) = self.capture_scenario.take() else {
+        let Some(mut scenario) = self.frame.capture_scenario.take() else {
             return true;
         };
         let done = self.step_capture_scenario(&mut scenario, window, cx);
-        self.capture_scenario = Some(scenario);
+        self.frame.capture_scenario = Some(scenario);
         if !done {
             window.request_animation_frame();
         }
@@ -202,8 +202,8 @@ impl Shell {
             || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
         let workspace_ready = file_settled
             || self.files(cx).workspace.is_some()
-                && !self.project.read(cx).record.fixture
-                && (file || !self.explorer_session.read(cx).tree().rows.is_empty())
+                && !self.session.project.read(cx).record.fixture
+                && (file || !self.explorer.session.read(cx).tree().rows.is_empty())
                 && (!file || self.files(cx).opened().is_some())
                 && !self.files(cx).busy()
                 && !self.files(cx).folder_busy;
@@ -245,7 +245,7 @@ impl Shell {
         // renders: what it changes then reaches every view that shows it.
         if !std::mem::replace(&mut scenario.applying, true) {
             cx.defer_in(window, move |s, window, cx| {
-                let Some(mut scenario) = s.capture_scenario.take() else {
+                let Some(mut scenario) = s.frame.capture_scenario.take() else {
                     return;
                 };
                 scenario.applying = false;
@@ -256,7 +256,7 @@ impl Shell {
                     scenario.steps.pop_front();
                     scenario.frames = 0;
                 }
-                s.capture_scenario = Some(scenario);
+                s.frame.capture_scenario = Some(scenario);
                 cx.notify();
             });
         }
@@ -272,7 +272,8 @@ impl Shell {
         match step {
             Step::Select(path) => {
                 if !self
-                    .explorer_session
+                    .explorer
+                    .session
                     .update(cx, |e, cx| e.capture_select(path, cx))
                 {
                     return false;
@@ -280,7 +281,8 @@ impl Shell {
             }
             Step::Expand(path) => {
                 if !self
-                    .explorer_session
+                    .explorer
+                    .session
                     .update(cx, |e, cx| e.capture_expand(path, cx))
                 {
                     return false;
@@ -319,7 +321,7 @@ impl Shell {
             Step::ProjectEntry => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
-                let (from, to) = (at(self.layout.editor.x), at(*x));
+                let (from, to) = (at(self.frame.layout.editor.x), at(*x));
                 self.panes.update(cx, |p, cx| {
                     p.begin_drag(super::Side::Start, from, cx);
                     p.move_drag(to, cx);
@@ -345,7 +347,8 @@ impl Shell {
             }
             Step::Collapse(path) => {
                 if self
-                    .explorer_session
+                    .explorer
+                    .session
                     .read(cx)
                     .tree()
                     .index_of(path)
@@ -353,7 +356,8 @@ impl Shell {
                 {
                     return false;
                 }
-                self.explorer_session
+                self.explorer
+                    .session
                     .update(cx, |e, cx| e.set_expanded(path, false, cx));
             }
             Step::Open(path) => self
@@ -361,30 +365,36 @@ impl Shell {
                 .docs
                 .update(cx, |d, _| d.begin(Intent::OpenFile(path.clone()))),
             Step::NodeMenu(path) => {
-                let Some(index) = self.explorer_session.read(cx).tree().index_of(path) else {
+                let Some(index) = self.explorer.session.read(cx).tree().index_of(path) else {
                     return false;
                 };
                 let at = MenuAt::Row(path.clone(), RowTrigger::More);
                 self.explorer
+                    .view
                     .update(cx, |e, cx| e.open_node_menu(index, at, cx));
             }
             Step::CreateMenu(path) => {
                 let at = MenuAt::Row(path.clone(), RowTrigger::Create);
                 self.explorer
+                    .view
                     .update(cx, |e, cx| e.open_create_menu(path.clone(), at, cx));
             }
-            Step::NewMenu => self.explorer.update(cx, |e, cx| {
+            Step::NewMenu => self.explorer.view.update(cx, |e, cx| {
                 e.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx)
             }),
             Step::Context(x, y) => {
                 let position = point(px(*x), px(*y));
                 self.explorer
+                    .view
                     .update(cx, |e, cx| match e.row_at(position, cx) {
                         Some(index) => e.open_node_menu(index, MenuAt::Pointer(position), cx),
                         None => e.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
                     });
             }
-            Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
+            Step::Submenu => self
+                .explorer
+                .view
+                .update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
             Step::Wait(_) => {}
             Step::AgentChat(runtime_id) => {
@@ -479,7 +489,8 @@ impl Shell {
             }
             Step::Pin(path) => {
                 let path = path.clone();
-                self.explorer_session
+                self.explorer
+                    .session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
             }
             Step::Template => self.home.update(cx, |h, cx| {
@@ -491,7 +502,7 @@ impl Shell {
             }),
             Step::AgentsFixture(open_links) => {
                 let client = crate::features::cloud::agents::lab_client(*open_links);
-                let name = self.project.read(cx).record.name.clone();
+                let name = self.session.project.read(cx).record.name.clone();
                 self.cloud.update(cx, |c, cx| {
                     c.capture_hosted = true;
                     c.agents.update(cx, |a, cx| {
@@ -538,9 +549,40 @@ impl Shell {
                     e.lab_type(" ", window, cx);
                 });
             }
-            Step::Blur => self.focus.focus(window, cx),
+            Step::Blur => self.frame.focus.focus(window, cx),
         }
         self.receive(window, cx);
         true
+    }
+}
+
+/// Captures can start on a surface (`PUPPYONE_CAPTURE_SURFACE`): Changes,
+/// or the Agent panel over its visual fixture.
+pub(super) fn prepare_surface(s: &mut Shell, window: &mut Window, cx: &mut Context<Shell>) {
+    if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
+        let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
+        if surface == "changes" {
+            s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
+        }
+        if surface == "agent-panel" || surface == "agent-panel-empty" {
+            s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
+            s.sidebar
+                .read(cx)
+                .workbench
+                .clone()
+                .update(cx, |workbench, cx| {
+                    workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
+                });
+        }
+        if surface == "agent-empty" || surface == "agent-transcript" {
+            s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
+            s.sidebar
+                .read(cx)
+                .workbench
+                .clone()
+                .update(cx, |workbench, cx| {
+                    workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
+                });
+        }
     }
 }

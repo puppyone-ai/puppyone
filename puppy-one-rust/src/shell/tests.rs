@@ -110,7 +110,9 @@ fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut
     std::fs::write(folder.path().join("b.md"), "# B\n").unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false)
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
     });
     let settle =
         |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
@@ -534,7 +536,7 @@ fn feedback_leaves_only_by_its_close_button_and_forgets_the_draft(cx: &mut TestA
                 .text()
                 .is_empty()
         );
-        assert!(s.focus.is_focused(w));
+        assert!(s.frame.focus.is_focused(w));
     });
     // Reopened, it starts empty with the message focused.
     command(&view, cx, Command::Feedback);
@@ -592,11 +594,11 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
 const MOTION_EARLY: std::time::Duration = std::time::Duration::from_millis(40);
 /// The shell's Explorer view.
 fn explorer_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<Explorer> {
-    view.read_with(cx, |s, _| s.explorer.clone())
+    view.read_with(cx, |s, _| s.explorer.view.clone())
 }
 /// The shell's Explorer session (the tree, selection and clipboard).
 fn session_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<ExplorerSession> {
-    view.read_with(cx, |s, _| s.explorer_session.clone())
+    view.read_with(cx, |s, _| s.explorer.session.clone())
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|w, cx| {
@@ -668,7 +670,7 @@ fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppConte
 fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
+        let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
         s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
     });
     draw(cx);
@@ -678,14 +680,14 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("escape");
     view.update_in(cx, |s, w, cx| {
         assert!(!s.has_dialog("Rename", cx));
-        assert!(s.focus.is_focused(w));
+        assert!(s.frame.focus.is_focused(w));
     });
 }
 #[gpui::test]
 fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
+        let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
         s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
     });
     draw(cx);
@@ -778,12 +780,14 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Home);
     view.update(cx, |s, cx| {
-        assert!(s.project.read(cx).home && s.chrome.read(cx).popover.is_none());
+        assert!(s.session.project.read(cx).home && s.chrome.read(cx).popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible(cx));
     });
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false)
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
     });
     view.update(cx, |s, cx| assert!(s.home_visible(cx)));
 }
@@ -862,7 +866,8 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
             .update(cx, |d, _| d.begin(Intent::OpenFolder(root)))
     });
     settle(cx, &|s, cx| {
-        s.explorer_session
+        s.explorer
+            .session
             .read(cx)
             .tree()
             .index_of(Path::new("notes.md"))
@@ -910,7 +915,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
         e.rename("notes.md".into(), "renamed.md".into(), cx)
     });
     settle(cx, &|s, cx| {
-        !s.explorer_session.read(cx).busy()
+        !s.explorer.session.read(cx).busy()
             && s.files(cx).slot(slot).is_some_and(|f| {
                 f.opened()
                     .is_some_and(|(_, p)| p == Path::new("renamed.md"))
@@ -1042,8 +1047,11 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
 fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.read_with(cx, |s, _| {
-        assert_eq!(s.layout.footer.h, 0.);
-        assert_eq!(s.layout.explorer.bottom(), s.layout.editor.bottom());
+        assert_eq!(s.frame.layout.footer.h, 0.);
+        assert_eq!(
+            s.frame.layout.explorer.bottom(),
+            s.frame.layout.editor.bottom()
+        );
     });
     let menus = app_menus();
     assert_eq!(menus[0].name.as_ref(), "PuppyOne");
@@ -1060,9 +1068,9 @@ fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestA
 fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     cx.run_until_parked();
-    let before = view.update(cx, |s, _| s.frames);
+    let before = view.update(cx, |s, _| s.frame.frames);
     cx.run_until_parked();
-    view.update(cx, |s, _| assert_eq!(s.frames, before));
+    view.update(cx, |s, _| assert_eq!(s.frame.frames, before));
 }
 #[gpui::test]
 fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppContext) {
@@ -1108,7 +1116,7 @@ fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppC
 #[gpui::test]
 fn closing_the_explorer_moves_its_frame_unless_motion_is_reduced(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    let open = view.update(cx, |s, _| s.layout.editor.x);
+    let open = view.update(cx, |s, _| s.frame.layout.editor.x);
     assert!(open > 0.);
     let started = std::time::Instant::now();
     command(&view, cx, Command::ToggleExplorer);
@@ -1116,13 +1124,13 @@ fn closing_the_explorer_moves_its_frame_unless_motion_is_reduced(cx: &mut TestAp
         view.update(cx, |s, _| {
             // Mid-motion the editor has not reached the window edge, and the
             // Explorer keeps its open width behind the moving frame.
-            assert!(s.layout.editor.x > 0.);
-            assert_eq!(s.layout.explorer.w, open);
+            assert!(s.frame.layout.editor.x > 0.);
+            assert_eq!(s.frame.layout.explorer.w, open);
         });
     }
     cx.update(|_, cx| cx.set_reduce_motion(true));
     command(&view, cx, Command::ToggleExplorer);
-    view.update(cx, |s, _| assert_eq!(s.layout.editor.x, open));
+    view.update(cx, |s, _| assert_eq!(s.frame.layout.editor.x, open));
 }
 
 #[gpui::test]
@@ -1132,7 +1140,7 @@ fn a_closing_explorer_moves_without_rendering_its_rows_again(cx: &mut TestAppCon
     draw(cx);
     let explorer = explorer_of(&view, cx);
     let renders = |cx: &mut VisualTestContext| explorer.read_with(cx, |e, _| e.renders);
-    let edge = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.layout.editor.x);
+    let edge = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout.editor.x);
     assert_eq!(edge(cx), 320.);
     // The toggle tells the Explorer once that it is closing…
     command(&view, cx, Command::ToggleExplorer);
@@ -1256,7 +1264,7 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    let edge = view.read_with(cx, |s, _| s.layout.editor.x);
+    let edge = view.read_with(cx, |s, _| s.frame.layout.editor.x);
     assert_eq!(edge, 320.);
     // The divider is the Explorer's last column; its lane runs 8px on.
     // Narrowing within range follows the pointer.
@@ -1283,7 +1291,7 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
             s.panes.read(cx).explorer().open,
             "nothing is committed mid-drag"
         );
-        assert_eq!(s.layout.editor.x, 0., "the preview is closed");
+        assert_eq!(s.frame.layout.editor.x, 0., "the preview is closed");
     });
     // …and releasing commits it, reopening later at the minimum.
     cx.simulate_mouse_up(
@@ -1338,8 +1346,8 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
             ),
             (false, 260., 400.)
         );
-        assert_eq!(s.layout.editor.x, 0.);
-        assert_eq!(s.layout.explorer.w, 0.);
+        assert_eq!(s.frame.layout.editor.x, 0.);
+        assert_eq!(s.frame.layout.explorer.w, 0.);
     });
     // Reopening comes back at the stored width, and is stored.
     command(&view, cx, Command::ToggleExplorer);
@@ -1371,7 +1379,7 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         &[(100., 400.), (134., 400.)],
         false,
     );
-    view.read_with(cx, |s, _| assert_eq!(s.layout.editor.x, 0.));
+    view.read_with(cx, |s, _| assert_eq!(s.frame.layout.editor.x, 0.));
     cx.simulate_mouse_move(
         point(px(200.), px(400.)),
         Some(MouseButton::Left),
@@ -1394,14 +1402,14 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
     // Escape mid-drag (focus anywhere, before any binding) restores what was
     // committed; the release that follows changes nothing.
     drag(&view, cx, (221., 400.), &[(60., 400.)], false);
-    view.read_with(cx, |s, _| assert_eq!(s.layout.editor.x, 0.));
+    view.read_with(cx, |s, _| assert_eq!(s.frame.layout.editor.x, 0.));
     cx.simulate_keystrokes("escape");
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
     view.read_with(cx, |s, cx| {
         assert!(s.panes.read(cx).dragging().is_none());
-        assert_eq!(s.layout.editor.x, 220.);
+        assert_eq!(s.frame.layout.editor.x, 220.);
     });
     cx.simulate_mouse_up(
         point(px(60.), px(400.)),
@@ -1483,9 +1491,9 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     draw(cx);
     let explorer = explorer_of(&view, cx);
     let renders = |cx: &mut VisualTestContext| explorer.read_with(cx, |e, _| e.renders);
-    let frames = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frames);
+    let frames = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.frames);
     // Scrolling the editor renders the window, not the Explorer.
-    let editor = view.read_with(cx, |s, _| s.layout.editor);
+    let editor = view.read_with(cx, |s, _| s.frame.layout.editor);
     let (before, shell_before) = (renders(cx), frames(cx));
     for _ in 0..5 {
         cx.simulate_event(ScrollWheelEvent {
@@ -1499,7 +1507,7 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     assert_eq!(renders(cx), before, "the Explorer was reused");
     // Rendering the shell does not push anything into the Explorer…
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.picking = true);
+        s.session.project.update(cx, |p, _| p.picking = true);
         cx.notify();
     });
     draw(cx);
@@ -1585,7 +1593,8 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             .update(cx, |d, _| d.load_children("dir".into()))
     });
     settle(&view, cx, |s, cx| {
-        s.explorer_session
+        s.explorer
+            .session
             .read(cx)
             .tree()
             .rows
@@ -1625,11 +1634,11 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("dir/Target.md"))
     });
-    let explorer = view.read_with(cx, |s, _| s.explorer_session.clone());
+    let explorer = view.read_with(cx, |s, _| s.explorer.session.clone());
     explorer.update(cx, |e, cx| e.rename("dir".into(), "moved".into(), cx));
     settle(&view, cx, |s, cx| {
         !s.files(cx).busy()
-            && !s.explorer_session.read(cx).busy()
+            && !s.explorer.session.read(cx).busy()
             && path(&csv, cx, 1).as_deref() == Some("moved/Target.md")
     });
     assert!(first.path().join("moved/table.csv").exists());
@@ -2009,7 +2018,7 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         s.hosted_project(cx).as_deref() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.project.read(cx).record.name, "Fixture Cloud");
+        assert_eq!(s.session.project.read(cx).record.name, "Fixture Cloud");
         assert_ne!(s.files(cx).workspace_key(), Some(local_key.as_str()));
         assert_eq!(s.place_menu_now(cx).unwrap().place, Place::Cloud);
     });
@@ -2220,11 +2229,11 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     // nothing is left to reuse under another session.
     cx.update(|_, cx| account.update(cx, |a, _| a.sign_out()));
     settle(&view, cx, "the revocation", &|s, cx| {
-        s.hosted_project(cx).is_none() && s.project.read(cx).record.cloud.is_none()
+        s.hosted_project(cx).is_none() && s.session.project.read(cx).record.cloud.is_none()
     });
     view.read_with(cx, |s, cx| {
-        assert!(s.project.read(cx).home);
-        assert!(s.project.read(cx).record.authority.is_none());
+        assert!(s.session.project.read(cx).home);
+        assert!(s.session.project.read(cx).record.authority.is_none());
     });
 }
 
@@ -2263,7 +2272,7 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert!(s.files(cx).cloud_opening().is_none());
-        assert!(s.project.read(cx).record.authority.is_none());
+        assert!(s.session.project.read(cx).record.authority.is_none());
     });
     // The late root never commits.
     std::thread::sleep(std::time::Duration::from_millis(600));
@@ -2360,7 +2369,7 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         s.hosted_project(cx).as_deref() == Some("project-a")
     });
     settle(&view, cx, "the workspace notice", &|s, cx| {
-        s.project.read(cx).record.notice.is_some()
+        s.session.project.read(cx).record.notice.is_some()
     });
     // A notice floats; it is not a dialog.
     view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
@@ -2945,7 +2954,8 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
     while view.read_with(vcx, |s, cx| {
         s.workspace_root(cx).is_none()
             || !s
-                .explorer_session
+                .explorer
+                .session
                 .read(cx)
                 .tree()
                 .is_folder(std::path::Path::new("docs"))
@@ -3065,7 +3075,9 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false);
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
         s.home.update(cx, |h, cx| {
             h.begin_create_project(w, cx);
             let create = h.create.as_mut().unwrap();
@@ -3113,7 +3125,9 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     std::fs::create_dir(parent.join("Weekly plan")).unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false)
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
     });
     command(&view, cx, Command::Home);
     cx.update(|_, cx| {
@@ -3208,7 +3222,9 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
     std::fs::create_dir(&folder).unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false);
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
         s.prefs
             .store
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
@@ -3263,7 +3279,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     });
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false)
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
     });
     command(&view, cx, Command::Home);
     // Home holds the list until its dates are read.
@@ -3308,7 +3326,7 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     });
     let fixture = |on: bool| {
         move |s: &mut Shell, w: &mut Window, cx: &mut Context<Shell>| {
-            s.project.update(cx, |p, _| p.record.fixture = on);
+            s.session.project.update(cx, |p, _| p.record.fixture = on);
             s.receive(w, cx)
         }
     };
@@ -3358,7 +3376,7 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
         assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx));
     });
     // Nothing in the overlay holds focus; Escape still reaches it.
-    view.update_in(cx, |s, w, cx| s.focus.focus(w, cx));
+    view.update_in(cx, |s, w, cx| s.frame.focus.focus(w, cx));
     cx.simulate_keystrokes("escape");
     draw(cx);
     view.update(cx, |s, cx| {
@@ -3911,7 +3929,7 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     });
     let explorer = explorer_of(&view, cx);
     settle_cloud(&view, cx, "the rows", &|s, cx| {
-        let rows = &s.explorer_session.read(cx).tree().rows;
+        let rows = &s.explorer.session.read(cx).tree().rows;
         rows.iter().any(|r| r.folder) && rows.iter().any(|r| !r.folder)
     });
     let share = crate::localization::t("workspace.node.shareWith").to_owned();
@@ -4290,7 +4308,9 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.project.update(cx, |p, _| p.record.fixture = false);
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
         s.prefs
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
@@ -4356,7 +4376,9 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
-        s.project.update(cx, |p, _| p.record.fixture = false);
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
         s.bind_file(file, false, w, cx);
     });
     settle_cloud(&view, cx, "the file", &|s, cx| {
@@ -4368,8 +4390,8 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         assert!(!s.home_visible(cx));
         assert!(!s.opening(cx));
         // The document spans the window under the title bar.
-        assert_eq!(s.layout.editor.x, 0.);
-        assert_eq!(s.layout.explorer.w, 0.);
+        assert_eq!(s.frame.layout.editor.x, 0.);
+        assert_eq!(s.frame.layout.explorer.w, 0.);
         // Not remembered as a project, never shared or put in the Cloud.
         assert!(s.prefs.store.read(cx).state.recent_projects.is_empty());
         assert!(s.cloud.read(cx).local_folder_notice(cx).is_none());
@@ -4391,7 +4413,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
     view.read_with(cx, |s, cx| {
-        assert!(!s.project.read(cx).home && !s.home_visible(cx))
+        assert!(!s.session.project.read(cx).home && !s.home_visible(cx))
     });
     for c in [
         Command::Settings,

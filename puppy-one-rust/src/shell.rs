@@ -41,6 +41,7 @@ pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
 };
 use dialogs::{DialogEvent, DialogKey, DialogLayer, Modal, Task};
+#[cfg(feature = "dev-capture")]
 pub(crate) use dialogs::{settings_dialog, task_backdrop};
 use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
 use explorer_column::ExplorerColumn;
@@ -67,37 +68,40 @@ pub enum Popover {
     Agents,
 }
 pub struct Shell {
-    /// The documents runtime, the owner key and the applied title.
+    /// The documents runtime, the project lifecycle, the owner key and the
+    /// applied title.
     session: session::WindowSession,
-    /// The project this window shows and how it came to show it.
-    project: Entity<project::ProjectLifecycle>,
-    /// The window's Cloud: catalog, association, publication, Agents, Share.
-    cloud: Entity<window_cloud::WindowCloud>,
-    /// The Header, its popovers, the project rail and the introductions.
-    chrome: Entity<chrome::WindowChrome>,
+    /// The shared preferences and what the window projects of them.
+    prefs: appearance::WindowPreferences,
     /// The Explorer's and the right sidebar's frames: open, width, edge
     /// drags and motion.
     panes: Entity<PaneLayout>,
-    /// Window dialogs, bottom to top, and the Settings and Help content.
-    dialogs: Entity<DialogLayer>,
+    /// The project's Explorer session (its tree, selection, clipboard and
+    /// pins, kept per project) and its view on the left.
+    explorer: explorer::ExplorerPane,
+    /// The editor area's hosts, drops, resizes and save notices.
+    editor: Entity<editor_area::EditorArea>,
     /// What the right sidebar shows: the Agent workbench, Changes / History
     /// and a hosted Project's History.
     sidebar: Entity<right_sidebar::RightSidebar>,
+    /// The Header, its popovers, the project rail and the introductions.
+    chrome: Entity<chrome::WindowChrome>,
+    home: Entity<home::Homepage>,
+    /// The window's Cloud: catalog, association, publication, Agents, Share.
+    cloud: Entity<window_cloud::WindowCloud>,
+    /// Window dialogs, bottom to top, and the Settings and Help content.
+    dialogs: Entity<DialogLayer>,
     /// A file window's own state (File Mode); `None` for a project window.
     pub(super) file: Option<Entity<file_mode::FileWindow>>,
-    /// The project's Explorer session (its tree, selection, clipboard and
-    /// pins, kept per project) and its view on the left.
-    explorer_session: Entity<ExplorerSession>,
-    explorer: Entity<Explorer>,
-    home: Entity<home::Homepage>,
-    /// The shared preferences and what the window projects of them.
-    prefs: appearance::WindowPreferences,
-    /// The editor area's hosts, drops, resizes and save notices.
-    editor: Entity<editor_area::EditorArea>,
+    /// The window's own focus and where everything sat last frame.
+    frame: WindowFrame,
+}
+/// The window as a frame: its own focus, where everything sits this frame
+/// (pane motion included), and the capture taken of it.
+struct WindowFrame {
     focus: FocusHandle,
-    captured: bool,
-    /// Where everything sits this frame (pane motion included).
     layout: Layout,
+    captured: bool,
     #[cfg(feature = "dev-capture")]
     capture_scenario: Option<capture_scenario::CaptureScenario>,
     #[cfg(test)]
@@ -262,13 +266,14 @@ impl Shell {
             )
         });
         // A folder's new name names the window that shows it.
-        cx.subscribe(&project_actions, |s, _, event, cx| {
+        cx.subscribe_in(&project_actions, window, |s, _, event, w, cx| {
             if let project_actions::ActionsEvent::Renamed { path, name } = event
                 && s.workspace_root(cx).as_deref() == Some(path.as_path())
             {
                 let name = name.clone();
-                s.project.update(cx, |p, _| p.record.name = name);
+                s.session.project.update(cx, |p, _| p.record.name = name);
                 s.sync_session_view(cx);
+                s.sync_window_title(w, cx);
             }
             cx.notify();
         })
@@ -280,40 +285,41 @@ impl Shell {
         })
         .detach();
         let mut s = Self {
-            project,
             session: session::WindowSession {
                 docs,
+                project,
                 key: key.clone(),
                 title: None,
             },
-            cloud,
-            chrome,
-            panes,
-            dialogs,
-            sidebar,
-            file: None,
-            explorer_session: explorer_session.clone(),
-            explorer: {
-                let owner = crate::features::agent_presence::owner(window);
-                cx.new(|cx| {
-                    Explorer::new(explorer_session, preferences.clone(), cx)
-                        .with_presence_owner(owner)
-                })
+            explorer: explorer::ExplorerPane {
+                view: cx.new(|cx| {
+                    Explorer::new(explorer_session.clone(), preferences.clone(), cx)
+                        .with_presence_owner(key.clone())
+                }),
+                session: explorer_session,
             },
-            home,
             prefs: appearance::WindowPreferences::new(preferences),
+            panes,
             editor,
-            focus,
-            captured: false,
-            layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
-            #[cfg(feature = "dev-capture")]
-            capture_scenario: if cfg!(test) {
-                None
-            } else {
-                capture_scenario::CaptureScenario::from_env()
+            sidebar,
+            chrome,
+            home,
+            cloud,
+            dialogs,
+            file: None,
+            frame: WindowFrame {
+                focus,
+                captured: false,
+                layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
+                #[cfg(feature = "dev-capture")]
+                capture_scenario: if cfg!(test) {
+                    None
+                } else {
+                    capture_scenario::CaptureScenario::from_env()
+                },
+                #[cfg(test)]
+                frames: 0,
             },
-            #[cfg(test)]
-            frames: 0,
         };
         // The workers' news, and what the editor area asks of the window.
         cx.subscribe_in(&s.session.docs, window, |s, _, _: &session::Woke, w, cx| {
@@ -322,7 +328,7 @@ impl Shell {
                 (
                     files.presentation_key(),
                     files.generation,
-                    s.project.read(cx).record.name.clone(),
+                    s.session.project.read(cx).record.name.clone(),
                 )
             };
             let before = shown(s, cx);
@@ -340,7 +346,12 @@ impl Shell {
             }
         })
         .detach();
-        cx.observe(&s.editor, |_, _, cx| cx.notify()).detach();
+        // A file window's title shows its unsaved edits.
+        cx.observe_in(&s.editor, window, |s, _, w, cx| {
+            s.sync_window_title(w, cx);
+            cx.notify()
+        })
+        .detach();
         // A dialog of the Agent workbench holds the editors too.
         let workbench = s.sidebar.read(cx).workbench.clone();
         cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
@@ -352,7 +363,7 @@ impl Shell {
             _ => {}
         }
         // The folder picker's answer, and the project as it changes.
-        cx.subscribe_in(&s.project, window, |s, _, event, w, cx| {
+        cx.subscribe_in(&s.session.project, window, |s, _, event, w, cx| {
             match event {
                 project::ProjectEvent::Error(error) => s.show_error(error.clone(), cx),
                 project::ProjectEvent::Retry => s.retry_workspace_surface(cx),
@@ -362,7 +373,8 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        cx.observe(&s.project, |_, _, cx| cx.notify()).detach();
+        cx.observe(&s.session.project, |_, _, cx| cx.notify())
+            .detach();
         // What the Homepage and the project actions ask of the window.
         cx.subscribe_in(&s.home, window, |s, _, event, w, cx| {
             s.home_event(event, w, cx)
@@ -394,9 +406,11 @@ impl Shell {
                 s.refresh_cloud_catalog(false, cx);
                 // Cloud turned off revokes a hosted selection.
                 s.guard_cloud_authority(w, cx);
-                if s.project.read(cx).record.restore_last {
+                if s.session.project.read(cx).record.restore_last {
                     let last = windows::last_active_project(cx);
-                    s.project.update(cx, |p, cx| p.restore_last(last, cx));
+                    s.session
+                        .project
+                        .update(cx, |p, cx| p.restore_last(last, cx));
                     s.receive(w, cx);
                 }
             },
@@ -410,7 +424,7 @@ impl Shell {
                 .detach();
         }
         // What the Explorer's session needs from the workspace.
-        cx.subscribe_in(&s.explorer_session, window, |s, _, event, window, cx| {
+        cx.subscribe_in(&s.explorer.session, window, |s, _, event, window, cx| {
             match event {
                 SessionEvent::ReferencesChanged => {}
                 SessionEvent::LoadChildren(path) => s
@@ -423,16 +437,20 @@ impl Shell {
                         .docs
                         .update(cx, |d, _| d.resource_operation(operation.clone()))
                     {
-                        s.explorer_session
+                        s.explorer
+                            .session
                             .update(cx, |e, cx| e.operation_failed(cx));
                         s.show_error(error, cx);
                     }
                 }
                 SessionEvent::Error(error) => s.show_error(error.clone(), cx),
                 SessionEvent::WatchFailed(error) => s
+                    .session
                     .project
                     .update(cx, |p, _| p.record.notice = Some(error.clone())),
-                SessionEvent::WatchRecovered => s.project.update(cx, |p, _| p.record.notice = None),
+                SessionEvent::WatchRecovered => {
+                    s.session.project.update(cx, |p, _| p.record.notice = None)
+                }
                 // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
                 SessionEvent::ContentChanged => {
                     s.sidebar
@@ -447,7 +465,7 @@ impl Shell {
         })
         .detach();
         // What the person asks for through the Explorer.
-        cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
+        cx.subscribe_in(&s.explorer.view, window, |s, _, event, window, cx| {
             match event {
                 ExplorerEvent::Open(path) => s
                     .session
@@ -489,36 +507,11 @@ impl Shell {
             PaneEvent::PulledOut => s.sidebar.update(cx, |s, _| s.pulled_out()),
         })
         .detach();
-        // The Explorer's frame follows the window.
-        cx.observe_window_bounds(window, |s, window, cx| s.push_explorer_host(window, cx))
-            .detach();
-        let settings = s.dialogs.read(cx).settings.clone();
-        cx.subscribe_in(&settings, window, |s, _, event, w, cx| {
-            use crate::features::settings::SettingsEvent;
-            match event {
-                SettingsEvent::Close => s.close_tasks(cx),
-                SettingsEvent::ModelConfigurationChanged => s
-                    .sidebar
-                    .read(cx)
-                    .workbench
-                    .clone()
-                    .update(cx, |s, cx| s.reload_agent_configuration(cx)),
-                SettingsEvent::ForgetProject(path) => {
-                    let path = path.clone();
-                    s.prefs
-                        .store
-                        .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
-                    s.close_tasks(cx);
-                    if s.files(cx)
-                        .workspace
-                        .as_ref()
-                        .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
-                    {
-                        s.command(Command::Home, w, cx);
-                    }
-                }
-            }
-            cx.notify();
+        // The Explorer's frame follows the window; full screen drops the
+        // title.
+        cx.observe_window_bounds(window, |s, window, cx| {
+            s.push_explorer_host(window, cx);
+            s.sync_window_title(window, cx);
         })
         .detach();
         // What the right sidebar's surfaces ask of the window.
@@ -561,104 +554,31 @@ impl Shell {
             }
         })
         .detach();
-        let own = window.window_handle();
-        // Dev builds replay the Homepage intro (Alt+Shift+L, `KeyL`).
-        if cfg!(debug_assertions) {
-            let shell = cx.weak_entity();
-            cx.intercept_keystrokes(move |event, window, cx| {
-                let k = &event.keystroke;
-                if window.window_handle() != own
-                    || !k.key.eq_ignore_ascii_case("l")
-                    || !k.modifiers.alt
-                    || !k.modifiers.shift
-                    || k.modifiers.platform
-                    || k.modifiers.control
-                {
-                    return;
-                }
-                let _ = shell.update(cx, |s, cx| {
-                    if s.home.update(cx, |h, cx| h.replay_intro(cx)) {
-                        cx.stop_propagation();
-                    }
-                });
-            })
-            .detach();
-        }
         // The Homepage disclosure follows the analytics state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
         }
-        let mut workspace = if cfg!(test) || !launch.from_args {
-            launch.workspace.clone()
-        } else {
-            std::env::var_os("PUPPYONE_WORKSPACE").map(PathBuf::from)
-        };
-        // `findLaunchTargetArg`: the first window opens the folder the
-        // command line names (a named file has its own window, from main).
-        if !cfg!(test) && launch.from_args {
-            let cwd = std::env::current_dir().unwrap_or_default();
-            let parsed = windows::parse_launch_args(std::env::args_os().skip(1), &cwd);
-            s.project
-                .update(cx, |p, _| p.record.open_first = parsed.open);
-            if let Some(path) = parsed.target.filter(|p| p.is_dir()) {
-                workspace = Some(path);
-            }
+        let plan = launch.plan(fixture);
+        if let Some(open) = plan.open_first {
+            s.session
+                .project
+                .update(cx, |p, _| p.record.open_first = open);
         }
         #[cfg(feature = "dev-capture")]
-        if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
-            let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
-            if surface == "changes" {
-                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
-            }
-            if surface == "agent-panel" || surface == "agent-panel-empty" {
-                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
-                s.sidebar
-                    .read(cx)
-                    .workbench
-                    .clone()
-                    .update(cx, |workbench, cx| {
-                        workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
-                    });
-            }
-            if surface == "agent-empty" || surface == "agent-transcript" {
-                s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
-                s.sidebar
-                    .read(cx)
-                    .workbench
-                    .clone()
-                    .update(cx, |workbench, cx| {
-                        workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
-                    });
-            }
-        }
-        // Dev captures open a file window with `PUPPYONE_FILE_MODE`.
-        #[cfg(feature = "dev-capture")]
-        let file = launch.file.clone().or_else(|| {
-            // A path that is not there opens on the unavailable state.
-            std::env::var_os("PUPPYONE_FILE_MODE")
-                .filter(|_| launch.from_args)
-                .map(PathBuf::from)
-                .map(|p| p.canonicalize().unwrap_or(p))
-        });
-        #[cfg(not(feature = "dev-capture"))]
-        let file = launch.file.clone();
-        if let Some(file) = file.and_then(file_mode::FileTarget::of) {
-            #[cfg(feature = "dev-capture")]
-            let hold = std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
-            #[cfg(not(feature = "dev-capture"))]
-            let hold = false;
-            s.bind_file(file, hold, window, cx);
-        } else if let Some(path) = workspace {
-            if launch.open.is_some() {
-                s.project
-                    .update(cx, |p, _| p.record.open_first = launch.open.clone());
-            }
+        capture_scenario::prepare_surface(&mut s, window, cx);
+        if let Some(file) = plan
+            .file
+            .and_then(|(path, hold)| file_mode::FileTarget::of(path).map(|file| (file, hold)))
+        {
+            s.bind_file(file.0, file.1, window, cx);
+        } else if let Some(path) = plan.workspace {
             s.session
                 .docs
                 .update(cx, |d, _| d.begin(Intent::OpenFolder(path)));
-        } else if launch.from_args && !fixture && !cfg!(test) {
-            // `readLastActiveWorkspaceComposition`: the last active project.
-            s.project.update(cx, |p, _| p.record.restore_last = true);
+        } else if plan.restore_last {
+            s.session
+                .project
+                .update(cx, |p, _| p.record.restore_last = true);
         }
         windows::register(window.window_handle(), cx.weak_entity(), cx);
         // `DesktopDialogRoot`'s focus keeper: a control disabled or removed
@@ -678,6 +598,7 @@ impl Shell {
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
         s.sync_session_view(cx);
+        s.sync_window_title(window, cx);
         s
     }
     /// The preferences changed: the appearance (the whole window renders
@@ -707,8 +628,9 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         self.session.docs.update(cx, |d, _| d.file_window = true);
+        self.session.project.update(cx, |p, _| p.file_window = true);
         if file.admission == file_mode::Admission::Readable && !hold {
-            self.project.update(cx, |p, _| {
+            self.session.project.update(cx, |p, _| {
                 p.record.open_first = Some(PathBuf::from(&file.name))
             });
             let root = file.root.clone();
@@ -736,19 +658,19 @@ impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
     fn home_visible(&self, cx: &App) -> bool {
         // A project on its way in takes the window from the Homepage.
-        !self.project.read(cx).record.fixture
+        !self.session.project.read(cx).record.fixture
             && !self.file_mode()
             && !self.opening(cx)
-            && (self.project.read(cx).home || self.files(cx).workspace.is_none())
+            && (self.session.project.read(cx).home || self.files(cx).workspace.is_none())
     }
     /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
     /// the window shows a quiet loading mark, never the Homepage.
     fn restoring(&self, cx: &App) -> bool {
-        self.project.read(cx).restoring(cx)
+        self.session.project.read(cx).restoring(cx)
     }
     /// A project is on its way into this window.
     fn opening(&self, cx: &App) -> bool {
-        self.project.read(cx).opening(cx)
+        self.session.project.read(cx).opening(cx)
     }
     /// What the window's features read of the session, handed over when it
     /// changed.
@@ -760,20 +682,20 @@ impl Shell {
             listing: home || self.chrome.read(cx).popover == Some(Popover::Project),
             workspace: files.workspace.is_some(),
             root: self.workspace_root(cx),
-            busy: self.project.read(cx).picking
+            busy: self.session.project.read(cx).picking
                 || files.busy()
                 || files.folder_busy
                 || files.cloud_opening().is_some(),
             cloud_opening: files.cloud_opening().is_some(),
             restoring: self.restoring(cx),
-            name: self.project.read(cx).record.name.clone(),
-            cloud_project: self.project.read(cx).record.cloud.clone(),
+            name: self.session.project.read(cx).record.name.clone(),
+            cloud_project: self.session.project.read(cx).record.cloud.clone(),
             hosted: self.hosted_project(cx),
             opening: self.opening(cx),
             file_mode: self.file_mode(),
-            home_requested: self.project.read(cx).home,
-            entries: self.project.read(cx).record.entries,
-            fixture: self.project.read(cx).record.fixture,
+            home_requested: self.session.project.read(cx).home,
+            entries: self.session.project.read(cx).record.entries,
+            fixture: self.session.project.read(cx).record.fixture,
         };
         self.home
             .update(cx, |h, cx| h.set_session(view.clone(), cx));
@@ -786,155 +708,16 @@ impl Shell {
         });
         self.guard_cloud_history(cx);
     }
-    /// The Header card or menu that is open: one at a time.
-    fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
-        if self.chrome.read(cx).popover != popover {
-            // Share opens on a snapshot of what is open.
-            if popover == Some(Popover::Share) {
-                let resource = match self.explorer_session.read(cx).selected_folder() {
-                    Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
-                    None => self
-                        .files(cx)
-                        .opened()
-                        .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
-                };
-                self.cloud
-                    .update(cx, |c, cx| c.snapshot_share_panel(resource, cx));
-            }
-            self.chrome.update(cx, |c, cx| c.set_popover(popover, cx));
-            self.sync_session_view(cx);
-            cx.notify();
-        }
-    }
-    /// What the Header and the rail ask of the window.
-    fn chrome_event(
-        &mut self,
-        event: &chrome::ChromeEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use chrome::ChromeEvent;
-        match event {
-            ChromeEvent::Command(command) => self.command(*command, window, cx),
-            ChromeEvent::Popover(popover) => self.set_popover(*popover, cx),
-            ChromeEvent::OpenItem(item) => self.open_item(item, window, cx),
-            ChromeEvent::OpenProject(path) => self.open_project(path.clone(), window, cx),
-            ChromeEvent::RefreshCatalog => self.refresh_cloud_catalog(true, cx),
-            ChromeEvent::OpenSettings(page) => self.open_settings(*page, window, cx),
-            // The project rail takes room from the panes.
-            ChromeEvent::RailChanged => {
-                self.constrain_window(window, cx);
-                self.push_explorer_host(window, cx);
-            }
-        }
-    }
-    /// What the Cloud asks of the window.
-    fn cloud_event(
-        &mut self,
-        event: &window_cloud::CloudEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use window_cloud::CloudEvent;
-        match event {
-            CloudEvent::OpenProject(path) => return self.open_project(path.clone(), window, cx),
-            CloudEvent::OpenCloud(project) => self.open_cloud(project.clone(), cx),
-            CloudEvent::Command(command) => return self.command(*command, window, cx),
-            CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
-            CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
-            CloudEvent::Error(error) => self.show_error(error.clone(), cx),
-        }
-        self.receive(window, cx);
-        cx.notify();
-    }
-    /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
-    /// focus it held; drafts, widths and sessions stay.
-    fn close_workspace_sidebars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.sidebar.update(cx, |s, cx| s.collapse(cx));
-        self.set_popover(None, cx);
-        self.focus.focus(window, cx);
-    }
-    /// The hosted Project's authority: when it no longer holds, the opening
-    /// in flight is cancelled and a Cloud project on screen leaves for the
-    /// Homepage.
-    pub(super) fn guard_cloud_authority(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current = if crate::features::flags::cloud_enabled(&self.prefs.store, cx) {
-            cloud_authority::account_key(cx)
-        } else {
-            None
-        };
-        let Some(hosted) = self
-            .project
-            .update(cx, |p, cx| p.revoke_authority(current, cx))
-        else {
-            return;
-        };
-        if self.chrome.read(cx).popover == Some(Popover::Share) {
-            self.set_popover(None, cx);
-        }
-        if hosted {
-            self.close_workspace_sidebars(window, cx);
-            self.receive(window, cx);
-        }
-        cx.notify();
-    }
 
-    /// What the Homepage asks for.
-    fn home_event(&mut self, event: &home::HomeEvent, window: &mut Window, cx: &mut Context<Self>) {
-        match event {
-            home::HomeEvent::OpenProject(path) => {
-                return self.open_project(path.clone(), window, cx);
-            }
-            home::HomeEvent::OpenCloud(project) => {
-                self.set_popover(None, cx);
-                self.open_cloud(project.clone(), cx);
-            }
-            home::HomeEvent::OpenCreated {
-                path,
-                open,
-                new_window,
-            } => {
-                let (path, open) = (path.clone(), open.clone());
-                if *new_window {
-                    cx.defer(move |cx| {
-                        if let Err(error) = windows::open_created(path, open, cx) {
-                            eprintln!("Could not open the new window: {error:#}");
-                        }
-                    });
-                    return;
-                }
-                self.set_popover(None, cx);
-                self.project
-                    .update(cx, |p, cx| p.open_created(path, open, cx));
-            }
-            home::HomeEvent::Command(command) => return self.command(*command, window, cx),
-        }
-        self.receive(window, cx);
-        cx.notify();
-    }
-    /// Opens an entry of the Header's project menu in this window: a local
-    /// folder, or a Cloud project (`selectCloudProject`).
-    fn open_item(
-        &mut self,
-        item: &crate::workspace::cloud::catalog::Item,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.set_popover(None, cx);
-        match (&item.local_path, &item.cloud_project) {
-            (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
-            (None, Some(project)) => self.open_cloud(project.clone(), cx),
-            _ => {}
-        }
-        cx.notify();
-    }
     /// The pixel lab's Homepage (`shell-home-*`): no fixture workspace and
     /// no capture of its own. `played` starts after the intro, as if it had
     /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
     #[cfg(feature = "dev-capture")]
     pub fn lab_home(&mut self, played: bool, cx: &mut Context<Self>) {
-        self.project.update(cx, |p, _| p.record.fixture = false);
-        self.captured = true;
+        self.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        self.frame.captured = true;
         self.home.update(cx, |h, _| h.lab(played));
         self.sync_session_view(cx);
     }
@@ -962,93 +745,11 @@ impl Shell {
         let focus = self.dialogs.read(cx).focus_handle().clone();
         focus.focus(window, cx);
     }
-    /// The Settings page `page`, opened.
-    fn open_settings(
-        &mut self,
-        page: crate::features::settings::Page,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let settings = self.dialogs.read(cx).settings.clone();
-        settings.update(cx, |settings, cx| settings.select_page(page, cx));
-        self.command(Command::Settings, window, cx);
-    }
-    /// What the dialog layer asks of the window.
-    fn dialog_event(&mut self, event: &DialogEvent, window: &mut Window, cx: &mut Context<Self>) {
-        match event {
-            DialogEvent::Command(command) => return self.command(*command, window, cx),
-            DialogEvent::Closed => self.focus.focus(window, cx),
-            DialogEvent::Error(error) => {
-                self.show_error(error.clone(), cx);
-                self.focus.focus(window, cx);
-            }
-            DialogEvent::Rename { path, name } => {
-                let (path, name) = (path.clone(), name.clone());
-                self.explorer_session
-                    .update(cx, |session, cx| session.rename(path, name, cx));
-                self.focus.focus(window, cx);
-            }
-            DialogEvent::Created {
-                workspace,
-                parent,
-                path,
-                folder,
-                nodes,
-            } => {
-                self.focus.focus(window, cx);
-                if !self
-                    .files(cx)
-                    .workspace
-                    .as_ref()
-                    .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
-                {
-                    return;
-                }
-                if let Err(error) = nodes {
-                    self.show_error(
-                        crate::localization::tf(
-                            "native.create.refreshFailed",
-                            &[("error", error.to_string().into())],
-                        ),
-                        cx,
-                    );
-                }
-                let listing = nodes.as_ref().ok().cloned();
-                let (parent, path) = (parent.clone(), path.clone());
-                self.explorer_session
-                    .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
-                if !folder && !self.files(cx).allow_quit {
-                    self.session
-                        .docs
-                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
-                }
-            }
-        }
-        self.receive(window, cx);
-        cx.notify();
-    }
-    /// Open the create form for `kind` in `parent` (the Explorer's menus).
-    fn start_create(
-        &mut self,
-        kind: crate::features::create_new::create_entry_menu_registry::Entry,
-        parent: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(ws) = self.files(cx).workspace.clone() else {
-            return;
-        };
-        if self.files(cx).busy() || self.modal(cx) || !kind.available() {
-            return;
-        }
-        self.dialogs
-            .update(cx, |d, cx| d.create_entry(ws, parent, kind, window, cx));
-    }
     /// Pumps the documents runtime and hands what came of it to the owners
     /// that show it; then the window may close.
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::watchdog::activity("shell.receive");
-        let pumped = self.project.update(cx, |p, cx| p.pump(cx));
+        let pumped = self.session.project.update(cx, |p, cx| p.pump(cx));
         if let Some((path, message)) = pumped.failure {
             self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
             self.open_modal(Modal::ProjectFailure { path, message }, cx);
@@ -1072,12 +773,14 @@ impl Shell {
             self.focus_dialogs(window, cx);
         }
         for (owner, outcome) in pumped.operations {
-            self.explorer_session
+            self.explorer
+                .session
                 .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
         }
         if let Some((ws, nodes)) = pumped.entered {
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
-            self.explorer_session
+            self.explorer
+                .session
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
             if self.file_mode() {
                 // A lone file has no Agent, Git or Terminal.
@@ -1105,17 +808,20 @@ impl Shell {
             self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
         }
         if let Some((path, result)) = pumped.children {
-            self.explorer_session
+            self.explorer
+                .session
                 .update(cx, |e, cx| e.children_loaded(&path, result, cx));
         }
         if let Some(relative) = pumped.revealed {
-            self.explorer_session
+            self.explorer
+                .session
                 .update(cx, |e, cx| e.reveal(&relative, cx));
         }
         self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
         self.sync_dialog_status(cx);
         self.sync_session_view(cx);
+        self.sync_window_title(window, cx);
         if self.files(cx).allow_quit && self.dialogs.read(cx).creating(cx) {
             return;
         }
@@ -1188,13 +894,9 @@ impl Shell {
             e.sync(window, cx)
         });
     }
-    /// `useHomepageCloudProjects`: load or revalidate the account catalog.
-    pub(super) fn refresh_cloud_catalog(&mut self, retry: bool, cx: &mut Context<Self>) {
-        self.cloud.update(cx, |c, cx| c.refresh_catalog(retry, cx));
-    }
     /// The hosted Project this window shows (a Cloud workspace, no local root).
     fn hosted_project(&self, cx: &App) -> Option<String> {
-        self.project.read(cx).hosted(cx)
+        self.session.project.read(cx).hosted(cx)
     }
     /// The right sidebar is open on `surface`.
     fn right_shows(&self, surface: Surface, cx: &App) -> bool {
@@ -1206,70 +908,9 @@ impl Shell {
         self.sidebar
             .update(cx, |s, cx| s.guard_cloud_history(project.as_deref(), cx));
     }
-    /// What the right sidebar's surfaces ask of the window.
-    fn sidebar_event(
-        &mut self,
-        event: &right_sidebar::SidebarEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use right_sidebar::SidebarEvent;
-        match event {
-            SidebarEvent::OpenFile(path) => {
-                let path = path.clone();
-                self.session
-                    .docs
-                    .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
-            }
-            // `handleAgentOpenFile`: a path inside the chat's project opens
-            // in the editor.
-            SidebarEvent::OpenAgentFile { root, path } => {
-                use crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path as resolve;
-                if let Some(path) = resolve(&root.to_string_lossy(), path) {
-                    let path = root.join(path);
-                    self.session
-                        .docs
-                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
-                }
-                return cx.notify();
-            }
-            SidebarEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
-            // A hosted run's accepted changes: reread the Cloud tree and
-            // revalidate the open document (a draft is kept).
-            SidebarEvent::CloudPublished => {
-                if self.hosted_project(cx).is_none() {
-                    return;
-                }
-                self.explorer_session
-                    .update(cx, |e, cx| e.refresh_published(cx));
-                self.session.docs.update(cx, |d, _| d.observe_publication());
-            }
-            SidebarEvent::Closed => self.focus.focus(window, cx),
-        }
-        self.receive(window, cx);
-        cx.notify();
-    }
-    pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
-        if let Err(error) = self.project.update(cx, |p, cx| p.open_cloud(project, cx)) {
-            self.show_error(error, cx);
-        }
-        cx.notify();
-    }
     /// The local project this window shows.
     pub fn workspace_root(&self, cx: &App) -> Option<PathBuf> {
-        self.project.read(cx).root(cx)
-    }
-    /// Switch to a remembered project (`onSelectProject`).
-    pub(super) fn open_project(
-        &mut self,
-        path: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.set_popover(None, cx);
-        self.project.update(cx, |p, cx| p.open_project(path, cx));
-        self.receive(window, cx);
-        cx.notify();
+        self.session.project.read(cx).root(cx)
     }
     /// What the Explorer shows of the shell (`Host`), handed over when it
     /// changes: a document opens or closes, the folder picker opens, a pane
@@ -1290,17 +931,18 @@ impl Shell {
             open_resources: self.files(cx).open_paths(),
             documents_busy: self.files(cx).busy(),
             folder_busy: self.files(cx).folder_busy,
-            picking: self.project.read(cx).picking,
+            picking: self.session.project.read(cx).picking,
         };
         self.explorer
+            .view
             .update(cx, |explorer, cx| explorer.set_host(host, cx));
     }
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
-        let busy = self.project.read(cx).picking
+        let busy = self.session.project.read(cx).picking
             || self.files(cx).busy()
             || self.files(cx).folder_busy
-            || self.explorer_session.read(cx).busy();
+            || self.explorer.session.read(cx).busy();
         let shell = cx.weak_entity();
         SidebarFooter::new(move |command, window, cx| {
             let _ = shell.update(cx, |s, cx| s.command(command, window, cx));
@@ -1308,43 +950,19 @@ impl Shell {
         .task(self.dialogs.read(cx).task())
         .busy(busy)
     }
-    /// `resolveWindowTitle`: "PuppyOne - <project>" with the folder as the
-    /// represented file; nothing in full screen, where macOS shows it.
-    /// A file window is titled by its file and shows when it is unsaved.
+    /// The window's title follows the project or the file.
     fn sync_window_title(&mut self, window: &mut Window, cx: &App) {
-        let target = self.file.as_ref().map(|f| f.read(cx).target.clone());
-        let (title, path, edited) = match target {
-            Some(file) => (
-                file.name.clone(),
-                Some(file.path.clone()),
+        let file = self.file.as_ref().map(|f| {
+            let target = &f.read(cx).target;
+            (
+                target.name.clone(),
+                target.path.clone(),
                 self.files(cx).dirty,
-            ),
-            None => {
-                let root = self.workspace_root(cx);
-                let title = if root.is_some() && !self.project.read(cx).record.name.is_empty() {
-                    format!(
-                        "{} - {}",
-                        windows::APP_NAME,
-                        self.project.read(cx).record.name
-                    )
-                } else {
-                    windows::APP_NAME.to_owned()
-                };
-                (title, root, false)
-            }
-        };
-        let title = if window.is_fullscreen() {
-            String::new()
-        } else {
-            title
-        };
-        let next = (title, path, edited);
-        if self.session.title.as_ref() != Some(&next) {
-            window.set_window_title(&next.0);
-            window.set_document_path(next.1.as_deref());
-            window.set_window_edited(next.2);
-            self.session.title = Some(next);
-        }
+            )
+        });
+        let root = self.workspace_root(cx);
+        let name = self.session.project.read(cx).record.name.clone();
+        self.session.apply_title(window, file, root, &name);
     }
     /// Store the committed pane layout (`setExplorerWidth`,
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).
@@ -1394,7 +1012,7 @@ impl Render for Shell {
         crate::web_host::frame_drawn(window);
         #[cfg(test)]
         {
-            self.frames += 1;
+            self.frame.frames += 1;
         }
         let size = window.viewport_size();
         let w = f32::from(size.width);
@@ -1404,7 +1022,7 @@ impl Render for Shell {
         let panes = self
             .panes
             .update(cx, |p, _| p.frames(w, h, rail, reduce_motion));
-        self.layout = if self.file_mode() {
+        self.frame.layout = if self.file_mode() {
             // `.file-mode-window`: the title bar over the document alone.
             Layout::new(w, h, 0., 0., 0.)
         } else {
@@ -1413,18 +1031,17 @@ impl Render for Shell {
         if panes.running {
             window.request_animation_frame();
         }
-        self.sync_window_title(window, cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
         let scenario_done = true;
-        if !self.captured
+        if !self.frame.captured
             && scenario_done
             && let Some(path) = std::env::var_os("PUPPYONE_SCREENSHOT")
         {
-            self.captured = true;
+            self.frame.captured = true;
             let rect = |r: Rect| [r.x, r.y, r.w, r.h];
-            let geometry = serde_json::json!({"framework":"GPUI","header":rect(self.layout.header),"explorer":rect(self.layout.explorer),"footer":rect(self.layout.footer),"editor":rect(self.layout.editor),"auxiliary":rect(self.layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
+            let geometry = serde_json::json!({"framework":"GPUI","header":rect(self.frame.layout.header),"explorer":rect(self.frame.layout.explorer),"footer":rect(self.frame.layout.footer),"editor":rect(self.frame.layout.editor),"auxiliary":rect(self.frame.layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
             if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
             {
                 self.show_error(error.to_string(), cx);
@@ -1445,7 +1062,7 @@ impl Render for Shell {
             ))
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
-            .track_focus(&self.focus);
+            .track_focus(&self.frame.focus);
         let file = self.file_mode();
         let home = self.home_visible(cx);
         // The panes' frames under the editor; the Homepage and a file window
@@ -1458,23 +1075,24 @@ impl Render for Shell {
         } else {
             let mut stack = PaneStack::new();
             if !home && panes.start.is_some() {
-                let (explorer, footer) = (self.layout.explorer, self.layout.footer);
+                let (explorer, footer) = (self.frame.layout.explorer, self.frame.layout.footer);
                 let plane = Rect::new(
                     explorer.x,
                     explorer.y,
                     explorer.w,
                     footer.bottom() - explorer.y,
                 );
-                let column = ExplorerColumn::new(self.explorer.clone()).footer(self.footer(cx));
+                let column =
+                    ExplorerColumn::new(self.explorer.view.clone()).footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
                 // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
                 // content starts at the divider like the product's.
-                stack = stack.end(self.layout.auxiliary, self.sidebar.clone());
+                stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
             }
             stack
-                .main(at(self.layout.editor).child(self.editor.clone()))
+                .main(at(self.frame.layout.editor).child(self.editor.clone()))
                 .into_any_element()
         });
         let weak = cx.weak_entity();
@@ -1496,18 +1114,18 @@ impl Render for Shell {
                 .read(cx)
                 .explorer()
                 .open
-                .then_some(self.layout.explorer);
-            root = root.children(self.project.read(cx).preparation(
+                .then_some(self.frame.layout.explorer);
+            root = root.children(self.session.project.read(cx).preparation(
                 w,
                 h,
                 explorer,
-                self.layout.editor,
+                self.frame.layout.editor,
                 cx,
             ));
         }
         // A file window draws its own title bar.
         if !file {
-            root = root.child(at(self.layout.header).child(self.chrome.clone()));
+            root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
         if !home && !opening && !file {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
@@ -1515,11 +1133,19 @@ impl Render for Shell {
         // `FloatingNoticeStack`s over the workspace: its own notices and
         // the editor's (save failure, held-back Cloud conflict).
         if !home && !opening {
-            let (editor, end) = (self.layout.editor, w - self.layout.editor.right());
+            let (editor, end) = (
+                self.frame.layout.editor,
+                w - self.frame.layout.editor.right(),
+            );
             let folder = self.cloud.read(cx).local_folder_notice_view(cx);
-            let project = self.project.downgrade();
+            let project = self.session.project.downgrade();
             root = root
-                .children(self.project.read(cx).notices(editor, end, folder, project))
+                .children(
+                    self.session
+                        .project
+                        .read(cx)
+                        .notices(editor, end, folder, project),
+                )
                 .children(self.editor.read(cx).notices(editor, end, cx));
         }
         let chrome = self.chrome.read(cx);
@@ -1528,18 +1154,7 @@ impl Render for Shell {
         root.child(self.dialogs.clone())
     }
 }
-impl Shell {
-    /// `resumeWorkspace`: a hosted Project opens again explicitly (its
-    /// retained documents rebind to the new lease); a local folder
-    /// subscribes again. Both reread what the Explorer has loaded.
-    fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
-        match self.hosted_project(cx) {
-            Some(project) => self.open_cloud(project, cx),
-            None => self.explorer_session.update(cx, |e, cx| e.resubscribe(cx)),
-        }
-        cx.notify();
-    }
-}
+impl Shell {}
 
 #[cfg(test)]
 mod tests;
