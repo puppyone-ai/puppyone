@@ -45,11 +45,12 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const group = destination(team, "team-shared", t("onboarding.sharing.team"));
     groups.push({ ...group,
       keepEmpty: group.keepEmpty || cloudItems.some((item) => teams.some((space) => space.id === item.cloudOrganizationId)),
-      detail: teams.length === 1 ? team.name : <select className="onboarding-team-selector"
+      // One team needs no name beside the heading; several need choosing between.
+      detail: teams.length > 1 ? <select className="onboarding-team-selector"
         aria-label={t("onboarding.sharing.selectTeam")} value={team.id} disabled={busy}
         onChange={(event) => { onDragEnd(); setChosenTeam(event.target.value); }}>
         {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-      </select>,
+      </select> : undefined,
     });
   }
   // Unresolved ownership is not evidence of a personal or team audience. Keep

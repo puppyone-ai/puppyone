@@ -235,7 +235,6 @@ export function OnboardingProjectEntryDialog({
                           {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
                         </select>
                       )}
-                      {option === "team" && teams.length === 1 && <span className="onboarding-entry-choice-detail">{team?.name}</span>}
                     </label>
                   ))}
                 </div>
