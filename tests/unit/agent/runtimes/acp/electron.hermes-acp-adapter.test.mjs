@@ -13,6 +13,22 @@ import {
 import { hermesHistorySource } from "../../../../../electron/main/agent/runtimes/hermes/hermes-history-source.mjs";
 
 describe("Hermes ACP runtime", () => {
+  it("applies the chosen model and mode to the adopted inspection session", async () => {
+    const connection = new FakeHermesConnection();
+    const adapter = new HermesAcpAdapter({
+      readiness: { executablePath: "/tools/hermes", environment: {} }, workspaceRoot: "/workspace",
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+    });
+    await adapter.prepareSessionInspection();
+    expect(adapter.adoptPreparedSession({ onEvent: vi.fn(), onExit: vi.fn() })).toBe(true);
+    const result = await adapter.bootstrapSession({ kind: "create", model: "custom:lab:qwen-2.5", mode: "accept_edits" });
+    expect(connection.request.mock.calls.map(([method]) => method)).toEqual([
+      "initialize", "authenticate", "session/new", "session/set_model", "session/set_mode",
+    ]);
+    expect(result.providerSession).toMatchObject({ model: "custom:lab:qwen-2.5", mode: "accept_edits" });
+    await adapter.dispose();
+  });
   it("selects configured agent-managed credentials without invoking terminal setup", () => {
     expect(hermesAuthenticationMethod([
       { id: "openrouter", name: "OpenRouter runtime credentials" },

@@ -5,7 +5,7 @@ import { createEphemeralAgentSessionCache } from "../../main/agent/cache/ephemer
 import { createAgentSessionRepository } from "../../main/agent/persistence/agent-session-repository.mjs";
 import { createHostRpc } from "../../../shared/item-host-contract/rpc.mjs";
 
-const methods = new Set(["createSession", "resumeSession", "openSession", "startTurn", "steerTurn", "interruptTurn",
+const methods = new Set(["discoverProviders", "createSession", "resumeSession", "openSession", "startTurn", "steerTurn", "interruptTurn",
   "resolveApproval", "resolveQuestion", "replay", "attachSession", "acknowledgeSession", "readSessionWatermark",
   "detachSession", "compactSession", "closeSession", "getReferenceInputCapabilities", "forkSession", "archiveSession", "deleteSession"]);
 const displayMethods = new Set(["attachSession", "acknowledgeSession", "readSessionWatermark", "detachSession", "replay"]);

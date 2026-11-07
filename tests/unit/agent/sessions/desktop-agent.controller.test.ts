@@ -29,6 +29,17 @@ it("retries the owned conversation through Main without allocating another host"
   } finally { controller.dispose(); await service.closeItem(sender.id, sender.hostItemId); }
 });
 
+it("attaches a live display without requesting new-chat preparation", async () => {
+  const bridge = bridgeFixture(() => {});
+  await bridge.resumeAgentSession({ rootPath: "/workspace", sessionId: "session-1" });
+  const controller = new AgentSessionController("/workspace", () => bridge as never);
+  try {
+    await controller.attachLiveSession("session-1", "opencode");
+    expect(bridge.discoverAgentRuntimes).toHaveBeenCalledWith({ rootPath: "/workspace", runtimeId: "opencode", refresh: false });
+    expect(bridge.createAgentSession).not.toHaveBeenCalled();
+  } finally { controller.dispose(); }
+});
+
 it("preparation failure releases submission state and allows retry", async () => {
   const bridge = bridgeFixture(() => {});
   bridge.resumeAgentSession.mockResolvedValueOnce(null);
@@ -347,6 +358,7 @@ describe("AgentSessionController", () => {
       rootPath: "/workspace",
       runtimeId: "codex",
       refresh: false,
+      prepareSession: true,
     });
     expect(controller.getSnapshot()).toMatchObject({
       initialized: true,
@@ -374,6 +386,7 @@ describe("AgentSessionController", () => {
       rootPath: "/workspace",
       runtimeId: "codex",
       refresh: false,
+      prepareSession: true,
     });
     expect(controller.getSnapshot()).toMatchObject({
       initialized: false,
@@ -613,7 +626,7 @@ describe("AgentSessionController", () => {
     expect(controller.getSnapshot()).toMatchObject({ session: null, selectedRuntimeId: "opencode" });
 
     await expect(controller.selectRuntime("codex")).resolves.toBe(true);
-    expect(bridge.discoverAgentRuntimes).toHaveBeenLastCalledWith({ rootPath: "/workspace", runtimeId: "codex", refresh: false });
+    expect(bridge.discoverAgentRuntimes).toHaveBeenLastCalledWith({ rootPath: "/workspace", runtimeId: "codex", refresh: false, prepareSession: true });
     expect(controller.getSnapshot()).toMatchObject({
       selectedRuntimeId: "codex",
       selectedProviderId: null,
@@ -649,7 +662,7 @@ describe("AgentSessionController", () => {
       sessionId: "codex-session",
       removePersistence: false,
     });
-    expect(bridge.discoverAgentRuntimes).toHaveBeenLastCalledWith({ rootPath: "/workspace", runtimeId: "claude", refresh: false });
+    expect(bridge.discoverAgentRuntimes).toHaveBeenLastCalledWith({ rootPath: "/workspace", runtimeId: "claude", refresh: false, prepareSession: true });
     expect(controller.getSnapshot()).toMatchObject({
       selectedRuntimeId: "claude",
       selectedProviderId: null,

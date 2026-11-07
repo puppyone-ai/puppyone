@@ -15,6 +15,12 @@ import {
 } from "../../../../shared/agent-contract/schema.mjs";
 
 describe("shared Agent contract", () => {
+  it("preserves the bounded execution identity on new-chat discovery", () => {
+    const request = { rootPath: "/workspace", runtimeId: "cursor", prepareSession: true, itemId: "item", creationId: "creation" };
+    expect(parseAgentIpcRequest("agent:providers-discover", request)).toEqual(request);
+    expect(() => parseAgentIpcRequest("agent:providers-discover", { ...request, prepareSession: "yes" })).toThrow();
+    expect(() => parseAgentIpcRequest("agent:providers-discover", { ...request, creationId: "bad\nidentity" })).toThrow();
+  });
   it("bounds inline attachment input and strips renderer MIME claims", () => {
     const context = { rootPath: "/workspace", epoch: "draft" };
     const bytes = new Uint8Array([1, 2]);

@@ -389,7 +389,7 @@ export function AgentVisualSmokeHarness() {
             />}
           />}
           conversation={<AgentTranscript projection={visibleProjection} loading={startupLoading} runtimeLabel={selectedRuntime.descriptor.displayName} />}
-          dock={startupLoading ? null : <>
+          dock={<>
             {approvalSmoke && <AgentApprovalDock
               approval={smokeApproval}
               queueLength={1}

@@ -118,7 +118,7 @@ export function registerAgentIpcHandlers({
   };
 
   register("agent:providers-discover", async (event, request) => (
-    agentService.discoverProviders(event.sender, request, await authorizeOptionalRoot(event, request))
+    agentService.discoverProviders(event.sender, request, await authorizeOptionalRoot(event, request), request[PROJECT_OPERATION])
   ));
   register("agent:local-connections-discover", async (event, request) => (
     localAgentInventory.discover({

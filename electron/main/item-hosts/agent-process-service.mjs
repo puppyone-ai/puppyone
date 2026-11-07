@@ -113,6 +113,28 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
 
   async function create(method, sender, request, root, operation) {
     operation?.assertCurrent();
+    const preparing = method === "discoverProviders";
+    const prepared = method === "createSession" && request.creationId && [...records].find(record => (
+      record.ownerId === sender.id && record.root === root && record.itemId === request.itemId
+      && record.lifecycle.creationId === request.creationId && record.runtimeId === request.runtimeId
+      && record.lifecycle.projectContext?.projectId === request.projectContext?.projectId
+      && record.lifecycle.projectContext?.generation === request.projectContext?.generation
+    ));
+    if (prepared) {
+      lifecycle.assertActive(prepared.lifecycle);
+      if (!prepared.prepared || prepared.sessionId || prepared.host.exited
+        || (sender.hostItemId && sender.hostItemId !== prepared.itemId)) {
+        throw hostError("SESSION_DUPLICATE", "This prepared execution is unavailable or already claimed.");
+      }
+      prepared.prepared = false;
+      prepared.allowedModelRoute = request.model;
+      prepared.expectedBindingRevision = undefined;
+      try {
+        const result = await prepared.host.call(method, [request, root]);
+        publishSession(prepared, result, operation);
+        return result;
+      } catch (error) { await shutdown(prepared).catch(() => {}); throw error; }
+    }
     if (method !== "createSession" && request.sessionId && bySession.has(request.sessionId)) {
       const record = requireOwned(sender, request, root);
       const result = await openOwned(method, record, { sender, request, root, operation });
@@ -150,7 +172,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     lifecycle.attach(managed, { host: null, release: () => release(record), seal: () => { record.closing = true; } });
     let persistedRoute = null;
     try {
-      if (modelConnections && method !== "createSession") persistedRoute = request.sessionId
+      if (modelConnections && method !== "createSession" && !preparing) persistedRoute = request.sessionId
         ? await conversationCatalog.findById(request.sessionId, root)
         : await conversationCatalog.findLatest(root, request.runtimeId);
       // Catalog reads yield; another create may have claimed this item meanwhile.
@@ -167,21 +189,34 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     try {
       const result = await record.host.call(method, [request, root]);
       lifecycle.assertActive(managed);
+      operation?.assertCurrent();
+      if (preparing) { record.prepared = true; return result; }
       const snapshot = method === "openSession" ? result?.snapshot : result;
       if (!snapshot?.session) { await shutdown(record); return result; }
-      record.sessionId = snapshot.session.id;
-      record.instanceId = snapshot.session.instanceId;
-      record.runtimeId = snapshot.session.runtimeId;
-      if (bySession.has(record.sessionId)) throw hostError("SESSION_DUPLICATE", "This Agent session is already connected.");
-      bySession.set(record.sessionId, record);
-      operation?.assertCurrent();
-      lifecycle.markLive(managed);
+      publishSession(record, snapshot, operation);
       return result;
     } catch (error) { await shutdown(record).catch(() => {}); throw error; }
     finally { if (locator) pendingSessions.delete(locator); }
   }
+  function publishSession(record, snapshot, operation) {
+    lifecycle.assertActive(record.lifecycle);
+    operation?.assertCurrent();
+    if (!snapshot?.session) throw hostError("SESSION_STALE", "Agent startup returned no session.");
+    record.sessionId = snapshot.session.id;
+    record.instanceId = snapshot.session.instanceId;
+    record.runtimeId = snapshot.session.runtimeId;
+    if (bySession.has(record.sessionId)) throw hostError("SESSION_DUPLICATE", "This Agent session is already connected.");
+    bySession.set(record.sessionId, record);
+    lifecycle.markLive(record.lifecycle);
+  }
   const service = {
-    ...Object.fromEntries(["discoverProviders", "listModels", "readAccount", "listSessions"]
+    discoverProviders: (sender, request = {}, root, operation) => {
+      if (request.prepareSession === true && root && request.runtimeId && request.itemId && request.creationId) {
+        return create("discoverProviders", sender, request, root, operation);
+      }
+      return catalogService.discoverProviders(sender, { ...request, prepareSession: false }, root);
+    },
+    ...Object.fromEntries(["listModels", "readAccount", "listSessions"]
       .map((method) => [method, (...args) => catalogService[method](...args)])),
     ...Object.fromEntries(SESSION_METHODS.map((method) => [method, (sender, request, root) =>
       requireAvailable(sender, request, root).host.call(method, [request, root])])),

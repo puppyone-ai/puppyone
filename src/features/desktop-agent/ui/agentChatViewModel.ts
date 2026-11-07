@@ -143,7 +143,7 @@ function showReadyEmptyState(state: AgentControllerState, policy: PanelPolicy) {
 
 function composerPlaceholder(state: AgentControllerState, runtime: RuntimeView, policy: PanelPolicy, t: MessageFormatter) {
   if (policy.computeOnboarding) return t("agent.composer.placeholder.default");
-  if (policy.unavailable || policy.failed) return t("agent.composer.placeholder.preparing");
+  if (!state.initialized || policy.loading || policy.unavailable || policy.failed) return t("agent.composer.placeholder.preparing");
   if (!runtime.agentRuntimeSelected) return t("agent.composer.placeholder.chooseAgent");
   if (state.inspection?.capabilities?.modelSelection && !state.selectedModel) return t("agent.composer.placeholder.chooseModel");
   if (state.projection.rows.length > 0 || state.projection.messages.length > 0) return t("agent.composer.placeholder.followUp");

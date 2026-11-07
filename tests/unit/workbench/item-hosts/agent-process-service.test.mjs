@@ -16,6 +16,33 @@ function fixture() {
 }
 
 describe("per-session Agent process ownership", () => {
+  it("runs new-chat inspection and creation in the same owned utility host", async () => {
+    const { service, hosts, sender, request } = fixture();
+    const scoped = { ...request, runtimeId: "codex", itemId: "item", creationId: "start", prepareSession: true };
+    await service.discoverProviders(sender, scoped, "/project");
+    expect(hosts).toHaveLength(1);
+    expect(hosts[0].close).not.toHaveBeenCalled();
+    await service.createSession(sender, { ...scoped, model: "chosen-model" }, "/project");
+    expect(hosts).toHaveLength(1);
+    expect(hosts[0].call.mock.calls.map(([method]) => method)).toEqual(["discoverProviders", "createSession"]);
+    expect(service.findItemSession(1, "item").sessionId).toBe("session");
+    await service.closeAll();
+  });
+
+  it("seals a preparing host when the tab closes before discovery completes", async () => {
+    const { service, hosts, sender, request, createHost } = fixture();
+    const discovery = Promise.withResolvers();
+    const factory = createHost.getMockImplementation();
+    createHost.mockImplementationOnce(options => { const host = factory(options); host.call.mockReturnValueOnce(discovery.promise); return host; });
+    const scoped = { ...request, runtimeId: "cursor", itemId: "item", creationId: "start", prepareSession: true };
+    const pending = service.discoverProviders(sender, scoped, "/project");
+    const rejected = expect(pending).rejects.toMatchObject({ code: "SESSION_STALE" });
+    await service.closeItem(1, "item");
+    discovery.resolve({ readiness: { status: "ready" } });
+    await rejected;
+    await expect(service.createSession(sender, scoped, "/project")).rejects.toMatchObject({ code: "SESSION_STALE" });
+    expect(hosts).toHaveLength(1);
+  });
   it("releases a crashed item when its native history no longer exists", async () => {
     const { service, hosts, sender, request, createHost } = fixture();
     await service.createSession(sender, request, "/project");

@@ -59,7 +59,7 @@ export function createAgentSessionLifecycle({
     sessionStore.add(session);
     session.projectOperation = operation;
     try {
-      session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness);
+      session.adapter = runtimeSession.createAdapterForSession(session, selected.readiness, { reusePrepared: true });
       const { inspection, providerSession } = await runtimeSession.bootstrapNativeSession(session, selected, {
         kind: "create",
         operation: "create",

@@ -176,7 +176,7 @@ export class AgentSessionController {
 
   /** Rebuilds only the display replica; never creates/resumes a native session. */
   async attachLiveSession(sessionId: string, runtimeId: string) {
-    await this.initializeForRuntime(runtimeId);
+    await this.initializeForRuntime(runtimeId, { prepareSession: false });
     this.sessionReplica.connect();
     const snapshot = await this.sessionReplica.attachSession(sessionId);
     if (!snapshot) throw new Error("The live Agent session is unavailable for display recovery.");
@@ -197,15 +197,15 @@ export class AgentSessionController {
   }
 
   /** Selects a creation recipe before first discovery without restoring history. */
-  async initializeForRuntime(runtimeId: string) {
+  async initializeForRuntime(runtimeId: string, { prepareSession = true } = {}) {
     if (!runtimeId) return false;
     if (this.initializePromise) await this.initializePromise;
     if (this.state.initialized || this.state.inspection || this.state.session) {
       if (this.state.selectedRuntimeId === runtimeId) return true;
-      return this.selectRuntime(runtimeId);
+      return this.selectRuntime(runtimeId, { prepareSession });
     }
     this.patch({ selectedRuntimeId: runtimeId });
-    await this.initializeRuntime(false, false);
+    await this.initializeRuntime(false, false, prepareSession);
     return this.getSnapshot().inspection?.selectedRuntimeId === runtimeId;
   }
 
@@ -224,10 +224,10 @@ export class AgentSessionController {
     });
   }
 
-  private async initializeRuntime(refresh: boolean, restoreLatest: boolean) {
+  private async initializeRuntime(refresh: boolean, restoreLatest: boolean, prepareSession = false) {
     if (this.initializePromise) return this.initializePromise;
     if (restoreLatest && !refresh && hasFreshAgentRuntimeInspection(this.state, this.lastInspectionAt)) return;
-    this.initializePromise = this.runInitialize(refresh, restoreLatest).finally(() => { this.initializePromise = null; });
+    this.initializePromise = this.runInitialize(refresh, restoreLatest, prepareSession).finally(() => { this.initializePromise = null; });
     return this.initializePromise;
   }
 
@@ -259,7 +259,7 @@ export class AgentSessionController {
     } catch (error) { if (!this.disposed && epoch === this.modelCatalogEpoch) this.patch({ error: formatAgentError(error) }); }
   }
 
-  async selectRuntime(runtimeId: string) {
+  async selectRuntime(runtimeId: string, { prepareSession = true } = {}) {
     const plan = planAgentRuntimeSwitch(this.state, runtimeId);
     if (!plan) return false;
     if (plan.alreadySelected) return true;
@@ -279,7 +279,7 @@ export class AgentSessionController {
       }
       // A runtime switch means "new chat". Native history is resumed only
       // through openSavedSession(), never as an implicit side effect here.
-      await this.initializeRuntime(false, false);
+      await this.initializeRuntime(false, false, prepareSession);
       return this.state.selectedRuntimeId === runtimeId;
     } catch (error) {
       this.patch({ phase: "failed", error: formatAgentError(error) });
@@ -353,7 +353,7 @@ export class AgentSessionController {
     }
   }
 
-  private async runInitialize(refresh: boolean, restoreLatest: boolean) {
+  private async runInitialize(refresh: boolean, restoreLatest: boolean, prepareSession: boolean) {
     this.sessionReplica.connect();
     const bridge = restoreLatest
       ? this.requireBridge("discoverAgentRuntimes", "resumeAgentSession")
@@ -364,6 +364,7 @@ export class AgentSessionController {
         rootPath: this.workspaceRoot,
         runtimeId: this.state.selectedRuntimeId,
         refresh,
+        ...(prepareSession && this.state.selectedRuntimeId ? { prepareSession: true } : {}),
       });
       this.lastInspectionAt = Date.now();
       const runtimeId = inspection.selectedRuntimeId

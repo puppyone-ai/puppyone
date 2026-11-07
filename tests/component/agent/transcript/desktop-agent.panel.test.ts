@@ -243,6 +243,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
       rootPath: "/workspace",
       runtimeId: "claude",
       refresh: false,
+      prepareSession: true,
     });
     expect(container.querySelector(".desktop-agent-runtime-launcher")).toBeNull();
     expect(container.querySelector(".desktop-agent-header-region")).toBeNull();
@@ -254,7 +255,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     expect(container.querySelector(".desktop-agent-empty-state")?.closest(".desktop-agent-conversation-overlay")).not.toBeNull();
   });
 
-  it("uses one centered product loader while the chat runtime starts", async () => {
+  it("shows startup progress and an editable draft while native startup blocks sending", async () => {
     const harness = createBridgeHarness();
     let finishDiscovery: ((inspection: ReturnType<typeof readyInspection>) => void) | null = null;
     harness.bridge.discoverAgentProviders = vi.fn(() => new Promise<ReturnType<typeof readyInspection>>((resolve) => {
@@ -272,9 +273,10 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     expect(loadingSurface.style.alignItems).toBe("center");
     expect(loadingSurface.style.justifyContent).toBe("center");
     expect(container.querySelector(".desktop-agent-status-region")).toBeNull();
-    expect(container.querySelector(".desktop-agent-dock-region")).toBeNull();
-    expect(container.querySelector(".cm-content")).toBeNull();
-    expect(container.textContent).not.toMatch(/Preparing Agent|Checking Agent|Restoring session|Starting session/);
+    expect(container.querySelector(".desktop-agent-dock-region")).not.toBeNull();
+    expect(container.querySelector(".cm-content")?.getAttribute("contenteditable")).toBe("true");
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')?.disabled).toBe(true);
+    expect(stripBidiIsolation(loadingSurface.textContent)).toContain("Preparing Agent");
 
     await act(async () => { finishDiscovery?.(readyInspection()); });
     await flushEffects();

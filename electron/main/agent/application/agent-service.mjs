@@ -154,6 +154,7 @@ export function createAgentService({
       } finally { sessions.filter((session) => !sessionStore.isCurrent(session)).forEach((session) => sessionFeed.releaseSession(session.id, session.instanceId)); }
     },
     closeAll: async () => {
+      runtimeResolutionCoordinator.dispose();
       try { await Promise.all([nativeConversationIndexer.dispose(), lifecycle.closeAll()]); } finally { sessionFeed.releaseAll(); }
     },
     getSessionCount: lifecycle.getSessionCount,
