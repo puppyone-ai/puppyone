@@ -65,6 +65,8 @@ export type MinimalOnboardingProps = {
   cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
   onRetryCloudSpaces?: () => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
+  /** Starts an empty Cloud project in a space and opens it. */
+  onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
   onShareLocalFolder?: (path: string) => Promise<void>;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
@@ -106,6 +108,7 @@ export function MinimalOnboarding({
   cloudSpacesStatus = "signed-out",
   onRetryCloudSpaces,
   onPublishToSpace,
+  onCreateCloudProject,
   onShareLocalFolder,
   cloudOpening = false,
   onOpenCloudProject,
@@ -235,6 +238,7 @@ export function MinimalOnboarding({
     spaces: projectView.places.size === 0 || projectView.places.has("cloud") ? cloudSpaces : [],
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
+    onCreate: onCreateCloudProject,
     onDragEnd: () => setDraggingPath(null),
   });
   const entry = onboardingEntrySlots(hasProjects, {

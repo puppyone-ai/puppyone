@@ -88,6 +88,7 @@ import { useHostFolderRestore } from "./features/app-shell/window-project/useHos
 import { normalizeCloudApiBaseUrl } from "../shared/cloudEndpoint.js";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
 import {
+  createCloudProject,
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
@@ -1407,6 +1408,13 @@ function AppContent() {
     workspacePath: cloudWorkspaceActive || shownHostFolder || projectNavigation.pending ? null : workspace?.path ?? null,
     workspaceName: workspace?.name ?? "", openProject: selectProject, returnHome: goToHomepage,
   });
+  // An empty Cloud project in the chosen space, opened at once like any other Cloud project.
+  const createCloudProjectInSpace = useCallback(async (spaceId: string, name: string) => {
+    if (!activeCloudSession || !desktopCloudApiBaseUrl) throw new Error(t("cloud.auth.signInRequired"));
+    const project = await createCloudProject(activeCloudSession, { name, org_id: spaceId }, crypto.randomUUID(), desktopCloudApiBaseUrl);
+    projectCatalog.refresh();
+    void selectCloudProject(project.id);
+  }, [activeCloudSession, desktopCloudApiBaseUrl, projectCatalog, selectCloudProject, t]);
   const publishToCloudSpace = useCloudSpacePublishIntent({ authority: cloudSpaces.authority,
     workspacePath: workspace?.path ?? null, openProject: selectProject,
     onReady: (target) => { openCloudPublish(); setCloudPublishTarget(target); },
@@ -1652,6 +1660,7 @@ function AppContent() {
         cloudSpacesStatus={cloudSpaces.status}
         onRetryCloudSpaces={cloudSpaces.refresh}
         onPublishToSpace={publishToCloudSpace}
+        onCreateCloudProject={createCloudProjectInSpace}
         onShareLocalFolder={homepageFolderSharing.request}
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}

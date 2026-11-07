@@ -1,21 +1,22 @@
 import { useState, type ReactNode } from "react";
-import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { CloudSpace, ProjectHomeItem } from "../../lib/workspaceHomeModel";
-import { DesktopMenuItem } from "../DesktopMenu";
-import { OnboardingGroupMenu } from "./OnboardingGroupMenu";
+import { CloudProjectCreateButton } from "./CloudProjectCreateButton";
 import type { OnboardingProjectGroup } from "./OnboardingProjectGroups";
 
-/** Space identity chooses the audience; a team's name is a selector, not another heading. */
-export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd }: {
+/**
+ * Space identity chooses the audience; a team's name is a selector, not another heading.
+ * A group's one action starts a new Cloud project there; an existing project joins by drag.
+ */
+export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onCreate, onDragEnd }: {
   spaces: readonly CloudSpace[]; cloudItems: ProjectHomeItem[]; localItems: ProjectHomeItem[];
   renderProjects: (items: ProjectHomeItem[]) => ReactNode; draggingPath: string | null; busy: boolean;
-  onPublish?: (path: string, spaceId: string) => Promise<void>; onDragEnd: () => void;
+  onPublish?: (path: string, spaceId: string) => Promise<void>;
+  onCreate?: (spaceId: string, name: string) => Promise<void>; onDragEnd: () => void;
 }): OnboardingProjectGroup[] {
   const { t } = useLocalization();
   const [chosenTeam, setChosenTeam] = useState<string | null>(null);
   const source = localItems.find((item) => item.localPath === draggingPath && !item.linkedCloudProject);
-  const candidates = localItems.filter((item) => item.localPath && !item.linkedCloudProject);
   const personal = spaces.find((space) => space.kind === "personal");
   const teams = spaces.filter((space) => space.kind === "team");
   const team = teams.find((space) => space.id === chosenTeam)
@@ -27,19 +28,16 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
       id, title, alwaysShowHeading: true, empty: projects.length === 0,
-      keepEmpty: Boolean(space.kind === "team" && source && onPublish),
+      // A space one can start projects in stays, empty or not, to start one in.
+      keepEmpty: Boolean((space.canCreateProjects && onCreate) || (space.kind === "team" && source && onPublish)),
       // A personal-area drop means sharing from this computer, not uploading.
       // Homepage's device composition supplies that action; never fall back here.
       dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source), onDrop: () => {
         onDragEnd();
         if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,
-      actions: onPublish && <OnboardingGroupMenu label={t("onboarding.spaces.addProject", { name: space.name })}
-        text={t("onboarding.spaces.add")} icon={<Plus size={14} strokeWidth={1.85} aria-hidden="true" />}
-        disabled={!writable || candidates.length === 0}>
-        {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
-          onClick={() => { close(); void onPublish(item.localPath, space.id); }} />)}
-      </OnboardingGroupMenu>,
+      actions: onCreate && space.canCreateProjects && <CloudProjectCreateButton spaceName={space.name} disabled={busy}
+        onCreate={(name) => onCreate(space.id, name)} />,
       children: projects.length ? renderProjects(projects) : <p className="onboarding-cloud-space-empty">
         {t(space.canCreateProjects ? "onboarding.spaces.empty" : "onboarding.spaces.readOnly")}
       </p>,
