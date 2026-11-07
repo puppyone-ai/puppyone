@@ -351,23 +351,16 @@
   min-width: 0;
 }
 
-/* The surface clips to its corners; while the place menu is open it may hang past them. */
-.onboarding-entry-dialog.is-create:has(.onboarding-entry-location-menu) {
-  overflow: visible;
-}
-
-.onboarding-entry-dialog.is-create:has(.onboarding-entry-location-menu) .desktop-dialog-footer {
-  border-end-start-radius: 11px;
-  border-end-end-radius: 11px;
-}
-
-.onboarding-entry-location-menu {
-  position: absolute;
-  z-index: 20;
-  inset-block-start: calc(100% + var(--po-menu-padding));
-  inset-inline: 0;
+/* The places open in the dialog's own flow, under the field, and the dialog grows to
+   hold them: a floating menu would be cut by the body and covered by the footer. */
+.onboarding-entry-dialog.is-create .onboarding-entry-location-menu {
   box-sizing: border-box;
+  margin-block-start: 6px;
   padding: var(--po-menu-padding);
+  border: 1px solid var(--po-border-strong);
+  border-radius: 8px;
+  background: var(--po-panel-raised);
+  box-shadow: none;
 }
 
 .onboarding-entry-location-menu .desktop-menu-section-list {

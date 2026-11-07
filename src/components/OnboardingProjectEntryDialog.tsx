@@ -218,7 +218,7 @@ export function OnboardingProjectEntryDialog({
                 </button>
                 {placeMenu.open && (
                   <DesktopMenuSurface ref={placeMenu.menuRef} className="onboarding-entry-location-menu"
-                    ariaLabel={t("onboarding.entry.create.locationLabel")} elevation="compact" onKeyDown={placeMenu.onKeyDown}>
+                    ariaLabel={t("onboarding.entry.create.locationLabel")} onKeyDown={placeMenu.onKeyDown}>
                     <DesktopMenuSection>
                       <DesktopMenuItem role="menuitemradio" aria-checked={!space}
                         icon={<LocalIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
