@@ -28,7 +28,8 @@ const DETAIL_OFFSET: f32 = 24.;
 impl Shell {
     /// A project is on its way into this window.
     pub(super) fn opening(&self) -> bool {
-        self.files.cloud_opening().is_some() || self.files.preparing_root().is_some()
+        self.session.files.cloud_opening().is_some()
+            || self.session.files.preparing_root().is_some()
     }
     /// The skeleton of the Explorer tree in a column `width` wide.
     fn explorer_skeleton(width: f32, cx: &App) -> impl IntoElement {
@@ -91,7 +92,7 @@ impl Shell {
         let top = metric::CHROME_HEIGHT;
         let explorer = self.layout.explorer;
         let editor = self.layout.editor;
-        let cloud = self.files.cloud_opening();
+        let cloud = self.session.files.cloud_opening();
         // `CloudWorkspaceOpeningLoading`: one line for the stage, and Cancel.
         let detail = cloud.map(|phase| {
             use crate::workspace::cloud::opening::Phase;
@@ -121,7 +122,7 @@ impl Shell {
                         .variant(ButtonVariant::Secondary)
                         .label(tr("common.action.cancel"))
                         .on_click(cx.listener(|s, _, _, cx| {
-                            s.files.cancel_cloud();
+                            s.session.files.cancel_cloud();
                             cx.notify();
                         })),
                 )

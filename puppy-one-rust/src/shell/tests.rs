@@ -40,16 +40,19 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     let document = workspace.read(std::path::Path::new("native.md")).unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.files = Documents::default();
-        s.files.workspace = Some(workspace);
-        s.files.document = Some(document.clone());
-        s.files.outgoing.push(crate::documents::HostMessage::Open {
-            id: document.id.clone(),
-            name: "native.md".into(),
-            text: document.text.clone(),
-            revision: 0,
-            external: false,
-        });
+        s.session.files = Documents::default();
+        s.session.files.workspace = Some(workspace);
+        s.session.files.document = Some(document.clone());
+        s.session
+            .files
+            .outgoing
+            .push(crate::documents::HostMessage::Open {
+                id: document.id.clone(),
+                name: "native.md".into(),
+                text: document.text.clone(),
+                revision: 0,
+                external: false,
+            });
         s.sync_editor(w, cx);
     });
     cx.update(|w, cx| {
@@ -64,7 +67,9 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
         loop {
             view.update_in(cx, |s, w, cx| s.receive(w, cx));
             cx.run_until_parked();
-            if !view.read_with(cx, |s, _| s.files.busy() || s.files.saving()) {
+            if !view.read_with(cx, |s, _| {
+                s.session.files.busy() || s.session.files.saving()
+            }) {
                 break;
             }
             assert!(std::time::Instant::now() < deadline);
@@ -81,14 +86,17 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     cx.simulate_input("local");
     settle(&view, cx);
     view.update(cx, |s, _| {
-        assert!(!s.files.dirty);
-        assert!(s.files.error.is_none());
-        assert_eq!(s.files.document.as_ref().unwrap().text, "External edit\n");
+        assert!(!s.session.files.dirty);
+        assert!(s.session.files.error.is_none());
+        assert_eq!(
+            s.session.files.document.as_ref().unwrap().text,
+            "External edit\n"
+        );
     });
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "External edit\n");
     command(&view, cx, Command::CloseFile);
     settle(&view, cx);
-    view.update(cx, |s, _| assert!(s.files.document.is_none()));
+    view.update(cx, |s, _| assert!(s.session.files.document.is_none()));
 }
 /// `handleEditorShortcut`: ⌃Tab steps through a project's editor tabs and
 /// ⌘W closes the active one; with none open, ⌘W closes the window.
@@ -98,7 +106,7 @@ fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut
     std::fs::write(folder.path().join("a.md"), "# A\n").unwrap();
     std::fs::write(folder.path().join("b.md"), "# B\n").unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     let settle =
         |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell) -> bool| {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -112,15 +120,18 @@ fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut
                 std::thread::sleep(std::time::Duration::from_millis(2));
             }
         };
-    let opened = |s: &Shell| s.files.opened().map(|(_, p)| p.to_owned());
+    let opened = |s: &Shell| s.session.files.opened().map(|(_, p)| p.to_owned());
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFolder(folder.path().into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(folder.path().into()), &s.session.wake)
     });
-    settle(&view, cx, &|s| s.files.state().is_some());
+    settle(&view, cx, &|s| s.session.files.state().is_some());
     for name in ["a.md", "b.md"] {
         view.update(cx, |s, _| {
-            s.files.begin(Intent::OpenFile(name.into()), &s.wake)
+            s.session
+                .files
+                .begin(Intent::OpenFile(name.into()), &s.session.wake)
         });
         settle(&view, cx, &|s| opened(s) == Some(PathBuf::from(name)));
     }
@@ -132,11 +143,12 @@ fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut
     settle(&view, cx, &|s| opened(s) == Some(PathBuf::from("a.md")));
     command(&view, cx, Command::CloseEditorOrWindow);
     settle(&view, cx, &|s| {
-        s.files
+        s.session
+            .files
             .state()
             .is_some_and(|w| w.catalog.editors.is_empty())
     });
-    view.read_with(cx, |s, _| assert!(!s.files.allow_quit));
+    view.read_with(cx, |s, _| assert!(!s.session.files.allow_quit));
     // No editor left: the window closes.
     view.update_in(cx, |s, w, cx| {
         s.command(Command::CloseEditorOrWindow, w, cx)
@@ -173,19 +185,23 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
             });
         };
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFolder(first.path().into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(first.path().into()), &s.session.wake)
     });
-    settle(&view, cx, &|s| s.files.state().is_some());
+    settle(&view, cx, &|s| s.session.files.state().is_some());
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFile("a.md".into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFile("a.md".into()), &s.session.wake)
     });
-    settle(&view, cx, &|s| s.files.opened().is_some());
+    settle(&view, cx, &|s| s.session.files.opened().is_some());
     let (slot, entity, key) = view.read_with(cx, |s, _| {
         (
-            s.files.active_slot(),
+            s.session.files.active_slot(),
             s.editor.front.entity_id(),
-            s.files
+            s.session
+                .files
                 .state()
                 .unwrap()
                 .layout
@@ -196,56 +212,62 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
     });
     cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
     cx.simulate_input("Retained");
-    settle(&view, cx, &|s| !s.files.saving());
+    settle(&view, cx, &|s| !s.session.files.saving());
     assert_eq!(
         std::fs::read_to_string(first.path().join("a.md")).unwrap(),
         "# Retained\n"
     );
     view.update(cx, |s, _| {
-        s.files
+        s.session
+            .files
             .state_mut()
             .unwrap()
             .split(crate::editor::workbench::layout::Direction::Horizontal);
-        s.files.begin(Intent::OpenFile("b.md".into()), &s.wake);
+        s.session
+            .files
+            .begin(Intent::OpenFile("b.md".into()), &s.session.wake);
     });
     settle(&view, cx, &|s| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("b.md"))
     });
     view.read_with(cx, |s, _| {
-        assert_eq!(s.files.visible_slots().len(), 2);
+        assert_eq!(s.session.files.visible_slots().len(), 2);
         assert_eq!(s.editor.hosts[&slot].entity_id(), entity);
     });
     view.update_in(cx, |s, w, cx| {
-        let pane = s.files.state().unwrap().layout.active.clone();
-        s.files.state_mut().unwrap().close_pane(&pane);
-        s.files.activate(&key);
+        let pane = s.session.files.state().unwrap().layout.active.clone();
+        s.session.files.state_mut().unwrap().close_pane(&pane);
+        s.session.files.activate(&key);
         s.sync_editor(w, cx);
     });
     view.read_with(cx, |s, _| {
-        assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
+        assert_eq!(s.session.files.state().unwrap().catalog.editors.len(), 2);
         assert_eq!(s.editor.front.entity_id(), entity);
     });
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFolder(second.path().into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(second.path().into()), &s.session.wake)
     });
     settle(&view, cx, &|s| {
-        s.files
+        s.session
+            .files
             .state()
             .is_some_and(|state| state.catalog.editors.is_empty())
     });
     view.update(cx, |s, _| {
-        s.files.begin(
+        s.session.files.begin(
             Intent::OpenFolder(first.path().canonicalize().unwrap()),
-            &s.wake,
+            &s.session.wake,
         )
     });
-    settle(&view, cx, &|s| s.files.active_slot() == slot);
+    settle(&view, cx, &|s| s.session.files.active_slot() == slot);
     view.read_with(cx, |s, _| assert_eq!(s.editor.front.entity_id(), entity));
     command(&view, cx, Command::Undo);
-    settle(&view, cx, &|s| !s.files.saving());
+    settle(&view, cx, &|s| !s.session.files.saving());
     assert_eq!(
         std::fs::read_to_string(first.path().join("a.md")).unwrap(),
         "# Original\n"
@@ -297,7 +319,7 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     view.update(cx, |s, cx| assert!(!s.panes.read(cx).right().open));
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, _| {
-        s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
+        s.session.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
     });
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
@@ -349,7 +371,7 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, _| {
-        s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
+        s.session.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
     });
     // History is the surface while the sidebar is closed: pulling it out
     // reopens on History, the Header entry reveals the Changes list.
@@ -402,8 +424,8 @@ fn task_shortcuts_do_not_save_and_cmd_w_stays_the_windows(cx: &mut TestAppContex
     cx.simulate_keystrokes("cmd-s");
     view.update(cx, |s, _| {
         assert_eq!(s.modals.task(), Some(Task::Settings));
-        assert!(matches!(s.files.phase, Phase::Idle));
-        assert!(s.files.outgoing.is_empty());
+        assert!(matches!(s.session.files.phase, Phase::Idle));
+        assert!(s.session.files.outgoing.is_empty());
     });
     // Settings takes no ⌘W of its own (`SettingsDialog`): with no editor
     // open it is the menu's Close Window.
@@ -418,7 +440,7 @@ fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
     view.update(cx, |s, cx| {
         s.show_error("first");
         s.show_error("second");
-        s.files.error = Some("save failed".into());
+        s.session.files.error = Some("save failed".into());
         cx.notify();
     });
     draw(cx);
@@ -426,7 +448,7 @@ fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
     // (which replaced the first), then Settings.
     command(&view, cx, Command::Escape);
     view.update(cx, |s, _| {
-        assert!(s.files.error.is_none());
+        assert!(s.session.files.error.is_none());
         assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "second"));
     });
     command(&view, cx, Command::Escape);
@@ -616,7 +638,7 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
-        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap())
+        s.session.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap())
     });
     let explorer = explorer_of(&view, cx);
     // A create menu item asks for the create form…
@@ -687,7 +709,7 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible());
     });
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     view.update(cx, |s, _| assert!(s.home_visible()));
 }
 #[gpui::test]
@@ -698,8 +720,8 @@ fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestApp
     view.update(cx, |s, _| {
         assert_eq!(s.modals.task(), Some(Task::Settings));
         assert!(s.popover.is_none());
-        assert!(matches!(s.files.phase, Phase::Idle));
-        assert!(s.files.outgoing.is_empty());
+        assert!(matches!(s.session.files.phase, Phase::Idle));
+        assert!(s.session.files.outgoing.is_empty());
     });
 }
 #[gpui::test]
@@ -711,7 +733,7 @@ fn locale_changes_catalog_without_document_work(cx: &mut TestAppContext) {
     });
     view.update(cx, |s, _| {
         assert_eq!(s.locale.text("settings.general.title"), "通用");
-        assert!(matches!(s.files.phase, Phase::Idle));
+        assert!(matches!(s.session.files.phase, Phase::Idle));
         assert_eq!(Locale::choices().count(), 8);
     });
 }
@@ -759,7 +781,11 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
         }
     };
     let root = temp.path().to_path_buf();
-    view.update(cx, |s, _| s.files.begin(Intent::OpenFolder(root), &s.wake));
+    view.update(cx, |s, _| {
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root), &s.session.wake)
+    });
     settle(cx, &|s, cx| {
         s.explorer_session
             .read(cx)
@@ -768,12 +794,15 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
             .is_some()
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFile("notes.md".into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFile("notes.md".into()), &s.session.wake)
     });
     let opened = |name: &'static str| {
         move |s: &Shell, _: &App| {
-            !s.files.busy()
-                && s.files
+            !s.session.files.busy()
+                && s.session
+                    .files
                     .document
                     .as_ref()
                     .is_some_and(|d| d.relative == Path::new(name))
@@ -782,24 +811,25 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     settle(cx, &opened("notes.md"));
     let (slot, entity, session) = view.read_with(cx, |s, _| {
         (
-            s.files.active_slot(),
+            s.session.files.active_slot(),
             s.editor.front.entity_id(),
-            s.files.document.as_ref().unwrap().id.clone(),
+            s.session.files.document.as_ref().unwrap().id.clone(),
         )
     });
     cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
     cx.simulate_input("Edited");
-    settle(cx, &|s, _| !s.files.saving());
+    settle(cx, &|s, _| !s.session.files.saving());
     assert_eq!(
         std::fs::read_to_string(temp.path().join("notes.md")).unwrap(),
         "# Edited\n"
     );
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFile("unrelated.md".into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFile("unrelated.md".into()), &s.session.wake)
     });
     settle(cx, &opened("unrelated.md"));
-    let unrelated = view.read_with(cx, |s, _| s.files.active_slot());
+    let unrelated = view.read_with(cx, |s, _| s.session.files.active_slot());
     // Drain the hidden affected copy, not the unrelated focused copy. Waiting
     // for the entire workbench to become empty would deadlock with multiple tabs.
     explorer.update(cx, |e, cx| {
@@ -807,7 +837,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     });
     settle(cx, &|s, cx| {
         !s.explorer_session.read(cx).busy()
-            && s.files.slot(slot).is_some_and(|f| {
+            && s.session.files.slot(slot).is_some_and(|f| {
                 f.opened()
                     .is_some_and(|(_, p)| p == Path::new("renamed.md"))
             })
@@ -815,12 +845,19 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     assert!(temp.path().join("renamed.md").exists());
     assert!(!temp.path().join("notes.md").exists());
     view.read_with(cx, |s, _| {
-        assert!(s.files.retained_slots().contains(&unrelated));
-        assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
-        assert_eq!(s.files.active_slot(), unrelated);
+        assert!(s.session.files.retained_slots().contains(&unrelated));
+        assert_eq!(s.session.files.state().unwrap().catalog.editors.len(), 2);
+        assert_eq!(s.session.files.active_slot(), unrelated);
         assert_eq!(s.editor.hosts[&slot].entity_id(), entity);
         assert_eq!(
-            s.files.slot(slot).unwrap().document.as_ref().unwrap().id,
+            s.session
+                .files
+                .slot(slot)
+                .unwrap()
+                .document
+                .as_ref()
+                .unwrap()
+                .id,
             session
         );
     });
@@ -829,12 +866,13 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
         assert!(!e.busy());
     });
     view.update_in(cx, |s, w, cx| {
-        s.files
-            .begin(Intent::OpenFile("renamed.md".into()), &s.wake);
+        s.session
+            .files
+            .begin(Intent::OpenFile("renamed.md".into()), &s.session.wake);
         s.sync_editor(w, cx);
     });
     command(&view, cx, Command::Undo);
-    settle(cx, &|s, _| !s.files.saving());
+    settle(cx, &|s, _| !s.session.files.saving());
     assert_eq!(
         std::fs::read_to_string(temp.path().join("renamed.md")).unwrap(),
         "# Notes\n"
@@ -1069,8 +1107,8 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
     std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
-        s.files = Documents::default();
-        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
+        s.session.files = Documents::default();
+        s.session.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
     });
     view.update(cx, |s, cx| {
         s.sidebar.source_control.update(cx, |_, cx| {
@@ -1083,7 +1121,7 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
     loop {
         view.update_in(cx, |s, w, cx| s.receive(w, cx));
         cx.run_until_parked();
-        if view.read_with(cx, |s, _| s.files.document.is_some()) {
+        if view.read_with(cx, |s, _| s.session.files.document.is_some()) {
             break;
         }
         assert!(
@@ -1094,7 +1132,7 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
     }
     view.read_with(cx, |s, _| {
         assert_eq!(
-            s.files.document.as_ref().unwrap().relative,
+            s.session.files.document.as_ref().unwrap().relative,
             std::path::Path::new("notes.md")
         )
     });
@@ -1336,16 +1374,19 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     let document = workspace.read(std::path::Path::new("long.md")).unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.files = Documents::default();
-        s.files.workspace = Some(workspace);
-        s.files.document = Some(document.clone());
-        s.files.outgoing.push(crate::documents::HostMessage::Open {
-            id: document.id.clone(),
-            name: "long.md".into(),
-            text: document.text.clone(),
-            revision: 0,
-            external: false,
-        });
+        s.session.files = Documents::default();
+        s.session.files.workspace = Some(workspace);
+        s.session.files.document = Some(document.clone());
+        s.session
+            .files
+            .outgoing
+            .push(crate::documents::HostMessage::Open {
+                id: document.id.clone(),
+                name: "long.md".into(),
+                text: document.text.clone(),
+                revision: 0,
+                external: false,
+            });
         s.sync_editor(w, cx);
     });
     draw(cx);
@@ -1368,7 +1409,7 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     assert_eq!(renders(cx), before, "the Explorer was reused");
     // Rendering the shell does not push anything into the Explorer…
     view.update(cx, |s, cx| {
-        s.pending = true;
+        s.session.picking = true;
         cx.notify();
     });
     draw(cx);
@@ -1439,11 +1480,14 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
     .unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFolder(first.path().into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(first.path().into()), &s.session.wake)
     });
-    settle(&view, cx, |s, _| s.files.state().is_some());
-    view.update(cx, |s, _| s.files.load_children("dir".into(), &s.wake));
+    settle(&view, cx, |s, _| s.session.files.state().is_some());
+    view.update(cx, |s, _| {
+        s.session.files.load_children("dir".into(), &s.session.wake)
+    });
     settle(&view, cx, |s, cx| {
         s.explorer_session
             .read(cx)
@@ -1453,8 +1497,9 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             .any(|row| row.path == std::path::Path::new("dir/table.csv"))
     });
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFile("dir/table.csv".into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFile("dir/table.csv".into()), &s.session.wake)
     });
     settle(&view, cx, |s, cx| {
         s.editor.front.read(cx).csv_editor().is_some()
@@ -1466,7 +1511,9 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
     );
     assert_eq!(cx.read(|cx| path(&csv, cx, 2)), None);
     std::fs::write(first.path().join("dir/Later.md"), "# Later").unwrap();
-    view.update(cx, |s, _| s.files.load_children("dir".into(), &s.wake));
+    view.update(cx, |s, _| {
+        s.session.files.load_children("dir".into(), &s.session.wake)
+    });
     settle(&view, cx, |_, cx| {
         path(&csv, cx, 2).as_deref() == Some("dir/Later.md")
     });
@@ -1474,29 +1521,33 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
         assert!(csv.activate_reference(1, 1, w, cx));
     });
     settle(&view, cx, |s, _| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("dir/Target.md"))
     });
     let explorer = view.read_with(cx, |s, _| s.explorer_session.clone());
     explorer.update(cx, |e, cx| e.rename("dir".into(), "moved".into(), cx));
     settle(&view, cx, |s, cx| {
-        !s.files.busy()
+        !s.session.files.busy()
             && !s.explorer_session.read(cx).busy()
             && path(&csv, cx, 1).as_deref() == Some("moved/Target.md")
     });
     assert!(first.path().join("moved/table.csv").exists());
     view.update(cx, |s, _| {
-        s.files
-            .begin(Intent::OpenFolder(second.path().into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(second.path().into()), &s.session.wake)
     });
     settle(&view, cx, |s, _| {
-        s.files.workspace.as_ref().is_some_and(|w| {
+        s.session.files.workspace.as_ref().is_some_and(|w| {
             w.local_root() == Some(second.path().canonicalize().unwrap().as_path())
         })
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFile("table.csv".into()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFile("table.csv".into()), &s.session.wake)
     });
     settle(&view, cx, |s, cx| {
         s.editor
@@ -1516,7 +1567,8 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
         assert!(csv.activate_reference(1, 1, w, cx));
     });
     settle(&view, cx, |s, _| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("Target.md"))
     });
@@ -1526,7 +1578,7 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
 fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut TestAppContext) {
     use crate::platform::host_budget::{Budget, Cleanup, Exceeded, Role};
     let (view, cx) = setup(cx);
-    let owner = view.read_with(cx, |s, _| s.window_key.clone());
+    let owner = view.read_with(cx, |s, _| s.session.key.clone());
     let lease = Budget::global()
         .reserve("terminal:manage-test", owner, "/tmp/p", "terminal")
         .unwrap();
@@ -1562,7 +1614,9 @@ fn windows_share_preferences_and_a_project_opens_where_it_was_chosen(cx: &mut Te
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
     first.update(vcx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while first.read_with(vcx, |s, _| s.workspace_root().is_none()) {
@@ -1823,7 +1877,9 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
     let windows = cx.update(|_, cx| cx.windows().len());
-    let local_key = view.read_with(cx, |s, _| s.files.workspace_key().unwrap().to_owned());
+    let local_key = view.read_with(cx, |s, _| {
+        s.session.files.workspace_key().unwrap().to_owned()
+    });
     let menu = view.read_with(cx, |s, cx| s.place_menu(cx).unwrap());
     assert_eq!(menu.place, Place::Local);
     let Some(action @ Action::OpenCloudProject { .. }) = menu.action else {
@@ -1842,8 +1898,8 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         s.hosted_project().as_deref() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.window.name, "Fixture Cloud");
-        assert_ne!(s.files.workspace_key(), Some(local_key.as_str()));
+        assert_eq!(s.session.project.name, "Fixture Cloud");
+        assert_ne!(s.session.files.workspace_key(), Some(local_key.as_str()));
         assert_eq!(s.place_menu(cx).unwrap().place, Place::Cloud);
     });
     assert_eq!(cx.update(|_, cx| cx.windows().len()), windows);
@@ -1878,7 +1934,9 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
@@ -2046,11 +2104,11 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     // nothing is left to reuse under another session.
     cx.update(|_, cx| account.update(cx, |a, _| a.sign_out()));
     settle(&view, cx, "the revocation", &|s, _| {
-        s.hosted_project().is_none() && s.window.cloud.is_none()
+        s.hosted_project().is_none() && s.session.project.cloud.is_none()
     });
     view.read_with(cx, |s, _| {
         assert!(s.homepage.open);
-        assert!(s.window.authority.is_none());
+        assert!(s.session.project.authority.is_none());
     });
 }
 
@@ -2079,15 +2137,17 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-    view.read_with(cx, |s, _| assert!(s.files.cloud_opening().is_some()));
+    view.read_with(cx, |s, _| {
+        assert!(s.session.files.cloud_opening().is_some())
+    });
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = false)
     });
     draw(cx);
     view.read_with(cx, |s, _| {
-        assert!(s.files.cloud_opening().is_none());
-        assert!(s.window.authority.is_none());
+        assert!(s.session.files.cloud_opening().is_none());
+        assert!(s.session.project.authority.is_none());
     });
     // The late root never commits.
     std::thread::sleep(std::time::Duration::from_millis(600));
@@ -2182,26 +2242,27 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         s.hosted_project().as_deref() == Some("project-a")
     });
     settle(&view, cx, "the workspace notice", &|s, _| {
-        s.window.notice.is_some()
+        s.session.project.notice.is_some()
     });
     // A notice floats; it is not a dialog.
     view.read_with(cx, |s, _| assert!(!s.modal()));
     let (key, first) = view.read_with(cx, |s, _| {
         (
-            s.files.workspace_key().unwrap().to_owned(),
-            s.files.workspace.clone().unwrap(),
+            s.session.files.workspace_key().unwrap().to_owned(),
+            s.session.files.workspace.clone().unwrap(),
         )
     });
     view.update(cx, |s, cx| s.retry_workspace_surface(cx));
     settle(&view, cx, "the rebound host", &|s, _| {
-        s.files
+        s.session
+            .files
             .workspace
             .as_ref()
             .is_some_and(|ws| !std::sync::Arc::ptr_eq(ws, &first))
     });
     // The same retained host, bound to the new lease.
     view.read_with(cx, |s, _| {
-        assert_eq!(s.files.workspace_key(), Some(key.as_str()));
+        assert_eq!(s.session.files.workspace_key(), Some(key.as_str()));
         assert_eq!(s.hosted_project().as_deref(), Some("project-a"));
     });
 }
@@ -2270,7 +2331,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
             failure.recovery,
             crate::workspace::cloud::opening::Recovery::Retry
         ));
-        s.window.recovery_details = true;
+        s.session.project.recovery_details = true;
         cx.notify();
     });
     draw(cx);
@@ -2474,7 +2535,9 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
@@ -2582,7 +2645,9 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     settle(&view, cx, "the missing association", &|s, cx| {
         matches!(
@@ -2694,7 +2759,9 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
     std::fs::write(root.join("b.md"), "b").unwrap();
     let outside = tempfile::tempdir().unwrap();
     view.update(vcx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while view.read_with(vcx, |s, cx| {
@@ -2782,7 +2849,7 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
         assert_eq!(path, &missing);
         assert!(!message.is_empty());
         // Not the generic error dialog.
-        assert!(s.files.error.is_none());
+        assert!(s.session.files.error.is_none());
     });
     // Retry opens the same folder again: the dialog goes, the opening
     // starts, and (the folder still missing) the same failure returns. A
@@ -2793,7 +2860,7 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
             .modals
             .iter()
             .any(|m| matches!(m, Modal::ProjectFailure { path, .. } if path == &missing));
-        assert!(s.files.opening_root() || failed_again);
+        assert!(s.session.files.opening_root() || failed_again);
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
@@ -2820,7 +2887,7 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.window.fixture = false;
+        s.session.project.fixture = false;
         s.begin_create_project(w, cx);
         let create = s.modals.create_project().unwrap();
         create.destination.location = Some(parent.clone());
@@ -2840,7 +2907,8 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     });
     view.update_in(cx, |s, w, cx| s.submit_create_project(w, cx));
     settle_cloud(&view, cx, "the new project", &|s, _| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, relative)| relative == std::path::Path::new("Getting Started.md"))
     });
@@ -2860,7 +2928,7 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     std::fs::create_dir(parent.join("Weekly plan")).unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     command(&view, cx, Command::Home);
     cx.update(|_, cx| {
         cx.write_to_clipboard(ClipboardItem::new_string(format!(
@@ -2891,7 +2959,8 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     });
     view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
     settle_cloud(&view, cx, "the copy", &|s, _| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, relative)| relative == std::path::Path::new("Plan.md"))
     });
@@ -2942,7 +3011,7 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
     std::fs::create_dir(&folder).unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.window.fixture = false;
+        s.session.project.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
         s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
@@ -2991,7 +3060,7 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
         telemetry::install_fixture(Some(telemetry::fixture(Level::Basic, true, true)), cx)
     });
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     command(&view, cx, Command::Home);
     // Home holds the list until its dates are read.
     cx.run_until_parked();
@@ -3029,9 +3098,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     state.update(cx, |t, _| {
         t.snapshot = Some(telemetry::fixture(Level::Basic, true, false))
     });
-    view.update(cx, |s, _| s.window.fixture = true);
+    view.update(cx, |s, _| s.session.project.fixture = true);
     draw(cx);
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     draw(cx);
     view.update(cx, |s, _| {
         assert!(s.homepage.intro.is_some() && !s.homepage.disclosure_shown);
@@ -3047,9 +3116,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
 
     // Reduced motion: no intro at all.
     cx.update(|_, cx| cx.set_reduce_motion(true));
-    view.update(cx, |s, _| s.window.fixture = true);
+    view.update(cx, |s, _| s.session.project.fixture = true);
     draw(cx);
-    view.update(cx, |s, _| s.window.fixture = false);
+    view.update(cx, |s, _| s.session.project.fixture = false);
     draw(cx);
     view.update(cx, |s, _| assert!(s.homepage.intro.is_none()));
 }
@@ -3059,8 +3128,8 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     let temp = tempfile::tempdir().unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
-        s.files = Documents::default();
-        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
+        s.session.files = Documents::default();
+        s.session.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
     });
     // The entry is measured on one frame and introduced on the next.
     draw(cx);
@@ -3146,7 +3215,9 @@ fn linked_checkout(
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
@@ -3261,7 +3332,7 @@ fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestA
         assert!(!s.home_visible());
         assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
         assert!(s.hosted_project().is_none());
-        assert!(s.files.cloud_opening().is_none());
+        assert!(s.session.files.cloud_opening().is_none());
         // The catalog is untouched.
         assert!(
             s.project_items(cx)
@@ -3751,7 +3822,9 @@ fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+        s.session
+            .files
+            .begin(Intent::OpenFolder(root.clone()), &s.session.wake)
     });
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
@@ -3782,7 +3855,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     // The worker finishes while nothing on this thread runs.
     std::thread::sleep(std::time::Duration::from_millis(300));
     view.read_with(cx, |s, cx| {
-        assert!(s.files.cloud_opening().is_some());
+        assert!(s.session.files.cloud_opening().is_some());
         assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
         assert!(
             !s.modals
@@ -3794,7 +3867,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
         s.hosted_project().as_deref() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert!(s.files.cloud_opening().is_none());
+        assert!(s.session.files.cloud_opening().is_none());
         assert_eq!(s.opening_project_name(cx), None);
     });
 }
@@ -3936,18 +4009,18 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
 fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.files.error = Some("save failed".into());
-        s.files.close_refused = true;
+        s.session.files.error = Some("save failed".into());
+        s.session.files.close_refused = true;
         s.receive(w, cx);
         assert!(matches!(s.modals.top(), Some(Modal::CloseAnyway)));
-        assert!(s.files.error.is_none());
+        assert!(s.session.files.error.is_none());
     });
     draw(cx);
     command(&view, cx, Command::KeepWindowOpen);
     view.update(cx, |s, cx| {
         assert!(s.modals.is_empty());
         assert!(!windows::quitting(cx));
-        assert!(!s.files.allow_quit);
+        assert!(!s.session.files.allow_quit);
     });
 }
 
@@ -3966,7 +4039,7 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.window.fixture = false;
+        s.session.project.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
@@ -4006,9 +4079,9 @@ fn a_newer_choice_replaces_a_project_still_opening(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         s.open_project(first.clone(), w, cx);
-        assert_eq!(s.files.preparing_root(), Some(first.as_path()));
+        assert_eq!(s.session.files.preparing_root(), Some(first.as_path()));
         s.open_project(second.clone(), w, cx);
-        assert_eq!(s.files.preparing_root(), Some(second.as_path()));
+        assert_eq!(s.session.files.preparing_root(), Some(second.as_path()));
     });
     settle_cloud(&view, cx, "the second project", &|s, _| {
         s.workspace_root().as_deref() == Some(second.as_path())
@@ -4026,15 +4099,17 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
-        s.window.fixture = false;
-        s.files.file_window = true;
-        s.window.open_first = Some(PathBuf::from(&file.name));
-        s.files
-            .begin(Intent::OpenFolder(file.root.clone()), &s.wake);
+        s.session.project.fixture = false;
+        s.session.files.file_window = true;
+        s.session.project.open_first = Some(PathBuf::from(&file.name));
+        s.session
+            .files
+            .begin(Intent::OpenFolder(file.root.clone()), &s.session.wake);
         s.file = Some(file_mode::FileWindow::new(file));
     });
     settle_cloud(&view, cx, "the file", &|s, _| {
-        s.files
+        s.session
+            .files
             .opened()
             .is_some_and(|(_, p)| p == std::path::Path::new("notes.md"))
     });
@@ -4048,16 +4123,17 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         assert!(s.preferences.read(cx).state.recent_projects.is_empty());
         assert!(s.local_folder_notice(cx).is_none());
         // Nothing watches the file.
-        assert!(!s.files.watching());
+        assert!(!s.session.files.watching());
     });
     // It is read again when the window comes back.
     std::fs::write(root.join("notes.md"), "# Notes, changed\n").unwrap();
     view.update_in(cx, |s, w, cx| {
-        s.files.revalidate();
+        s.session.files.revalidate();
         s.receive(w, cx);
     });
     settle_cloud(&view, cx, "the reread", &|s, _| {
-        s.files
+        s.session
+            .files
             .document
             .as_ref()
             .is_some_and(|d| d.text == "# Notes, changed\n")
@@ -4076,28 +4152,28 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     cx.run_until_parked();
     view.read_with(cx, |s, _| {
         assert!(s.modals.is_empty());
-        assert!(s.files.opened().is_some());
+        assert!(s.session.files.opened().is_some());
     });
     // A link to a neighbour opens nothing: the file has none.
-    let slot = view.read_with(cx, |s, _| s.files.active_slot());
+    let slot = view.read_with(cx, |s, _| s.session.files.active_slot());
     view.update(cx, |s, _| {
-        s.files.client_for(
+        s.session.files.client_for(
             slot,
             crate::documents::ClientMessage::OpenPaths {
                 paths: vec!["other.md".into()],
             },
-            &s.wake,
+            &s.session.wake,
         )
     });
     cx.run_until_parked();
     view.read_with(cx, |s, _| {
         assert_eq!(
-            s.files.opened().map(|(_, p)| p.to_owned()),
+            s.session.files.opened().map(|(_, p)| p.to_owned()),
             Some(PathBuf::from("notes.md"))
         )
     });
     // Unsaved edits: the native Save, Don't Save or Cancel, asked once.
-    view.update(cx, |s, _| s.files.dirty = true);
+    view.update(cx, |s, _| s.session.files.dirty = true);
     command(&view, cx, Command::CloseEditorOrWindow);
     command(&view, cx, Command::Quit);
     assert!(cx.has_pending_prompt());
@@ -4105,7 +4181,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     cx.simulate_prompt_answer("Cancel");
     cx.run_until_parked();
     view.read_with(cx, |s, _| {
-        assert!(!s.files.allow_quit);
+        assert!(!s.session.files.allow_quit);
         assert!(!s.file.as_ref().unwrap().asking);
     });
     assert!(!cx.has_pending_prompt());

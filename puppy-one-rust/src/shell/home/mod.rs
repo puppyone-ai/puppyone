@@ -215,10 +215,10 @@ impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
     pub(super) fn home_visible(&self) -> bool {
         // A project on its way in takes the window from the Homepage.
-        !self.window.fixture
+        !self.session.project.fixture
             && !self.file_mode()
             && !self.opening()
-            && (self.homepage.open || self.files.workspace.is_none())
+            && (self.homepage.open || self.session.files.workspace.is_none())
     }
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project
@@ -414,7 +414,7 @@ impl Shell {
     /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
     #[cfg(feature = "dev-capture")]
     pub fn lab_home(&mut self, played: bool) {
-        self.window.fixture = false;
+        self.session.project.fixture = false;
         self.captured = true;
         if played {
             self.homepage.intro_empty = Some(true);
@@ -482,10 +482,10 @@ impl Shell {
         let t = cx.palette();
         let all = self.project_items(cx);
         let has_projects = !all.is_empty() || self.homepage.list_held();
-        let busy = self.pending
-            || self.files.busy()
-            || self.files.folder_busy
-            || self.files.cloud_opening().is_some();
+        let busy = self.session.picking
+            || self.session.files.busy()
+            || self.session.files.folder_busy
+            || self.session.files.cloud_opening().is_some();
         let (w, h) = (self.layout.header.w, self.layout.editor.bottom());
         let pad = metric::UTILITY_PADDING_INLINE;
         let page_w = PAGE_WIDTH.min(w - pad * 2.).max(0.);
@@ -698,7 +698,7 @@ impl Shell {
                 .text_color(color)
                 .child(text)
         };
-        let feedback: Option<AnyElement> = if self.files.cloud_opening().is_some() {
+        let feedback: Option<AnyElement> = if self.session.files.cloud_opening().is_some() {
             None
         } else if catalog == State::Failed || auth_error.is_some() {
             let label = match &auth_error {

@@ -162,7 +162,7 @@ impl Shell {
                     .find(|p| p.path == root)
                     .map(|p| p.name.clone())
             })
-            .unwrap_or_else(|| self.window.name.clone())
+            .unwrap_or_else(|| self.session.project.name.clone())
     }
     /// The Cloud switch dialog for a checkout with no Cloud Project yet.
     pub(super) fn publish_dialog(&self, dialog: Dialog, cx: &mut Context<Self>) -> Dialog {

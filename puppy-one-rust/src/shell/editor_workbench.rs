@@ -52,7 +52,7 @@ impl Shell {
     /// nothing.
     pub(super) fn save_chip(&self, slot: u64, cx: &mut Context<Self>) -> Option<AnyElement> {
         use crate::documents::SaveStatus;
-        let files = self.files.slot(slot)?;
+        let files = self.session.files.slot(slot)?;
         let hosted = files
             .workspace
             .as_ref()
@@ -107,7 +107,7 @@ impl Shell {
                     .child(glyph("editor-save-alert", t.danger))
                     .child(crate::localization::t("editor.save.failed"))
                     .on_click(cx.listener(move |s, _, _, cx| {
-                        s.files.retry_slot_save(slot, &s.wake);
+                        s.session.files.retry_slot_save(slot, &s.session.wake);
                         cx.notify();
                     }))
                     .into_any_element(),
@@ -195,7 +195,7 @@ impl Shell {
         {
             return None;
         }
-        let files = self.files.slot(slot)?;
+        let files = self.session.files.slot(slot)?;
         let root = files.workspace.as_ref()?.local_root()?;
         let relative = match (&files.document, &files.resource) {
             (Some(document), _) => document.relative.as_path(),
@@ -205,7 +205,7 @@ impl Shell {
         let store = crate::features::agent_presence::store(cx)?;
         let projection = store
             .read(cx)
-            .projection(&self.window_key, root, relative)?;
+            .projection(&self.session.key, root, relative)?;
         Some(
             div()
                 .absolute()
@@ -225,21 +225,23 @@ impl Shell {
         )
     }
     pub(super) fn focus_editor_slot(&mut self, slot: u64) {
-        let pane = self.files.state().and_then(|state| {
+        let pane = self.session.files.state().and_then(|state| {
             state
                 .layout
                 .root
                 .panes()
                 .into_iter()
-                .find(|(_, key)| key.and_then(|key| self.files.slot_for_key(key)) == Some(slot))
+                .find(|(_, key)| {
+                    key.and_then(|key| self.session.files.slot_for_key(key)) == Some(slot)
+                })
                 .map(|(pane, _)| pane.to_owned())
         });
         if let Some(pane) = pane {
-            self.files.focus(&pane);
+            self.session.files.focus(&pane);
         }
     }
     pub(super) fn editor_tabs(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(state) = self.files.state() else {
+        let Some(state) = self.session.files.state() else {
             return div().into_any_element();
         };
         let palette = cx.palette();
@@ -254,8 +256,8 @@ impl Shell {
         for (index, input) in state.catalog.editors.iter().enumerate() {
             let key = input.id.clone();
             let active = state.layout.active_editor() == Some(key.as_str());
-            let slot = self.files.slot_for_key(&key).unwrap();
-            let status = self.files.slot(slot);
+            let slot = self.session.files.slot_for_key(&key).unwrap();
+            let status = self.session.files.slot(slot);
             let dirty = status.is_some_and(|f| f.dirty);
             let saving = status.is_some_and(|f| f.saving() || f.busy());
             let focus = self.editor.tab_focus.get(&slot).cloned();
@@ -292,7 +294,7 @@ impl Shell {
                 .on_mouse_down(
                     MouseButton::Middle,
                     cx.listener(move |s, _, w, cx| {
-                        s.files.close_slot(slot, &s.wake);
+                        s.session.files.close_slot(slot, &s.session.wake);
                         s.receive(w, cx);
                         cx.notify();
                     }),
@@ -309,7 +311,7 @@ impl Shell {
                     if drag.owner != cx.entity_id() {
                         return;
                     }
-                    if let Some(mut state) = s.files.state_mut() {
+                    if let Some(mut state) = s.session.files.state_mut() {
                         state.catalog.move_before(&drag.key, &target);
                     }
                     cx.notify();
@@ -329,7 +331,7 @@ impl Shell {
                         .cursor(theme::clickable_cursor())
                         .text_size(px(theme::ty().header.content))
                         .on_click(cx.listener(move |s, _, w, cx| {
-                            s.files.activate(&select);
+                            s.session.files.activate(&select);
                             s.sync_editor(w, cx);
                             cx.notify();
                         }))
@@ -341,9 +343,11 @@ impl Shell {
                                 "end" => keyboard_ids.len() - 1,
                                 _ => return,
                             };
-                            s.files.activate(&keyboard_ids[next]);
+                            s.session.files.activate(&keyboard_ids[next]);
                             s.sync_editor(w, cx);
-                            if let Some(focus) = s.editor.tab_focus.get(&s.files.active_slot()) {
+                            if let Some(focus) =
+                                s.editor.tab_focus.get(&s.session.files.active_slot())
+                            {
                                 focus.focus(w, cx);
                             }
                             cx.stop_propagation();
@@ -403,7 +407,7 @@ impl Shell {
                         .tooltip(tooltip(close))
                         .on_click(cx.listener(move |s, _, w, cx| {
                             cx.stop_propagation();
-                            s.files.close_slot(slot, &s.wake);
+                            s.session.files.close_slot(slot, &s.session.wake);
                             s.receive(w, cx);
                             cx.notify();
                         }))
@@ -431,7 +435,7 @@ impl Shell {
                     .id(SharedString::from(id.clone()))
                     .overflow_hidden()
                     .capture_any_mouse_down(cx.listener(move |s, _, window, cx| {
-                        s.files.focus(&pane);
+                        s.session.files.focus(&pane);
                         s.sync_editor(window, cx);
                         cx.notify();
                     }))
@@ -440,7 +444,7 @@ impl Shell {
                             let drag = event.drag(cx);
                             let inside = event.bounds.contains(&event.event.position)
                                 && drag.single_file
-                                && drag.belongs_to(&s.files.workspace)
+                                && drag.belongs_to(&s.session.files.workspace)
                                 && !s.modal();
                             if inside {
                                 let point = event.event.position - event.bounds.origin;
@@ -519,15 +523,23 @@ impl Shell {
                             rect.w,
                             rect.h,
                         );
-                        s.files
-                            .open_at_edge(path, &external_target, direction, placement, &s.wake);
+                        s.session.files.open_at_edge(
+                            path,
+                            &external_target,
+                            direction,
+                            placement,
+                            &s.session.wake,
+                        );
                         s.receive(w, cx);
                         cx.stop_propagation();
                         cx.notify();
                     }))
                     .on_drop(cx.listener(move |s, drag: &explorer::DragNodes, w, cx| {
                         s.editor.drop = None;
-                        if !drag.single_file || !drag.belongs_to(&s.files.workspace) || s.modal() {
+                        if !drag.single_file
+                            || !drag.belongs_to(&s.session.files.workspace)
+                            || s.modal()
+                        {
                             return;
                         }
                         let Some(path) = drag.paths.first() else {
@@ -540,12 +552,12 @@ impl Shell {
                             rect.w,
                             rect.h,
                         );
-                        s.files.open_at_edge(
+                        s.session.files.open_at_edge(
                             path.clone(),
                             &file_target,
                             direction,
                             placement,
-                            &s.wake,
+                            &s.session.wake,
                         );
                         s.receive(w, cx);
                         cx.stop_propagation();
@@ -554,19 +566,19 @@ impl Shell {
                     .on_drop(cx.listener(
                         move |s, drag: &crate::editor::workbench::pane::PaneDrag, w, cx| {
                             if drag.owner != cx.entity_id()
-                                || !s.files.visible_slots().contains(&drag.slot)
+                                || !s.session.files.visible_slots().contains(&drag.slot)
                                 || s.modal()
                             {
                                 return;
                             }
-                            let source = s.files.state().and_then(|state| {
+                            let source = s.session.files.state().and_then(|state| {
                                 state
                                     .layout
                                     .root
                                     .panes()
                                     .into_iter()
                                     .find(|(_, key)| {
-                                        key.and_then(|key| s.files.slot_for_key(key))
+                                        key.and_then(|key| s.session.files.slot_for_key(key))
                                             == Some(drag.slot)
                                     })
                                     .map(|(pane, _)| pane.to_owned())
@@ -579,7 +591,7 @@ impl Shell {
                             let y = f32::from(p.y) - s.layout.editor.y - rect.y;
                             let (direction, placement) =
                                 crate::editor::workbench::layout::drop_edge(x, y, rect.w, rect.h);
-                            if let Some(mut state) = s.files.state_mut() {
+                            if let Some(mut state) = s.session.files.state_mut() {
                                 state
                                     .layout
                                     .move_pane(&source, &target, direction, placement);
@@ -591,7 +603,7 @@ impl Shell {
                     ));
                 let slot = editor
                     .as_deref()
-                    .and_then(|key| self.files.slot_for_key(key));
+                    .and_then(|key| self.session.files.slot_for_key(key));
                 if let Some(editor) = slot.and_then(|slot| self.editor.hosts.get(&slot)) {
                     view = view.child(editor.clone());
                     if let Some(chip) = slot.and_then(|slot| self.save_chip(slot, cx)) {
@@ -607,7 +619,7 @@ impl Shell {
                             IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
                                 .label(crate::localization::t("editor.panes.closePane"))
                                 .on_click(cx.listener(move |s, _, w, cx| {
-                                    if let Some(mut state) = s.files.state_mut() {
+                                    if let Some(mut state) = s.session.files.state_mut() {
                                         state.close_pane(&close);
                                     }
                                     s.sync_editor(w, cx);
@@ -696,10 +708,10 @@ impl Shell {
                 .resizing(self.editor.resize.as_ref().is_some_and(|r| r.split == *id))
                 .on_drag_start(cx.listener(move |s, _, _, cx| {
                     s.end_editor_resize(false, cx);
-                    let Some(workspace) = s.files.workspace_key().map(str::to_owned) else {
+                    let Some(workspace) = s.session.files.workspace_key().map(str::to_owned) else {
                         return;
                     };
-                    s.files.metadata_suspended = true;
+                    s.session.files.metadata_suspended = true;
                     s.editor.resize = Some(EditorResize {
                         workspace,
                         split: split.clone(),
@@ -723,7 +735,7 @@ impl Shell {
         let Some(resize) = &self.editor.resize else {
             return;
         };
-        if self.files.workspace_key() != Some(resize.workspace.as_str()) {
+        if self.session.files.workspace_key() != Some(resize.workspace.as_str()) {
             self.end_editor_resize(false, cx);
             return;
         }
@@ -733,19 +745,20 @@ impl Shell {
             (f32::from(point.y) - resize.rect.y) / resize.rect.h.max(1.)
         };
         let split = resize.split.clone();
-        if let Some(mut state) = self.files.state_mut() {
+        if let Some(mut state) = self.session.files.state_mut() {
             state.layout.resize(&split, position.into());
         }
         cx.notify();
     }
     pub(super) fn end_editor_resize(&mut self, commit: bool, cx: &mut Context<Self>) {
         if let Some(resize) = self.editor.resize.take() {
-            if !commit || self.files.workspace_key() != Some(resize.workspace.as_str()) {
-                self.files
+            if !commit || self.session.files.workspace_key() != Some(resize.workspace.as_str()) {
+                self.session
+                    .files
                     .cancel_resize(&resize.workspace, &resize.split, resize.original);
             }
-            self.files.metadata_suspended = false;
-            self.wake.notify();
+            self.session.files.metadata_suspended = false;
+            self.session.wake.notify();
             cx.notify();
         }
     }

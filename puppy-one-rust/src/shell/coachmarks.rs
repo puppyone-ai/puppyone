@@ -160,6 +160,7 @@ impl Shell {
         let status = super::header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
         let repository = self.sidebar.source_control.read(cx).snapshot.is_some();
         let scope = self
+            .session
             .files
             .workspace
             .as_ref()
@@ -167,7 +168,7 @@ impl Shell {
             .map(|r| r.to_string_lossy().into_owned());
         let entry = scope
             .as_ref()
-            .map(|s| format!("{s}#{}", self.window.entries));
+            .map(|s| format!("{s}#{}", self.session.project.entries));
         let inputs = Inputs {
             agent_open: self.right_shows(Surface::Agent, cx),
             changes_open: self.right_shows(Surface::Git, cx),

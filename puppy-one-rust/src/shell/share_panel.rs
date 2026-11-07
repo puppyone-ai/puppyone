@@ -108,6 +108,7 @@ impl Shell {
             let resource = match self.explorer_session.read(cx).selected_folder() {
                 Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
                 None => self
+                    .session
                     .files
                     .opened()
                     .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
@@ -115,7 +116,7 @@ impl Shell {
             Some(share_targets(
                 binding.environment.web(),
                 &project,
-                &self.window.name,
+                &self.session.project.name,
                 None,
                 resource.as_ref().map(|(p, d)| (p.as_str(), *d)),
             ))

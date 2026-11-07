@@ -13,10 +13,10 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(ws) = self.files.workspace.clone() else {
+        let Some(ws) = self.session.files.workspace.clone() else {
             return;
         };
-        if self.files.busy() || self.modal() || !kind.available() {
+        if self.session.files.busy() || self.modal() || !kind.available() {
             return;
         }
         let form = cx.new(|cx| CreateEntryDialog::new(ws, parent, kind, window, cx));
@@ -33,7 +33,8 @@ impl Shell {
                     folder,
                     nodes,
                 } => {
-                    if s.files
+                    if s.session
+                        .files
                         .workspace
                         .as_ref()
                         .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
@@ -48,8 +49,10 @@ impl Shell {
                         s.explorer_session
                             .update(cx, |e, cx| e.entry_created(parent, listing, path, cx));
                         s.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
-                        if !folder && !s.files.allow_quit {
-                            s.files.begin(Intent::OpenFile(path.clone()), &s.wake)
+                        if !folder && !s.session.files.allow_quit {
+                            s.session
+                                .files
+                                .begin(Intent::OpenFile(path.clone()), &s.session.wake)
                         }
                         s.receive(w, cx);
                     }
@@ -59,7 +62,7 @@ impl Shell {
         })
         .detach();
         cx.observe(&form, |s, _, cx| {
-            s.wake.notify();
+            s.session.wake.notify();
             cx.notify();
         })
         .detach();

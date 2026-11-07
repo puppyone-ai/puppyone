@@ -34,13 +34,15 @@ impl Shell {
     pub(super) fn project_context(&self, cx: &mut Context<Self>) -> Div {
         let label = tf(
             "shell.workspaceSwitcher.openMenu",
-            &[("workspace", self.window.name.clone().into())],
+            &[("workspace", self.session.project.name.clone().into())],
         );
         let opening = self.opening_project_name(cx);
         let name = match &opening {
             Some(name) => name.clone(),
-            None if self.window.name.is_empty() => tr("onboarding.action.openFolder").to_owned(),
-            None => self.window.name.clone(),
+            None if self.session.project.name.is_empty() => {
+                tr("onboarding.action.openFolder").to_owned()
+            }
+            None => self.session.project.name.clone(),
         };
         let ty = theme::ty().header;
         // `.desktop-titlebar-workspace-button`.

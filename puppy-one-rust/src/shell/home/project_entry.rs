@@ -159,7 +159,8 @@ impl Shell {
     /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
     /// the window shows a quiet loading mark, never the Homepage.
     pub(in crate::shell) fn restoring(&self) -> bool {
-        self.files.workspace.is_none() && (self.window.restore_last || self.window.restoring_open)
+        self.session.files.workspace.is_none()
+            && (self.session.project.restore_last || self.session.project.restoring_open)
     }
     pub(in crate::shell) fn restoring_view(&self, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();

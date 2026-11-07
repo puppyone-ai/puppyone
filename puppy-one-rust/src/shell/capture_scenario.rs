@@ -198,12 +198,12 @@ impl Shell {
         let file_settled = file && self.file_shown() != super::file_mode::Shown::Document
             || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
         let workspace_ready = file_settled
-            || self.files.workspace.is_some()
-                && !self.window.fixture
+            || self.session.files.workspace.is_some()
+                && !self.session.project.fixture
                 && (file || !self.explorer_session.read(cx).tree().rows.is_empty())
-                && (!file || self.files.opened().is_some())
-                && !self.files.busy()
-                && !self.files.folder_busy;
+                && (!file || self.session.files.opened().is_some())
+                && !self.session.files.busy()
+                && !self.session.files.folder_busy;
         let git_ready = file || self.sidebar.source_control.read(cx).snapshot.is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
@@ -339,7 +339,10 @@ impl Shell {
                 self.explorer_session
                     .update(cx, |e, cx| e.set_expanded(path, false, cx));
             }
-            Step::Open(path) => self.files.begin(Intent::OpenFile(path.clone()), &self.wake),
+            Step::Open(path) => self
+                .session
+                .files
+                .begin(Intent::OpenFile(path.clone()), &self.session.wake),
             Step::NodeMenu(path) => {
                 let Some(index) = self.explorer_session.read(cx).tree().index_of(path) else {
                     return false;
@@ -462,7 +465,7 @@ impl Shell {
             Step::AgentsFixture(open_links) => {
                 self.cloud.capture_hosted = true;
                 let client = crate::features::cloud::agents::lab_client(*open_links);
-                let name = self.window.name.clone();
+                let name = self.session.project.name.clone();
                 self.cloud.agents.update(cx, |a, cx| {
                     a.attach_client("lab-project", &name, client, cx)
                 });

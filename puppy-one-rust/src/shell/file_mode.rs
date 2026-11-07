@@ -146,7 +146,7 @@ impl Shell {
         match self.file.as_ref().map(|f| f.target.admission) {
             Some(Admission::Unavailable) => Shown::Unavailable(None),
             Some(Admission::TooLarge) => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
-            _ if self.files.workspace.is_none() => Shown::Loading,
+            _ if self.session.files.workspace.is_none() => Shown::Loading,
             _ => Shown::Document,
         }
     }
@@ -155,6 +155,7 @@ impl Shell {
     pub(super) fn file_read_only(&self) -> bool {
         self.file_mode()
             && self
+                .session
                 .files
                 .document
                 .as_ref()
@@ -162,7 +163,10 @@ impl Shell {
     }
     /// The file window's editor, once its document has a host.
     pub(super) fn file_editor(&self) -> Option<Entity<crate::editor::host::DocumentEditor>> {
-        self.editor.hosts.get(&self.files.active_slot()).cloned()
+        self.editor
+            .hosts
+            .get(&self.session.files.active_slot())
+            .cloned()
     }
     fn file_menu(
         &self,
@@ -422,7 +426,7 @@ impl Shell {
                         .line_height(px(ty.line_height))
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
-                let slot = self.files.active_slot();
+                let slot = self.session.files.active_slot();
                 let document = self.editor.hosts.get(&slot).map(|editor| {
                     div()
                         .relative()

@@ -226,8 +226,8 @@ impl Shell {
             return;
         }
         self.open_project(path, window, cx);
-        if self.files.busy() {
-            self.window.open_first = open;
+        if self.session.files.busy() {
+            self.session.project.open_first = open;
         }
     }
     /// "Paste template link": the clipboard is read only now, when asked,

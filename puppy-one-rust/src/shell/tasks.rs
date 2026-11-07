@@ -122,7 +122,7 @@ impl Shell {
         let rows: Vec<_> = Budget::global()
             .snapshot()
             .into_iter()
-            .filter(|r| r.owner == self.window_key || r.owner == "application")
+            .filter(|r| r.owner == self.session.key || r.owner == "application")
             .collect();
         let host = cx.weak_entity();
         let mut list = div().flex().flex_col().gap(px(8.));
@@ -212,6 +212,7 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> gpui_kit::base::Dialog {
         let root = self
+            .session
             .files
             .workspace
             .as_ref()

@@ -26,7 +26,7 @@ impl Shell {
         settled
             && snapshot.account.is_none()
             && self.homepage.recent.is_empty()
-            && self.files.workspace.is_none()
+            && self.session.files.workspace.is_none()
     }
     /// Signing in or having a project completes the first run.
     pub(in crate::shell) fn sync_first_run(&mut self, cx: &mut Context<Self>) {
@@ -35,7 +35,7 @@ impl Shell {
             return;
         }
         let signed_in = self.account_status(cx).is_some_and(|s| s.account.is_some());
-        if signed_in || !self.homepage.recent.is_empty() || self.files.workspace.is_some() {
+        if signed_in || !self.homepage.recent.is_empty() || self.session.files.workspace.is_some() {
             self.complete_first_run(cx);
         }
     }

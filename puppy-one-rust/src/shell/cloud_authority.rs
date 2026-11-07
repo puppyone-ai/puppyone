@@ -57,21 +57,21 @@ impl Shell {
         } else {
             None
         };
-        if self.window.authority.is_none() || self.window.authority == current {
+        if self.session.project.authority.is_none() || self.session.project.authority == current {
             return;
         }
-        self.window.authority = None;
-        self.files.cancel_cloud();
+        self.session.project.authority = None;
+        self.session.files.cancel_cloud();
         if self.popover == Some(Popover::Share) {
             self.popover = None;
         }
         if self.hosted_project().is_some() {
             self.close_workspace_sidebars(window, cx);
-            self.files.deactivate();
+            self.session.files.deactivate();
             self.homepage.open = true;
             self.receive(window, cx);
         }
-        self.window.cloud = None;
+        self.session.project.cloud = None;
         cx.notify();
     }
     /// `ProjectNavigationFailure` for a Cloud opening: why, Close, and Retry
