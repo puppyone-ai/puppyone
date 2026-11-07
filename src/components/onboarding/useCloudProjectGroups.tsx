@@ -26,8 +26,9 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
       id, title, alwaysShowHeading: true, empty: projects.length === 0,
-      // A space one can add projects to stays, empty or not, to drag one into.
-      keepEmpty: Boolean(space.canCreateProjects || (space.kind === "team" && source && onPublish)),
+      // A team one can add projects to stays, empty or not, to drag one into. An empty
+      // personal space takes no drop here: only device sharing, which keeps its own area.
+      keepEmpty: space.kind === "team" && Boolean(space.canCreateProjects || (source && onPublish)),
       // A personal-area drop means sharing from this computer, not uploading.
       // Homepage's device composition supplies that action; never fall back here.
       dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source),

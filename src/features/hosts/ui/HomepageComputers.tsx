@@ -121,8 +121,15 @@ function ThisComputerDetail({ catalog, offering }: { catalog: HostCatalog; offer
   else if (sharing?.state === "connecting") text = t("hosts.sharing.connecting");
   else if (sharing?.state === "offline") text = t("hosts.sharing.reconnecting");
   if (!text && !running) return null;
+  // Paused sharing is resumed where it is seen to be paused; nothing else offers it.
+  const resume = sharing?.paused && sharing.state !== "outdated" && <button type="button" className="onboarding-project-group-resume"
+    onClick={() => { void catalog.run(async () => window.puppyoneDesktop?.setHostSharingPaused({
+      paused: false, expectedSession: catalog.expectedSession }), "hosts.catalog.updateFailure"); }}>
+    {t("hosts.sharing.resume")}
+  </button>;
   return <span className="onboarding-project-group-presence" data-online={(sharing?.state === "online" && !sharing.paused) || undefined}>
     {[text, running > 0 && t("hosts.execution.running", { count: running })].filter(Boolean).join(" · ")}
+    {resume}
   </span>;
 }
 

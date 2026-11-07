@@ -1164,6 +1164,23 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+.onboarding-project-group-resume {
+  margin-inline-start: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  font-weight: var(--po-text-weight-medium, 500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.onboarding-project-group-resume:hover {
+  color: var(--po-text);
+}
+
 .onboarding-project-group-divider {
   flex: 1 0 24px;
   border-block-start: 1px solid var(--onboarding-group-ink);

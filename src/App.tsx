@@ -1409,9 +1409,9 @@ function AppContent() {
     workspaceName: workspace?.name ?? "", openProject: selectProject, returnHome: goToHomepage,
   });
   // An empty Cloud project in the chosen space, opened at once like any other Cloud project.
-  const createCloudProjectInSpace = useCallback(async (spaceId: string, name: string) => {
+  const createCloudProjectInSpace = useCallback(async (spaceId: string, name: string, operationId: string) => {
     if (!activeCloudSession || !desktopCloudApiBaseUrl) throw new Error(t("cloud.auth.signInRequired"));
-    const project = await createCloudProject(activeCloudSession, { name, org_id: spaceId }, crypto.randomUUID(), desktopCloudApiBaseUrl);
+    const project = await createCloudProject(activeCloudSession, { name, org_id: spaceId }, operationId, desktopCloudApiBaseUrl);
     projectCatalog.refresh();
     void selectCloudProject(project.id);
   }, [activeCloudSession, desktopCloudApiBaseUrl, projectCatalog, selectCloudProject, t]);

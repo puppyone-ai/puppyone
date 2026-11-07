@@ -40,7 +40,9 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
         if (accountScope) writeCachedSpaces(accountScope, spaces);
         setState({ authority, spaces, status: "ready" });
       } catch {
-        if (valid()) setState({ authority, spaces: [], status: "error" });
+        // Keep what this account already answered; the failure is only reported.
+        if (valid()) setState((previous) => ({ authority, status: "error",
+          spaces: previous?.authority === authority ? previous.spaces : [] }));
       }
     })();
     return () => { cancelled = true; };
@@ -54,9 +56,10 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
   const own = authority && state?.authority === authority ? state : null;
   // Until this account answers, the spaces it last saw stand in, as its catalog does.
   const cached = useMemo(() => (accountScope ? readCachedSpaces(accountScope) : undefined), [accountScope]);
-  const standIn = !own && cached ? { spaces: cached, status: "ready" as const } : null;
-  const shown = own ?? standIn;
-  return { spaces: shown?.spaces ?? NO_SPACES, authority,
-    status: !authority ? "signed-out" as const : shown?.status ?? "loading" as const,
+  // A failed read says nothing about the spaces, so the last ones keep the groups put.
+  const spaces = own?.spaces.length ? own.spaces : cached ?? NO_SPACES;
+  const status = own?.status ?? (cached ? "ready" as const : "loading" as const);
+  return { spaces, authority,
+    status: !authority ? "signed-out" as const : status,
     refresh: () => setRevision((value) => value + 1) };
 }
