@@ -7,7 +7,7 @@ fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         bind_keys(cx);
-        ui::input::bind_keys(cx);
+        crate::ui::input::bind_keys(cx);
         crate::editor::view::bind_keys(cx);
         crate::editor::csv::bind_keys(cx);
         crate::editor::host::bind_keys(cx);
@@ -573,17 +573,19 @@ fn kit_dialog_tab_order_keeps_focus_inside_feedback(cx: &mut TestAppContext) {
 fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::ProjectMenu);
-    view.update(cx, |s, _| assert_eq!(s.popover, Some(Popover::Project)));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Project))
+    });
     command(&view, cx, Command::ProjectMenu);
-    view.update(cx, |s, _| assert!(s.popover.is_none()));
+    view.update(cx, |s, cx| assert!(s.chrome.read(cx).popover.is_none()));
     command(&view, cx, Command::ProjectMenu);
     cx.simulate_click(point(px(30.), px(700.)), Modifiers::none());
-    view.update(cx, |s, _| assert!(s.popover.is_none()));
+    view.update(cx, |s, cx| assert!(s.chrome.read(cx).popover.is_none()));
     command(&view, cx, Command::ProjectMenu);
     cx.simulate_keystrokes("escape");
-    view.update_in(cx, |s, w, _| {
-        assert!(s.popover.is_none());
-        assert!(s.project_focus.is_focused(w));
+    view.update_in(cx, |s, w, cx| {
+        assert!(s.chrome.read(cx).popover.is_none());
+        assert!(s.chrome.read(cx).project_focus.is_focused(w));
     });
 }
 /// How soon after a change a frame still shows the motion's early part.
@@ -760,11 +762,13 @@ fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext)
     let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
     let row = cx.debug_bounds(selector).expect("the place menu is open");
     cx.simulate_click(row.center(), Modifiers::none());
-    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Place)));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Place))
+    });
     command(&view, cx, Command::Escape);
-    view.update_in(cx, |s, w, _| {
-        assert!(s.popover.is_none());
-        assert!(s.project_focus.is_focused(w));
+    view.update_in(cx, |s, w, cx| {
+        assert!(s.chrome.read(cx).popover.is_none());
+        assert!(s.chrome.read(cx).project_focus.is_focused(w));
     });
 }
 #[gpui::test]
@@ -773,7 +777,7 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Home);
     view.update(cx, |s, cx| {
-        assert!(s.project.read(cx).home && s.popover.is_none());
+        assert!(s.project.read(cx).home && s.chrome.read(cx).popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible(cx));
     });
@@ -789,7 +793,7 @@ fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestApp
     command(&view, cx, Command::Settings);
     view.update(cx, |s, cx| {
         assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
-        assert!(s.popover.is_none());
+        assert!(s.chrome.read(cx).popover.is_none());
         assert!(matches!(s.files(cx).phase, Phase::Idle));
         assert!(s.files(cx).outgoing.is_empty());
     });
@@ -1820,7 +1824,7 @@ fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppCo
         assert!(s.cloud.read(cx).share_panel.targets.is_empty())
     });
     command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, _| assert!(s.popover.is_none()));
+    view.read_with(cx, |s, cx| assert!(s.chrome.read(cx).popover.is_none()));
 }
 
 /// C-3, N-6: the Agents in a hosted workspace stand beside Share, someone
@@ -1866,7 +1870,9 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     assert!(request.origin.x < agent.origin.x && agent.origin.x < seat.origin.x);
     cx.simulate_click(agent.center(), Modifiers::none());
     draw(cx);
-    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Agents)));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Agents))
+    });
     let card = cx.debug_bounds("cloud-agents-panel").unwrap();
     assert!((f32::from(card.size.width) - 320.).abs() < 0.5);
     assert!(card.origin.y > agent.origin.y);
@@ -1875,7 +1881,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     cx.simulate_click(seat.center(), Modifiers::none());
     draw(cx);
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.popover, Some(Popover::Agents));
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Agents));
         assert_eq!(
             s.cloud.read(cx).agents.read(cx).opener,
             crate::features::cloud::agents::Opener::Invite
@@ -1883,13 +1889,13 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     });
     cx.simulate_click(seat.center(), Modifiers::none());
     draw(cx);
-    view.read_with(cx, |s, _| assert_eq!(s.popover, None));
+    view.read_with(cx, |s, cx| assert_eq!(s.chrome.read(cx).popover, None));
     // A press outside closes it.
     cx.simulate_click(agent.center(), Modifiers::none());
     draw(cx);
     cx.simulate_click(point(px(400.), px(500.)), Modifiers::none());
     draw(cx);
-    view.read_with(cx, |s, _| assert_eq!(s.popover, None));
+    view.read_with(cx, |s, cx| assert_eq!(s.chrome.read(cx).popover, None));
     // Manage agents takes the card's place, and Escape closes it.
     cx.simulate_click(agent.center(), Modifiers::none());
     draw(cx);
@@ -1905,7 +1911,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
             .is_some_and(|m| m.inventory.connections.len() == 1)
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.popover, None);
+        assert_eq!(s.chrome.read(cx).popover, None);
         assert!(s.top_dialog(cx).as_deref() == Some("ManageAgents"));
     });
     command(&view, cx, Command::Escape);
@@ -1981,15 +1987,20 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     };
     // ⌘-less: the Header command opens the same menu.
     command(&view, cx, Command::LocationMenu);
-    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Place)));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Place))
+    });
     view.update_in(cx, |s, w, cx| {
         s.cloud
             .update(cx, |c, cx| c.run_place_action(action, w, cx))
     });
     view.read_with(cx, |s, cx| {
-        assert!(s.popover.is_none());
+        assert!(s.chrome.read(cx).popover.is_none());
         // The Header names the Cloud project while it opens.
-        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
+        assert_eq!(
+            s.chrome.read(cx).opening_project_name(cx).as_deref(),
+            Some("Fixture Cloud")
+        );
     });
     settle_cloud(&view, cx, "the Cloud project", &|s, cx| {
         s.hosted_project(cx).as_deref() == Some("project-a")
@@ -2109,7 +2120,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         });
         s.refresh_cloud_catalog(true, cx);
         // The Header project menu hydrates the same list as the Homepage.
-        s.popover = Some(Popover::Project);
+        s.set_popover(Some(Popover::Project), cx);
     });
     let locations = |s: &Shell, cx: &App| {
         s.home
@@ -2145,7 +2156,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
     assert!(cloud.actions.is_some_and(|a| a.rename && !a.delete));
     // The Cloud entry opens in this window.
     let windows = cx.update(|_, cx| cx.windows().len());
-    view.update(cx, |s, _| s.popover = None);
+    view.update(cx, |s, cx| s.set_popover(None, cx));
     view.update_in(cx, |s, w, cx| s.open_item(cloud, w, cx));
     settle_cloud(&view, cx, "the Cloud opening", &|s, cx| {
         s.hosted_project(cx).as_deref() == Some("project-a")
@@ -2454,7 +2465,8 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&path, 1));
         let target = target.clone();
-        s.project_actions.update(cx, |a, cx| {
+        let actions = s.chrome.read(cx).project_actions.clone();
+        actions.update(cx, |a, cx| {
             a.open(
                 target,
                 Bounds::new(point(px(20.), px(80.)), size(px(0.), px(0.))),
@@ -2467,11 +2479,16 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     });
     draw(cx);
     view.update_in(cx, |s, w, cx| {
-        assert!(s.project_actions.read(cx).menu.is_some());
-        s.project_actions
+        assert!(s.chrome.read(cx).project_actions.read(cx).menu.is_some());
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.begin_project_rename(target.clone(), w, cx));
-        assert!(s.project_actions.read(cx).menu.is_none());
+        assert!(s.chrome.read(cx).project_actions.read(cx).menu.is_none());
         let Some(input) = s
+            .chrome
+            .read(cx)
             .project_actions
             .read(cx)
             .rename
@@ -2481,7 +2498,10 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
             panic!("no rename dialog")
         };
         input.update(cx, |i, cx| i.set_text(String::from("Field notes"), cx));
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.submit_project_rename(w, cx));
     });
     view.read_with(cx, |s, cx| {
@@ -2493,12 +2513,18 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     });
     // Unlink forgets the Project (its files stay where they are).
     view.update_in(cx, |s, w, cx| {
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.ask_confirm(target, w, cx));
     });
     draw(cx);
     view.update_in(cx, |s, w, cx| {
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.confirm_project_change(w, cx))
     });
     view.read_with(cx, |s, cx| {
@@ -2578,9 +2604,14 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
         }
     );
     view.update_in(cx, |s, w, cx| {
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.begin_project_rename(target.clone(), w, cx));
         let Some(input) = s
+            .chrome
+            .read(cx)
             .project_actions
             .read(cx)
             .rename
@@ -2590,7 +2621,10 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
             panic!("no rename dialog")
         };
         input.update(cx, |i, cx| i.set_text(String::from("Renamed"), cx));
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.submit_project_rename(w, cx));
     });
     settle_cloud(&view, cx, "the rename", &|s, cx| {
@@ -2602,11 +2636,17 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
                 .any(|i| i.label == "Renamed")
     });
     view.update_in(cx, |s, w, cx| {
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.ask_confirm(target, w, cx));
     });
     view.update_in(cx, |s, w, cx| {
-        s.project_actions
+        s.chrome
+            .read(cx)
+            .project_actions
+            .clone()
             .update(cx, |a, cx| a.confirm_project_change(w, cx))
     });
     settle_cloud(&view, cx, "the deletion", &|s, cx| {
@@ -3284,27 +3324,31 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
 fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, cx| {
+    view.update_in(cx, |s, w, cx| {
         s.session
             .docs
             .update(cx, |d, _| d.replace(Documents::default()));
         s.session.docs.update(cx, |d, _| {
             d.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap())
         });
+        s.receive(w, cx);
     });
     // The entry is measured on one frame and introduced on the next.
     draw(cx);
     draw(cx);
     view.update(cx, |s, cx| {
-        assert_eq!(s.coachmarks.active, Some(coachmarks::Coachmark::Agent));
-        assert!(s.coachmark_shown(cx));
+        assert_eq!(
+            s.chrome.read(cx).coachmarks.read(cx).active(),
+            Some(coachmarks::Coachmark::Agent)
+        );
+        assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx));
     });
     // Nothing in the overlay holds focus; Escape still reaches it.
     view.update_in(cx, |s, w, cx| s.focus.focus(w, cx));
     cx.simulate_keystrokes("escape");
     draw(cx);
     view.update(cx, |s, cx| {
-        assert!(!s.coachmark_shown(cx));
+        assert!(!s.chrome.read(cx).coachmarks.read(cx).shown(cx));
         assert!(s.preferences.read(cx).state.header_coachmarks.agent);
     });
     // A dialog hides it, and Escape then answers the dialog, not the overlay.
@@ -3313,19 +3357,27 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, cx| p.change(|p| *p = prefs, cx));
-        s.coachmarks = Default::default();
+        s.chrome
+            .read(cx)
+            .coachmarks
+            .clone()
+            .update(cx, |c, _| c.state = Default::default());
     });
     draw(cx);
     draw(cx);
-    view.update(cx, |s, cx| assert!(s.coachmark_shown(cx)));
+    view.update(cx, |s, cx| {
+        assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx))
+    });
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, cx| assert!(!s.coachmark_shown(cx)));
+    view.update(cx, |s, cx| {
+        assert!(!s.chrome.read(cx).coachmarks.read(cx).shown(cx))
+    });
     cx.simulate_keystrokes("escape");
     draw(cx);
     view.update(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
         assert!(!s.preferences.read(cx).state.header_coachmarks.agent);
-        assert!(s.coachmark_shown(cx));
+        assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx));
     });
 }
 
@@ -4033,7 +4085,10 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     std::thread::sleep(std::time::Duration::from_millis(300));
     view.read_with(cx, |s, cx| {
         assert!(s.files(cx).cloud_opening().is_some());
-        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
+        assert_eq!(
+            s.chrome.read(cx).opening_project_name(cx).as_deref(),
+            Some("Fixture Cloud")
+        );
         assert!(!s.has_dialog("CloudRecovery", cx));
     });
     settle_cloud(&view, cx, "the Cloud project", &|s, cx| {
@@ -4041,7 +4096,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     });
     view.read_with(cx, |s, cx| {
         assert!(s.files(cx).cloud_opening().is_none());
-        assert_eq!(s.opening_project_name(cx), None);
+        assert_eq!(s.chrome.read(cx).opening_project_name(cx), None);
     });
 }
 
@@ -4231,7 +4286,10 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     view.read_with(cx, |s, cx| {
         assert!(s.opening(cx));
         assert!(!s.home_visible(cx));
-        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
+        assert_eq!(
+            s.chrome.read(cx).opening_project_name(cx).as_deref(),
+            Some("Fixture Cloud")
+        );
     });
     assert!(cx.debug_bounds("project-preparation").is_some());
     command(&view, cx, Command::Escape);

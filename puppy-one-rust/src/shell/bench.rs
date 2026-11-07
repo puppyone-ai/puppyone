@@ -19,7 +19,7 @@ fn window_frame_cost() {
     app.executor().allow_parking();
     app.update(|cx| {
         bind_keys(cx);
-        ui::input::bind_keys(cx);
+        crate::ui::input::bind_keys(cx);
         crate::editor::view::bind_keys(cx);
         crate::editor::csv::bind_keys(cx);
         crate::editor::host::bind_keys(cx);
@@ -97,7 +97,7 @@ fn pane_motion_frame_cost() {
     app.executor().allow_parking();
     app.update(|cx| {
         bind_keys(cx);
-        ui::input::bind_keys(cx);
+        crate::ui::input::bind_keys(cx);
         crate::editor::view::bind_keys(cx);
         crate::editor::csv::bind_keys(cx);
         crate::editor::host::bind_keys(cx);

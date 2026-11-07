@@ -72,8 +72,6 @@ pub(super) struct WindowCloud {
     /// Captures: the Header shows the Cloud tools over a local folder.
     #[cfg(feature = "dev-capture")]
     pub capture_hosted: bool,
-    /// A project path the Header menu just copied, and when.
-    pub copied_path: Option<(String, std::time::Instant)>,
     /// The Share card's links, captured when it opened.
     pub share_panel: SharePanel,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
@@ -154,7 +152,6 @@ impl WindowCloud {
             services,
             #[cfg(feature = "dev-capture")]
             capture_hosted: false,
-            copied_path: None,
             share_panel: Default::default(),
             dismissed_notice: None,
             replace_url: None,

@@ -148,4 +148,10 @@ pub(super) struct SessionView {
     pub opening: bool,
     /// A file window (File Mode): one file, no project.
     pub file_mode: bool,
+    /// The person asked for the Homepage over the open project.
+    pub home_requested: bool,
+    /// How many projects this window has entered.
+    pub entries: u64,
+    /// The visual fixture project shows.
+    pub fixture: bool,
 }

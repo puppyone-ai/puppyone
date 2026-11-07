@@ -6,6 +6,8 @@
 use super::*;
 use crate::{
     localization::{t as tr, tf},
+    theme::Theme,
+    ui::appearance::ActiveAppearance,
     ui::components::{
         Button, ButtonVariant, Icon, IconButton, Menu, MenuItem, MenuVariant, PopoverMenu,
     },
@@ -28,24 +30,19 @@ const COPY_BUTTON: f32 = 22.;
 /// How long a copied path says so.
 const COPIED_FOR: std::time::Duration = std::time::Duration::from_millis(1600);
 
-impl Shell {
+impl WindowChrome {
     /// `DesktopTitlebarContext`: the project switcher, the place menu while
     /// Cloud is on, and a first publication's status beside them.
     pub(super) fn project_context(&self, cx: &mut Context<Self>) -> Div {
         let label = tf(
             "shell.workspaceSwitcher.openMenu",
-            &[(
-                "workspace",
-                self.project.read(cx).record.name.clone().into(),
-            )],
+            &[("workspace", self.session.name.clone().into())],
         );
         let opening = self.opening_project_name(cx);
         let name = match &opening {
             Some(name) => name.clone(),
-            None if self.project.read(cx).record.name.is_empty() => {
-                tr("onboarding.action.openFolder").to_owned()
-            }
-            None => self.project.read(cx).record.name.clone(),
+            None if self.session.name.is_empty() => tr("onboarding.action.openFolder").to_owned(),
+            None => self.session.name.clone(),
         };
         let ty = theme::ty().header;
         // `.desktop-titlebar-workspace-button`.
@@ -66,8 +63,8 @@ impl Shell {
             .line_height(px(ty.line_height))
             .font_weight(FontWeight::MEDIUM);
         // The place and the publication wait while a project is entered.
-        let items = self.home.read(cx).project_items(cx);
-        let cloud = self.cloud.read(cx);
+        let items = self.owners.home.read(cx).project_items(cx);
+        let cloud = self.owners.cloud.read(cx);
         let place = cloud.place_menu(&items, cx).filter(|_| opening.is_none());
         h_flex()
             .min_w_0()
@@ -97,12 +94,14 @@ impl Shell {
             .anchor(Anchor::TopLeft)
             .offset(px(MENU_GAP))
             .open(open)
-            .on_open_change(move |opened, _, cx| {
+            .on_open_change(move |opened, window, cx| {
                 let _ = host.update(cx, |s, cx| {
                     let open = s.popover == Some(popover);
                     if *opened != open {
-                        s.set_popover(opened.then_some(popover), cx);
-                        cx.notify();
+                        if *opened && popover == Popover::Project {
+                            s.project_focus.focus(window, cx);
+                        }
+                        s.show_popover(opened.then_some(popover), cx);
                     }
                 });
             })
@@ -125,15 +124,15 @@ impl Shell {
                     });
                 }
                 Popover::Place => {
-                    let items = self.home.read(cx).project_items(cx);
-                    let cloud = self.cloud.read(cx);
+                    let items = self.owners.home.read(cx).project_items(cx);
+                    let cloud = self.owners.cloud.read(cx);
                     if let Some(place) = cloud.place_menu(&items, cx) {
                         let fill = cloud.place_rows(place, cx);
                         menu = menu.menu(move |surface, _, _| {
                             fill(
                                 surface
                                     .variant(MenuVariant::Project)
-                                    .min_w(px(super::project_place::PLACE_MENU_WIDTH))
+                                    .min_w(px(super::super::project_place::PLACE_MENU_WIDTH))
                                     .max_w(px(320.))
                                     .max_h(px(PLACE_MENU_MAX_HEIGHT)),
                             )
@@ -153,17 +152,20 @@ impl Shell {
         let host = self.weak.clone();
         let action = move |command: Command| {
             let host = host.clone();
-            move |w: &mut Window, cx: &mut App| {
-                let _ = host.update(cx, |s, cx| s.command(command, w, cx));
+            move |_: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| s.command(command, cx));
             }
         };
         let current = self
-            .workspace_root(cx)
+            .session
+            .root
+            .as_ref()
             .map(|p| p.to_string_lossy().into_owned());
-        let hosted = self.hosted_project(cx);
+        let hosted = self.session.hosted.clone();
         let t = cx.palette();
-        let copied = self.cloud.read(cx).copied_path.clone();
+        let copied = self.copied_path.clone();
         let projects = self
+            .owners
             .home
             .read(cx)
             .project_items(cx)
@@ -207,9 +209,9 @@ impl Shell {
         t: Theme,
     ) -> MenuItem {
         let open_host = self.weak.clone();
-        let name = super::home::item_name_or(&item, tr("onboarding.projects.untitled"));
+        let name = super::super::home::item_name_or(&item, tr("onboarding.projects.untitled"));
         let mut row = MenuItem::new(name.clone())
-            .icon_element(super::home::folder::list_icon(
+            .icon_element(super::super::home::folder::list_icon(
                 item.location(),
                 false,
                 false,
@@ -246,8 +248,7 @@ impl Shell {
                     cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
                     let _ = copy_host.update(cx, |s, cx| {
-                        let copied = (copy_path.clone(), std::time::Instant::now());
-                        s.cloud.update(cx, |c, _| c.copied_path = Some(copied));
+                        s.copied_path = Some((copy_path.clone(), std::time::Instant::now()));
                         cx.notify();
                         // The check gives way after its moment.
                         cx.spawn(async move |this, cx| {
@@ -262,13 +263,11 @@ impl Shell {
                 row = row.hold_hover(true);
             }
         }
-        row.on_click(move |w, cx| {
+        row.on_click(move |_, cx| {
             let _ = open_host.update(cx, |s, cx| {
-                s.set_popover(None, cx);
-                if current {
-                    cx.notify();
-                } else {
-                    s.open_item(&item, w, cx);
+                s.show_popover(None, cx);
+                if !current {
+                    cx.emit(ChromeEvent::OpenItem(item.clone()));
                 }
             });
         })

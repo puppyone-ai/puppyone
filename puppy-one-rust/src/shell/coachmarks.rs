@@ -4,12 +4,26 @@
 //! local change appears; each is acknowledged once (persisted) unless the
 //! experiment shows them every time. Only one shows at a time; Changes waits
 //! behind the Agent introduction.
-use super::*;
-use crate::{
-    features::settings::preference_types::HeaderCoachmarks,
-    theme::metric,
-    ui::components::{Button, ButtonVariant, Icon, MenuVariant},
+//!
+//! [`HeaderCoachmarks`] is the entity: it follows the right sidebar, the
+//! Git status and the preferences itself, takes what the window shows as a
+//! [`SessionView`], measures its entry where the Header paints it
+//! ([`HeaderCoachmarks::anchor`]) and draws the overlay as its view.
+use super::{
+    Command, dialogs::DialogLayer, right_sidebar::RightSidebar, right_sidebar::Surface,
+    session::SessionView,
 };
+use crate::{
+    features::settings::{
+        preference_types::HeaderCoachmarks as Progress, preferences_store::PreferencesStore,
+    },
+    theme::{self, Theme, metric},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, ButtonVariant, Icon, MenuVariant},
+    },
+};
+use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{h_flex, v_flex},
     component::Sizable as _,
@@ -40,7 +54,7 @@ pub struct Inputs<'a> {
     pub scope: Option<&'a str>,
     /// `enableAlwaysShowOnboardingCoachmarks`.
     pub always: bool,
-    pub progress: HeaderCoachmarks,
+    pub progress: Progress,
 }
 #[derive(Default)]
 pub struct Coachmarks {
@@ -56,7 +70,7 @@ pub struct Coachmarks {
 impl Coachmarks {
     /// The hook's effects, idempotent per frame; returns the progress to
     /// persist when an introduction was acknowledged.
-    pub fn observe(&mut self, i: &Inputs) -> Option<HeaderCoachmarks> {
+    pub fn observe(&mut self, i: &Inputs) -> Option<Progress> {
         let mut progress = i.progress;
         let agent_key = if i.always {
             i.scope.map(|s| format!("always:{s}"))
@@ -117,12 +131,7 @@ impl Coachmarks {
         changed.then_some(progress)
     }
     /// `acknowledge`: true when the persisted progress changed.
-    pub fn acknowledge(
-        &mut self,
-        id: Coachmark,
-        always: bool,
-        progress: &mut HeaderCoachmarks,
-    ) -> bool {
+    pub fn acknowledge(&mut self, id: Coachmark, always: bool, progress: &mut Progress) -> bool {
         if id == Coachmark::Changes {
             self.pending_changes = false;
         }
@@ -153,59 +162,105 @@ const WIDTH: f32 = 320.;
 const GAP: f32 = 10.;
 const MARGIN: f32 = 8.;
 
-impl Shell {
-    /// Feeds this frame's Header state to the introductions.
-    pub(super) fn sync_coachmarks(&mut self, cx: &mut Context<Self>) {
+/// The Header introductions of one window.
+pub(super) struct HeaderCoachmarks {
+    pub state: Coachmarks,
+    session: SessionView,
+    preferences: Entity<PreferencesStore>,
+    sidebar: Entity<RightSidebar>,
+    dialogs: Entity<DialogLayer>,
+    weak: WeakEntity<Self>,
+}
+/// The overlay's primary action: the window opens what it introduces.
+pub(super) struct Introduce(pub Command);
+impl EventEmitter<Introduce> for HeaderCoachmarks {}
+
+impl HeaderCoachmarks {
+    pub fn new(
+        preferences: Entity<PreferencesStore>,
+        sidebar: Entity<RightSidebar>,
+        dialogs: Entity<DialogLayer>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        cx.observe(&preferences, |s, _, cx| s.sync(cx)).detach();
+        cx.observe(&sidebar, |s, _, cx| s.sync(cx)).detach();
+        let source_control = sidebar.read(cx).source_control.clone();
+        cx.observe(&source_control, |s, _, cx| s.sync(cx)).detach();
+        cx.observe(&dialogs, |_, _, cx| cx.notify()).detach();
+        // An open introduction closes on Escape wherever focus is
+        // (`dismissOnEscape`, a capturing document listener that lets the
+        // key go on).
+        let guide = cx.weak_entity();
+        let own = window.window_handle();
+        cx.intercept_keystrokes(move |event, window, cx| {
+            if window.window_handle() != own || event.keystroke.key != "escape" {
+                return;
+            }
+            let _ = guide.update(cx, |s, cx| s.dismiss_on_escape(cx));
+        })
+        .detach();
+        Self {
+            state: Coachmarks::default(),
+            session: SessionView::default(),
+            preferences,
+            sidebar,
+            dialogs,
+            weak: cx.weak_entity(),
+        }
+    }
+    /// What the window shows changed.
+    pub fn set_session(&mut self, session: SessionView, cx: &mut Context<Self>) {
+        if self.session != session {
+            self.session = session;
+            self.sync(cx);
+        }
+    }
+    pub fn active(&self) -> Option<Coachmark> {
+        self.state.active
+    }
+    /// Feeds the Header's state to the introductions.
+    fn sync(&mut self, cx: &mut Context<Self>) {
         let prefs = self.preferences.read(cx).state.clone();
-        let status =
-            super::header::GitTitlebarStatus::of(self.sidebar.read(cx).source_control.read(cx));
-        let repository = self
-            .sidebar
-            .read(cx)
-            .source_control
-            .read(cx)
-            .snapshot
-            .is_some();
+        let sidebar = self.sidebar.read(cx);
+        let source_control = sidebar.source_control.read(cx);
+        let status = super::header::GitTitlebarStatus::of(source_control);
+        let repository = source_control.snapshot.is_some();
         let scope = self
-            .files(cx)
-            .workspace
+            .session
+            .root
             .as_ref()
-            .and_then(|w| w.local_root())
             .map(|r| r.to_string_lossy().into_owned());
         let entry = scope
             .as_ref()
-            .map(|s| format!("{s}#{}", self.project.read(cx).record.entries));
+            .map(|s| format!("{s}#{}", self.session.entries));
+        let home = self.session.home_requested;
         let inputs = Inputs {
-            agent_open: self.right_shows(Surface::Agent, cx),
-            changes_open: self.right_shows(Surface::Git, cx),
+            agent_open: sidebar.shows(Surface::Agent, cx),
+            changes_open: sidebar.shows(Surface::Git, cx),
             local: repository.then_some(status.local),
-            entry: entry.as_deref().filter(|_| !self.project.read(cx).home),
-            scope: scope.as_deref().filter(|_| !self.project.read(cx).home),
+            entry: entry.as_deref().filter(|_| !home),
+            scope: scope.as_deref().filter(|_| !home),
             always: prefs.experimental.always_show_onboarding_coachmarks,
             progress: prefs.header_coachmarks,
         };
-        let before = self.coachmarks.active;
-        if let Some(progress) = self.coachmarks.observe(&inputs) {
+        let before = self.state.active;
+        if let Some(progress) = self.state.observe(&inputs) {
             self.preferences
                 .update(cx, |p, cx| p.change(|p| p.header_coachmarks = progress, cx));
         }
-        if self.coachmarks.active != before {
-            self.coachmarks.anchor = None;
+        if self.state.active != before {
+            self.state.anchor = None;
             cx.notify();
         }
     }
     /// The Header entry, measured while its introduction shows
     /// (`.desktop-header-coachmark-anchor`).
-    pub(super) fn coachmark_anchor(
-        &self,
-        id: Coachmark,
-        button: AnyElement,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        if self.coachmarks.active != Some(id) {
+    pub fn anchor(&self, id: Coachmark, button: AnyElement) -> AnyElement {
+        if self.state.active != Some(id) {
             return button;
         }
-        let weak = cx.weak_entity();
+        let weak = self.weak.clone();
         div()
             .relative()
             .flex()
@@ -216,8 +271,8 @@ impl Shell {
                 canvas(
                     move |bounds, _, cx| {
                         let _ = weak.update(cx, |s, cx| {
-                            if s.coachmarks.anchor != Some(bounds) {
-                                s.coachmarks.anchor = Some(bounds);
+                            if s.state.anchor != Some(bounds) {
+                                s.state.anchor = Some(bounds);
                                 cx.notify();
                             }
                         });
@@ -229,10 +284,10 @@ impl Shell {
             )
             .into_any_element()
     }
-    fn acknowledge_coachmark(&mut self, id: Coachmark, cx: &mut Context<Self>) {
+    fn acknowledge(&mut self, id: Coachmark, cx: &mut Context<Self>) {
         let prefs = self.preferences.read(cx).state.clone();
         let mut progress = prefs.header_coachmarks;
-        if self.coachmarks.acknowledge(
+        if self.state.acknowledge(
             id,
             prefs.experimental.always_show_onboarding_coachmarks,
             &mut progress,
@@ -244,50 +299,50 @@ impl Shell {
     }
     /// Whether an introduction is on screen (it waits for its entry's
     /// measurement, and hides on the Homepage and under dialogs).
-    pub(super) fn coachmark_shown(&self, cx: &App) -> bool {
-        self.coachmarks.active.is_some()
-            && self.coachmarks.anchor.is_some()
-            && !self.home_visible(cx)
+    pub fn shown(&self, cx: &App) -> bool {
+        self.state.active.is_some()
+            && self.state.anchor.is_some()
+            && !self.session.home
             && self.dialogs.read(cx).is_empty()
     }
     /// `dismissOnEscape`: Escape acknowledges the introduction on screen.
-    pub(super) fn dismiss_coachmark_on_escape(&mut self, cx: &mut Context<Self>) {
-        if self.coachmark_shown(cx)
-            && let Some(id) = self.coachmarks.active
+    fn dismiss_on_escape(&mut self, cx: &mut Context<Self>) {
+        if self.shown(cx)
+            && let Some(id) = self.state.active
         {
-            self.acknowledge_coachmark(id, cx);
+            self.acknowledge(id, cx);
         }
     }
+}
+
+impl Render for HeaderCoachmarks {
     /// `HeaderFeatureCoachmark`'s overlay: end-aligned below its entry.
-    pub(super) fn coachmark_overlay(&self, w: f32, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.coachmark_shown(cx) {
-            return None;
-        }
-        let id = self.coachmarks.active?;
-        let anchor = self.coachmarks.anchor?;
-        let dismiss = cx.listener(move |s, _, _, cx| s.acknowledge_coachmark(id, cx));
-        let primary = cx.listener(move |s, _, w, cx| {
-            s.acknowledge_coachmark(id, cx);
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let shown = self
+            .state
+            .active
+            .zip(self.state.anchor)
+            .filter(|_| self.shown(cx));
+        let Some((id, anchor)) = shown else {
+            return div().into_any_element();
+        };
+        let w = f32::from(window.viewport_size().width);
+        let dismiss = cx.listener(move |s, _, _, cx| s.acknowledge(id, cx));
+        let primary = cx.listener(move |s, _, _, cx| {
+            s.acknowledge(id, cx);
+            let sidebar = s.sidebar.read(cx);
             match id {
-                Coachmark::Agent if !s.right_shows(Surface::Agent, cx) => {
-                    s.command(Command::ToggleRightSidebar, w, cx)
+                Coachmark::Agent if !sidebar.shows(Surface::Agent, cx) => {
+                    cx.emit(Introduce(Command::ToggleRightSidebar))
                 }
-                Coachmark::Changes if !s.right_shows(Surface::Git, cx) => {
-                    s.command(Command::Changes, w, cx)
+                Coachmark::Changes if !sidebar.shows(Surface::Git, cx) => {
+                    cx.emit(Introduce(Command::Changes))
                 }
                 _ => {}
             }
         });
-        let outside = cx.listener(move |s, _, _, cx| s.acknowledge_coachmark(id, cx));
-        Some(overlay(
-            id,
-            anchor,
-            w,
-            cx.palette(),
-            dismiss,
-            primary,
-            outside,
-        ))
+        let outside = cx.listener(move |s, _, _, cx| s.acknowledge(id, cx));
+        overlay(id, anchor, w, cx.palette(), dismiss, primary, outside)
     }
 }
 
@@ -404,11 +459,7 @@ pub(crate) fn overlay(
 mod tests {
     use super::*;
     use core::prelude::v1::test;
-    fn inputs<'a>(
-        entry: Option<&'a str>,
-        local: Option<usize>,
-        progress: HeaderCoachmarks,
-    ) -> Inputs<'a> {
+    fn inputs<'a>(entry: Option<&'a str>, local: Option<usize>, progress: Progress) -> Inputs<'a> {
         Inputs {
             agent_open: false,
             changes_open: false,
@@ -422,7 +473,7 @@ mod tests {
     #[test]
     fn the_agent_is_introduced_once_and_changes_wait_their_turn() {
         let mut c = Coachmarks::default();
-        let none = HeaderCoachmarks::default();
+        let none = Progress::default();
         assert_eq!(c.observe(&inputs(Some("/p#1"), Some(0), none)), None);
         assert_eq!(c.active, Some(Coachmark::Agent));
         // The first local change queues behind the Agent introduction.
@@ -448,14 +499,14 @@ mod tests {
     #[test]
     fn an_open_agent_needs_no_introduction_and_the_experiment_repeats_them() {
         let mut c = Coachmarks::default();
-        let none = HeaderCoachmarks::default();
+        let none = Progress::default();
         let open = Inputs {
             agent_open: true,
             ..inputs(Some("/p#1"), None, none)
         };
         assert!(c.observe(&open).unwrap().agent);
         assert_eq!(c.active, None);
-        let seen = HeaderCoachmarks {
+        let seen = Progress {
             agent: true,
             changes: true,
         };

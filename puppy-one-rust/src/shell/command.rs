@@ -544,12 +544,15 @@ mod route {
                     message.focus(window, cx);
                 }
                 Command::ProjectMenu => {
-                    let next = (self.popover != Some(Popover::Project)).then_some(Popover::Project);
+                    let open = self.chrome.read(cx).popover;
+                    let next = (open != Some(Popover::Project)).then_some(Popover::Project);
                     self.set_popover(next, cx);
-                    self.project_focus.focus(window, cx);
+                    let focus = self.chrome.read(cx).project_focus.clone();
+                    focus.focus(window, cx);
                 }
                 Command::LocationMenu => {
-                    let next = (self.popover != Some(Popover::Place)).then_some(Popover::Place);
+                    let open = self.chrome.read(cx).popover;
+                    let next = (open != Some(Popover::Place)).then_some(Popover::Place);
                     self.set_popover(next, cx);
                 }
                 Command::Home => {
@@ -584,8 +587,10 @@ mod route {
                 }
                 Command::Escape => {
                     let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
-                    if !closed && self.popover.take().is_some() {
-                        self.project_focus.focus(window, cx);
+                    if !closed && self.chrome.read(cx).popover.is_some() {
+                        self.set_popover(None, cx);
+                        let focus = self.chrome.read(cx).project_focus.clone();
+                        focus.focus(window, cx);
                     }
                 }
                 Command::PasteTemplateLink => {
