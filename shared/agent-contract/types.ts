@@ -714,6 +714,8 @@ export type AgentRuntimeRequest = {
   rootPath?: string | null;
   runtimeId?: AgentRuntimeId | null;
   refresh?: boolean;
+  /** New Chat inspection runs inside its reserved execution host. */
+  prepareSession?: boolean;
 };
 
 export type AgentLocalConnectionsRequest = Pick<AgentRuntimeRequest, "rootPath" | "refresh">;

@@ -5,6 +5,42 @@ import { CursorAcpAdapter } from "../../../../../electron/main/agent/runtimes/cu
 import { discoverCursorBackend } from "../../../../../electron/main/agent/runtimes/cursor/cursor-discovery.mjs";
 
 describe("Cursor ACP runtime", () => {
+  it("adopts an inspected empty session without repeating authentication or session creation", async () => {
+    const connection = new FakeCursorConnection();
+    const oldExit = vi.fn(), onExit = vi.fn(), onEvent = vi.fn();
+    const oldPersisted = vi.fn(), onSessionPersisted = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {} }, workspaceRoot: "/workspace",
+      onExit: oldExit, onSessionPersisted: oldPersisted, connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.prepareSessionInspection();
+    expect(connection.closed).not.toBe(true);
+    expect(adapter.adoptPreparedSession({ onEvent, onExit, onSessionPersisted })).toBe(true);
+    expect(adapter.adoptPreparedSession({ onEvent, onExit })).toBe(false);
+    const result = await adapter.bootstrapSession({ kind: "create" });
+    expect(result.providerSession.providerSessionId).toBe("cursor-session");
+    for (const method of ["initialize", "authenticate", "session/new"]) {
+      expect(connection.request.mock.calls.filter(([name]) => name === method)).toHaveLength(1);
+    }
+    // The native history receipt after the first turn must reach the new owner.
+    const request = connection.request.getMockImplementation();
+    connection.request.mockImplementation((method, ...args) => method === "session/list"
+      ? Promise.resolve({ sessions: [{ sessionId: "cursor-session", cwd: "/workspace", title: "New chat" }] })
+      : request(method, ...args));
+    adapter.client.agentCapabilities.sessionCapabilities.list = {};
+    await adapter.startTurn({ prompt: "hello" });
+    connection.finishPrompt({ stopReason: "end_turn" });
+    await vi.waitFor(() => expect(onSessionPersisted).toHaveBeenCalledWith(expect.objectContaining({ providerSessionId: "cursor-session" })));
+    expect(oldPersisted).not.toHaveBeenCalled();
+    expect(onEvent.mock.calls.some(([event]) => event.type === "turn.completed")).toBe(true);
+    connection.emit("exit", { code: 1 });
+    expect(onExit).toHaveBeenCalledOnce();
+    expect(oldExit).not.toHaveBeenCalled();
+    await adapter.dispose();
+  });
+
   it("does not turn a lost ACP response into a native failed turn", async () => {
     const connection = new FakeCursorConnection();
     const onEvent = vi.fn(), onExit = vi.fn();

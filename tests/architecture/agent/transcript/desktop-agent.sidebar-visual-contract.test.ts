@@ -327,7 +327,7 @@ describe("Desktop Agent sidebar visual contract", () => {
   it("uses one centered product loader for startup without a duplicate status loader", () => {
     expect(transcript).toContain('import { PageLoading } from "../../../components/loading"');
     expect(transcript).toContain('className="desktop-agent-startup-loading"');
-    expect(transcript).toContain("label={null}");
+    expect(transcript).toContain('label={t("agent.transcript.preparing"');
     expect(css).toMatch(/\.desktop-agent-startup-loading\s*\{[^}]*min-height:\s*100%[^}]*pointer-events:\s*none/s);
     expect(panel).not.toMatch(/hasStatus\s*=.*loading/);
     expect(panelStatus).not.toContain("LoaderCircle");

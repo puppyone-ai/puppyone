@@ -47,9 +47,12 @@ const {
 export function parseAgentIpcRequest(channel, value) {
   const request = parseAgentRequestBody(channel, value);
   if (value?.instanceId != null) request.instanceId = requiredOpaqueId(value.instanceId, "instanceId");
-  if (["agent:session-create", "agent:session-open", "agent:session-resume"].includes(channel)) {
+  if (["agent:session-create", "agent:session-open", "agent:session-resume", "agent:providers-discover"].includes(channel)) {
     if (value?.itemId != null) request.itemId = requiredOpaqueId(value.itemId, "itemId");
     if (value?.creationId != null) request.creationId = requiredOpaqueId(value.creationId, "creationId");
+  }
+  if (channel === "agent:providers-discover" && value?.prepareSession !== undefined) {
+    request.prepareSession = optionalBoolean(value.prepareSession, "prepareSession");
   }
   return request;
 }

@@ -156,8 +156,8 @@ export function AgentChatTabPanel({
       initialMeasurements={viewport.measurements} initialPinned={viewport.pinned} initialGeometry={viewport.geometry}
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
-    dock={view.startupLoading ? null : <>
-      {view.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
+    dock={<>
+      {view.modelConnections && !view.startupLoading && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
         models={view.runtimeModels} payments={payments} selectedModel={state.selectedModel} disabled={view.computeDisabled}
         onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()}
         onOpenAccount={onOpenAccount} onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady}

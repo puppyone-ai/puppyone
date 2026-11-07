@@ -169,7 +169,7 @@ function AgentTranscriptView({
         {loading && timeline.rows.length === 0 && !hasLiveTail && (
           <PageLoading
             variant="fill"
-            label={null}
+            label={t("agent.transcript.preparing", { agent: bidiIsolate(runtimeLabel) })}
             ariaLabel={t("agent.transcript.preparing", { agent: bidiIsolate(runtimeLabel) })}
             className="desktop-agent-startup-loading"
           />

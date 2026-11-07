@@ -10,6 +10,7 @@ import {
 } from "../../runtime/agent-runtime-port.mjs";
 import { createAgentProcessSupervisor } from "../processes/agent-process-supervisor.mjs";
 import { createRuntimeReadinessStore } from "./runtime-readiness-store.mjs";
+import { PreparedAgentSessionPool } from "./prepared-agent-session-pool.mjs";
 
 const NEUTRAL_INSPECTION_ROOT = os.tmpdir();
 
@@ -22,11 +23,20 @@ export function createRuntimeResolutionCoordinator({
     throw new TypeError("RuntimeResolutionCoordinator requires a runtime registry.");
   }
   const inspectionFlights = new Map();
+  const preparedSessions = new PreparedAgentSessionPool();
+  let preparationGeneration = 0;
+  let disposed = false;
+
+  function clearPreparedSessions() {
+    preparationGeneration += 1;
+    preparedSessions.clear();
+  }
 
   async function queryCatalog(request = {}, workspaceRoot = null) {
     validateRequestedRuntime(request.runtimeId, false);
-    if (request.refresh) readinessStore.clear();
+    if (request.refresh) { readinessStore.clear(); clearPreparedSessions(); }
     const resolutionGeneration = readinessStore.generation();
+    const preparedGeneration = preparationGeneration;
     // A bound conversation must not wait for unrelated CLI installation/auth
     // probes. Only the unbound launcher/history query needs the full catalog.
     const catalog = await runtimeRegistry.discover({ refresh: Boolean(request.refresh), runtimeId: request.runtimeId });
@@ -53,7 +63,8 @@ export function createRuntimeResolutionCoordinator({
     }
 
     try {
-      const inspection = await inspectRuntimeSingleFlight(selected, inspectionRoot, resolutionGeneration);
+      const inspection = await inspectRuntimeSingleFlight(selected, inspectionRoot, resolutionGeneration,
+        Boolean(workspaceRoot) && request.prepareSession === true, preparedGeneration);
       const effectiveReadiness = effectiveReadinessAfterInspection(selected, publicReadiness, inspection);
       if (readinessStore.generation() === resolutionGeneration) {
         readinessStore.set(selected.descriptor.id, inspectionRoot, {
@@ -124,30 +135,38 @@ export function createRuntimeResolutionCoordinator({
     readinessStore.invalidate(runtimeId, workspaceRoot);
   }
 
-  async function inspectRuntime(selected, workspaceRoot) {
+  async function inspectRuntime(selected, workspaceRoot, prepare, generation) {
     const adapter = runtimeRegistry.createAdapter(selected.descriptor.id, {
       readiness: selected.readiness,
       workspaceRoot,
       onEvent: () => {},
       onExit: () => {},
     });
+    let retained = false;
     try {
+      const canPrepare = prepare && typeof adapter.prepareSessionInspection === "function"
+        && typeof adapter.adoptPreparedSession === "function";
       const inspected = await processSupervisor.runStart(
         { label: `${selected.descriptor.id}:catalog-inspect` },
-        () => adapter.inspect(),
+        () => canPrepare ? adapter.prepareSessionInspection() : adapter.inspect(),
       );
       const inspection = assertAgentRuntimeInspection(adapter, inspected, selected.descriptor.id);
-      return normalizeInspection(inspection, selected.descriptor);
+      const normalized = normalizeInspection(inspection, selected.descriptor);
+      if (canPrepare && !disposed && generation === preparationGeneration) {
+        preparedSessions.put(selected.descriptor.id, workspaceRoot, selected.readiness, adapter);
+        retained = true;
+      }
+      return normalized;
     } finally {
-      await adapter.dispose();
+      if (!retained) await adapter.dispose();
     }
   }
 
-  function inspectRuntimeSingleFlight(selected, workspaceRoot, generation) {
-    const key = `${generation}\0${selected.descriptor.id}\0${workspaceRoot}`;
+  function inspectRuntimeSingleFlight(selected, workspaceRoot, generation, prepare, preparedGeneration) {
+    const key = `${generation}\0${selected.descriptor.id}\0${workspaceRoot}\0${prepare}\0${preparedGeneration}`;
     const existing = inspectionFlights.get(key);
     if (existing) return existing;
-    const flight = inspectRuntime(selected, workspaceRoot).finally(() => {
+    const flight = inspectRuntime(selected, workspaceRoot, prepare, preparedGeneration).finally(() => {
       if (inspectionFlights.get(key) === flight) inspectionFlights.delete(key);
     });
     inspectionFlights.set(key, flight);
@@ -159,7 +178,12 @@ export function createRuntimeResolutionCoordinator({
     resolveForOperation,
     recordOperationSuccess,
     recordOperationFailure,
+    takePreparedAdapter: (runtimeId, workspaceRoot, readiness, callbacks) => (
+      disposed ? null : preparedSessions.take(runtimeId, workspaceRoot, readiness, callbacks)
+    ),
+    dispose: () => { disposed = true; clearPreparedSessions(); },
     clear: () => {
+      clearPreparedSessions();
       inspectionFlights.clear();
       return readinessStore.clear();
     },

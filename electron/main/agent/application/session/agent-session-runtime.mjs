@@ -62,10 +62,10 @@ export function createAgentSessionRuntime({
     });
   }
 
-  function createAdapterForSession(session, internalReadiness) {
+  function createAdapterForSession(session, internalReadiness, { reusePrepared = false } = {}) {
     session.bootstrapEvents = [];
     const adapterGeneration = session.actor.control.adapterGeneration + 1;
-    const adapter = runtimeRegistry.createAdapter(session.runtimeId, {
+    const options = {
       readiness: { ...internalReadiness, workspaceRoot: session.workspaceRoot },
       workspaceRoot: session.workspaceRoot,
       onEvent: (event) => handleAdapterEvent(session, adapterGeneration, event),
@@ -76,7 +76,10 @@ export function createAgentSessionRuntime({
         session.nativePersistenceConfirmed = true;
         void persistNow(session);
       },
-    });
+    };
+    const adapter = (reusePrepared && runtimeResolutionCoordinator.takePreparedAdapter(
+      session.runtimeId, session.workspaceRoot, internalReadiness, options,
+    )) || runtimeRegistry.createAdapter(session.runtimeId, options);
     session.actor.dispatch({ type: "adapter.attached" });
     return adapter;
   }

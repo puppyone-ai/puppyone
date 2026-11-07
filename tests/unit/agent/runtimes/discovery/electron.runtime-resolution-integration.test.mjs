@@ -4,6 +4,73 @@ import { AgentRuntimeRegistry } from "../../../../../electron/main/agent/runtime
 import { createCachedRuntimeDiscovery } from "../../../../../electron/main/agent/connections/runtime-discovery-cache.mjs";
 
 describe("Authoritative runtime resolution", () => {
+  it("hands an inspected empty native session to creation once, without another adapter", async () => {
+    const harness = createHarness({ ...cursorProbeFailure(), status: "ready", code: "READY" }, undefined, true);
+    await harness.service.discoverProviders(sender(), { runtimeId: "cursor", prepareSession: true }, "/workspace");
+    expect(harness.adapters).toHaveLength(1);
+    expect(harness.adapters[0].nativeDispose).not.toHaveBeenCalled();
+    await harness.service.createSession(sender(), { runtimeId: "cursor", model: "cursor/auto" }, "/workspace");
+    expect(harness.adapters).toHaveLength(1);
+    expect(harness.adapters[0].adoptPreparedSession).toHaveBeenCalledOnce();
+    expect(harness.adapters[0].bootstrapSession).toHaveBeenCalledOnce();
+    await harness.service.createSession({ ...sender(), id: 12 }, { runtimeId: "cursor" }, "/workspace");
+    expect(harness.adapters).toHaveLength(2);
+    await harness.service.closeAll();
+  });
+
+  it("does not retain a neutral-root account inspection", async () => {
+    const harness = createHarness(cursorProbeFailure(), undefined, true);
+    await harness.service.discoverProviders(sender(), { runtimeId: "cursor", prepareSession: true });
+    expect(harness.adapters[0].nativeDispose).toHaveBeenCalledOnce();
+    expect(harness.adapters[0].adoptPreparedSession).not.toHaveBeenCalled();
+    await harness.service.closeAll();
+  });
+
+  it.each(["invalidate", "shutdown"])("disposes late preparation after %s", async (action) => {
+    let finish;
+    const inspectionResult = new Promise((resolve) => { finish = resolve; });
+    const harness = createHarness(cursorProbeFailure(), undefined, true, (adapter) => {
+      adapter.prepareSessionInspection = vi.fn(() => inspectionResult);
+    });
+    const pending = harness.service.discoverProviders(sender(), { runtimeId: "cursor", prepareSession: true }, "/workspace");
+    await vi.waitFor(() => expect(harness.adapters).toHaveLength(1));
+    if (action === "invalidate") harness.service.invalidateRuntimeReadiness();
+    else await harness.service.closeAll();
+    finish(inspection());
+    await pending;
+    expect(harness.adapters[0].nativeDispose).toHaveBeenCalledOnce();
+    expect(harness.adapters[0].adoptPreparedSession).not.toHaveBeenCalled();
+    await harness.service.closeAll();
+  });
+
+  it("does not retain an old request when discovery finishes after invalidation", async () => {
+    let finish;
+    const pendingDiscovery = new Promise((resolve) => { finish = resolve; });
+    const discovery = { discover: vi.fn(() => pendingDiscovery) };
+    const harness = createHarness(null, discovery, true);
+    const pending = harness.service.discoverProviders(sender(), { runtimeId: "cursor", prepareSession: true }, "/workspace");
+    await vi.waitFor(() => expect(discovery.discover).toHaveBeenCalledOnce());
+    harness.service.invalidateRuntimeReadiness();
+    finish(cursorProbeFailure());
+    await pending;
+    expect(harness.adapters[0].nativeDispose).toHaveBeenCalledOnce();
+    await harness.service.closeAll();
+  });
+
+  it("resumes the saved native identity without consuming a prepared new chat", async () => {
+    const harness = createHarness(cursorProbeFailure(), undefined, true);
+    const created = await harness.service.createSession(sender(), { runtimeId: "cursor" }, "/workspace");
+    await harness.service.closeSession(sender(), { sessionId: created.session.id }, "/workspace");
+    await harness.service.discoverProviders(sender(), { runtimeId: "cursor", refresh: true, prepareSession: true }, "/workspace");
+    const prepared = harness.adapters[1];
+    const resumed = await harness.service.resumeSession(sender(), { runtimeId: "cursor", sessionId: created.session.id }, "/workspace");
+    expect(resumed.session.providerSessionId).toBe(created.session.providerSessionId);
+    expect(harness.adapters).toHaveLength(3);
+    expect(prepared.adoptPreparedSession).not.toHaveBeenCalled();
+    await harness.service.closeAll();
+    expect(prepared.nativeDispose).toHaveBeenCalledOnce();
+  });
+
   it("starts a newly installed CLI even while the catalog's negative discovery result is cached", async () => {
     let installed = false;
     const load = vi.fn(async () => installed ? {
@@ -178,7 +245,7 @@ describe("Authoritative runtime resolution", () => {
   });
 });
 
-function createHarness(readiness, discovery = { discover: vi.fn(async () => readiness) }) {
+function createHarness(readiness, discovery = { discover: vi.fn(async () => readiness) }, preparable = false, configureAdapter = () => {}) {
   const adapters = [];
   const registry = new AgentRuntimeRegistry([{
     manifest: {
@@ -200,6 +267,12 @@ function createHarness(readiness, discovery = { discover: vi.fn(async () => read
     discovery,
     createAdapter: (options) => {
       const adapter = fakeAcpAdapter(options);
+      if (preparable) {
+        adapter.nativeDispose = adapter.dispose;
+        adapter.prepareSessionInspection = adapter.inspect;
+        adapter.adoptPreparedSession = vi.fn((callbacks) => { adapter.emitExit = callbacks.onExit; return true; });
+      }
+      configureAdapter(adapter);
       adapters.push(adapter);
       return adapter;
     },

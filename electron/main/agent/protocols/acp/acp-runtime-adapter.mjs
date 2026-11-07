@@ -155,6 +155,8 @@ export class AcpRuntimeAdapter {
     this.appVersion = appVersion;
     this.onEvent = onEvent;
     this.onExit = onExit;
+    this.onSessionPersisted = onSessionPersisted;
+    this.preparedSession = null;
     this.persistenceReporter = createNativePersistenceReporter({
       isClosed: () => this.disposed,
       verify: async () => {
@@ -163,7 +165,7 @@ export class AcpRuntimeAdapter {
         return page.supported && page.sessions.some((entry) => entry.providerSessionId === id)
           ? { providerSessionId: id, sourceScopeId: this.sourceScopeId } : null;
       },
-      report: onSessionPersisted,
+      report: (identity) => this.onSessionPersisted(identity),
     });
     this.logger = logger;
     this.connectionFactory = connectionFactory;
@@ -231,6 +233,23 @@ export class AcpRuntimeAdapter {
     }
   }
 
+  /** Inspect the very session a new Chat can adopt, with session-mode launch policy. */
+  async prepareSessionInspection() {
+    const result = await this.bootstrapSession({ kind: "create" });
+    this.preparedSession = "available";
+    return result.inspection;
+  }
+
+  adoptPreparedSession({ onEvent, onExit, onSessionPersisted = () => {} }) {
+    if (this.disposed || this.preparedSession !== "available" || this.activeTurn
+      || !this.sessionId || !this.connection || this.connection.closed || this.connectionMode !== "session") return false;
+    this.preparedSession = "adopted";
+    this.onEvent = onEvent;
+    this.onExit = onExit;
+    this.onSessionPersisted = onSessionPersisted;
+    return true;
+  }
+
   async createSession({ model = null, effort = null, mode = null } = {}) {
     return (await this.bootstrapSession({ kind: "create", model, effort, mode })).providerSession;
   }
@@ -248,6 +267,9 @@ export class AcpRuntimeAdapter {
     mode = null,
   } = {}) {
     this.#assertIdle();
+    const prepared = kind === "create" && this.preparedSession === "adopted"
+      && this.connection && !this.connection.closed && this.sessionId;
+    this.preparedSession = null;
     await this.#connect("session");
     let response;
     if (kind === "resume") {
@@ -287,12 +309,12 @@ export class AcpRuntimeAdapter {
         this.historyCoverage = this.historyReplay?.truncated ? "partial" : "unknown";
         this.historyReplay = null;
       }
-    } else if (kind === "create") {
+    } else if (kind === "create" && !prepared) {
       response = await this.client.newSession({ cwd: this.workspaceRoot, mcpServers: [] });
       this.sessionId = requiredId(response?.sessionId, `${this.runtimeDescriptor.displayName} ACP session id`);
       this.#syncSession(response);
       await delay(METADATA_SETTLE_MS);
-    } else {
+    } else if (kind !== "create") {
       throw new TypeError("ACP session bootstrap kind is invalid.");
     }
     const inspection = this.#inspection();

@@ -10,16 +10,53 @@ const receipt = (request: ItemExecutionRequest): ItemExecutionSummary => ({ ...r
   desiredLifecycle: "terminated", observedLifecycle: "stopping", cleanup: "running", revision: 1, errorCode: null });
 afterEach(() => vi.useRealTimers());
 function fixture() {
+  const discover = vi.fn(async (_input: unknown) => ({ readiness: { status: "ready" } }));
   const create = vi.fn(async (_input: unknown) => snapshot);
   const resume = vi.fn(async (_input: unknown) => snapshot);
   const fork = vi.fn(async (_input: unknown) => ({ session: { ...snapshot.session, id: "fork" } }));
   const terminate = vi.fn(async (request: ItemExecutionRequest) => receipt(request));
-  const client = createManagedAgentClient({ createAgentSession: create, resumeAgentSession: resume, forkAgentSession: fork } as unknown as AgentClientPort,
+  const client = createManagedAgentClient({ discoverAgentRuntimes: discover, createAgentSession: create, resumeAgentSession: resume, forkAgentSession: fork } as unknown as AgentClientPort,
     { terminateItemExecution: terminate, listItemExecutions: async () => [], retryItemExecutionCleanup: terminate }, projectContext, "agent-item");
-  return { client, create, resume, fork, terminate };
+  return { client, create, resume, fork, terminate, discover };
 }
 
 describe("Agent adaptation of shared item management", () => {
+  it("keeps the same execution identity from preparation through creation", async () => {
+    const f = fixture();
+    await f.client.discoverAgentRuntimes({ rootPath: "/project", runtimeId: "cursor", prepareSession: true } as never);
+    await f.client.createAgentSession({ rootPath: "/project", runtimeId: "cursor" });
+    const discovery = f.discover.mock.calls[0][0] as { creationId: string };
+    expect(discovery.creationId).toBeTruthy();
+    expect(f.create.mock.calls[0][0]).toMatchObject({ itemId: "agent-item", creationId: discovery.creationId });
+  });
+  it("seals prepared ownership when creation fails and allocates a fresh retry identity", async () => {
+    const f = fixture();
+    await f.client.discoverAgentRuntimes({ rootPath: "/project", runtimeId: "cursor", prepareSession: true });
+    f.create.mockRejectedValueOnce(new Error("invalid native selection"));
+    await expect(f.client.createAgentSession({ rootPath: "/project", runtimeId: "cursor" })).rejects.toThrow(/invalid native/);
+    expect(f.terminate).toHaveBeenCalledOnce();
+    await f.client.createAgentSession({ rootPath: "/project", runtimeId: "cursor" });
+    expect((f.create.mock.calls[1][0] as { creationId: string }).creationId).not.toBe((f.discover.mock.calls[0][0] as { creationId: string }).creationId);
+  });
+  it("releases preparation before switching runtimes or opening history", async () => {
+    const f = fixture();
+    await f.client.discoverAgentRuntimes({ rootPath: "/project", runtimeId: "cursor", prepareSession: true });
+    await f.client.discoverAgentRuntimes({ rootPath: "/project", runtimeId: "codex", prepareSession: true });
+    expect(f.terminate).toHaveBeenCalledOnce();
+    await f.client.resumeAgentSession({ rootPath: "/project", runtimeId: "codex", sessionId: "saved" });
+    expect(f.terminate).toHaveBeenCalledTimes(2);
+  });
+  it("rejects concurrent creation without terminating the first claimed preparation", async () => {
+    const f = fixture();
+    await f.client.discoverAgentRuntimes({ rootPath: "/project", runtimeId: "cursor", prepareSession: true });
+    const pending = Promise.withResolvers<typeof snapshot>();
+    f.create.mockReturnValueOnce(pending.promise);
+    const first = f.client.createAgentSession({ rootPath: "/project", runtimeId: "cursor" });
+    await expect(f.client.createAgentSession({ rootPath: "/project", runtimeId: "cursor" })).rejects.toThrow(/already starting/);
+    expect(f.terminate).not.toHaveBeenCalled();
+    pending.resolve(snapshot);
+    await first;
+  });
   it("does not terminate an existing execution after a failed resume request", async () => {
     const f = fixture();
     await f.client.createAgentSession({ rootPath: "/project" });
