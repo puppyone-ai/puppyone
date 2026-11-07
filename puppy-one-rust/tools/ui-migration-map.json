@@ -139,7 +139,7 @@
       ],
       "targets": [
         "src/theme.rs",
-        "src/typography.rs",
+        "src/typography/mod.rs",
         "src/typography/fonts.rs",
         "src/ui/fonts.rs"
       ],
@@ -736,7 +736,7 @@
         "src/shell/explorer/mod.rs",
         "src/shell/rename.rs",
         "src/model.rs",
-        "src/workspace.rs",
+        "src/workspace/mod.rs",
         "src/file_kind.rs",
         "assets/file-icons.json",
         "tools/import-file-icons.mjs",
@@ -1125,7 +1125,7 @@
       ],
       "targets": [
         "src/editor/document_session/document_editing_session.rs",
-        "src/documents.rs",
+        "src/documents/mod.rs",
         "src/editor/host/mod.rs"
       ],
       "remaining": "Rust owns the save queue, disk epochs and drains; the native document editor reports dirty state, snapshots and saved receipts over the host protocol, one document per window. The multi-document working-copy registry and external-conflict notices are not ported.",
@@ -1153,7 +1153,7 @@
         "src/shared-ui/editor/workbench/*"
       ],
       "targets": [
-        "src/documents.rs",
+        "src/documents/mod.rs",
         "src/shell.rs",
         "src/editor/workbench/runtime.rs",
         "src/editor/workbench/runtime/drops.rs",
@@ -1254,7 +1254,7 @@
       "targets": [
         "src/workspace/cloud/opening.rs",
         "src/workspace/cloud/failure.rs",
-        "src/documents.rs",
+        "src/documents/mod.rs",
         "src/editor/workbench/runtime.rs",
         "src/shell/home/mod.rs"
       ],
@@ -1338,8 +1338,8 @@
         "src/shell.rs",
         "src/shell/project_opening.rs",
         "src/editor/workbench/runtime.rs",
-        "src/documents.rs",
-        "src/workspace.rs",
+        "src/documents/mod.rs",
+        "src/workspace/mod.rs",
         "src/shell/explorer/mod.rs",
         "src/ui/components/notice.rs"
       ],
@@ -2151,7 +2151,7 @@
       "targets": [
         "src/editor/host/mod.rs",
         "src/editor/host/chrome.rs",
-        "src/documents.rs",
+        "src/documents/mod.rs",
         "src/editor/registry/surface.rs",
         "src/editor/viewers/html.rs",
         "assets/web/html-preview-interaction.css"
@@ -2169,8 +2169,8 @@
         "src/shared-ui/editor/runtime/**"
       ],
       "targets": [
-        "src/documents.rs",
-        "src/workspace.rs",
+        "src/documents/mod.rs",
+        "src/workspace/mod.rs",
         "src/editor/workbench/runtime.rs",
         "tools/product-web-bundle.mjs"
       ],

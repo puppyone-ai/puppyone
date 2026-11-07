@@ -11,7 +11,7 @@ pub mod cloud;
 pub mod contracts;
 mod local;
 #[cfg(test)]
-#[path = "workspace/local_tests.rs"]
+#[path = "local_tests.rs"]
 mod local_compatibility_tests;
 pub mod ports;
 #[cfg(test)]

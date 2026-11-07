@@ -47,7 +47,7 @@ for relative in ['src/workspace/contracts.rs', 'src/workspace/ports.rs']:
     source = (root / relative).read_text()
     if re.search(r'\b(?:gpui|cap_std|reqwest|tokio)\s*::|\bstd\s*::\s*(?:fs|net|thread|process)|crate::(?:app|features)', source):
         errors.append(f'{relative}: provider contract owns an implementation/UI dependency')
-for relative in ['src/documents.rs', 'src/app/explorer', 'src/features/create_new', 'src/editor/host', 'src/editor/viewers']:
+for relative in ['src/documents/mod.rs', 'src/app/explorer', 'src/features/create_new', 'src/editor/host', 'src/editor/viewers']:
     base = root / relative
     paths = base.rglob('*.rs') if base.is_dir() else [base]
     for path in paths:
@@ -198,7 +198,7 @@ for path in [root / 'src/features/model_connections/ui.rs']:
     if re.search(r'\b(?:security_framework|reqwest)\s*::|\bstd\s*::\s*(?:fs|process|thread|net)|configuration::', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration view bypasses native client')
 # Product-level owners must survive the language port; views do not persist data.
-for relative in ['src/editor/document_session/document_editing_session.rs','src/editor/document_session/types.rs','src/features/settings/preference_types.rs','src/features/settings/sidebar/settings_sidebar_model.rs','src/features/create_new/create_entry_menu_registry.rs','src/features/create_new/create_entry_draft.rs','src/typography.rs']:
+for relative in ['src/editor/document_session/document_editing_session.rs','src/editor/document_session/types.rs','src/features/settings/preference_types.rs','src/features/settings/sidebar/settings_sidebar_model.rs','src/features/create_new/create_entry_menu_registry.rs','src/features/create_new/create_entry_draft.rs','src/typography/mod.rs']:
     path=root / relative
     if re.search(r'\b(?:gpui|gpui_kit|cap_std)\s*::|\bstd\s*::\s*(?:fs|process|thread)',path.read_text()):
         errors.append(f'{relative}: pure product model owns presentation or I/O')
