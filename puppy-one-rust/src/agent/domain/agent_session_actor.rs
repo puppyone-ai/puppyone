@@ -54,16 +54,13 @@ pub struct Commit {
     pub control: Value,
     pub sequence: i64,
     pub emitted_at: Option<String>,
-    pub input: Value,
     pub display_patch: Value,
-    pub events: Vec<Value>,
 }
 
 /// The result of a control input.
 #[derive(Clone, Debug)]
 pub struct ControlResult {
     pub changed: bool,
-    pub control: Value,
     pub commit: Option<Commit>,
 }
 
@@ -170,6 +167,7 @@ impl AgentSessionActor {
         Ok(actor)
     }
 
+    #[cfg(test)]
     pub fn display(&self) -> &AgentDisplay {
         &self.display
     }
@@ -178,9 +176,6 @@ impl AgentSessionActor {
     }
     pub fn sequence(&self) -> i64 {
         self.sequence
-    }
-    pub fn replay_bytes(&self) -> usize {
-        self.replay_bytes
     }
     pub fn events(&self) -> Vec<Value> {
         self.events.iter().cloned().collect()
@@ -219,7 +214,6 @@ impl AgentSessionActor {
         let Some(next) = reduce_agent_session_control(&previous, &input).map_err(err)? else {
             return Ok(ControlResult {
                 changed: false,
-                control: previous,
                 commit: None,
             });
         };
@@ -260,13 +254,10 @@ impl AgentSessionActor {
             control: next.clone(),
             sequence: self.sequence,
             emitted_at: None,
-            input,
             display_patch,
-            events: Vec::new(),
         };
         Ok(ControlResult {
             changed: true,
-            control: next,
             commit: Some(commit),
         })
     }
@@ -316,9 +307,7 @@ impl AgentSessionActor {
                 .get("emittedAt")
                 .and_then(Value::as_str)
                 .map(str::to_string),
-            input: json!({ "type": "event.accepted", "event": envelope }),
             display_patch,
-            events: vec![envelope.clone()],
         };
         Ok((envelope, commit))
     }
@@ -468,6 +457,7 @@ impl SessionActor {
     }
 
     /// `actor.display`.
+    #[cfg(test)]
     pub fn display(&self) -> AgentDisplay {
         self.read(|actor| actor.display().clone())
     }
@@ -516,11 +506,6 @@ impl SessionActor {
             .listeners
             .borrow_mut()
             .retain(|(listener, _)| *listener != id);
-    }
-
-    /// Whether two handles name the same actor (`session.actor === other`).
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
     }
 
     fn notify(&self, commit: Commit) {

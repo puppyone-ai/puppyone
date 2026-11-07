@@ -22,11 +22,7 @@ static BASE64: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Za-z0-9+/]+={0,2}$").expect("pattern"));
 
 /// `claudeMessageChannelPolicy`.
-pub mod policy {
-    pub const MAX_QUEUED_MESSAGES: usize = super::MAX_QUEUED_MESSAGES;
-    pub const MAX_MESSAGE_CHARACTERS: usize = super::MAX_MESSAGE_CHARACTERS;
-    pub const MAX_IMAGE_BASE64_CHARACTERS: usize = super::MAX_IMAGE_BASE64_CHARACTERS;
-}
+pub mod policy {}
 
 /// `new ClaudeMessageChannel({ onWarning })`.
 #[derive(Clone)]
@@ -56,10 +52,6 @@ impl ClaudeMessageChannel {
     /// `channel.setSessionId(sessionId)`.
     pub fn set_session_id(&self, session_id: &str) {
         *self.0.session_id.borrow_mut() = session_id.to_string();
-    }
-
-    pub fn session_id(&self) -> String {
-        self.0.session_id.borrow().clone()
     }
 
     /// `channel.enqueue(message)`.

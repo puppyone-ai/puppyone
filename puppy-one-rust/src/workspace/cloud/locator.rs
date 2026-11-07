@@ -11,7 +11,6 @@
 //!   with `/`, files do not; each segment is encoded. A URL grants nothing.
 // Consumed by the Cloud navigation surface (Homepage catalog, Header switch,
 // Share), which stays behind the Cloud experiment until its UI lands.
-#![cfg_attr(not(test), allow(dead_code))]
 
 /// One parsed Puppyone Git remote.
 #[derive(Clone, Debug, PartialEq, Eq)]

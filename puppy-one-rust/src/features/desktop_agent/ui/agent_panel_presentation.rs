@@ -1,7 +1,7 @@
 //! `ui/agentPanelPresentation.ts`: runtime readiness and session status
 //! wording.
 use crate::agent::contract::dto::RuntimeReadiness;
-use crate::localization::{Arg, bidi_isolate, t, tf};
+use crate::localization::{Arg, bidi_isolate, tf};
 
 /// `readinessStatusCode(readiness)`.
 pub fn readiness_status_code(readiness: Option<&RuntimeReadiness>) -> &'static str {
@@ -16,15 +16,6 @@ pub fn readiness_status_code(readiness: Option<&RuntimeReadiness>) -> &'static s
         | "PROVIDER_CREDENTIALS_REJECTED" => "setup-required",
         _ => "needs-repair",
     }
-}
-
-/// `readinessLabel(readiness, t)`.
-pub fn readiness_label(readiness: Option<&RuntimeReadiness>) -> String {
-    t(&format!(
-        "agent.header.status.{}",
-        readiness_status_code(readiness)
-    ))
-    .to_string()
 }
 
 /// `presentRuntimeReadiness(readiness, runtimeLabel, t)`.
@@ -67,13 +58,4 @@ pub fn session_status_code(status: Option<&str>) -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or("ready")
         .to_string()
-}
-
-/// `sessionStatusLabel(status, t)`.
-pub fn session_status_label(status: Option<&str>) -> String {
-    t(&format!(
-        "agent.turn.status.{}",
-        session_status_code(status)
-    ))
-    .to_string()
 }

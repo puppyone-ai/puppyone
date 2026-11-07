@@ -43,6 +43,7 @@ pub struct ConversationHistoryState {
 
 impl ConversationHistoryState {
     /// `state.nextCursors[runtimeId]`.
+    #[cfg(test)]
     pub fn next_cursor(&self, runtime_id: &str) -> Option<&NativeScanContinuation> {
         self.next_cursors
             .iter()
@@ -217,6 +218,7 @@ impl ConversationHistoryController {
     }
 
     /// Increments with every published state (`getSnapshot()` identity).
+    #[cfg(test)]
     pub fn revision(&self) -> u64 {
         self.0.revision.get()
     }
@@ -267,6 +269,7 @@ impl ConversationHistoryController {
         detach(&inner.runtime, inner.clone().inspect_runtimes(generation));
     }
 
+    #[cfg(test)]
     pub fn deactivate(&self) {
         self.0.deactivate();
     }

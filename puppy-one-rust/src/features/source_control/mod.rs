@@ -672,7 +672,7 @@ impl SourceControl {
         cx.notify();
     }
     /// Open the `index`th History commit (capture scenarios).
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(feature = "dev-capture")]
     pub fn select_commit(&mut self, index: usize, cx: &mut Context<Self>) -> bool {
         let Some(commit) = self.history.commits.get(index).cloned() else {
             return false;
@@ -686,13 +686,13 @@ impl SourceControl {
         true
     }
     /// A detail or the opened History is still being read.
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(feature = "dev-capture")]
     pub fn reading_detail(&self) -> bool {
         self.detail.as_ref().is_some_and(|d| d.files.is_none())
             || (self.history_open && !self.history_loaded)
     }
     /// Open the change at `path` (capture scenarios).
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(feature = "dev-capture")]
     pub fn select_path(&mut self, path: &str, staged: bool, cx: &mut Context<Self>) -> bool {
         let Some(change) = self
             .snapshot

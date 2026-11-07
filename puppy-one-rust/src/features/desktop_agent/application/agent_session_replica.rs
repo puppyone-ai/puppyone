@@ -6,7 +6,7 @@ use super::agent_client_port::{
 use super::agent_controller_state::{
     AgentControllerPhase, AgentDisplayRecovery, AgentDisplayRecoveryCause as Cause,
     AgentDisplayRecoveryPolicy as Policy, AgentDisplayRecoveryStage as Stage, ReplicaStatus,
-    StatePatch,
+    StateName as _, StatePatch,
 };
 use super::agent_error::{
     agent_known_error, create_agent_error, known_error_code, operation_failure,

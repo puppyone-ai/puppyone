@@ -343,8 +343,8 @@ impl AgentService {
         result
     }
 
-    #[cfg(test)]
     /// `service.closeSessionsForWindow(ownerId)`.
+    #[cfg(test)]
     pub async fn close_sessions_for_window(&self, owner_id: u64) -> AgentResult<()> {
         let sessions: Vec<SessionRef> = self
             .store
@@ -365,8 +365,8 @@ impl AgentService {
         closed
     }
 
-    #[cfg(test)]
     /// `service.closeSessionsForWorkspaceRoot(ownerId, workspaceRoot)`.
+    #[cfg(test)]
     pub async fn close_sessions_for_workspace_root(
         &self,
         owner_id: u64,

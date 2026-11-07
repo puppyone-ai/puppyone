@@ -3,8 +3,12 @@
 
 /// `AgentTimelineScrollAnchor`.
 #[derive(Clone, Debug, PartialEq)]
+/// Product views keep their own scroll position; the anchors are the ported
+/// model, exercised by its tests.
 pub enum AgentTimelineScrollAnchor {
+    #[cfg(test)]
     Row { row_id: String, offset: f64 },
+    #[cfg(test)]
     Absolute { scroll_top: f64 },
 }
 

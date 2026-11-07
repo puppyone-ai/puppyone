@@ -230,9 +230,6 @@ impl AcpClient {
     pub async fn list_sessions(&self, params: Value) -> AgentResult<Value> {
         self.request("listSessions", params, None).await
     }
-    pub async fn close_session(&self, params: Value) -> AgentResult<Value> {
-        self.request("closeSession", params, None).await
-    }
     pub async fn fork_session(&self, params: Value) -> AgentResult<Value> {
         self.request("forkSession", params, None).await
     }

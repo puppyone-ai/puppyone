@@ -124,9 +124,9 @@ impl AgentRequests {
         read.map_err(failure_of)
     }
 
-    #[cfg(test)]
     /// Handles `operation`'s request in its transport form: the answer, or
     /// the operation-failure envelope (`ipcMain.handle`'s listener).
+    #[cfg(test)]
     pub async fn handle_value(
         &self,
         sender: &Sender,

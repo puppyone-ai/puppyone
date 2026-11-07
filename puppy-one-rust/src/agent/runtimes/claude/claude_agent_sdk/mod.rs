@@ -34,30 +34,27 @@ pub type CanUseTool =
 pub struct PermissionOptions {
     pub signal: Option<CancelSignal>,
     pub suggestions: Option<Value>,
-    pub blocked_path: Option<Value>,
     pub decision_reason: Option<Value>,
     pub title: Option<Value>,
     pub display_name: Option<Value>,
     pub description: Option<Value>,
     pub tool_use_id: Option<Value>,
-    pub agent_id: Option<Value>,
 }
 
 impl PermissionOptions {
     /// The options object as JavaScript callers pass it
     /// (`{ toolUseID, title, suggestions, … }`).
+    #[cfg(test)]
     pub fn from_json(value: &Value, signal: Option<CancelSignal>) -> Self {
         let field = |key: &str| value.get(key).filter(|v| !v.is_null()).cloned();
         Self {
             signal,
             suggestions: field("suggestions"),
-            blocked_path: field("blockedPath"),
             decision_reason: field("decisionReason"),
             title: field("title"),
             display_name: field("displayName"),
             description: field("description"),
             tool_use_id: field("toolUseID"),
-            agent_id: field("agentID"),
         }
     }
 }
@@ -65,7 +62,6 @@ impl PermissionOptions {
 /// `options.systemPrompt`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SystemPrompt {
-    Text(String),
     /// `{ type: "preset", preset, append }`.
     Preset {
         preset: String,

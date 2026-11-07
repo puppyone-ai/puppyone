@@ -131,11 +131,6 @@ pub fn create_local_agent_inventory(
 }
 
 impl LocalAgentInventory {
-    /// The registered tools.
-    pub fn tools(&self) -> &[LocalAgentTool] {
-        &self.0.tools
-    }
-
     /// `inventory.discover({ refresh, workspaceRoot })`.
     pub fn discover(
         &self,
@@ -442,6 +437,7 @@ impl LocalAgentInventory {
     }
 
     /// `inventory.dispose()`.
+    #[cfg(test)]
     pub fn dispose(&self) {
         let inner = &self.0;
         inner.disposed.set(true);

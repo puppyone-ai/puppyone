@@ -52,8 +52,8 @@ impl Leaf {
 #[derive(Clone, Debug)]
 pub struct BlockGeometry {
     pub bounds: Bounds<Pixels>,
-    /// Read by the geometry dump (`dev-capture`).
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    /// Read by the geometry dump.
+    #[cfg(feature = "dev-capture")]
     pub lines: Range<usize>,
     pub source: Range<usize>,
 }
@@ -339,7 +339,7 @@ impl DocLayout {
     /// Character and block geometry relative to the editor's top-left, in
     /// the shape of tools/probe-editor.mjs output (`chars`, `lines`), for
     /// numeric comparison with the product.
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(feature = "dev-capture")]
     pub fn dump(&self) -> serde_json::Value {
         let origin = self.bounds.origin;
         let rel = |p: Point<Pixels>| (f32::from(p.x - origin.x), f32::from(p.y - origin.y));

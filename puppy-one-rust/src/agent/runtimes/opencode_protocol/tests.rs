@@ -1,10 +1,11 @@
 //! `tests/unit/agent/runtimes/opencode/electron.opencode-adapter.test.mjs`
 //! and `electron.opencode-events.test.mjs`.
-use super::opencode_acp_adapter::{build_prompt_blocks, open_code_acp_adapter};
+use super::opencode_acp_adapter::open_code_acp_adapter;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::application::tests_support::run_local;
 use crate::agent::protocols::acp::acp_event_normalizer::AcpEventNormalizer;
 use crate::agent::protocols::acp::acp_prompt_input::AcpReferenceProfile;
+use crate::agent::protocols::acp::acp_prompt_input::build_acp_prompt_blocks as build_prompt_blocks;
 use crate::agent::protocols::acp::acp_runtime_adapter::AcpAdapterOptions;
 use crate::agent::protocols::acp::acp_session_config::{
     resolve_acp_efforts, resolve_acp_models, resolve_acp_modes, resolve_requested_acp_effort,

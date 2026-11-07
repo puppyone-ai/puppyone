@@ -159,11 +159,6 @@ impl EphemeralAgentSessionCache {
             .borrow_mut()
             .retain(|entry| entry["sessionId"] != session_id);
     }
-
-    /// `cache.clear()`.
-    pub fn clear(&self) {
-        self.0.records.borrow_mut().clear();
-    }
 }
 
 impl SessionCache for EphemeralAgentSessionCache {
@@ -195,8 +190,8 @@ impl SessionCache for EphemeralAgentSessionCache {
                 .await)
         })
     }
-    #[cfg(test)]
     /// Compatibility surface only. PuppyOne deliberately exposes no Chat History.
+    #[cfg(test)]
     fn list(&self, _workspace_root: String, _options: Value) -> Pending<Vec<Value>> {
         let cache = self.clone();
         Box::pin(async move {

@@ -37,6 +37,7 @@ use crate::agent::runtime::native_persistence_reporter::NativePersistenceReporte
 use crate::agent::security::authorized_project_instructions::{
     format_authorized_project_instructions, load_authorized_project_instructions,
 };
+#[cfg(test)]
 use crate::agent::security::authorized_workspace_reference_prompt::format_authorized_workspace_reference_prompt;
 use crate::agent::tasks::{CancelSignal, Canceller, SharedTask, shared};
 use crate::clock;
@@ -244,6 +245,7 @@ fn claude_capabilities_for_runtime(version: Option<&Value>) -> Value {
 }
 
 /// `formatClaudePrompt(prompt, references, workspaceRoot)`.
+#[cfg(test)]
 pub fn format_claude_prompt(prompt: &str, references: &[Value], workspace_root: &str) -> String {
     format_authorized_workspace_reference_prompt(prompt, references, Some(workspace_root))
 }
@@ -275,12 +277,6 @@ impl ClaudeInteractionHost for Inner {
 }
 
 impl Inner {
-    fn warn(&self, message: &str) {
-        if let Some(logger) = self.logger.as_ref() {
-            logger(message);
-        }
-    }
-
     fn assert_usable(&self) -> AgentResult<()> {
         if self.disposed.get() {
             return Err(AgentError::new("Claude Code adapter is closed."));
@@ -468,16 +464,6 @@ impl ClaudeAgentSdkAdapter {
     /// `adapter.sessionId`.
     pub fn session_id(&self) -> Option<String> {
         self.0.session_id.borrow().clone()
-    }
-
-    /// `adapter.activeTurnId`.
-    pub fn active_turn_id(&self) -> Option<String> {
-        self.0.active_turn_id.borrow().clone()
-    }
-
-    /// `adapter.historySource.sourceScopeId`.
-    pub fn source_scope_id(&self) -> &str {
-        &self.0.source_scope_id
     }
 
     /// `adapter.canUseTool` as the SDK receives it.
@@ -717,12 +703,6 @@ impl ClaudeAgentSdkAdapter {
         let sdk = self.0.load_sdk()?;
         let session = self.session_id();
         read_claude_history(&*sdk, &self.0.workspace_root, session.as_deref()).await
-    }
-
-    /// `adapter.readHistory()`.
-    pub async fn read_history(&self) -> AgentResult<Vec<Value>> {
-        let result = self.read_history_result().await?;
-        Ok(result["events"].as_array().cloned().unwrap_or_default())
     }
 
     async fn start_turn_inner(&self, request: Value) -> AgentResult<Value> {

@@ -425,8 +425,8 @@ impl AgentSessionLifecycle {
         Ok(())
     }
 
-    #[cfg(test)]
     /// `lifecycle.closeSessionsForWorkspaceRoot(webContentsId, workspaceRoot)`.
+    #[cfg(test)]
     pub async fn close_sessions_for_workspace_root(
         &self,
         owner_id: u64,

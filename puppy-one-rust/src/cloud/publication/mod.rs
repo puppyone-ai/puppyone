@@ -12,7 +12,6 @@
 //! response is reconciled against the remote's actual `main`, never replayed
 //! blindly. Failure is a retryable state, never an automatic rollback;
 //! deleting the empty Project is an explicit cleanup.
-#![cfg_attr(not(test), allow(dead_code))]
 pub mod api;
 pub mod git;
 pub mod journal;

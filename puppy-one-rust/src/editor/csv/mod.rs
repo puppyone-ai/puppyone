@@ -10,5 +10,3 @@ pub mod theme;
 mod view;
 
 pub use view::{CsvEditor, CsvEvent, bind_keys};
-#[allow(unused_imports)]
-pub use view::{FindResult, ViewItem};

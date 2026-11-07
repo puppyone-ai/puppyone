@@ -190,7 +190,6 @@ impl ProcessTransport {
             stderr: _,
             exit,
             kill,
-            pid: _,
         } = io;
         let (writer, mut queue) = mpsc::unbounded_channel::<Vec<u8>>();
         spawn_local(async move {
@@ -284,10 +283,6 @@ impl ProcessTransport {
     pub fn end_input(&self) {
         self.0.input_ended.set(true);
         self.0.writer.borrow_mut().take();
-    }
-
-    pub fn exited(&self) -> bool {
-        self.0.exit.exited.get()
     }
 
     /// `close()`: ends stdin; a CLI that does not exit within the grace is

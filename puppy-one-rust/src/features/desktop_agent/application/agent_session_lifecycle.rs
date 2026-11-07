@@ -1,12 +1,12 @@
 //! `application/AgentSessionLifecycle.ts`: owns one tab's live connection;
 //! durable locator indexing remains Main-owned.
-use super::agent_client_port::{AgentClient as _, AgentClientProvider, require_bridge};
+use super::agent_client_port::{AgentClient as _, AgentClientProvider};
 use super::agent_controller_state::{AgentControllerPhase, AgentSessionPreparation, StatePatch};
 use super::agent_error::{create_agent_error, format_agent_error};
 use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSessionFn};
 use crate::agent::agent_error::AgentResult;
 use crate::agent::contract::dto::{AgentProjection, Receipt};
-use crate::agent::contract::protocol::{AgentOperation, CloseSession, CompactSession};
+use crate::agent::contract::protocol::{AgentOperation, CloseSession};
 use futures_util::future::LocalBoxFuture;
 use std::rc::Rc;
 
@@ -92,36 +92,6 @@ impl AgentSessionLifecycle {
                         .error(Some(format_agent_error(&error)))
                         .session_preparation(AgentSessionPreparation::Failed),
                 );
-            }
-        })
-    }
-
-    pub fn compact_session(&self) -> LocalBoxFuture<'static, ()> {
-        let options = self.0.clone();
-        let Some(session_id) = options
-            .store
-            .read(|state| state.session_id().map(str::to_string))
-        else {
-            return Box::pin(async {});
-        };
-        let call = require_bridge(&options.bridge_provider, &[AgentOperation::CompactSession]).map(
-            |bridge| {
-                bridge.compact_session(CompactSession {
-                    root_path: options.workspace_root.clone(),
-                    session_id,
-                    ..CompactSession::default()
-                })
-            },
-        );
-        Box::pin(async move {
-            let result = match call {
-                Ok(call) => call.await,
-                Err(error) => Err(error),
-            };
-            if let Err(error) = result {
-                options
-                    .store
-                    .patch(StatePatch::new().error(Some(format_agent_error(&error))));
             }
         })
     }

@@ -19,12 +19,12 @@ use std::rc::Rc;
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 
 /// The product's five tones; every surface picks the one it means.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NoticeTone {
     #[default]
     Neutral,
     Info,
+    #[cfg(test)]
     Success,
     Warning,
     Danger,
@@ -34,6 +34,7 @@ impl NoticeTone {
         match self {
             Self::Neutral => t.muted,
             Self::Info => t.info,
+            #[cfg(test)]
             Self::Success => t.success,
             Self::Warning => t.warning,
             Self::Danger => t.danger,
@@ -44,6 +45,7 @@ impl NoticeTone {
         match self {
             Self::Neutral => None,
             Self::Info => Some("info"),
+            #[cfg(test)]
             Self::Success => Some("circle-check"),
             Self::Warning => Some("triangle-alert"),
             Self::Danger => Some("circle-alert"),
@@ -252,13 +254,10 @@ impl RenderOnce for FloatingNotice {
 }
 
 /// Where a stack sits in its positioned surface.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NoticePlacement {
     #[default]
     TopEnd,
-    /// Newest at the bottom (`column-reverse`).
-    BottomEnd,
     /// Across the top, notices stretched to the inline insets.
     Top,
 }
@@ -311,12 +310,7 @@ impl RenderOnce for NoticeStack {
             .max_w(px(self.max_width.max(0.)))
             .items_end()
             .gap(px(8.));
-        match self.placement {
-            NoticePlacement::TopEnd => column.top(px(self.top)).children(self.notices),
-            NoticePlacement::BottomEnd | NoticePlacement::Top => column
-                .bottom(px(self.top))
-                .children(self.notices.into_iter().rev()),
-        }
+        column.top(px(self.top)).children(self.notices)
     }
 }
 

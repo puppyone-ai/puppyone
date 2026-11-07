@@ -22,6 +22,7 @@ pub struct Policy {
     pub window: usize,
     pub project: usize,
     pub concurrent_starts: usize,
+    #[cfg(test)]
     pub renderer_rss: u64,
     pub utility_rss: u64,
     pub application_rss: u64,
@@ -42,6 +43,7 @@ pub const POLICY: Policy = Policy {
     window: 16,
     project: 12,
     concurrent_starts: 4,
+    #[cfg(test)]
     renderer_rss: 768 * MIB,
     utility_rss: 768 * MIB,
     application_rss: 4 * 1024 * MIB,
@@ -58,8 +60,9 @@ pub const POLICY: Policy = Policy {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
-    /// A display-owning host (WebView content); bound by web-content hosts.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// A display-owning host (WebView content); no native host binds one
+    /// yet.
+    #[cfg(test)]
     Renderer,
     /// An execution host (CLI, PTY, engine helper).
     Utility,
@@ -296,6 +299,7 @@ impl Budget {
                     None
                 };
                 let limit = match e.role {
+                    #[cfg(test)]
                     Role::Renderer => p.renderer_rss,
                     Role::Utility => p.utility_rss,
                 };

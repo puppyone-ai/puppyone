@@ -15,7 +15,6 @@
 //! build: like the product's default package (`externalViewerPacks` off),
 //! no host is installed and routing never changes what opens.
 //! Until that runtime lands, this layer is exercised by its tests only.
-#![cfg_attr(not(test), allow(dead_code))]
 pub mod manifest;
 pub mod route;
 

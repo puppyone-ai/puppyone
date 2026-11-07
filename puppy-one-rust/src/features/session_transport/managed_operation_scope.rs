@@ -26,42 +26,6 @@ impl ManagedOperationScope {
         self.controller.signal()
     }
 
-    /// `scope.size`.
-    pub fn size(&self) -> usize {
-        self.operations.borrow().len()
-    }
-
-    /// `scope.own(id, release)`: the returned closure disowns it.
-    pub fn own(&self, id: &str, release: Rc<dyn Fn()>) -> Box<dyn Fn()> {
-        if self.signal().is_cancelled() {
-            release();
-            return Box::new(|| {});
-        }
-        let previous = self
-            .operations
-            .borrow()
-            .iter()
-            .find(|(owned, _)| owned == id)
-            .map(|(_, previous)| previous.clone());
-        if let Some(previous) = previous {
-            previous();
-        }
-        {
-            let mut operations = self.operations.borrow_mut();
-            match operations.iter_mut().find(|(owned, _)| owned == id) {
-                Some(entry) => entry.1 = release.clone(),
-                None => operations.push((id.to_string(), release.clone())),
-            }
-        }
-        let operations = self.operations.clone();
-        let id = id.to_string();
-        Box::new(move || {
-            operations.borrow_mut().retain(|(owned, owned_release)| {
-                !(owned == &id && Rc::ptr_eq(owned_release, &release))
-            });
-        })
-    }
-
     /// `scope.cancel()`.
     pub fn cancel(&self) {
         if self.signal().is_cancelled() {

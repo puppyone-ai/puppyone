@@ -980,7 +980,6 @@ impl AgentChatTabPanel {
                 &a,
             )
             .into_any_element(),
-            ShellDetail::None => div().into_any_element(),
         });
         v_flex()
             .min_w_0()

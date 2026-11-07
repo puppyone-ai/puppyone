@@ -40,8 +40,9 @@ const MAX_ACTIVITY_TEXT: usize = 64 * 1024;
 
 /// `agentProjectionLimits`.
 pub mod limits {
+    #[cfg(test)]
     pub const MAX_MESSAGE_TEXT: usize = super::MAX_MESSAGE_TEXT;
-    pub const MAX_COMMAND_OUTPUT: usize = super::MAX_COMMAND_OUTPUT;
+    #[cfg(test)]
     pub const MAX_ACTIVITY_TEXT: usize = super::MAX_ACTIVITY_TEXT;
 }
 

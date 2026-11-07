@@ -50,9 +50,9 @@ pub enum Command {
     Feedback,
     // The Header opens its menus directly; capture scenarios and tests
     // drive them through these commands.
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(any(test, feature = "dev-capture"))]
     ProjectMenu,
-    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    #[cfg(any(test, feature = "dev-capture"))]
     LocationMenu,
     Home,
     Escape,

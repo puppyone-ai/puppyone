@@ -107,7 +107,6 @@ pub fn fake_spawner(exits_on_kill: bool) -> (Spawner, FakeChild) {
                 }
                 true
             }),
-            pid: None,
         })
     });
     (spawner, child)

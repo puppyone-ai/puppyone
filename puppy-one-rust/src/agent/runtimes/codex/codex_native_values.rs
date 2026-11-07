@@ -293,11 +293,3 @@ pub fn to_iso_from_seconds(value: Option<&Value>) -> String {
         _ => clock::now_iso(),
     }
 }
-
-/// `boundedPageSize(value)`.
-pub fn bounded_page_size(value: Option<&Value>) -> i64 {
-    match value.and_then(js::safe_integer) {
-        Some(n) if n > 0 => n.min(100),
-        _ => 50,
-    }
-}

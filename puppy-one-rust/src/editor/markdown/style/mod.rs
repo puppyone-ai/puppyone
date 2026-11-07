@@ -21,8 +21,7 @@ mod surface;
 pub use block::BlockStyle;
 pub use blockquote::QuoteStyle;
 pub use body::BodyStyle;
-#[allow(unused_imports)]
-pub use heading::{HeadingLevel, HeadingStyle};
+pub use heading::HeadingStyle;
 pub use inline::InlineStyle;
 pub use list::ListStyle;
 pub use surface::SurfaceStyle;

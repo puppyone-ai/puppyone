@@ -1,13 +1,18 @@
 //! Viewer Pack manifests, API v1: the strict validation of
 //! `electron/main/viewer-packs/manifest-schema.mjs`, so a pack the product
 //! accepts is accepted here and nothing else is.
+#[cfg(test)]
 use serde_json::Value;
+#[cfg(test)]
 use std::collections::BTreeSet;
 
+#[cfg(test)]
 pub const VIEWER_API_VERSION: &str = "1";
+#[cfg(test)]
 pub const SCHEMA_VERSION: u64 = 1;
 
 /// Core viewer ids a pack may never claim as its own.
+#[cfg(test)]
 const RESERVED_CORE_VIEWER_IDS: &[&str] = &[
     "app-preview",
     "markdown",
@@ -26,7 +31,9 @@ const RESERVED_CORE_VIEWER_IDS: &[&str] = &[
     "plain-text",
     "markdown-editor",
 ];
+#[cfg(test)]
 const ALLOWED_RUNTIME: &[&str] = &["worker", "webgl", "webgpu", "wasm"];
+#[cfg(test)]
 const ALLOWED_SOURCE: &[&str] = &["range-resource", "resource", "none"];
 
 /// `ViewerPackFormatContribution`.
@@ -52,6 +59,7 @@ pub struct PackViewer {
 }
 
 /// A validated `ViewerPackManifest`.
+#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackManifest {
     pub id: String,
@@ -66,6 +74,7 @@ pub struct PackManifest {
     pub current_document: Vec<String>,
 }
 
+#[cfg(test)]
 fn is_id(id: &str) -> bool {
     // `^[a-z][a-z0-9-]{0,62}(?:\.[a-z0-9][a-z0-9-]{0,62}){1,7}$`
     let parts: Vec<&str> = id.split('.').collect();
@@ -87,6 +96,7 @@ fn is_id(id: &str) -> bool {
         && part(parts[0], true)
         && parts[1..].iter().all(|p| part(p, false))
 }
+#[cfg(test)]
 fn matches_class(
     text: &str,
     first: impl Fn(char) -> bool,
@@ -96,6 +106,7 @@ fn matches_class(
     let mut chars = text.chars();
     chars.next().is_some_and(first) && text.len() <= max && chars.all(rest)
 }
+#[cfg(test)]
 fn is_publisher(p: &str) -> bool {
     // `^[a-z0-9][a-z0-9._-]{1,127}$`
     p.len() >= 2
@@ -106,6 +117,7 @@ fn is_publisher(p: &str) -> bool {
             128,
         )
 }
+#[cfg(test)]
 fn is_format_id(id: &str) -> bool {
     matches_class(
         id,
@@ -114,6 +126,7 @@ fn is_format_id(id: &str) -> bool {
         64,
     )
 }
+#[cfg(test)]
 fn is_extension(e: &str) -> bool {
     // `^\.[a-z0-9][a-z0-9._+-]{0,63}$`
     e.strip_prefix('.').is_some_and(|rest| {
@@ -125,6 +138,7 @@ fn is_extension(e: &str) -> bool {
         )
     })
 }
+#[cfg(test)]
 fn is_mime(m: &str) -> bool {
     let token = |t: &str| {
         !t.is_empty()
@@ -133,6 +147,7 @@ fn is_mime(m: &str) -> bool {
     };
     m.split_once('/').is_some_and(|(a, b)| token(a) && token(b))
 }
+#[cfg(test)]
 fn is_category(c: &str) -> bool {
     matches_class(
         c,
@@ -141,15 +156,18 @@ fn is_category(c: &str) -> bool {
         32,
     )
 }
+#[cfg(test)]
 fn is_display(text: &str, max: usize) -> bool {
     !text.trim().is_empty() && text.chars().count() <= max && !text.chars().any(|c| c.is_control())
 }
 /// `semver.valid(v) === v`: canonical versions only.
+#[cfg(test)]
 pub fn is_version(version: &str) -> bool {
     semver::Version::parse(version).is_ok_and(|v| v.to_string() == version)
 }
 
 /// `normalizePackRelativePath`.
+#[cfg(test)]
 pub fn normalize_relative_path(value: &str) -> Result<String, &'static str> {
     if value.trim().is_empty() || value.len() > 512 {
         return Err("empty-or-too-long");
@@ -172,6 +190,7 @@ pub fn normalize_relative_path(value: &str) -> Result<String, &'static str> {
 
 /// An npm version range (`>=0.1.2 <1.0.0`, `^1.2`, `1.x || 2.x`,
 /// `1.0.0 - 2.0.0`) as the alternatives Rust's `semver` can evaluate.
+#[cfg(test)]
 pub fn host_range(range: &str) -> Option<Vec<semver::VersionReq>> {
     range
         .split("||")
@@ -205,6 +224,7 @@ pub fn host_range(range: &str) -> Option<Vec<semver::VersionReq>> {
 }
 
 /// `checkViewerPackEngineCompatibility`.
+#[cfg(test)]
 pub fn compatible(manifest: &PackManifest, host_version: &str) -> Result<(), &'static str> {
     let host = semver::Version::parse(host_version).map_err(|_| "host-version-invalid")?;
     let range = host_range(&manifest.host_range).ok_or("host-range-invalid")?;
@@ -215,6 +235,7 @@ pub fn compatible(manifest: &PackManifest, host_version: &str) -> Result<(), &'s
     }
 }
 
+#[cfg(test)]
 fn strings(value: &Value) -> Option<Vec<String>> {
     value
         .as_array()?
@@ -222,9 +243,11 @@ fn strings(value: &Value) -> Option<Vec<String>> {
         .map(|v| v.as_str().map(str::to_owned))
         .collect()
 }
+#[cfg(test)]
 fn unique(values: &[String]) -> bool {
     values.iter().collect::<BTreeSet<_>>().len() == values.len()
 }
+#[cfg(test)]
 fn reject_unknown(value: &Value, allowed: &[&str], code: &str, errors: &mut Vec<String>) {
     if value
         .as_object()
@@ -236,6 +259,7 @@ fn reject_unknown(value: &Value, allowed: &[&str], code: &str, errors: &mut Vec<
 
 /// `validateViewerPackManifest`: every rule failing is reported, codes as
 /// the product's.
+#[cfg(test)]
 pub fn validate(raw: &Value) -> Result<PackManifest, Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
     if !raw.is_object() {

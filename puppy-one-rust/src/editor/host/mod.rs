@@ -113,7 +113,7 @@ impl DocumentEditor {
     }
 
     /// Install the host port for external Viewer Packs.
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(test)]
     pub fn set_extension_host(&mut self, host: Option<ExtensionHost>) {
         self.extensions = host;
     }

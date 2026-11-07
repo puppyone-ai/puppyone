@@ -2,7 +2,9 @@
 //! joined with the durable metadata-only native-session catalog. The event
 //! cache wins while the process is alive; the catalog is the restart
 //! boundary and never receives transcript payloads.
-use super::agent_conversation_catalog::{AgentConversationCatalog, ReconcileScope};
+use super::agent_conversation_catalog::AgentConversationCatalog;
+#[cfg(test)]
+use super::agent_conversation_catalog::ReconcileScope;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::application::ports::{HistoryCatalog, Pending, SessionCache};
 use crate::agent::cache::ephemeral_agent_session_cache::EphemeralAgentSessionCache;
@@ -39,12 +41,8 @@ impl AgentSessionRepository {
         catalogued
     }
 
-    /// `repository.upsertNative(record)`.
-    pub async fn upsert_native(&self, record: &Value) -> AgentResult<Value> {
-        self.catalog.upsert_native(record).await
-    }
-
     /// `repository.reconcileNative(scope)`.
+    #[cfg(test)]
     pub async fn reconcile_native(&self, scope: ReconcileScope) -> AgentResult<Value> {
         self.catalog.reconcile_native(scope).await
     }
@@ -108,6 +106,7 @@ impl AgentSessionRepository {
     }
 
     /// `repository.list(workspaceRoot, options)`.
+    #[cfg(test)]
     pub async fn list(
         &self,
         workspace_root: Option<&str>,
@@ -132,16 +131,6 @@ impl AgentSessionRepository {
             self.catalog.remove(session_id),
         );
         removed.map(drop)
-    }
-
-    /// `repository.readAll()`.
-    pub async fn read_all(&self) -> Vec<Value> {
-        self.event_cache.read_all().await
-    }
-
-    /// `repository.clear()`.
-    pub fn clear(&self) {
-        self.event_cache.clear();
     }
 }
 

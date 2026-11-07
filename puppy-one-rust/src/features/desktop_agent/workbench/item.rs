@@ -240,7 +240,7 @@ impl WorkbenchItem for AgentChatItem {
                 }
             };
             match event {
-                AgentChatPanelEvent::Presentation(_) => cx.notify(),
+                AgentChatPanelEvent::Presentation => cx.notify(),
                 AgentChatPanelEvent::OpenModelConnections => {
                     cx.emit(WorkbenchEvent::OpenModelConnections)
                 }

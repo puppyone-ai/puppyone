@@ -23,7 +23,8 @@ use std::rc::Rc;
 /// `DiffViewerContribution`. Every native renderer reads the Git patch;
 /// the Word redline would need the revision pair (`resource-pair`).
 pub struct DiffViewer {
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// `DiffViewerContribution.id`, which tests name.
+    #[cfg(test)]
     pub id: &'static str,
     matches: fn(&FileDiff, &FileFormat) -> bool,
     /// The product's renderer exists natively; others are passed over.
@@ -36,18 +37,21 @@ static VIEWERS: [DiffViewer; 3] = [
     // The Word redline needs the OpenXML revision pair and its worker; the
     // native build summarises Word files like any other binary for now.
     DiffViewer {
+        #[cfg(test)]
         id: "docx-redline",
         matches: |_, format| format.id == "docx",
         native: false,
         rows: binary_summary::rows,
     },
     DiffViewer {
+        #[cfg(test)]
         id: "text-unified",
         matches: |file, format| !file.binary && (format.is_text_like() || !file.lines.is_empty()),
         native: true,
         rows: text_unified::rows,
     },
     DiffViewer {
+        #[cfg(test)]
         id: "binary-summary",
         matches: |_, _| true,
         native: true,

@@ -60,8 +60,8 @@ pub struct AgentChatTabPresentation {
 
 /// Events for the hosting Workbench item.
 pub enum AgentChatPanelEvent {
-    /// `onPresentationChange`.
-    Presentation(AgentChatTabPresentation),
+    /// `onPresentationChange`: [`AgentChatTabPanel::presentation`] changed.
+    Presentation,
     /// `onOpenFile(path)`.
     OpenFile(String),
     /// `onOpenModelConnections`.
@@ -405,7 +405,7 @@ impl AgentChatTabPanel {
             let presentation = hosted::hosted_presentation(&chat.snapshot(), &chat.hub().history());
             if self.last_presentation.as_ref() != Some(&presentation) {
                 self.last_presentation = Some(presentation.clone());
-                cx.emit(AgentChatPanelEvent::Presentation(presentation));
+                cx.emit(AgentChatPanelEvent::Presentation);
             }
             self.refresh_transcript(&state, &view);
             self.sync_stream_presentation(cx);
@@ -439,7 +439,7 @@ impl AgentChatTabPanel {
         };
         if self.last_presentation.as_ref() != Some(&presentation) {
             self.last_presentation = Some(presentation.clone());
-            cx.emit(AgentChatPanelEvent::Presentation(presentation));
+            cx.emit(AgentChatPanelEvent::Presentation);
         }
         self.refresh_transcript(&state, &view);
         self.sync_stream_presentation(cx);

@@ -170,7 +170,6 @@ pub fn native_kernel_spawner(complete: Complete) -> Spawner {
                     }
                 }),
                 kill: Rc::new(move |_force| stop.send(true).is_ok()),
-                pid: None,
             })
         },
     )

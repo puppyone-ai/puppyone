@@ -1306,50 +1306,6 @@ fn reuses_discovery_on_remounts_and_lets_refresh_bypass_the_cache() {
 }
 
 #[test]
-fn discovers_local_tools_only_when_the_provider_surface_requests_them() {
-    run(async {
-        let f = bridge_fixture(json!({}));
-        f.bridge.resolve(
-            "discoverLocalAgentConnections",
-            json!({
-                "connections": [{
-                    "id": "codex", "displayName": "Codex CLI", "installation": "detected", "version": "0.144.1",
-                    "authentication": "signed-in", "integration": "bridge-required",
-                    "capabilities": { "versionProbe": true, "authenticationProbe": true, "protocolProbe": true },
-                    "selectable": false, "statusMessage": "Direct Codex sessions are not enabled.",
-                    "actions": [{ "id": "refresh", "label": "Refresh" }], "source": "user-installation",
-                }],
-                "scannedAt": "2026-07-12T00:00:00.000Z",
-                "warnings": [],
-            }),
-        );
-        let controller = f.controller();
-        controller.initialize(false).await.expect("initialize");
-        assert_eq!(f.bridge.count("discoverLocalAgentConnections"), 0);
-        controller.discover_local_connections(false).await;
-        assert_eq!(
-            f.bridge.calls("discoverLocalAgentConnections"),
-            vec![json!({ "rootPath": ROOT, "refresh": false })]
-        );
-        assert_match(
-            &state(&controller),
-            &json!({ "localConnectionsPhase": "ready", "localConnectionsScannedAt": "2026-07-12T00:00:00.000Z" }),
-        );
-        let connections = controller.get_snapshot().local_connections;
-        assert_eq!(connections.len(), 1);
-        assert_match(
-            &j(&connections[0]),
-            &json!({ "id": "codex", "selectable": false }),
-        );
-        controller.discover_local_connections(true).await;
-        assert_eq!(
-            f.bridge.last_call("discoverLocalAgentConnections"),
-            Some(json!({ "rootPath": ROOT, "refresh": true }))
-        );
-    });
-}
-
-#[test]
 fn delegates_queue_admission_to_the_main_command_transaction() {
     run(async {
         let f = bridge_fixture(json!({ "queue": true }));

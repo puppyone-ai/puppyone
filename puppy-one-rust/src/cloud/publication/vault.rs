@@ -1,6 +1,7 @@
 //! `cloud-publish-secret-vault.mjs`: the operation's Git credential secret,
 //! kept only in the system keychain under an opaque reference. The journal
 //! stores the reference, never the secret.
+#[cfg(test)]
 use std::{collections::HashMap, sync::Mutex};
 
 pub trait SecretVault: Send + Sync {
@@ -54,8 +55,10 @@ impl SecretVault for Keychain {
 }
 
 /// Tests: an in-memory vault.
+#[cfg(test)]
 #[derive(Default)]
 pub struct Memory(pub Mutex<HashMap<String, String>>);
+#[cfg(test)]
 impl SecretVault for Memory {
     fn put(&self, reference: &str, secret: &str) -> Result<(), String> {
         self.0

@@ -85,6 +85,7 @@ impl AgentReferenceDraftManager {
         self.0.epoch.borrow().clone()
     }
 
+    #[cfg(feature = "dev-capture")]
     pub fn restore_epoch(&self, epoch: &str) -> AgentResult<()> {
         static EPOCH: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]{1,160}$").expect("epoch"));
@@ -96,6 +97,7 @@ impl AgentReferenceDraftManager {
     }
 
     /// `captureAcquisition()`: whether no reset happened since.
+    #[cfg(test)]
     pub fn capture_acquisition(&self) -> impl Fn() -> bool + 'static {
         let generation = self.0.acquisition_generation.get();
         let inner = Rc::downgrade(&self.0);
@@ -315,6 +317,7 @@ impl AgentReferenceDraftManager {
         detach(&inner.options.runtime, inner.revoke(vec![reference]));
     }
 
+    #[cfg(test)]
     pub fn retry(&self, id: &str) {
         let inner = self.0.clone();
         let references = inner.options.store.read(|state| state.references.clone());

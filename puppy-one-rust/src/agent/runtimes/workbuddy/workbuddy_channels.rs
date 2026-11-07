@@ -1,5 +1,4 @@
 //! `runtimes/workbuddy/workbuddy-channels.mjs`.
-use crate::agent::agent_error::AgentError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WorkBuddyChannel {
@@ -37,22 +36,3 @@ pub const WORKBUDDY_INTERNATIONAL_CHANNEL: WorkBuddyChannel = WorkBuddyChannel {
 
 pub const WORKBUDDY_CHANNELS: [WorkBuddyChannel; 2] =
     [WORKBUDDY_CHINA_CHANNEL, WORKBUDDY_INTERNATIONAL_CHANNEL];
-
-/// `requireWorkBuddyChannel(value)`.
-pub fn require_work_buddy_channel(runtime_id: &str) -> Result<WorkBuddyChannel, AgentError> {
-    WORKBUDDY_CHANNELS
-        .iter()
-        .find(|channel| channel.id == runtime_id)
-        .copied()
-        .ok_or_else(|| {
-            AgentError::new(format!(
-                "Unknown WorkBuddy product channel: {}",
-                if runtime_id.is_empty() {
-                    "missing"
-                } else {
-                    runtime_id
-                }
-            ))
-            .with_name("TypeError")
-        })
-}

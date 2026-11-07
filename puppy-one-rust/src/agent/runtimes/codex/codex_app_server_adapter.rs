@@ -336,12 +336,8 @@ impl CodexAppServerAdapter {
         }))
     }
 
-    /// `adapter.threadId`.
-    pub fn thread_id(&self) -> Option<String> {
-        self.0.thread_id.borrow().clone()
-    }
-
     /// `adapter.activeTurnId`.
+    #[cfg(test)]
     pub fn active_turn_id(&self) -> Option<String> {
         self.0.active_turn_id.borrow().clone()
     }
@@ -608,6 +604,7 @@ impl CodexAppServerAdapter {
     }
 
     /// `adapter.readHistory()`.
+    #[cfg(test)]
     pub async fn read_history(&self) -> AgentResult<Vec<Value>> {
         let result = self.read_history_result().await?;
         Ok(result["events"].as_array().cloned().unwrap_or_default())

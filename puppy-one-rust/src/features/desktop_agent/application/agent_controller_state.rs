@@ -7,21 +7,27 @@
 //! to `null`/`undefined`.
 use super::agent_error::ErrorDescriptor;
 use crate::agent::contract::dto::{
-    AgentProjection, Capability, DraftReference, LocalConnection, PromptMention, RuntimeInspection,
-    SessionControl, SessionMetadata, SubmissionIntent,
+    AgentProjection, Capability, DraftReference, PromptMention, RuntimeInspection, SessionControl,
+    SessionMetadata, SubmissionIntent,
 };
 use std::rc::Rc;
+
+/// A state the product spells as a string (`"idle"`, `"live"`).
+pub trait StateName: Sized {
+    fn as_str(self) -> &'static str;
+    fn parse(value: &str) -> Option<Self>;
+}
 
 macro_rules! string_enum {
     ($(#[$meta:meta])* $name:ident { $($variant:ident = $text:literal),* $(,)? }) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum $name { $($variant),* }
-        impl $name {
-            pub fn as_str(self) -> &'static str {
+        impl StateName for $name {
+            fn as_str(self) -> &'static str {
                 match self { $(Self::$variant => $text),* }
             }
-            pub fn parse(value: &str) -> Option<Self> {
+            fn parse(value: &str) -> Option<Self> {
                 match value { $($text => Some(Self::$variant),)* _ => None }
             }
         }
@@ -90,11 +96,6 @@ string_enum!(
 );
 
 string_enum!(
-    /// `AgentControllerState["localConnectionsPhase"]`.
-    LocalConnectionsPhase { Idle = "idle", Loading = "loading", Ready = "ready", Error = "error" }
-);
-
-string_enum!(
     /// `stopRequest.status`.
     StopRequestStatus { Sending = "sending", Accepted = "accepted", Unconfirmed = "unconfirmed" }
 );
@@ -136,10 +137,6 @@ pub struct AgentControllerState {
     pub selected_model: Option<String>,
     pub selected_effort: Option<String>,
     pub selected_mode: Option<String>,
-    pub local_connections: Vec<LocalConnection>,
-    pub local_connections_phase: LocalConnectionsPhase,
-    pub local_connections_scanned_at: Option<String>,
-    pub local_connections_error: Option<ErrorDescriptor>,
     pub draft: String,
     /// Atomic file-reference spans inside draft. Images remain media
     /// references.
@@ -176,10 +173,6 @@ impl Default for AgentControllerState {
             selected_model: None,
             selected_effort: None,
             selected_mode: None,
-            local_connections: Vec::new(),
-            local_connections_phase: LocalConnectionsPhase::Idle,
-            local_connections_scanned_at: None,
-            local_connections_error: None,
             draft: String::new(),
             draft_mentions: Vec::new(),
             pending_prompt: None,
@@ -237,11 +230,6 @@ macro_rules! state_patch {
                     self
                 }
             )*
-            /// `{ ...this, ...other }`.
-            pub fn and(mut self, other: StatePatch) -> Self {
-                $(if other.$field.is_some() { self.$field = other.$field; })*
-                self
-            }
             /// `{ ...state, ...patch }`.
             pub fn apply_to(self, state: &mut AgentControllerState) {
                 $(if let Some(value) = self.$field { state.$field = value; })*
@@ -262,10 +250,6 @@ state_patch!(
     selected_model: Option<String>,
     selected_effort: Option<String>,
     selected_mode: Option<String>,
-    local_connections: Vec<LocalConnection>,
-    local_connections_phase: LocalConnectionsPhase,
-    local_connections_scanned_at: Option<String>,
-    local_connections_error: Option<ErrorDescriptor>,
     draft: String,
     draft_mentions: Vec<PromptMention>,
     pending_prompt: Option<String>,

@@ -83,7 +83,7 @@ impl ViewerRegistry {
             fallback,
         })
     }
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(test)]
     pub fn fallback(&self) -> &PresetViewer {
         &self.fallback
     }
@@ -115,7 +115,6 @@ impl Resolved {
         ViewerMatch {
             document,
             format: self.format,
-            resolved_extension: self.resolved_extension.as_deref(),
         }
     }
 }
@@ -130,11 +129,7 @@ pub fn resolve(document: &EditorDocument) -> Resolved {
     let format = formats::resolve(Some(format_path), document.mime.as_deref());
     let resolved_extension =
         formats::resolved_extension(Some(&document.name), document.mime.as_deref(), format);
-    let m = ViewerMatch {
-        document,
-        format,
-        resolved_extension: resolved_extension.as_deref(),
-    };
+    let m = ViewerMatch { document, format };
     Resolved {
         viewer: registry().resolve(&m),
         format,

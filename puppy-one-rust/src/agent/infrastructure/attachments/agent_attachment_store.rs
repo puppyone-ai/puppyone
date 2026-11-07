@@ -29,9 +29,13 @@ const COPY_CHUNK_BYTES: usize = 64 * 1024;
 
 /// `agentAttachmentStoreLimits`.
 pub mod limits {
+    #[cfg(test)]
     pub const MAX_REFERENCES: usize = super::MAX_REFERENCES;
+    #[cfg(test)]
     pub const MAX_REFERENCE_BYTES: u64 = super::MAX_REFERENCE_BYTES;
+    #[cfg(test)]
     pub const MAX_TOTAL_REFERENCE_BYTES: u64 = super::MAX_TOTAL_REFERENCE_BYTES;
+    #[cfg(test)]
     pub const DEFAULT_TTL_MS: i64 = super::DEFAULT_TTL_MS;
 }
 
@@ -701,6 +705,7 @@ impl AgentAttachmentStore {
     }
 
     /// `store.revokeWorkspace(ownerId, workspaceRoot)`.
+    #[cfg(test)]
     pub fn revoke_workspace(&self, owner_id: i64, workspace_root: &str) -> AgentResult<()> {
         owner(Some(&Value::from(owner_id)))?;
         workspace(Some(&Value::from(workspace_root)))?;

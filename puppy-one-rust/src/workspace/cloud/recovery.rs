@@ -10,7 +10,6 @@
 //! missing projects, changed sessions and cancellations are not retried.
 // Consumed by the Cloud navigation surface (Homepage catalog, Header switch,
 // Share), which stays behind the Cloud experiment until its UI lands.
-#![cfg_attr(not(test), allow(dead_code))]
 use crate::cloud::auth::Error as AuthError;
 use std::time::{Duration, Instant};
 

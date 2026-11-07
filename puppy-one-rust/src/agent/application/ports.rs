@@ -38,8 +38,8 @@ pub trait SessionCache {
         workspace_root: String,
         runtime_id: Option<String>,
     ) -> Pending<Option<Value>>;
-    #[cfg(test)]
     /// `cache.list(workspaceRoot, options)`.
+    #[cfg(test)]
     fn list(&self, workspace_root: String, options: Value) -> Pending<Vec<Value>>;
     /// `cache.archive(sessionId, archivedAt)`.
     fn archive(&self, session_id: String, archived_at: String) -> Pending<()>;
@@ -101,8 +101,8 @@ pub trait AttachmentStore {
     fn revoke_owner(&self, _owner_id: u64) -> Pending<()> {
         unsupported("revokeOwner")
     }
-    #[cfg(test)]
     /// `store.revokeWorkspace(ownerId, workspaceRoot)`.
+    #[cfg(test)]
     fn revoke_workspace(&self, _owner_id: u64, _workspace_root: String) -> Pending<()> {
         unsupported("revokeWorkspace")
     }

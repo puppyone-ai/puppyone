@@ -16,7 +16,6 @@ use serde_json::{Value, json};
 pub struct PendingApproval {
     pub rpc_id: Value,
     pub request_id: String,
-    pub kind: &'static str,
     pub thread_id: String,
     pub turn_id: String,
     pub item_id: String,
@@ -30,7 +29,6 @@ pub struct PendingQuestion {
     pub request_id: String,
     pub thread_id: String,
     pub turn_id: String,
-    pub item_id: String,
     pub questions: Vec<Value>,
 }
 
@@ -202,7 +200,6 @@ pub fn codex_handle_server_request(adapter: &Inner, message: &Value) {
         .push(PendingApproval {
             rpc_id: id,
             request_id: request_id.clone(),
-            kind,
             thread_id: thread_id.clone(),
             turn_id: turn_id.clone(),
             item_id: item_id.clone(),
@@ -279,7 +276,6 @@ pub fn codex_handle_question_request(adapter: &Inner, id: Value, params: &Value)
             request_id: request_id.clone(),
             thread_id: thread_id.clone(),
             turn_id: turn_id.clone(),
-            item_id: item_id.clone(),
             questions: questions.clone(),
         });
     let public: Vec<Value> = questions

@@ -92,7 +92,6 @@ pub struct ProcessIo {
     >,
     /// Signals the process (group); `true` forces it.
     pub kill: Rc<dyn Fn(bool) -> bool>,
-    pub pid: Option<u32>,
 }
 
 /// Launches the native process for a connection.
@@ -160,7 +159,6 @@ pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<Process
             }
         }),
         kill: Rc::new(move |force| terminate_managed_agent_process(pid, grouped, force)),
-        pid,
     })
 }
 
@@ -187,7 +185,6 @@ struct Inner {
     exit_expected: Cell<bool>,
     close_reason: RefCell<Option<String>>,
     force_kill_timer: RefCell<Option<JoinHandle<()>>>,
-    pid: Option<u32>,
     kill: Rc<dyn Fn(bool) -> bool>,
     writer: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
     queued_bytes: Rc<Cell<usize>>,
@@ -236,7 +233,7 @@ impl JsonlRpcConnection {
         let io = match spawner(&options) {
             Ok(io) => io,
             Err(error) => {
-                let connection = Self::with(&options, None, Rc::new(|_| false));
+                let connection = Self::with(&options, Rc::new(|_| false));
                 // A launch failure arrives as the process `error` event.
                 let target = connection.clone();
                 spawn_local(async move { target.handle_exit(None, None, Some(error)) });
@@ -249,9 +246,9 @@ impl JsonlRpcConnection {
             mut stderr,
             exit,
             kill,
-            pid,
+            ..
         } = io;
-        let connection = Self::with(&options, pid, kill);
+        let connection = Self::with(&options, kill);
         let (writer, mut lines) = mpsc::unbounded_channel::<Vec<u8>>();
         *connection.0.writer.borrow_mut() = Some(writer);
         {
@@ -323,7 +320,7 @@ impl JsonlRpcConnection {
         Ok(connection)
     }
 
-    fn with(options: &ConnectionOptions, pid: Option<u32>, kill: Rc<dyn Fn(bool) -> bool>) -> Self {
+    fn with(options: &ConnectionOptions, kill: Rc<dyn Fn(bool) -> bool>) -> Self {
         let next_request_id = Rc::new(Cell::new(1u64));
         let issued = next_request_id.clone();
         let inner = Inner {
@@ -348,7 +345,6 @@ impl JsonlRpcConnection {
             exit_expected: Cell::new(false),
             close_reason: RefCell::new(None),
             force_kill_timer: RefCell::new(None),
-            pid,
             kill,
             writer: RefCell::new(None),
             queued_bytes: Rc::default(),
@@ -394,15 +390,6 @@ impl JsonlRpcConnection {
     /// `connection.exitInfo`.
     pub fn exit_info(&self) -> Option<Value> {
         self.0.exit_info.borrow().clone()
-    }
-
-    /// The native process id (for supervision).
-    pub fn pid(&self) -> Option<u32> {
-        self.0.pid
-    }
-
-    pub fn pending_count(&self) -> usize {
-        self.0.requests.pending_count()
     }
 
     /// `connection.request(method, params, options)`.

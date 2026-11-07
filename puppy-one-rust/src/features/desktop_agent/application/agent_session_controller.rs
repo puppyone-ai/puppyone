@@ -7,8 +7,8 @@
 use super::agent_client_port::{AgentClient as _, AgentClientProvider, AgentFile, require_bridge};
 use super::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryPolicy,
-    AgentSessionPreparation, ReplicaStatus, StatePatch, StopRequest, StopRequestStatus,
-    agent_controller_transitions,
+    AgentSessionPreparation, ReplicaStatus, StateName as _, StatePatch, StopRequest,
+    StopRequestStatus, agent_controller_transitions,
 };
 use super::agent_controller_values::{choose_agent_effort, choose_agent_mode};
 use super::agent_error::{create_agent_error, format_agent_error, known_error_code};
@@ -25,8 +25,9 @@ use super::agent_session_replica::AgentSessionReplica;
 use super::agent_turn_submission_coordinator::{
     AgentTurnSubmissionCoordinator, AgentTurnSubmissionCoordinatorOptions,
 };
-use super::local_agent_connection_loader::LocalAgentConnectionLoader;
-use super::session_ui_state_store::{SessionUiPatch, SessionUiState, SessionUiStateStore};
+#[cfg(test)]
+use super::session_ui_state_store::SessionUiState;
+use super::session_ui_state_store::{SessionUiPatch, SessionUiStateStore};
 use super::ui_runtime::{Task, UiRuntime, detach, launch, random_uuid, resolved, start, unstarted};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::constants::AGENT_IDLE_DISCONNECT_REASON;
@@ -40,9 +41,10 @@ use crate::agent::contract::protocol::{
 };
 use crate::features::desktop_agent::domain::agent_provider_routing::{
     agent_provider_id_for_model, agent_provider_id_for_selection, choose_agent_model,
-    choose_agent_provider, list_agent_inference_providers,
+    choose_agent_provider,
 };
 use crate::features::desktop_agent::domain::agent_session_open_error::agent_session_open_error;
+#[cfg(test)]
 use crate::features::desktop_agent::domain::agent_ui_state::AgentViewportGeometry;
 use crate::features::session_transport::managed_operation_scope::{
     ManagedOperationScope, wait_for_scoped_operation,
@@ -98,6 +100,7 @@ impl AgentControllerStore {
     }
 
     /// Increments with every published state (`getSnapshot()` identity).
+    #[cfg(test)]
     pub fn revision(&self) -> u64 {
         self.revision.get()
     }
@@ -241,6 +244,7 @@ fn derive_control_replica_state(state: &mut AgentControllerState) {
 }
 
 /// `exportDisplayDraft()`.
+#[cfg(feature = "dev-capture")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DisplayDraft {
     pub text: String,
@@ -261,7 +265,6 @@ struct Inner {
     session_replica: AgentSessionReplica,
     initialize_promise: RefCell<Option<(u64, Task<AgentResult<()>>)>>,
     session_ui: RefCell<SessionUiStateStore>,
-    local_connection_loader: LocalAgentConnectionLoader,
     session_lifecycle: AgentSessionLifecycle,
     session_preparer: AgentSessionPreparer,
     reference_drafts: AgentReferenceDraftManager,
@@ -301,12 +304,6 @@ impl AgentSessionController {
                     Err(error) => Box::pin(async move { Err(error) }),
                 })
             };
-            let local_connection_loader = LocalAgentConnectionLoader::new(
-                workspace_root,
-                bridge_provider.clone(),
-                store.clone(),
-                runtime.clone(),
-            );
             let reference_drafts =
                 AgentReferenceDraftManager::new(AgentReferenceDraftManagerOptions {
                     workspace_root: workspace_root.to_string(),
@@ -392,7 +389,6 @@ impl AgentSessionController {
                 session_replica,
                 initialize_promise: RefCell::default(),
                 session_ui: RefCell::default(),
-                local_connection_loader,
                 session_lifecycle,
                 session_preparer,
                 reference_drafts,
@@ -414,11 +410,8 @@ impl AgentSessionController {
         Rc::ptr_eq(&self.0, &other.0)
     }
 
-    pub fn workspace_root(&self) -> &str {
-        &self.0.workspace_root
-    }
-
     /// The state store (`getSnapshot`, `subscribe`).
+    #[cfg(test)]
     pub fn store(&self) -> &Rc<AgentControllerStore> {
         &self.0.store
     }
@@ -448,35 +441,7 @@ impl AgentSessionController {
         self.0.initialize_runtime(refresh, true)
     }
 
-    /// Discover the runtime catalog without implicitly restoring any
-    /// conversation.
-    pub fn inspect_runtimes(&self, refresh: bool) -> Task<AgentResult<()>> {
-        self.0.initialize_runtime(refresh, false)
-    }
-
-    /// Rebuilds only the display replica; never creates/resumes a native
-    /// session.
-    pub fn attach_live_session(&self, session_id: &str, runtime_id: &str) -> Task<AgentResult<()>> {
-        let inner = self.0.clone();
-        let initialize = inner.initialize_for_runtime(runtime_id);
-        let session_id = session_id.to_string();
-        start(&self.0.runtime, async move {
-            initialize.await?;
-            inner.session_replica.connect();
-            let Some(snapshot) = inner.session_replica.attach_session(&session_id).await? else {
-                return Err(AgentError::new(
-                    "The live Agent session is unavailable for display recovery.",
-                ));
-            };
-            inner.apply_snapshot_state(&snapshot)?;
-            inner
-                .session_replica
-                .activate_session_feed(&session_id)
-                .await;
-            Ok(())
-        })
-    }
-
+    #[cfg(feature = "dev-capture")]
     pub fn export_display_draft(&self) -> DisplayDraft {
         let inner = &self.0;
         inner.store.read(|state| DisplayDraft {
@@ -492,6 +457,7 @@ impl AgentSessionController {
         })
     }
 
+    #[cfg(feature = "dev-capture")]
     pub fn restore_display_draft(&self, draft: DisplayDraft) -> AgentResult<()> {
         self.0
             .reference_drafts
@@ -505,6 +471,7 @@ impl AgentSessionController {
 
     /// Selects a creation recipe before first discovery without restoring
     /// history.
+    #[cfg(test)]
     pub fn initialize_for_runtime(&self, runtime_id: &str) -> Task<AgentResult<bool>> {
         self.0.initialize_for_runtime(runtime_id)
     }
@@ -528,10 +495,6 @@ impl AgentSessionController {
         });
     }
 
-    pub fn discover_local_connections(&self, refresh: bool) -> Task<()> {
-        self.0.local_connection_loader.discover(refresh)
-    }
-
     /// Refresh setup/catalog UI without resuming or replacing a live native
     /// session.
     pub fn refresh_model_connections(&self) -> Task<()> {
@@ -548,10 +511,6 @@ impl AgentSessionController {
         runtime_id: &str,
     ) -> Task<AgentResult<bool>> {
         self.0.open_saved_session(session_id, runtime_id)
-    }
-
-    pub fn select_provider(&self, provider_id: Option<&str>) -> Option<String> {
-        self.0.select_provider(provider_id)
     }
 
     pub fn select_model(&self, model: Option<&str>) {
@@ -574,6 +533,7 @@ impl AgentSessionController {
         self.0.select_mode(mode);
     }
 
+    #[cfg(test)]
     pub fn set_draft(&self, draft: &str) {
         self.0.set_draft_document(draft, &[]);
     }
@@ -596,10 +556,6 @@ impl AgentSessionController {
         self.0.reference_drafts.preview_url(id)
     }
 
-    pub fn capture_reference_acquisition(&self) -> impl Fn() -> bool + 'static {
-        self.0.reference_drafts.capture_acquisition()
-    }
-
     pub fn pick_workspace_references(&self) -> Task<AgentResult<usize>> {
         self.0.reference_drafts.pick_workspace_references()
     }
@@ -616,14 +572,7 @@ impl AgentSessionController {
         self.0.reference_drafts.remove(id);
     }
 
-    pub fn retry_reference(&self, id: &str) {
-        self.0.reference_drafts.retry(id);
-    }
-
-    pub fn append_dropped_text(&self, text: &str) {
-        self.0.append_dropped_text(text);
-    }
-
+    #[cfg(test)]
     pub fn remember_viewport(
         &self,
         scroll_top: f64,
@@ -640,11 +589,13 @@ impl AgentSessionController {
         });
     }
 
+    #[cfg(test)]
     pub fn read_viewport(&self) -> SessionUiState {
         let key = self.0.ui_key();
         self.0.session_ui.borrow_mut().read(&key)
     }
 
+    #[cfg(test)]
     pub fn new_session(&self) -> Task<()> {
         self.0.new_session()
     }
@@ -711,10 +662,6 @@ impl AgentSessionController {
         self.0
             .resolve_interaction(Interaction::Question(resolution))
     }
-
-    pub fn compact_session(&self) -> Task<()> {
-        start(&self.0.runtime, self.0.session_lifecycle.compact_session())
-    }
 }
 
 impl Inner {
@@ -741,7 +688,6 @@ impl Inner {
         self.submission.dispose();
         self.session_preparer.dispose();
         self.session_replica.dispose();
-        self.local_connection_loader.dispose();
         self.session_ui.borrow_mut().clear();
         if !preserve_draft {
             let references = self.read(|state| {
@@ -1231,56 +1177,6 @@ impl Inner {
             }
             Ok(())
         })
-    }
-
-    fn select_provider(&self, provider_id: Option<&str>) -> Option<String> {
-        let state = self.store.snapshot();
-        if state.running_turn_id().is_some()
-            || state
-                .pending_prompt
-                .as_deref()
-                .is_some_and(|p| !p.is_empty())
-        {
-            return state.selected_model;
-        }
-        if state.session.is_some()
-            && state.capability(Capability::ModelConnections)
-            && provider_id.map(str::to_string)
-                != state
-                    .session
-                    .as_ref()
-                    .and_then(|s| s.selected_model.as_deref())
-                    .and_then(agent_provider_id_for_selection)
-        {
-            return state.selected_model;
-        }
-        let selected_provider_id = provider_id
-            .filter(|id| !id.is_empty())
-            .filter(|id| {
-                list_agent_inference_providers(state.inspection.as_ref())
-                    .iter()
-                    .any(|provider| provider.id == *id)
-            })
-            .map(str::to_string);
-        let selected_model = choose_agent_model(
-            state.inspection.as_ref(),
-            None,
-            selected_provider_id.as_deref(),
-        );
-        let entry = find_model(state.inspection.as_ref(), selected_model.as_deref());
-        let invalidated = (selected_provider_id != state.selected_provider_id
-            || selected_model != state.selected_model)
-            && self.session_preparer.invalidate_selection();
-        let mut patch = StatePatch::new()
-            .selected_provider_id(selected_provider_id)
-            .selected_model(selected_model.clone())
-            .selected_effort(choose_agent_effort(entry.as_ref(), None))
-            .error(None);
-        if invalidated {
-            patch = patch.session_preparation(AgentSessionPreparation::Idle);
-        }
-        self.patch(patch);
-        selected_model
     }
 
     fn select_model(&self, model: Option<&str>) {

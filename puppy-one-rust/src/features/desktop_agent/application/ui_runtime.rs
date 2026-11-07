@@ -44,12 +44,15 @@ pub fn set_timeout(
 }
 
 /// The test runtime: a tokio `LocalSet` whose clock may be paused.
+#[cfg(test)]
 pub struct TokioUiRuntime {
     origin_ms: i64,
     origin: tokio::time::Instant,
 }
 
+#[cfg(test)]
 impl TokioUiRuntime {
+    #[cfg(test)]
     pub fn create() -> Rc<dyn UiRuntime> {
         Rc::new(Self {
             origin_ms: crate::clock::now_ms(),
@@ -58,6 +61,7 @@ impl TokioUiRuntime {
     }
 }
 
+#[cfg(test)]
 impl UiRuntime for TokioUiRuntime {
     fn spawn(&self, task: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(task);

@@ -211,14 +211,6 @@ pub struct OpenMarkdownFence {
     pub info: String,
 }
 
-/// `findOpenMarkdownFence(source)`: the CommonMark fence scanner shared by
-/// streaming and bounded head/tail windows.
-pub fn find_open_markdown_fence(source: &str) -> Option<OpenMarkdownFence> {
-    normalize_newlines(source)
-        .split('\n')
-        .fold(None, advance_open_markdown_fence)
-}
-
 /// `advanceOpenMarkdownFence(openFence, line)`.
 pub fn advance_open_markdown_fence(
     open_fence: Option<OpenMarkdownFence>,

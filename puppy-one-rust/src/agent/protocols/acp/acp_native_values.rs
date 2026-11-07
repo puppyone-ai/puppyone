@@ -2,7 +2,6 @@
 //! shapes.
 use super::acp_session_config::ConfigState;
 use crate::agent::agent_error::AgentError;
-use crate::agent::contract::js;
 use crate::agent::contract::native_session_id::native_session_id;
 use crate::clock;
 use crate::text;
@@ -137,26 +136,6 @@ pub fn public_modes(config: &SessionConfig) -> Vec<Value> {
             })
         })
         .collect()
-}
-
-/// `mergeJsonConfig(value, overlay)`: a malformed inherited inline config
-/// is not forwarded into the managed runtime.
-pub fn merge_json_config(value: Option<&str>, overlay: &Value) -> String {
-    let base: Map<String, Value> = value
-        .filter(|v| !v.is_empty())
-        .and_then(|v| serde_json::from_str::<Value>(v).ok())
-        .and_then(|parsed| parsed.as_object().cloned())
-        .unwrap_or_default();
-    let mut merged = base.clone();
-    for (key, entry) in record(Some(overlay)) {
-        merged.insert(key.clone(), entry.clone());
-    }
-    let mut agent = record(base.get("agent")).clone();
-    for (key, entry) in record(overlay.get("agent")) {
-        agent.insert(key.clone(), entry.clone());
-    }
-    merged.insert("agent".into(), Value::Object(agent));
-    js::stringify(&Value::Object(merged))
 }
 
 /// `event(type, providerSessionId, turnId, itemId, payload)`.

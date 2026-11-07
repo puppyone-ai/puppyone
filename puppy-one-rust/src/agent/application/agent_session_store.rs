@@ -270,8 +270,8 @@ impl AgentSessionStore {
         }
     }
 
-    #[cfg(test)]
     /// `store.activeCount()`.
+    #[cfg(test)]
     pub fn active_count(&self) -> usize {
         self.values()
             .iter()
@@ -279,8 +279,8 @@ impl AgentSessionStore {
             .count()
     }
 
-    #[cfg(test)]
     /// `store.size`.
+    #[cfg(test)]
     pub fn size(&self) -> usize {
         self.state.borrow().sessions.len()
     }

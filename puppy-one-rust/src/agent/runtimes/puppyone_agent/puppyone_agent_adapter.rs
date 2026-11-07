@@ -137,11 +137,6 @@ impl PuppyOneAgentAdapter {
         })))
     }
 
-    /// The shared Pi RPC adapter (`super`).
-    pub fn pi(&self) -> &PiRpcRuntimeAdapter {
-        &self.0.pi
-    }
-
     /// `adapter.inspect()`.
     pub async fn inspect_now(&self) -> AgentResult<Value> {
         let inner = &self.0;

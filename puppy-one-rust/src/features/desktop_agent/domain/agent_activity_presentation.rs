@@ -71,32 +71,6 @@ pub fn agent_activity_tool_id<A: ActivityFields + ?Sized>(activity: &A) -> Strin
     if tool.is_empty() { "tool".into() } else { tool }
 }
 
-/// `agentActivityToolName(activity)`: the legacy English presentation the
-/// classification suites read. Product UI uses [`format_agent_tool_name`].
-pub fn agent_activity_tool_name<A: ActivityFields + ?Sized>(activity: &A) -> String {
-    let id = agent_activity_tool_id(activity);
-    let known = match id.as_str() {
-        "bash" => "Bash",
-        "read" => "Read",
-        "write" => "Write",
-        "edit" => "Edit",
-        "glob" => "Glob",
-        "grep" => "Grep",
-        "search" => "Search",
-        "list" => "List",
-        "fetch" => "Fetch",
-        "thinking" => "Thinking",
-        "plan" => "Plan",
-        "tool" => "Tool",
-        _ => "",
-    };
-    if known.is_empty() {
-        title_case(&id)
-    } else {
-        known.into()
-    }
-}
-
 const KNOWN_TOOLS: &[&str] = &[
     "bash", "read", "write", "edit", "glob", "grep", "search", "list", "fetch", "thinking", "plan",
     "tool",

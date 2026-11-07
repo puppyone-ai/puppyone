@@ -1,8 +1,6 @@
 //! `runtimes/workbuddy/workbuddy-runtime-definition.mjs`.
 use super::workbuddy_acp_adapter::work_buddy_acp_adapter;
-use super::workbuddy_channels::{
-    WORKBUDDY_CHINA_CHANNEL, WORKBUDDY_INTERNATIONAL_CHANNEL, WorkBuddyChannel,
-};
+use super::workbuddy_channels::WorkBuddyChannel;
 use super::workbuddy_discovery::{WorkBuddyDiscoveryOptions, create_work_buddy_discovery};
 use super::workbuddy_identity::work_buddy_runtime_identity;
 use crate::agent::protocols::acp::acp_runtime_adapter::Logger;
@@ -35,16 +33,4 @@ pub fn create_work_buddy_runtime_definition(
         }),
         dispose: None,
     }
-}
-
-/// `createWorkBuddyChinaRuntimeDefinition(options)`.
-pub fn create_work_buddy_china_runtime_definition(app_version: Option<&str>) -> RuntimeDefinition {
-    create_work_buddy_runtime_definition(WORKBUDDY_CHINA_CHANNEL, None, None, app_version)
-}
-
-/// `createWorkBuddyInternationalRuntimeDefinition(options)`.
-pub fn create_work_buddy_international_runtime_definition(
-    app_version: Option<&str>,
-) -> RuntimeDefinition {
-    create_work_buddy_runtime_definition(WORKBUDDY_INTERNATIONAL_CHANNEL, None, None, app_version)
 }

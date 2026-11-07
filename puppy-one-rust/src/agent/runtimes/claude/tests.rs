@@ -990,7 +990,6 @@ impl FakeChildren {
                     kills.borrow_mut()[index].push(force);
                     true
                 }),
-                pid: None,
             })
         })
     }

@@ -317,13 +317,11 @@ impl ProcessQuery {
                 let options = PermissionOptions {
                     signal: Some(controller.signal()),
                     suggestions: field("permission_suggestions"),
-                    blocked_path: field("blocked_path"),
                     decision_reason: field("decision_reason"),
                     title: field("title"),
                     display_name: field("display_name"),
                     description: field("description"),
                     tool_use_id: field("tool_use_id"),
-                    agent_id: field("agent_id"),
                 };
                 let result = can_use_tool(
                     js::to_js_string(request.get("tool_name")),
@@ -380,7 +378,6 @@ impl ProcessQuery {
         let mut payload = Obj::new().set("subtype", "initialize");
         match system_prompt {
             None => payload = payload.set("systemPrompt", json!([""])),
-            Some(SystemPrompt::Text(text)) => payload = payload.set("systemPrompt", json!([text])),
             Some(SystemPrompt::Preset { append, .. }) => {
                 payload = payload.opt("appendSystemPrompt", append);
             }

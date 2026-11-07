@@ -1005,25 +1005,10 @@ impl PiRpcRuntimeAdapter {
         })))
     }
 
-    /// `adapter.sessionId`.
-    pub fn session_id(&self) -> Option<String> {
-        self.0.session()
-    }
-
     /// `adapter.hasActiveProcess()`.
+    #[cfg(test)]
     pub fn has_active_process(&self) -> bool {
         !self.0.clients.borrow().is_empty()
-    }
-
-    /// `adapter.forceTerminate(reason)`.
-    pub fn force_terminate(&self, reason: Option<&str>) {
-        let reason = reason
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("{} RPC runtime stopped.", self.0.runtime_label));
-        let clients = self.0.clients.borrow().clone();
-        for client in clients {
-            client.dispose(&reason, false);
-        }
     }
 
     /// `adapter.referenceMentionDelivery(reference)`.
@@ -1357,14 +1342,6 @@ impl PiRpcRuntimeAdapter {
             "events": normalize_pi_history(messages, session.as_deref(), Some(&inner.runtime_namespace), Some(&inner.runtime_label)),
             "coverage": "complete",
         }))
-    }
-
-    /// `adapter.readHistory()`.
-    pub async fn read_history(&self) -> AgentResult<Vec<Value>> {
-        Ok(self.read_history_result().await?["events"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default())
     }
 
     async fn start_turn_inner(&self, request: Value) -> AgentResult<Value> {

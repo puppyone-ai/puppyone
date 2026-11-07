@@ -8,6 +8,8 @@
 //! (suggestion preference, operations, the setup directory) and in the
 //! workbench launcher (suggested and running activations only);
 //! [`ActivationDialog`] asks for consent, then follows the operation.
+#[cfg(not(test))]
+use crate::platform::local_agent_setup::installer;
 use crate::{
     agent::connections::legacy_local_agent_inventory as local_agent_inventory,
     features::{
@@ -19,7 +21,6 @@ use crate::{
         self as setup, Entry, Recipe, Surface,
         activation::{self, Action, ErrorCode, Operation, Plan, Snapshot, StepState},
         companion::{self, Presence},
-        installer,
     },
     theme,
     ui::{
@@ -37,11 +38,12 @@ use std::{
 
 /// The product's activation ports: discovery, the managed installer, the
 /// browser and an installation rescan.
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(not(test))]
 struct ProductPorts {
     home: PathBuf,
     changed: async_channel::Sender<()>,
 }
+#[cfg(not(test))]
 impl activation::Ports for ProductPorts {
     fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
         Ok(local_agent_inventory::discover().iter().any(|i| i.id == id))

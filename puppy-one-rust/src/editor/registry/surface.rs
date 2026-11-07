@@ -22,7 +22,6 @@ pub struct SurfaceRequest<'a> {
     pub input: SurfaceInput<'a>,
     pub format: &'static FileFormat,
     /// The concrete registered extension, for viewers that pick a parser.
-    #[allow(dead_code)]
     pub resolved_extension: Option<&'a str>,
     pub dark: bool,
     pub scale: Scale,

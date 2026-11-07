@@ -12,8 +12,9 @@ use gpui::{App, Window};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SourceKind {
     Local,
-    /// Cloud workspaces are not native yet; routing already refuses them.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// Cloud workspaces are not native yet; routing already refuses them
+    /// (only its tests name one).
+    #[cfg(test)]
     Cloud,
     #[default]
     Unknown,
@@ -49,10 +50,6 @@ impl EditorDocument {
 pub struct ViewerMatch<'a> {
     pub document: &'a EditorDocument,
     pub format: &'static FileFormat,
-    /// The concrete registered extension (`docx` of the doc/docx family), so
-    /// a viewer can pick its parser; no built-in match needs it yet.
-    #[allow(dead_code)]
-    pub resolved_extension: Option<&'a str>,
 }
 
 /// `EditorProviderPolicy.profile`.

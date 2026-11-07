@@ -1,6 +1,5 @@
 //! `src/features/desktop-agent/application`: the Renderer's Agent
 //! controllers over the client port.
-#![allow(dead_code)]
 pub mod agent_client_port;
 pub mod agent_controller_registry;
 pub mod agent_controller_state;
@@ -16,7 +15,6 @@ pub mod agent_session_preparer;
 pub mod agent_session_replica;
 pub mod agent_turn_submission_coordinator;
 pub mod conversation_history_controller;
-pub mod local_agent_connection_loader;
 pub mod session_ui_state_store;
 #[cfg(test)]
 mod tests;

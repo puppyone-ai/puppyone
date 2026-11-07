@@ -4,7 +4,6 @@
 //! §7). The UI renders `actions`; it never infers recovery from a generic
 //! "can resume" flag. Cleanup never depends on local HEAD; a published
 //! Project never offers deletion as push compensation.
-#![cfg_attr(not(test), allow(dead_code))]
 
 /// `session`: the sign-in gate is rendered before any projection, so a
 /// derived state is always `SignedIn` (`deriveCloudInitializationState`).

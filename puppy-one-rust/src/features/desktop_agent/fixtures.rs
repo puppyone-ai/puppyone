@@ -3,19 +3,25 @@
 //! handed over as JSON and the JSON answer read back as the operation's
 //! typed response, exactly as a recorded product exchange reads.
 use crate::agent::agent_error::{AgentError, AgentResult};
+#[cfg(feature = "dev-capture")]
 use crate::agent::contract::dto::{SessionFailure, SessionFrame};
-use crate::agent::contract::protocol::{AgentOperation, AgentRequest, AgentResponse};
+#[cfg(feature = "dev-capture")]
+use crate::agent::contract::protocol::AgentRequest;
+use crate::agent::contract::protocol::{AgentOperation, AgentResponse};
+#[cfg(feature = "dev-capture")]
 use crate::features::desktop_agent::application::agent_client_port::{
     AgentClientPort, Cleanup, ClientFuture,
 };
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
+#[cfg(feature = "dev-capture")]
 use std::rc::Rc;
 
 /// An answer in transport form.
 pub type JsonAnswer = LocalBoxFuture<'static, AgentResult<Value>>;
 
 /// A client that answers in JSON.
+#[cfg(feature = "dev-capture")]
 pub trait JsonAgent {
     /// Whether it offers `operation`.
     fn supports(&self, operation: AgentOperation) -> bool;
@@ -36,6 +42,7 @@ pub trait JsonAgent {
 }
 
 /// A [`JsonAgent`] as the client port.
+#[cfg(feature = "dev-capture")]
 pub struct JsonPort<T>(pub T);
 
 /// Reads a JSON answer as `operation`'s typed response.
@@ -44,6 +51,7 @@ pub fn read_answer(operation: AgentOperation, value: &Value) -> AgentResult<Agen
         .map_err(|error| AgentError::new(error).with_name("TypeError"))
 }
 
+#[cfg(feature = "dev-capture")]
 impl<T: JsonAgent> AgentClientPort for JsonPort<T> {
     fn supports(&self, operation: AgentOperation) -> bool {
         self.0.supports(operation)

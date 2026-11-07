@@ -37,13 +37,7 @@ pub enum AgentToolStepSegment {
     },
 }
 
-impl AgentToolStepSegment {
-    pub fn id(&self) -> &str {
-        match self {
-            Self::Step { id, .. } | Self::Explored { id, .. } => id,
-        }
-    }
-}
+impl AgentToolStepSegment {}
 
 /// Settled exploration runs longer than three steps read as one "Explored"
 /// line.

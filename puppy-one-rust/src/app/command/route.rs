@@ -35,8 +35,6 @@ impl Shell {
             && matches!(
                 command,
                 Command::Home
-                    | Command::ProjectMenu
-                    | Command::LocationMenu
                     | Command::ToggleExplorer
                     | Command::ToggleRightSidebar
                     | Command::Changes
@@ -50,6 +48,13 @@ impl Shell {
             )
         {
             return;
+        }
+        // Nor its menus (only tests and captures open them as commands).
+        #[cfg(any(test, feature = "dev-capture"))]
+        {
+            if self.file_mode() && matches!(command, Command::ProjectMenu | Command::LocationMenu) {
+                return;
+            }
         }
         match command {
             Command::Minimize => {
@@ -271,6 +276,7 @@ impl Shell {
                 let message = feedback.read(cx).message.focus_handle(cx);
                 message.focus(window, cx);
             }
+            #[cfg(any(test, feature = "dev-capture"))]
             Command::ProjectMenu => {
                 let open = self.chrome.read(cx).popover;
                 let next = (open != Some(Popover::Project)).then_some(Popover::Project);
@@ -278,6 +284,7 @@ impl Shell {
                 let focus = self.chrome.read(cx).project_focus.clone();
                 focus.focus(window, cx);
             }
+            #[cfg(any(test, feature = "dev-capture"))]
             Command::LocationMenu => {
                 let open = self.chrome.read(cx).popover;
                 let next = (open != Some(Popover::Place)).then_some(Popover::Place);

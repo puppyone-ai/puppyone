@@ -7,6 +7,7 @@ use super::opencode_tool::opencode_local_tool;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
+#[cfg(test)]
 use crate::agent::installation::installation_definition::NameSpec;
 use crate::agent::installation::installation_registry::{
     DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY, get_local_agent_installation_definition,
@@ -53,6 +54,8 @@ pub struct LocalAgentTool {
     pub id: String,
     pub installation_id: String,
     pub display_name: String,
+    /// The executables a test candidate is invoked as.
+    #[cfg(test)]
     pub executable_names: Vec<String>,
     pub probe: LocalToolProbe,
     pub unavailable_message: String,
@@ -68,6 +71,7 @@ pub fn local_agent_tool_registry_defaults() -> Vec<LocalAgentToolDescriptor> {
     ]
 }
 
+#[cfg(test)]
 fn name_of(spec: &NameSpec) -> String {
     let NameSpec::Text(name) = spec;
     name.clone()
@@ -96,26 +100,30 @@ pub fn create_local_agent_tool_registry(
                     descriptor.id.clone()
                 }
             });
-            let executable_names = match get_local_agent_installation_definition(
+            let definition = get_local_agent_installation_definition(
                 &installation_id,
                 &DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY,
-            ) {
-                Some(definition) => definition.executable_names.iter().map(name_of).collect(),
-                None => descriptor
+            );
+            // A tool without an installation definition names its executables.
+            if definition.is_none()
+                && descriptor
                     .executable_names
-                    .clone()
-                    .filter(|names| !names.is_empty())
-                    .ok_or_else(|| {
-                        AgentError::new(format!(
-                            "Unknown Local Agent installation definition: {installation_id}"
-                        ))
-                    })?,
-            };
+                    .as_ref()
+                    .is_none_or(Vec::is_empty)
+            {
+                return Err(AgentError::new(format!(
+                    "Unknown Local Agent installation definition: {installation_id}"
+                )));
+            }
             Ok(LocalAgentTool {
+                #[cfg(test)]
+                executable_names: match definition {
+                    Some(definition) => definition.executable_names.iter().map(name_of).collect(),
+                    None => descriptor.executable_names.clone().unwrap_or_default(),
+                },
                 id: descriptor.id,
                 installation_id,
                 display_name: descriptor.display_name,
-                executable_names,
                 probe,
                 unavailable_message: descriptor.unavailable_message,
             })

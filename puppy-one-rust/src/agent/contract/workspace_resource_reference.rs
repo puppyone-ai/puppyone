@@ -53,8 +53,8 @@ pub fn is_workspace_resource_reference(value: &str) -> bool {
     value.starts_with(PREFIX)
 }
 
-#[cfg(test)]
 /// `createWorkspaceResourceReference(folderId, relativePath)`.
+#[cfg(test)]
 pub fn create_workspace_resource_reference(
     folder_id: &str,
     relative_path: &str,
@@ -88,9 +88,9 @@ fn is_absolute_root(root: &str) -> bool {
             && root[2..].contains('\\'))
 }
 
-#[cfg(test)]
 /// `projectLocalResourcePath(rootPath, relativePath)`: synchronous
 /// display/export projection; native consumers must reauthorize it.
+#[cfg(test)]
 pub fn project_local_resource_path(root_path: &str, relative_path: &str) -> Contract<String> {
     if !is_absolute_root(root_path) || root_path.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
         return Err(type_error("An absolute local root is required."));

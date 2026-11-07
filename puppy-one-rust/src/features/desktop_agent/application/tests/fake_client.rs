@@ -109,12 +109,6 @@ impl FakeClient {
         self.methods.borrow()[method].clone()
     }
 
-    /// `delete bridge.method`.
-    pub fn remove(&self, method: &str) {
-        self.defined.borrow_mut().remove(method);
-        self.methods.borrow_mut().remove(method);
-    }
-
     /// `bridge.method.mock.calls.map(([request]) => request)`.
     pub fn calls(&self, method: &str) -> Vec<Value> {
         self.calls

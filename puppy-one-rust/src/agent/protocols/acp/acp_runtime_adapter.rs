@@ -864,34 +864,6 @@ impl AcpRuntimeAdapter {
         })))
     }
 
-    /// `adapter.sessionId`.
-    pub fn session_id(&self) -> Option<String> {
-        self.0.session()
-    }
-
-    /// `adapter.activeTurn?.turnId`.
-    pub fn active_turn_id(&self) -> Option<String> {
-        self.0
-            .active_turn
-            .borrow()
-            .as_ref()
-            .map(|turn| turn.turn_id.clone())
-    }
-
-    /// `adapter.client`.
-    pub fn client(&self) -> Option<AcpClient> {
-        self.0.client()
-    }
-
-    /// `adapter.hasActiveProcess()`.
-    pub fn has_active_process(&self) -> bool {
-        self.0
-            .connection
-            .borrow()
-            .as_ref()
-            .is_some_and(|c| !c.closed())
-    }
-
     /// `adapter.inspect()`.
     pub async fn inspect_now(&self) -> AgentResult<Value> {
         let inner = &self.0;
@@ -1229,14 +1201,6 @@ impl AcpRuntimeAdapter {
             client.cancel(json!({ "sessionId": session_id }));
         }
         Ok(Value::Null)
-    }
-
-    /// `adapter.forceTerminate(reason)`.
-    pub async fn force_terminate(&self, reason: Option<&str>) -> AgentResult<()> {
-        let reason = reason
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("{} ACP runtime stopped.", self.0.display_name()));
-        self.disconnect(&reason, false).await
     }
 
     /// `adapter.dispose(reason)`.

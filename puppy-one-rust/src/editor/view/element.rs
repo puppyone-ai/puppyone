@@ -52,6 +52,7 @@ impl IntoElement for EditorElement {
 }
 
 struct PlannedBlock {
+    #[cfg(feature = "dev-capture")]
     lines: Range<usize>,
     source: Range<usize>,
     top: f32,
@@ -218,6 +219,7 @@ impl EditorElement {
             }
             children.push(element);
             blocks.push(PlannedBlock {
+                #[cfg(feature = "dev-capture")]
                 lines,
                 source,
                 top: y,
@@ -350,6 +352,7 @@ impl EditorElement {
                     origin + point(px(0.), px(b.top)),
                     size(px(frame.column_width), px(b.height)),
                 ),
+                #[cfg(feature = "dev-capture")]
                 lines: b.lines.clone(),
                 source: b.source.clone(),
             })

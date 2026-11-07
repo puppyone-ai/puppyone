@@ -321,11 +321,6 @@ impl AcpEventNormalizer {
         }
     }
 
-    /// `normalizer.reset(turnId)`.
-    pub fn reset(&mut self, turn_id: Option<&str>) {
-        *self = Self::new(turn_id);
-    }
-
     fn turn(&self) -> Option<&str> {
         self.turn_id.as_deref()
     }

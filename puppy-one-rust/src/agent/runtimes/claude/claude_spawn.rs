@@ -114,11 +114,6 @@ impl ClaudeSpawn {
         }))
     }
 
-    /// The number of processes still owned.
-    pub fn active(&self) -> usize {
-        self.0.processes.borrow().len()
-    }
-
     /// `launch(options)`.
     pub fn launch_process(&self, options: SpawnOptions) -> AgentResult<ProcessIo> {
         let inner = &self.0;
@@ -278,6 +273,7 @@ impl ClaudeSpawn {
     }
 
     /// `launch.dispose()`.
+    #[cfg(test)]
     pub async fn dispose(&self) -> AgentResult<()> {
         self.0.closed.set(true);
         let leases = self.0.processes.borrow().clone();

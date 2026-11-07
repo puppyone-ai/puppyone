@@ -1,6 +1,4 @@
-#[allow(dead_code)]
 pub mod agent_file_change_blocks;
-#[allow(dead_code)]
 pub mod agent_file_change_evidence;
 pub mod agent_history_read_result;
 pub mod agent_operation_error;

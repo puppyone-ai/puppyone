@@ -219,7 +219,6 @@ impl EvidenceNode {
 /// The detail an `AgentActivityShell` discloses.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ShellDetail {
-    None,
     Evidence(Vec<EvidenceNode>),
     /// Reasoning and plan text in a quiet prose branch.
     Prose {
@@ -264,7 +263,6 @@ pub struct ActivityShell {
 impl ActivityShell {
     pub fn has_detail(&self) -> bool {
         match &self.detail {
-            ShellDetail::None => false,
             ShellDetail::Evidence(nodes) => !nodes.is_empty(),
             ShellDetail::Prose { text, plan } => {
                 text.as_deref().is_some_and(|t| !t.is_empty()) || !plan.is_empty()

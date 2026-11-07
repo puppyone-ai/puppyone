@@ -652,16 +652,16 @@ impl NativeConversationIndexer {
         Ok(())
     }
 
-    #[cfg(test)]
     /// `indexer.closeWorkspace(workspaceRoot)`.
+    #[cfg(test)]
     pub async fn close_workspace(&self, workspace_root: &str) -> AgentResult<()> {
         let root = workspace_root.to_string();
         self.close_matching(move |resource_root, _| resource_root == root)
             .await
     }
 
-    #[cfg(test)]
     /// `indexer.closeOwner(ownerId)`.
+    #[cfg(test)]
     pub async fn close_owner(&self, owner_id: u64) -> AgentResult<()> {
         self.close_matching(move |_, owner| owner == Some(owner_id))
             .await

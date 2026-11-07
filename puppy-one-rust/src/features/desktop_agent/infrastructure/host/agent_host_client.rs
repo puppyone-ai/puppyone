@@ -66,11 +66,6 @@ impl AgentHostClient {
         })
     }
 
-    /// The window's id on the host.
-    pub fn window(&self) -> u64 {
-        self.window
-    }
-
     fn send(&self, request: AgentRequest) -> ClientFuture {
         let reply = self.handle.request(self.window, request);
         Box::pin(async move { reply.await.map_err(agent_operation_error) })

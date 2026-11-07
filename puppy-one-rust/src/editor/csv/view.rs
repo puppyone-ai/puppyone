@@ -1228,7 +1228,6 @@ use {
     handles::{Axis, Hover},
     menu::{MenuKind, OpenMenu},
 };
-pub use {find::FindResult, settings::ViewItem};
 
 /// The caret boundary of `text` nearest to `x` (shaped like the cell).
 fn caret_at(window: &Window, style: &TextStyle, text: &str, x: f32) -> usize {

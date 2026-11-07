@@ -141,6 +141,7 @@ impl StateJson
     for crate::features::desktop_agent::application::agent_controller_state::AgentControllerState
 {
     fn to_value(&self) -> Value {
+        use crate::features::desktop_agent::application::agent_controller_state::StateName as _;
         let text = |value: &Option<String>| value.clone().map_or(Value::Null, Value::from);
         let json = |value: &dyn erased::Json| value.json();
         let mut value = serde_json::json!({
@@ -155,10 +156,6 @@ impl StateJson
             "selectedModel": text(&self.selected_model),
             "selectedEffort": text(&self.selected_effort),
             "selectedMode": text(&self.selected_mode),
-            "localConnections": json(&self.local_connections),
-            "localConnectionsPhase": self.local_connections_phase.as_str(),
-            "localConnectionsScannedAt": text(&self.local_connections_scanned_at),
-            "localConnectionsError": self.local_connections_error.as_ref().map_or(Value::Null, error_json),
             "draft": self.draft,
             "draftMentions": json(&self.draft_mentions),
             "pendingPrompt": text(&self.pending_prompt),

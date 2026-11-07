@@ -210,15 +210,6 @@ pub struct OpenSession {
     pub runtime_id: String,
 }
 
-/// `AgentReplayRequest`.
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReplaySession {
-    pub root_path: String,
-    pub session_id: String,
-    pub after_sequence: i64,
-}
-
 /// `AgentSessionAttachRequest`: one session (and its live instance).
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -272,22 +263,6 @@ pub struct ListSessions {
     pub scan_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
-}
-
-/// `AgentSessionMutationRequest` (fork, archive, delete).
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryAction {
-    pub root_path: String,
-    pub session_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub instance_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub archive_native: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub delete_native: Option<bool>,
 }
 
 /// `AgentSessionCloseRequest`.
@@ -434,18 +409,6 @@ pub struct InterruptTurn {
     pub preconditions: CommandPreconditions,
 }
 
-/// Compaction of a session's context.
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompactSession {
-    pub root_path: String,
-    pub session_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub instance_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub command_id: Option<String>,
-}
-
 /// `AgentApprovalDecision`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -505,21 +468,14 @@ pub struct ResolveQuestion {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentRequest {
     DiscoverRuntimes(RuntimeQuery),
-    DiscoverLocalConnections(RuntimeQuery),
-    ListModels(RuntimeQuery),
-    ReadAccount(RuntimeQuery),
     CreateSession(CreateSession),
     ResumeSession(ResumeSession),
     OpenSession(OpenSession),
-    ReplaySession(ReplaySession),
     AttachSession(SessionTarget),
     AcknowledgeFeed(FeedAck),
     ReadFeedWatermark(FeedTarget),
     DetachFeed(FeedTarget),
     ListSessions(ListSessions),
-    ForkSession(HistoryAction),
-    ArchiveSession(HistoryAction),
-    DeleteSession(HistoryAction),
     CloseSession(CloseSession),
     StageReferences(StageReferences),
     RevokeReferences(RevokeReferences),
@@ -528,7 +484,6 @@ pub enum AgentRequest {
     StartTurn(StartTurn),
     SteerTurn(SteerTurn),
     InterruptTurn(InterruptTurn),
-    CompactSession(CompactSession),
     ResolveApproval(ResolveApproval),
     ResolveQuestion(ResolveQuestion),
     ManageExecutions,
@@ -538,21 +493,14 @@ pub enum AgentRequest {
 macro_rules! each_request {
     ($self:expr, $bind:ident => $body:expr, stage $stage:ident => $stage_body:expr, none => $none:expr) => {
         match $self {
-            AgentRequest::DiscoverRuntimes($bind)
-            | AgentRequest::DiscoverLocalConnections($bind)
-            | AgentRequest::ListModels($bind)
-            | AgentRequest::ReadAccount($bind) => $body,
+            AgentRequest::DiscoverRuntimes($bind) => $body,
             AgentRequest::CreateSession($bind) => $body,
             AgentRequest::ResumeSession($bind) => $body,
             AgentRequest::OpenSession($bind) => $body,
-            AgentRequest::ReplaySession($bind) => $body,
             AgentRequest::AttachSession($bind) => $body,
             AgentRequest::AcknowledgeFeed($bind) => $body,
             AgentRequest::ReadFeedWatermark($bind) | AgentRequest::DetachFeed($bind) => $body,
             AgentRequest::ListSessions($bind) => $body,
-            AgentRequest::ForkSession($bind)
-            | AgentRequest::ArchiveSession($bind)
-            | AgentRequest::DeleteSession($bind) => $body,
             AgentRequest::CloseSession($bind) => $body,
             AgentRequest::StageReferences($stage) => $stage_body,
             AgentRequest::RevokeReferences($bind) => $body,
@@ -561,7 +509,6 @@ macro_rules! each_request {
             AgentRequest::StartTurn($bind) => $body,
             AgentRequest::SteerTurn($bind) => $body,
             AgentRequest::InterruptTurn($bind) => $body,
-            AgentRequest::CompactSession($bind) => $body,
             AgentRequest::ResolveApproval($bind) => $body,
             AgentRequest::ResolveQuestion($bind) => $body,
             AgentRequest::ManageExecutions | AgentRequest::TerminateExecution => $none,
@@ -574,21 +521,14 @@ impl AgentRequest {
         use AgentOperation as O;
         match self {
             Self::DiscoverRuntimes(_) => O::DiscoverRuntimes,
-            Self::DiscoverLocalConnections(_) => O::DiscoverLocalConnections,
-            Self::ListModels(_) => O::ListModels,
-            Self::ReadAccount(_) => O::ReadAccount,
             Self::CreateSession(_) => O::CreateSession,
             Self::ResumeSession(_) => O::ResumeSession,
             Self::OpenSession(_) => O::OpenSession,
-            Self::ReplaySession(_) => O::ReplaySession,
             Self::AttachSession(_) => O::AttachSession,
             Self::AcknowledgeFeed(_) => O::AcknowledgeFeed,
             Self::ReadFeedWatermark(_) => O::ReadFeedWatermark,
             Self::DetachFeed(_) => O::DetachFeed,
             Self::ListSessions(_) => O::ListSessions,
-            Self::ForkSession(_) => O::ForkSession,
-            Self::ArchiveSession(_) => O::ArchiveSession,
-            Self::DeleteSession(_) => O::DeleteSession,
             Self::CloseSession(_) => O::CloseSession,
             Self::StageReferences(_) => O::StageReferences,
             Self::RevokeReferences(_) => O::RevokeReferences,
@@ -597,7 +537,6 @@ impl AgentRequest {
             Self::StartTurn(_) => O::StartTurn,
             Self::SteerTurn(_) => O::SteerTurn,
             Self::InterruptTurn(_) => O::InterruptTurn,
-            Self::CompactSession(_) => O::CompactSession,
             Self::ResolveApproval(_) => O::ResolveApproval,
             Self::ResolveQuestion(_) => O::ResolveQuestion,
             Self::ManageExecutions => O::ManageExecutions,
@@ -610,18 +549,13 @@ impl AgentRequest {
         Some(match self {
             Self::ResumeSession(r) => r.session_id.as_deref()?,
             Self::OpenSession(r) => &r.session_id,
-            Self::ReplaySession(r) => &r.session_id,
             Self::AttachSession(r) => &r.session_id,
             Self::AcknowledgeFeed(r) => &r.session_id,
             Self::ReadFeedWatermark(r) | Self::DetachFeed(r) => &r.session_id,
-            Self::ForkSession(r) | Self::ArchiveSession(r) | Self::DeleteSession(r) => {
-                &r.session_id
-            }
             Self::CloseSession(r) => &r.session_id,
             Self::StartTurn(r) => &r.session_id,
             Self::SteerTurn(r) => &r.session_id,
             Self::InterruptTurn(r) => &r.session_id,
-            Self::CompactSession(r) => &r.session_id,
             Self::ResolveApproval(r) => &r.session_id,
             Self::ResolveQuestion(r) => &r.session_id,
             _ => return None,
@@ -635,14 +569,10 @@ impl AgentRequest {
             Self::AttachSession(r) => r.instance_id.as_deref(),
             Self::AcknowledgeFeed(r) => r.instance_id.as_deref(),
             Self::ReadFeedWatermark(r) | Self::DetachFeed(r) => r.instance_id.as_deref(),
-            Self::ForkSession(r) | Self::ArchiveSession(r) | Self::DeleteSession(r) => {
-                r.instance_id.as_deref()
-            }
             Self::CloseSession(r) => r.instance_id.as_deref(),
             Self::StartTurn(r) => r.preconditions.instance_id.as_deref(),
             Self::SteerTurn(r) => r.preconditions.instance_id.as_deref(),
             Self::InterruptTurn(r) => r.preconditions.instance_id.as_deref(),
-            Self::CompactSession(r) => r.instance_id.as_deref(),
             Self::ResolveApproval(r) => r.preconditions.instance_id.as_deref(),
             Self::ResolveQuestion(r) => r.preconditions.instance_id.as_deref(),
             _ => None,
@@ -658,14 +588,10 @@ impl AgentRequest {
             Self::AttachSession(r) => &mut r.instance_id,
             Self::AcknowledgeFeed(r) => &mut r.instance_id,
             Self::ReadFeedWatermark(r) | Self::DetachFeed(r) => &mut r.instance_id,
-            Self::ForkSession(r) | Self::ArchiveSession(r) | Self::DeleteSession(r) => {
-                &mut r.instance_id
-            }
             Self::CloseSession(r) => &mut r.instance_id,
             Self::StartTurn(r) => &mut r.preconditions.instance_id,
             Self::SteerTurn(r) => &mut r.preconditions.instance_id,
             Self::InterruptTurn(r) => &mut r.preconditions.instance_id,
-            Self::CompactSession(r) => &mut r.instance_id,
             Self::ResolveApproval(r) => &mut r.preconditions.instance_id,
             Self::ResolveQuestion(r) => &mut r.preconditions.instance_id,
             _ => return,

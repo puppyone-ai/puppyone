@@ -7,9 +7,6 @@ use crate::agent::transports::bounded_process_probe::{
 };
 use crate::text;
 
-pub const LOCAL_AGENT_PROBE_TIMEOUT_MS: u64 = 1_500;
-pub const LOCAL_AGENT_PROBE_MAX_OUTPUT_BYTES: usize = 16 * 1024;
-
 const ENVIRONMENT_ALLOWLIST: &[&str] = &[
     "HOME",
     "USER",

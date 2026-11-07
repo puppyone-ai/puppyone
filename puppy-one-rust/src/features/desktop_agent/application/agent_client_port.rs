@@ -5,9 +5,8 @@
 //! [`AgentClientPort::supports`] names.
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::dto::{
-    AccountState, DraftReference, FeedAcknowledgement, FeedReceipt, FeedWatermark,
-    LocalConnectionsSnapshot, Model, Receipt, RuntimeInspection, SessionFailure, SessionFrame,
-    SessionOpenResult, SessionSnapshot, SessionsPage,
+    DraftReference, FeedAcknowledgement, FeedReceipt, FeedWatermark, Receipt, RuntimeInspection,
+    SessionFailure, SessionFrame, SessionOpenResult, SessionSnapshot, SessionsPage,
 };
 use crate::agent::contract::protocol::*;
 use futures_util::future::LocalBoxFuture;
@@ -122,15 +121,6 @@ typed_calls! {
     /// `discoverAgentRuntimes(request)`.
     fn discover_runtimes(RuntimeQuery) -> RuntimeInspection = DiscoverRuntimes
         => |response| match response { AgentResponse::Inspection(i) => Some(*i), _ => None };
-    /// `discoverLocalAgentConnections(request)`.
-    fn discover_local_connections(RuntimeQuery) -> LocalConnectionsSnapshot = DiscoverLocalConnections
-        => |response| match response { AgentResponse::LocalConnections(s) => Some(s), _ => None };
-    /// `listAgentModels(request)`.
-    fn list_models(RuntimeQuery) -> Vec<Model> = ListModels
-        => |response| match response { AgentResponse::Models(m) => Some(m), _ => None };
-    /// `readAgentAccount(request)`.
-    fn read_account(RuntimeQuery) -> Option<AccountState> = ReadAccount
-        => |response| match response { AgentResponse::Account(a) => Some(a), _ => None };
     /// `createAgentSession(request)`.
     fn create_session(CreateSession) -> SessionSnapshot = CreateSession
         => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
@@ -144,9 +134,6 @@ typed_calls! {
     /// `openAgentSession(request)`.
     fn open_session(OpenSession) -> SessionOpenResult = OpenSession
         => |response| match response { AgentResponse::Opened(r) => Some(r), _ => None };
-    /// `replayAgentSession(request)`.
-    fn replay_session(ReplaySession) -> SessionSnapshot = ReplaySession
-        => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
     /// `attachAgentSession(request)`.
     fn attach_session(SessionTarget) -> FeedReceipt = AttachSession
         => |response| match response { AgentResponse::FeedReceipt(r) => Some(*r), _ => None };
@@ -162,15 +149,6 @@ typed_calls! {
     /// `listAgentSessions(request)`.
     fn list_sessions(ListSessions) -> SessionsPage = ListSessions
         => |response| match response { AgentResponse::Sessions(p) => Some(*p), _ => None };
-    /// `forkAgentSession(request)`.
-    fn fork_session(HistoryAction) -> SessionSnapshot = ForkSession
-        => |response| match response { AgentResponse::Snapshot(s) => Some(*s), _ => None };
-    /// `archiveAgentSession(request)`.
-    fn archive_session(HistoryAction) -> Receipt = ArchiveSession
-        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
-    /// `deleteAgentSession(request)`.
-    fn delete_session(HistoryAction) -> Receipt = DeleteSession
-        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
     /// `closeAgentSession(request)`.
     fn close_session(CloseSession) -> Receipt = CloseSession
         => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
@@ -194,9 +172,6 @@ typed_calls! {
         => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
     /// `interruptAgentTurn(request)`.
     fn interrupt_turn(InterruptTurn) -> Receipt = InterruptTurn
-        => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
-    /// `compactAgentSession(request)`.
-    fn compact_session(CompactSession) -> Receipt = CompactSession
         => |response| match response { AgentResponse::Receipt(r) => Some(r), _ => None };
     /// `resolveAgentApproval(request)`.
     fn resolve_approval(ResolveApproval) -> Receipt = ResolveApproval

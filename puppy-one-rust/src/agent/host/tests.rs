@@ -5,8 +5,7 @@ use crate::agent::application::agent_requests::AgentRequests;
 use crate::agent::application::tests::harness::{HarnessOptions, create_service_harness};
 use crate::agent::contract::dto::SessionFrame;
 use crate::agent::contract::protocol::{
-    AgentEvent, AgentRequest, AgentResponse, CreateSession, FeedAck, ReplaySession, SessionTarget,
-    StartTurn,
+    AgentEvent, AgentRequest, AgentResponse, CreateSession, FeedAck, SessionTarget, StartTurn,
 };
 use core::prelude::v1::test;
 use std::rc::Rc;
@@ -128,10 +127,10 @@ fn serves_a_window_on_the_host_thread_and_returns_its_session_frames() {
 
     let other = block_on(host.request(
         9,
-        AgentRequest::ReplaySession(ReplaySession {
+        AgentRequest::AttachSession(SessionTarget {
             root_path: root,
             session_id: session.id.clone(),
-            after_sequence: 0,
+            instance_id: None,
         }),
     ));
     assert!(other.is_err());

@@ -514,6 +514,7 @@ pub async fn resolve_executable_observation(
 }
 
 /// `resolveFirstExecutable(options)`.
+#[cfg(test)]
 pub async fn resolve_first_executable(
     request: ObservationRequest,
 ) -> AgentResult<Option<ResolvedCandidate>> {

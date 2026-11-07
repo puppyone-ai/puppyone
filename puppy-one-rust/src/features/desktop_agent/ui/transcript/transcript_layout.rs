@@ -22,9 +22,10 @@ pub const AGENT_TIMELINE_SPACING: AgentTimelineSpacing = AgentTimelineSpacing {
 };
 
 /// `agentTimelineLimits`.
+#[cfg(test)]
 pub const MAX_MOUNTED_ROWS: usize = 120;
+#[cfg(test)]
 pub const OVERSCAN_ROWS: usize = 14;
-pub const STREAM_BATCH_MS: u64 = 16;
 
 /// `AgentTimelineLayout`.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -74,6 +75,7 @@ pub fn agent_timeline_gap_after(
 }
 
 /// `visibleAgentTimelineRange(offsets, count, scrollTop, viewportHeight)`.
+#[cfg(test)]
 pub fn visible_agent_timeline_range(
     offsets: &[f64],
     count: usize,
@@ -102,6 +104,7 @@ fn measured_or_estimated_height(row: &TimelineRow, measurements: &HashMap<String
     }
 }
 
+#[cfg(test)]
 fn lower_bound(values: &[f64], target: f64) -> usize {
     values.partition_point(|value| *value < target)
 }

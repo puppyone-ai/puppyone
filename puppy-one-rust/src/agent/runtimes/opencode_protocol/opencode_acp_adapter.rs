@@ -7,10 +7,6 @@ use crate::agent::runtimes::hermes::hermes_acp_adapter::readiness_environment;
 use serde_json::json;
 use std::rc::Rc;
 
-/// `buildPromptBlocks` (the ACP prompt mapping).
-#[allow(unused_imports)]
-pub use crate::agent::protocols::acp::acp_prompt_input::build_acp_prompt_blocks as build_prompt_blocks;
-
 /// `new OpenCodeAcpAdapter(options)`.
 pub fn open_code_acp_adapter(mut options: AcpAdapterOptions) -> AgentResult<AcpRuntimeAdapter> {
     options.source_scope_id = Some(open_code_history_source(&readiness_environment(

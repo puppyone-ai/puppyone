@@ -7,8 +7,6 @@ use crate::agent::discovery::command_environment::EnvMap;
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::tasks::CancelSignal;
 use crate::agent::transports::bounded_process_probe::ProbeRunner;
-#[allow(unused_imports)]
-pub use crate::agent::transports::executable_discovery::compare_versions;
 use crate::agent::transports::executable_discovery::{
     DiscoverExecutableOptions, build_agent_environment, discover_executable, parse_semantic_version,
 };

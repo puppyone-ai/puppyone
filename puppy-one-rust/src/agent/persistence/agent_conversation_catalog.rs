@@ -562,6 +562,7 @@ impl AgentConversationCatalog {
     }
 
     /// `catalog.upsertNative(record)`.
+    #[cfg(test)]
     pub async fn upsert_native(&self, record: &Value) -> AgentResult<Value> {
         let record = record.clone();
         self.mutate(None, move |_, draft| {
@@ -610,6 +611,7 @@ impl AgentConversationCatalog {
     }
 
     /// `catalog.reconcileNative(scope)`.
+    #[cfg(test)]
     pub async fn reconcile_native(&self, scope: ReconcileScope) -> AgentResult<Value> {
         self.mutate(None, move |catalog, draft| {
             let (unavailable, changed) = catalog.reconcile(draft, &scope)?;

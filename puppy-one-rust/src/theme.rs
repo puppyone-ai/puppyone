@@ -394,7 +394,6 @@ fn ink(r: u8, g: u8, b: u8, a: f32) -> Rgba {
 /// File-kind accents (`--po-file-accent-*`).
 // The palette is imported whole from `tokens.css`; tokens without a native
 // consumer yet stay so a new surface never invents its own colour.
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub struct FileAccents {
     pub default: Rgba,
@@ -412,13 +411,10 @@ pub struct FileAccents {
 }
 
 // Complete semantic token table (see `FileAccents`).
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub struct Theme {
     pub dark: bool,
     // Surfaces.
-    /// Header/sidebar frame material (`--po-header` / `--po-sidebar`).
-    pub chrome: Rgba,
     pub header: Rgba,
     pub sidebar: Rgba,
     /// Editor/content material (`--po-canvas`).
@@ -482,17 +478,11 @@ pub struct Theme {
     // Elevation.
     pub shadow: Rgba,
     pub backdrop: Rgba,
-    pub backdrop_strong: Rgba,
     pub scrollbar_thumb: Rgba,
     pub scrollbar_thumb_hover: Rgba,
     // Content.
     pub file: FileAccents,
     pub file_icon_body: Rgba,
-    pub diff_added_bg: Rgba,
-    pub diff_added_text: Rgba,
-    pub diff_removed_bg: Rgba,
-    pub diff_removed_text: Rgba,
-    pub code_block: Rgba,
     /// `--po-terminal-bg` (= `--po-surface-terminal` = `--po-surface-editor`).
     pub terminal_bg: Rgba,
     pub terminal_fg: Rgba,
@@ -698,7 +688,6 @@ impl Theme {
         }
         Self {
             dark,
-            chrome: sidebar,
             header,
             sidebar,
             canvas: c("canvas"),
@@ -754,7 +743,6 @@ impl Theme {
             brand_blue: rgb(0x4599df),
             shadow: c("shadow"),
             backdrop: c("backdrop"),
-            backdrop_strong: c("backdrop-strong"),
             scrollbar_thumb: alpha(scrollbar, 0.76),
             scrollbar_thumb_hover: alpha(scrollbar_hover, 0.88),
             file: FileAccents {
@@ -772,11 +760,6 @@ impl Theme {
                 presentation: c("file-accent-presentation"),
             },
             file_icon_body: c("file-icon-body"),
-            diff_added_bg: c("diff-added-bg"),
-            diff_added_text: c("diff-added-text"),
-            diff_removed_bg: c("diff-removed-bg"),
-            diff_removed_text: c("diff-removed-text"),
-            code_block: if dark { rgb(0x202020) } else { rgb(0xf2f2f2) },
             // Terminals live only in the right sidebar, where layout.css sets
             // --po-surface-terminal (and so --po-terminal-bg) to the auxiliary surface.
             terminal_bg: c("sidebar"),
