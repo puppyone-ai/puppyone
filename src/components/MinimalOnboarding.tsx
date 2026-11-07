@@ -208,11 +208,15 @@ export function MinimalOnboarding({
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const projectView = useHomepageProjectView(items, listHeld);
+  // Which group a Cloud project is in comes from the account's spaces. Until they
+  // answer, the groups wait as one, rather than grouping it once provisionally and
+  // then moving it. Spaces the account last saw stand in, so this is a first run only.
+  const groupsHeld = listHeld || (cloudSpacesStatus === "loading" && items.some((item) => projectHomeItemLocation(item) === "cloud"));
   const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
   const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
   const projectList = (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
     <OnboardingProjectList
-      held={listHeld}
+      held={groupsHeld}
       items={listItems}
       sharing={sharing}
       layout={projectLayout}
@@ -264,8 +268,8 @@ export function MinimalOnboarding({
     showOtherComputers: projectView.places.size === 0,
   };
   let projects: ReactNode = projectList(projectView.visibleItems);
-  if (!listHeld && projectGroups) projects = projectGroups(groupsBase);
-  else if (!listHeld) projects = <OnboardingProjectGroups label={groupsBase.label} groups={onboardingBaseGroups(groupsBase)} />;
+  if (!groupsHeld && projectGroups) projects = projectGroups(groupsBase);
+  else if (!groupsHeld) projects = <OnboardingProjectGroups label={groupsBase.label} groups={onboardingBaseGroups(groupsBase)} />;
 
   return (
     <main
