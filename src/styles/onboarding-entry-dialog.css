@@ -345,7 +345,8 @@
   stroke-width: 1.8;
 }
 
-/* Who can open the new project: one quiet row per audience, the chosen one raised. */
+/* Who can open the new project, and where all my devices' project is kept: plain
+   choices, a dot and words. No box or fill: those belong to the fields one types in. */
 .onboarding-entry-choice-field {
   margin: 0;
   padding: 0;
@@ -359,32 +360,32 @@
 
 .onboarding-entry-choices {
   display: grid;
-  gap: 2px;
+  gap: 6px;
 }
 
-.onboarding-entry-choice {
+.onboarding-entry-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.onboarding-entry-choice,
+.onboarding-entry-segment {
   display: flex;
   min-width: 0;
-  min-height: 32px;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  gap: 8px;
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font-size: var(--po-type-ui-body, 14px);
-  line-height: 18px;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  line-height: 20px;
+  transition: color 120ms ease;
 }
 
-.onboarding-entry-choice:hover {
-  background: var(--po-hover);
-}
-
-.onboarding-entry-choice[data-checked] {
-  border-color: var(--po-border-strong);
-  background: var(--po-panel-raised);
+.onboarding-entry-choice:hover,
+.onboarding-entry-segment:hover,
+.onboarding-entry-choice[data-checked],
+.onboarding-entry-segment[data-checked] {
   color: var(--po-text);
 }
 
@@ -401,7 +402,6 @@
 .onboarding-entry-choice-detail,
 .onboarding-entry-team-select {
   min-width: 0;
-  margin-inline-start: auto;
   overflow: hidden;
   color: var(--po-text-subtle);
   font-size: var(--po-type-ui-meta, 13px);
@@ -418,58 +418,20 @@
   font-family: inherit;
 }
 
-/* Where all my devices' project is kept: two halves of one control. */
-.onboarding-entry-segments {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--po-border-strong);
-  border-radius: 8px;
-  background: var(--po-panel-raised);
-}
-
-.onboarding-entry-segment {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 6px;
-  color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, default);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 500;
-}
-
-.onboarding-entry-segment > input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.onboarding-entry-segment:hover {
+.onboarding-entry-team-select:hover {
+  background: var(--po-hover);
   color: var(--po-text);
-}
-
-.onboarding-entry-segment[data-checked] {
-  background: var(--po-selected);
-  color: var(--po-text);
-}
-
-.onboarding-entry-segment:has(> input:focus-visible) {
-  outline: 2px solid var(--po-focus-ring);
-  outline-offset: -2px;
 }
 
 /* A place that follows from the audience: shown, not chosen. */
 .onboarding-entry-location-picker.is-fixed,
 .onboarding-entry-location-picker.is-fixed:hover {
+  height: auto;
   grid-template-columns: 18px minmax(0, 1fr);
-  border-color: var(--po-border-strong);
-  background: var(--po-panel-raised);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: default;
 }
 
