@@ -3,7 +3,7 @@
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
-import { isMarkdownInsertBoundary } from "./core/syntax/markdownInsertBoundaries";
+import { markdownImageInsertIndent } from "./core/syntax/markdownInsertBoundaries";
 import { markdownImageDropPreview } from "./features/image/markdownImageDropPreview";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -826,17 +826,19 @@ async function resolveDropTarget(
 
 /** One source transaction and undo step; existing paragraph spacing survives. */
 export function insertMarkdownImageAt(view: EditorView, position: number, snippet: string): boolean {
-  if (view.state.readOnly || !isMarkdownInsertBoundary(view.state, position)) return false;
+  if (view.state.readOnly) return false;
+  const indent = markdownImageInsertIndent(view.state, position);
+  if (indent === null) return false;
   const { doc } = view.state;
   const before = doc.sliceString(Math.max(0, position - 2), position);
   const after = doc.sliceString(position, Math.min(doc.length, position + 2));
   let prefix = "", suffix = "";
   if (before && !before.endsWith("\n\n")) prefix = before.endsWith("\n") ? "\n" : "\n\n";
   if (after && !after.startsWith("\n\n")) suffix = after.startsWith("\n") ? "\n" : "\n\n";
-  const insert = prefix + snippet + suffix;
+  const insert = prefix + indent + snippet + suffix;
   view.dispatch({
     changes: { from: position, insert },
-    selection: { anchor: position + prefix.length + snippet.length },
+    selection: { anchor: position + prefix.length + indent.length + snippet.length },
     annotations: isolateHistory.of("full"),
     userEvent: "input.drop",
   });

@@ -83,4 +83,10 @@ createRoot(document.getElementById("root")!).render(<TestLocalizationProvider me
 Object.assign(window, { imageDropFixture: {
   source: () => EditorView.findFromDOM(document.querySelector(".cm-content")!)?.state.doc.toString(),
   selection: () => EditorView.findFromDOM(document.querySelector(".cm-content")!)?.state.selection.toJSON(),
+  reveal: (text: string) => {
+    const view = EditorView.findFromDOM(document.querySelector(".cm-content")!)!;
+    const position = view.state.doc.toString().indexOf(text);
+    if (position < 0) throw new Error(`Missing source text: ${text}`);
+    view.scrollDOM.scrollTop = Math.max(0, view.lineBlockAt(position).top - view.scrollDOM.clientHeight / 2);
+  },
 } });

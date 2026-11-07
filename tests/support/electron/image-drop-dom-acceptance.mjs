@@ -15,6 +15,7 @@ export async function runImageDropDomAcceptance({ window, entries, temporaryRoot
       if (result) return result;
       await wait(50);
     }
+    console.error(await evaluate(`JSON.stringify({ scrollTop: document.querySelector('.cm-scroller')?.scrollTop, imageLine: [...document.querySelectorAll('.cm-line')].find(line => line.textContent.includes('photo'))?.outerHTML, widgets: document.querySelectorAll('.cm-md-image-widget').length })`));
     throw new Error(`Image drop acceptance timed out: ${source}`);
   };
   const base = path.join(repoRoot, "artifacts/tests/native-resource-drag");
@@ -122,6 +123,39 @@ export async function runImageDropDomAcceptance({ window, entries, temporaryRoot
   await send("drop", empty.x, 300);
   await saved(snippet);
   checks.push("empty document insertion");
+
+  // A long list used to expose only its outer boundaries. Its lower paragraphs
+  // therefore had neither a visible insertion line nor an insertable position.
+  const list = Array.from({ length: 30 }, (_, index) => `${index + 1}. 条目${index + 1}\n\n    解释段落${index + 1}。\n\n    补充段落${index + 1}。`).join("\n\n");
+  await load(list);
+  await evaluate("imageDropFixture.reveal('解释段落12。')");
+  await wait(180);
+  const listBefore = await sample();
+  const listA = await evaluate("dropProbe.line('解释段落12。')");
+  const listB = await evaluate("dropProbe.line('补充段落12。')");
+  const gapY = (listA.bottom + listB.top) / 2;
+  const viewport = await evaluate("(() => { const r = document.querySelector('.cm-scroller').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; })()");
+  assert(gapY > (viewport.top + viewport.bottom) / 2 && gapY < viewport.bottom, "Regression must exercise the lower viewport half");
+  await send("dragover", listBefore.x, gapY);
+  await wait(70);
+  const listPreview = await sample();
+  assert(listPreview.visible, "No insertion line between paragraphs inside a scrolled list");
+  assert(Math.abs(listPreview.markerY - gapY) < 2, "List marker is not in the hovered paragraph gap");
+  assert.equal(listPreview.source, list);
+  assert.equal(listPreview.scrollTop, listBefore.scrollTop);
+  await fs.writeFile(path.join(directory, "list-lower-half-preview.png"), (await window.webContents.capturePage()).toPNG());
+  await send("drop", listBefore.x, gapY);
+  const listExpected = list.replace("解释段落12。", `解释段落12。\n\n    ${snippet}`);
+  await saved(listExpected);
+  await window.loadURL(window.webContents.getURL());
+  await install();
+  await until(`imageDropFixture.source() === ${JSON.stringify(listExpected)}`);
+  // Initial preview layout may restore the opening viewport. Locate the image
+  // once that layout settles rather than assuming one early scroll survives it.
+  await until("(() => { imageDropFixture.reveal('![photo'); return Boolean(document.querySelector('img[data-preview-state=ready]')); })()");
+  assert.equal((await sample()).source, listExpected, "Reload lost the image inside the list");
+  await fs.writeFile(path.join(directory, "list-image-reloaded.png"), (await window.webContents.capturePage()).toPNG());
+  checks.push("scrolled long-list lower-half paragraph gap previews at the pointer", "list image preserves indentation and persists/renders after reload");
 
   const tall = "这是同一个很长的段落，不能在中间拆开插图。".repeat(320) + "\n\n最后一段。";
   await load(tall);

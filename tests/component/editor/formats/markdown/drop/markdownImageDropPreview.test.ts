@@ -47,6 +47,16 @@ describe("image paragraph drop preview", () => {
     const view = fixture("");
     expect(resolveMarkdownImageDrop(view, { x: 200, y: 100 })?.position).toBe(0);
   });
+  it("keeps empty list items as visible blocks when choosing the outer boundary", () => {
+    const view = fixture("-\n\n- next");
+    expect(resolveMarkdownImageDrop(view, { x: 250, y: 15 })?.position).toBe(0);
+  });
+  it.each([
+    { doc: "- first\n-\n- last", y: 60, at: 9 },
+    { doc: "- first\n-", y: 150, at: 9 },
+  ])("keeps intermediate and final empty items reachable: $doc", ({ doc, y, at }) => {
+    expect(resolveMarkdownImageDrop(fixture(doc), { x: 250, y })?.position).toBe(at);
+  });
   it("places the first and last marker beside the block, preserving outer blank lines", () => {
     const view = fixture("\n\nalpha\n\n");
     expect(resolveMarkdownImageDrop(view, { x: 250, y: 70 })?.position).toBe(2);
@@ -69,6 +79,12 @@ describe("image paragraph drop preview", () => {
     const view = fixture("A tall paragraph");
     vi.mocked(view.lineBlockAt).mockReturnValue({ from: 0, to: 16, top: -100, bottom: 900, height: 1000 } as ReturnType<EditorView["lineBlockAt"]>);
     expect(resolveMarkdownImageDrop(view, { x: 250, y: 100 })).toBeNull();
+  });
+  it("offers the visible paragraph gap in the lower half of a list whose end is offscreen", () => {
+    const doc = "1. first\n\n   second\n\n2. third\n\n   fourth\n\n3. fifth\n\n   last";
+    const view = fixture(doc);
+    const position = doc.indexOf("third") + "third".length;
+    expect(resolveMarkdownImageDrop(view, { x: 250, y: 170 })).toMatchObject({ position, clientY: 170 });
   });
   it("does not edit source or selection during hover, and clears the line on cancel", () => {
     const view = fixture();

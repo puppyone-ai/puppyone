@@ -2,6 +2,7 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import type { EditorState, Text } from "@codemirror/state";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { getMarkdownFrontMatterEndLine } from "./markdownFrontMatter";
+import { readMarkdownListItem } from "./markdownListStructure";
 
 export type MarkdownInsertBlock = Readonly<{ from: number; to: number }>;
 export type MarkdownInsertBoundaries = Readonly<{
@@ -11,6 +12,57 @@ export type MarkdownInsertBoundaries = Readonly<{
 }>;
 
 const cache = new WeakMap<Text, { tree: Tree; boundaries: MarkdownInsertBoundaries }>();
+type ImageInsertBlock = MarkdownInsertBlock & Readonly<{ indentAfter: string; afterAllowed: boolean }>;
+type ImageInsertBoundaries = Omit<MarkdownInsertBoundaries, "blocks"> & { blocks: readonly ImageInsertBlock[] };
+const imageCache = new WeakMap<Text, { tree: Tree; boundaries: ImageInsertBoundaries }>();
+
+/** A list is a container, not one paragraph. Expose its child block boundaries
+ * while retaining the owning item's continuation indent for image insertion.
+ * Quotes, tables, fences and other leaf blocks remain indivisible. */
+export function getMarkdownImageInsertBoundaries(state: EditorState): ImageInsertBoundaries | null {
+  const root = getMarkdownInsertBoundaries(state);
+  if (!root) return null;
+  // ensureSyntaxTree may have finished beyond the state's published viewport
+  // tree. Reuse that exact full tree, including below-screen list children.
+  const tree = cache.get(state.doc)!.tree;
+  const previous = imageCache.get(state.doc);
+  if (previous?.tree === tree) return previous.boundaries;
+  const blocks: ImageInsertBlock[] = [];
+  const visit = (node: SyntaxNode, indent: string) => {
+    if (node.name === "ListMark") return;
+    if (["BulletList", "OrderedList", "ListItem"].includes(node.name)) {
+      const item = readMarkdownListItem(state, node);
+      const continuation = item ? " ".repeat(item.contentColumn) : indent;
+      const start = blocks.length;
+      for (let child = node.firstChild; child; child = child.nextSibling) visit(child, continuation);
+      if (item && blocks.length === start) blocks.push({ from: state.doc.lineAt(node.from).from,
+        to: node.to, indentAfter: continuation, afterAllowed: true });
+    } else if (node.to > node.from) {
+      blocks.push({ from: state.doc.lineAt(node.from).from, to: node.to,
+        indentAfter: indent, afterAllowed: !hasOpenTail(node, state.doc) });
+    }
+  };
+  for (let node = tree.topNode.firstChild; node; node = node.nextSibling) {
+    if (node.from < root.bodyFrom) continue;
+    visit(node, "");
+    // After the complete top-level list, keep the existing root insertion.
+    const last = blocks.at(-1);
+    if (last?.to === node.to) blocks[blocks.length - 1] = { ...last, indentAfter: "" };
+  }
+  const boundaries = { ...root, blocks, endAllowed: root.endAllowed && (blocks.at(-1)?.afterAllowed ?? true) };
+  imageCache.set(state.doc, { tree, boundaries });
+  return boundaries;
+}
+
+/** Recompute context after asynchronous asset import. Only parser-confirmed
+ * child endpoints may insert inside a list, never arbitrary whitespace/columns. */
+export function markdownImageInsertIndent(state: EditorState, position: number): string | null {
+  const boundaries = getMarkdownImageInsertBoundaries(state);
+  if (!boundaries || (!boundaries.endAllowed && position >= (boundaries.blocks.at(-1)?.to ?? state.doc.length))) return null;
+  if (isMarkdownInsertBoundary(state, position)) return "";
+  const block = boundaries.blocks.find(block => block.to === position);
+  return block?.afterAllowed ? block.indentAfter : null;
+}
 
 /** Use the canonical parser, including its dialect extensions. A partial tree
  * cannot establish a safe boundary (a paragraph or fence may continue below it).

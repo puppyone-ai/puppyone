@@ -1,6 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import type { DocumentDropPoint } from "../../../resource/DocumentDropTarget";
-import { getMarkdownInsertBoundaries } from "../../core/syntax/markdownInsertBoundaries";
+import { getMarkdownImageInsertBoundaries } from "../../core/syntax/markdownInsertBoundaries";
 
 export type MarkdownImageDropAnchor = Readonly<{
   position: number;
@@ -15,7 +15,7 @@ export function resolveMarkdownImageDrop(view: EditorView, point: DocumentDropPo
   if (view.state.readOnly || view.composing) return null;
   const viewport = view.scrollDOM.getBoundingClientRect();
   if (point.x < viewport.left || point.x > viewport.right || point.y < viewport.top || point.y > viewport.bottom) return null;
-  const boundaries = getMarkdownInsertBoundaries(view.state);
+  const boundaries = getMarkdownImageInsertBoundaries(view.state);
   if (!boundaries) return null;
   const { blocks, bodyFrom } = boundaries;
   const topOf = (index: number) => view.lineBlockAt(blocks[index].from).top;
@@ -29,6 +29,7 @@ export function resolveMarkdownImageDrop(view: EditorView, point: DocumentDropPo
     else low = middle + 1;
   }
   if (low === blocks.length && !boundaries.endAllowed) return null;
+  if (low > 0 && !blocks[low - 1].afterAllowed) return null;
   const above = low > 0 ? bottomOf(low - 1) : null;
   const below = low < blocks.length ? topOf(low) : null;
   const emptyLine = view.lineBlockAt(view.state.doc.length);
