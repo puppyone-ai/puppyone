@@ -1,5 +1,5 @@
 import { CloudIcon, Tooltip, FolderIcon, LocalIcon } from "@puppyone/shared-ui";
-import { Check, FolderPlus } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { CloudSpace } from "../lib/workspaceHomeModel";
@@ -8,20 +8,23 @@ import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
 } from "./DesktopDialog";
-import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSeparator, DesktopMenuSurface } from "./DesktopMenu";
-import { useOnboardingMenu } from "./onboarding/useOnboardingMenu";
 
 const GETTING_STARTED = {
   kind: "template",
   ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
 } as const;
 
+/** Who can open the new project: the same three audiences as the Homepage's groups. */
+type Audience = "local" | "devices" | "team";
+/** Where its files are kept. Only all-my-devices offers a choice. */
+type Storage = "computer" | "cloud";
+
 /**
- * Project initialization dialog, the one way to start a project. The location is
- * prefilled with the built-in projects folder on this computer and the name is
- * prefilled, so the default path is a single Create action. The location can be
- * another folder or, signed in, one of the Cloud spaces, where the project starts
- * empty and shared with that space.
+ * Project initialization dialog, the one way to start a project. It asks who can open
+ * the project, then where it is stored, offering only what that audience allows: this
+ * computer alone is always this computer, a team is always the Cloud, and all my
+ * devices may be either a folder here shared with them or the Cloud. The name and the
+ * built-in projects folder are prefilled, so the default path is a single Create action.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
@@ -30,14 +33,17 @@ export function OnboardingProjectEntryDialog({
   onSubmit,
   cloudSpaces,
   onCreateCloudProject,
+  onShareWithMyDevices,
 }: {
   onClose: () => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
-  /** Spaces this account can start projects in; without any, the location is a folder. */
+  /** Spaces this account can start projects in. */
   cloudSpaces?: readonly CloudSpace[];
   onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
+  /** Offers a project just created and opened here to the owner's other computers. */
+  onShareWithMyDevices?: (path: string) => Promise<void>;
 }) {
   const { t, locale } = useLocalization();
   const [value, setValue] = useState(() => (
@@ -48,16 +54,27 @@ export function OnboardingProjectEntryDialog({
   const [submitting, setSubmitting] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
   const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
-  /** A Cloud space instead of the folder above; null keeps the project on this computer. */
-  const [space, setSpace] = useState<CloudSpace | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const placeMenu = useOnboardingMenu();
-  const spaces = onCreateCloudProject ? cloudSpaces ?? [] : [];
-  const spaceLabel = (option: CloudSpace) => option.kind === "personal" ? t("onboarding.sharing.personal") : option.name;
   const defaultLocationRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
   const busy = submitting || choosingLocation;
   const fieldsDisabled = busy || created !== null;
   const title = t("onboarding.entry.create.title");
+
+  const spaces = onCreateCloudProject ? (cloudSpaces ?? []).filter((space) => space.canCreateProjects) : [];
+  const personal = spaces.find((space) => space.kind === "personal");
+  const teams = spaces.filter((space) => space.kind === "team");
+  const devicesStorage: Storage[] = [
+    ...(onShareWithMyDevices ? ["computer" as const] : []),
+    ...(personal ? ["cloud" as const] : []),
+  ];
+  const audiences: Audience[] = ["local", ...(devicesStorage.length ? ["devices" as const] : []), ...(teams.length ? ["team" as const] : [])];
+  const [audience, setAudience] = useState<Audience>("local");
+  const [chosenStorage, setChosenStorage] = useState<Storage>("computer");
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const team = teams.find((space) => space.id === teamId) ?? teams[0];
+  const storageOptions = storageFor(audience, devicesStorage);
+  const storage = storageOptions.includes(chosenStorage) ? chosenStorage : storageOptions[0];
+  const cloudSpace = audience === "team" ? team : personal;
 
   useEffect(() => {
     if (!onDefaultLocation) return;
@@ -75,21 +92,26 @@ export function OnboardingProjectEntryDialog({
     };
   }, [onDefaultLocation]);
 
+  const createInCloud = async (name: string) => {
+    if (!cloudSpace || !onCreateCloudProject) return;
+    try {
+      await onCreateCloudProject(cloudSpace.id, name);
+      onClose();
+      return;
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
+    setSubmitting(false);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
-    if (!name || busy || (!space && !location)) return;
+    if (!name || busy || (storage === "computer" && !location)) return;
     setError(null);
     setSubmitting(true);
-    if (space && onCreateCloudProject) {
-      try {
-        await onCreateCloudProject(space.id, name);
-        onClose();
-        return;
-      } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : String(nextError));
-      }
-      setSubmitting(false);
+    if (storage === "cloud") {
+      await createInCloud(name);
       return;
     }
     if (!location) return;
@@ -104,6 +126,7 @@ export function OnboardingProjectEntryDialog({
       const result = await onSubmit(requestRef.current);
       if (result.opening.status === "opened") {
         onClose();
+        if (audience === "devices") void onShareWithMyDevices?.(result.initialization.path);
         return;
       }
       setCreated(result);
@@ -122,7 +145,6 @@ export function OnboardingProjectEntryDialog({
       const nextLocation = await onChooseLocation();
       if (nextLocation) {
         setLocation(nextLocation);
-        setSpace(null);
         requestRef.current = null;
       }
     } catch (nextError) {
@@ -131,6 +153,18 @@ export function OnboardingProjectEntryDialog({
       setChoosingLocation(false);
     }
   };
+
+  const audienceLabels: Record<Audience, string> = {
+    local: t("onboarding.entry.create.audience.local"),
+    devices: t("onboarding.entry.create.audience.devices"),
+    team: t("onboarding.entry.create.audience.team"),
+  };
+  let locationAction = "onboarding.entry.create.browse";
+  if (location) locationAction = "onboarding.entry.create.change";
+  if (choosingLocation) locationAction = "onboarding.entry.create.browsing";
+  let submitLabel = "onboarding.entry.create.submit";
+  if (created) submitLabel = "onboarding.entry.create.retryOpen";
+  if (submitting) submitLabel = "onboarding.entry.create.submitting";
 
   return (
     <DesktopDialogRoot
@@ -186,65 +220,68 @@ export function OnboardingProjectEntryDialog({
                 }}
               />
             </label>
+            {audiences.length > 1 && (
+              <fieldset className="onboarding-entry-create-field onboarding-entry-choice-field" disabled={fieldsDisabled}>
+                <legend className="onboarding-entry-create-label">{t("onboarding.entry.create.audienceLabel")}</legend>
+                <div className="onboarding-entry-choices" role="radiogroup">
+                  {audiences.map((option) => (
+                    <label key={option} className="onboarding-entry-choice" data-checked={audience === option || undefined}>
+                      <input type="radio" name="onboarding-entry-audience" value={option} checked={audience === option}
+                        onChange={() => { setAudience(option); setError(null); }} />
+                      <span className="onboarding-entry-choice-label">{audienceLabels[option]}</span>
+                      {option === "team" && teams.length > 1 && (
+                        <select className="onboarding-entry-team-select" aria-label={t("onboarding.sharing.selectTeam")}
+                          value={team?.id} onChange={(event) => { setTeamId(event.target.value); setAudience("team"); }}>
+                          {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                        </select>
+                      )}
+                      {option === "team" && teams.length === 1 && <span className="onboarding-entry-choice-detail">{team?.name}</span>}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div className="onboarding-entry-create-field">
               <span className="onboarding-entry-create-label">
-                {t("onboarding.entry.create.locationLabel")}
+                {t(audiences.length > 1 ? "onboarding.entry.create.storedLabel" : "onboarding.entry.create.locationLabel")}
               </span>
-              <div ref={placeMenu.rootRef} className="onboarding-entry-location-root">
+              {storageOptions.length > 1 && (
+                <div className="onboarding-entry-segments" role="radiogroup" aria-label={t("onboarding.entry.create.storedLabel")}>
+                  {storageOptions.map((option) => (
+                    <label key={option} className="onboarding-entry-segment" data-checked={storage === option || undefined}>
+                      <input type="radio" name="onboarding-entry-storage" value={option} checked={storage === option}
+                        disabled={fieldsDisabled} onChange={() => { setChosenStorage(option); setError(null); }} />
+                      {option === "computer" ? <LocalIcon size={14} strokeWidth={1.85} aria-hidden="true" />
+                        : <CloudIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
+                      <span>{t(`onboarding.entry.create.stored.${option}`)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {storage === "computer" ? (
                 <button
                   className="onboarding-entry-location-picker onboarding-entry-browse-button"
                   type="button"
-                  disabled={fieldsDisabled || (!onChooseLocation && spaces.length === 0)}
+                  disabled={fieldsDisabled || !onChooseLocation}
                   aria-label={t("onboarding.entry.create.locationLabel")}
-                  aria-haspopup={spaces.length ? "menu" : undefined}
-                  aria-expanded={spaces.length ? placeMenu.open : undefined}
-                  onClick={() => spaces.length ? placeMenu.toggle() : void chooseLocation()}
+                  onClick={() => void chooseLocation()}
                 >
-                  {space ? <CloudIcon aria-hidden="true" /> : <FolderIcon aria-hidden="true" />}
+                  <FolderIcon aria-hidden="true" />
                   <bdi
-                    className={`onboarding-entry-location-path ${location || space ? "is-selected" : ""}`}
-                    dir={space ? undefined : "ltr"}
+                    className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
+                    dir="ltr"
                     aria-live="polite"
                   >
-                    {space ? spaceLabel(space) : location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
+                    {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
                   </bdi>
-                  <span className="onboarding-entry-location-action">
-                    {t(choosingLocation
-                      ? "onboarding.entry.create.browsing"
-                      : location || space
-                        ? "onboarding.entry.create.change"
-                        : "onboarding.entry.create.browse")}
-                  </span>
+                  <span className="onboarding-entry-location-action">{t(locationAction)}</span>
                 </button>
-                {placeMenu.open && (
-                  <DesktopMenuSurface ref={placeMenu.menuRef} className="onboarding-entry-location-menu"
-                    ariaLabel={t("onboarding.entry.create.locationLabel")} onKeyDown={placeMenu.onKeyDown}>
-                    <DesktopMenuSection>
-                      <DesktopMenuItem role="menuitemradio" aria-checked={!space}
-                        icon={<LocalIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
-                        label={t("onboarding.sharing.localOnly")}
-                        detail={location ? <bdi dir="ltr">{location.path}</bdi> : undefined}
-                        trailing={!space ? <Check size={14} strokeWidth={1.85} aria-hidden="true" /> : undefined}
-                        disabled={!location}
-                        onClick={() => { placeMenu.close(); setSpace(null); setError(null); }} />
-                      {onChooseLocation && <DesktopMenuItem role="menuitem"
-                        icon={<FolderIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
-                        label={`${t("onboarding.entry.create.locationPlaceholder")}…`}
-                        onClick={() => { placeMenu.close(); void chooseLocation(); }} />}
-                    </DesktopMenuSection>
-                    <DesktopMenuSeparator />
-                    <DesktopMenuSection>
-                      {spaces.map((option) => <DesktopMenuItem key={option.id} role="menuitemradio"
-                        aria-checked={space?.id === option.id}
-                        icon={<CloudIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
-                        label={<bdi>{spaceLabel(option)}</bdi>}
-                        detail={option.kind === "team" ? t("onboarding.sharing.team") : undefined}
-                        trailing={space?.id === option.id ? <Check size={14} strokeWidth={1.85} aria-hidden="true" /> : undefined}
-                        onClick={() => { placeMenu.close(); setSpace(option); setError(null); }} />)}
-                    </DesktopMenuSection>
-                  </DesktopMenuSurface>
-                )}
-              </div>
+              ) : storageOptions.length === 1 && (
+                <div className="onboarding-entry-location-picker is-fixed" aria-live="polite">
+                  <CloudIcon aria-hidden="true" />
+                  <span className="onboarding-entry-location-path is-selected">{t("onboarding.entry.create.stored.cloud")}</span>
+                </div>
+              )}
             </div>
           </div>
           {created && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.entry.create.createdNote", { path: created.initialization.path })}</p>}
@@ -263,14 +300,18 @@ export function OnboardingProjectEntryDialog({
           <button
             className="desktop-dialog-button primary file"
             type="submit"
-            disabled={busy || !value.trim() || (!space && !location)}
+            disabled={busy || !value.trim() || (storage === "computer" && !location) || (storage === "cloud" && !cloudSpace)}
           >
-            {t(submitting
-              ? "onboarding.entry.create.submitting"
-              : created ? "onboarding.entry.create.retryOpen" : "onboarding.entry.create.submit")}
+            {t(submitLabel)}
           </button>
         </footer>
       </form>
     </DesktopDialogRoot>
   );
+}
+
+function storageFor(audience: Audience, devices: readonly Storage[]): readonly Storage[] {
+  if (audience === "team") return ["cloud"];
+  if (audience === "devices") return devices;
+  return ["computer"];
 }

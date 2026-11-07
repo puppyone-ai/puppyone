@@ -345,34 +345,132 @@
   stroke-width: 1.8;
 }
 
-/* Where the project starts: a folder here, or a Cloud space, chosen under the field. */
-.onboarding-entry-location-root {
-  position: relative;
-  min-width: 0;
+/* Who can open the new project: one quiet row per audience, the chosen one raised. */
+.onboarding-entry-choice-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-/* The places open in the dialog's own flow, under the field, and the dialog grows to
-   hold them: a floating menu would be cut by the body and covered by the footer. */
-.onboarding-entry-dialog.is-create .onboarding-entry-location-menu {
-  box-sizing: border-box;
-  margin-block-start: 6px;
-  padding: var(--po-menu-padding);
-  border: 1px solid var(--po-border-strong);
-  border-radius: 8px;
-  background: var(--po-panel-raised);
-  box-shadow: none;
+.onboarding-entry-choice-field > legend {
+  margin-block-end: 8px;
+  padding: 0;
 }
 
-.onboarding-entry-location-menu .desktop-menu-section-list {
+.onboarding-entry-choices {
   display: grid;
   gap: 2px;
 }
 
-.onboarding-entry-location-menu .desktop-menu-item-detail {
+.onboarding-entry-choice {
+  display: flex;
   min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 18px;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.onboarding-entry-choice:hover {
+  background: var(--po-hover);
+}
+
+.onboarding-entry-choice[data-checked] {
+  border-color: var(--po-border-strong);
+  background: var(--po-panel-raised);
+  color: var(--po-text);
+}
+
+.onboarding-entry-choice > input,
+.onboarding-entry-segment > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-entry-choice-label {
+  flex: none;
+}
+
+.onboarding-entry-choice-detail,
+.onboarding-entry-team-select {
+  min-width: 0;
+  margin-inline-start: auto;
   overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.onboarding-entry-team-select {
+  max-width: 180px;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: transparent;
+  font-family: inherit;
+}
+
+/* Where all my devices' project is kept: two halves of one control. */
+.onboarding-entry-segments {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--po-border-strong);
+  border-radius: 8px;
+  background: var(--po-panel-raised);
+}
+
+.onboarding-entry-segment {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: 500;
+}
+
+.onboarding-entry-segment > input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.onboarding-entry-segment:hover {
+  color: var(--po-text);
+}
+
+.onboarding-entry-segment[data-checked] {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.onboarding-entry-segment:has(> input:focus-visible) {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+/* A place that follows from the audience: shown, not chosen. */
+.onboarding-entry-location-picker.is-fixed,
+.onboarding-entry-location-picker.is-fixed:hover {
+  grid-template-columns: 18px minmax(0, 1fr);
+  border-color: var(--po-border-strong);
+  background: var(--po-panel-raised);
+  cursor: default;
 }
 
 .onboarding-entry-location-action {
