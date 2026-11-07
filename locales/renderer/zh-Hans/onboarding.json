@@ -7,6 +7,8 @@
   "spaces.personal": "个人云空间",
   "spaces.organization": "组织云空间",
   "spaces.empty": "把项目拖到这里即可共享。",
+  "drop.personal": "松开即可共享到我的所有设备",
+  "drop.team": "松开即可共享给团队",
   "spaces.readOnly": "暂无项目。你无法向此空间添加项目。",
   "spaces.unavailable": "暂时无法获取云空间，项目仍保留在原处。",
   "spaces.retry": "重试",

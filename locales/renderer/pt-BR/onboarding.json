@@ -7,6 +7,8 @@
   "spaces.personal": "Cloud pessoal",
   "spaces.organization": "Cloud da organização",
   "spaces.empty": "Arraste um projeto para cá para compartilhá-lo.",
+  "drop.personal": "Solte para compartilhar com todos os meus dispositivos",
+  "drop.team": "Solte para compartilhar com a equipe",
   "spaces.readOnly": "Nenhum projeto. Você não pode adicionar projetos a este espaço.",
   "spaces.unavailable": "Os espaços Cloud estão indisponíveis. Seus projetos continuam onde estão.",
   "spaces.retry": "Tentar novamente",

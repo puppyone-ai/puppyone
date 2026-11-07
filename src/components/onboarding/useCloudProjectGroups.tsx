@@ -30,7 +30,8 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
       keepEmpty: Boolean(space.canCreateProjects || (space.kind === "team" && source && onPublish)),
       // A personal-area drop means sharing from this computer, not uploading.
       // Homepage's device composition supplies that action; never fall back here.
-      dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source), onDrop: () => {
+      dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source),
+        hint: t("onboarding.drop.team"), onDrop: () => {
         onDragEnd();
         if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,

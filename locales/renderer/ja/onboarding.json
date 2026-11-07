@@ -7,6 +7,8 @@
   "spaces.personal": "個人クラウド",
   "spaces.organization": "組織クラウド",
   "spaces.empty": "プロジェクトをここにドラッグすると共有できます。",
+  "drop.personal": "ドロップして自分のすべてのデバイスと共有",
+  "drop.team": "ドロップしてチームと共有",
   "spaces.readOnly": "プロジェクトはありません。このスペースには追加できません。",
   "spaces.unavailable": "クラウドスペースを取得できません。プロジェクトは元の場所に残ります。",
   "spaces.retry": "再試行",
