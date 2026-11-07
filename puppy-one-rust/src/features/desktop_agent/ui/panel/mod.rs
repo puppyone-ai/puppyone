@@ -232,6 +232,7 @@ impl AgentChatTabPanel {
             // One 1.5em line at rest; Enter sends, Shift+Enter breaks the line.
             let size = crate::theme::ty().left.content;
             input.prompt_text = Some((size, size * 1.5));
+            input.placeholder_color = Some(|t| super::agent_theme::AgentTheme::new(t).text_subtle);
             input.min_height = size * 1.5;
             input.appearance = false;
             input.submit_on_enter = true;

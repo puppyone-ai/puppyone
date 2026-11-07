@@ -286,6 +286,11 @@ impl HistoryBrowser {
         let search = cx.new(|cx| {
             let mut input = TextInput::new(tr("agent.history.search"), false, 200, window, cx);
             input.appearance = false;
+            input.prompt_text = Some((
+                theme::ty().right.caption,
+                theme::ty().right.meta_line_height,
+            ));
+            input.placeholder_color = Some(|t| AgentTheme::new(t).launcher_placeholder_text);
             input
         });
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
@@ -849,13 +854,6 @@ impl Render for HistoryBrowser {
             .read(cx)
             .focus_handle(cx)
             .contains_focused(window, cx);
-        self.search.update(cx, |s, _| {
-            s.prompt_text = Some((
-                theme::ty().right.caption,
-                theme::ty().right.meta_line_height,
-            ));
-            s.placeholder_color = Some(a.launcher_placeholder_text);
-        });
         let content = if self.enabled {
             self.list(a, t, cx)
         } else {

@@ -324,7 +324,7 @@ impl Render for Lab {
                 "pixelsPerPoint": window.scale_factor(),
                 "assetsReady": assets_ready,
             });
-            if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
+            if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), &geometry)
             {
                 eprintln!("Lab capture failed: {error:#}");
             }

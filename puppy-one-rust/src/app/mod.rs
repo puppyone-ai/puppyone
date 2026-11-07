@@ -632,9 +632,29 @@ impl Shell {
         };
         self.frame.captured = true;
         let layout = self.frame.layout;
+        /// The window's regions beside its screenshot.
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Geometry {
+            framework: &'static str,
+            header: [f32; 4],
+            explorer: [f32; 4],
+            footer: [f32; 4],
+            editor: [f32; 4],
+            auxiliary: [f32; 4],
+            pixels_per_point: f32,
+        }
         let rect = |r: Rect| [r.x, r.y, r.w, r.h];
-        let geometry = serde_json::json!({"framework":"GPUI","header":rect(layout.header),"explorer":rect(layout.explorer),"footer":rect(layout.footer),"editor":rect(layout.editor),"auxiliary":rect(layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
-        if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry) {
+        let geometry = Geometry {
+            framework: "GPUI",
+            header: rect(layout.header),
+            explorer: rect(layout.explorer),
+            footer: rect(layout.footer),
+            editor: rect(layout.editor),
+            auxiliary: rect(layout.auxiliary),
+            pixels_per_point: window.scale_factor(),
+        };
+        if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), &geometry) {
             self.show_error(error.to_string(), cx);
         }
     }

@@ -76,10 +76,7 @@ pub struct Catalog {
 }
 pub fn catalog() -> &'static Catalog {
     static DATA: OnceLock<Catalog> = OnceLock::new();
-    DATA.get_or_init(|| {
-        serde_json::from_value(crate::asset_catalog::data()["loading"].clone())
-            .expect("loading catalog")
-    })
+    DATA.get_or_init(|| crate::asset_catalog::section("loading"))
 }
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub struct Shape {

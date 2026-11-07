@@ -46,6 +46,16 @@ pub struct StoredProject {
     pub items: HashMap<Id, RetainedItem>,
 }
 impl StoredProject {
+    /// The project's saved state, when it is a valid one.
+    pub fn read(saved: serde_json::Value) -> Option<Self> {
+        serde_json::from_value::<Self>(saved)
+            .ok()
+            .filter(Self::validate)
+    }
+    /// The state to save.
+    pub fn to_saved(&self) -> Option<serde_json::Value> {
+        serde_json::to_value(self).ok()
+    }
     pub fn validate(&self) -> bool {
         self.version == 1
             && self.layout.valid()

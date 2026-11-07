@@ -155,7 +155,7 @@ impl SettingsWorkspaceSurface {
             input.update(cx, |i, _| {
                 i.appearance = false;
                 i.prompt_text = Some((m.ui.meta, 17.));
-                i.placeholder_color = Some(t.subtle);
+                i.placeholder_color = Some(|t| t.subtle);
                 i.set_placeholder(placeholder);
                 i.min_height = 17.;
             });

@@ -65,6 +65,7 @@ impl Feedback {
             cx.new(|cx| {
                 let mut input = TextInput::new(placeholder, multiline, max, window, cx);
                 input.appearance = false;
+                input.placeholder_color = Some(|t| t.subtle);
                 input
             })
         };
@@ -96,7 +97,7 @@ impl Feedback {
             |this: &mut Self, _: Entity<TextInput>, event: &InputEvent, cx: &mut Context<Self>| {
                 if matches!(event, InputEvent::Changed) {
                     if this.submission == Submission::Error {
-                        this.submission = Submission::Idle;
+                        this.set_submission(Submission::Idle, cx);
                     }
                     cx.notify();
                 }
@@ -130,7 +131,7 @@ impl Feedback {
     pub fn reset(&mut self, cx: &mut Context<Self>) {
         self.submission_id += 1;
         self.attachment_id += 1;
-        self.submission = Submission::Idle;
+        self.set_submission(Submission::Idle, cx);
         self.attachment = Attachment::Idle;
         self.screenshot = None;
         self.dragging = false;
@@ -141,6 +142,19 @@ impl Feedback {
 
     fn locked(&self) -> bool {
         matches!(self.submission, Submission::Sending | Submission::Sent)
+    }
+    /// A sending or sent report locks its fields.
+    fn set_submission(&mut self, submission: Submission, cx: &mut Context<Self>) {
+        self.submission = submission;
+        let locked = self.locked();
+        for input in [&self.message, &self.email] {
+            input.update(cx, |i, cx| {
+                if i.disabled != locked {
+                    i.disabled = locked;
+                    cx.notify();
+                }
+            });
+        }
     }
     /// `canSend`.
     pub fn can_send(&self, cx: &App) -> bool {
@@ -259,7 +273,7 @@ impl Feedback {
         let message = self.message.read(cx).text().trim().to_string();
         let email = self.email.read(cx).text().trim().to_string();
         if !service::valid_email(&email) || message.is_empty() {
-            self.submission = Submission::Error;
+            self.set_submission(Submission::Error, cx);
             cx.notify();
             return;
         }
@@ -268,7 +282,7 @@ impl Feedback {
         }
         self.submission_id += 1;
         let id = self.submission_id;
-        self.submission = Submission::Sending;
+        self.set_submission(Submission::Sending, cx);
         cx.notify();
         let request = service::Request {
             message,
@@ -284,11 +298,12 @@ impl Feedback {
                 if s.submission_id != id {
                     return;
                 }
-                s.submission = if result.is_ok() {
+                let submission = if result.is_ok() {
                     Submission::Sent
                 } else {
                     Submission::Error
                 };
+                s.set_submission(submission, cx);
                 cx.notify();
             })
             .ok();
@@ -313,11 +328,12 @@ impl Feedback {
                 cx,
             );
         }
-        self.submission = match scenario {
+        let submission = match scenario {
             "feedback-sent" => Submission::Sent,
             "feedback-error" => Submission::Error,
             _ => Submission::Idle,
         };
+        self.set_submission(submission, cx);
     }
 }
 
@@ -328,12 +344,6 @@ impl Render for Feedback {
             self.dragging = false;
         }
         let locked = self.locked();
-        for input in [&self.message, &self.email] {
-            input.update(cx, |i, _| {
-                i.disabled = locked;
-                i.placeholder_color = Some(t.subtle);
-            });
-        }
         let ty = theme::ty().ui;
         let message_focused = self.message.focus_handle(cx).contains_focused(window, cx);
         let email_focused = self.email.focus_handle(cx).contains_focused(window, cx);

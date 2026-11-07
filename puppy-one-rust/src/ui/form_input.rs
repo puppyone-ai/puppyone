@@ -1,6 +1,7 @@
 //! Application adapter for GPUI Kit's Input / Textarea. Kit owns editing,
 //! selection, IME, clipboard and history; this adapter only bridges host events.
 pub use super::input::InputSnapshot;
+use crate::theme::Theme;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::component::input::{
@@ -45,8 +46,9 @@ pub struct TextInput {
     /// Prompt editors: Kit's smallest editor padding (4px inline, 0 block) so
     /// the host owns the inset, with an explicit text size and line height.
     pub prompt_text: Option<(f32, f32)>,
-    /// Draw the placeholder in this colour (Kit's follows the global theme).
-    pub placeholder_color: Option<Rgba>,
+    /// Draw the placeholder in this palette colour (Kit's follows the global
+    /// theme).
+    pub placeholder_color: Option<fn(&Theme) -> Rgba>,
     /// Atomic inline tokens (prompt mentions) render through this.
     pub token_renderer: Option<TokenRenderer>,
     /// Text with tokens to install at the next render (a restored draft).
@@ -320,6 +322,7 @@ impl Render for TextInput {
         let overlay = self
             .placeholder_color
             .filter(|_| self.value.is_empty())
+            .map(|color| color(&t))
             .map(|color| {
                 let (size, line) = self.prompt_text.unwrap_or((14., 21.));
                 div()

@@ -7,6 +7,30 @@ use super::{
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
 use serde::Deserialize;
+/// A fixture item's size: pixels, or a named loader size.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+#[serde(untagged)]
+enum Size {
+    Px(f32),
+    Named(String),
+    #[default]
+    Unset,
+}
+impl Size {
+    fn px(&self) -> f32 {
+        match self {
+            Self::Px(px) => *px,
+            _ => panic!("the fixture names a size in pixels"),
+        }
+    }
+    fn named(&self) -> &str {
+        match self {
+            Self::Named(name) => name,
+            _ => panic!("the fixture names a loader size"),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct Board {
     items: Vec<Item>,
@@ -29,7 +53,7 @@ struct Item {
     #[serde(default)]
     ink: String,
     #[serde(default)]
-    size: serde_json::Value,
+    size: Size,
     #[serde(default)]
     stroke: f32,
     #[serde(default)]
@@ -49,7 +73,7 @@ impl Item {
             None,
             self.theme.clone(),
         )
-        .size_px(self.size.as_f64().unwrap() as f32)
+        .size_px(self.size.px())
     }
     fn ink(&self, cx: &App) -> Rgba {
         let t = cx.palette();
@@ -96,12 +120,12 @@ impl Render for AssetGallery {
                             .expect("registered meaning"),
                     )
                     .stroke(item.stroke)
-                    .with_size(px(item.size.as_f64().unwrap() as f32))
+                    .with_size(px(item.size.px()))
                     .color(ink)
                     .into_any_element(),
                     "file" => item.file().into_any_element(),
                     "mark" => {
-                        let size = match item.size.as_str().unwrap() {
+                        let size = match item.size.named() {
                             "xs" => LoaderSize::Xs,
                             "sm" => LoaderSize::Sm,
                             "md" => LoaderSize::Md,

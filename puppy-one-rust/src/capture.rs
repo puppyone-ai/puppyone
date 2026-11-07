@@ -146,8 +146,9 @@ pub fn schedule(
     window: &Window,
     cx: &App,
     path: PathBuf,
-    geometry: serde_json::Value,
+    geometry: &impl serde::Serialize,
 ) -> anyhow::Result<()> {
+    let geometry = serde_json::to_value(geometry)?;
     #[cfg(feature = "dev-capture")]
     if std::env::var_os("PUPPYONE_SCREENSHOT_OFFSCREEN").is_some() {
         return schedule_offscreen(window, cx, path, geometry);
@@ -196,6 +197,6 @@ pub fn schedule(
     Ok(())
 }
 #[cfg(not(target_os = "macos"))]
-pub fn schedule(_: &Window, _: &App, _: PathBuf, _: serde_json::Value) -> anyhow::Result<()> {
+pub fn schedule(_: &Window, _: &App, _: PathBuf, _: &impl serde::Serialize) -> anyhow::Result<()> {
     anyhow::bail!("OS screenshot capture is currently implemented for macOS")
 }

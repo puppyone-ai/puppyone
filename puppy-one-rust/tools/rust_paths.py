@@ -17,12 +17,42 @@ def module_path(root, path):
 
 
 def strip(source):
-    """The source without comments, string literals or its test module."""
-    source = re.sub(r'(?s)/\*.*?\*/', '', source)
-    source = re.sub(r'//[^\n]*', '', source)
-    source = re.sub(r'r(#*)"(?s:.*?)"\1', '""', source)
-    source = re.sub(r'"(?:\\.|[^"\\])*"', '""', source)
-    return cut_tests(source)
+    """The source without comments, string or char literals, or its test
+    module (literals become `""`/`' '`)."""
+    out, i, n = [], 0, len(source)
+    while i < n:
+        c = source[i]
+        if source.startswith('//', i):
+            j = source.find('\n', i)
+            i = n if j < 0 else j
+            continue
+        if source.startswith('/*', i):
+            j = source.find('*/', i + 2)
+            i = n if j < 0 else j + 2
+            continue
+        prev = source[i - 1] if i else ' '
+        raw = re.match(r'b?r(#*)"', source[i:i + 40]) if c in 'rb' and not (prev.isalnum() or prev == '_') else None
+        if raw:
+            end = source.find('"' + raw.group(1), i + len(raw.group(0)))
+            out.append('""')
+            i = n if end < 0 else end + 1 + len(raw.group(1))
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n and source[j] != '"':
+                j += 2 if source[j] == '\\' else 1
+            out.append('""')
+            i = j + 1
+            continue
+        if c == "'":
+            m = re.match(r"'(?:\\(?:u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|.)|[^\\'])'", source[i:i + 12])
+            if m:
+                out.append("' '")
+                i += len(m.group(0))
+                continue
+        out.append(c)
+        i += 1
+    return cut_tests(''.join(out))
 
 
 def cut_tests(source):
@@ -154,3 +184,58 @@ if __name__ == '__main__':
     if '-v' in sys.argv:
         for f, p in sorted(set(found)):
             print(f, p)
+
+
+def matching(source, open_at):
+    """Index just past the bracket that closes the one at `open_at`."""
+    pairs = {'{': '}', '(': ')', '[': ']'}
+    stack, i = [], open_at
+    while i < len(source):
+        c = source[i]
+        if c in pairs:
+            stack.append(pairs[c])
+        elif stack and c == stack[-1]:
+            stack.pop()
+            if not stack:
+                return i + 1
+        i += 1
+    return len(source)
+
+
+def without_closures(body):
+    """`body` with every closure's body removed: listeners and deferred
+    callbacks run later, not while the view renders."""
+    out, i = [], 0
+    head = re.compile(r'(?:\bmove\s*)?\|[^|]*\|\s*(?:->\s*[\w:<>]+\s*)?')
+    while True:
+        m = head.search(body, i)
+        if not m:
+            out.append(body[i:])
+            return ''.join(out)
+        out.append(body[i:m.start()])
+        j = m.end()
+        if j < len(body) and body[j] == '{':
+            i = matching(body, j)
+            continue
+        depth = 0
+        while j < len(body):
+            c = body[j]
+            if c in '([{':
+                depth += 1
+            elif c in ')]}':
+                if depth == 0:
+                    break
+                depth -= 1
+            elif c == ',' and depth == 0:
+                break
+            j += 1
+        i = j
+
+
+def render_bodies(source):
+    """The bodies of the `fn render` of each `impl Render for …`."""
+    for m in re.finditer(r'impl\s+Render\s+for\s+(\w+)[^{]*\{', source):
+        impl_end = matching(source, m.end() - 1)
+        render = re.compile(r'fn\s+render\s*\([^)]*\)[^{]*\{').search(source, m.end(), impl_end)
+        if render:
+            yield m.group(1), source[render.end():matching(source, render.end() - 1) - 1]

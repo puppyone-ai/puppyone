@@ -758,7 +758,6 @@ impl AgentChatTabPanel {
         let runtime_label = view.runtime.runtime_label.clone();
         self.composer.update(cx, |input, _| {
             input.set_placeholder(view.composer_placeholder.clone());
-            input.placeholder_color = Some(a.text_subtle);
         });
         let running = view.running;
         let stopping = state.stopping;

@@ -493,9 +493,8 @@ impl Workbench {
                     if let Some(project) = self.projects.get_mut(&root) {
                         project.loading = false;
                         match result {
-                            Ok(Some(value)) => match serde_json::from_value::<StoredProject>(value)
-                            {
-                                Ok(stored) if stored.validate() => {
+                            Ok(Some(saved)) => match StoredProject::read(saved) {
+                                Some(stored) => {
                                     project.layout = stored.layout;
                                     project.content = stored
                                         .items
@@ -559,7 +558,7 @@ impl Workbench {
                 layout: project.layout.clone(),
                 items,
             };
-            if let Ok(value) = serde_json::to_value(stored) {
+            if let Some(value) = stored.to_saved() {
                 let hash = blake3::hash(value.to_string().as_bytes());
                 if project.saved != Some(hash)
                     && ui_state_store::save(

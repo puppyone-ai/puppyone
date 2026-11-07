@@ -3,6 +3,12 @@
 use serde_json::Value;
 use std::sync::OnceLock;
 
+/// The catalog's `key` section, read as `T`.
+pub fn section<T: serde::de::DeserializeOwned>(key: &str) -> T {
+    serde_json::from_value(data()[key].clone())
+        .unwrap_or_else(|error| panic!("UI asset catalog section {key}: {error}"))
+}
+
 pub fn data() -> &'static Value {
     static DATA: OnceLock<Value> = OnceLock::new();
     DATA.get_or_init(|| {

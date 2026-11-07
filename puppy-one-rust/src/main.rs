@@ -308,3 +308,28 @@ fn open_shell_window<V: Render>(
     })?;
     Ok((window.into(), built.expect("shell constructed")))
 }
+
+/// The architecture's boundaries are part of the suite: a feature reached
+/// past its facade, a render that writes state, untyped JSON in a view or a
+/// provider named outside its runtime fails `cargo test`
+/// (`tools/check-ui-boundaries.py`).
+#[cfg(test)]
+mod boundaries {
+    use core::prelude::v1::test;
+
+    #[test]
+    fn the_architecture_boundaries_hold() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let output = std::process::Command::new("python3")
+            .arg(root.join("tools/check-ui-boundaries.py"))
+            .current_dir(root)
+            .output()
+            .expect("python3 runs the boundary check");
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}

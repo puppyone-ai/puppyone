@@ -164,7 +164,34 @@ for folder in (root / 'src/features').iterdir():
             errors.append(f'src/features/{folder.name}/mod.rs: `pub mod {name}` exposes internals; export its items')
 for path, name in rust_paths.deep_feature_imports(root):
     errors.append(f'{path}: names another feature\'s internals ({name}); use its facade')
-for path in (root / 'src/model_connections').rglob('*.rs'):
+# Render only reads (`Shell::render`, `Explorer`, `Workbench`,
+# `DocumentEditor` and every other view): state changes in events,
+# commands and subscriptions, not while a frame is drawn. Listeners and
+# deferred callbacks inside a render body run later and are skipped.
+render_writes = re.compile(r'\.update(?:_in)?\(|\.emit\(|\bsync_\w+\(|\bguard_\w+\(|\bpersist\(')
+for base in ['src/app', 'src/features', 'src/editor']:
+    for path in (root / base).rglob('*.rs'):
+        if fixture(path):
+            continue
+        for view, body in rust_paths.render_bodies(rust_paths.strip(path.read_text())):
+            for found in render_writes.finditer(rust_paths.without_closures(body)):
+                errors.append(f'{path.relative_to(root)}: {view}::render writes state ({found.group(0)})')
+# The window's composition and views pass Rust values, never untyped JSON
+# (`serde_json::Value`, `json!`): JSON stays at the wire edges (the Agent
+# contract and providers, Cloud API clients, disk stores, bundled data).
+# A feature's saved-state codec, its infrastructure adapters and dev
+# fixtures are such edges.
+untyped_json = re.compile(r'\bValue\b|json!|serde_json::(?:to_value|from_value|Map)')
+def json_edge(path):
+    return fixture(path) or 'dev' in path.parts or 'infrastructure' in path.parts \
+        or path.name in ('infrastructure.rs', 'persistence.rs')
+views = [*(root / 'src/app').rglob('*.rs'), *(root / 'src/ui').rglob('*.rs'),
+         *(root / 'src/features/workbench').rglob('*.rs'),
+         *(p for p in (root / 'src/features').rglob('*.rs') if 'ui' in p.parts or p.name == 'ui.rs')]
+for path in sorted(set(views)):
+    if not json_edge(path) and untyped_json.search(rust_paths.strip(path.read_text())):
+        errors.append(f'{path.relative_to(root)}: composition or view code handles untyped JSON')
+for path in (root / 'src/agent/model_connections').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration depends on presentation')
 for path in [root / 'src/features/model_connections/ui.rs']:
