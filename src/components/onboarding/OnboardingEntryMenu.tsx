@@ -1,12 +1,11 @@
-import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSurface } from "../DesktopMenu";
-import { Button, FolderIcon, Tooltip } from "@puppyone/shared-ui";
+import { DesktopMenuItem, DesktopMenuSection } from "../DesktopMenu";
+import { FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { ChevronDown, Download } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { InlineLoading } from "../loading";
 import { ImportSourcePreview } from "./ImportSourcePreview";
 import type { ImportSourceBrand } from "./ImportSourceMark";
-import { OnboardingCreateProjectAction } from "./OnboardingEntryActions";
-import { useOnboardingMenu } from "./useOnboardingMenu";
+import { OnboardingGroupMenu } from "./OnboardingGroupMenu";
 
 type OnboardingEntryMenuProps = {
   busy: boolean;
@@ -20,9 +19,9 @@ type OnboardingEntryMenuProps = {
 };
 
 /**
- * Every way to start a project, at the head of a page that already has some. A new
- * project stays one click away; opening a folder and importing wait behind the arrow,
- * since a returning user mostly picks from the projects below.
+ * Every way to start a project on this computer, at the head of the group those
+ * projects join. A new project stays one click away; opening a folder and importing
+ * wait behind the arrow, since a returning user mostly picks from the projects below.
  */
 export function OnboardingEntryMenu({
   busy,
@@ -35,48 +34,35 @@ export function OnboardingEntryMenu({
   onImport,
 }: OnboardingEntryMenuProps) {
   const { t } = useLocalization();
-  const menu = useOnboardingMenu();
   const label = t("onboarding.action.moreEntries");
 
-  const choose = (action: () => void) => {
-    menu.close();
-    action();
-  };
-
   return (
-    <div ref={menu.rootRef} className="onboarding-entry-menu-root" role="group" aria-label={t("onboarding.projects.title")}>
-      <OnboardingCreateProjectAction
-        busy={busy}
-        canCreateProject={canCreateProject}
-        prominent
-        onCreateProject={onCreateProject}
-      />
-      <Tooltip content={label}>
-        <Button
-          className="onboarding-entry-action-default onboarding-entry-menu-trigger"
-          tone="primary"
-          data-onboarding-action="more"
-          aria-label={label}
-          aria-haspopup="menu"
-          aria-expanded={menu.open}
-          aria-busy={openingFolder || undefined}
-          disabled={busy}
-          onClick={menu.toggle}
-        >
-          {openingFolder
-            ? <InlineLoading label={null} size="sm" tone="neutral" />
-            : <ChevronDown size={14} strokeWidth={1.85} aria-hidden="true" />}
-        </Button>
-      </Tooltip>
-      {menu.open && (
-        <DesktopMenuSurface ref={menu.menuRef} className="onboarding-entry-menu" ariaLabel={label} elevation="compact" onKeyDown={menu.onKeyDown}>
+    <div className="onboarding-group-split" role="group" aria-label={t("onboarding.projects.title")}>
+      <button
+        type="button"
+        className="onboarding-group-action"
+        data-onboarding-action="create"
+        disabled={busy || !canCreateProject}
+        onClick={onCreateProject}
+      >
+        <Plus size={14} strokeWidth={1.85} aria-hidden="true" />
+        <span>{t("onboarding.action.createLocalProject")}</span>
+      </button>
+      <OnboardingGroupMenu
+        label={label}
+        action="more"
+        pending={openingFolder}
+        disabled={busy}
+        icon={openingFolder ? <InlineLoading label={null} size="sm" tone="neutral" /> : undefined}
+      >
+        {(close) => (
           <DesktopMenuSection>
             <DesktopMenuItem
               role="menuitem"
               data-onboarding-action="open"
               icon={<FolderIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
               label={t("onboarding.action.openFolder")}
-              onClick={() => choose(onOpenFolder)}
+              onClick={() => { close(); onOpenFolder(); }}
             />
             <DesktopMenuItem
               role="menuitem"
@@ -86,11 +72,11 @@ export function OnboardingEntryMenu({
               icon={<Download size={14} strokeWidth={1.85} aria-hidden="true" />}
               label={t("onboarding.action.importFromApps")}
               trailing={<ImportSourcePreview brands={importPreviewBrands} />}
-              onClick={() => choose(onImport)}
+              onClick={() => { close(); onImport(); }}
             />
           </DesktopMenuSection>
-        </DesktopMenuSurface>
-      )}
+        )}
+      </OnboardingGroupMenu>
     </div>
   );
 }

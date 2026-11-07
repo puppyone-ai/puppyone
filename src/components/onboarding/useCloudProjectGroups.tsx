@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { UserRound, UsersRound } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { CloudSpace, ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import { DesktopMenuItem } from "../DesktopMenu";
@@ -22,11 +22,11 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     ?? teams.find((space) => cloudItems.some((item) => item.cloudOrganizationId === space.id)) ?? teams[0];
   const groups: OnboardingProjectGroup[] = [];
 
-  function destination(space: CloudSpace, id: string, title: string, icon: ReactNode): OnboardingProjectGroup {
+  function destination(space: CloudSpace, id: string, title: string): OnboardingProjectGroup {
     const projects = cloudItems.filter((item) => item.cloudOrganizationId === space.id);
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
-      id, title, icon, alwaysShowHeading: true, empty: projects.length === 0,
+      id, title, alwaysShowHeading: true, empty: projects.length === 0,
       keepEmpty: Boolean(space.kind === "team" && source && onPublish),
       // A personal-area drop means sharing from this computer, not uploading.
       // Homepage's device composition supplies that action; never fall back here.
@@ -35,6 +35,7 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
         if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,
       actions: onPublish && <OnboardingGroupMenu label={t("onboarding.spaces.addProject", { name: space.name })}
+        text={t("onboarding.spaces.add")} icon={<Plus size={14} strokeWidth={1.85} aria-hidden="true" />}
         disabled={!writable || candidates.length === 0}>
         {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
           onClick={() => { close(); void onPublish(item.localPath, space.id); }} />)}
@@ -45,9 +46,9 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     };
   }
 
-  if (personal) groups.push(destination(personal, "personal-shared", t("onboarding.sharing.personal"), <UserRound size={14} />));
+  if (personal) groups.push(destination(personal, "personal-shared", t("onboarding.sharing.personal")));
   if (team) {
-    const group = destination(team, "team-shared", t("onboarding.sharing.team"), <UsersRound size={14} />);
+    const group = destination(team, "team-shared", t("onboarding.sharing.team"));
     groups.push({ ...group,
       keepEmpty: group.keepEmpty || cloudItems.some((item) => teams.some((space) => space.id === item.cloudOrganizationId)),
       detail: teams.length === 1 ? team.name : <select className="onboarding-team-selector"
@@ -60,7 +61,7 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   // Unresolved ownership is not evidence of a personal or team audience. Keep
   // existing content reachable while discovery is unavailable, without guessing.
   const unknown = cloudItems.filter((item) => !spaces.some((space) => space.id === item.cloudOrganizationId));
-  if (unknown.length) groups.push({ id: "shared-unresolved", icon: <UsersRound size={14} />,
+  if (unknown.length) groups.push({ id: "shared-unresolved",
     title: t("onboarding.sharing.unresolved"), alwaysShowHeading: true, children: renderProjects(unknown) });
   return groups;
 }

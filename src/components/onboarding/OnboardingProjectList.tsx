@@ -1,4 +1,4 @@
-import { LoadingMark, LocalIcon, Tooltip } from "@puppyone/shared-ui";
+import { LoadingMark, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
@@ -10,7 +10,7 @@ import {
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
 import { DesktopMenuItem } from "../DesktopMenu";
-import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
+import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 import { useProjectListNavigation } from "./useProjectListNavigation";
 
@@ -109,13 +109,8 @@ export function OnboardingProjectList({
             {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<HomeProjectIcon item={item} filled />}
-              label={<>
-                <bdi>{name}</bdi>
-                {sharedId && <Tooltip content={t("hosts.home.shared")}>
-                  <span className="onboarding-project-shared-mark"><LocalIcon size={12} strokeWidth={1.85} aria-hidden="true" /></span>
-                </Tooltip>}
-              </>}
+              icon={<span className="onboarding-project-icon" aria-hidden="true"><ProjectFolderGlyph /></span>}
+              label={<bdi>{name}</bdi>}
               detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
                 : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
               trailing={modified}
@@ -183,8 +178,9 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
 }
 
 /**
- * One project on the Grid: a folder and one line of name. The tooltip adds where it
- * lives and when it last changed, and the name itself only when the line has cut it.
+ * One project on the Grid: a folder and one line of name. Every project is the same
+ * folder; where a group mixes places, a quiet second line says which, in words. The
+ * tooltip adds where it lives and when it last changed, and the name when it is cut.
  */
 function ProjectTile({ item, name, modified, shared, ...button }: {
   item: ProjectHomeItem;
@@ -204,8 +200,9 @@ function ProjectTile({ item, name, modified, shared, ...button }: {
   return (
     <Tooltip content={[nameCut && name, place, shared && t("hosts.home.shared"), modified].filter(Boolean).join(" · ")}>
       <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
-        <ProjectFolder item={item} shared={shared} />
+        <span className="onboarding-project-folder" aria-hidden="true"><ProjectFolderGlyph /></span>
         <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
+        <span className="onboarding-project-tile-place">{caption}</span>
       </button>
     </Tooltip>
   );
