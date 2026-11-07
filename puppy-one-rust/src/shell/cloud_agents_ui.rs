@@ -321,13 +321,13 @@ impl Shell {
     pub(super) fn open_manage_agents(&mut self, cx: &mut Context<Self>) {
         self.popover = None;
         self.cloud.agents.update(cx, |a, cx| a.open_manage(cx));
-        if !self.modals.iter().any(|m| matches!(m, Modal::ManageAgents)) {
-            self.modals.open(Modal::ManageAgents);
+        if !self.dialog_open(DialogKey::ManageAgents, cx) {
+            self.open_dialog(DialogKey::ManageAgents, cx);
         }
         cx.notify();
     }
     pub(super) fn close_manage_agents(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.modals.remove(|m| matches!(m, Modal::ManageAgents));
+        self.close_dialog(DialogKey::ManageAgents, cx);
         self.cloud.agents.update(cx, |a, cx| a.close_manage(cx));
         self.focus.focus(window, cx);
         cx.notify();
@@ -343,10 +343,8 @@ impl Shell {
         self.cloud.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
-        if self.cloud.agents.read(cx).manage.is_none()
-            && self.modals.iter().any(|m| matches!(m, Modal::ManageAgents))
-        {
-            self.modals.remove(|m| matches!(m, Modal::ManageAgents));
+        if self.cloud.agents.read(cx).manage.is_none() {
+            self.close_dialog(DialogKey::ManageAgents, cx);
         }
         if open && self.agents_control_hidden(cx) {
             self.popover = None;

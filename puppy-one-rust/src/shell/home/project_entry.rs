@@ -4,7 +4,7 @@
 //! choosing a folder and importing keep their own dialogs.
 use crate::{
     localization::t as tr,
-    shell::{Shell, command::Command, modals::Modal},
+    shell::{Shell, command::Command, dialogs::DialogKey},
     theme::{self, Theme, metric},
     ui::{
         appearance::ActiveAppearance,
@@ -56,13 +56,13 @@ impl Shell {
     /// `openProjectLauncher`: any pending navigation is left as is; the
     /// launcher only opens.
     pub(in crate::shell) fn open_project_entry(&mut self, cx: &mut Context<Self>) {
-        if !self.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)) {
-            self.modals.open(Modal::ProjectEntry);
+        if !self.dialog_open(DialogKey::ProjectEntry, cx) {
+            self.open_dialog(DialogKey::ProjectEntry, cx);
         }
         cx.notify();
     }
     pub(in crate::shell) fn close_project_entry(&mut self, cx: &mut Context<Self>) {
-        self.modals.remove(|m| matches!(m, Modal::ProjectEntry));
+        self.close_dialog(DialogKey::ProjectEntry, cx);
         cx.notify();
     }
     /// Close the launcher, then hand off to the chosen flow.
@@ -129,7 +129,7 @@ impl Shell {
             .header_bottom(10.)
             .body_padding(4., 12.)
             .body_inline(12.)
-            .focus_handle(self.modal_focus.clone())
+            .focus_handle(self.dialog_focus(cx))
             .child(
                 v_flex()
                     .gap(px(2.))
@@ -198,46 +198,5 @@ impl Shell {
                             .tone(crate::ui::loading::Tone::Neutral),
                     ),
             )
-    }
-    /// `ProjectNavigationFailure`: the reason, Close, and Retry.
-    pub(in crate::shell) fn project_failure_dialog(
-        &self,
-        message: &str,
-        cx: &mut Context<Self>,
-    ) -> Dialog {
-        use crate::ui::components::{Button, ButtonVariant};
-        let t = cx.palette();
-        let host = cx.weak_entity();
-        Dialog::new("project-navigation-failure")
-            .width(420.)
-            .title(tr("shell.workspaceSwitcher.switchFailed"))
-            .focus_handle(self.modal_focus.clone())
-            // `.desktop-dialog-error`.
-            .child(
-                div()
-                    .text_size(px(theme::ty().ui.meta))
-                    .line_height(px(18.))
-                    .text_color(t.danger)
-                    .child(message.to_owned()),
-            )
-            .footer(
-                Button::new("project-failure-close")
-                    .variant(ButtonVariant::Secondary)
-                    .label(tr("common.action.close"))
-                    .on_click(
-                        cx.listener(|s, _, w, cx| s.command(Command::CloseProjectFailure, w, cx)),
-                    ),
-            )
-            .footer(
-                Button::new("project-failure-retry")
-                    .variant(ButtonVariant::Solid)
-                    .label(tr("cloud.common.retry"))
-                    .on_click(
-                        cx.listener(|s, _, w, cx| s.command(Command::RetryProjectOpen, w, cx)),
-                    ),
-            )
-            .on_close(move |w, cx| {
-                let _ = host.update(cx, |s, cx| s.command(Command::CloseProjectFailure, w, cx));
-            })
     }
 }

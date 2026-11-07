@@ -318,7 +318,7 @@ impl Shell {
             }
             Step::CreateProject(name) => {
                 self.begin_create_project(window, cx);
-                if let Some(create) = self.modals.create_project() {
+                if let Some(create) = self.homepage.create.as_mut() {
                     let name = name.clone();
                     create
                         .destination

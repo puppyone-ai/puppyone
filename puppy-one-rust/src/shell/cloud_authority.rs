@@ -90,11 +90,10 @@ impl Shell {
         let mut dialog = Dialog::new("cloud-open-recovery")
             .width(420.)
             .title(tr("cloud.opening.failedTitle"))
-            .focus_handle(self.modal_focus.clone())
+            .focus_handle(self.dialog_focus(cx))
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
-                    s.modals
-                        .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                    s.close_cloud_recovery(cx);
                     cx.notify();
                 });
             })
@@ -115,8 +114,7 @@ impl Shell {
             })
             .label(tr("common.action.close"))
             .on_click(cx.listener(|s, _, _, cx| {
-                s.modals
-                    .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                s.close_cloud_recovery(cx);
                 cx.notify();
             }));
         dialog = dialog.footer(close);
@@ -126,8 +124,7 @@ impl Shell {
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.common.retry"))
                     .on_click(cx.listener(move |s, _, _, cx| {
-                        s.modals
-                            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                        s.close_cloud_recovery(cx);
                         s.open_cloud(project.clone(), cx);
                     })),
             ),
@@ -136,15 +133,15 @@ impl Shell {
                     .variant(ButtonVariant::Solid)
                     .label(tr("settings.sidebar.account"))
                     .on_click(cx.listener(|s, _, w, cx| {
-                        s.modals
-                            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
-                        s.command(Command::Settings, w, cx);
-                        s.task_ui.settings.update(cx, |settings, cx| {
-                            settings.select_page(crate::features::settings::Page::Account, cx)
-                        });
+                        s.close_cloud_recovery(cx);
+                        s.open_settings(crate::features::settings::Page::Account, w, cx);
                     })),
             ),
             Recovery::None => dialog,
         }
+    }
+    pub(super) fn close_cloud_recovery(&mut self, cx: &mut Context<Self>) {
+        self.cloud.recovery = None;
+        self.close_dialog(DialogKey::CloudRecovery, cx);
     }
 }

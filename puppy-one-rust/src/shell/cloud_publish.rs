@@ -125,10 +125,7 @@ impl Shell {
     pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
         // The services dialog ends with its account or with Cloud.
-        if self
-            .modals
-            .iter()
-            .any(|m| matches!(m, Modal::CloudServices))
+        if self.dialog_open(DialogKey::CloudServices, cx)
             && (!enabled || !crate::features::cloud::account::has_account(cx))
         {
             self.cloud_services.update(cx, |s, cx| s.close(cx));
@@ -140,7 +137,7 @@ impl Shell {
         let root = self.workspace_root();
         // The activation page asks for the owning organization only while it
         // shows for a folder without a Cloud project.
-        let activating = self.modals.iter().any(|m| matches!(m, Modal::CloudPublish))
+        let activating = self.dialog_open(DialogKey::CloudPublish, cx)
             && matches!(
                 self.cloud.repository.read(cx).context,
                 crate::workspace::cloud::repository::Context::LocalOnly
@@ -442,7 +439,7 @@ impl Shell {
                     .variant(ButtonVariant::Secondary)
                     .label(tr("cloud.activation.project.notNow"))
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.modals.remove(|m| matches!(m, Modal::CloudPublish));
+                        s.close_dialog(DialogKey::CloudPublish, cx);
                         cx.notify();
                     })),
             )
@@ -453,8 +450,8 @@ impl Shell {
                     .disabled(!ready)
                     // `CloudGitPrerequisite`: the confirmation comes first.
                     .on_click(cx.listener(|s, _, w, cx| {
-                        s.modals.open(Modal::ConfirmPublish);
-                        s.modal_focus.focus(w, cx);
+                        s.open_dialog(DialogKey::ConfirmPublish, cx);
+                        s.focus_dialogs(w, cx);
                         cx.notify();
                     })),
             )
@@ -691,7 +688,7 @@ impl Shell {
                                 Button::new("publish-discard-cancel")
                                     .variant(ButtonVariant::Secondary)
                                     .label(tr("cloud.common.cancel"))
-                                    .track_focus(&self.modal_focus)
+                                    .track_focus(&self.dialog_focus(cx))
                                     .on_click(cx.listener(|s, _, _, cx| {
                                         s.cloud.publish.update(cx, |p, cx| {
                                             p.confirming_discard = false;
@@ -766,7 +763,7 @@ impl Shell {
     /// "Continue in background": the dialog goes; the run stays, and the
     /// Header states it.
     fn publish_in_background(&mut self, cx: &mut Context<Self>) {
-        self.modals.remove(|m| matches!(m, Modal::CloudPublish));
+        self.close_dialog(DialogKey::CloudPublish, cx);
         cx.notify();
     }
     /// `CloudPublishHeaderStatus`: beside the location, while a publication
@@ -832,10 +829,10 @@ impl Shell {
         let dialog = Dialog::new("cloud-publish")
             .width(600.)
             .title(tr("cloud.activation.project.title"))
-            .focus_handle(self.modal_focus.clone())
+            .focus_handle(self.dialog_focus(cx))
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
-                    s.modals.remove(|m| matches!(m, Modal::CloudPublish));
+                    s.close_dialog(DialogKey::CloudPublish, cx);
                     cx.notify();
                 });
             });
@@ -896,12 +893,10 @@ impl Shell {
         cx.spawn(async move |this, cx| {
             let url = task.await;
             let _ = this.update(cx, |s, cx| {
-                if url.is_none() {
-                    for m in s.modals.iter_mut() {
-                        if let Modal::ReplaceCloud(replace) = m {
-                            replace.failed = true;
-                        }
-                    }
+                if url.is_none()
+                    && let Some(replace) = s.cloud.replace.as_mut()
+                {
+                    replace.failed = true;
                 }
                 s.cloud.replace_url = url;
                 cx.notify();
@@ -921,11 +916,9 @@ impl Shell {
         ) else {
             return;
         };
-        for m in self.modals.iter_mut() {
-            if let Modal::ReplaceCloud(replace) = m {
-                replace.busy = true;
-                replace.failed = false;
-            }
+        if let Some(replace) = self.cloud.replace.as_mut() {
+            replace.busy = true;
+            replace.failed = false;
         }
         cx.notify();
         let task = cx.background_executor().spawn(async move {
@@ -947,18 +940,17 @@ impl Shell {
             let _ = this.update(cx, |s, cx| {
                 match result {
                     Ok(replaced) => {
-                        s.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
+                        s.cloud.replace = None;
+                        s.close_dialog(DialogKey::ReplaceCloud, cx);
                         s.cloud.repository.update(cx, |r, cx| r.retry(cx));
-                        if replaced && !s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)) {
-                            s.modals.open(Modal::CloudPublish);
+                        if replaced && !s.dialog_open(DialogKey::CloudPublish, cx) {
+                            s.open_dialog(DialogKey::CloudPublish, cx);
                         }
                     }
                     Err(()) => {
-                        for m in s.modals.iter_mut() {
-                            if let Modal::ReplaceCloud(replace) = m {
-                                replace.busy = false;
-                                replace.failed = true;
-                            }
+                        if let Some(replace) = s.cloud.replace.as_mut() {
+                            replace.busy = false;
+                            replace.failed = true;
                         }
                     }
                 }

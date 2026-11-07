@@ -3,7 +3,7 @@
 //! slot. The product removes the Git surface from the footer
 //! (`useWorkspaceSurfaceContent` filters `git`); Changes lives in the Header.
 //! With the navigation at the bottom the footer has no divider.
-use super::{Command, modals::Task};
+use super::{Command, dialogs::Task};
 use crate::{
     localization::t as tr,
     theme::{self, metric},

@@ -249,12 +249,13 @@ impl Shell {
                 .on_click(move |w, cx| {
                     let _ = host.update(cx, |s, cx| {
                         s.project_actions = None;
-                        s.modals.open(Modal::ConfirmProject(ProjectConfirm {
+                        s.homepage.confirm = Some(ProjectConfirm {
                             target: target.clone(),
                             pending: false,
                             error: None,
-                        }));
-                        s.modal_focus.focus(w, cx);
+                        });
+                        s.open_dialog(DialogKey::ConfirmProject, cx);
+                        s.focus_dialogs(w, cx);
                         cx.notify();
                     });
                 }),
@@ -295,7 +296,7 @@ impl Shell {
                 s.submit_project_rename(w, cx)
             } else {
                 // Save follows the edited name; an error clears with an edit.
-                if let Some(Modal::RenameProject(rename)) = s.modals.top_mut() {
+                if let Some(rename) = s.homepage.rename.as_mut() {
                     rename.error = None;
                 }
                 cx.notify();
@@ -303,12 +304,13 @@ impl Shell {
         })
         .detach();
         input.read(cx).focus_handle(cx).focus(window, cx);
-        self.modals.open(Modal::RenameProject(ProjectRename {
+        self.homepage.rename = Some(ProjectRename {
             target,
             input,
             pending: false,
             error: None,
-        }));
+        });
+        self.open_dialog(DialogKey::RenameProject, cx);
         cx.notify();
     }
     /// `renameProject` (the shown name; the folder keeps its own) or
@@ -318,7 +320,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(Modal::RenameProject(rename)) = self.modals.top() else {
+        let Some(rename) = self.homepage.rename.as_ref() else {
             return;
         };
         if rename.pending {
@@ -330,7 +332,8 @@ impl Shell {
         }
         match rename.target.clone() {
             Target::Local { path, .. } => {
-                self.modals.remove(|m| matches!(m, Modal::RenameProject(_)));
+                self.homepage.rename = None;
+                self.close_dialog(DialogKey::RenameProject, cx);
                 self.homepage.actions = None;
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.rename_project(&path, &name), cx));
@@ -343,7 +346,7 @@ impl Shell {
                 let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
-                if let Some(Modal::RenameProject(rename)) = self.modals.top_mut() {
+                if let Some(rename) = self.homepage.rename.as_mut() {
                     rename.pending = true;
                 }
                 let update = crate::workspace::cloud::services::ProjectUpdate {
@@ -359,7 +362,8 @@ impl Shell {
                     let _ = this.update_in(cx, |s, w, cx| {
                         match result {
                             Ok(updated) => {
-                                s.modals.remove(|m| matches!(m, Modal::RenameProject(_)));
+                                s.homepage.rename = None;
+                                s.close_dialog(DialogKey::RenameProject, cx);
                                 s.homepage.actions = None;
                                 let catalog = s.cloud.catalog.clone();
                                 catalog.update(cx, |c, cx| {
@@ -368,7 +372,7 @@ impl Shell {
                                 s.focus.focus(w, cx);
                             }
                             Err(error) => {
-                                if let Some(Modal::RenameProject(rename)) = s.modals.top_mut() {
+                                if let Some(rename) = s.homepage.rename.as_mut() {
                                     rename.pending = false;
                                     rename.error = Some(project_change_error(&error));
                                 }
@@ -382,14 +386,20 @@ impl Shell {
         }
         cx.notify();
     }
-    fn close_project_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.modals.remove(|m| {
-            matches!(
-                m,
-                Modal::RenameProject(ProjectRename { pending: false, .. })
-                    | Modal::ConfirmProject(ProjectConfirm { pending: false, .. })
-            )
-        });
+    pub(in crate::shell) fn close_project_dialog(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // A change on its way cannot be dismissed (`onClose` is withheld).
+        if self.homepage.rename.as_ref().is_some_and(|r| !r.pending) {
+            self.homepage.rename = None;
+            self.close_dialog(DialogKey::RenameProject, cx);
+        }
+        if self.homepage.confirm.as_ref().is_some_and(|c| !c.pending) {
+            self.homepage.confirm = None;
+            self.close_dialog(DialogKey::ConfirmProject, cx);
+        }
         self.homepage.actions = None;
         self.focus.focus(window, cx);
         cx.notify();
@@ -508,7 +518,7 @@ impl Shell {
                     .variant(ButtonVariant::Secondary)
                     .label(tr("common.action.cancel"))
                     .disabled(pending)
-                    .track_focus(&self.modal_focus)
+                    .track_focus(&self.dialog_focus(cx))
                     .on_click(cx.listener(|s, _, w, cx| s.close_project_dialog(w, cx))),
             )
             .footer(
@@ -527,7 +537,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(Modal::ConfirmProject(confirm)) = self.modals.top() else {
+        let Some(confirm) = self.homepage.confirm.as_ref() else {
             return;
         };
         if confirm.pending {
@@ -535,8 +545,8 @@ impl Shell {
         }
         match confirm.target.clone() {
             Target::Local { path, .. } => {
-                self.modals
-                    .remove(|m| matches!(m, Modal::ConfirmProject(_)));
+                self.homepage.confirm = None;
+                self.close_dialog(DialogKey::ConfirmProject, cx);
                 self.homepage.actions = None;
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
@@ -546,7 +556,7 @@ impl Shell {
                 let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
-                if let Some(Modal::ConfirmProject(confirm)) = self.modals.top_mut() {
+                if let Some(confirm) = self.homepage.confirm.as_mut() {
                     confirm.pending = true;
                     confirm.error = None;
                 }
@@ -559,14 +569,15 @@ impl Shell {
                     let _ = this.update_in(cx, |s, w, cx| {
                         match result {
                             Ok(()) => {
-                                s.modals.remove(|m| matches!(m, Modal::ConfirmProject(_)));
+                                s.homepage.confirm = None;
+                                s.close_dialog(DialogKey::ConfirmProject, cx);
                                 s.homepage.actions = None;
                                 let catalog = s.cloud.catalog.clone();
                                 catalog.update(cx, |c, cx| c.apply_delete(&project, cx));
                                 s.focus.focus(w, cx);
                             }
                             Err(error) => {
-                                if let Some(Modal::ConfirmProject(confirm)) = s.modals.top_mut() {
+                                if let Some(confirm) = s.homepage.confirm.as_mut() {
                                     confirm.pending = false;
                                     confirm.error = Some(project_change_error(&error));
                                 }

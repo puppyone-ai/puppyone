@@ -284,19 +284,21 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, cx| assert!(s.panes.read(cx).right().open));
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings))
+    });
     let retained = view.update(cx, |s, cx| {
-        s.task_ui.settings.update(cx, |s, cx| {
+        s.dialogs.read(cx).settings.clone().update(cx, |s, cx| {
             s.select_page(crate::features::settings::Page::ModelConnections, cx)
         });
         cx.notify();
-        s.task_ui.settings.entity_id()
+        s.dialogs.read(cx).settings.entity_id()
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
     view.update(cx, |s, cx| {
-        s.task_ui.settings.update(cx, |s, cx| {
+        s.dialogs.read(cx).settings.clone().update(cx, |s, cx| {
             s.select_page(crate::features::settings::Page::LocalAgents, cx)
         });
         cx.notify();
@@ -306,8 +308,8 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     });
     command(&view, cx, Command::Escape);
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, _| {
-        assert_eq!(s.task_ui.settings.entity_id(), retained)
+    view.update(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).settings.entity_id(), retained)
     });
 }
 #[gpui::test]
@@ -324,7 +326,7 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     command(&view, cx, Command::Changes);
     view.update(cx, |s, cx| {
         assert!(s.right_shows(Surface::Git, cx));
-        assert!(!s.modal());
+        assert!(!s.modal(cx));
     });
     command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, cx| assert!(s.right_shows(Surface::Agent, cx)));
@@ -422,8 +424,8 @@ fn task_shortcuts_do_not_save_and_cmd_w_stays_the_windows(cx: &mut TestAppContex
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Settings);
     cx.simulate_keystrokes("cmd-s");
-    view.update(cx, |s, _| {
-        assert_eq!(s.modals.task(), Some(Task::Settings));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
         assert!(matches!(s.session.files.phase, Phase::Idle));
         assert!(s.session.files.outgoing.is_empty());
     });
@@ -438,8 +440,8 @@ fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Settings);
     view.update(cx, |s, cx| {
-        s.show_error("first");
-        s.show_error("second");
+        s.show_error("first", cx);
+        s.show_error("second", cx);
         s.session.files.error = Some("save failed".into());
         cx.notify();
     });
@@ -447,23 +449,23 @@ fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
     // The Documents error sits above the layer, then the newest notice
     // (which replaced the first), then Settings.
     command(&view, cx, Command::Escape);
-    view.update(cx, |s, _| {
+    view.update(cx, |s, cx| {
         assert!(s.session.files.error.is_none());
-        assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "second"));
+        assert!(s.top_dialog(cx).as_deref() == Some("Error(second)"));
     });
     command(&view, cx, Command::Escape);
-    view.update(cx, |s, _| {
-        assert_eq!(s.modals.task(), Some(Task::Settings));
-        assert!(matches!(s.modals.top(), Some(Modal::Task(_))));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
+        assert!(s.top_dialog(cx).is_some_and(|d| d.starts_with("Task")));
     });
     command(&view, cx, Command::Escape);
-    view.update(cx, |s, _| assert!(!s.modal()));
+    view.update(cx, |s, cx| assert!(!s.modal(cx)));
 }
 #[gpui::test]
 fn feedback_leaves_only_by_its_close_button_and_forgets_the_draft(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Feedback);
-    let feedback = view.update(cx, |s, _| s.feedback.clone());
+    let feedback = view.update(cx, |s, cx| s.dialogs.read(cx).feedback.clone());
     let field = feedback.read_with(cx, |f, _| f.message.clone());
     field.update_in(cx, |i, w, cx| {
         i.replace_text_in_range(None, "draft 中🐶", w, cx)
@@ -475,21 +477,50 @@ fn feedback_leaves_only_by_its_close_button_and_forgets_the_draft(cx: &mut TestA
     command(&view, cx, Command::CloseFile);
     command(&view, cx, Command::Feedback);
     view.update(cx, |s, cx| {
-        assert_eq!(s.modals.task(), Some(Task::Feedback));
-        assert_eq!(s.feedback.read(cx).message.read(cx).text(), "draft 中🐶");
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Feedback));
+        assert_eq!(
+            s.dialogs.read(cx).feedback.read(cx).message.read(cx).text(),
+            "draft 中🐶"
+        );
     });
     feedback.update(cx, |f, cx| f.close(cx));
     view.update_in(cx, |s, w, cx| {
-        assert_eq!(s.modals.task(), None);
-        assert!(s.feedback.read(cx).message.read(cx).text().is_empty());
-        assert!(s.feedback.read(cx).email.read(cx).text().is_empty());
+        assert_eq!(s.dialogs.read(cx).task(), None);
+        assert!(
+            s.dialogs
+                .read(cx)
+                .feedback
+                .read(cx)
+                .message
+                .read(cx)
+                .text()
+                .is_empty()
+        );
+        assert!(
+            s.dialogs
+                .read(cx)
+                .feedback
+                .read(cx)
+                .email
+                .read(cx)
+                .text()
+                .is_empty()
+        );
         assert!(s.focus.is_focused(w));
     });
     // Reopened, it starts empty with the message focused.
     command(&view, cx, Command::Feedback);
     view.update_in(cx, |s, w, cx| {
-        assert_eq!(s.modals.task(), Some(Task::Feedback));
-        assert!(s.feedback.read(cx).message.focus_handle(cx).is_focused(w));
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Feedback));
+        assert!(
+            s.dialogs
+                .read(cx)
+                .feedback
+                .read(cx)
+                .message
+                .focus_handle(cx)
+                .is_focused(w)
+        );
     });
 }
 #[gpui::test]
@@ -501,8 +532,11 @@ fn kit_dialog_tab_order_keeps_focus_inside_feedback(cx: &mut TestAppContext) {
         for _ in 0..8 {
             cx.simulate_keystrokes(key);
             view.update_in(cx, |s, w, cx| {
-                assert!(s.feedback.read(cx).contains_focused(w, cx));
-                assert_eq!(s.feedback.read(cx).message.read(cx).text(), "draft");
+                assert!(s.dialogs.read(cx).feedback.read(cx).contains_focused(w, cx));
+                assert_eq!(
+                    s.dialogs.read(cx).feedback.read(cx).message.read(cx).text(),
+                    "draft"
+                );
             });
         }
     }
@@ -605,13 +639,15 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
-        s.begin_rename(path, false, w, cx);
+        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
     });
     draw(cx);
-    view.update(cx, |s, _| assert!(s.modals.rename().is_some() && s.modal()));
+    view.update(cx, |s, cx| {
+        assert!(s.has_dialog("Rename", cx) && s.modal(cx))
+    });
     cx.simulate_keystrokes("escape");
-    view.update_in(cx, |s, w, _| {
-        assert!(s.modals.rename().is_none());
+    view.update_in(cx, |s, w, cx| {
+        assert!(!s.has_dialog("Rename", cx));
         assert!(s.focus.is_focused(w));
     });
 }
@@ -620,7 +656,7 @@ fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer_session.read(cx).tree().rows[0].path.clone();
-        s.begin_rename(path, false, w, cx);
+        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
     });
     draw(cx);
     // Focus moves to a control that is no longer there (removed or disabled).
@@ -630,7 +666,7 @@ fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     draw(cx);
     // The dialog still holds the keyboard: Escape cancels it.
     cx.simulate_keystrokes("escape");
-    view.update(cx, |s, _| assert!(s.modals.rename().is_none()));
+    view.update(cx, |s, cx| assert!(!s.has_dialog("Rename", cx)));
 }
 #[gpui::test]
 fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
@@ -649,7 +685,9 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
         })
     });
     draw(cx);
-    view.update(cx, |s, _| assert!(s.modals.create_entry().is_some()));
+    view.update(cx, |s, cx| {
+        assert!(s.dialogs.read(cx).create_form().is_some())
+    });
     command(&view, cx, Command::Escape);
     // …"Rename" for the rename dialog, and a failure for a notice.
     explorer.update(cx, |_, cx| {
@@ -659,11 +697,11 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
         })
     });
     draw(cx);
-    view.update(cx, |s, _| assert!(s.modals.rename().is_some()));
+    view.update(cx, |s, cx| assert!(s.has_dialog("Rename", cx)));
     explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Error("denied".into())));
     draw(cx);
-    view.update(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "denied"))
+    view.update(cx, |s, cx| {
+        assert!(s.top_dialog(cx).as_deref() == Some("Error(denied)"))
     });
 }
 /// `ProjectPlaceRows`: the current place is a fact, not a choice; the
@@ -717,8 +755,8 @@ fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestApp
     let (view, cx) = setup(cx);
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, _| {
-        assert_eq!(s.modals.task(), Some(Task::Settings));
+    view.update(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
         assert!(s.popover.is_none());
         assert!(matches!(s.session.files.phase, Phase::Idle));
         assert!(s.session.files.outgoing.is_empty());
@@ -976,9 +1014,11 @@ fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestA
     assert_eq!(menus[0].name.as_ref(), "PuppyOne");
     cx.simulate_keystrokes("cmd-,");
     draw(cx);
-    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings))
+    });
     cx.simulate_keystrokes("escape");
-    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), None));
+    view.read_with(cx, |s, cx| assert_eq!(s.dialogs.read(cx).task(), None));
 }
 
 #[gpui::test]
@@ -1589,8 +1629,8 @@ fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
     });
     command(&view, cx, Command::ManageExecutions);
-    view.read_with(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::Executions)))
+    view.read_with(cx, |s, cx| {
+        assert!(s.top_dialog(cx).as_deref() == Some("Executions"))
     });
     // The list comes from the budget, so it survives the tab.
     let row = Budget::global()
@@ -1603,7 +1643,7 @@ fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut
     assert!(stopped.load(std::sync::atomic::Ordering::SeqCst));
     drop(lease);
     command(&view, cx, Command::CloseExecutions);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
 }
 
 /// `workspace-window-index.mjs`: the app never chooses a user's destination
@@ -1686,11 +1726,11 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     assert_eq!(file[2], "Close Window");
     // About is the system's panel, never a dialog of the window.
     command(&view, cx, Command::About);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     // No update service in this build: the native "Updates Unavailable".
     command(&view, cx, Command::CheckForUpdates);
     assert!(cx.has_pending_prompt());
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     cx.simulate_prompt_answer("OK");
     assert!(!cx.has_pending_prompt());
 }
@@ -1809,13 +1849,13 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
             .as_ref()
             .is_some_and(|m| m.inventory.connections.len() == 1)
     });
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(s.popover, None);
-        assert!(matches!(s.modals.top(), Some(Modal::ManageAgents)));
+        assert!(s.top_dialog(cx).as_deref() == Some("ManageAgents"));
     });
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, cx| {
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
         assert!(s.cloud.agents.read(cx).manage.is_none());
     });
 }
@@ -1943,13 +1983,13 @@ fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut Tes
     });
     view.update_in(cx, |s, w, cx| s.put_in_cloud(w, cx));
     draw(cx);
-    view.read_with(cx, |s, _| {
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)));
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("CloudPublish", cx));
         // The folder stays the open project.
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
     });
     command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
 }
 
 /// ADR-001: the Homepage lists a linked folder and its Cloud project as two
@@ -2245,7 +2285,7 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         s.session.project.notice.is_some()
     });
     // A notice floats; it is not a dialog.
-    view.read_with(cx, |s, _| assert!(!s.modal()));
+    view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
     let (key, first) = view.read_with(cx, |s, _| {
         (
             s.session.files.workspace_key().unwrap().to_owned(),
@@ -2313,13 +2353,11 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-    settle(&view, cx, "the recovery", &|s, _| {
-        s.modals
-            .iter()
-            .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+    settle(&view, cx, "the recovery", &|s, cx| {
+        s.has_dialog("CloudRecovery", cx)
     });
     view.update(cx, |s, cx| {
-        let Some(Modal::CloudRecovery { project, failure }) = s.modals.top() else {
+        let Some((project, failure)) = s.cloud.recovery.as_ref() else {
             panic!("no recovery")
         };
         let (project, failure) = (project.clone(), failure.clone());
@@ -2337,8 +2375,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
     draw(cx);
     // Retry repeats the same opening, which now succeeds.
     view.update(cx, |s, cx| {
-        s.modals
-            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+        s.close_cloud_recovery(cx);
         s.open_cloud("project-a".into(), cx);
     });
     settle(&view, cx, "the retried opening", &|s, _| {
@@ -2373,7 +2410,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         assert!(s.project_actions.is_some());
         s.begin_project_rename(target.clone(), w, cx);
         assert!(s.project_actions.is_none());
-        let Some(Modal::RenameProject(rename)) = s.modals.top() else {
+        let Some(rename) = s.homepage.rename.as_ref() else {
             panic!("no rename dialog")
         };
         let input = rename.input.clone();
@@ -2381,7 +2418,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         s.submit_project_rename(w, cx);
     });
     view.read_with(cx, |s, cx| {
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
         assert_eq!(
             s.preferences.read(cx).state.recent_projects[0].name,
             "Field notes"
@@ -2389,17 +2426,18 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     });
     // Unlink forgets the Project (its files stay where they are).
     view.update(cx, |s, cx| {
-        s.modals.open(Modal::ConfirmProject(ProjectConfirm {
+        s.homepage.confirm = Some(ProjectConfirm {
             target,
             pending: false,
             error: None,
-        }));
+        });
+        s.open_dialog(DialogKey::ConfirmProject, cx);
         cx.notify();
     });
     draw(cx);
     view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
     view.read_with(cx, |s, cx| {
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
         assert!(s.preferences.read(cx).state.recent_projects.is_empty())
     });
 }
@@ -2472,7 +2510,7 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
     );
     view.update_in(cx, |s, w, cx| {
         s.begin_project_rename(target.clone(), w, cx);
-        let Some(Modal::RenameProject(rename)) = s.modals.top() else {
+        let Some(rename) = s.homepage.rename.as_ref() else {
             panic!("no rename dialog")
         };
         let input = rename.input.clone();
@@ -2480,19 +2518,20 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
         s.submit_project_rename(w, cx);
     });
     settle_cloud(&view, cx, "the rename", &|s, cx| {
-        s.modals.is_empty() && s.project_items(cx).iter().any(|i| i.label == "Renamed")
+        s.dialogs.read(cx).is_empty() && s.project_items(cx).iter().any(|i| i.label == "Renamed")
     });
     view.update(cx, |s, cx| {
-        s.modals.open(Modal::ConfirmProject(ProjectConfirm {
+        s.homepage.confirm = Some(ProjectConfirm {
             target,
             pending: false,
             error: None,
-        }));
+        });
+        s.open_dialog(DialogKey::ConfirmProject, cx);
         cx.notify();
     });
     view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
     settle_cloud(&view, cx, "the deletion", &|s, cx| {
-        s.modals.is_empty() && s.project_items(cx).is_empty()
+        s.dialogs.read(cx).is_empty() && s.project_items(cx).is_empty()
     });
     let requests = requests.lock().unwrap();
     assert!(requests.iter().any(|r| r == "PUT /projects/project-a"));
@@ -2550,7 +2589,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
         s.run_place_action(Action::PutInCloud { continuing: false }, w, cx)
     });
     settle_cloud(&view, cx, "the organization", &|s, cx| {
-        s.modals.iter().any(|m| matches!(m, Modal::CloudPublish))
+        s.has_dialog("CloudPublish", cx)
             && s.cloud.publish.read(cx).selected.as_deref() == Some("org-1")
     });
     // Upload to Cloud runs the publication; the dialog can go to the
@@ -2663,9 +2702,8 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
         )
     });
     view.update_in(cx, |s, w, cx| s.replace_cloud_connection(w, cx));
-    settle(&view, cx, "the reviewed remote", &|s, _| {
-        s.cloud.replace_url.as_deref() == Some(url)
-            && s.modals.iter().any(|m| matches!(m, Modal::ReplaceCloud(_)))
+    settle(&view, cx, "the reviewed remote", &|s, cx| {
+        s.cloud.replace_url.as_deref() == Some(url) && s.has_dialog("ReplaceCloud", cx)
     });
     let before = authorizations.load(std::sync::atomic::Ordering::SeqCst);
     view.update(cx, |s, cx| s.confirm_replace("project-a".into(), cx));
@@ -2728,7 +2766,7 @@ fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppConte
     view.update_in(cx, |s, w, cx| s.begin_import(w, cx));
     // An unsupported URL is refused before anything runs.
     view.update_in(cx, |s, w, cx| {
-        let Some(Modal::ImportRepository(import)) = s.modals.top() else {
+        let Some(import) = s.homepage.import.as_ref() else {
             panic!("no import dialog")
         };
         let url = import.url.clone();
@@ -2738,12 +2776,8 @@ fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppConte
         s.submit_import(w, cx);
     });
     draw(cx);
-    view.read_with(cx, |s, _| {
-        assert!(
-            s.modals
-                .iter()
-                .any(|m| matches!(m, Modal::ImportRepository(_)))
-        );
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("ImportRepository", cx));
         assert!(s.workspace_root().is_none());
     });
     let _ = parent;
@@ -2798,27 +2832,27 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
 fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::CreateNew);
-    view.read_with(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::ProjectEntry)))
+    view.read_with(cx, |s, cx| {
+        assert!(s.top_dialog(cx).as_deref() == Some("ProjectEntry"))
     });
     // Escape closes the launcher without choosing.
     command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     command(&view, cx, Command::CreateNew);
     view.update_in(cx, |s, w, cx| {
         s.choose_project_entry(super::home::project_entry::Route::Create, w, cx)
     });
-    view.read_with(cx, |s, _| {
-        assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
-        assert!(matches!(s.modals.top(), Some(Modal::CreateProject(_))));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.has_dialog("ProjectEntry", cx));
+        assert!(s.top_dialog(cx).as_deref() == Some("CreateProject"));
     });
     command(&view, cx, Command::Escape);
     command(&view, cx, Command::CreateNew);
     view.update_in(cx, |s, w, cx| {
         s.choose_project_entry(super::home::project_entry::Route::Import, w, cx)
     });
-    view.read_with(cx, |s, _| {
-        assert!(matches!(s.modals.top(), Some(Modal::ImportRepository(_))))
+    view.read_with(cx, |s, cx| {
+        assert!(s.top_dialog(cx).as_deref() == Some("ImportRepository"))
     });
 }
 
@@ -2832,21 +2866,17 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
     loop {
         view.update_in(cx, |s, w, cx| s.receive(w, cx));
         cx.run_until_parked();
-        if view.read_with(cx, |s, _| {
-            s.modals
-                .iter()
-                .any(|m| matches!(m, Modal::ProjectFailure { .. }))
-        }) {
+        if view.read_with(cx, |s, cx| s.has_dialog("ProjectFailure", cx)) {
             break;
         }
         assert!(std::time::Instant::now() < deadline, "no failure dialog");
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
-    view.read_with(cx, |s, _| {
-        let Some(Modal::ProjectFailure { path, message }) = s.modals.top() else {
+    view.read_with(cx, |s, cx| {
+        let Some((path, message)) = s.dialogs.read(cx).project_failure() else {
             panic!("the failure is the top dialog")
         };
-        assert_eq!(path, &missing);
+        assert_eq!(&path, &missing);
         assert!(!message.is_empty());
         // Not the generic error dialog.
         assert!(s.session.files.error.is_none());
@@ -2856,18 +2886,16 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
     // fast failure may already be back when Retry returns.
     view.update_in(cx, |s, w, cx| {
         s.command(Command::RetryProjectOpen, w, cx);
-        let failed_again = s
-            .modals
-            .iter()
-            .any(|m| matches!(m, Modal::ProjectFailure { path, .. } if path == &missing));
+        let failed_again = s.dialogs.read(cx).failed_project().as_ref() == Some(&missing);
         assert!(s.session.files.opening_root() || failed_again);
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
         view.update_in(cx, |s, w, cx| s.receive(w, cx));
         cx.run_until_parked();
-        if view.read_with(cx, |s, _| {
-            matches!(s.modals.top(), Some(Modal::ProjectFailure { path, .. }) if path == &missing)
+        if view.read_with(cx, |s, cx| {
+            s.top_dialog(cx).as_deref() == Some("ProjectFailure")
+                && s.dialogs.read(cx).failed_project().as_ref() == Some(&missing)
         }) {
             break;
         }
@@ -2889,7 +2917,7 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     view.update_in(cx, |s, w, cx| {
         s.session.project.fixture = false;
         s.begin_create_project(w, cx);
-        let create = s.modals.create_project().unwrap();
+        let create = s.homepage.create.as_mut().unwrap();
         create.destination.location = Some(parent.clone());
         create
             .destination
@@ -2899,7 +2927,7 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string("just words".into())));
     view.update_in(cx, |s, w, cx| s.paste_template_link(w, cx));
     view.update(cx, |s, _| {
-        let create = s.modals.create_project().unwrap();
+        let create = s.homepage.create.as_mut().unwrap();
         assert_eq!(
             create.error.as_deref(),
             Some(crate::localization::t("onboarding.template.noLink"))
@@ -2912,9 +2940,9 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
             .opened()
             .is_some_and(|(_, relative)| relative == std::path::Path::new("Getting Started.md"))
     });
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         assert_eq!(s.workspace_root(), Some(parent.join("Notes")));
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
     });
 }
 
@@ -2939,19 +2967,19 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     // ⌘V on the Homepage takes the link.
     command(&view, cx, Command::PasteTemplateLink);
     view.update(cx, |s, _| {
-        let Some(Modal::TemplateImport(import)) = s.modals.top_mut() else {
+        let Some(import) = s.homepage.template.as_deref_mut() else {
             panic!("the template card");
         };
         import.destination.location = Some(parent.clone());
     });
-    settle_cloud(
-        &view,
-        cx,
-        "the template",
-        &|s, _| matches!(s.modals.top(), Some(Modal::TemplateImport(i)) if i.detail.is_some()),
-    );
+    settle_cloud(&view, cx, "the template", &|s, _| {
+        s.homepage
+            .template
+            .as_ref()
+            .is_some_and(|i| i.detail.is_some())
+    });
     view.read_with(cx, |s, cx| {
-        let Some(Modal::TemplateImport(import)) = s.modals.top() else {
+        let Some(import) = s.homepage.template.as_deref() else {
             unreachable!()
         };
         // A display name becomes a folder name.
@@ -2964,10 +2992,10 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
             .opened()
             .is_some_and(|(_, relative)| relative == std::path::Path::new("Plan.md"))
     });
-    view.read_with(cx, |s, _| {
+    view.read_with(cx, |s, cx| {
         // "Weekly plan" was taken, so the copy is numbered.
         assert_eq!(s.workspace_root(), Some(parent.join("Weekly plan 2")));
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
     });
     assert_eq!(
         std::fs::read_to_string(parent.join("Weekly plan 2/Plan.md")).unwrap(),
@@ -2980,18 +3008,18 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     );
     view.update_in(cx, |s, w, cx| s.open_template_link(link, w, cx));
     view.update(cx, |s, _| {
-        let Some(Modal::TemplateImport(import)) = s.modals.top_mut() else {
+        let Some(import) = s.homepage.template.as_deref_mut() else {
             panic!("the template card");
         };
         assert!(import.new_window);
         import.destination.location = Some(parent.clone());
     });
-    settle_cloud(
-        &view,
-        cx,
-        "the template again",
-        &|s, _| matches!(s.modals.top(), Some(Modal::TemplateImport(i)) if i.detail.is_some()),
-    );
+    settle_cloud(&view, cx, "the template again", &|s, _| {
+        s.homepage
+            .template
+            .as_ref()
+            .is_some_and(|i| i.detail.is_some())
+    });
     view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
     settle_cloud(&view, cx, "the second window", &|_, cx| {
         windows::count(cx) == 2
@@ -3134,16 +3162,16 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     // The entry is measured on one frame and introduced on the next.
     draw(cx);
     draw(cx);
-    view.update(cx, |s, _| {
+    view.update(cx, |s, cx| {
         assert_eq!(s.coachmarks.active, Some(coachmarks::Coachmark::Agent));
-        assert!(s.coachmark_shown());
+        assert!(s.coachmark_shown(cx));
     });
     // Nothing in the overlay holds focus; Escape still reaches it.
     view.update_in(cx, |s, w, cx| s.focus.focus(w, cx));
     cx.simulate_keystrokes("escape");
     draw(cx);
     view.update(cx, |s, cx| {
-        assert!(!s.coachmark_shown());
+        assert!(!s.coachmark_shown(cx));
         assert!(s.preferences.read(cx).state.header_coachmarks.agent);
     });
     // A dialog hides it, and Escape then answers the dialog, not the overlay.
@@ -3156,15 +3184,15 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     });
     draw(cx);
     draw(cx);
-    view.update(cx, |s, _| assert!(s.coachmark_shown()));
+    view.update(cx, |s, cx| assert!(s.coachmark_shown(cx)));
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, _| assert!(!s.coachmark_shown()));
+    view.update(cx, |s, cx| assert!(!s.coachmark_shown(cx)));
     cx.simulate_keystrokes("escape");
     draw(cx);
     view.update(cx, |s, cx| {
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
         assert!(!s.preferences.read(cx).state.header_coachmarks.agent);
-        assert!(s.coachmark_shown());
+        assert!(s.coachmark_shown(cx));
     });
 }
 
@@ -3301,7 +3329,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
                 }
             ])
         );
-        assert!(!s.modal());
+        assert!(!s.modal(cx));
     });
 }
 
@@ -3321,16 +3349,18 @@ fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestA
         s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-    settle_cloud(&view, cx, "the failure", &|s, _| {
-        s.modals
-            .iter()
-            .any(|m| matches!(m, Modal::CloudRecovery { project, .. } if project == "project-a"))
+    settle_cloud(&view, cx, "the failure", &|s, cx| {
+        s.has_dialog("CloudRecovery", cx)
+            && s.cloud
+                .recovery
+                .as_ref()
+                .is_some_and(|(p, _)| p == "project-a")
     });
     view.update(cx, |s, cx| {
         // Still the folder, never the project picker or the Homepage.
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
         assert!(!s.home_visible());
-        assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
+        assert!(!s.has_dialog("ProjectEntry", cx));
         assert!(s.hosted_project().is_none());
         assert!(s.session.files.cloud_opening().is_none());
         // The catalog is untouched.
@@ -3370,10 +3400,8 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
         )
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-    settle_cloud(&view, cx, "the open failure", &|s, _| {
-        s.modals
-            .iter()
-            .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+    settle_cloud(&view, cx, "the open failure", &|s, cx| {
+        s.has_dialog("CloudRecovery", cx)
     });
     // Reloading the catalog leaves the failure in place.
     view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
@@ -3383,19 +3411,20 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
             crate::features::cloud::catalog::State::Ready(_)
         )
     });
-    view.update(cx, |s, _| {
+    view.update(cx, |s, cx| {
         assert!(
-            s.modals.iter().any(
-                |m| matches!(m, Modal::CloudRecovery { project, .. } if project == "project-a")
-            )
+            s.has_dialog("CloudRecovery", cx)
+                && s.cloud
+                    .recovery
+                    .as_ref()
+                    .is_some_and(|(p, _)| p == "project-a")
         );
         assert!(s.hosted_project().is_none());
     });
     // Retry repeats that opening, not a list refresh.
     failing.store(false, Ordering::SeqCst);
     view.update(cx, |s, cx| {
-        s.modals
-            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+        s.close_cloud_recovery(cx);
         s.open_cloud("project-a".into(), cx);
     });
     settle_cloud(&view, cx, "the reopened project", &|s, _| {
@@ -3610,21 +3639,15 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
             crate::features::cloud::account::has_account(cx)
         });
         view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-        settle_cloud(&view, cx, "the recovery", &|s, _| {
-            s.modals
-                .iter()
-                .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+        settle_cloud(&view, cx, "the recovery", &|s, cx| {
+            s.has_dialog("CloudRecovery", cx)
         });
-        view.update(cx, |s, _| {
-            let failure = s.modals.iter().find_map(|m| match m {
-                Modal::CloudRecovery { failure, .. } => Some(failure.clone()),
-                _ => None,
-            });
+        view.update(cx, |s, cx| {
+            let failure = s.cloud.recovery.as_ref().map(|(_, f)| f.clone());
             let failure = failure.unwrap();
             seen.push((failure.code, failure.recovery));
             assert!(s.hosted_project().is_none());
-            s.modals
-                .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+            s.close_cloud_recovery(cx);
         });
     }
     let expected: Vec<_> = cases.iter().map(|(_, _, c, r)| (*c, *r)).collect();
@@ -3641,16 +3664,16 @@ fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut
         s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
     command(&view, cx, Command::CloudServices);
-    view.read_with(cx, |s, _| {
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("CloudServices", cx));
     });
     // Escape answers it, like the product's dialog root.
     command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     command(&view, cx, Command::CloudServices);
     cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
-    settle_cloud(&view, cx, "the closed dialog", &|s, _| {
-        !s.modals.iter().any(|m| matches!(m, Modal::CloudServices))
+    settle_cloud(&view, cx, "the closed dialog", &|s, cx| {
+        !s.has_dialog("CloudServices", cx)
     });
 }
 
@@ -3705,15 +3728,15 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     let shared = path.clone();
     explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path: shared }));
     draw(cx);
-    view.read_with(cx, |s, _| {
-        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.has_dialog("CloudServices", cx));
     });
     off(&view, true, cx);
 
     explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path }));
     draw(cx);
     view.read_with(cx, |s, cx| {
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+        assert!(s.has_dialog("CloudServices", cx));
         assert_eq!(s.cloud_services.read(cx).share_start(), "docs");
     });
 }
@@ -3830,9 +3853,9 @@ fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
     command(&view, cx, Command::CloudServices);
-    view.read_with(cx, |s, _| {
-        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.has_dialog("CloudServices", cx));
+        assert!(s.has_dialog("CloudPublish", cx));
     });
 }
 
@@ -3857,11 +3880,7 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     view.read_with(cx, |s, cx| {
         assert!(s.session.files.cloud_opening().is_some());
         assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
-        assert!(
-            !s.modals
-                .iter()
-                .any(|m| matches!(m, Modal::CloudRecovery { .. }))
-        );
+        assert!(!s.has_dialog("CloudRecovery", cx));
     });
     settle_cloud(&view, cx, "the Cloud project", &|s, _| {
         s.hosted_project().as_deref() == Some("project-a")
@@ -3895,7 +3914,7 @@ fn the_plan_page_never_shows_another_organizations_usage(cx: &mut TestAppContext
         settle_cloud(&view, cx, "sign-in", &|_, cx| {
             crate::features::cloud::account::has_account(cx)
         });
-        let settings = view.read_with(cx, |s, _| s.task_ui.settings.clone());
+        let settings = view.read_with(cx, |s, cx| s.dialogs.read(cx).settings.clone());
         settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while settings
@@ -3955,7 +3974,7 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });
-    let settings = view.read_with(cx, |s, _| s.task_ui.settings.clone());
+    let settings = view.read_with(cx, |s, cx| s.dialogs.read(cx).settings.clone());
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.payments = false)
@@ -4012,13 +4031,13 @@ fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppConte
         s.session.files.error = Some("save failed".into());
         s.session.files.close_refused = true;
         s.receive(w, cx);
-        assert!(matches!(s.modals.top(), Some(Modal::CloseAnyway)));
+        assert!(s.top_dialog(cx).as_deref() == Some("CloseAnyway"));
         assert!(s.session.files.error.is_none());
     });
     draw(cx);
     command(&view, cx, Command::KeepWindowOpen);
     view.update(cx, |s, cx| {
-        assert!(s.modals.is_empty());
+        assert!(s.dialogs.read(cx).is_empty());
         assert!(!windows::quitting(cx));
         assert!(!s.session.files.allow_quit);
     });
@@ -4150,8 +4169,8 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         command(&view, cx, c);
     }
     cx.run_until_parked();
-    view.read_with(cx, |s, _| {
-        assert!(s.modals.is_empty());
+    view.read_with(cx, |s, cx| {
+        assert!(s.dialogs.read(cx).is_empty());
         assert!(s.session.files.opened().is_some());
     });
     // A link to a neighbour opens nothing: the file has none.
@@ -4177,7 +4196,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     command(&view, cx, Command::CloseEditorOrWindow);
     command(&view, cx, Command::Quit);
     assert!(cx.has_pending_prompt());
-    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     cx.simulate_prompt_answer("Cancel");
     cx.run_until_parked();
     view.read_with(cx, |s, _| {
@@ -4247,4 +4266,31 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
     settle_cloud(&view, cx, "the cleared cache", &|_, _| {
         !dir.path().join("cloud-project-catalog.v1.json").exists()
     });
+}
+
+/// The dialog layer as a test reads it.
+impl Shell {
+    /// What each open dialog is, bottom to top.
+    fn dialog_names(&self, cx: &App) -> Vec<String> {
+        self.dialogs
+            .read(cx)
+            .iter()
+            .map(|m| match m {
+                Modal::Task(task) => format!("Task({task:?})"),
+                Modal::CreateEntry(_) => "CreateEntry".into(),
+                Modal::ProjectFailure { .. } => "ProjectFailure".into(),
+                Modal::ConfirmQuit => "ConfirmQuit".into(),
+                Modal::CloseAnyway => "CloseAnyway".into(),
+                Modal::Executions => "Executions".into(),
+                Modal::Error(error) => format!("Error({error})"),
+                Modal::Owned(owned) => format!("{:?}", owned.key),
+            })
+            .collect()
+    }
+    fn top_dialog(&self, cx: &App) -> Option<String> {
+        self.dialog_names(cx).pop()
+    }
+    fn has_dialog(&self, name: &str, cx: &App) -> bool {
+        self.dialog_names(cx).iter().any(|n| n == name)
+    }
 }

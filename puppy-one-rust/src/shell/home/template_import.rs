@@ -39,38 +39,37 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.modals.remove(|m| {
-            matches!(
-                m,
-                Modal::CreateProject(_) | Modal::ProjectEntry | Modal::TemplateImport(_)
-            )
-        });
+        for key in [
+            DialogKey::CreateProject,
+            DialogKey::ProjectEntry,
+            DialogKey::TemplateImport,
+        ] {
+            self.close_dialog(key, cx);
+        }
+        self.homepage.create = None;
         let name = self.project_name_input(String::new(), window, cx, Self::submit_template);
-        self.modals
-            .open(Modal::TemplateImport(Box::new(TemplateImport {
-                url,
-                destination: Destination {
-                    name,
-                    location: default_location(),
-                    choosing: false,
-                },
-                detail: None,
-                resolving: true,
-                resolve_error: None,
-                generation: 0,
-                editing: false,
-                submitting: false,
-                error: None,
-                new_window: self.workspace_root().is_some() && !self.home_visible(),
-            })));
+        self.homepage.template = Some(Box::new(TemplateImport {
+            url,
+            destination: Destination {
+                name,
+                location: default_location(),
+                choosing: false,
+            },
+            detail: None,
+            resolving: true,
+            resolve_error: None,
+            generation: 0,
+            editing: false,
+            submitting: false,
+            error: None,
+            new_window: self.workspace_root().is_some() && !self.home_visible(),
+        }));
+        self.open_dialog(DialogKey::TemplateImport, cx);
         self.resolve_template(window, cx);
         cx.notify();
     }
     fn template_import(&mut self) -> Option<&mut TemplateImport> {
-        self.modals.iter_mut().find_map(|m| match m {
-            Modal::TemplateImport(import) => Some(&mut **import),
-            _ => None,
-        })
+        self.homepage.template.as_deref_mut()
     }
     /// `resolve`: the template's details, in the app's language.
     fn resolve_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -115,17 +114,18 @@ impl Shell {
         if self.template_import().is_some_and(|i| i.submitting) {
             return;
         }
-        self.modals
-            .remove(|m| matches!(m, Modal::TemplateImport(_)));
+        self.homepage.template = None;
+        self.close_dialog(DialogKey::TemplateImport, cx);
         self.focus.focus(window, cx);
         cx.notify();
     }
     /// A template the store keeps for accounts, and nobody signed in.
     fn template_needs_sign_in(&self, cx: &App) -> bool {
-        self.modals.iter().any(|m| {
-            matches!(m, Modal::TemplateImport(import)
-                if import.detail.as_ref().is_some_and(|d| d.requires_sign_in))
-        }) && !crate::features::cloud::account::has_account(cx)
+        self.homepage
+            .template
+            .as_ref()
+            .is_some_and(|import| import.detail.as_ref().is_some_and(|d| d.requires_sign_in))
+            && !crate::features::cloud::account::has_account(cx)
     }
     /// "Get a copy": the release's verified files, under a name no folder
     /// has yet, then the project opens on its first document.
@@ -191,7 +191,8 @@ impl Shell {
             let _ = this.update_in(cx, |s, window, cx| {
                 match result {
                     Ok((path, open)) => {
-                        s.modals.remove(|m| matches!(m, Modal::TemplateImport(_)));
+                        s.homepage.template = None;
+                        s.close_dialog(DialogKey::TemplateImport, cx);
                         s.open_created_project(
                             path,
                             open.map(PathBuf::from),

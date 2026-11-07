@@ -119,6 +119,16 @@ pub(super) struct Homepage {
     /// This Homepage has shown the analytics disclosure; it stays for as
     /// long as the Homepage does (`shownForLaunch`).
     pub(in crate::shell) disclosure_shown: bool,
+    /// "Create a project", while its dialog is open.
+    pub(in crate::shell) create: Option<CreateProject>,
+    /// The template card, while it is open.
+    pub(in crate::shell) template: Option<Box<TemplateImport>>,
+    /// Cloning a repository into a new project, while its dialog is open.
+    pub(in crate::shell) import: Option<ImportRepository>,
+    /// A remembered project's rename, while its dialog is open.
+    pub(in crate::shell) rename: Option<super::project_actions::ProjectRename>,
+    /// Unlinking or deleting a remembered project, while it is asked.
+    pub(in crate::shell) confirm: Option<super::project_actions::ProjectConfirm>,
 }
 impl Homepage {
     pub fn list_held(&self) -> bool {
@@ -782,10 +792,7 @@ impl Shell {
                         tr("settings.sidebar.account")
                     )))
                     .on_click(cx.listener(|s, _, w, cx| {
-                        s.command(Command::Settings, w, cx);
-                        s.task_ui.settings.update(cx, |settings, cx| {
-                            settings.select_page(crate::features::settings::Page::Account, cx)
-                        });
+                        s.open_settings(crate::features::settings::Page::Account, w, cx)
                     }))
                     .child(initial)
                     .into_any_element()

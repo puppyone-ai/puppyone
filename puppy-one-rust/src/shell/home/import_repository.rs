@@ -44,19 +44,17 @@ impl Shell {
         })
         .detach();
         url.read(cx).focus_handle(cx).focus(window, cx);
-        self.modals.open(Modal::ImportRepository(ImportRepository {
+        self.homepage.import = Some(ImportRepository {
             url,
             location: create_project::default_location(),
             cloning: None,
             error: None,
-        }));
+        });
+        self.open_dialog(DialogKey::ImportRepository, cx);
         cx.notify();
     }
     fn import_state(&mut self) -> Option<&mut ImportRepository> {
-        self.modals.iter_mut().find_map(|m| match m {
-            Modal::ImportRepository(import) => Some(import),
-            _ => None,
-        })
+        self.homepage.import.as_mut()
     }
     pub(in crate::shell) fn close_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(import) = self.import_state()
@@ -64,8 +62,8 @@ impl Shell {
         {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        self.modals
-            .remove(|m| matches!(m, Modal::ImportRepository(_)));
+        self.homepage.import = None;
+        self.close_dialog(DialogKey::ImportRepository, cx);
         self.focus.focus(window, cx);
         cx.notify();
     }
@@ -126,7 +124,8 @@ impl Shell {
                 import.cloning = None;
                 match result {
                     Ok(path) => {
-                        s.modals.remove(|m| matches!(m, Modal::ImportRepository(_)));
+                        s.homepage.import = None;
+                        s.close_dialog(DialogKey::ImportRepository, cx);
                         s.open_project(path, w, cx);
                     }
                     Err(error) => import.error = Some(error),

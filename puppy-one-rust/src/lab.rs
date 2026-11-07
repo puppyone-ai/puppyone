@@ -414,9 +414,9 @@ impl Render for Lab {
                         div()
                             .absolute()
                             .inset_0()
-                            .bg(crate::shell::tasks::task_backdrop(t)),
+                            .bg(crate::shell::task_backdrop(t)),
                     )
-                    .child(crate::shell::tasks::settings_dialog(
+                    .child(crate::shell::settings_dialog(
                         settings.clone(),
                         f32::from(size.width),
                         f32::from(size.height),

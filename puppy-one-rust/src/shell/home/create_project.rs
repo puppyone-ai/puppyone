@@ -92,31 +92,40 @@ impl Shell {
             Self::submit_create_project,
         );
         name.read(cx).focus_handle(cx).focus(window, cx);
-        self.modals.open(Modal::CreateProject(CreateProject {
+        self.homepage.create = Some(CreateProject {
             destination: Destination {
                 name,
                 location: default_location(),
                 choosing: false,
             },
             error: None,
-        }));
+        });
+        self.open_dialog(DialogKey::CreateProject, cx);
         cx.notify();
     }
     /// The destination of the entry dialog on top.
-    pub(in crate::shell) fn destination(&mut self) -> Option<&mut Destination> {
-        match self.modals.top_mut()? {
-            Modal::CreateProject(create) => Some(&mut create.destination),
-            Modal::TemplateImport(import) => Some(&mut import.destination),
+    pub(in crate::shell) fn destination(&mut self, cx: &App) -> Option<&mut Destination> {
+        match self.dialogs.read(cx).top_key()? {
+            DialogKey::CreateProject => self.homepage.create.as_mut().map(|c| &mut c.destination),
+            DialogKey::TemplateImport => {
+                self.homepage.template.as_mut().map(|t| &mut t.destination)
+            }
             _ => None,
         }
     }
-    fn set_destination_error(&mut self, error: Option<String>) {
-        if let Some(modal) = self.modals.top_mut() {
-            match modal {
-                Modal::CreateProject(create) => create.error = error,
-                Modal::TemplateImport(import) => import.error = error,
-                _ => {}
+    fn set_destination_error(&mut self, error: Option<String>, cx: &App) {
+        match self.dialogs.read(cx).top_key() {
+            Some(DialogKey::CreateProject) => {
+                if let Some(create) = self.homepage.create.as_mut() {
+                    create.error = error
+                }
             }
+            Some(DialogKey::TemplateImport) => {
+                if let Some(import) = self.homepage.template.as_mut() {
+                    import.error = error
+                }
+            }
+            _ => {}
         }
     }
     pub(in crate::shell) fn close_create_project(
@@ -124,11 +133,8 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self
-            .modals
-            .remove(|m| matches!(m, Modal::CreateProject(_)))
-            .is_some()
-        {
+        self.homepage.create = None;
+        if self.close_dialog(DialogKey::CreateProject, cx) {
             self.focus.focus(window, cx);
             cx.notify();
         }
@@ -139,14 +145,14 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(destination) = self.destination() else {
+        let Some(destination) = self.destination(cx) else {
             return;
         };
         if destination.choosing {
             return;
         }
         destination.choosing = true;
-        self.set_destination_error(None);
+        self.set_destination_error(None, cx);
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -157,7 +163,7 @@ impl Shell {
             let result = prompt.await;
             let _ = this.update(cx, |s, cx| {
                 let mut error = None;
-                if let Some(destination) = s.destination() {
+                if let Some(destination) = s.destination(cx) {
                     destination.choosing = false;
                     match result {
                         Ok(Ok(Some(paths))) => {
@@ -171,7 +177,7 @@ impl Shell {
                     }
                 }
                 if error.is_some() {
-                    s.set_destination_error(error);
+                    s.set_destination_error(error, cx);
                 }
                 cx.notify();
             });
@@ -184,7 +190,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(create) = self.modals.create_project() else {
+        let Some(create) = self.homepage.create.as_mut() else {
             return;
         };
         let Some(location) = create.destination.location.clone() else {
@@ -198,7 +204,8 @@ impl Shell {
             .and_then(|name| create_folder(&location, name, &crate::localization::current_code()));
         match created {
             Ok((path, open)) => {
-                self.modals.remove(|m| matches!(m, Modal::CreateProject(_)));
+                self.homepage.create = None;
+                self.close_dialog(DialogKey::CreateProject, cx);
                 self.open_created_project(path, open.map(PathBuf::from), false, window, cx);
             }
             Err(error) => {
@@ -243,7 +250,7 @@ impl Shell {
             .unwrap_or_default();
         if templates::link::looks_like(&text) {
             self.open_template_link(text.trim().to_owned(), window, cx);
-        } else if let Some(create) = self.modals.create_project() {
+        } else if let Some(create) = self.homepage.create.as_mut() {
             create.error = Some(tr("onboarding.template.noLink").into());
             cx.notify();
         }

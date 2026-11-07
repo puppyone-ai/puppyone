@@ -366,10 +366,7 @@ impl Shell {
     /// `onSignIn`: Account settings with a session, else the browser.
     pub(super) fn sign_in_for_cloud(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if crate::features::cloud::account::has_account(cx) {
-            self.command(Command::Settings, window, cx);
-            self.task_ui.settings.update(cx, |settings, cx| {
-                settings.select_page(crate::features::settings::Page::Account, cx)
-            });
+            self.open_settings(crate::features::settings::Page::Account, window, cx);
         } else {
             crate::features::cloud::account::sign_in(cx);
         }
@@ -381,11 +378,15 @@ impl Shell {
             return;
         }
         self.popover = None;
-        if !self.modals.iter().any(|m| matches!(m, Modal::CloudPublish)) {
-            self.modals.open(Modal::CloudPublish);
+        if !self.dialog_open(DialogKey::CloudPublish, cx) {
+            self.open_dialog(DialogKey::CloudPublish, cx);
         }
-        self.modal_focus.focus(window, cx);
+        self.focus_dialogs(window, cx);
         cx.notify();
+    }
+    pub(super) fn close_replace_cloud(&mut self, cx: &mut Context<Self>) {
+        self.cloud.replace = None;
+        self.close_dialog(DialogKey::ReplaceCloud, cx);
     }
     /// `setReplacingMissingCloudProject(true)`.
     pub(super) fn replace_cloud_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -393,12 +394,13 @@ impl Shell {
         else {
             return;
         };
-        self.modals.open(Modal::ReplaceCloud(ReplaceCloud {
+        self.cloud.replace = Some(ReplaceCloud {
             project,
             busy: false,
             failed: false,
-        }));
-        self.modal_focus.focus(window, cx);
+        });
+        self.open_dialog(DialogKey::ReplaceCloud, cx);
+        self.focus_dialogs(window, cx);
         self.begin_replace(cx);
     }
     /// `LocalFolderCloudNotice`: the folder stays usable; this only says
@@ -545,7 +547,7 @@ impl Shell {
             )
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
-                    s.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
+                    s.close_dialog(DialogKey::ConfirmPublish, cx);
                     cx.notify();
                 });
             })
@@ -568,7 +570,7 @@ impl Shell {
                     .variant(ButtonVariant::Secondary)
                     .label(tr("cloud.common.cancel"))
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
+                        s.close_dialog(DialogKey::ConfirmPublish, cx);
                         cx.notify();
                     })),
             )
@@ -576,9 +578,9 @@ impl Shell {
                 Button::new("cloud-publish-confirm")
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.common.confirm"))
-                    .track_focus(&self.modal_focus)
+                    .track_focus(&self.dialog_focus(cx))
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
+                        s.close_dialog(DialogKey::ConfirmPublish, cx);
                         s.cloud.publish.update(cx, |p, cx| {
                             p.start(crate::cloud::publication::Action::Initialize, cx)
                         });
@@ -610,7 +612,7 @@ impl Shell {
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
                     if !busy {
-                        s.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
+                        s.close_replace_cloud(cx);
                         cx.notify();
                     }
                 });
@@ -637,7 +639,7 @@ impl Shell {
                     .label(tr("cloud.common.cancel"))
                     .disabled(busy)
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
+                        s.close_replace_cloud(cx);
                         cx.notify();
                     })),
             )
@@ -646,7 +648,7 @@ impl Shell {
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.replaceConfirm"))
                     .disabled(busy || self.cloud.replace_url.is_none())
-                    .track_focus(&self.modal_focus)
+                    .track_focus(&self.dialog_focus(cx))
                     .on_click(
                         cx.listener(move |s, _, _, cx| s.confirm_replace(project.clone(), cx)),
                     ),

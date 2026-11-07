@@ -238,15 +238,15 @@ impl Shell {
     }
     /// Whether an introduction is on screen (it waits for its entry's
     /// measurement, and hides on the Homepage and under dialogs).
-    pub(super) fn coachmark_shown(&self) -> bool {
+    pub(super) fn coachmark_shown(&self, cx: &App) -> bool {
         self.coachmarks.active.is_some()
             && self.coachmarks.anchor.is_some()
             && !self.home_visible()
-            && self.modals.is_empty()
+            && self.dialogs.read(cx).is_empty()
     }
     /// `dismissOnEscape`: Escape acknowledges the introduction on screen.
     pub(super) fn dismiss_coachmark_on_escape(&mut self, cx: &mut Context<Self>) {
-        if self.coachmark_shown()
+        if self.coachmark_shown(cx)
             && let Some(id) = self.coachmarks.active
         {
             self.acknowledge_coachmark(id, cx);
@@ -254,7 +254,7 @@ impl Shell {
     }
     /// `HeaderFeatureCoachmark`'s overlay: end-aligned below its entry.
     pub(super) fn coachmark_overlay(&self, w: f32, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.coachmark_shown() {
+        if !self.coachmark_shown(cx) {
             return None;
         }
         let id = self.coachmarks.active?;

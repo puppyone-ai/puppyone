@@ -445,7 +445,7 @@ impl Shell {
                             let inside = event.bounds.contains(&event.event.position)
                                 && drag.single_file
                                 && drag.belongs_to(&s.session.files.workspace)
-                                && !s.modal();
+                                && !s.modal(cx);
                             if inside {
                                 let point = event.event.position - event.bounds.origin;
                                 let (direction, placement) =
@@ -478,7 +478,7 @@ impl Shell {
                     .on_drag_move(cx.listener(
                         move |s, event: &DragMoveEvent<ExternalPaths>, _, cx| {
                             let inside = event.bounds.contains(&event.event.position)
-                                && !s.modal()
+                                && !s.modal(cx)
                                 && s.external_document(event.drag(cx), cx).is_some();
                             let preview = inside.then(|| {
                                 let point = event.event.position - event.bounds.origin;
@@ -512,7 +512,7 @@ impl Shell {
                         // `claimEditorDropDocument`: one file of this local
                         // workspace opens; anything else is not admitted.
                         s.editor.drop = None;
-                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.modal())
+                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.modal(cx))
                         else {
                             return;
                         };
@@ -538,7 +538,7 @@ impl Shell {
                         s.editor.drop = None;
                         if !drag.single_file
                             || !drag.belongs_to(&s.session.files.workspace)
-                            || s.modal()
+                            || s.modal(cx)
                         {
                             return;
                         }
@@ -567,7 +567,7 @@ impl Shell {
                         move |s, drag: &crate::editor::workbench::pane::PaneDrag, w, cx| {
                             if drag.owner != cx.entity_id()
                                 || !s.session.files.visible_slots().contains(&drag.slot)
-                                || s.modal()
+                                || s.modal(cx)
                             {
                                 return;
                             }

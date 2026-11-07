@@ -35,6 +35,11 @@ pub(super) struct WindowCloud {
     /// The `puppyone` remote as reviewed when replacing a vanished
     /// Project's connection was chosen.
     pub replace_url: Option<String>,
+    /// `MissingCloudProjectReplacement`, while it is open.
+    pub replace: Option<super::project_place::ReplaceCloud>,
+    /// A Cloud opening that failed: the Project and why, while its
+    /// recovery shows.
+    pub recovery: Option<(String, crate::workspace::cloud::opening::Failure)>,
 }
 
 impl WindowCloud {
@@ -57,6 +62,8 @@ impl WindowCloud {
             share_panel: Default::default(),
             dismissed_notice: None,
             replace_url: None,
+            replace: None,
+            recovery: None,
         }
     }
 }

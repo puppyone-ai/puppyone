@@ -22,7 +22,7 @@ mod cloud_authority;
 mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
-mod create_new;
+mod dialogs;
 mod editor_area;
 mod editor_workbench;
 mod explorer;
@@ -31,17 +31,14 @@ mod file_mode;
 mod footer;
 mod header;
 mod home;
-mod modals;
 mod panes;
 mod project_actions;
 mod project_menu;
 mod project_opening;
 mod project_place;
-mod rename;
 mod right_sidebar;
 mod session;
 mod share_panel;
-pub(crate) mod tasks;
 mod window_cloud;
 pub mod windows;
 use crate::features::settings::preferences_store::Slice;
@@ -49,13 +46,13 @@ use command::on_shell_actions;
 pub use command::{
     Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
 };
+use dialogs::{DialogEvent, DialogKey, DialogLayer, Modal, Task};
+pub(crate) use dialogs::{settings_dialog, task_backdrop};
 use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
 use explorer_column::ExplorerColumn;
 use footer::SidebarFooter;
-use modals::{Modal, Modals, Task};
 use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side, StoredPanes};
 use right_sidebar::Surface;
-use tasks::TaskUi;
 /// The layout of a pane embedded as a cached view: it fills the frame the
 /// shell places it in. A cached pane renders again only when its entity is
 /// notified (or the window refreshes), so editor scrolling and typing do not
@@ -123,8 +120,10 @@ pub struct Shell {
     /// The project rail (`ProjectSwitcherRail`) replaces the Header's project
     /// button.
     rail: bool,
-    /// Window dialogs, bottom to top.
-    modals: Modals,
+    /// Window dialogs, bottom to top, and the Settings and Help content.
+    dialogs: Entity<DialogLayer>,
+    /// The layer's focus, for the dialogs the window draws on it.
+    dialog_focus: FocusHandle,
     /// What the right sidebar shows: the Agent workbench, Changes / History
     /// and a hosted Project's History.
     sidebar: right_sidebar::RightSidebar,
@@ -139,9 +138,6 @@ pub struct Shell {
     explorer_session: Entity<ExplorerSession>,
     explorer: Entity<Explorer>,
     homepage: home::Homepage,
-    task_ui: TaskUi,
-    /// Help → Feedback (`DesktopHelpLauncher`).
-    feedback: Entity<crate::features::feedback::Feedback>,
     cloud_services: Entity<crate::features::cloud::services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     preference_slices: PreferenceSlices,
@@ -149,7 +145,6 @@ pub struct Shell {
     editor: editor_area::EditorArea,
     focus: FocusHandle,
     project_focus: FocusHandle,
-    modal_focus: FocusHandle,
     captured: bool,
     /// Where everything sits this frame (pane motion included).
     layout: Layout,
@@ -179,7 +174,7 @@ impl Shell {
             weak.update(cx, |s, cx| {
                 if s.session.files.allow_quit {
                     s.preferences.read(cx).drained()
-                        && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
+                        && !s.dialogs.read(cx).creating(cx)
                         && (windows::count(cx) > 1
                             || !windows::last_close_quits(cx)
                             || crate::features::cloud::account::close_ready(cx))
@@ -231,6 +226,9 @@ impl Shell {
         let launch = windows::take_launch(cx);
         let preferences = windows::shared_preferences(fixture, cx);
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
+        let key = crate::features::agent_presence::owner(window);
+        let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
+        let dialog_focus = dialogs.read(cx).focus_handle().clone();
         let mut s = Self {
             session: session::WindowSession {
                 files: if fixture {
@@ -254,7 +252,7 @@ impl Shell {
                     ..Default::default()
                 },
                 picking: false,
-                key: crate::features::agent_presence::owner(window),
+                key: key.clone(),
                 title: None,
             },
             cloud: window_cloud::WindowCloud::new(
@@ -271,7 +269,8 @@ impl Shell {
                 cx.new(|cx| PaneLayout::new(right, window, cx))
             },
             rail: false,
-            modals: Default::default(),
+            dialogs,
+            dialog_focus,
             sidebar: right_sidebar::RightSidebar::new(
                 if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
                     right_sidebar::Surface::Git
@@ -294,8 +293,6 @@ impl Shell {
                 })
             },
             homepage: Default::default(),
-            task_ui: TaskUi::new(preferences.clone(), window, cx),
-            feedback: cx.new(|cx| crate::features::feedback::Feedback::new(window, cx)),
             cloud_services: cx
                 .new(|cx| crate::features::cloud::services::CloudServices::new(window, cx)),
             preferences,
@@ -303,7 +300,6 @@ impl Shell {
             editor: editor_area::EditorArea::new(cx.new(crate::editor::host::DocumentEditor::new)),
             focus,
             project_focus: cx.focus_handle(),
-            modal_focus: cx.focus_handle(),
             captured: false,
             layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
             #[cfg(feature = "dev-capture")]
@@ -323,10 +319,21 @@ impl Shell {
         }
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
-            Ok("settings") => s.modals.open(Modal::Task(Task::Settings)),
-            Ok("feedback") => s.modals.open(Modal::Task(Task::Feedback)),
+            Ok("settings") => s.open_modal(Modal::Task(Task::Settings), cx),
+            Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
             _ => {}
         }
+        // The dialogs' answers, and the window taking the focus back.
+        cx.subscribe_in(&s.dialogs, window, |s, _, event, w, cx| {
+            s.dialog_event(event, w, cx)
+        })
+        .detach();
+        // The create form holds the window open while it writes.
+        cx.observe(&s.dialogs, |s, _, cx| {
+            s.session.wake.notify();
+            cx.notify()
+        })
+        .detach();
         cx.subscribe_in(
             &s.preferences,
             window,
@@ -369,10 +376,10 @@ impl Shell {
                     {
                         s.explorer_session
                             .update(cx, |e, cx| e.operation_failed(cx));
-                        s.show_error(error);
+                        s.show_error(error, cx);
                     }
                 }
-                SessionEvent::Error(error) => s.show_error(error.clone()),
+                SessionEvent::Error(error) => s.show_error(error.clone(), cx),
                 SessionEvent::WatchFailed(error) => s.session.project.notice = Some(error.clone()),
                 SessionEvent::WatchRecovered => s.session.project.notice = None,
                 // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
@@ -396,10 +403,10 @@ impl Shell {
                 ExplorerEvent::Create { entry, parent } => {
                     s.start_create(*entry, parent.clone(), window, cx)
                 }
-                ExplorerEvent::Rename { path, change_type } => {
-                    s.begin_rename(path.clone(), *change_type, window, cx)
-                }
-                ExplorerEvent::Error(error) => s.show_error(error.clone()),
+                ExplorerEvent::Rename { path, change_type } => s
+                    .dialogs
+                    .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
+                ExplorerEvent::Error(error) => s.show_error(error.clone(), cx),
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
                 ExplorerEvent::Share { path } => s.share_folder(path, window, cx),
             }
@@ -427,10 +434,11 @@ impl Shell {
         // The Explorer's frame follows the window.
         cx.observe_window_bounds(window, |s, window, cx| s.push_explorer_host(window, cx))
             .detach();
-        cx.subscribe_in(&s.task_ui.settings, window, |s, _, event, w, cx| {
+        let settings = s.dialogs.read(cx).settings.clone();
+        cx.subscribe_in(&settings, window, |s, _, event, w, cx| {
             use crate::features::settings::SettingsEvent;
             match event {
-                SettingsEvent::Close => s.close_tasks(w, cx),
+                SettingsEvent::Close => s.close_tasks(cx),
                 SettingsEvent::ModelConfigurationChanged => s
                     .sidebar
                     .workbench
@@ -439,7 +447,7 @@ impl Shell {
                     let path = path.clone();
                     s.preferences
                         .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
-                    s.close_tasks(w, cx);
+                    s.close_tasks(cx);
                     if s.session
                         .files
                         .workspace
@@ -462,17 +470,11 @@ impl Shell {
             window,
             |s, _, event: &crate::features::workbench::WorkbenchEvent, w, cx| match event {
                 crate::features::workbench::WorkbenchEvent::OpenModelConnections => {
-                    s.task_ui.settings.update(cx, |settings, cx| {
-                        settings.select_page(crate::features::settings::Page::ModelConnections, cx)
-                    });
-                    s.command(Command::Settings, w, cx);
+                    s.open_settings(crate::features::settings::Page::ModelConnections, w, cx)
                 }
                 // `openSettingsDialog("account")`.
                 crate::features::workbench::WorkbenchEvent::OpenAccount => {
-                    s.task_ui.settings.update(cx, |settings, cx| {
-                        settings.select_page(crate::features::settings::Page::Account, cx)
-                    });
-                    s.command(Command::Settings, w, cx);
+                    s.open_settings(crate::features::settings::Page::Account, w, cx)
                 }
                 // `handleAgentOpenFile`: a path inside the chat's project
                 // opens in the editor.
@@ -649,7 +651,7 @@ impl Shell {
         cx.subscribe(
             &s.cloud_services,
             |s, _, _: &crate::features::cloud::services::Close, cx| {
-                s.modals.remove(|m| matches!(m, Modal::CloudServices));
+                s.close_dialog(DialogKey::CloudServices, cx);
                 cx.notify();
             },
         )
@@ -658,16 +660,6 @@ impl Shell {
             &s.cloud_services,
             |s, _, _: &crate::features::cloud::services::ResumePublication, cx| {
                 s.resume_publication(cx)
-            },
-        )
-        .detach();
-        // Its close button is the only way out; the draft is already gone.
-        cx.subscribe_in(
-            &s.feedback,
-            window,
-            |s, _, _: &crate::features::feedback::Close, window, cx| {
-                s.close_tasks(window, cx);
-                cx.notify();
             },
         )
         .detach();
@@ -750,7 +742,7 @@ impl Shell {
         // while it holds focus drops focus out of the dialog; focus returns
         // to the nearest surface still there (the dialog's own).
         cx.on_focus_lost(window, |s, window, cx| {
-            if !s.modals.is_empty()
+            if !s.dialogs.read(cx).is_empty()
                 && let Some(target) = window.focus_lost_restore_target(cx)
             {
                 target.focus(window, cx);
@@ -883,84 +875,232 @@ impl Shell {
             self.push_explorer_host(window, cx);
         }
     }
-    /// A dialog takes the window: the modal layer, or the Documents error.
-    fn modal(&self) -> bool {
+    /// A dialog takes the window: the dialog layer, or the Documents error.
+    fn modal(&self, cx: &App) -> bool {
         // A held-back Cloud conflict is a floating notice, not a dialog.
-        !self.modals.is_empty()
+        !self.dialogs.read(cx).is_empty()
             || (self.session.files.error.is_some() && !self.session.files.cloud_conflict())
     }
     /// A notice over everything else; a later one replaces it.
-    fn show_error(&mut self, error: impl Into<String>) {
-        self.modals.open(Modal::Error(error.into()));
+    fn show_error(&mut self, error: impl Into<String>, cx: &mut Context<Self>) {
+        let error = error.into();
+        self.dialogs.update(cx, |d, cx| d.show_error(error, cx));
+    }
+    fn open_modal(&mut self, modal: Modal, cx: &mut Context<Self>) {
+        self.dialogs.update(cx, |d, cx| d.open(modal, cx));
+    }
+    /// Closes the window dialogs that match.
+    fn close_modal(&mut self, matches: impl Fn(&Modal) -> bool, cx: &mut Context<Self>) {
+        self.dialogs
+            .update(cx, |d, cx| while d.remove(&matches, cx).is_some() {});
+    }
+    /// Closes the feature dialog `key`; `false` when it was not open.
+    fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) -> bool {
+        self.dialogs.update(cx, |d, cx| d.close(key, cx))
+    }
+    fn dialog_open(&self, key: DialogKey, cx: &App) -> bool {
+        self.dialogs.read(cx).contains(key)
+    }
+    /// The layer's focus, which a dialog keeps while it is open.
+    fn dialog_focus(&self, _: &App) -> FocusHandle {
+        self.dialog_focus.clone()
+    }
+    fn focus_dialogs(&self, window: &mut Window, cx: &mut App) {
+        self.dialog_focus.focus(window, cx);
+    }
+    /// A feature dialog this window renders: `key` on the layer, drawn and
+    /// dismissed by the shell.
+    fn open_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
+        let (render, dismiss) = (self.weak.clone(), self.weak.clone());
+        self.dialogs.update(cx, |d, cx| {
+            d.open_owned(
+                key,
+                move |_, window, cx| {
+                    render
+                        .update(cx, |s, cx| s.owned_dialog(key, window, cx))
+                        .unwrap_or_else(|_| Empty.into_any_element())
+                },
+                move |window, cx| {
+                    let _ = dismiss.update(cx, |s, cx| {
+                        s.dismiss_owned(key, window, cx);
+                        s.receive(window, cx);
+                        cx.notify();
+                    });
+                },
+                cx,
+            )
+        });
+    }
+    /// The Settings page `page`, opened.
+    fn open_settings(
+        &mut self,
+        page: crate::features::settings::Page,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let settings = self.dialogs.read(cx).settings.clone();
+        settings.update(cx, |settings, cx| settings.select_page(page, cx));
+        self.command(Command::Settings, window, cx);
+    }
+    /// What the dialog layer asks of the window.
+    fn dialog_event(&mut self, event: &DialogEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            DialogEvent::Command(command) => return self.command(*command, window, cx),
+            DialogEvent::Closed => self.focus.focus(window, cx),
+            DialogEvent::Error(error) => {
+                self.show_error(error.clone(), cx);
+                self.focus.focus(window, cx);
+            }
+            DialogEvent::Rename { path, name } => {
+                let (path, name) = (path.clone(), name.clone());
+                self.explorer_session
+                    .update(cx, |session, cx| session.rename(path, name, cx));
+                self.focus.focus(window, cx);
+            }
+            DialogEvent::Created {
+                workspace,
+                parent,
+                path,
+                folder,
+                nodes,
+            } => {
+                self.focus.focus(window, cx);
+                if !self
+                    .session
+                    .files
+                    .workspace
+                    .as_ref()
+                    .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
+                {
+                    return;
+                }
+                if let Err(error) = nodes {
+                    self.show_error(
+                        crate::localization::tf(
+                            "native.create.refreshFailed",
+                            &[("error", error.to_string().into())],
+                        ),
+                        cx,
+                    );
+                }
+                let listing = nodes.as_ref().ok().cloned();
+                let (parent, path) = (parent.clone(), path.clone());
+                self.explorer_session
+                    .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
+                if !folder && !self.session.files.allow_quit {
+                    self.session
+                        .files
+                        .begin(Intent::OpenFile(path), &self.session.wake)
+                }
+            }
+        }
+        self.receive(window, cx);
+        cx.notify();
+    }
+    /// Open the create form for `kind` in `parent` (the Explorer's menus).
+    fn start_create(
+        &mut self,
+        kind: crate::features::create_new::create_entry_menu_registry::Entry,
+        parent: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(ws) = self.session.files.workspace.clone() else {
+            return;
+        };
+        if self.session.files.busy() || self.modal(cx) || !kind.available() {
+            return;
+        }
+        self.dialogs
+            .update(cx, |d, cx| d.create_entry(ws, parent, kind, window, cx));
     }
     /// Escape on the topmost dialog, each with its own cancel: the Documents
-    /// error, then the top of the modal layer. Creating an entry is not
-    /// abandoned midway.
+    /// error, then the top of the dialog layer.
     fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.session.files.cloud_conflict() && self.session.files.error.take().is_some() {
             return;
         }
-        match self.modals.top() {
-            // Help → Feedback leaves only by its close button ("can only be
-            // dismissed with its close button").
-            Some(Modal::Task(Task::Feedback)) => {}
-            Some(Modal::Task(_)) => self.close_tasks(window, cx),
-            Some(Modal::CreateEntry(form)) => {
-                if !form.read(cx).busy() {
-                    self.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
-                    self.focus.focus(window, cx);
+        match self.dialogs.read(cx).top_key() {
+            // The window's own feature dialogs answer here, not deferred.
+            Some(key) if self.owns_dialog(key) => self.dismiss_owned(key, window, cx),
+            _ => self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx)),
+        }
+    }
+    /// The window's own feature dialogs (not the Explorer's rename, not
+    /// the Cloud services entity).
+    fn owns_dialog(&self, key: DialogKey) -> bool {
+        !matches!(key, DialogKey::Rename | DialogKey::CloudServices)
+    }
+    /// Draws the feature dialog `key` from the state it keeps here.
+    fn owned_dialog(
+        &mut self,
+        key: DialogKey,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let home = &self.homepage;
+        match key {
+            DialogKey::CreateProject => home
+                .create
+                .as_ref()
+                .map(|c| self.create_project_dialog(c, cx).into_any_element()),
+            DialogKey::TemplateImport => home
+                .template
+                .as_ref()
+                .map(|t| self.template_import_dialog(t, cx).into_any_element()),
+            DialogKey::ImportRepository => home
+                .import
+                .as_ref()
+                .map(|i| self.import_dialog(i, cx).into_any_element()),
+            DialogKey::ProjectEntry => Some(self.project_entry_dialog(cx).into_any_element()),
+            DialogKey::RenameProject => home
+                .rename
+                .as_ref()
+                .map(|r| self.project_rename_dialog(r, cx).into_any_element()),
+            DialogKey::ConfirmProject => home
+                .confirm
+                .as_ref()
+                .map(|c| self.project_confirm_dialog(c, cx).into_any_element()),
+            DialogKey::CloudPublish => Some(self.cloud_publish_dialog(cx).into_any_element()),
+            DialogKey::ConfirmPublish => {
+                Some(self.publish_confirmation_dialog(cx).into_any_element())
+            }
+            DialogKey::ReplaceCloud => self
+                .cloud
+                .replace
+                .as_ref()
+                .map(|r| self.replace_cloud_dialog(r, cx).into_any_element()),
+            DialogKey::CloudRecovery => self.cloud.recovery.as_ref().map(|(project, failure)| {
+                self.cloud_open_recovery_dialog(project, failure, cx)
+                    .into_any_element()
+            }),
+            DialogKey::ManageAgents => Some(self.manage_agents_dialog(cx).into_any_element()),
+            DialogKey::Rename | DialogKey::CloudServices => None,
+        }
+        .unwrap_or_else(|| Empty.into_any_element())
+    }
+    /// Escape on the feature dialog `key`, each with its own cancel.
+    fn dismiss_owned(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
+        match key {
+            DialogKey::CreateProject => self.close_create_project(window, cx),
+            DialogKey::TemplateImport => self.dismiss_template(window, cx),
+            DialogKey::ImportRepository => self.close_import(window, cx),
+            DialogKey::ProjectEntry => self.close_project_entry(cx),
+            DialogKey::CloudPublish | DialogKey::ConfirmPublish => {
+                self.close_dialog(key, cx);
+            }
+            // A replacement on its way cannot be dismissed.
+            DialogKey::ReplaceCloud => {
+                if !self.cloud.replace.as_ref().is_some_and(|r| r.busy) {
+                    self.close_replace_cloud(cx);
                 }
             }
-            Some(Modal::CreateProject(_)) => self.close_create_project(window, cx),
-            Some(Modal::TemplateImport(_)) => self.dismiss_template(window, cx),
-            Some(Modal::ImportRepository(_)) => self.close_import(window, cx),
-            Some(Modal::Rename(_)) => self.cancel_rename(window, cx),
-            Some(Modal::ConfirmQuit) => {
-                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+            DialogKey::RenameProject | DialogKey::ConfirmProject => {
+                self.close_project_dialog(window, cx)
             }
-            Some(Modal::CloseAnyway) => {
-                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
-                windows::cancel_quit(cx);
-            }
-            Some(Modal::Executions) => {
-                self.modals.remove(|m| matches!(m, Modal::Executions));
-            }
-            Some(Modal::ProjectEntry) => self.close_project_entry(cx),
-            Some(Modal::ProjectFailure { .. }) => {
-                self.modals
-                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
-            }
-            Some(Modal::Error(_)) => {
-                self.modals.remove(|m| matches!(m, Modal::Error(_)));
-            }
-            Some(Modal::CloudPublish) => {
-                self.modals.remove(|m| matches!(m, Modal::CloudPublish));
-            }
-            Some(Modal::ConfirmPublish) => {
-                self.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
-            }
-            Some(Modal::ReplaceCloud(replace)) => {
-                // A replacement on its way cannot be dismissed.
-                if !replace.busy {
-                    self.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
-                }
-            }
-            Some(Modal::CloudServices) => self.cloud_services.update(cx, |s, cx| s.close(cx)),
-            // A change on its way cannot be dismissed (`onClose` is withheld).
-            Some(Modal::RenameProject(_) | Modal::ConfirmProject(_)) => {
-                self.modals.remove(|m| match m {
-                    Modal::RenameProject(r) => !r.pending,
-                    Modal::ConfirmProject(c) => !c.pending,
-                    _ => false,
-                });
-                self.homepage.actions = None;
-            }
-            Some(Modal::CloudRecovery { .. }) => {
-                self.modals
-                    .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
-            }
-            Some(Modal::ManageAgents) => self.close_manage_agents(window, cx),
-            None => {}
+            DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
+            DialogKey::ManageAgents => self.close_manage_agents(window, cx),
+            DialogKey::Rename | DialogKey::CloudServices => {}
         }
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -985,8 +1125,8 @@ impl Shell {
                             s.open_project(path, w, cx);
                         }
                     }
-                    Ok(Err(e)) => s.show_error(e.to_string()),
-                    Err(e) => s.show_error(e.to_string()),
+                    Ok(Err(e)) => s.show_error(e.to_string(), cx),
+                    Err(e) => s.show_error(e.to_string(), cx),
                     _ => {}
                 }
                 s.receive(w, cx);
@@ -1107,33 +1247,33 @@ impl Shell {
                 return;
             }
             Command::Quit if self.sidebar.workbench.read(cx).has_running(cx) => {
-                self.modals.open(Modal::ConfirmQuit);
+                self.open_modal(Modal::ConfirmQuit, cx);
                 self.focus.focus(window, cx);
                 cx.notify();
                 return;
             }
             Command::QuitWithProcesses => {
-                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+                self.close_modal(|m| matches!(m, Modal::ConfirmQuit), cx);
                 self.session.files.begin(Intent::Quit, &self.session.wake);
                 self.receive(window, cx);
                 cx.notify();
                 return;
             }
             Command::CancelProcessQuit => {
-                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+                self.close_modal(|m| matches!(m, Modal::ConfirmQuit), cx);
                 windows::cancel_quit(cx);
                 cx.notify();
                 return;
             }
             Command::KeepWindowOpen => {
-                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
+                self.close_modal(|m| matches!(m, Modal::CloseAnyway), cx);
                 windows::cancel_quit(cx);
                 self.focus.focus(window, cx);
                 cx.notify();
                 return;
             }
             Command::CloseAnyway => {
-                self.modals.remove(|m| matches!(m, Modal::CloseAnyway));
+                self.close_modal(|m| matches!(m, Modal::CloseAnyway), cx);
                 self.session.files.abandon_unsaved();
                 self.receive(window, cx);
                 cx.notify();
@@ -1141,7 +1281,7 @@ impl Shell {
             }
             // Escape answers the topmost dialog (Help → Feedback ignores it,
             // `dismiss_modal`).
-            Command::Escape if self.modal() => {
+            Command::Escape if self.modal(cx) => {
                 self.dismiss_modal(window, cx);
                 self.receive(window, cx);
                 cx.notify();
@@ -1151,12 +1291,16 @@ impl Shell {
         }
         // While a task dialog is open the shell's other commands wait;
         // ⌘, toggles Settings (from Help, it switches and drops the draft).
-        if let Some(task) = self.modals.task() {
+        if let Some(task) = self.dialogs.read(cx).task() {
             match command {
-                Command::Settings if task == Task::Settings => self.close_tasks(window, cx),
+                Command::Settings if task == Task::Settings => self.close_tasks(cx),
                 Command::Settings => {
-                    self.feedback.update(cx, |f, cx| f.reset(cx));
-                    self.modals.open(Modal::Task(Task::Settings));
+                    let root = self.workspace_root();
+                    self.dialogs.update(cx, |d, cx| {
+                        d.feedback.update(cx, |f, cx| f.reset(cx));
+                        d.set_root(root, cx);
+                        d.open(Modal::Task(Task::Settings), cx);
+                    });
                     self.focus.focus(window, cx);
                 }
                 Command::Quit => self.session.files.begin(Intent::Quit, &self.session.wake),
@@ -1168,7 +1312,7 @@ impl Shell {
         }
         match command {
             Command::Undo | Command::Redo => {
-                if !self.modal()
+                if !self.modal(cx)
                     && !self.session.files.busy()
                     && let Some(id) = self
                         .session
@@ -1200,10 +1344,10 @@ impl Shell {
                     match ws.absolute(relative) {
                         Ok(path) => {
                             if let Err(e) = crate::platform::desktop::open(&path) {
-                                self.show_error(e);
+                                self.show_error(e, cx);
                             }
                         }
-                        Err(e) => self.show_error(e.to_string()),
+                        Err(e) => self.show_error(e.to_string(), cx),
                     }
                 }
             }
@@ -1211,19 +1355,14 @@ impl Shell {
             Command::OpenFolder => self.pick_workspace(window, cx),
             Command::CreateNew => self.open_project_entry(cx),
             Command::RetryProjectOpen => {
-                let failed = self.modals.iter().find_map(|m| match m {
-                    Modal::ProjectFailure { path, .. } => Some(path.clone()),
-                    _ => None,
-                });
-                self.modals
-                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+                let failed = self.dialogs.read(cx).failed_project();
+                self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
                 if let Some(path) = failed {
                     self.open_project(path, window, cx);
                 }
             }
             Command::CloseProjectFailure => {
-                self.modals
-                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+                self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
             }
             Command::ToggleExplorer => {
                 self.panes.update(cx, |p, cx| p.toggle_explorer(cx));
@@ -1236,14 +1375,19 @@ impl Shell {
             Command::Settings => {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
-                self.modals.open(Modal::Task(Task::Settings));
-                self.modal_focus.focus(window, cx);
+                let root = self.workspace_root();
+                self.dialogs.update(cx, |d, cx| {
+                    d.set_root(root, cx);
+                    d.open(Modal::Task(Task::Settings), cx)
+                });
+                self.focus_dialogs(window, cx);
             }
             Command::Feedback => {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
-                self.modals.open(Modal::Task(Task::Feedback));
-                let message = self.feedback.read(cx).message.focus_handle(cx);
+                self.open_modal(Modal::Task(Task::Feedback), cx);
+                let feedback = self.dialogs.read(cx).feedback.clone();
+                let message = feedback.read(cx).message.focus_handle(cx);
                 message.focus(window, cx);
             }
             Command::ProjectMenu => {
@@ -1293,7 +1437,7 @@ impl Shell {
                 }
             }
             Command::PasteTemplateLink => {
-                if !self.modal() && !self.file_mode() {
+                if !self.modal(cx) && !self.file_mode() {
                     let text = cx
                         .read_from_clipboard()
                         .and_then(|item| item.text())
@@ -1307,7 +1451,8 @@ impl Shell {
             // `enableModeToggleShortcut`).
             Command::ToggleMarkdownSource => {
                 let markdown = self.editor.front.read(cx).viewer_id() == Some("markdown");
-                if markdown && !self.session.files.busy() && !self.modal() && !self.home_visible() {
+                if markdown && !self.session.files.busy() && !self.modal(cx) && !self.home_visible()
+                {
                     self.editor
                         .front
                         .update(cx, |s, cx| s.command("source", window, cx));
@@ -1327,12 +1472,12 @@ impl Shell {
             }
             Command::ToggleFullScreen => window.toggle_fullscreen(),
             Command::RetryFileOperation => {
-                self.modals.remove(|m| matches!(m, Modal::Error(_)));
+                self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
                 self.session.files.error = None;
                 self.session.files.retry_operation(&self.session.wake);
             }
             Command::ClearError => {
-                self.modals.remove(|m| matches!(m, Modal::Error(_)));
+                self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
                 self.session.files.error = None;
             }
             Command::CloudServices => self.open_cloud_share(String::new(), window, cx),
@@ -1357,12 +1502,12 @@ impl Shell {
             }
             Command::ManageExecutions => {
                 self.popover = None;
-                self.modals.remove(|m| matches!(m, Modal::Executions));
-                self.modals.open(Modal::Executions);
-                self.modal_focus.focus(window, cx);
+                self.close_modal(|m| matches!(m, Modal::Executions), cx);
+                self.open_modal(Modal::Executions, cx);
+                self.focus_dialogs(window, cx);
             }
             Command::CloseExecutions => {
-                self.modals.remove(|m| matches!(m, Modal::Executions));
+                self.close_modal(|m| matches!(m, Modal::Executions), cx);
                 self.focus.focus(window, cx);
             }
             Command::Changes => {
@@ -1379,13 +1524,10 @@ impl Shell {
         self.receive(window, cx);
         cx.notify();
     }
-    /// Closes Settings or Help; Help's draft goes with it.
-    fn close_tasks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.modals.task() == Some(Task::Feedback) {
-            self.feedback.update(cx, |f, cx| f.reset(cx));
-        }
-        self.modals.remove(|m| matches!(m, Modal::Task(_)));
-        self.focus.focus(window, cx);
+    /// Closes Settings or Help; Help's draft goes with it, and the window
+    /// takes the focus back ([`DialogEvent::Closed`]).
+    fn close_tasks(&mut self, cx: &mut Context<Self>) {
+        self.dialogs.update(cx, |d, cx| d.close_tasks(cx));
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::watchdog::activity("shell.receive");
@@ -1393,9 +1535,8 @@ impl Shell {
         self.session.files.poll(&self.session.wake);
         if let Some((path, message)) = self.session.files.root_failure.take() {
             self.session.project.restoring_open = false;
-            self.modals
-                .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
-            self.modals.open(Modal::ProjectFailure { path, message });
+            self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
+            self.open_modal(Modal::ProjectFailure { path, message }, cx);
         }
         if self.session.project.restoring_open && self.session.files.workspace.is_some() {
             self.session.project.restoring_open = false;
@@ -1403,21 +1544,25 @@ impl Shell {
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
         if let Some(failure) = self.session.files.take_cloud_failure() {
             self.session.project.recovery_details = false;
-            self.modals
-                .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
-            self.modals.open(Modal::CloudRecovery {
-                project: self.session.project.cloud.clone().unwrap_or_default(),
+            self.cloud.recovery = Some((
+                self.session.project.cloud.clone().unwrap_or_default(),
                 failure,
-            });
+            ));
+            self.open_dialog(DialogKey::CloudRecovery, cx);
         }
         // `finishInterceptedClose`: a close a document could not finish asks
         // whether to keep the window or close anyway, instead of the error.
         if std::mem::take(&mut self.session.files.close_refused) {
             self.session.files.error = None;
-            if !self.modals.iter().any(|m| matches!(m, Modal::CloseAnyway)) {
-                self.modals.open(Modal::CloseAnyway);
+            if !self
+                .dialogs
+                .read(cx)
+                .iter()
+                .any(|m| matches!(m, Modal::CloseAnyway))
+            {
+                self.open_modal(Modal::CloseAnyway, cx);
             }
-            self.modal_focus.focus(window, cx);
+            self.focus_dialogs(window, cx);
         }
         for (owner, outcome) in std::mem::take(&mut self.session.files.operation_results) {
             self.explorer_session
@@ -1447,7 +1592,9 @@ impl Shell {
             self.session.project.name = ws.name().to_owned();
             self.session.project.entries += 1;
             self.session.project.fixture = false;
-            self.modals.remove(|m| matches!(m, Modal::Error(_)));
+            self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
+            let root = ws.local_root().map(PathBuf::from);
+            self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
             self.homepage.open = false;
             let opened = ws.local_root().map(PathBuf::from);
             let now = std::time::SystemTime::now()
@@ -1485,17 +1632,13 @@ impl Shell {
         }
         self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
-        if self.session.files.allow_quit
-            && self
-                .modals
-                .create_entry()
-                .is_some_and(|f| f.read(cx).busy())
-        {
+        self.sync_dialog_status(cx);
+        if self.session.files.allow_quit && self.dialogs.read(cx).creating(cx) {
             return;
         }
         if self.session.files.allow_quit && !self.preferences.read(cx).drained() {
             if let Some(error) = self.preferences.read(cx).error.clone() {
-                self.show_error(error);
+                self.show_error(error, cx);
                 self.session.files.cancel_quit(&self.session.wake);
                 windows::cancel_quit(cx);
                 self.sync_editor(window, cx);
@@ -1514,7 +1657,7 @@ impl Shell {
                         self.session.files.cancel_quit(&self.session.wake);
                         windows::cancel_quit(cx);
                         self.sync_editor(window, cx);
-                        self.show_error(error.to_string());
+                        self.show_error(error.to_string(), cx);
                         return;
                     }
                 }
@@ -1528,6 +1671,14 @@ impl Shell {
             windows::unregister(window.window_handle(), cx);
             window.remove_window();
         }
+    }
+    /// The Documents error shows above the dialogs while it is set.
+    fn sync_dialog_status(&mut self, cx: &mut Context<Self>) {
+        let files = &self.session.files;
+        let status = files.error.clone().filter(|_| !files.cloud_conflict());
+        let can_retry = files.can_retry_operation();
+        self.dialogs
+            .update(cx, |d, cx| d.set_status(status, can_retry, cx));
     }
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.session
@@ -1565,7 +1716,7 @@ impl Shell {
                         window,
                         move |s, _, event: &ClientMessage, window, cx| {
                             if let ClientMessage::Action { action } = event {
-                                if s.session.files.visible_slots().contains(&slot) && !s.modal() {
+                                if s.session.files.visible_slots().contains(&slot) && !s.modal(cx) {
                                     s.focus_editor_slot(slot);
                                     if action == "close-file" {
                                         if let Some(mut state) = s.session.files.state_mut() {
@@ -1629,7 +1780,7 @@ impl Shell {
         if let Some(editor) = self.editor.hosts.get(&active) {
             self.editor.front = editor.clone();
         }
-        let modal = self.modal() || self.sidebar.workbench.read(cx).dialog_open();
+        let modal = self.modal(cx) || self.sidebar.workbench.read(cx).dialog_open();
         let home = self.home_visible();
         let visible = self.session.files.visible_slots();
         let read_only = self.file_read_only();
@@ -1718,8 +1869,19 @@ impl Shell {
                     s.start_from(path, cx);
                 });
                 self.report_publication(cx);
-                self.modals.open(Modal::CloudServices);
-                self.modal_focus.focus(window, cx);
+                let services = self.cloud_services.clone();
+                let dismissed = services.downgrade();
+                self.dialogs.update(cx, |d, cx| {
+                    d.open_owned(
+                        DialogKey::CloudServices,
+                        move |_, _, _| services.clone().into_any_element(),
+                        move |_, cx| {
+                            let _ = dismissed.update(cx, |s, cx| s.close(cx));
+                        },
+                        cx,
+                    )
+                });
+                self.focus_dialogs(window, cx);
             }
             // No Cloud Project yet: the value page and its publisher.
             None => self.put_in_cloud(window, cx),
@@ -1793,10 +1955,13 @@ impl Shell {
             });
         match link {
             Ok(link) => cx.write_to_clipboard(ClipboardItem::new_string(link)),
-            Err(detail) => self.show_error(crate::localization::tf(
-                "workspace.node.error.operationFailedDetail",
-                &[("detail", detail.into())],
-            )),
+            Err(detail) => self.show_error(
+                crate::localization::tf(
+                    "workspace.node.error.operationFailedDetail",
+                    &[("detail", detail.into())],
+                ),
+                cx,
+            ),
         }
     }
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
@@ -1814,9 +1979,10 @@ impl Shell {
         self.session.project.authority = account;
         let Some((broker, binding)) = crate::features::cloud::account::broker_and_binding(cx)
         else {
-            self.show_error(crate::localization::t(
-                "cloud.message.project-sign-in-required",
-            ));
+            self.show_error(
+                crate::localization::t("cloud.message.project-sign-in-required"),
+                cx,
+            );
             return;
         };
         self.session
@@ -1992,7 +2158,7 @@ impl Shell {
         SidebarFooter::new(move |command, window, cx| {
             let _ = shell.update(cx, |s, cx| s.command(command, window, cx));
         })
-        .task(self.modals.task())
+        .task(self.dialogs.read(cx).task())
         .busy(busy)
     }
     /// The project being entered in this window, named as its Header will
@@ -2207,7 +2373,8 @@ impl Render for Shell {
         crate::platform::watchdog::activity("shell.render");
         // Native web content draws above GPUI: overlays hide it, and only
         // surfaces painted in this frame stay visible.
-        crate::web_host::set_overlay(window, !self.modals.is_empty() || self.popover.is_some());
+        let overlay = !self.dialogs.read(cx).is_empty() || self.popover.is_some();
+        crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
         if !cx.has_active_drag() {
             self.editor.drop = None;
@@ -2258,7 +2425,7 @@ impl Render for Shell {
             let geometry = serde_json::json!({"framework":"GPUI","header":rect(self.layout.header),"explorer":rect(self.layout.explorer),"footer":rect(self.layout.footer),"editor":rect(self.layout.editor),"auxiliary":rect(self.layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
             if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
             {
-                self.show_error(error.to_string());
+                self.show_error(error.to_string(), cx);
             }
         }
         let t = cx.palette();
@@ -2355,7 +2522,7 @@ impl Render for Shell {
         }
         root = root.children(self.project_actions_menu(cx));
         root = root.children(self.coachmark_overlay(w, cx));
-        root.children(self.modal_layer(w, h, cx))
+        root.child(self.dialogs.clone())
     }
 }
 impl Shell {
@@ -2498,121 +2665,6 @@ impl Shell {
             None => self.explorer_session.update(cx, |e, cx| e.resubscribe(cx)),
         }
         cx.notify();
-    }
-    /// The modal layer, bottom to top, with the Documents error above it.
-    fn modal_layer(&self, w: f32, h: f32, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        use crate::localization::t as tr;
-        let error = |shell: &Self, message: &str, cx: &mut Context<Self>| {
-            shell
-                .simple_modal(
-                    tr("native.error.title"),
-                    message,
-                    {
-                        let mut actions = vec![(
-                            tr("common.action.close"),
-                            Command::ClearError,
-                            ButtonVariant::Secondary,
-                        )];
-                        if shell.session.files.can_retry_operation() {
-                            actions.push((
-                                tr("common.action.retry"),
-                                Command::RetryFileOperation,
-                                ButtonVariant::Solid,
-                            ));
-                        }
-                        actions
-                    },
-                    cx,
-                )
-                .into_any_element()
-        };
-        let mut layer: Vec<AnyElement> = self
-            .modals
-            .iter()
-            .map(|modal| match modal {
-                Modal::Task(Task::Settings) => self.settings_view(w, h, cx).into_any_element(),
-                Modal::Task(Task::Feedback) => self.feedback.clone().into_any_element(),
-                Modal::CreateEntry(form) => self
-                    .create_entry_view(form.clone(), w, h, cx)
-                    .into_any_element(),
-                Modal::CreateProject(create) => {
-                    self.create_project_dialog(create, cx).into_any_element()
-                }
-                Modal::TemplateImport(import) => {
-                    self.template_import_dialog(import, cx).into_any_element()
-                }
-                Modal::ImportRepository(import) => {
-                    self.import_dialog(import, cx).into_any_element()
-                }
-                Modal::Rename(rename) => self.rename_dialog(rename, cx).into_any_element(),
-                Modal::ConfirmQuit => self
-                    .simple_modal(
-                        tr("native.quit.title"),
-                        tr("native.quit.detail"),
-                        vec![
-                            (
-                                tr("native.quit.cancel"),
-                                Command::CancelProcessQuit,
-                                ButtonVariant::Secondary,
-                            ),
-                            (
-                                tr("native.quit.confirm"),
-                                Command::QuitWithProcesses,
-                                ButtonVariant::SolidDanger,
-                            ),
-                        ],
-                        cx,
-                    )
-                    .into_any_element(),
-                Modal::CloseAnyway => self
-                    .simple_modal(
-                        tr("native.documentClose.message"),
-                        tr("native.documentClose.detail"),
-                        vec![
-                            (
-                                tr("native.documentClose.closeAnyway"),
-                                Command::CloseAnyway,
-                                ButtonVariant::Secondary,
-                            ),
-                            (
-                                tr("native.documentClose.keepOpen"),
-                                Command::KeepWindowOpen,
-                                ButtonVariant::Solid,
-                            ),
-                        ],
-                        cx,
-                    )
-                    .into_any_element(),
-                Modal::Executions => self.executions_dialog(cx).into_any_element(),
-                Modal::ProjectEntry => self.project_entry_dialog(cx).into_any_element(),
-                Modal::ProjectFailure { message, .. } => {
-                    self.project_failure_dialog(message, cx).into_any_element()
-                }
-                Modal::Error(message) => error(self, message, cx),
-                Modal::CloudPublish => self.cloud_publish_dialog(cx).into_any_element(),
-                Modal::ConfirmPublish => self.publish_confirmation_dialog(cx).into_any_element(),
-                Modal::ReplaceCloud(replace) => {
-                    self.replace_cloud_dialog(replace, cx).into_any_element()
-                }
-                Modal::CloudServices => self.cloud_services.clone().into_any_element(),
-                Modal::RenameProject(rename) => {
-                    self.project_rename_dialog(rename, cx).into_any_element()
-                }
-                Modal::ConfirmProject(confirm) => {
-                    self.project_confirm_dialog(confirm, cx).into_any_element()
-                }
-                Modal::CloudRecovery { project, failure } => self
-                    .cloud_open_recovery_dialog(project, failure, cx)
-                    .into_any_element(),
-                Modal::ManageAgents => self.manage_agents_dialog(cx).into_any_element(),
-            })
-            .collect();
-        if self.session.files.cloud_conflict() {
-            // Shown as the editor's floating notice (`notices`).
-        } else if let Some(message) = &self.session.files.error {
-            layer.push(error(self, message, cx));
-        }
-        layer
     }
 }
 
