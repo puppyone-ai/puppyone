@@ -19,5 +19,5 @@ pub mod source_control;
 pub mod sub_theme_catalog;
 pub mod telemetry;
 pub mod terminal;
-mod terminal_activity;
+
 pub mod workbench;
