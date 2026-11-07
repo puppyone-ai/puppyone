@@ -136,7 +136,23 @@ mod tests {
             },
         )
         .unwrap();
-        std::thread::sleep(Duration::from_millis(300));
+        // FSEvents may deliver `git init`'s own writes after the stream
+        // starts. Events arrive in order: once a write made now has been
+        // seen and the deliveries have gone quiet, count from zero.
+        std::fs::write(root.join(".git/description"), b"sync\n").unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let before = count.load(Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(500));
+            if before > 0 && count.load(Ordering::SeqCst) == before {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the watch never started"
+            );
+        }
+        count.store(0, Ordering::SeqCst);
         std::fs::write(root.join(".git/index.lock"), b"").unwrap();
         std::thread::sleep(Duration::from_millis(800));
         assert_eq!(count.load(Ordering::SeqCst), 0, "lock files are noise");
