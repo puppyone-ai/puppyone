@@ -167,13 +167,13 @@ impl Shell {
             .map(|r| r.to_string_lossy().into_owned());
         let entry = scope
             .as_ref()
-            .map(|s| format!("{s}#{}", self.session.project.entries));
+            .map(|s| format!("{s}#{}", self.project.read(cx).record.entries));
         let inputs = Inputs {
             agent_open: self.right_shows(Surface::Agent, cx),
             changes_open: self.right_shows(Surface::Git, cx),
             local: repository.then_some(status.local),
-            entry: entry.as_deref().filter(|_| !self.session.home),
-            scope: scope.as_deref().filter(|_| !self.session.home),
+            entry: entry.as_deref().filter(|_| !self.project.read(cx).home),
+            scope: scope.as_deref().filter(|_| !self.project.read(cx).home),
             always: prefs.experimental.always_show_onboarding_coachmarks,
             progress: prefs.header_coachmarks,
         };

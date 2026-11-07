@@ -109,7 +109,9 @@ fn ctrl_tab_steps_through_the_tabs_and_cmd_w_closes_one_then_the_window(cx: &mut
     std::fs::write(folder.path().join("a.md"), "# A\n").unwrap();
     std::fs::write(folder.path().join("b.md"), "# B\n").unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update(cx, |s, cx| {
+        s.project.update(cx, |p, _| p.record.fixture = false)
+    });
     let settle =
         |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -761,11 +763,13 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Home);
     view.update(cx, |s, cx| {
-        assert!(s.session.home && s.popover.is_none());
+        assert!(s.project.read(cx).home && s.popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible(cx));
     });
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update(cx, |s, cx| {
+        s.project.update(cx, |p, _| p.record.fixture = false)
+    });
     view.update(cx, |s, cx| assert!(s.home_visible(cx)));
 }
 #[gpui::test]
@@ -1474,7 +1478,7 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     assert_eq!(renders(cx), before, "the Explorer was reused");
     // Rendering the shell does not push anything into the Explorer…
     view.update(cx, |s, cx| {
-        s.session.picking = true;
+        s.project.update(cx, |p, _| p.picking = true);
         cx.notify();
     });
     draw(cx);
@@ -1974,7 +1978,7 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         s.hosted_project(cx).as_deref() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.session.project.name, "Fixture Cloud");
+        assert_eq!(s.project.read(cx).record.name, "Fixture Cloud");
         assert_ne!(s.files(cx).workspace_key(), Some(local_key.as_str()));
         assert_eq!(s.place_menu_now(cx).unwrap().place, Place::Cloud);
     });
@@ -2183,11 +2187,11 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     // nothing is left to reuse under another session.
     cx.update(|_, cx| account.update(cx, |a, _| a.sign_out()));
     settle(&view, cx, "the revocation", &|s, cx| {
-        s.hosted_project(cx).is_none() && s.session.project.cloud.is_none()
+        s.hosted_project(cx).is_none() && s.project.read(cx).record.cloud.is_none()
     });
-    view.read_with(cx, |s, _| {
-        assert!(s.session.home);
-        assert!(s.session.project.authority.is_none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.project.read(cx).home);
+        assert!(s.project.read(cx).record.authority.is_none());
     });
 }
 
@@ -2225,7 +2229,7 @@ fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert!(s.files(cx).cloud_opening().is_none());
-        assert!(s.session.project.authority.is_none());
+        assert!(s.project.read(cx).record.authority.is_none());
     });
     // The late root never commits.
     std::thread::sleep(std::time::Duration::from_millis(600));
@@ -2319,8 +2323,8 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
     settle(&view, cx, "the hosted Project", &|s, cx| {
         s.hosted_project(cx).as_deref() == Some("project-a")
     });
-    settle(&view, cx, "the workspace notice", &|s, _| {
-        s.session.project.notice.is_some()
+    settle(&view, cx, "the workspace notice", &|s, cx| {
+        s.project.read(cx).record.notice.is_some()
     });
     // A notice floats; it is not a dialog.
     view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
@@ -2991,7 +2995,7 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        s.session.project.fixture = false;
+        s.project.update(cx, |p, _| p.record.fixture = false);
         s.home.update(cx, |h, cx| {
             h.begin_create_project(w, cx);
             let create = h.create.as_mut().unwrap();
@@ -3038,7 +3042,9 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     let parent = temp.path().canonicalize().unwrap();
     std::fs::create_dir(parent.join("Weekly plan")).unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update(cx, |s, cx| {
+        s.project.update(cx, |p, _| p.record.fixture = false)
+    });
     command(&view, cx, Command::Home);
     cx.update(|_, cx| {
         cx.write_to_clipboard(ClipboardItem::new_string(format!(
@@ -3132,7 +3138,7 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
     std::fs::create_dir(&folder).unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {
-        s.session.project.fixture = false;
+        s.project.update(cx, |p, _| p.record.fixture = false);
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
     });
@@ -3185,7 +3191,9 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
         telemetry::install_fixture(Some(telemetry::fixture(Level::Basic, true, true)), cx)
     });
     let (view, cx) = setup(cx);
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update(cx, |s, cx| {
+        s.project.update(cx, |p, _| p.record.fixture = false)
+    });
     command(&view, cx, Command::Home);
     // Home holds the list until its dates are read.
     cx.run_until_parked();
@@ -3229,7 +3237,7 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     });
     let fixture = |on: bool| {
         move |s: &mut Shell, w: &mut Window, cx: &mut Context<Shell>| {
-            s.session.project.fixture = on;
+            s.project.update(cx, |p, _| p.record.fixture = on);
             s.receive(w, cx)
         }
     };
@@ -4184,7 +4192,7 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
-        s.session.project.fixture = false;
+        s.project.update(cx, |p, _| p.record.fixture = false);
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
@@ -4246,7 +4254,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
-        s.session.project.fixture = false;
+        s.project.update(cx, |p, _| p.record.fixture = false);
         s.bind_file(file, false, w, cx);
     });
     settle_cloud(&view, cx, "the file", &|s, cx| {
@@ -4280,7 +4288,9 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     });
     // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
-    view.read_with(cx, |s, cx| assert!(!s.session.home && !s.home_visible(cx)));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.project.read(cx).home && !s.home_visible(cx))
+    });
     for c in [
         Command::Settings,
         Command::Feedback,

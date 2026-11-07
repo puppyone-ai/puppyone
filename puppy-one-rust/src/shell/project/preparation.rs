@@ -6,15 +6,18 @@
 //! be abandoned (Cancel, or Escape); a local folder has no stages to name.
 //! The project being left keeps its place behind the wait, so a failed or
 //! cancelled open simply shows it again.
-use super::*;
-use crate::theme::metric;
+use super::ProjectLifecycle;
 use crate::{
+    geometry::Rect,
     localization::t as tr,
+    theme::{self, metric},
     ui::{
+        appearance::ActiveAppearance,
         components::{Button, ButtonVariant},
         loading::{self, LoaderSize, LoadingMark, Tone, model::Shape},
     },
 };
+use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 
 /// `ExplorerTreeSkeleton`: six rows, at these depths.
@@ -25,11 +28,7 @@ const SKELETON_LABELS: [f32; 6] = [0.52, 0.44, 0.58, 0.64, 0.38, 0.49];
 /// centre, so text arriving never moves the mark.
 const DETAIL_OFFSET: f32 = 24.;
 
-impl Shell {
-    /// A project is on its way into this window.
-    pub(super) fn opening(&self, cx: &App) -> bool {
-        self.files(cx).cloud_opening().is_some() || self.files(cx).preparing_root().is_some()
-    }
+impl ProjectLifecycle {
     /// The skeleton of the Explorer tree in a column `width` wide.
     fn explorer_skeleton(width: f32, cx: &App) -> impl IntoElement {
         let stride = theme::sidebar_stride();
@@ -75,23 +74,25 @@ impl Shell {
                 style,
             ))
     }
-    /// `ProjectPreparation` over the window below the Header, or nothing
-    /// while no project is on its way in.
-    pub(super) fn project_preparation(
+    /// `ProjectPreparation` over a `w`×`h` window below the Header, or
+    /// nothing while no project is on its way in. `explorer` is where the
+    /// Explorer column is while it shows, `editor` the editor's region.
+    pub(in crate::shell) fn preparation(
         &self,
         w: f32,
         h: f32,
-        cx: &mut Context<Self>,
+        explorer: Option<Rect>,
+        editor: Rect,
+        cx: &App,
     ) -> Option<AnyElement> {
         // A file window waits in its document (`PageLoading`).
-        if !self.opening(cx) || self.file_mode() {
+        if !self.opening(cx) || self.file_window {
             return None;
         }
         let t = cx.palette();
         let top = metric::CHROME_HEIGHT;
-        let explorer = self.layout.explorer;
-        let editor = self.layout.editor;
         let cloud = self.files(cx).cloud_opening();
+        let docs = self.docs.downgrade();
         // `CloudWorkspaceOpeningLoading`: one line for the stage, and Cancel.
         let detail = cloud.map(|phase| {
             use crate::workspace::cloud::opening::Phase;
@@ -120,10 +121,12 @@ impl Shell {
                     Button::new("project-opening-cancel")
                         .variant(ButtonVariant::Secondary)
                         .label(tr("common.action.cancel"))
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.session.docs.update(cx, |d, _| d.cancel_cloud());
-                            cx.notify();
-                        })),
+                        .on_click(move |_, _, cx| {
+                            let _ = docs.update(cx, |d, cx| {
+                                d.cancel_cloud();
+                                cx.notify();
+                            });
+                        }),
                 )
         });
         let opening = div()
@@ -154,9 +157,9 @@ impl Shell {
                 .h(px((h - top).max(0.)))
                 .occlude()
                 .bg(t.canvas)
-                .when(
-                    self.panes.read(cx).explorer().open && explorer.w > 0.,
-                    |d| {
+                .when_some(
+                    explorer.filter(|explorer| explorer.w > 0.),
+                    |d, explorer| {
                         d.child(
                             div()
                                 .absolute()
