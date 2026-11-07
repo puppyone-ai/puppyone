@@ -2280,8 +2280,12 @@ impl Render for Shell {
         }
         let opening = !home && self.opening(cx);
         if opening {
-            let explorer =
-                Some(self.layout.explorer).filter(|_| self.panes.read(cx).explorer().open);
+            let explorer = self
+                .panes
+                .read(cx)
+                .explorer()
+                .open
+                .then_some(self.layout.explorer);
             root = root.children(self.project.read(cx).preparation(
                 w,
                 h,
