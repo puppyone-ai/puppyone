@@ -48,7 +48,8 @@ async function render(account = session) {
 }
 const group = (id: string) => document.querySelector<HTMLElement>(`[data-project-group="${id}"]`);
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
-const project = (name: string) => [...document.querySelectorAll<HTMLButtonElement>("button[draggable=true]")].find((b) => b.textContent === name)!;
+const project = (name: string) => [...document.querySelectorAll<HTMLButtonElement>("button[draggable=true]")]
+  .find((b) => (b.querySelector(".onboarding-project-tile-name") ?? b).textContent === name)!;
 async function drag(element: Element, type: string) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", { value: { effectAllowed: "", dropEffect: "", setData() {},
@@ -91,7 +92,7 @@ describe("local folder drag into My Share Project", () => {
     expect(returned).toHaveBeenCalledOnce();
     expect(group("personal-shared")?.textContent).toContain("Draft");
     expect(group("local-only")?.textContent).not.toContain("Draft");
-    expect([...document.querySelectorAll('[data-project-open]')].filter((b) => b.textContent === "Draft")).toHaveLength(1);
+    expect([...document.querySelectorAll('[data-project-open]')].filter((b) => (b.querySelector(".onboarding-project-tile-name") ?? b).textContent === "Draft")).toHaveLength(1);
     expect(publish).not.toHaveBeenCalled();
   });
   it("returns an unshared folder unchanged when the dialog is cancelled", async () => {

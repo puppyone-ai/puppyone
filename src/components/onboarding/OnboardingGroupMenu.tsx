@@ -1,5 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { MoreHorizontal } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { DesktopOverlayLayer } from "../DesktopOverlayPortal";
 import { DesktopSidebarActionMenu } from "../DesktopSidebarActionMenu";
@@ -10,12 +10,21 @@ const GROUP_MENU_GAP = 4;
 const VIEWPORT_MARGIN = 12;
 
 /**
- * The menu at the end of a Homepage group's head. It floats above the page, so
- * the groups' own scrolling can never clip it, and closes on a press elsewhere,
- * Escape, Tab, or the page moving under it.
+ * A named action at the end of a Homepage group's head, such as adding a project
+ * to that group. Its menu floats above the page, so the groups' own scrolling can
+ * never clip it, and closes on a press elsewhere, Escape, Tab, or the page moving
+ * under it. Without `text` the trigger is the arrow of a split action.
  */
-export function OnboardingGroupMenu({ label, disabled = false, children }: {
+export function OnboardingGroupMenu({ label, text, icon, action, pending = false, disabled = false, children }: {
+  /** What the menu does, for its tooltip and assistive technology. */
   label: string;
+  /** The words on the trigger. */
+  text?: string;
+  icon?: ReactNode;
+  /** The trigger's `data-onboarding-action`, when it is one of the ways to start a project. */
+  action?: string;
+  /** What it started is still under way. */
+  pending?: boolean;
   disabled?: boolean;
   /** The menu's items; `close` dismisses it. */
   children: (close: () => void) => ReactNode;
@@ -70,10 +79,13 @@ export function OnboardingGroupMenu({ label, disabled = false, children }: {
 
   return <>
     <Tooltip content={label}>
-      <button ref={triggerRef} type="button" className="desktop-menu-icon-button onboarding-project-group-menu"
-        aria-label={label} aria-haspopup="menu" aria-expanded={open} disabled={disabled}
+      <button ref={triggerRef} type="button"
+        className={`onboarding-group-action onboarding-project-group-menu ${text ? "" : "is-split-arrow"}`}
+        data-onboarding-action={action} aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-busy={pending || undefined} disabled={disabled}
         onClick={() => setOpen((current) => !current)}>
-        <MoreHorizontal size={14} strokeWidth={1.85} aria-hidden="true" />
+        {icon}
+        {text && <span>{text}</span>}
+        <ChevronDown size={12} strokeWidth={1.85} aria-hidden="true" />
       </button>
     </Tooltip>
     {open && <DesktopOverlayLayer>

@@ -213,12 +213,14 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
-    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
+    expect(container.querySelector(".onboarding-brand-lockup .onboarding-entry-action")).toBeNull();
+    // A quiet action at the head of the group a new project joins, not a page-wide call to act.
+    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(
+      "[data-project-group='local-only'] .onboarding-project-group-head [data-onboarding-action='create']")];
     expect(projectActions.map((action) => action.textContent)).toEqual(["New project"]);
-    expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(true);
-    expect(projectActions[0]?.classList.contains("onboarding-entry-action-cta")).toBe(false);
+    expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
-    expect([...container.querySelectorAll(".onboarding-entry-menu [role='menuitem']")].map((item) => item.textContent)).toEqual([
+    expect([...document.body.querySelectorAll(".onboarding-project-group-menu-surface [role='menuitem']")].map((item) => item.textContent)).toEqual([
       "Open a folder",
       "Import",
     ]);
@@ -385,7 +387,7 @@ describe("project folder home", () => {
     expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
     expect(panel?.lastElementChild?.classList.contains("onboarding-project-groups")).toBe(true);
     expect(panel?.lastElementChild?.querySelector('[data-project-group="local-only"] .onboarding-project-list')).not.toBeNull();
-    const projectPlace = container.querySelector('.onboarding-project-row [data-project-location="local"] .project-folder-glyph');
+    const projectPlace = container.querySelector('[data-project-location="local"] .onboarding-project-row .project-folder-glyph');
     expect(projectPlace).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
@@ -393,9 +395,9 @@ describe("project folder home", () => {
     expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
-    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
+    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
-    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
+    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
   });
 
   it("uses one explicit CTA in the empty state", async () => {
@@ -938,7 +940,7 @@ describe("project folder home", () => {
     await act(async () => more?.click());
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click();
+      document.body.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click();
       await Promise.resolve();
     });
 

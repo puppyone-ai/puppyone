@@ -1,5 +1,5 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { Check, Pause, Play, Square, Trash2, UserRound } from "lucide-react";
+import { Check, Pause, Play, Plus, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
@@ -68,7 +68,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
     const previous = groups[index] ?? base.cloud.find((group) => group.id === "personal-shared");
     const personal: OnboardingProjectGroup = {
       ...previous, id: "personal-shared", title: base.personalSharedTitle,
-      icon: <UserRound size={14} />, alwaysShowHeading: true, empty: false,
+      alwaysShowHeading: true, empty: false,
       children: <>{previous && !previous.empty && previous.children}{visible.map((device) => <RemoteFolderList
         key={device.id} device={device} folders={[...device.folders].sort((a, b) => a.name.localeCompare(b.name))}
         layout={base.layout} onOpen={(folder) => onOpen({
@@ -89,7 +89,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
       const previous = groups[index];
       const personal: OnboardingProjectGroup = {
         ...previous, id: "personal-shared", title: base.personalSharedTitle,
-        icon: <UserRound size={14} />, alwaysShowHeading: true,
+        alwaysShowHeading: true,
         dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy, onDrop: () => {
           share.endDrag();
           if (source && !share.busy) void share.request(source.localPath);
@@ -103,11 +103,14 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
     // heading so keyboard users never need a drag to reveal their destination.
     const personalIndex = groups.findIndex((group) => group.id === "personal-shared");
     const menuIndex = personalIndex >= 0 ? personalIndex : groups.findIndex((group) => group.id === "local-only");
+    // Sharing replaces the personal area's own addition; local-only keeps its New project.
+    const shareMenu = <OnboardingGroupMenu label={t("hosts.place.share")} text={t("onboarding.sharing.shareFolder")}
+      icon={<Plus size={14} strokeWidth={1.85} aria-hidden="true" />} disabled={share.busy || candidates.length === 0}>
+      {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
+        onClick={() => { close(); share.endDrag(); void share.request(item.localPath); }} />)}
+    </OnboardingGroupMenu>;
     if (menuIndex >= 0) groups[menuIndex] = { ...groups[menuIndex],
-      actions: <OnboardingGroupMenu label={t("hosts.place.share")} disabled={share.busy || candidates.length === 0}>
-        {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
-          onClick={() => { close(); share.endDrag(); void share.request(item.localPath); }} />)}
-      </OnboardingGroupMenu>,
+      actions: personalIndex >= 0 ? shareMenu : <>{shareMenu}{groups[menuIndex].actions}</>,
     };
   }
   const controls = groups.findIndex((group) => group.id === "personal-shared");
@@ -116,7 +119,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
     const group = groups[controlsIndex];
     groups[controlsIndex] = { ...group,
       detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} />,
-      actions: <>{group.actions}<ThisComputerMenu catalog={catalog} others={others} /></>,
+      actions: <><ThisComputerMenu catalog={catalog} others={others} />{group.actions}</>,
     };
   }
   return <>
@@ -159,7 +162,7 @@ function ThisComputerMenu({ catalog, others }: { catalog: HostCatalog; others: r
   const sharing = catalog.sharing;
   const running = sharing?.running?.length ?? 0;
   const deviceId = catalog.thisComputerId;
-  return <OnboardingGroupMenu label={t("onboarding.sharing.computers")}>
+  return <OnboardingGroupMenu label={t("onboarding.sharing.computers")} text={t("onboarding.sharing.computers")}>
     {(close) => <>
       {deviceId && <DesktopMenuItem icon={sharing?.paused ? <Play size={14} /> : <Pause size={14} />}
         label={t(sharing?.paused ? "hosts.sharing.resume" : "hosts.sharing.pause")}

@@ -23,21 +23,3 @@ export function HomeProjectIcon({ item, filled = false }: { item: ProjectHomeIte
     </span>
   );
 }
-
-/**
- * The same three places as a whole folder, told apart by shape alone. A folder
- * the owner's other computers can open carries a small computer on its corner,
- * in the page's ink: blue stays the Cloud's.
- */
-export function ProjectFolder({ item, shared = false }: { item: ProjectHomeItem; shared?: boolean }) {
-  const location = projectIconLocation(item);
-  return (
-    <span className={`onboarding-project-folder is-${location}`} data-project-location={location} aria-hidden="true">
-      <ProjectFolderGlyph cloud={location === "cloud"} />
-      {location === "linked" && <CloudIcon className="onboarding-project-cloud-badge" size={16} backplate />}
-      {shared && <span className={`onboarding-project-shared-badge ${location === "linked" ? "is-beside-cloud" : ""}`}>
-        <LocalIcon size={13} strokeWidth={1.9} />
-      </span>}
-    </span>
-  );
-}

@@ -1,5 +1,3 @@
-import { LocalIcon } from "@puppyone/shared-ui";
-import { UserRound } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
@@ -7,12 +5,10 @@ import type { ProjectListSharing } from "./OnboardingProjectList";
 
 export type OnboardingProjectGroup = Readonly<{
   id: string;
-  /** An audience mark, not a storage-provider or device hierarchy. */
-  icon?: ReactNode;
   title: ReactNode;
   /** One quiet line after the title: presence, or what this computer offers. */
   detail?: ReactNode;
-  /** The group's own menu, at the end of its head. */
+  /** The group's own named actions at the end of its head; the last one adds a project to it. */
   actions?: ReactNode;
   /** The group cannot be used right now, as when its computer is offline. */
   inactive?: boolean;
@@ -42,6 +38,9 @@ export type OnboardingGroupsBase = Readonly<{
     title: string;
     items: readonly ProjectHomeItem[];
     render: (items: ProjectHomeItem[], sharing?: ProjectListSharing) => ReactNode;
+    /** How a project is started here. With it, the group stays even when it has none. */
+    entry?: ReactNode;
+    empty?: string;
   }> | null;
   /** False while the page is narrowed to some places; other computers are not one of them. */
   showOtherComputers: boolean;
@@ -58,16 +57,16 @@ export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: Proje
     const index = groups.findIndex((group) => group.id === "personal-shared");
     const previous = groups[index];
     const personal: OnboardingProjectGroup = {
-      ...previous, id: "personal-shared", title: base.personalSharedTitle,
-      icon: <UserRound size={14} strokeWidth={1.85} />, alwaysShowHeading: true, empty: false,
+      ...previous, id: "personal-shared", title: base.personalSharedTitle, alwaysShowHeading: true, empty: false,
       children: <>{previous && !previous.empty && previous.children}{base.local.render(offered, sharing)}</>,
     };
     if (index < 0) groups.unshift(personal);
     else groups[index] = personal;
   }
-  if (base.local && localOnly.length) {
-    groups.push({ id: "local-only", icon: <LocalIcon size={14} strokeWidth={1.85} />,
-      title: base.local.title, alwaysShowHeading: true, children: base.local.render(localOnly, sharing) });
+  if (base.local && (localOnly.length || base.local.entry)) {
+    groups.push({ id: "local-only", title: base.local.title, alwaysShowHeading: true, actions: base.local.entry,
+      children: localOnly.length ? base.local.render(localOnly, sharing)
+        : <p className="onboarding-cloud-space-empty">{base.local.empty}</p> });
   }
   return groups.filter((group) => !group.empty || group.keepEmpty);
 }
@@ -126,10 +125,7 @@ function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
       }}
       data-inactive={group.inactive || undefined} aria-labelledby={titleId}>
       <header className="onboarding-project-group-head">
-        <h2 id={titleId} className="onboarding-project-group-title">
-          {group.icon && <span className="onboarding-project-group-icon" aria-hidden="true">{group.icon}</span>}
-          <bdi>{group.title}</bdi>
-        </h2>
+        <h2 id={titleId} className="onboarding-project-group-title"><bdi>{group.title}</bdi></h2>
         {group.detail !== undefined && <span className="onboarding-project-group-detail">{group.detail}</span>}
         <span className="onboarding-project-group-divider" aria-hidden="true" />
         {group.actions !== undefined && <span className="onboarding-project-group-actions">{group.actions}</span>}

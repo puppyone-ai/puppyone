@@ -169,7 +169,7 @@ describe("Homepage project layouts", () => {
     expect(layoutTrigger(container).querySelector(".lucide-layout-grid")).not.toBeNull();
   });
 
-  it("sets the toolbar just before New, with the product named in the Header", () => {
+  it("heads the page with the view controls alone, with the product named in the Header", () => {
     const { container } = renderHome();
     const view = container.querySelector(".onboarding-brand-lockup .onboarding-project-toolbar .onboarding-project-view")!;
     const roots = [...view.querySelectorAll(":scope > .onboarding-view-menu-root")];
@@ -178,7 +178,8 @@ describe("Homepage project layouts", () => {
     expect(roots[1]?.contains(viewTriggers(container)[1]!)).toBe(true);
     expect(roots[2]?.contains(layoutTrigger(container))).toBe(true);
     const head = [...container.querySelector(".onboarding-brand-lockup")!.children];
-    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar", "onboarding-entry-menu-root"]);
+    // New belongs to the group it starts a project in, not to the page's head.
+    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar"]);
     expect(container.querySelector(".onboarding-home-primary .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".desktop-titlebar .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
@@ -195,11 +196,10 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-brand-lockup img")).not.toBeNull();
   });
 
-  it("keeps the arrow on the entry menu when New gives up its words", () => {
+  it("keeps each group action's mark and arrow when it gives up its words", () => {
     const css = readFileSync("src/styles/onboarding.css", "utf8");
     const narrow = css.slice(css.indexOf("@media (max-width: 696px)"));
-    expect(narrow).toMatch(/\.onboarding-entry-menu-root \.onboarding-entry-action \.po-button__label \{/);
-    expect(narrow).not.toMatch(/\.onboarding-entry-menu-root \.po-button__label \{/);
+    expect(narrow).toMatch(/\.onboarding-group-action > span \{\s*position: absolute;/);
     const { container } = renderHome();
     expect(container.querySelector("[data-onboarding-action='more'] .lucide-chevron-down")).not.toBeNull();
   });
@@ -356,9 +356,10 @@ describe("Homepage project layouts", () => {
     expect(document.activeElement).toBe(items[1]);
   });
 
-  it("keeps New one click away at the head of the page, with the other entries behind the arrow", () => {
+  it("keeps New one click away at the head of this computer's group, with the other entries behind the arrow", () => {
     const { container } = renderHome();
-    const head = container.querySelector(".onboarding-brand-lockup")!;
+    expect(container.querySelector(".onboarding-brand-lockup [data-onboarding-action]")).toBeNull();
+    const head = container.querySelector("[data-project-group='local-only'] .onboarding-project-group-head")!;
     expect(head.querySelector("[data-onboarding-action='create']")).not.toBeNull();
     expect(container.querySelector("[data-onboarding-action='open'], [data-onboarding-action='import']")).toBeNull();
     const more = head.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
@@ -383,7 +384,7 @@ describe("Homepage project layouts", () => {
     press("ArrowDown");
     expect(document.activeElement?.getAttribute("data-onboarding-action")).toBe("open");
     press("Escape");
-    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
+    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
     expect(document.activeElement).toBe(more);
   });
 
@@ -391,8 +392,9 @@ describe("Homepage project layouts", () => {
     const { container } = renderHome();
     const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
     act(() => more.click());
+    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).not.toBeNull();
     act(() => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
-    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
+    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
   });
 
   it("names the switch and each layout for assistive technology", () => {
@@ -593,27 +595,28 @@ describe("Homepage project layouts", () => {
     expect(label("local")).not.toBe(label("cloud"));
   });
 
-  it("tells local and Cloud folders apart at a glance", () => {
+  it("draws every project as the same unmarked folder, and says where it lives in words", () => {
     const { container } = renderHome();
     pick(container, "grid");
     expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
     const folder = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-folder")!;
-    expect(folder("local").querySelector(".project-folder-cloud")).toBeNull();
-    expect(folder("local").querySelector(".onboarding-project-cloud-badge")).toBeNull();
-    expect(folder("cloud").querySelector(".project-folder-cloud")).not.toBeNull();
-    expect(folder("cloud").querySelector(".onboarding-project-cloud-badge")).toBeNull();
-    expect(folder("linked").querySelector(".project-folder-cloud")).toBeNull();
-    expect(folder("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
+    const drawn = (id: "local" | "linked" | "cloud") => folder(id).innerHTML;
+    expect(drawn("cloud")).toBe(drawn("local"));
+    expect(drawn("linked")).toBe(drawn("local"));
+    expect(container.querySelector(".onboarding-project-folder > :not(.project-folder-glyph), .project-folder-cloud")).toBeNull();
+    const place = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-tile-place")?.textContent;
+    expect(place("cloud")).toBe("Cloud project");
+    expect(place("local")).toBe("This computer");
   });
 
-  it("draws the list's folders in the Grid's fill", () => {
+  it("draws the list's folders in the Grid's fill, Cloud projects too", () => {
     const { container } = renderHome();
     pick(container, "list");
     const icon = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-icon")!;
     expect(icon("local").querySelector(".project-folder-front")).not.toBeNull();
     expect(icon("linked").querySelector(".project-folder-front")).not.toBeNull();
-    expect(icon("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
-    expect(icon("cloud").querySelector(".project-folder-front")).toBeNull();
+    expect(icon("cloud").querySelector(".project-folder-front")).not.toBeNull();
+    expect(container.querySelector(".onboarding-project-list :is(.onboarding-project-cloud-badge, .onboarding-project-shared-mark)")).toBeNull();
   });
 
   it("keeps one sheet behind a folder's front, centred, showing nothing until you reach for it", () => {
@@ -630,21 +633,22 @@ describe("Homepage project layouts", () => {
     expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.project-folder-sheet \{\s*transition: none;/);
   });
 
-  it("keeps every folder neutral, fill alone, and leaves the blue to the cloud", () => {
+  it("keeps every folder neutral and fill alone, and the groups free of colour", () => {
     const css = readFileSync("src/styles/onboarding.css", "utf8");
     const start = css.indexOf(".onboarding-project-folder {");
-    const cloud = css.indexOf(".project-folder-cloud {");
+    const end = css.indexOf(".onboarding-project-tile {");
     expect(start).toBeGreaterThan(-1);
-    expect(cloud).toBeGreaterThan(start);
-    expect(css.slice(start, cloud)).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|stroke|url\(/i);
-    expect(css.slice(cloud)).toMatch(/\.project-folder-cloud \{\s*fill: none;\s*stroke: color-mix\(in srgb, var\(--po-brand-blue\) 84%, var\(--po-text\)\);/);
+    expect(end).toBeGreaterThan(start);
+    expect(css.slice(start, end)).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|stroke|url\(/i);
+    const groups = css.slice(css.indexOf(".onboarding-project-groups {"));
+    expect(groups).not.toMatch(/brand-blue|--po-accent|--po-success|#[0-9a-f]{3,8}\b/i);
   });
 
   it("names a project under its folder, and leaves the tooltip for what is not shown", () => {
     const { container } = renderHome();
     pick(container, "grid");
     const tile = project(container, "local").querySelector(".onboarding-project-tile");
-    expect(tile?.textContent).toBe("notes");
+    expect(tile?.querySelector(".onboarding-project-tile-name")?.textContent).toBe("notes");
     expect(tile?.getAttribute("data-tooltip")).toBe("~/project · 3 days ago");
     expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("Cloud project");
   });
