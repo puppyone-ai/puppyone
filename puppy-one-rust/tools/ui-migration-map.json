@@ -111,7 +111,7 @@
         "src/platform/themes/css.rs",
         "src/platform/themes/value.rs",
         "src/platform/themes/palette.rs",
-        "src/shell/command.rs",
+        "src/app/command/mod.rs",
         "assets/themes/README.md",
         "assets/themes/markdown-contract.json",
         "assets/themes/markdown-defaults.css",
@@ -169,7 +169,7 @@
         "src/features/settings/preference_types.rs",
         "src/platform/electron_import.rs",
         "src/platform/environment.rs",
-        "src/shell.rs",
+        "src/app/mod.rs",
         "src/theme.rs"
       ],
       "evidence": [
@@ -238,7 +238,7 @@
         "src/features/settings/sidebar/settings_sidebar.rs",
         "src/features/settings/main/mod.rs",
         "src/ui/components/sidebar.rs",
-        "src/shell/tasks.rs"
+        "src/app/dialogs/builtin.rs"
       ],
       "evidence": [
         "test:product_settings_geometry_is_bounded",
@@ -343,7 +343,7 @@
         "src/features/create_new/create_entry_draft.rs",
         "src/features/create_new/create_entry_dialog.rs",
         "src/features/create_new/native_create_entry.rs",
-        "src/shell/create_new.rs"
+        "src/app/dialogs/create_entry.rs"
       ],
       "evidence": [
         "test:move_preserves_exactly_one_owner_and_fixed_entries",
@@ -440,13 +440,13 @@
         "src/features/local-agents/setup/local-agent-setup.css"
       ],
       "targets": [
-        "src/features/agent_settings.rs",
+        "src/features/local_agents/settings.rs",
         "src/agent/connections/local_agent_inventory.rs",
         "src/features/settings/preference_types.rs",
         "src/platform/agent_activity/registration.rs",
         "src/platform/agent_activity/host.rs",
         "src/ui/components/checkbox.rs",
-        "src/features/local_agent_setup.rs",
+        "src/features/local_agents/setup.rs",
         "src/platform/local_agent_setup/mod.rs",
         "src/platform/local_agent_setup/companion.rs"
       ],
@@ -470,7 +470,7 @@
         "src/features/local-agents/activation/local-agent-activation.css"
       ],
       "targets": [
-        "src/features/local_agent_setup.rs",
+        "src/features/local_agents/setup.rs",
         "src/platform/local_agent_setup/activation.rs",
         "src/platform/local_agent_setup/installer.rs",
         "src/ui/components/dialog.rs"
@@ -493,7 +493,7 @@
         "src/features/local-agents/installation/useLocalAgentInstallations.ts"
       ],
       "targets": [
-        "src/features/agent_settings.rs",
+        "src/features/local_agents/settings.rs",
         "src/features/workbench/mod.rs",
         "src/agent/connections/local_agent_inventory.rs"
       ],
@@ -527,8 +527,8 @@
         "src/features/agent_presence.rs",
         "src/ui/components/agent_presence.rs",
         "src/ui/components/sidebar.rs",
-        "src/shell/explorer/rows.rs",
-        "src/shell/editor_workbench.rs",
+        "src/app/explorer/rows.rs",
+        "src/app/editor_workbench.rs",
         "src/platform/agent_activity/mod.rs",
         "src/platform/agent_activity/host.rs",
         "src/platform/agent_activity/service.rs"
@@ -563,7 +563,7 @@
       "targets": [
         "src/features/model_connections/ui.rs",
         "src/features/model_connections/infrastructure.rs",
-        "src/model_connections/configuration.rs"
+        "src/agent/model_connections/configuration.rs"
       ],
       "evidence": [
         "test:endpoint_boundary_rejects_credentials_redirect_shapes_and_remote_http",
@@ -588,11 +588,11 @@
         "src/lib/desktopPaneLayout.ts"
       ],
       "targets": [
-        "src/shell/header.rs",
-        "src/shell.rs",
+        "src/app/header.rs",
+        "src/app/mod.rs",
         "src/theme.rs",
-        "src/shell/cloud_agents_ui.rs",
-        "src/shell/share_panel.rs"
+        "src/app/cloud_agents_ui.rs",
+        "src/app/share_panel.rs"
       ],
       "evidence": [
         "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench",
@@ -616,13 +616,13 @@
         "src/components/useAnchoredOverlayPosition.ts"
       ],
       "targets": [
-        "src/shell/project_menu.rs",
+        "src/app/chrome/project_menu.rs",
         "src/ui/components/menu.rs",
-        "src/shell.rs",
+        "src/app/mod.rs",
         "src/features/settings/preference_types.rs",
         "src/ui/components/popover.rs",
-        "src/shell/project_place.rs",
-        "src/shell/project_actions.rs"
+        "src/app/project_place.rs",
+        "src/app/project_actions.rs"
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
@@ -650,14 +650,14 @@
         "src/features/automation/styles/template-card.css"
       ],
       "targets": [
-        "src/shell/home/mod.rs",
-        "src/shell/home/create_project.rs",
+        "src/app/home/mod.rs",
+        "src/app/home/create_project.rs",
         "src/platform/project_activity.rs",
         "assets/brand",
         "assets/integrations",
-        "src/shell/home/projects.rs",
-        "src/shell/home/folder.rs",
-        "src/shell/home/template_import.rs",
+        "src/app/home/projects.rs",
+        "src/app/home/folder.rs",
+        "src/app/home/template_import.rs",
         "src/platform/templates/mod.rs",
         "src/platform/drag_out.rs"
       ],
@@ -690,12 +690,12 @@
         "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx"
       ],
       "targets": [
-        "src/shell/panes/mod.rs",
-        "src/shell/panes/stack.rs",
-        "src/shell/panes/motion.rs",
-        "src/shell/panes/gesture.rs",
-        "src/shell/panes/layout.rs",
-        "src/shell/explorer_column.rs",
+        "src/app/panes/mod.rs",
+        "src/app/panes/stack.rs",
+        "src/app/panes/motion.rs",
+        "src/app/panes/gesture.rs",
+        "src/app/panes/layout.rs",
+        "src/app/sidebar/column.rs",
         "src/ui/components/resize_handle.rs",
         "src/ui/motion.rs"
       ],
@@ -733,8 +733,8 @@
         "src/components/useDesktopSidebarMenuInteraction.ts"
       ],
       "targets": [
-        "src/shell/explorer/mod.rs",
-        "src/shell/rename.rs",
+        "src/app/explorer/mod.rs",
+        "src/app/dialogs/rename.rs",
         "src/model.rs",
         "src/workspace/mod.rs",
         "src/file_kind.rs",
@@ -742,10 +742,10 @@
         "tools/import-file-icons.mjs",
         "src/ui/components/menu.rs",
         "src/ui/components/popover.rs",
-        "src/shell/explorer/session.rs",
+        "src/app/explorer/session.rs",
         "src/editor/workbench/resource_operations.rs",
         "src/editor/workbench/runtime/operations.rs",
-        "src/shell/explorer/pins.rs"
+        "src/app/explorer/pins.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
@@ -773,8 +773,8 @@
         "src/features/app-shell/desktop-help-launcher.css"
       ],
       "targets": [
-        "src/shell/footer.rs",
-        "src/shell/tasks.rs"
+        "src/app/sidebar/footer.rs",
+        "src/app/dialogs/builtin.rs"
       ],
       "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins, the rail/top navigation variants and the Project Rail utilities are not ported; the busy pulse grid is a native stand-in for FloatingNoticeStack."
     },
@@ -936,10 +936,10 @@
       ],
       "targets": [
         "assets/terminal-glyphs.json",
-        "src/features/terminal.rs",
-        "src/features/terminal_glyphs.rs",
-        "src/features/terminal_interaction.rs",
-        "src/features/terminal_queries.rs",
+        "src/features/terminal/view/mod.rs",
+        "src/features/terminal/glyphs.rs",
+        "src/features/terminal/interaction.rs",
+        "src/features/terminal/queries.rs",
         "src/platform/terminal.rs",
         "src/theme.rs",
         "tools/import-xterm-glyphs.mjs"
@@ -971,8 +971,8 @@
       ],
       "targets": [
         "src/geometry.rs",
-        "src/shell/modals.rs",
-        "src/shell/tasks.rs",
+        "src/app/dialogs/mod.rs",
+        "src/app/dialogs/builtin.rs",
         "src/theme.rs",
         "src/ui/components/dialog.rs",
         "src/ui/components/menu.rs",
@@ -1107,7 +1107,7 @@
       "targets": [
         "src/editor/workbench/pane.rs",
         "src/editor/host/chrome.rs",
-        "src/shell.rs"
+        "src/app/mod.rs"
       ],
       "evidence": [
         "test:entries_follow_the_menu_order_and_skip_disabled_commands",
@@ -1154,10 +1154,10 @@
       ],
       "targets": [
         "src/documents/mod.rs",
-        "src/shell.rs",
+        "src/app/mod.rs",
         "src/editor/workbench/runtime.rs",
         "src/editor/workbench/runtime/drops.rs",
-        "src/shell/editor_workbench.rs"
+        "src/app/editor_workbench.rs"
       ],
       "remaining": "Local tabs/MRU, recursive panes, retained documents/projects and layout persistence run in the real Shell. Same-workspace single-file Explorer drops focus existing views, fill empty panes or split at an edge, with a preview and target-lifetime fencing. Cloud navigation/drafts, full pane view state, cross-root/native external-drop authority, complete keyboard/accessibility and strict pixel parity remain incomplete.",
       "evidence": [
@@ -1200,9 +1200,9 @@
       ],
       "targets": [
         "src/workspace/cloud/catalog.rs",
-        "src/features/cloud_catalog.rs",
-        "src/shell/home/mod.rs",
-        "src/shell/project_menu.rs",
+        "src/features/cloud/catalog.rs",
+        "src/app/home/mod.rs",
+        "src/app/chrome/project_menu.rs",
         "src/platform/project_activity.rs",
         "src/features/settings/preference_types.rs"
       ],
@@ -1229,8 +1229,8 @@
         "src/workspace/cloud/repository.rs",
         "src/workspace/cloud/recovery.rs",
         "src/workspace/cloud/locator.rs",
-        "src/features/repository_cloud.rs",
-        "src/shell/project_place.rs"
+        "src/features/cloud/repository.rs",
+        "src/app/project_place.rs"
       ],
       "evidence": [
         "test:remotes_decide_before_any_request",
@@ -1256,7 +1256,7 @@
         "src/workspace/cloud/failure.rs",
         "src/documents/mod.rs",
         "src/editor/workbench/runtime.rs",
-        "src/shell/home/mod.rs"
+        "src/app/home/mod.rs"
       ],
       "evidence": [
         "test:explicit_opening_reuses_running_workbench_and_reads_files_before_handoff",
@@ -1335,12 +1335,12 @@
         "src/app/AccountCloudWorkspaceSurface.tsx"
       ],
       "targets": [
-        "src/shell.rs",
-        "src/shell/project_opening.rs",
+        "src/app/mod.rs",
+        "src/app/project/preparation.rs",
         "src/editor/workbench/runtime.rs",
         "src/documents/mod.rs",
         "src/workspace/mod.rs",
-        "src/shell/explorer/mod.rs",
+        "src/app/explorer/mod.rs",
         "src/ui/components/notice.rs"
       ],
       "evidence": [
@@ -1374,13 +1374,13 @@
         "electron/main/cloud-publish-*"
       ],
       "targets": [
-        "src/cloud_publication/mod.rs",
-        "src/cloud_publication/journal.rs",
-        "src/cloud_publication/git.rs",
-        "src/cloud_publication/api.rs",
-        "src/cloud_publication/vault.rs",
-        "src/features/cloud_publish.rs",
-        "src/shell/cloud_publish.rs",
+        "src/cloud/publication/mod.rs",
+        "src/cloud/publication/journal.rs",
+        "src/cloud/publication/git.rs",
+        "src/cloud/publication/api.rs",
+        "src/cloud/publication/vault.rs",
+        "src/features/cloud/publish.rs",
+        "src/app/cloud_publish.rs",
         "src/workspace/cloud/publish.rs"
       ],
       "evidence": [
@@ -1455,7 +1455,7 @@
         "src/features/workbench/menus.rs",
         "src/features/workbench/close_dialog.rs",
         "src/features/workbench/auxiliary_workbench_launcher.rs",
-        "src/features/terminal.rs",
+        "src/features/terminal/view/mod.rs",
         "src/platform/terminal.rs"
       ],
       "evidence": [
@@ -1475,7 +1475,7 @@
         "src/features/desktop-terminal/ui/session-header/TerminalSessionHeaderStatus.tsx"
       ],
       "targets": [
-        "src/features/terminal_activity.rs",
+        "src/features/terminal/activity.rs",
         "src/features/workbench/header.rs"
       ],
       "evidence": [
@@ -1497,8 +1497,8 @@
         "src/features/source_control/mod.rs",
         "src/platform/git_watch.rs",
         "src/platform/git.rs",
-        "src/shell.rs",
-        "src/shell/explorer/mod.rs"
+        "src/app/mod.rs",
+        "src/app/explorer/mod.rs"
       ],
       "evidence": [
         "test:reads_follow_invalidations_and_the_metadata_watch_not_a_clock",
@@ -1516,8 +1516,8 @@
         "src/features/app-shell/headerCoachmarks.ts"
       ],
       "targets": [
-        "src/shell/coachmarks.rs",
-        "src/shell/header.rs",
+        "src/app/coachmarks.rs",
+        "src/app/header.rs",
         "src/ui/components/button.rs",
         "src/features/settings/preference_types.rs"
       ],
@@ -1615,10 +1615,10 @@
       ],
       "targets": [
         "src/workspace/cloud/share.rs",
-        "src/features/cloud_services.rs",
-        "src/shell/tasks.rs",
-        "src/features/cloud_services/share_status.rs",
-        "src/shell/share_panel.rs"
+        "src/features/cloud/services/mod.rs",
+        "src/app/dialogs/builtin.rs",
+        "src/features/cloud/services/share_status.rs",
+        "src/app/share_panel.rs"
       ],
       "evidence": [
         "test:a_share_issues_one_key_and_the_same_share_is_reused_without_another",
@@ -1642,7 +1642,7 @@
       ],
       "targets": [
         "src/workspace/cloud/billing.rs",
-        "src/features/cloud_services/billing.rs",
+        "src/features/cloud/services/billing.rs",
         "src/features/settings/main/plan_settings_view.rs"
       ],
       "evidence": [
@@ -1671,7 +1671,7 @@
       ],
       "targets": [
         "src/workspace/cloud/graph.rs",
-        "src/features/cloud_services.rs"
+        "src/features/cloud/services/mod.rs"
       ],
       "evidence": [
         "test:a_merge_opens_a_lane_and_closes_it_at_the_common_parent",
@@ -1771,7 +1771,7 @@
         "src/features/cloud/utils.ts"
       ],
       "targets": [
-        "src/features/cloud_services.rs",
+        "src/features/cloud/services/mod.rs",
         "src/workspace/cloud/services.rs",
         "src/workspace/cloud/access_points.rs"
       ],
@@ -1802,8 +1802,8 @@
         "src/features/cloud/auth/useFirstRunSignIn.ts"
       ],
       "targets": [
-        "src/features/cloud_account.rs",
-        "src/shell/project_place.rs"
+        "src/features/cloud/account.rs",
+        "src/app/project_place.rs"
       ],
       "evidence": [
         "test:put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it",
@@ -1839,9 +1839,9 @@
       ],
       "targets": [
         "src/workspace/cloud/mod.rs",
-        "src/shell/project_opening.rs",
-        "src/shell/cloud_publish.rs",
-        "src/features/repository_cloud.rs"
+        "src/app/project/preparation.rs",
+        "src/app/cloud_publish.rs",
+        "src/features/cloud/repository.rs"
       ],
       "evidence": [
         "test:a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery",
@@ -1882,11 +1882,11 @@
         "electron/main/auth/**"
       ],
       "targets": [
-        "src/cloud_auth/service.rs",
-        "src/cloud_auth/store.rs",
-        "src/cloud_auth/http.rs",
-        "src/cloud_auth/callback.rs",
-        "src/features/cloud_account.rs"
+        "src/cloud/auth/service.rs",
+        "src/cloud/auth/store.rs",
+        "src/cloud/auth/http.rs",
+        "src/cloud/auth/callback.rs",
+        "src/features/cloud/account.rs"
       ],
       "evidence": [
         "test:twenty_requests_share_refresh_and_initialization_without_exposing_secrets"
@@ -1934,8 +1934,8 @@
         "src/features/cloud/project/MissingCloudProjectReplacement.tsx"
       ],
       "targets": [
-        "src/shell/project_place.rs",
-        "src/shell/header.rs"
+        "src/app/project_place.rs",
+        "src/app/header.rs"
       ],
       "evidence": [
         "test:the_place_menu_offers_the_one_action_that_applies",
@@ -1958,8 +1958,8 @@
       ],
       "targets": [
         "src/workspace/cloud/agents.rs",
-        "src/features/cloud_agents.rs",
-        "src/shell/cloud_agents_ui.rs"
+        "src/features/cloud/agents.rs",
+        "src/app/cloud_agents_ui.rs"
       ],
       "evidence": [
         "test:a_link_is_made_for_the_running_workspace_and_its_prompt_names_the_project",
@@ -1984,10 +1984,10 @@
         "src/features/app-shell/window-project/**"
       ],
       "targets": [
-        "src/shell/file_mode.rs",
-        "src/shell/project_opening.rs",
-        "src/shell/windows.rs",
-        "src/shell.rs"
+        "src/app/file_mode.rs",
+        "src/app/project/preparation.rs",
+        "src/app/windows.rs",
+        "src/app/mod.rs"
       ],
       "evidence": [
         "test:markdown_csv_and_html_pages_open_on_their_own",
@@ -2226,7 +2226,7 @@
       "targets": [
         "src/editor/viewers/code/conflicts.rs",
         "src/editor/viewers/code/mod.rs",
-        "src/shell/editor_workbench.rs"
+        "src/app/editor_workbench.rs"
       ],
       "evidence": [
         "test:conflict_banner_resolves_blocks_as_an_undoable_local_edit"

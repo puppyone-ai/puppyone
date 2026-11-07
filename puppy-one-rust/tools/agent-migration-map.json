@@ -52,7 +52,6 @@
         "src/features/desktop_agent/application/agent_session_preparer.rs",
         "src/features/desktop_agent/application/agent_reference_draft_manager.rs",
         "src/features/desktop_agent/application/agent_reference_preview_store.rs",
-        "src/features/desktop_agent/application/local_agent_connection_loader.rs",
         "src/features/desktop_agent/application/session_ui_state_store.rs",
         "src/features/desktop_agent/application/agent_controller_state.rs",
         "src/features/desktop_agent/application/agent_controller_values.rs",
@@ -138,7 +137,8 @@
         "src/features/desktop-agent/ui/useAgentConversationHistory.ts"
       ],
       "targets": [
-        "src/features/workbench/agent_chat.rs",
+        "src/features/desktop_agent/workbench/item.rs",
+        "src/features/desktop_agent/workbench/chats.rs",
         "src/features/workbench/mod.rs",
         "src/features/workbench/persistence.rs",
         "src/features/workbench/history.rs",
@@ -352,7 +352,7 @@
         "src/agent/runtimes/puppyone_agent/model_client.rs",
         "src/agent/runtimes/puppyone_agent/tools.rs",
         "src/agent/runtimes/puppyone_agent/mod.rs",
-        "src/model_connections/schema.rs",
+        "src/agent/model_connections/schema.rs",
         "src/agent/runtimes/puppyone_agent/native_kernel/mod.rs",
         "src/agent/runtimes/puppyone_agent/native_kernel/session.rs",
         "src/agent/runtimes/puppyone_agent/native_kernel/tools.rs",
@@ -409,7 +409,6 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
-        "src/features/desktop_agent/ui/agent_markdown.rs",
         "src/features/desktop_agent/ui/agent_markdown.rs",
         "src/features/desktop_agent/ui/panel/mod.rs",
         "src/features/desktop_agent/ui/panel/composer.rs",
@@ -657,7 +656,7 @@
         "src/agent/application/turn/agent_turn_queue.rs",
         "src/agent/application/turn/mod.rs",
         "src/agent/agent_error.rs",
-        "src/agent/event_loop.rs",
+        "src/agent/tasks.rs",
         "src/agent/sender.rs"
       ],
       "remaining": "Every application module (service, session runtime/lifecycle/commands/feed, turns and queue, history indexer and queries, runtime resolution, process supervisor) is ported onto a single-threaded tokio LocalSet with the product's service and control tests. Project-session operation fences (operation.assertCurrent) are not wired yet; the IPC handlers, item-host process split and Renderer feed client arrive with the host layer."
@@ -732,7 +731,7 @@
         "src/agent/security/authorized_project_instructions.rs",
         "src/agent/security/acp_workspace_files.rs",
         "src/agent/security/tests.rs",
-        "src/agent/node_path.rs"
+        "src/platform/paths.rs"
       ],
       "remaining": "Ported 1:1 over Node path semantics (node_path.rs) with the product ACP workspace-file cases and the cross-root grant. The fsModule injection is replaced by the real file system; Windows identity falls back to size and mtime as in the product."
     },
@@ -752,18 +751,18 @@
         "src/agent/connections/runtime_discovery_cache.rs",
         "src/agent/runtimes/codex/codex_discovery.rs",
         "src/agent/runtimes/codex/codex_runtime_definition.rs",
-        "src/platform/common/bounded_process_probe.rs",
-        "src/platform/common/command_environment.rs",
-        "src/platform/common/discovery_io_budget.rs",
-        "src/platform/common/executable_discovery_port.rs",
-        "src/platform/local_agent_installation/executable_resolver.rs",
-        "src/platform/local_agent_installation/candidate_identity.rs",
-        "src/platform/local_agent_installation/installation_definition.rs",
-        "src/platform/local_agent_installation/installation_registry.rs",
-        "src/platform/local_agent_installation/definitions/mod.rs",
-        "src/platform/windows/registered_applications.rs",
-        "src/platform/windows/command_environment.rs",
-        "src/platform/windows/process_invocation.rs"
+        "src/agent/discovery/bounded_process_probe.rs",
+        "src/agent/discovery/command_environment.rs",
+        "src/agent/discovery/discovery_io_budget.rs",
+        "src/agent/discovery/executable_discovery_port.rs",
+        "src/agent/installation/executable_resolver.rs",
+        "src/agent/installation/candidate_identity.rs",
+        "src/agent/installation/installation_definition.rs",
+        "src/agent/installation/installation_registry.rs",
+        "src/agent/installation/definitions/mod.rs",
+        "src/agent/discovery/windows/registered_applications.rs",
+        "src/agent/discovery/windows/command_environment.rs",
+        "src/agent/discovery/windows/process_invocation.rs"
       ],
       "remaining": "Ported 1:1 with the platform half (login-shell environment, bounded probes, discovery I/O budget, installation definitions, candidate identity and the executable resolver) on the real file system; the product's fsModule/spawn fakes are replaced by temporary executables and an injectable probe runner. Verified live against the installed Codex (login shell, version probe, app-server inspection). Native process ownership reporting for probes is pending."
     },
@@ -919,9 +918,9 @@
         "src/agent/cache/ephemeral_agent_session_cache.rs",
         "src/agent/cache/mod.rs",
         "src/agent/cache/tests.rs",
-        "src/agent/agent_shutdown.rs"
+        "src/agent/host/agent_host.rs"
       ],
-      "remaining": "Ported 1:1 with the product persistence and shutdown tests: bounded, redacted, process-local recovery events (the legacy durable journal is removed once and never recreated), and quit held until Agent sessions and runtime resources drain. agent-persistence.mjs is a deprecated re-export of the cache. Wiring follows the host switch to AgentService."
+      "remaining": "Ported 1:1 with the product persistence and shutdown tests: bounded, redacted, process-local recovery events (the legacy durable journal is removed once and never recreated), and quit held until Agent sessions and runtime resources drain (`AgentHostHandle::shutdown`; the unused AgentQuitCoordinator port was removed). agent-persistence.mjs is a deprecated re-export of the cache. Wiring follows the host switch to AgentService."
     },
     {
       "name": "Production runtime composition",
@@ -943,15 +942,14 @@
         "electron/main/ipc/agent-ipc.mjs"
       ],
       "targets": [
-        "src/agent/ipc/agent_ipc.rs",
-        "src/agent/ipc/mod.rs",
-        "src/agent/ipc/tests.rs",
+        "src/agent/application/agent_requests.rs",
+        "src/agent/application/tests/requests.rs",
         "src/agent/host/agent_host.rs",
         "src/agent/host/mod.rs",
         "src/agent/host/tests.rs",
         "src/features/desktop_agent/infrastructure/host/agent_host_global.rs"
       ],
-      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every agent:* channel is parsed against the shared contract, its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
+      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every operation is a typed AgentRequest whose constructors carry the shared contract's constraints (the agent:* channel names and JSON schema remain only for the contract tests), its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
     },
     {
       "name": "Renderer presentation policy",
@@ -1112,7 +1110,7 @@
       "targets": [
         "src/agent/contract/display_types.rs",
         "src/agent/contract/reference_input.rs",
-        "src/features/workbench/agent_chat.rs",
+        "src/features/desktop_agent/workbench/mod.rs",
         "src/features/desktop_agent/ui/panel/fixture.rs",
         "src/features/workbench/lab.rs"
       ],

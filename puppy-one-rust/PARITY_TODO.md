@@ -26,7 +26,7 @@
   - 几何：`packages/shared-ui/src/styles/control-geometry.css`、`tokens.css`（控件尺寸、行高、圆角、间距）
   - 字号：`src/styles/typography/foundations.css`（UI 字号角色，随三档文字尺度变化）
 - `src/ui/` 提供与 Web 同名语义的样式原语（sidebar row/group、settings row/switch/segment/select/action、menu、icon button），功能代码只组合原语。
-- `check-ui-boundaries.py` 扩展：`features/`、`shell.rs` 等不得出现 `rgb(`/`rgba(` 字面色值。
+- `check-ui-boundaries.py` 扩展：`features/`、`app/` 等不得出现 `rgb(`/`rgba(` 字面色值。
 
 ### 0.3 五个领域的 1:1 复刻验收（2026-10-28 起）
 
@@ -62,7 +62,7 @@
 - [x] 基准升级：6 份参考夹具复核漂移后重新固定；映射审计扩大到 cloud/automation/payments 等 21 个根（未登记数相应增加，见审计输出）。
 - [x] Explorer 导入/移动失败横幅（`operationError`）与首页取消关联提示（`removeHint`）。证据：`failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root`。
 - [x] 运行底座：`platform::tasks`（EditorTaskScheduler 策略 v1）、`platform::host_budget`（itemHostBudgetDefaults，终端与 Agent CLI 接入）、File → Manage Running Sessions、`platform::watchdog`（主线程 250 ms 卡顿记录、worker panic 兜底、崩溃记录）、每查看器 `maxSourceBytes` 准入（本地文本上限升至 16 MiB）。
-- [x] 多窗口：`shell::windows`（New Window、菜单跟随当前窗口、Quit 逐窗口屏障、共享偏好）；本地目录订阅（FSEvents）。2026-11-04 起按 671143f2a：一个项目可在多个窗口打开、在哪选就在哪开（W-5）；Finder / 命令行打开文件夹总是开新窗口，不再注册文件夹处理程序（W-8）；macOS 关掉最后一个窗口不退出，点 Dock 恢复上次项目（W-13）。证据：`windows_share_preferences_and_a_project_opens_where_it_was_chosen`、`external_changes_reread_loaded_folders_through_the_directory_subscription`。
+- [x] 多窗口：`app::windows`（New Window、菜单跟随当前窗口、Quit 逐窗口屏障、共享偏好）；本地目录订阅（FSEvents）。2026-11-04 起按 671143f2a：一个项目可在多个窗口打开、在哪选就在哪开（W-5）；Finder / 命令行打开文件夹总是开新窗口，不再注册文件夹处理程序（W-8）；macOS 关掉最后一个窗口不退出，点 Dock 恢复上次项目（W-13）。证据：`windows_share_preferences_and_a_project_opens_where_it_was_chosen`、`external_changes_reread_loaded_folders_through_the_directory_subscription`。
 - [x] 应用菜单按 `native-menu-service` 补齐（About、Check for Updates、Services、Hide、Window、Help、Close Window）。
 - [x] PDF 查看器（PDFium，`tools/fetch-pdfium.py`）与 AVIF（ImageIO 转码）。内容为引擎渲染，接近即可；外框与状态未做像素对比。
 - [x] 账户与 Cloud 拆分（#83 #89）：`features::flags`、Settings Account/Plan 分组、首页 Sign in 跟随 Cloud。
@@ -170,6 +170,19 @@
   - 去掉产品没有的：`⌘B` / `⌘J` / `⌘O`、File → Open Folder / Reload from Disk / Close File、Format 菜单、View → Toggle Markdown Source、Help → Feedback、窗口内的 About 对话框。
 - [x] `a_project_that_cannot_open_reports_why_and_retries` 不再在负载下偶发失败（重试后的状态读取和再次失败存在竞争）。
 
+### 0.9 2026-11-08 组件拆分与层级结构（`04deab1b2`..）
+
+按桌面 TODO《组件拆分与架构》逐组完成；结构见 README「结构」一节与 puppy-issues `rust-native-frontend/architecture.md`。
+
+- [x] Shell 拆成 entity（S-1..S-9）：`DialogLayer`、`Homepage` / `ProjectActions`、`WindowCloud`、`HeaderCoachmarks`、`EditorArea` / `DocumentSession`、`FileWindow`、`ProjectLifecycle`、`RightSidebar`、`WindowChrome`、`WindowPreferences`；`Shell::render` 只读（不调用 `sync_*` / `guard_*`），`Workbench::render` 不再 persist；`app/mod.rs` ≤ 800 行；测试按 owner 拆到 `app/tests/`。
+- [x] Agent 的进程内调用有类型（AG-0..AG-8）：`AgentRequest` / `AgentResponse` / `AgentEvent` 经 `AgentHostHandle`，`agent/ipc` 删除，授权在 `application/agent_requests.rs`；窗口侧显示为 `AgentProjection`；`contract::js` 只在 `agent/` 内；`event_loop` 换成 tokio 任务与带原因的 `CancellationToken`（`agent::tasks`）；`node_path` 换成 `platform::paths`；工作台标签只认 `WorkbenchItem`（Agent 对话、Terminal 各自实现）；provider 名只出现在 runtime / adapter / 组合根；Agent 内的 `dead_code` 豁免与死代码清除。
+- [x] 目录归拢（D-1..D-7）：`cloud/`（客户端）与 `features/cloud/`（窗口功能）；`features/terminal/`；`agent/model_connections`；每个功能 `mod.rs` 作门面、跨功能深层 import 清零；`features/local_agents/`；`app/sidebar/`；`shell/` → `app/`，截图场景与基准在 `app/dev/`。
+- [x] 倒挂与清理（C-1..C-5）：platform 不依赖 agent、model 不依赖 settings；全仓库 `#[allow(dead_code)]` / `expect(dead_code)` 清零（删除，或按 `cfg(test)` / `dev-capture` / `test-support` 编译；只有 `web_host.rs` 在没有 WebView 的平台上保留按平台的豁免）；Cloud 账号的全局访问收敛到一个模块；大文件按职责拆分。
+- [x] 侧栏遗留（L-1..L-3）：边缘聚焦 2px focus outline；收起的右侧边缘接受按键；`tools/frame-pacing.py` 在真实前台窗口（`PUPPYONE_CAPTURE_LIVE`）上测帧节奏。
+- [x] Cargo workspace（K-1..K-4）：`po-contracts` ← `po-platform` ← `po-workspace` ← `po-agent`；`po-ui`；`po-editor`；根包 `po-app`（二进制仍为 `puppy-one-rust`）。改一个功能文件后的增量构建 debug 35.5s → 13.2s、测试 70.8s → 19.1s、release 440s → 152s。
+- [x] 守护（G-1..G-3）：`tools/check-ui-boundaries.py` 检查 render 纯度、跨功能深层 import、provider 名、窗口与视图中的无类型 JSON、`impl Shell` 的位置与行数、每个源模块只属于一个 crate，并作为 `cargo test` 的一项（`the_architecture_boundaries_hold`）。
+- 保留与偏差：Main 侧（`AgentService` 与 domain reducer）仍以产品的 JSON 记录运行，逐字节对照 `electron/main/agent/`；Cloud Agent 的 API 客户端保留 JSON；`dev-capture` 截图驱动是 `impl Shell` 的唯一例外；`src/bench.rs` 是编辑器与窗口两组基准共用的测试辅助，两边的测试各编译一次。
+
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
@@ -204,7 +217,7 @@
 - [~] P1-7 "New" 是列表末尾的一行；加载/空状态行已做。文件夹读取失败时，错误和"重试"显示在该文件夹行尾（Web 是文件夹下方单独一行）。证据：`failed_folder_read_stays_on_its_row_until_a_retry_succeeds`
 - [~] P1-8 最新 macOS 产品不显示底部栏：原生高度归零、Explorer 延伸到底部、去掉 footer 渐隐；Settings 留在应用菜单 / `⌘,`。证据：`macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu`。非 macOS 保留 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的共享 LoadingMark 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
 - [~] P1-9 最近项目持久化；项目菜单（项目列表、打开文件夹、首页、移除）；Project Rail 列出项目。Rail 上的重命名/取消关联已做（S-10）；最近项目不再限 20 个（H-14）。证据：`the_rail_offers_rename_and_unlink_for_a_remembered_project`
-- [x] P1-10 首页（`MinimalOnboarding` / `OnboardingHomeLayout` / `OnboardingProjectEntryDialog`，`src/shell/home/`）。以下是 v0.4.0 设计下的记录；671143f2a 的首页（Grid 文件夹墙 / List、New project 分裂按钮、筛选排序、行操作、模板链接、拖出路径）见 §0.6 H 节，像素分数见那里：
+- [x] P1-10 首页（`MinimalOnboarding` / `OnboardingHomeLayout` / `OnboardingProjectEntryDialog`，`src/app/home/`）。以下是 v0.4.0 设计下的记录；671143f2a 的首页（Grid 文件夹墙 / List、New project 分裂按钮、筛选排序、行操作、模板链接、拖出路径）见 §0.6 H 节，像素分数见那里：
   - 品牌标记 28px + 标题（`text-muted`，−0.035em 字距由 `ui::tracked_text` 逐字形绘制）；深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。有项目时标题为「Which project…」，无项目时为「Start with your files…」且 New empty project 为主按钮
   - 最近项目按最后修改时间排序（`readWorkspaceModifiedAt`：Git 提交时间 + 改动文件时间，非仓库扫描文件，超过 1024 项视为未知，后台线程读取，`src/platform/project_activity.rs`），每行显示上级目录（`~` 缩写）、相对时间（`Intl.RelativeTimeFormat` 规则，8 种语言）与悬停时的取消关联按钮（确认后移出列表）。行用 `MenuRow` + `MenuVariant::Homepage`
   - New empty project 打开创建对话框：默认名「My project XXXX」、默认位置 `~/Documents/PuppyOne`、名称规则同 `requireProjectName`、可改位置、创建空文件夹后打开；Open a folder；Header 右侧 Sign in（打开 Settings → Account）
@@ -279,7 +292,7 @@
   - 工作台没有任何标签时，启动器铺满右侧栏、不显示标签栏（`AuxiliaryWorkbenchPanel` 的空态）；1280×800 fixture 右侧栏区域 99.7%
   - Changes：`GitChangesSidebar` 结构（安静标题 + History、可折叠 Staged/Unstaged/Merge/Committed 面板、行内 Commit / Stage and Commit、悬停行操作、12px 分隔、Pull 提示），提交使用产品默认消息（`buildDefaultCommitMessage`），去掉底部提交输入框与 Fetch/Refresh。证据：`empty_commits_take_the_product_default_message`
   - 实测（1280×800 深色，同一 fixture 仓库，区域一致率，容差 8）：节点菜单 98.2%、行 + 菜单 98.3%、New 菜单 98.3%、右键菜单 98.8%、项目菜单 98.1%、Changes 99.6%、Agent 右侧栏 97.7%
-  - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/shell/capture_scenario.rs`；窗口在后台、不抢焦点）
+  - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/app/dev/capture_scenario.rs`；窗口在后台、不抢焦点）
 - [x] P2-9 Git 右侧栏（`GitChangesSidebar` / `WorkingFileDetail` / `GitFileDiffSurface` / `GitHistoryTimeline` / `GitCommitDetail`，`src/features/source_control/`）：
   - 点开改动在侧栏内打开文件 diff：顶部返回 + Open file / Stage（Unstage）/ Discard（`ButtonVariant::GitAction`），已删除文件不能打开；未跟踪文件也可丢弃（删除文件，同 `discardWorkspaceGitPaths`）
   - Diff Registry（`diff/mod.rs`）：按格式选择渲染器，顺序同产品（docx 修订视图原生暂缺，落到二进制摘要）。统一文本 diff：行号 / `+-` / 等宽、增删底色、hunk 分隔、长行换行、截断提示；二进制摘要：格式名、前后大小、打开当前文件。卡片头：文件名（重命名 `old → new`）、状态徽标、`+n −m`。变高虚拟列表渲染
@@ -289,8 +302,8 @@
   - 已知差异：Pull / Push / Discard 的确认仍是侧栏内确认框（产品为对话框）；docx 修订视图、远程管理、待拉取改动审阅未移植
   - 证据：`patches_parse_like_parse_git_patch`、`long_patches_are_capped_per_file`、`working_tree_diffs_cover_each_scope`、`each_file_resolves_to_the_products_renderer`、`the_list_lays_out_cards_with_their_hunks`、`logs_merge_like_read_git_history`、`a_repository_reads_its_history_and_head`、`commits_group_by_day_newest_first`、`changes_open_file_opens_it_in_the_editor`；截图步骤 `git-diff:` / `git-diff-staged:` / `git-history` / `git-commit:`
 - [x] P2-8 侧栏动效（移植 `explorerMotionPlan.ts` / `explorerMotionAnimation.ts` / `CollapsiblePaneFrame`）：
-  - 文件夹展开 / 收起 220ms，产品的「平滑起步 → 匀速 → 平滑刹停」曲线（ramp 0.22）：新出现的行按连续段依次自上而下露出，消失的行留在原位作为幽灵行、最后一行先收起，其余行与列表末尾 New 行从旧位置平移（FLIP），展开箭头同步旋转；项目首次载入和换项目不播放（`src/shell/explorer/motion.rs`）
-  - 侧栏开合 360ms `cubic-bezier(0.42, 0, 0.58, 1)`：只有外框宽度在动，内容保持展开宽度、贴外侧边缘，由画在其上的编辑区遮住而不裁切（裁切会让缓存的 Explorer / 右栏每帧重渲染），主区跟随；窗口缩放与拖动分隔条不播放，动画中途反向从当前画面开始；动画按帧推进，迟到的一帧最多推进 33ms（`src/shell/panes/{mod,motion,stack}.rs`、`src/ui/motion.rs` 的 `FrameTimeline`）。证据：`a_closing_explorer_moves_without_rendering_its_rows_again`；基准 `shell::bench::pane_motion_frame_cost`：每次开合 Explorer 由约 40 次渲染降到 1 次，拖窄 60 个采样由 61 次降到 3 次
+  - 文件夹展开 / 收起 220ms，产品的「平滑起步 → 匀速 → 平滑刹停」曲线（ramp 0.22）：新出现的行按连续段依次自上而下露出，消失的行留在原位作为幽灵行、最后一行先收起，其余行与列表末尾 New 行从旧位置平移（FLIP），展开箭头同步旋转；项目首次载入和换项目不播放（`src/app/explorer/motion.rs`）
+  - 侧栏开合 360ms `cubic-bezier(0.42, 0, 0.58, 1)`：只有外框宽度在动，内容保持展开宽度、贴外侧边缘，由画在其上的编辑区遮住而不裁切（裁切会让缓存的 Explorer / 右栏每帧重渲染），主区跟随；窗口缩放与拖动分隔条不播放，动画中途反向从当前画面开始；动画按帧推进，迟到的一帧最多推进 33ms（`src/app/panes/{mod,motion,stack}.rs`、`src/ui/motion.rs` 的 `FrameTimeline`）。证据：`a_closing_explorer_moves_without_rendering_its_rows_again`；基准 `app::dev::bench::pane_motion_frame_cost`：每次开合 Explorer 由约 40 次渲染降到 1 次，拖窄 60 个采样由 61 次降到 3 次
   - 边缘键盘调宽（`SidebarResizeHandle` 的 `onKeyboardResize`）：聚焦的边缘 ←/→ 12px（⇧ 24px），Home 收起，End 展开到最宽；聚焦时显示 hover 描边（产品为 2px focus outline），收起的右侧边缘不接受按键。证据：`keys_on_an_edge_step_the_width_and_close_below_the_minimum`
   - 系统「减少动态效果」开启时两者都不播放。证据：`opening_a_folder_animates_its_rows_unless_motion_is_reduced`、`closing_the_explorer_moves_its_frame_unless_motion_is_reduced` 及两模块的单元测试
   - 逐帧核对：`dev-capture` 构建加 `PUPPYONE_MOTION_AT=<0..1>` 把动画定格在该进度截图（场景步骤 `expand:` / `collapse:` / `toggle-explorer` / `agent`）

@@ -66,19 +66,49 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 严格逐像素比对仍有光栅、色阶等差异，不能把登记覆盖或含背景的高分当作像素验收。当前范围是紧凑文件 glyph、产品语义图标与 Loading；大型 `FilePreviewIcon` 卡片预览不是已完成项。权威契约见 [Native Appearance and Components](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/appearance-and-components.md)。
 
-## Shell 结构（`src/shell/`）
+## 结构：crate 分层与窗口的 entity
 
-`Shell` 是窗口的组合根：持有文档会话（`Documents`）、偏好、Git / 工作台等实体，把命令分发给各部分，并组装界面。界面各部分有自己的 owner，Shell 不替它们保存状态：
+### Cargo workspace（`crates/`）
 
-- `panes/`：左右侧栏的外框。`PaneLayout` 是一个 entity，持有两侧的开合与宽度、边缘拖拽（`gesture`，`collapsiblePaneGesture.ts`）、边缘键盘调宽（←/→ 12px、⇧ 24px，Home 收起，End 展开到最宽）、开合动画（`motion`）和窗口最小宽度；它自己接收边缘的指针与按键、拖拽中的 Escape 和窗口失焦，通过 `PaneEvent` 告诉 Shell：`Committed`（Shell 只写布局偏好）、`OpenChanged`（Shell 更新窗口最小宽度和 Explorer 的宿主信息）、`PulledOut`。`layout` 是 `desktopPaneLayout.ts` 的宽度策略。`stack` 的 `PaneStack` 负责绘制：每侧内容是一块保持展开宽度、贴外侧边缘的平面，画在编辑区下面；编辑区不透明并遮挡指针，盖住外框还没到的部分。**不裁剪**——GPUI 缓存视图的复用条件包含裁剪区域，裁剪会让 Explorer 和右栏在动画的每一帧都重新渲染。只有外框宽度在动，动画跑在 `ui::motion::FrameTimeline` 上：第一帧显示起点，迟到的一帧最多推进 33ms。
-- `explorer_column.rs`：左栏的组合（`DataWorkspaceFrame` 的 `explorer()` + `explorerFooter()`）：Explorer 视图（缓存）在上，footer 在下（macOS 没有 footer）。
-- `explorer/`：两个 entity。`ExplorerSession`（`session.rs`）是模型：项目的树、选择、滚动、文件剪贴板、运行中的操作、目录订阅、置顶，并按项目保活；不绘制，通过 `SessionEvent` 请求读取目录、执行文件操作、提示错误。`Explorer`（`mod.rs`）是视图：焦点、打开的菜单、展开动画、Shell 给它的 `Host`；把指针和按键转成 session 的命令，通过 `ExplorerEvent` 请求打开文件、新建 / 重命名、复制链接、分享。Shell 只在文档、文件夹选择器、面板开合或窗口尺寸变化时交出 `Host`，不在 render 里推送。
-- `modals.rs`：窗口级弹层栈（Settings / Help 共用一个槽位、新建条目、新建项目、重命名、退出确认、错误）。Esc 回答最上层；Documents 的保存错误是动态状态，显示在栈之上。
-- `header.rs`、`footer.rs`：Header（`TitleBar`、`ChangesButton` 等）和侧栏底部栏是只负责展示的组件，由 `Shell::header` / `Shell::footer` 按状态组装。
-- 缓存的面板：Explorer、右侧工作台与 Changes 以 GPUI 缓存视图（`Entity::cached`）嵌入，只在自身被 notify 时重新渲染；编辑器滚动、输入、侧栏开合动画只重绘编辑器与 Shell 本身。偏好按切片订阅（`preferences_store::observe_slice`，对应 `useDesktopPreference(selector)`）：外观、字号与语言是进程级状态，只有它们变化时 Shell 才 `window.refresh()` 整窗重绘；布局偏好只在变化时 restore；Explorer 只在它绘制用到的字段变化时重绘。
-- render 不写状态：在 GPUI 的绘制阶段 notify 不会派发给观察者，所以状态变化放在事件处理里（截图场景的步骤也在帧后运行）。Shell 的 Cloud、首页、引导等 `sync_*` 仍在 render 里，是下一步要迁出的部分。
-- 主线程卡顿日志（`diagnostics/main-thread-stalls.jsonl`）按正在运行的工作记录标签：`shell.render`、`shell.command`、`shell.receive`、`explorer.render`、`editor.render`、`workbench.render`，其余是 `foreground`。
-- 侧栏开合的帧开销：`cargo test --release --locked --no-run` 后运行 `shell::bench::pane_motion_frame_cost --exact --ignored --nocapture`（`PUPPYONE_BENCH_FILE` 可换成自己的文档）。
+源码仍在 `src/`，各 crate 的 `lib.rs` 用 `#[path]` 挂载自己的模块（文件历史不动）；依赖方向由编译器强制，下层 crate 无法引用上层：
+
+| crate | 内容 | 依赖 |
+| --- | --- | --- |
+| `po-contracts` | UTF-16 文本、时钟、Wake、几何、文件格式与类型、树模型、资产目录、Workspace provider 契约、Agent 契约（`agent::contract`） | — |
+| `po-platform` | OS 适配（进程、文件、Git、存储、遥测、PDF、Office、主题、Agent CLI 活动）、本地化 | contracts |
+| `po-workspace` | Workspace facade、端口与本地 / Cloud provider；Cloud 客户端（登录 broker、首次发布） | platform |
+| `po-agent` | Agent 宿主：domain、application、provider runtime 与协议、transport、persistence、进程内 host | workspace |
+| `po-ui` | 组件库、theme、typography、内置资产 | workspace |
+| `po-editor` | 文档会话、编辑内核（Markdown / CSV / 代码 / 表格）、viewer、Web 内容宿主 | ui |
+| `po-app`（根包，二进制仍叫 `puppy-one-rust`） | `app/`（窗口组合）、`features/`、截图与 lab | 以上全部 |
+
+窗口测试用到的下层测试替身（Cloud 登录与发布 fake、模板商店、Agent harness、编辑器探针）在各 crate 的 `test-support` feature 下；`cargo test` / `cargo clippy` 经 `default-members` 覆盖全部 crate。`tools/check-ui-boundaries.py` 检查每个源模块只被一个 crate 编译。改一个功能文件后的增量构建：debug 13s（拆分前 35s）、测试 19s（71s）、release 152s（440s）。
+
+### 窗口（`src/app/`）
+
+`Shell`（`app/mod.rs`，≤ 800 行）是窗口的组合根：持有各 entity 的句柄，把 `Command` 路由给对应 entity（`app/command/{route,events,pump}.rs`），在 render 中组装界面；render 只读不写。`impl Shell` 只出现在这几个文件（以及只在 `dev-capture` 下编译的 `app/dev/capture_scenario.rs`），由边界检查强制。
+
+- `session.rs` `DocumentSession`：文档运行时与 worker 唤醒（`Woke`）。
+- `project/` `ProjectLifecycle`：项目记录、打开中的项目、文件夹选择、恢复、失败。
+- `editor_area.rs`、`editor_workbench.rs` `EditorArea`：编辑器宿主、分屏几何、拖放、保存提示。
+- `file_mode.rs` `FileWindow`：单文件窗口。
+- `panes/` `PaneLayout` / `PaneStack`：两侧开合与宽度、边缘拖拽（`gesture`）、边缘键盘调宽（←/→ 12px、⇧ 24px，Home 收起，End 展开到最宽；聚焦时 2px focus outline，收起的右侧边缘同样接受按键）、开合动画（`motion`，跑在 `ui::motion::FrameTimeline` 上：第一帧显示起点，迟到的一帧最多推进 33ms）和窗口最小宽度；通过 `PaneEvent::{Committed, OpenChanged, PulledOut}` 告诉 Shell。每侧内容是保持展开宽度、贴外侧边缘的平面，画在编辑区下面，**不裁剪**——GPUI 缓存视图的复用条件包含裁剪区域。
+- `explorer/` `ExplorerSession`（模型：树、选择、滚动、文件剪贴板、运行中的操作、目录订阅、置顶，按项目保活）与 `Explorer`（视图：焦点、菜单、展开动画）。
+- `sidebar/` `ExplorerColumn` / `SidebarFooter`：左栏组合。
+- `right_sidebar.rs` `RightSidebar`：Agent / Changes / History，按项目保存与恢复。
+- `chrome/` `WindowChrome`（Header、项目菜单、位置菜单、项目 rail）；`coachmarks.rs` `HeaderCoachmarks`。
+- `home/` `Homepage`；`project_actions.rs` `ProjectActions`。
+- `window_cloud.rs` `WindowCloud`：发布、Agents、Share、位置菜单、授权丢失后的恢复。
+- `dialogs/` `DialogLayer`：模态栈与焦点、Settings / Help、重命名、新建、确认。
+- `appearance.rs` `WindowPreferences`：偏好按切片订阅（`observe_slice`，对应 `useDesktopPreference(selector)`）；只有外观、字号与语言变化才整窗刷新。
+- `dev/`：`capture_scenario`（`dev-capture` 截图场景，步骤在帧后运行）与基准 `bench`。
+
+父 entity 只在事件处理中调用子 entity；子 entity 只发事件。缓存的面板（Explorer、右侧工作台、Changes）只在自身被 notify 时重新渲染。主线程卡顿日志（`diagnostics/main-thread-stalls.jsonl`）按正在运行的工作打标签（`shell.render`、`shell.command`、`shell.receive`、`explorer.render`、`editor.render`、`workbench.render`，其余为 `foreground`）。测试按 owner 拆在 `app/tests/`。完整的 entity 与事件表见 puppy-issues `platform/rust-native-frontend/architecture.md`。
+
+功能（`src/features/<domain>/`）的 `mod.rs` 是门面：内部模块私有，对外 `pub use`；跨功能深层 import 由检查拒绝。右侧工作台只认 `WorkbenchItem` trait，Agent 对话（`desktop_agent/workbench`）与 Terminal（`terminal/workbench`）各自实现。窗口与 Agent host 之间是有类型的 `AgentRequest` / `AgentResponse` / `AgentEvent`，JSON 只留在线路边界（`agent::contract`、provider 协议、持久化、Cloud API 客户端）。
+
+- 侧栏开合的帧开销：`cargo test --release --locked --no-run` 后运行窗口的测试二进制 `app::dev::bench::pane_motion_frame_cost --exact --ignored --nocapture`（`PUPPYONE_BENCH_FILE` 可换成自己的文档）。
+- 真实窗口的帧节奏：`tools/frame-pacing.py <大目录>`（`PUPPYONE_CAPTURE_LIVE` 前台窗口 + `ZED_MEASUREMENTS` 每帧耗时 + `sample` 主线程采样）。
 
 ## Workspace Provider 底座（Cloud 接入第一步）
 
@@ -94,7 +124,7 @@ Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking 
 
 ## 运行底座与多窗口（2026-10-29）
 
-- **多窗口**：`shell::windows` 管理所有窗口。File/Dock → New Window（⌘N）；一个项目可以同时在多个窗口打开，在哪个窗口选就在哪个窗口进入；菜单动作跟随当前窗口；Quit 让每个窗口各自走关闭屏障；偏好由所有窗口共享；macOS 关掉最后一个窗口不退出，无参数启动和点 Dock 时恢复上次项目；Finder / 命令行打开文件夹总是开新窗口；Markdown、CSV、HTML 文件可在单独的文件窗口打开。
+- **多窗口**：`app::windows` 管理所有窗口。File/Dock → New Window（⌘N）；一个项目可以同时在多个窗口打开，在哪个窗口选就在哪个窗口进入；菜单动作跟随当前窗口；Quit 让每个窗口各自走关闭屏障；偏好由所有窗口共享；macOS 关掉最后一个窗口不退出，无参数启动和点 Dock 时恢复上次项目；Finder / 命令行打开文件夹总是开新窗口；Markdown、CSV、HTML 文件可在单独的文件窗口打开。
 - **一个窗口不能拖死全部**：GPUI 所有窗口共用一个前台线程。`platform::tasks` 按 TS `EDITOR_TASK_POLICY` v1 准入编辑器任务（窗口关闭时停止准入并等待退出）；`platform::host_budget` 按 `itemHostBudgetDefaults` 监督终端和 Agent CLI 进程（数量、内存、持续 CPU）；File → Manage Running Sessions 不依赖标签页；`platform::watchdog` 记录前台超过 250 ms 的卡顿、worker panic 和崩溃到 `diagnostics/main-thread-stalls.jsonl`。
 - **查看器准入**：内容型查看器按各自 `maxSourceBytes`（Markdown/文本 16 MiB、CSV/JSON 8 MiB、HTML 4 MiB）。
 - **PDF**：`platform::pdf` + `editor::viewers::pdf`，引擎为 PDFium（`python3 tools/fetch-pdfium.py` 安装到 `vendor/pdfium`，打包时进入 `Frameworks`）。没有引擎时显示资源不可用。
@@ -137,7 +167,7 @@ CSV 的引用标签/按钮和 ⌘ 点击已经接入实际宿主。Markdown 的�
 
 ## Native Cloud authentication（第二步）
 
-`src/cloud_auth/` 是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud_account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。Cloud 工作区、计费/订阅和文件服务没有随登录一起启用。
+`src/cloud/auth/`（po-workspace）是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud/account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。Cloud 工作区、计费/订阅和文件服务没有随登录一起启用。
 
 Cloud 端点与 TS 同名：开发时只读 **`VITE_DESKTOP_CLOUD_API_URL`**（以 `/api/v1` 结束）和 **`VITE_DESKTOP_CLOUD_WEB_URL`**（origin）；打包版本只读取可执行文件旁（macOS 为 `Contents/Resources/`）的公开 `desktop-cloud.json`（`{schemaVersion: 1, apiBase, webOrigin}`，与 TS 的 `dist/desktop-cloud.json` 相同），不接受环境变量覆盖（`loadDesktopCloudConfiguration`）。只允许官方 `puppyone.ai` 域族 HTTPS，或 `localhost` / `127.0.0.1` 的 HTTP 开发环境；loopback API 可以用 `VITE_DESKTOP_CLOUD_GIT_ORIGIN` 显式信任一个 HTTPS 托管 Git origin。无生产默认值，不读取 TS 的 `.env`、登录文件或凭证。缺配置或平台不支持时登录不可用。截图/lab 不启动认证服务。
 
@@ -146,7 +176,7 @@ macOS 使用独立的 `Puppyone Native Cloud Auth` Keychain service，按原生�
 本地验收使用内存凭据存储、真实 loopback TCP/HTTP、合成 Supabase 与 GPUI 公开状态投影；覆盖 20 路刷新/401、重放/期限/取消、错误 Host/Origin/PKCE、存储失败、退出竞争和恢复。**不等于真实 Keychain、系统浏览器/社会化登录或托管环境验收**；Windows/Linux 的安全存储未接入，同 profile 多进程并发未资格化。回调结果页目前为无脚本纯文本，错误诊断为原生英文；不宣称与 Web 结果页像素或完整本地化一致。
 
 ```bash
-cargo test --locked cloud_auth::
+cargo test --locked cloud::auth::
 cargo test --locked public_account_projection
 python3 tools/check-auth-reference.py
 ```
@@ -187,9 +217,9 @@ src/editor/
 - `src/features/workbench/`：中立的项目级标签/分组/分屏模型；每次 `+` 产生独立 New tab；拖动重排/跨组/边缘分屏、调整分屏、溢出列表、Header 左右/Home/End 导航。隐藏或切换项目保留实例；关闭最后标签显示 launcher；运行中的标签及应用退出先确认停止。
 - `src/features/desktop_agent/`：沿原产品的 domain / application / infrastructure / ui 分层；原生虚拟转录、Markdown/表格/代码复制、工具折叠、图片附件预览、拖入/选择引用、命令建议、逐会话草稿、失败草稿显式恢复、模型/模式/思考强度、历史过滤及审批/问题/MCP 表单。
 - `src/agent/`：独立 native runtime port、composition root、Codex/Claude adapters、共享 ACP 与 Pi RPC、不可变引用、会话 catalog、有界 JSONL transport。Codex 支持 fork/steer/rename/compact/archive；其他运行时按实际协商能力显示控件。每项目最多 8 个、应用最多 32 个 Agent owner，隐藏不释放租约。
-- `src/model_connections/` 与 `src/features/model_connections/`：独立的 Rust 模型配置服务和 GPUI 设置；新增/刷新/删除确认、配置代次检查、删除后防复活与 Keychain 引用；成功写入后清理无引用旧密钥。Settings 和 Agent 页面共用服务。Local Agents 设置显示实际安装位置与缺失状态。
+- `src/agent/model_connections/` 与 `src/features/model_connections/`：独立的 Rust 模型配置服务和 GPUI 设置；新增/刷新/删除确认、配置代次检查、删除后防复活与 Keychain 引用；成功写入后清理无引用旧密钥。Settings 和 Agent 页面共用服务。Local Agents 设置显示实际安装位置与缺失状态。
 - `src/agent/runtimes/puppyone_agent/`：产品内置的 Rust HTTP/tool loop；从 **Settings → Model Connections** 或 Agent 页的 **Model connections…** 配置 OpenAI-compatible endpoint/model。支持本地兼容服务；远端使用 HTTPS、禁止自动重定向，密钥仅进入 macOS Keychain；JSON 只存版本化 credential reference，密钥值不进入 JSON/argv/env。具备 read/ls/find/grep/write/edit/bash、显式写入/命令审批、Plan 模式、停止、持久历史、分叉、重命名、上下文压缩和模型绑定代次检查。没有自动导入 Electron 凭证，也没有把外部 Pi CLI 改名冒充内置运行时。
-- `src/features/terminal.rs` + `src/platform/terminal.rs`：原生 GPUI 终端、PTY、VT100/ANSI、颜色、光标、滚屏、IME、粘贴、终端查询响应和窗口尺寸同步；视口拖选/双击选词/复制、Cmd 点击 HTTP(S) 链接、X10/UTF-8/SGR 鼠标（Shift 绕过）、功能键/导航修饰键。输出、滚动及 resize 会清除选区，尚无跨滚屏持久选区/OSC 8/像素鼠标；本机发现的 Claude Code、Cursor、Hermes、OpenCode、Pi、WorkBuddy 等 CLI 可从终端启动。
+- `src/features/terminal/` + `src/platform/terminal.rs`：原生 GPUI 终端、PTY、VT100/ANSI、颜色、光标、滚屏、IME、粘贴、终端查询响应和窗口尺寸同步；视口拖选/双击选词/复制、Cmd 点击 HTTP(S) 链接、X10/UTF-8/SGR 鼠标（Shift 绕过）、功能键/导航修饰键。输出、滚动及 resize 会清除选区，尚无跨滚屏持久选区/OSC 8/像素鼠标；本机发现的 Claude Code、Cursor、Hermes、OpenCode、Pi、WorkBuddy 等 CLI 可从终端启动。
 - `src/platform/` 与 `src/agent/transports/`：独立 worker 管理 Git/JSONL/PTY；有界管道与 Wake，前台不执行阻塞式等待。关闭发送进程组信号并由 worker 回收 child；PTY 真实退出有集成验证。
 
 原生 Chat 入口覆盖 PuppyOne Agent、Codex、Claude、Cursor、Hermes、OpenCode、Pi、WorkBuddy；安装发现、协议握手与真实推理是不同层级的验证。Workbench 将布局和 native session identity 原子保存为项目元数据；重启后显式 Resume，不重放之前的命令。CLI 自己拥有登录，Rust 不复制其认证文件。
@@ -386,16 +416,16 @@ Python 比图依赖 Pillow / numpy。截图模式显式使用合成树，只测�
 
 ## 源码入口与下一步
 
-- `src/main.rs` / `shell.rs` / `theme.rs`：GPUI Application、entity、事件与布局。
+- `src/main.rs` / `src/app/mod.rs` / `theme.rs`：GPUI Application、窗口组合根、entity 与布局；`crates/*/lib.rs`：各层 crate 的挂载点。
 - `src/editor/`：原生文档编辑器（文本内核、视图、Markdown、CSV、表格、宿主协议），见其 `ARCHITECTURE.md`。
 - `src/ui/components/`：产品组件库；`src/ui/form_input.rs`：表单输入（Kit Input / Textarea 的薄适配）；`src/ui/input.rs`：共享的编辑动作与 Edit 菜单；`src/ui/appearance.rs`：当前外观（深浅色、主题包、字号）的全局状态。
 - `src/ui/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符），所有文本输入共用。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
-- `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
+- `src/app/dialogs/builtin.rs`：首批原生 Settings / Help 等任务框；尚未通过完整像素验收。
 - `src/workspace/mod.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写；`src/workspace/cloud/` 是尚未接导航的 live HTTP/SSE 适配器。
 - `src/documents/mod.rs`：单文档状态机和关闭检查。
 - `src/localization.rs` / `tools/import-localization.py`：同源 locale 投影，不持久化用户偏好。
-- `src/shell/project_menu.rs`：锚定 Header 的原生项目位置 popup。
+- `src/app/chrome/project_menu.rs`：锚定 Header 的原生项目位置 popup。
 
 下一批按架构门槛推进：**字体/像素/叠层适配性 → 同源外观与原生组件 → 正式 Workspace 导航 → 保留现有 Editor 内核并适配 Rust 端口 → Right Sidebar/执行宿主**。文件操作随所属领域补齐，不顺手新增产品未接受的草稿历史或并发多视图语义。
 
