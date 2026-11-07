@@ -1,7 +1,7 @@
 //! `AgentChatWorkbenchItem.tsx` and `agentChatCloseAdapter.ts`: a chat tab
 //! is an [`AgentChatTabPanel`] over a controller its project owns, or over a
 //! hosted conversation, so hiding or moving the tab never ends its session.
-use crate::agent::runtime::legacy_runtime_registry::Runtime;
+use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
 use crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key;
 use crate::features::desktop_agent::ui::panel::{

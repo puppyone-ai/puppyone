@@ -10,4 +10,3 @@ pub enum Runtime {
     Pi,
     WorkBuddy,
 }
-impl Runtime {}

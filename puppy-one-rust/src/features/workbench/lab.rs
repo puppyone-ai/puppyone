@@ -2,7 +2,7 @@
 //! scenario data mirrors `tools/reference-workbench-entry.tsx` exactly: the
 //! same detected agents, tab topology and Agent Chat content.
 use super::*;
-use crate::agent::runtime::legacy_runtime_registry::Runtime;
+use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::{AgentChatItem, lab_history_browser};
 use crate::features::terminal::TerminalView;
 

@@ -1,6 +1,6 @@
 use super::item::ItemKind;
 use super::layout::{Id, Layout};
-use crate::agent::runtime::legacy_runtime_registry::Runtime;
+use crate::agent::connections::legacy_runtime_registry::Runtime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 /// What a project's saved workbench keeps of a tab.

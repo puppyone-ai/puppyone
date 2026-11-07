@@ -1,4 +1,5 @@
 pub mod legacy_local_agent_inventory;
+pub mod legacy_runtime_registry;
 #[allow(dead_code)]
 pub mod local_agent_connection_policy;
 #[allow(dead_code)]

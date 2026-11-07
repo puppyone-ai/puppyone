@@ -17,9 +17,8 @@ mod persistence;
 pub use item::{CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, WorkbenchItem};
 pub use persistence::RetainedItem;
 
-use super::desktop_agent::{
-    AgentChats, HistoryBrowser, HistoryTarget, agent_chat_runtime_id, hosted_installation,
-};
+use super::desktop_agent::{AgentChats, HistoryBrowser, HistoryTarget, hosted_installation};
+use super::local_agents::agent_chat_runtime_id;
 use super::terminal::TerminalItem;
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
@@ -30,7 +29,7 @@ use crate::ui::{
 use crate::{
     agent::{
         connections::legacy_local_agent_inventory::{self as agents, Installation},
-        runtime::legacy_runtime_registry::Runtime,
+        connections::legacy_runtime_registry::Runtime,
     },
     theme::Theme,
     wake::Wake,
@@ -1653,7 +1652,7 @@ mod tests {
                 p.content.insert(
                     id,
                     Content::Retained(RetainedItem::Chat {
-                        runtime: crate::agent::runtime::legacy_runtime_registry::Runtime::Codex,
+                        runtime: crate::agent::connections::legacy_runtime_registry::Runtime::Codex,
                         thread: None,
                         title: format!("c{n}"),
                         runtime_id: Some("codex".into()),

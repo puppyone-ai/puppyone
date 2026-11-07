@@ -15,4 +15,4 @@ pub use ui::agent_conversation_history::{HistoryBrowser, HistoryBrowserEvent};
 pub use ui::panel::bind_keys;
 #[cfg(feature = "dev-capture")]
 pub use workbench::{AgentChatItem, lab_history_browser};
-pub use workbench::{AgentChats, agent_chat_runtime_id, hosted_installation};
+pub use workbench::{AgentChats, hosted_installation};

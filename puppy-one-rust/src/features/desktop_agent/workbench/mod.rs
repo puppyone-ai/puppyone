@@ -8,7 +8,7 @@ mod item;
 #[cfg(feature = "dev-capture")]
 mod lab;
 
-pub use chats::{AgentChats, agent_chat_runtime_id, hosted_installation};
+pub use chats::{AgentChats, hosted_installation};
 #[cfg(feature = "dev-capture")]
 pub use item::AgentChatItem;
 #[cfg(feature = "dev-capture")]

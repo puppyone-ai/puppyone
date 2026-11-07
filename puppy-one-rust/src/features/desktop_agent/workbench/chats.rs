@@ -4,8 +4,8 @@
 //! Hubs, and the routing every open chat follows.
 use super::item::{AgentChatItem, Release};
 use crate::agent::connections::legacy_local_agent_inventory::Installation;
+use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::agent::host::agent_host::AgentHostHandle;
-use crate::agent::runtime::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
@@ -23,6 +23,7 @@ use crate::features::desktop_agent::ui::agent_conversation_history::{
     HistoryBrowser, HistorySource,
 };
 use crate::features::desktop_agent::ui::panel::{AgentChatTabPanel, AgentRouting};
+use crate::features::local_agents::hidden_agent_chat_runtime_ids;
 use crate::features::settings::agent_routing_preferences::AgentRoutingPreferences;
 use crate::features::settings::preferences_store::PreferencesStore;
 use crate::wake::Wake;
@@ -33,55 +34,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-
-/// `BUILT_IN_AGENT_RUNTIME_ID`.
-const BUILT_IN_AGENT_RUNTIME_ID: &str = "puppyone-agent";
-
-/// `LOCAL_AGENT_CHAT_RECIPES`' runtime ids.
-const LOCAL_AGENT_CHAT_RUNTIME_IDS: [&str; 8] = [
-    "claude",
-    "codex",
-    "cursor",
-    "hermes",
-    "opencode-native",
-    "pi",
-    "workbuddy-china",
-    "workbuddy-international",
-];
-
-/// `localAgentIdForAgentChatRuntime(runtimeId)`.
-fn local_agent_id_for_agent_chat_runtime(runtime_id: &str) -> &str {
-    match runtime_id {
-        "opencode-native" => "opencode",
-        id => id,
-    }
-}
-
-/// The Chat recipe (runtime id) of a detected installation.
-pub fn agent_chat_runtime_id(installation: &Installation) -> String {
-    if installation.bundled() {
-        return BUILT_IN_AGENT_RUNTIME_ID.into();
-    }
-    LOCAL_AGENT_CHAT_RUNTIME_IDS
-        .into_iter()
-        .find(|id| local_agent_id_for_agent_chat_runtime(id) == installation.id)
-        .unwrap_or(installation.id)
-        .into()
-}
-
-/// `resolveAgentChatRuntimeVisibility(...).hiddenRuntimeIds`: the Built-in
-/// Agent is never hidden.
-fn hidden_agent_chat_runtime_ids(hidden_local_agent_ids: &[String]) -> Vec<String> {
-    LOCAL_AGENT_CHAT_RUNTIME_IDS
-        .into_iter()
-        .filter(|id| {
-            hidden_local_agent_ids
-                .iter()
-                .any(|hidden| hidden == local_agent_id_for_agent_chat_runtime(id))
-        })
-        .map(str::to_string)
-        .collect()
-}
 
 /// `CLOUD_AGENT_LABEL`'s creation recipe: the only runtime a Cloud launcher
 /// offers (no local discovery, no terminal).
@@ -581,30 +533,5 @@ impl AgentChats {
         self.live_panels(Some(root))
             .first()
             .map(|panel| panel.read(cx).controller().clone())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        BUILT_IN_AGENT_RUNTIME_ID, hidden_agent_chat_runtime_ids,
-        local_agent_id_for_agent_chat_runtime,
-    };
-
-    #[test]
-    fn hidden_local_agents_hide_their_chat_runtimes_but_never_the_built_in() {
-        assert_eq!(
-            hidden_agent_chat_runtime_ids(&[
-                "opencode".into(),
-                "codex".into(),
-                BUILT_IN_AGENT_RUNTIME_ID.into()
-            ]),
-            ["codex", "opencode-native"]
-        );
-        assert!(hidden_agent_chat_runtime_ids(&[]).is_empty());
-        assert_eq!(
-            local_agent_id_for_agent_chat_runtime("workbuddy-china"),
-            "workbuddy-china"
-        );
     }
 }

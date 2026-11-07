@@ -112,7 +112,7 @@ for folder in ['src/features/desktop_agent/domain', 'src/features/desktop_agent/
             errors.append(f'{path.relative_to(root)}: Agent application/domain depends on a platform adapter')
 def fixture(path):
     """Tests and the pixel lab's recorded fixtures may spell out JSON."""
-    return 'tests' in path.parts or path.name in ('tests.rs', 'fixture.rs', 'fixtures.rs')
+    return 'tests' in path.parts or path.name in ('tests.rs', 'fixture.rs', 'fixtures.rs', 'lab.rs')
 for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
     if fixture(path):
         continue
@@ -129,6 +129,27 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
     source = path.read_text().split('#[cfg(test)]')[0]
     if re.search(r'serde_json|\bValue\b|json!|contract::js', source):
         errors.append(f'{path.relative_to(root)}: Agent window code handles JSON instead of the contract types')
+# Provider neutrality (`check-agent-architecture.mjs`): only a runtime
+# implementation, a concrete adapter layer, the composition root or a
+# migration edge names a concrete Agent; the Agent window names none outside
+# its views.
+provider_name = re.compile(r'\b(?:opencode|codex|claude(?:\s+code)?|cursor\s+(?:cli|runtime))\b', re.I)
+def code(path):
+    """Source without comments or its test module."""
+    source = path.read_text().split('#[cfg(test)]')[0]
+    return re.sub(r'/\*.*?\*/', '', re.sub(r'//[^\n]*', '', source), flags=re.S)
+agent_concrete = {'runtimes', 'connections', 'cache', 'protocols', 'security', 'transports',
+                  'bootstrap', 'persistence', 'infrastructure', 'migrations', 'installation', 'discovery'}
+for path in (root / 'src/agent').rglob('*.rs'):
+    if fixture(path) or path.relative_to(root / 'src/agent').parts[0] in agent_concrete:
+        continue
+    if provider_name.search(code(path)):
+        errors.append(f'{path.relative_to(root)}: names a concrete runtime outside a runtime implementation, composition root or migration edge')
+for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
+    if fixture(path) or root / 'src/features/desktop_agent/ui' in path.parents:
+        continue
+    if provider_name.search(code(path)):
+        errors.append(f'{path.relative_to(root)}: names a concrete runtime; the Agent window outside its views is provider-neutral')
 for path in (root / 'src/model_connections').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration depends on presentation')

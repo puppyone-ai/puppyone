@@ -4,7 +4,7 @@
 //! `TerminalSessionHeaderStatus`).
 use super::{SessionStatus, TerminalView, path_label};
 use crate::agent::connections::legacy_local_agent_inventory::Installation;
-use crate::agent::runtime::legacy_runtime_registry::Runtime;
+use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::{LauncherIdentity, launcher_icon};
 use crate::features::workbench::{
     CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, RetainedItem, Workbench,
