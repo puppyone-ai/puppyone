@@ -1589,6 +1589,8 @@ function AppContent() {
       onCreateProject={createProject}
       cloudSpaces={activeCloudSession ? cloudSpaces.spaces : undefined}
       onCreateCloudProject={createCloudProjectInSpace}
+      onShareWithMyDevices={homepageFolderSharing.request
+        ? (path) => homepageFolderSharing.request!(path, { opened: true }) : undefined}
       onImportSource={importSource}
       onConnectSource={connectImportSource}
       onListResources={listImportResources}
