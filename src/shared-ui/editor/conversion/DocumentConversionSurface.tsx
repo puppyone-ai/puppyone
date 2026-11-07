@@ -7,6 +7,8 @@ import { convertDocument } from "./conversionClient";
 import { useDocumentConversionPort } from "./DocumentConversionProvider";
 import { ConversionResults } from "./ConversionResults";
 import { DocumentConversionError, DocumentConversionSaveError, type ConversionResult, type ConversionSelection, type ConversionSaveResult } from "./types";
+import { resolveDataResourceWorkspaceRoot } from "../../core/dataResourcePath";
+import { getWorkspaceResourcePath, type ResourceUri } from "../../core/resourceUri";
 
 export function DocumentConversionSurface(props: { document: EditorDocument; fileUrl?: string | null; children: ReactNode }) {
   const port = useDocumentConversionPort();
@@ -100,14 +102,19 @@ function ConversionWorkbench({ document, fileUrl, children, format }: {
             {format === "pdf" && phase !== "running" && <p className="document-conversion__scope">{t("editor.conversion.pdfScope")}</p>}
             {phase === "running" && <div className="document-conversion__processing" role="status" aria-label={t("editor.conversion.processing")}><progress max={progress?.total} value={progress?.page} /></div>}
           </div>}
-        {error != null && <div className="document-conversion__error" role="alert">{t(errorKey(error), { path: error instanceof DocumentConversionSaveError ? error.folderPath : "" })}</div>}
+        {error != null && <div className="document-conversion__error" role="alert">{t(errorKey(error), { path: error instanceof DocumentConversionSaveError ? displayOutputFolder(error.folderPath) : "" })}</div>}
         <footer className="document-conversion__footer">
-          <div className="document-conversion__save-location">{saved ? <><strong>{t("editor.conversion.saved")}</strong><span>{saved.folderPath}</span></> : <><strong>{t("editor.conversion.saveLocation")}</strong><span>{t("editor.conversion.saveLocationHint")}</span></>}</div>
+          <div className="document-conversion__save-location">{saved ? <><strong>{t("editor.conversion.saved")}</strong><span>{displayOutputFolder(saved.folderPath)}</span></> : <><strong>{t("editor.conversion.saveLocation")}</strong><span>{t("editor.conversion.saveLocationHint")}</span></>}</div>
           {renderAction()}
         </footer>
       </div>}
     </div>
   </section>;
+}
+
+function displayOutputFolder(path: string): string {
+  const root = resolveDataResourceWorkspaceRoot(path);
+  return root ? getWorkspaceResourcePath(root, path as ResourceUri) : path;
 }
 
 function errorKey(error: unknown) {

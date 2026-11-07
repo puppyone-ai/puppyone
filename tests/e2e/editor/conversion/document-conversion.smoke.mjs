@@ -67,8 +67,7 @@ app.whenReady().then(async () => {
     await until(() => evaluate("Boolean(document.querySelector('.document-conversion__result .cm-editor'))"), "Markdown preview");
     await click(".document-conversion__footer .document-conversion__button--primary");
     console.log("Conversion acceptance: saving DOCX outputs");
-    await until(async () => { try { return (await fs.readdir(project)).some(name => name.endsWith("-converted")); } catch { return false; } }, "saved folder");
-    const output = path.join(project, "示例报告-converted");
+    const output = path.join(project, "converted", "示例报告");
     await until(async () => { try { return (await fs.readdir(path.join(output, "assets"))).length; } catch { return false; } }, "image saved");
     assert((await fs.readFile(path.join(output, "示例报告.md"), "utf8")).includes("assets/image-"));
     assert((await fs.readdir(path.join(output, "tables"))).some(name => name.endsWith(".csv")));

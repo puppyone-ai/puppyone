@@ -8,7 +8,7 @@ const SOURCE_LIMIT = 25 * 1024 * 1024;
 const TEXT_LIMIT = 8 * 1024 * 1024;
 const IMAGE_LIMIT = 20 * 1024 * 1024;
 
-/** Narrow generated-output sink: it can only create a fresh sibling conversion folder. */
+/** Narrow generated-output sink: fresh document folders live under the project root's converted/. */
 export async function saveWorkspaceDocumentConversion(rootPath, request) {
   const sourcePath = normalizeRelativePath(request?.path);
   if (!/\.(docx|pdf)$/i.test(sourcePath) || !/^[a-f\d]{64}$/.test(request?.fingerprint ?? "")) return invalid();
@@ -17,10 +17,15 @@ export async function saveWorkspaceDocumentConversion(rootPath, request) {
   if (!files) return invalid();
   const source = await resolveExistingWorkspacePath(rootPath, sourcePath);
   if (await sourceFingerprint(source) !== request.fingerprint) return { ok: false, reason: "source-changed" };
-  const parentRelative = path.posix.dirname(sourcePath) === "." ? "" : path.posix.dirname(sourcePath);
-  const parent = await resolveExistingWorkspacePath(rootPath, parentRelative);
+  const projectRoot = await resolveExistingWorkspacePath(rootPath, null);
+  await fs.mkdir(path.join(projectRoot, "converted")).catch(error => {
+    if (error?.code !== "EEXIST") throw error;
+  });
+  // Reuse only a real directory inside this authorized Project. Never follow a symlink.
+  const parent = await resolveExistingWorkspacePath(rootPath, "converted");
+  if (!(await fs.stat(parent)).isDirectory()) throw new Error("The conversion output location is not a folder.");
   // Fresh directory claim is authoritative even when another window saves at the same time.
-  const baseName = `${Array.from(stem).slice(0, 40).join("")}-converted`;
+  const baseName = Array.from(stem).slice(0, 40).join("");
   let folderName; let output;
   for (let attempt = 1; attempt <= 1000; attempt++) {
     folderName = baseName + (attempt === 1 ? "" : `-${attempt}`);
@@ -28,7 +33,7 @@ export async function saveWorkspaceDocumentConversion(rootPath, request) {
     try { await fs.mkdir(output); break; }
     catch (error) { if (error?.code !== "EEXIST" || attempt === 1000) throw error; }
   }
-  const folderPath = path.posix.join(parentRelative, folderName);
+  const folderPath = path.posix.join("converted", folderName);
   try {
     const directories = new Set();
     for (const file of files) {

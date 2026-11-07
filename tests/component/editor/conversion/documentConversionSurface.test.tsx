@@ -12,7 +12,7 @@ vi.mock("../../../../src/shared-ui/editor/conversion/ConversionMarkdownPreview",
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const result: ConversionResult = { markdown: "# Report\n", fingerprint: "abc", tables: [{ id: "table-001", rows: [["Code"], ["0012"]] }], assets: [], warnings: [{ code: "merged-cells" }] };
 let root: Root; let container: HTMLDivElement;
-const save = vi.fn(async () => ({ folderPath: "report-converted", openPath: "report-converted/report.md", paths: [] }));
+const save = vi.fn(async () => ({ folderPath: "converted/report", openPath: "converted/report/report.md", paths: [] }));
 const open = vi.fn();
 beforeEach(() => { container = document.createElement("div"); document.body.append(container); root = createRoot(container); vi.mocked(convertDocument).mockReset(); save.mockClear(); open.mockClear(); });
 afterEach(() => { act(() => root.unmount()); container.remove(); });
@@ -26,6 +26,8 @@ describe("document conversion workflow", () => {
     await render(); await click("Convert");
     expect(container.querySelector("[data-original]")).not.toBeNull();
     expect(container.textContent).toContain("Convert to Markdown");
+    expect(container.textContent).toContain("Save to project root");
+    expect(container.textContent).toContain("converted/");
     await click("Start conversion");
     expect(container.textContent).toContain("# Report");
     expect(container.textContent).toContain("Cells spanning rows");
@@ -33,7 +35,7 @@ describe("document conversion workflow", () => {
     await act(async () => checkbox.click());
     await click("Save and open");
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ selection: { markdown: false, tableIds: ["table-001"] } }));
-    expect(open).toHaveBeenCalledWith("report-converted/report.md");
+    expect(open).toHaveBeenCalledWith("converted/report/report.md");
   });
   it("cancels parsing and does not publish late results", async () => {
     let complete!: (result: ConversionResult) => void;
@@ -56,5 +58,12 @@ describe("document conversion workflow", () => {
   });
   it("does not add conversion controls to unsupported input", async () => {
     await render("report.pptx"); expect(container.textContent).toBe("Original preview");
+  });
+  it("shows the saved project-relative folder rather than an internal resource URI", async () => {
+    vi.mocked(convertDocument).mockResolvedValue(result);
+    save.mockResolvedValueOnce({ folderPath: "puppyone-local://workspace/record/converted/report", openPath: "puppyone-local://workspace/record/converted/report/report.md", paths: [] });
+    await render(); await click("Convert"); await click("Start conversion"); await click("Save and open");
+    expect(container.querySelector(".document-conversion__save-location")?.textContent).toContain("converted/report");
+    expect(container.querySelector(".document-conversion__save-location")?.textContent).not.toContain("puppyone-local:");
   });
 });
