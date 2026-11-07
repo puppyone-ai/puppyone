@@ -1157,7 +1157,6 @@ span.homepage-cloud-feedback {
   background: transparent;
   color: var(--po-text-muted);
   font: inherit;
-  cursor: pointer;
 }
 
 /* An audience heading names who can open its projects, not where they live. */
@@ -1218,10 +1217,14 @@ span.homepage-cloud-feedback {
   vertical-align: 1px;
 }
 
+.onboarding-project-group-divider {
+  flex: 1 0 24px;
+  border-block-start: 1px solid var(--po-divider);
+}
+
 .onboarding-project-group-actions {
   display: inline-flex;
   flex: none;
-  margin-inline-start: auto;
 }
 
 .desktop-menu-icon-button.onboarding-project-group-menu {

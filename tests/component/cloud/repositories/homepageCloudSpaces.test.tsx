@@ -48,9 +48,23 @@ describe("personal and organization destinations", () => {
     expect([...document.querySelectorAll("[data-project-group]")].map((group) => group.getAttribute("data-project-group")))
       .toEqual(["team-shared", "local-only"]);
     expect(target("personal")).toBeNull();
-    expect(target("team").textContent).toContain("Team shared projects");
+    expect(target("team").textContent).toContain("Team Share Project");
     expect(target("team").textContent).toContain("Team project");
     expect(target("team").textContent).not.toContain("Draft");
+  });
+  it("orders team, personal and local areas with an unfocusable rule after every heading", async () => {
+    const host = await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
+      cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
+    const groups = [...host.querySelectorAll('[data-project-group]')];
+    expect(groups.map((group) => group.getAttribute('data-project-group')))
+      .toEqual(["team-shared", "personal-shared", "local-only"]);
+    expect(groups.map((group) => group.querySelector('h2')?.textContent))
+      .toEqual(["Team Share Project", "My Share Project", "Only on this one builder"]);
+    for (const group of groups) {
+      const rule = group.querySelector<HTMLElement>('.onboarding-project-group-head > .onboarding-project-group-divider');
+      expect(rule?.getAttribute('aria-hidden')).toBe('true');
+      expect(rule?.tabIndex).toBe(-1);
+    }
   });
   it("does not replace a new account's empty start page with unused space placeholders", async () => {
     const host = await render({ projectItems: [] });
@@ -97,7 +111,7 @@ describe("personal and organization destinations", () => {
     await render({ projectItems: [local], cloudSpaces: [spaces[0]] });
     expect(target("personal")).toBeNull();
     await drag(localButton("Draft"), "dragstart");
-    expect(target("personal").textContent).toContain("My shared projects");
+    expect(target("personal").textContent).toContain("My Share Project");
     await drag(target("personal"), "drop");
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
   });

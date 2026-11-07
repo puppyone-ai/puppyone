@@ -383,7 +383,8 @@ describe("project folder home", () => {
     expectBrandLockup(container, "projects");
     const panel = container.querySelector(".onboarding-home-primary");
     expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
-    expect(panel?.lastElementChild?.classList.contains("onboarding-project-list")).toBe(true);
+    expect(panel?.lastElementChild?.classList.contains("onboarding-project-groups")).toBe(true);
+    expect(panel?.lastElementChild?.querySelector('[data-project-group="local-only"] .onboarding-project-list')).not.toBeNull();
     const projectPlace = container.querySelector('.onboarding-project-row [data-project-location="local"] .project-folder-glyph');
     expect(projectPlace).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
