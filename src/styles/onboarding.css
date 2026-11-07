@@ -1054,20 +1054,15 @@ span.homepage-cloud-feedback {
    The page scrolls as one, with the single list's lane and fades; the lists inside
    lie flat in it, so a group never scrolls on its own or cuts off its last row. */
 .onboarding-project-groups {
-  --onboarding-drop-bleed: 10px;
   --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
   --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
   display: grid;
-  /* An inset on either side, given back by the margins, so a group can show where a
-     dragged project may land without being cut by the scrolling edge. */
-  width: calc(100% + var(--po-scrollbar-size) + 2 * var(--onboarding-drop-bleed));
+  width: calc(100% + var(--po-scrollbar-size));
   min-width: 0;
   min-height: 0;
   align-content: start;
   gap: 28px;
-  margin-inline: calc(-1 * var(--onboarding-drop-bleed));
-  padding-block: 8px 24px;
-  padding-inline: var(--onboarding-drop-bleed);
+  padding-block: 4px 24px;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -1136,7 +1131,7 @@ span.homepage-cloud-feedback {
   min-height: 28px;
   align-items: center;
   gap: 8px;
-  padding-inline: 8px 0;
+  padding-inline: 8px;
   color: var(--onboarding-group-ink);
   font-family: var(--po-font-sans);
   font-size: var(--onboarding-caption-font-size);
@@ -1188,19 +1183,18 @@ span.homepage-cloud-feedback {
   opacity: 0.5;
 }
 
-/* While a project is dragged, each group that takes it becomes a place to drop it: a
-   card drawn around the group in the page's ink, dashed until the project is over it,
-   then solid and filled. Groups that cannot take it step back. No colour: ink only. */
+/* While a project is dragged, each group that takes it is filled faintly, inside its
+   own bounds, and more deeply once the project is over it. No outline: a fill in the
+   page's ink, like a selection. Groups that cannot take it step back. */
 .onboarding-project-group::before {
   content: "";
   position: absolute;
   z-index: -1;
-  inset: -6px calc(-1 * var(--onboarding-drop-bleed)) -10px;
-  border: 1px dashed transparent;
-  border-radius: 12px;
+  inset: 0 0 -6px;
+  border-radius: 10px;
   background: transparent;
   pointer-events: none;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition: background 140ms ease;
 }
 
 .onboarding-project-groups[data-project-dragging] .onboarding-project-group:not([data-drop-available]) {
@@ -1208,14 +1202,11 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-group[data-drop-available]::before {
-  border-color: color-mix(in srgb, var(--po-text) 30%, transparent);
-  background: color-mix(in srgb, var(--po-text) 3%, transparent);
+  background: color-mix(in srgb, var(--po-text) 4%, transparent);
 }
 
 .onboarding-project-group[data-drop-over]::before {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--po-text) 60%, transparent);
-  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+  background: color-mix(in srgb, var(--po-text) 9%, transparent);
 }
 
 /* What letting go does, at the end of the heading, where the group's actions were. */
