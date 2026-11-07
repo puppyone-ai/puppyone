@@ -1,7 +1,7 @@
 {
-  "sharing.localOnly": "Only on this computer",
-  "sharing.personal": "My shared projects",
-  "sharing.team": "Team shared projects",
+  "sharing.localOnly": "Only on this one builder",
+  "sharing.personal": "My Share Project",
+  "sharing.team": "Team Share Project",
   "sharing.selectTeam": "Choose team",
   "sharing.unresolved": "Shared projects",
   "sharing.computers": "Manage computers",

@@ -134,7 +134,7 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(3);
     // Two entries, never merged; the Cloud's projects lead the page.
     expect([...document.querySelectorAll(".onboarding-project-group-title")].map((title) => title.textContent))
-      .toEqual(["Shared projects", "Only on this computer"]);
+      .toEqual(["Shared projects", "Only on this one builder"]);
     expect(document.querySelector('[data-linked-cloud-project-id="a"] .onboarding-project-icon[data-project-location="linked"]')).toBeTruthy();
     expect(document.querySelector('[data-cloud-project-id="a"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();
     expect(document.querySelector('[data-cloud-project-id="b"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();

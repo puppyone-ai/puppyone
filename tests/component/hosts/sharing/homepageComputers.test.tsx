@@ -64,7 +64,7 @@ const deviceList = (host: HTMLElement, name: string) => host.querySelector<HTMLE
 describe("the owner's other computers on the Homepage", () => {
   it("shows three audiences, with shared local and remote folders together rather than device headings", async () => {
     const { host } = await render();
-    expect(titles(host)).toEqual(["My shared projects", "Team shared projects", "Only on this computer"]);
+    expect(titles(host)).toEqual(["Team shared projects", "My shared projects", "Only on this computer"]);
     expect(personal(host).textContent).toContain("ditherit");
     expect(personal(host).textContent).toContain("paused");
     expect(personal(host).textContent).toContain("contracts");
@@ -101,7 +101,7 @@ describe("the owner's other computers on the Homepage", () => {
 
   it("leaves other computers out while the page is narrowed to some places", async () => {
     const { host } = await render({ showOtherComputers: false });
-    expect(titles(host)).toEqual(["My shared projects", "Team shared projects", "Only on this computer"]);
+    expect(titles(host)).toEqual(["Team shared projects", "My shared projects", "Only on this computer"]);
     expect(host.querySelector("[data-host-folder]")).toBeNull();
   });
 

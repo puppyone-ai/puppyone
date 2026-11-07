@@ -49,7 +49,7 @@ function groups(container: HTMLElement) {
 describe("homepage audience grouping", () => {
   it("keeps unresolved shared ownership reachable without misclassifying local folders", () => {
     const shown = groups(renderHome());
-    expect(shown.map((group) => group.title)).toEqual(["Shared projects", "Only on this computer"]);
+    expect(shown.map((group) => group.title)).toEqual(["Shared projects", "Only on this one builder"]);
     expect(shown[0].names.join(" ")).toMatch(/shared/);
     expect(shown[0].names.join(" ")).not.toMatch(/notes/);
     // A folder with its own Cloud project is still this computer's folder.
@@ -67,7 +67,7 @@ describe("homepage audience grouping", () => {
   it("states the local-only audience even when it is the only group", () => {
     const container = renderHome({ projectItems: [local] });
     expect(container.querySelector(".onboarding-project-groups")).not.toBeNull();
-    expect(container.querySelector(".onboarding-project-group-title")?.textContent).toBe("Only on this computer");
+    expect(container.querySelector(".onboarding-project-group-title")?.textContent).toBe("Only on this one builder");
     expect(container.querySelectorAll(".onboarding-project-list")).toHaveLength(1);
   });
 
@@ -81,8 +81,8 @@ describe("homepage audience grouping", () => {
     });
     expect(container.querySelector("[data-test-other-computers]")).not.toBeNull();
     expect(handed!.cloud[0]?.id).toBe("shared-unresolved");
-    expect(handed!.local?.title).toBe("Only on this computer");
-    expect(handed!.personalSharedTitle).toBe("My shared projects");
+    expect(handed!.local?.title).toBe("Only on this one builder");
+    expect(handed!.personalSharedTitle).toBe("My Share Project");
     expect(handed!.showOtherComputers).toBe(true);
   });
 });
