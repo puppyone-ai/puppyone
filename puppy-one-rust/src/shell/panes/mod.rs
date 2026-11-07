@@ -101,13 +101,15 @@ pub(super) struct PaneLayout {
     explorer: SidePane,
     right: SidePane,
     drag: Option<Drag>,
-    motion: motion::PaneMotion,
+    /// The open / close motion: a frame clock that reading a frame's
+    /// layout ([`PaneLayout::frames`]) advances; nothing observes it.
+    motion: std::cell::RefCell<motion::PaneMotion>,
     /// The width the panes shared at the last frame (the window, less the
     /// project rail): a drag's live maxima and the keys' steps are bounded
     /// by it.
-    available: f32,
+    available: std::cell::Cell<f32>,
     /// The widths the open panes resolved to at the last frame.
-    resolved: motion::Widths,
+    resolved: std::cell::Cell<motion::Widths>,
     /// The native window minimum last handed out.
     window_minimum: f32,
     /// Each open edge is a tab stop that resizes with the arrow keys.
@@ -157,8 +159,8 @@ impl PaneLayout {
             },
             drag: None,
             motion: Default::default(),
-            available: 0.,
-            resolved: (0., 0.),
+            available: Default::default(),
+            resolved: Default::default(),
             window_minimum: 0.,
             start_focus: cx.focus_handle().tab_stop(true),
             end_focus: cx.focus_handle().tab_stop(true),
@@ -241,7 +243,7 @@ impl PaneLayout {
         self.explorer.open = !stored.explorer_collapsed;
         self.explorer.width = stored.explorer_width;
         self.right.width = stored.right_width;
-        self.motion = Default::default();
+        *self.motion.get_mut() = Default::default();
         self.changed(before, false, cx);
     }
 
@@ -257,13 +259,13 @@ impl PaneLayout {
             Side::Start => Config::new(
                 side,
                 pane::MIN_EXPLORER_WIDTH,
-                layout::explorer_max_width(self.available, self.right.open),
+                layout::explorer_max_width(self.available.get(), self.right.open),
                 pane::EXPLORER_COLLAPSE_THRESHOLD,
             ),
             Side::End => Config::new(
                 side,
                 pane::MIN_RIGHT_SIDEBAR_WIDTH,
-                layout::right_sidebar_max_width(self.available, self.explorer.extent()),
+                layout::right_sidebar_max_width(self.available.get(), self.explorer.extent()),
                 pane::RIGHT_SIDEBAR_COLLAPSE_THRESHOLD,
             ),
         }
@@ -358,8 +360,8 @@ impl PaneLayout {
                     Side::End => -toward_end,
                 };
                 let current = match side {
-                    Side::Start => self.resolved.0,
-                    Side::End => self.resolved.1,
+                    Side::Start => self.resolved.get().0,
+                    Side::End => self.resolved.get().1,
                 };
                 let next = current + grow * step;
                 if next < min {
@@ -400,26 +402,28 @@ impl PaneLayout {
     /// follows the pointer; opening and closing a pane (a toggle, or a drag
     /// crossing its collapse threshold) moves its frame, unless the system
     /// asks for reduced motion.
-    pub fn frames(&mut self, w: f32, h: f32, rail: f32, reduce_motion: bool) -> PaneFrames {
-        self.available = w - rail;
+    pub fn frames(&self, w: f32, h: f32, rail: f32, reduce_motion: bool) -> PaneFrames {
+        self.available.set(w - rail);
         let (explorer, right) = self.preview();
         let target = Layout::new(w, h, explorer.extent(), right.extent(), rail);
-        self.resolved = (target.explorer.w, target.auxiliary.w);
+        let resolved = (target.explorer.w, target.auxiliary.w);
+        self.resolved.set(resolved);
         let animate = !reduce_motion
             && self
                 .drag
                 .is_none_or(|drag| drag.gesture.phase != Phase::Resizing);
-        let motion = self.motion.frame(
+        let mut clock = self.motion.borrow_mut();
+        let motion = clock.frame(
             (explorer.open, right.open),
-            self.resolved,
+            resolved,
             animate,
             std::time::Instant::now(),
         );
         // A moving frame's content keeps the open width; a drag narrowing
         // the Explorer keeps it at the committed width instead of reflowing
         // the rows at every pointer sample.
-        let mut content = motion.from.map_or(self.resolved, |from| {
-            (from.0.max(self.resolved.0), from.1.max(self.resolved.1))
+        let mut content = motion.from.map_or(resolved, |from| {
+            (from.0.max(resolved.0), from.1.max(resolved.1))
         });
         if self.dragging() == Some(Side::Start) && explorer.open && self.explorer.open {
             content.0 = content.0.max(self.explorer.width);
@@ -442,7 +446,7 @@ impl PaneLayout {
             layout,
             start: (start > 0.5).then(|| frame(rail, start)),
             end: (end > 0.5).then(|| frame(room - end, end)),
-            running: self.motion.running(),
+            running: clock.running(),
         }
     }
     /// `side`'s plane at its open width in a `w`×`h` window beside a `rail`
@@ -575,7 +579,9 @@ mod tests {
             // The first frame of the close shows the open pane…
             let first = p.frames(1280., 800., 0., false);
             assert_eq!(first.start.unwrap().w, 320.);
-            p.motion.advance(std::time::Duration::from_millis(180));
+            p.motion
+                .borrow_mut()
+                .advance(std::time::Duration::from_millis(180));
             let mid = p.frames(1280., 800., 0., false);
             // …then the frame narrows while the content keeps its width and
             // edge, and the editor follows the frame.
@@ -583,7 +589,9 @@ mod tests {
             assert!(frame.w > 0. && frame.w < 320.);
             assert_eq!((mid.layout.explorer.x, mid.layout.explorer.w), (0., 320.));
             assert_eq!(mid.layout.editor.x, frame.right());
-            p.motion.advance(std::time::Duration::from_millis(400));
+            p.motion
+                .borrow_mut()
+                .advance(std::time::Duration::from_millis(400));
             let settled = p.frames(1280., 800., 0., false);
             assert_eq!((settled.start, settled.running), (None, false));
         });
@@ -596,7 +604,9 @@ mod tests {
             p.frames(1280., 800., 0., false);
             p.set_right_open(true, cx);
             p.frames(1280., 800., 0., false);
-            p.motion.advance(std::time::Duration::from_millis(180));
+            p.motion
+                .borrow_mut()
+                .advance(std::time::Duration::from_millis(180));
             let frames = p.frames(1280., 800., 0., false);
             let end = frames.end.unwrap();
             assert_eq!(frames.layout.auxiliary.right(), end.right());

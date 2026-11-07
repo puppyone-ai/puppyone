@@ -169,6 +169,7 @@ impl CaptureScenario {
 impl Shell {
     /// Runs at most one step per painted frame; `true` once the scenario has
     /// finished and the last state has painted.
+    /// After a frame: the scenario's next step; `true` once it is done.
     pub(super) fn advance_capture_scenario(
         &mut self,
         window: &mut Window,
@@ -179,9 +180,6 @@ impl Shell {
         };
         let done = self.step_capture_scenario(&mut scenario, window, cx);
         self.frame.capture_scenario = Some(scenario);
-        if !done {
-            window.request_animation_frame();
-        }
         done
     }
     fn step_capture_scenario(

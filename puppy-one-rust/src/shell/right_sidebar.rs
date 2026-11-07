@@ -190,6 +190,21 @@ impl RightSidebar {
         self.open(cx) && self.surface == surface
     }
 
+    /// A project was entered: a local folder's Agent and Git, or a hosted
+    /// Project's own Agent (`CloudAgentSidebar`), not this machine's.
+    pub fn enter(&mut self, workspace: &crate::workspace::Workspace, cx: &mut Context<Self>) {
+        if let Some(root) = workspace.local_root() {
+            let root = root.to_owned();
+            self.workbench
+                .update(cx, |s, cx| s.set_workspace(root.clone(), cx));
+            self.source_control
+                .update(cx, |s, cx| s.set_workspace(root, cx));
+        } else if let Some(target) = workspace.agent_target() {
+            self.workbench
+                .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
+        }
+    }
+
     // ------------------------------------------------------- Header entries
     /// ⌘J and the Agent entry (`handleToggleAgentWorkbench`): close the
     /// Agent when it shows, else show it.

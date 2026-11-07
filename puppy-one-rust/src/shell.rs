@@ -124,19 +124,8 @@ impl Shell {
         focus.focus(window, cx);
         let weak = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
-            weak.update(cx, |s, cx| {
-                if s.files(cx).allow_quit {
-                    s.prefs.store.read(cx).drained()
-                        && !s.dialogs.read(cx).creating(cx)
-                        && (windows::count(cx) > 1
-                            || !windows::last_close_quits(cx)
-                            || crate::features::cloud::account::close_ready(cx))
-                } else {
-                    s.command(Command::Quit, window, cx);
-                    false
-                }
-            })
-            .unwrap_or(true)
+            weak.update(cx, |s, cx| s.should_close(window, cx))
+                .unwrap_or(true)
         });
         crate::features::cloud::account::observe(window, cx, |s, window, cx| {
             s.refresh_cloud_catalog(false, cx);
@@ -150,15 +139,7 @@ impl Shell {
         let preferences = windows::shared_preferences(fixture, cx);
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let key = crate::features::agent_presence::owner(window);
-        let docs = cx.new(|cx| {
-            let mut files = if fixture {
-                Documents::default()
-            } else {
-                Documents::native()
-            };
-            files.task_scope = key.clone();
-            session::DocumentSession::new(files, cx)
-        });
+        let docs = cx.new(|cx| session::DocumentSession::new(fixture, key.clone(), cx));
         let editor = cx.new(|cx| {
             editor_area::EditorArea::new(
                 docs.clone(),
@@ -196,26 +177,8 @@ impl Shell {
                 cx,
             )
         });
-        let project = cx.new(|_| {
-            project::ProjectLifecycle::new(
-                docs.clone(),
-                preferences.clone(),
-                project::WindowProject {
-                    name: if fixture {
-                        "puppyone".into()
-                    } else {
-                        String::new()
-                    },
-                    open_first: if cfg!(test) {
-                        None
-                    } else {
-                        std::env::var_os("PUPPYONE_FILE").map(PathBuf::from)
-                    },
-                    fixture,
-                    ..Default::default()
-                },
-            )
-        });
+        let project =
+            cx.new(|_| project::ProjectLifecycle::new(docs.clone(), preferences.clone(), fixture));
         let cloud = cx.new(|cx| {
             window_cloud::WindowCloud::new(
                 preferences.clone(),
@@ -321,100 +284,41 @@ impl Shell {
                 frames: 0,
             },
         };
-        // The workers' news, and what the editor area asks of the window.
-        cx.subscribe_in(&s.session.docs, window, |s, _, _: &session::Woke, w, cx| {
-            let shown = |s: &Shell, cx: &App| {
-                let files = s.files(cx);
-                (
-                    files.presentation_key(),
-                    files.generation,
-                    s.session.project.read(cx).record.name.clone(),
-                )
-            };
-            let before = shown(s, cx);
-            s.receive(w, cx);
-            if shown(s, cx) != before {
-                cx.notify();
-            }
-        })
-        .detach();
-        cx.subscribe_in(&s.editor, window, |s, _, event, w, cx| match event {
-            editor_area::EditorEvent::Command(command) => s.command(*command, w, cx),
-            editor_area::EditorEvent::Pump => {
-                s.receive(w, cx);
-                cx.notify();
-            }
-        })
-        .detach();
+        // What each owner asks of the window, and drawing again when it
+        // changes.
+        s.wire(&s.session.docs.clone(), Self::woke, window, cx);
+        s.wire(&s.session.project.clone(), Self::project_event, window, cx);
+        s.wire(&s.editor.clone(), Self::editor_event, window, cx);
+        s.wire(&s.home.clone(), Self::home_event, window, cx);
+        s.wire(&s.chrome.clone(), Self::chrome_event, window, cx);
+        s.wire(&s.dialogs.clone(), Self::dialog_event, window, cx);
+        s.wire(&s.sidebar.clone(), Self::sidebar_event, window, cx);
+        s.wire(&s.cloud.clone(), Self::cloud_event, window, cx);
+        s.wire(&s.panes.clone(), Self::pane_event, window, cx);
+        s.wire(
+            &s.explorer.session.clone(),
+            Self::explorer_session_event,
+            window,
+            cx,
+        );
+        s.wire(&s.explorer.view.clone(), Self::explorer_event, window, cx);
+        s.wire(&s.prefs.store.clone(), Self::preferences_event, window, cx);
         // A file window's title shows its unsaved edits.
-        cx.observe_in(&s.editor, window, |s, _, w, cx| {
-            s.sync_window_title(w, cx);
-            cx.notify()
-        })
-        .detach();
+        cx.observe_in(&s.editor, window, |s, _, w, cx| s.sync_window_title(w, cx))
+            .detach();
         // A dialog of the Agent workbench holds the editors too.
         let workbench = s.sidebar.read(cx).workbench.clone();
         cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
             .detach();
-        // Captures can start on a task dialog.
-        match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
-            Ok("settings") => s.open_modal(Modal::Task(Task::Settings), cx),
-            Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
-            _ => {}
-        }
-        // The folder picker's answer, and the project as it changes.
-        cx.subscribe_in(&s.session.project, window, |s, _, event, w, cx| {
-            match event {
-                project::ProjectEvent::Error(error) => s.show_error(error.clone(), cx),
-                project::ProjectEvent::Retry => s.retry_workspace_surface(cx),
-                project::ProjectEvent::Picked => {}
-            }
-            s.receive(w, cx);
-            cx.notify();
-        })
-        .detach();
-        cx.observe(&s.session.project, |_, _, cx| cx.notify())
-            .detach();
-        // What the Homepage and the project actions ask of the window.
-        cx.subscribe_in(&s.home, window, |s, _, event, w, cx| {
-            s.home_event(event, w, cx)
-        })
-        .detach();
-        cx.observe(&s.home, |_, _, cx| cx.notify()).detach();
-        // What the Header and the rail ask of the window.
-        cx.subscribe_in(&s.chrome, window, |s, _, event, w, cx| {
-            s.chrome_event(event, w, cx)
-        })
-        .detach();
-        cx.observe(&s.chrome, |_, _, cx| cx.notify()).detach();
-        // The dialogs' answers, and the window taking the focus back.
-        cx.subscribe_in(&s.dialogs, window, |s, _, event, w, cx| {
-            s.dialog_event(event, w, cx)
-        })
-        .detach();
-        // The create form holds the window open while it writes.
+        // The create form holds the window open while it writes; the
+        // preferences drain before it closes.
         cx.observe(&s.dialogs, |s, _, cx| {
-            s.session.docs.read(cx).wake().notify();
-            cx.notify()
+            s.session.docs.read(cx).wake().notify()
         })
         .detach();
-        cx.subscribe_in(
-            &s.prefs.store,
-            window,
-            |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
-                s.preferences_changed(w, cx);
-                s.refresh_cloud_catalog(false, cx);
-                // Cloud turned off revokes a hosted selection.
-                s.guard_cloud_authority(w, cx);
-                if s.session.project.read(cx).record.restore_last {
-                    let last = windows::last_active_project(cx);
-                    s.session
-                        .project
-                        .update(cx, |p, cx| p.restore_last(last, cx));
-                    s.receive(w, cx);
-                }
-            },
-        )
+        cx.observe(&s.prefs.store, |s, _, cx| {
+            s.session.docs.read(cx).wake().notify()
+        })
         .detach();
         cx.observe_window_appearance(window, |s, w, cx| s.apply_appearance(w, cx))
             .detach();
@@ -423,90 +327,6 @@ impl Shell {
             cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_appearance(w, cx))
                 .detach();
         }
-        // What the Explorer's session needs from the workspace.
-        cx.subscribe_in(&s.explorer.session, window, |s, _, event, window, cx| {
-            match event {
-                SessionEvent::ReferencesChanged => {}
-                SessionEvent::LoadChildren(path) => s
-                    .session
-                    .docs
-                    .update(cx, |d, _| d.load_children(path.clone())),
-                SessionEvent::ResourceOperation(operation) => {
-                    if let Err(error) = s
-                        .session
-                        .docs
-                        .update(cx, |d, _| d.resource_operation(operation.clone()))
-                    {
-                        s.explorer
-                            .session
-                            .update(cx, |e, cx| e.operation_failed(cx));
-                        s.show_error(error, cx);
-                    }
-                }
-                SessionEvent::Error(error) => s.show_error(error.clone(), cx),
-                SessionEvent::WatchFailed(error) => s
-                    .session
-                    .project
-                    .update(cx, |p, _| p.record.notice = Some(error.clone())),
-                SessionEvent::WatchRecovered => {
-                    s.session.project.update(cx, |p, _| p.record.notice = None)
-                }
-                // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
-                SessionEvent::ContentChanged => {
-                    s.sidebar
-                        .read(cx)
-                        .source_control
-                        .clone()
-                        .update(cx, |sc, cx| sc.invalidate(cx));
-                }
-            }
-            s.receive(window, cx);
-            cx.notify();
-        })
-        .detach();
-        // What the person asks for through the Explorer.
-        cx.subscribe_in(&s.explorer.view, window, |s, _, event, window, cx| {
-            match event {
-                ExplorerEvent::Open(path) => s
-                    .session
-                    .docs
-                    .update(cx, |d, _| d.begin(Intent::OpenFile(path.clone()))),
-                ExplorerEvent::Create { entry, parent } => {
-                    s.start_create(*entry, parent.clone(), window, cx)
-                }
-                ExplorerEvent::Rename { path, change_type } => s
-                    .dialogs
-                    .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
-                ExplorerEvent::Error(error) => s.show_error(error.clone(), cx),
-                ExplorerEvent::CopyLink { path, folder } => {
-                    s.cloud.update(cx, |c, cx| c.copy_link(path, *folder, cx))
-                }
-                ExplorerEvent::Share { path } => {
-                    s.cloud.update(cx, |c, cx| c.share_folder(path, window, cx))
-                }
-            }
-            s.receive(window, cx);
-            cx.notify();
-        })
-        .detach();
-        cx.observe(&s.prefs.store, |s, _, cx| {
-            s.session.docs.read(cx).wake().notify();
-            cx.notify()
-        })
-        .detach();
-        // The panes move and resize on their own input; the shell stores what
-        // the person committed and keeps the window large enough for them.
-        cx.observe(&s.panes, |_, _, cx| cx.notify()).detach();
-        cx.subscribe_in(&s.panes, window, |s, _, event, window, cx| match event {
-            PaneEvent::Committed => s.persist_panes(cx),
-            PaneEvent::OpenChanged => {
-                s.constrain_window(window, cx);
-                s.push_explorer_host(window, cx);
-                s.guard_cloud_history(cx);
-            }
-            PaneEvent::PulledOut => s.sidebar.update(cx, |s, _| s.pulled_out()),
-        })
-        .detach();
         // The Explorer's frame follows the window; full screen drops the
         // title.
         cx.observe_window_bounds(window, |s, window, cx| {
@@ -514,49 +334,17 @@ impl Shell {
             s.sync_window_title(window, cx);
         })
         .detach();
-        // What the right sidebar's surfaces ask of the window.
-        cx.subscribe_in(&s.sidebar, window, |s, _, event, w, cx| {
-            s.sidebar_event(event, w, cx)
-        })
-        .detach();
-        cx.observe(&s.sidebar, |_, _, cx| cx.notify()).detach();
-        // What the Cloud asks of the window.
-        cx.subscribe_in(&s.cloud, window, |s, _, event, w, cx| {
-            s.cloud_event(event, w, cx)
-        })
-        .detach();
-        cx.observe(&s.cloud, |_, _, cx| cx.notify()).detach();
-        // Leaving the window abandons an editor drag (`blur` cancels).
-        cx.observe_window_activation(window, |s, window, cx| {
-            let active = window.is_window_active();
-            s.sidebar
-                .read(cx)
-                .source_control
-                .clone()
-                .update(cx, |sc, cx| sc.set_focused(active, cx));
-            if !active {
-                s.editor.update(cx, |e, cx| e.cancel_gestures(cx));
-            } else {
-                cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
-                // The catalog refreshes whenever a window regains focus.
-                crate::features::sub_theme_catalog::refresh(cx);
-                // `browser-window-focus`: bounded foreground activity.
-                crate::features::telemetry::note_foreground(cx);
-                // A returning window may probe the Cloud association once.
-                s.cloud.update(cx, |c, cx| c.probe(cx));
-                // A file window watches nothing: the file is read again
-                // when the window comes back (FileModeDocument's `focus`).
-                if s.file_mode() {
-                    s.session.docs.update(cx, |d, _| d.revalidate());
-                    s.receive(window, cx);
-                    cx.notify();
-                }
-            }
-        })
-        .detach();
+        cx.observe_window_activation(window, Self::window_activated)
+            .detach();
         // The Homepage disclosure follows the analytics state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
+        }
+        // Captures can start on a task dialog.
+        match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
+            Ok("settings") => s.open_modal(Modal::Task(Task::Settings), cx),
+            Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
+            _ => {}
         }
         let plan = launch.plan(fixture);
         if let Some(open) = plan.open_first {
@@ -617,35 +405,28 @@ impl Shell {
         self.prefs.apply(window, cx);
         self.gate_editors(window, cx);
     }
-    /// The file's folder is the window's root; only the file shows, and it
-    /// saves when asked. A file that is gone or too large is never read
-    /// (nor one `hold` keeps loading).
-    fn bind_file(
-        &mut self,
-        file: file_mode::FileTarget,
-        hold: bool,
+    /// The window takes `owner`'s events (`on`) and draws again when it
+    /// changes.
+    fn wire<T: EventEmitter<E>, E: 'static>(
+        &self,
+        owner: &Entity<T>,
+        on: fn(&mut Self, &E, &mut Window, &mut Context<Self>),
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.session.docs.update(cx, |d, _| d.file_window = true);
-        self.session.project.update(cx, |p, _| p.file_window = true);
-        if file.admission == file_mode::Admission::Readable && !hold {
-            self.session.project.update(cx, |p, _| {
-                p.record.open_first = Some(PathBuf::from(&file.name))
-            });
-            let root = file.root.clone();
-            self.session
-                .docs
-                .update(cx, |d, _| d.begin(Intent::OpenFolder(root)));
-        }
-        let (docs, editor) = (self.session.docs.clone(), self.editor.clone());
-        let file = cx.new(|cx| file_mode::FileWindow::new(file, docs, editor, cx));
-        cx.subscribe_in(&file, window, |s, _, event, w, cx| {
-            let file_mode::FileEvent::Command(command) = event;
-            s.command(*command, w, cx)
-        })
-        .detach();
-        self.file = Some(file);
+        self.route(owner, on, window, cx);
+        cx.observe(owner, |_, _, cx| cx.notify()).detach();
+    }
+    /// The window takes `owner`'s events (`on`).
+    fn route<T: EventEmitter<E>, E: 'static>(
+        &self,
+        owner: &Entity<T>,
+        on: fn(&mut Self, &E, &mut Window, &mut Context<Self>),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        cx.subscribe_in(owner, window, move |s, _, event, w, cx| on(s, event, w, cx))
+            .detach();
     }
     /// A file window (File Mode): one file, no project.
     pub(super) fn file_mode(&self) -> bool {
@@ -750,116 +531,14 @@ impl Shell {
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::watchdog::activity("shell.receive");
         let pumped = self.session.project.update(cx, |p, cx| p.pump(cx));
-        if let Some((path, message)) = pumped.failure {
-            self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
-            self.open_modal(Modal::ProjectFailure { path, message }, cx);
-        }
-        // A Cloud opening that failed says why (`ProjectNavigationFailure`).
-        if let Some((project, failure)) = pumped.cloud_failure {
-            self.cloud
-                .update(cx, |c, cx| c.show_recovery(project, failure, cx));
-        }
-        // `finishInterceptedClose`: a close a document could not finish asks
-        // whether to keep the window or close anyway, instead of the error.
-        if pumped.close_refused {
-            if !self
-                .dialogs
-                .read(cx)
-                .iter()
-                .any(|m| matches!(m, Modal::CloseAnyway))
-            {
-                self.open_modal(Modal::CloseAnyway, cx);
-            }
-            self.focus_dialogs(window, cx);
-        }
-        for (owner, outcome) in pumped.operations {
-            self.explorer
-                .session
-                .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
-        }
-        if let Some((ws, nodes)) = pumped.entered {
-            self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
-            self.explorer
-                .session
-                .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
-            if self.file_mode() {
-                // A lone file has no Agent, Git or Terminal.
-            } else if let Some(root) = ws.local_root() {
-                self.sidebar
-                    .read(cx)
-                    .workbench
-                    .clone()
-                    .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
-                self.sidebar
-                    .read(cx)
-                    .source_control
-                    .clone()
-                    .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
-            } else if let Some(target) = ws.agent_target() {
-                // `CloudAgentSidebar`: the hosted Agent, not this machine's.
-                self.sidebar
-                    .read(cx)
-                    .workbench
-                    .clone()
-                    .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
-            }
-            self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
-            let root = ws.local_root().map(PathBuf::from);
-            self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
-        }
-        if let Some((path, result)) = pumped.children {
-            self.explorer
-                .session
-                .update(cx, |e, cx| e.children_loaded(&path, result, cx));
-        }
-        if let Some(relative) = pumped.revealed {
-            self.explorer
-                .session
-                .update(cx, |e, cx| e.reveal(&relative, cx));
-        }
+        self.route_pumped(pumped, window, cx);
         self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
         self.sync_dialog_status(cx);
         self.sync_session_view(cx);
         self.sync_window_title(window, cx);
-        if self.files(cx).allow_quit && self.dialogs.read(cx).creating(cx) {
-            return;
-        }
-        if self.files(cx).allow_quit && !self.prefs.store.read(cx).drained() {
-            if let Some(error) = self.prefs.store.read(cx).error.clone() {
-                self.show_error(error, cx);
-                self.session.docs.update(cx, |d, _| d.cancel_quit());
-                windows::cancel_quit(cx);
-                self.sync_editor(window, cx);
-            }
-            return;
-        }
         if self.files(cx).allow_quit {
-            // The account owner is process-wide: only the app's end drains
-            // it; closing one of several windows (or, on macOS, the last
-            // one) leaves it running.
-            if windows::count(cx) <= 1 && windows::last_close_quits(cx) {
-                match crate::features::cloud::account::prepare_close(cx) {
-                    Ok(true) => {}
-                    Ok(false) => return,
-                    Err(error) => {
-                        self.session.docs.update(cx, |d, _| d.cancel_quit());
-                        windows::cancel_quit(cx);
-                        self.sync_editor(window, cx);
-                        self.show_error(error.to_string(), cx);
-                        return;
-                    }
-                }
-            }
-            let workbench = self.sidebar.read(cx).workbench.clone();
-            workbench.update(cx, |s, cx| s.shutdown(cx));
-            // Window retirement blocks new editor allocations and waits for
-            // this window's admitted tasks to confirm their exit.
-            let scheduler = crate::platform::tasks::Scheduler::global();
-            let _hold = scheduler.hold_admission();
-            let _ = scheduler.retire(&self.session.key, None, None);
-            windows::unregister(window.window_handle(), cx);
-            window.remove_window();
+            self.finish_close(window, cx);
         }
     }
     /// The Documents error shows above the dialogs while it is set.
@@ -1002,6 +681,30 @@ impl Shell {
         }
     }
 }
+impl Shell {
+    /// After a frame: a capture's scenario steps (dev builds), and once it
+    /// is done the window is captured as it is.
+    fn capture_tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.frame.captured {
+            return;
+        }
+        #[cfg(feature = "dev-capture")]
+        if !self.advance_capture_scenario(window, cx) {
+            // The next frame steps again.
+            return cx.notify();
+        }
+        let Some(path) = std::env::var_os("PUPPYONE_SCREENSHOT") else {
+            return;
+        };
+        self.frame.captured = true;
+        let layout = self.frame.layout;
+        let rect = |r: Rect| [r.x, r.y, r.w, r.h];
+        let geometry = serde_json::json!({"framework":"GPUI","header":rect(layout.header),"explorer":rect(layout.explorer),"footer":rect(layout.footer),"editor":rect(layout.editor),"auxiliary":rect(layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
+        if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry) {
+            self.show_error(error.to_string(), cx);
+        }
+    }
+}
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::platform::watchdog::activity("shell.render");
@@ -1019,9 +722,8 @@ impl Render for Shell {
         let h = f32::from(size.height);
         let rail = self.chrome.read(cx).rail_width();
         let reduce_motion = cx.reduce_motion();
-        let panes = self
-            .panes
-            .update(cx, |p, _| p.frames(w, h, rail, reduce_motion));
+        // This frame's layout (reading it advances the panes' motion).
+        let panes = self.panes.read(cx).frames(w, h, rail, reduce_motion);
         self.frame.layout = if self.file_mode() {
             // `.file-mode-window`: the title bar over the document alone.
             Layout::new(w, h, 0., 0., 0.)
@@ -1031,21 +733,9 @@ impl Render for Shell {
         if panes.running {
             window.request_animation_frame();
         }
-        #[cfg(feature = "dev-capture")]
-        let scenario_done = self.advance_capture_scenario(window, cx);
-        #[cfg(not(feature = "dev-capture"))]
-        let scenario_done = true;
-        if !self.frame.captured
-            && scenario_done
-            && let Some(path) = std::env::var_os("PUPPYONE_SCREENSHOT")
-        {
-            self.frame.captured = true;
-            let rect = |r: Rect| [r.x, r.y, r.w, r.h];
-            let geometry = serde_json::json!({"framework":"GPUI","header":rect(self.frame.layout.header),"explorer":rect(self.frame.layout.explorer),"footer":rect(self.frame.layout.footer),"editor":rect(self.frame.layout.editor),"auxiliary":rect(self.frame.layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
-            if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
-            {
-                self.show_error(error.to_string(), cx);
-            }
+        // A capture steps its scenario after each frame, then is taken.
+        if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
+            cx.defer_in(window, |s, w, cx| s.capture_tick(w, cx));
         }
         let t = cx.palette();
         // ⌘V on the Homepage takes a template link (`onPaste`); elsewhere a

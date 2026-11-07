@@ -1068,4 +1068,355 @@ mod route {
             self.cloud.update(cx, |c, cx| c.refresh_catalog(retry, cx));
         }
     }
+
+    /// What the runtime, the Explorer, the panes and the window ask of it.
+    impl Shell {
+        /// The workers' news: the window pumps the runtime, and draws again
+        /// when what it shows changed.
+        pub(in crate::shell) fn woke(
+            &mut self,
+            _: &session::Woke,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            let shown = |s: &Shell, cx: &App| {
+                let files = s.files(cx);
+                (
+                    files.presentation_key(),
+                    files.generation,
+                    s.session.project.read(cx).record.name.clone(),
+                )
+            };
+            let before = shown(self, cx);
+            self.receive(window, cx);
+            if shown(self, cx) != before {
+                cx.notify();
+            }
+        }
+        /// The folder picker's answer, and the workspace notice's Retry.
+        pub(in crate::shell) fn project_event(
+            &mut self,
+            event: &project::ProjectEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                project::ProjectEvent::Error(error) => self.show_error(error.clone(), cx),
+                project::ProjectEvent::Retry => self.retry_workspace_surface(cx),
+                project::ProjectEvent::Picked => {}
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// A pane menu command, or the runtime asked for something.
+        pub(in crate::shell) fn editor_event(
+            &mut self,
+            event: &editor_area::EditorEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                editor_area::EditorEvent::Command(command) => self.command(*command, window, cx),
+                editor_area::EditorEvent::Pump => {
+                    self.receive(window, cx);
+                    cx.notify();
+                }
+            }
+        }
+        /// The panes move and resize on their own input; the window stores
+        /// what the person committed and stays large enough for them.
+        pub(in crate::shell) fn pane_event(
+            &mut self,
+            event: &PaneEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                PaneEvent::Committed => self.persist_panes(cx),
+                PaneEvent::OpenChanged => {
+                    self.constrain_window(window, cx);
+                    self.push_explorer_host(window, cx);
+                    self.guard_cloud_history(cx);
+                }
+                PaneEvent::PulledOut => self.sidebar.update(cx, |s, _| s.pulled_out()),
+            }
+        }
+        /// What the Explorer's session needs from the workspace.
+        pub(in crate::shell) fn explorer_session_event(
+            &mut self,
+            event: &SessionEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                SessionEvent::ReferencesChanged => {}
+                SessionEvent::LoadChildren(path) => {
+                    let path = path.clone();
+                    self.session.docs.update(cx, |d, _| d.load_children(path))
+                }
+                SessionEvent::ResourceOperation(operation) => {
+                    let operation = operation.clone();
+                    if let Err(error) = self
+                        .session
+                        .docs
+                        .update(cx, |d, _| d.resource_operation(operation))
+                    {
+                        self.explorer
+                            .session
+                            .update(cx, |e, cx| e.operation_failed(cx));
+                        self.show_error(error, cx);
+                    }
+                }
+                SessionEvent::Error(error) => self.show_error(error.clone(), cx),
+                SessionEvent::WatchFailed(error) => {
+                    let error = error.clone();
+                    self.session
+                        .project
+                        .update(cx, |p, _| p.record.notice = Some(error))
+                }
+                SessionEvent::WatchRecovered => self
+                    .session
+                    .project
+                    .update(cx, |p, _| p.record.notice = None),
+                // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
+                SessionEvent::ContentChanged => {
+                    let source_control = self.sidebar.read(cx).source_control.clone();
+                    source_control.update(cx, |sc, cx| sc.invalidate(cx));
+                }
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// What the person asks for through the Explorer.
+        pub(in crate::shell) fn explorer_event(
+            &mut self,
+            event: &ExplorerEvent,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            match event {
+                ExplorerEvent::Open(path) => {
+                    let path = path.clone();
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
+                }
+                ExplorerEvent::Create { entry, parent } => {
+                    self.start_create(*entry, parent.clone(), window, cx)
+                }
+                ExplorerEvent::Rename { path, change_type } => self
+                    .dialogs
+                    .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
+                ExplorerEvent::Error(error) => self.show_error(error.clone(), cx),
+                ExplorerEvent::CopyLink { path, folder } => self
+                    .cloud
+                    .update(cx, |c, cx| c.copy_link(path, *folder, cx)),
+                ExplorerEvent::Share { path } => self
+                    .cloud
+                    .update(cx, |c, cx| c.share_folder(path, window, cx)),
+            }
+            self.receive(window, cx);
+            cx.notify();
+        }
+        /// The preferences changed: the window's projections, the catalog,
+        /// a hosted selection Cloud turned off revokes, and the launch's
+        /// restore once they load.
+        pub(in crate::shell) fn preferences_event(
+            &mut self,
+            _: &crate::features::settings::preferences_store::PreferencesChanged,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            self.preferences_changed(window, cx);
+            self.refresh_cloud_catalog(false, cx);
+            self.guard_cloud_authority(window, cx);
+            if self.session.project.read(cx).record.restore_last {
+                let last = windows::last_active_project(cx);
+                self.session
+                    .project
+                    .update(cx, |p, cx| p.restore_last(last, cx));
+                self.receive(window, cx);
+            }
+        }
+        /// The window came forward or went behind.
+        pub(in crate::shell) fn window_activated(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            let active = window.is_window_active();
+            let source_control = self.sidebar.read(cx).source_control.clone();
+            source_control.update(cx, |sc, cx| sc.set_focused(active, cx));
+            if !active {
+                // Leaving the window abandons an editor drag (`blur` cancels).
+                self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
+                return;
+            }
+            cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
+            // The catalog refreshes whenever a window regains focus.
+            crate::features::sub_theme_catalog::refresh(cx);
+            // `browser-window-focus`: bounded foreground activity.
+            crate::features::telemetry::note_foreground(cx);
+            // A returning window may probe the Cloud association once.
+            self.cloud.update(cx, |c, cx| c.probe(cx));
+            // A file window watches nothing: the file is read again when the
+            // window comes back (FileModeDocument's `focus`).
+            if self.file_mode() {
+                self.session.docs.update(cx, |d, _| d.revalidate());
+                self.receive(window, cx);
+                cx.notify();
+            }
+        }
+        /// The window's close button: a close in flight finishes once the
+        /// preferences drained, no entry is being created and the account
+        /// can let go; otherwise the close starts (through the documents).
+        pub(in crate::shell) fn should_close(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) -> bool {
+            if self.files(cx).allow_quit {
+                self.prefs.store.read(cx).drained()
+                    && !self.dialogs.read(cx).creating(cx)
+                    && (windows::count(cx) > 1
+                        || !windows::last_close_quits(cx)
+                        || crate::features::cloud::account::close_ready(cx))
+            } else {
+                self.command(Command::Quit, window, cx);
+                false
+            }
+        }
+    }
+
+    /// What one pump of the runtime brought, to the owners that show it,
+    /// and the window's close once nothing holds it.
+    impl Shell {
+        pub(in crate::shell) fn route_pumped(
+            &mut self,
+            pumped: project::Pumped,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            if let Some((path, message)) = pumped.failure {
+                self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
+                self.open_modal(Modal::ProjectFailure { path, message }, cx);
+            }
+            // A Cloud opening that failed says why (`ProjectNavigationFailure`).
+            if let Some((project, failure)) = pumped.cloud_failure {
+                self.cloud
+                    .update(cx, |c, cx| c.show_recovery(project, failure, cx));
+            }
+            // `finishInterceptedClose`: a close a document could not finish
+            // asks whether to keep the window or close anyway, instead of the
+            // error.
+            if pumped.close_refused {
+                if !self
+                    .dialogs
+                    .read(cx)
+                    .iter()
+                    .any(|m| matches!(m, Modal::CloseAnyway))
+                {
+                    self.open_modal(Modal::CloseAnyway, cx);
+                }
+                self.focus_dialogs(window, cx);
+            }
+            let explorer = self.explorer.session.clone();
+            for (owner, outcome) in pumped.operations {
+                explorer.update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
+            }
+            if let Some((ws, nodes)) = pumped.entered {
+                self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
+                explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
+                // A lone file has no Agent, Git or Terminal.
+                if !self.file_mode() {
+                    self.sidebar.update(cx, |s, cx| s.enter(&ws, cx));
+                }
+                self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
+                let root = ws.local_root().map(PathBuf::from);
+                self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
+            }
+            if let Some((path, result)) = pumped.children {
+                explorer.update(cx, |e, cx| e.children_loaded(&path, result, cx));
+            }
+            if let Some(relative) = pumped.revealed {
+                explorer.update(cx, |e, cx| e.reveal(&relative, cx));
+            }
+        }
+        /// A close in flight finishes once no entry is being created, the
+        /// preferences drained and the account can let go; the window then
+        /// retires its tasks and leaves.
+        pub(in crate::shell) fn finish_close(
+            &mut self,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            if self.dialogs.read(cx).creating(cx) {
+                return;
+            }
+            if !self.prefs.store.read(cx).drained() {
+                if let Some(error) = self.prefs.store.read(cx).error.clone() {
+                    self.show_error(error, cx);
+                    self.session.docs.update(cx, |d, _| d.cancel_quit());
+                    windows::cancel_quit(cx);
+                    self.sync_editor(window, cx);
+                }
+                return;
+            }
+            // The account owner is process-wide: only the app's end drains
+            // it; closing one of several windows (or, on macOS, the last
+            // one) leaves it running.
+            if windows::count(cx) <= 1 && windows::last_close_quits(cx) {
+                match crate::features::cloud::account::prepare_close(cx) {
+                    Ok(true) => {}
+                    Ok(false) => return,
+                    Err(error) => {
+                        self.session.docs.update(cx, |d, _| d.cancel_quit());
+                        windows::cancel_quit(cx);
+                        self.sync_editor(window, cx);
+                        self.show_error(error.to_string(), cx);
+                        return;
+                    }
+                }
+            }
+            let workbench = self.sidebar.read(cx).workbench.clone();
+            workbench.update(cx, |s, cx| s.shutdown(cx));
+            // Window retirement blocks new editor allocations and waits for
+            // this window's admitted tasks to confirm their exit.
+            let scheduler = crate::platform::tasks::Scheduler::global();
+            let _hold = scheduler.hold_admission();
+            let _ = scheduler.retire(&self.session.key, None, None);
+            windows::unregister(window.window_handle(), cx);
+            window.remove_window();
+        }
+        /// The file's folder is the window's root; only the file shows, and it
+        /// saves when asked. A file that is gone or too large is never read
+        /// (nor one `hold` keeps loading).
+        pub(in crate::shell) fn bind_file(
+            &mut self,
+            file: file_mode::FileTarget,
+            hold: bool,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            self.session.docs.update(cx, |d, _| d.file_window = true);
+            self.session.project.update(cx, |p, _| p.file_window = true);
+            if file.admission == file_mode::Admission::Readable && !hold {
+                self.session.project.update(cx, |p, _| {
+                    p.record.open_first = Some(PathBuf::from(&file.name))
+                });
+                let root = file.root.clone();
+                self.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFolder(root)));
+            }
+            let (docs, editor) = (self.session.docs.clone(), self.editor.clone());
+            let file = cx.new(|cx| file_mode::FileWindow::new(file, docs, editor, cx));
+            cx.subscribe_in(&file, window, |s, _, event, w, cx| {
+                let file_mode::FileEvent::Command(command) = event;
+                s.command(*command, w, cx)
+            })
+            .detach();
+            self.file = Some(file);
+        }
+    }
 }

@@ -36,7 +36,15 @@ impl std::ops::DerefMut for DocumentSession {
     }
 }
 impl DocumentSession {
-    pub fn new(files: Documents, cx: &mut Context<Self>) -> Self {
+    /// The window's runtime (the fixture's for captures and tests), its
+    /// tasks owned by `owner`.
+    pub fn new(fixture: bool, owner: String, cx: &mut Context<Self>) -> Self {
+        let mut files = if fixture {
+            Documents::default()
+        } else {
+            Documents::native()
+        };
+        files.task_scope = owner;
         let (wake, rx) = Wake::channel();
         cx.spawn(async move |this, cx| {
             while rx.recv().await.is_ok() {

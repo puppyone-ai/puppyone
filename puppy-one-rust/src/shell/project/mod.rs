@@ -95,11 +95,27 @@ pub(super) struct ProjectLifecycle {
 impl EventEmitter<ProjectEvent> for ProjectLifecycle {}
 
 impl ProjectLifecycle {
+    /// A window's project: the fixture's for captures and tests, else none
+    /// yet (a launch's `PUPPYONE_FILE` opens first once one is in).
     pub fn new(
         docs: Entity<DocumentSession>,
         preferences: Entity<PreferencesStore>,
-        record: WindowProject,
+        fixture: bool,
     ) -> Self {
+        let record = WindowProject {
+            name: if fixture {
+                "puppyone".into()
+            } else {
+                String::new()
+            },
+            open_first: if cfg!(test) {
+                None
+            } else {
+                std::env::var_os("PUPPYONE_FILE").map(PathBuf::from)
+            },
+            fixture,
+            ..Default::default()
+        };
         Self {
             docs,
             preferences,
