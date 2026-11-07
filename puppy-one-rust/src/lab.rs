@@ -34,10 +34,10 @@ enum Surface {
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
     Feedback(Entity<crate::features::feedback::Feedback>),
-    Coachmark(crate::shell::coachmarks::Coachmark),
+    Coachmark(crate::app::coachmarks::Coachmark),
     /// Cached entries, or the skeleton without them.
     CloudServices(Entity<crate::features::cloud::services::CloudServices>),
-    Shell(Entity<crate::shell::Shell>),
+    Shell(Entity<crate::app::Shell>),
 }
 
 pub struct Lab {
@@ -233,7 +233,7 @@ impl Lab {
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
                 Surface::CloudServices(view)
             } else if let Some(feature) = shell.strip_prefix("coachmark-") {
-                use crate::shell::coachmarks::Coachmark;
+                use crate::app::coachmarks::Coachmark;
                 Surface::Coachmark(if feature == "changes" {
                     Coachmark::Changes
                 } else {
@@ -241,7 +241,7 @@ impl Lab {
                 })
             } else {
                 let shell_view = cx.new(|cx| {
-                    let mut view = crate::shell::Shell::new(window, cx);
+                    let mut view = crate::app::Shell::new(window, cx);
                     view.lab_home(shell == "home-empty", cx);
                     view
                 });
@@ -395,7 +395,7 @@ impl Render for Lab {
             Surface::Feedback(feedback) => root.bg(t.canvas).child(feedback.clone()),
             Surface::CloudServices(view) => root.bg(t.canvas).child(view.clone()),
             // The entry's box is fixed (`tools/reference-shell-entry.tsx`).
-            Surface::Coachmark(id) => root.bg(t.canvas).child(crate::shell::coachmarks::overlay(
+            Surface::Coachmark(id) => root.bg(t.canvas).child(crate::app::coachmarks::overlay(
                 *id,
                 Bounds::new(point(px(1236.), px(6.)), size(px(28.), px(28.))),
                 f32::from(window.viewport_size().width),
@@ -410,13 +410,8 @@ impl Render for Lab {
                 // and the dialog sit over it exactly as in the shell.
                 let size = window.viewport_size();
                 root.bg(t.canvas)
-                    .child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .bg(crate::shell::task_backdrop(t)),
-                    )
-                    .child(crate::shell::settings_dialog(
+                    .child(div().absolute().inset_0().bg(crate::app::task_backdrop(t)))
+                    .child(crate::app::settings_dialog(
                         settings.clone(),
                         f32::from(size.width),
                         f32::from(size.height),

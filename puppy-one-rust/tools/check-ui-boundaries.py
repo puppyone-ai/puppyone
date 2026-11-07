@@ -26,13 +26,13 @@ for path in primitives:
 # Asset data must not grow an application/renderer dependency. Tests may
 # verify that the separate GPUI asset adapter embeds each catalog entry.
 asset_model = (root / 'src/asset_catalog.rs').read_text().split('#[cfg(test)]')[0]
-if re.search(r'\bgpui\s*::|crate::(?:assets|features|shell)|\bstd::(?:fs|process|thread)', asset_model):
+if re.search(r'\bgpui\s*::|crate::(?:assets|features|app)|\bstd::(?:fs|process|thread)', asset_model):
     errors.append('src/asset_catalog.rs: catalog data depends on composition/rendering')
 
 # Product meanings have one typed registry entry. Views must not select an
 # old concrete drawing (the asset adapter retains aliases for compatibility).
 product_drawing = re.compile(r'(?:Icon::new|\.icon|\.path)\(\s*"(?:icons/)?(?:house(?:-compact)?|folder(?:-closed|-open)?|laptop|cloud(?:-off|-upload)?|tree-disclosure(?:-open)?|disclosure)(?:\.svg)?"')
-for base in ['src/shell','src/features','src/ui']:
+for base in ['src/app','src/features','src/ui']:
     for path in (root/base).rglob('*.rs'):
         if product_drawing.search(path.read_text()):
             errors.append(f'{path.relative_to(root)}: use ProductIcon registry, not a concrete product drawing')
@@ -41,9 +41,9 @@ for base in ['src/shell','src/features','src/ui']:
 # adapter. Relative paths in the single-root tree are not ambient OS grants.
 for relative in ['src/workspace/contracts.rs', 'src/workspace/ports.rs']:
     source = (root / relative).read_text()
-    if re.search(r'\b(?:gpui|cap_std|reqwest|tokio)\s*::|\bstd\s*::\s*(?:fs|net|thread|process)|crate::(?:shell|features)', source):
+    if re.search(r'\b(?:gpui|cap_std|reqwest|tokio)\s*::|\bstd\s*::\s*(?:fs|net|thread|process)|crate::(?:app|features)', source):
         errors.append(f'{relative}: provider contract owns an implementation/UI dependency')
-for relative in ['src/documents.rs', 'src/shell/explorer', 'src/features/create_new', 'src/editor/host', 'src/editor/viewers']:
+for relative in ['src/documents.rs', 'src/app/explorer', 'src/features/create_new', 'src/editor/host', 'src/editor/viewers']:
     base = root / relative
     paths = base.rglob('*.rs') if base.is_dir() else [base]
     for path in paths:
@@ -54,24 +54,24 @@ for relative in ['src/documents.rs', 'src/shell/explorer', 'src/features/create_
             errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
 
 # Native auth has one credential/transport owner, outside presentation. Only
-# features/cloud_account.rs projects public snapshots and opens validated URLs.
-for path in (root / 'src/cloud_auth').rglob('*.rs'):
-    if re.search(r'\bgpui\s*::|crate::(?:features|shell|ui)', path.read_text()):
+# features/cloud/account.rs projects public snapshots and opens validated URLs.
+for path in (root / 'src/cloud/auth').rglob('*.rs'):
+    if re.search(r'\bgpui\s*::|crate::(?:features|app|ui)', path.read_text()):
         errors.append(f'{path.relative_to(root)}: auth authority depends on presentation')
-for base in ['src/features/settings/main', 'src/shell', 'src/shell.rs']:
+for base in ['src/features/settings/main', 'src/app']:
     paths = [root / base] if (root / base).is_file() else (root / base).rglob('*.rs')
     for path in paths:
         source = path.read_text().split('#[cfg(test)]')[0]
-        if re.search(r'\b(?:access_token|refresh_token|code_verifier)\b|bearer_auth|security_framework::|cloud_auth::(?:Broker|http|store)', source):
+        if re.search(r'\b(?:access_token|refresh_token|code_verifier)\b|bearer_auth|security_framework::|cloud::auth::(?:Broker|http|store)', source):
             errors.append(f'{path.relative_to(root)}: account view bypasses the public auth projection')
 
-# The first-publication service (like `cloud_auth`) owns Git, keychain and its
+# The first-publication service (like `cloud::auth`) owns Git, keychain and its
 # journal; it never depends on presentation or reads credentials itself.
-for path in (root / 'src/cloud_publication').rglob('*.rs'):
+for path in (root / 'src/cloud/publication').rglob('*.rs'):
     if path.name == 'tests.rs':
         continue
     source = path.read_text()
-    if re.search(r'\bgpui\s*::|crate::(?:features|shell|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)', source):
+    if re.search(r'\bgpui\s*::|crate::(?:features|app|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)', source):
         errors.append(f'{path.relative_to(root)}: publication service depends on presentation or credentials')
 
 # Live Cloud files consume admitted auth transport, not credentials, a private
@@ -80,7 +80,7 @@ for path in (root / 'src/workspace/cloud').rglob('*.rs'):
     if path.name == 'tests.rs':
         continue
     source = path.read_text()
-    if re.search(r'\b(?:gpui|cap_std|security_framework)\s*::|crate::(?:features|shell|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)|std::(?:fs|process|net)', source):
+    if re.search(r'\b(?:gpui|cap_std|security_framework)\s*::|crate::(?:features|app|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)|std::(?:fs|process|net)', source):
         errors.append(f'{path.relative_to(root)}: live Cloud adapter bypasses its authority/port boundary')
 
 # The retired Markdown prototype must not come back.
@@ -129,10 +129,10 @@ for path in list((root/'src/features/settings/main').glob('*.rs'))+[root/'src/fe
         errors.append(f'{path.relative_to(root)}: view bypasses its controller/native port')
 # Component library: product screens compose `ui::components`. GPUI Kit's
 # styled components (its default look) and per-view palettes stay out of
-# feature and shell code; Kit's headless `gpui_kit::base` layer is fine.
+# feature and app code; Kit's headless `gpui_kit::base` layer is fine.
 stock = re.compile(r"\bgpui_kit\s*::\s*component\s*::\s*(?:button|menu|switch|checkbox|tab|select|dropdown|popover|dialog|radio|toggle)\b|\b(?:PopupMenu|PopupMenuItem|ContextMenuExt|DropdownMenu|ButtonVariants|ButtonCustomVariant)\b")
 palette = re.compile(r"\bTheme\s*::\s*new\s*\(")
-for folder in ["src/features", "src/shell"]:
+for folder in ["src/features", "src/app"]:
     for path in (root / folder).rglob("*.rs"):
         source = path.read_text()
         if stock.search(source):

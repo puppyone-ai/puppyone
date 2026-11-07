@@ -1,6 +1,7 @@
 // Use Kit as the single public UI dependency, including GPUI macros.
 extern crate gpui_kit as gpui;
 mod agent;
+mod app;
 mod asset_catalog;
 mod assets;
 #[cfg(all(test, target_os = "macos"))]
@@ -19,7 +20,6 @@ mod localization;
 mod model;
 mod native_window;
 mod platform;
-mod shell;
 mod theme;
 mod typography;
 mod ui;
@@ -59,9 +59,9 @@ fn main() {
     let application = gpui_kit::application().with_assets(assets::Assets);
     // Dock click with no window: the last active project (`activate`).
     application.on_reopen(|cx| {
-        if shell::windows::count(cx) == 0 {
-            let last = shell::windows::last_active_project(cx);
-            let _ = shell::windows::open(last, cx);
+        if app::windows::count(cx) == 0 {
+            let last = app::windows::last_active_project(cx);
+            let _ = app::windows::open(last, cx);
         }
     });
     // Finder "Open With", `open -a` and second launches deliver folders here
@@ -93,7 +93,7 @@ fn main() {
         ui::ime::init(cx);
         ui::input::bind_keys(cx);
         ui::form_input::bind_keys(cx);
-        shell::bind_keys(cx);
+        app::bind_keys(cx);
         // Hooked terminal Agents' file activity, for every window.
         features::agent_presence::init(cx);
         features::sub_theme_catalog::init(cx);
@@ -103,7 +103,7 @@ fn main() {
         editor::viewers::pdf::bind_keys(cx);
         editor::host::bind_keys(cx);
         features::desktop_agent::bind_keys(cx);
-        cx.set_menus(shell::app_menus());
+        cx.set_menus(app::app_menus());
         let dimension = |key, default| {
             std::env::var(key)
                 .ok()
@@ -113,8 +113,8 @@ fn main() {
         let bounds = Bounds::centered(
             None,
             size(
-                px(dimension("PUPPYONE_WIDTH", shell::windows::WINDOW_SIZE.0)),
-                px(dimension("PUPPYONE_HEIGHT", shell::windows::WINDOW_SIZE.1)),
+                px(dimension("PUPPYONE_WIDTH", app::windows::WINDOW_SIZE.0)),
+                px(dimension("PUPPYONE_HEIGHT", app::windows::WINDOW_SIZE.1)),
             ),
             cx,
         );
@@ -197,23 +197,23 @@ fn main() {
         let pending: Vec<String> = std::iter::from_fn(|| open_rx.try_recv().ok())
             .flatten()
             .collect();
-        let mut launched = !pending.is_empty() && shell::windows::open_launch_urls(pending, cx);
+        let mut launched = !pending.is_empty() && app::windows::open_launch_urls(pending, cx);
         // A file named on the command line opens in a file window of its
         // own instead, as `pendingOpenPaths` does (folders stay the first
         // window's, `findLaunchTargetArg`).
         if !background
-            && let Some(file) = shell::windows::parse_launch_args(
+            && let Some(file) = app::windows::parse_launch_args(
                 std::env::args_os().skip(1),
                 &std::env::current_dir().unwrap_or_default(),
             )
             .target
             .filter(|path| path.is_file())
         {
-            launched |= shell::windows::open_path(file, cx);
+            launched |= app::windows::open_path(file, cx);
         }
         cx.spawn(async move |cx| {
             while let Ok(urls) = open_rx.recv().await {
-                cx.update(|cx| shell::windows::open_launch_urls(urls, cx));
+                cx.update(|cx| app::windows::open_launch_urls(urls, cx));
             }
         })
         .detach();
@@ -221,7 +221,7 @@ fn main() {
         if let Some(platform::single_instance::Instance::Primary(launches)) = instance {
             cx.spawn(async move |cx| {
                 while let Ok((args, cwd)) = launches.recv().await {
-                    cx.update(|cx| shell::windows::second_instance(args, cwd, cx));
+                    cx.update(|cx| app::windows::second_instance(args, cwd, cx));
                 }
             })
             .detach();
@@ -239,12 +239,12 @@ fn main() {
         })
         .detach();
         if !launched {
-            let mut options = shell::windows::window_options(bounds, !background);
+            let mut options = app::windows::window_options(bounds, !background);
             if background {
                 options.focus = false;
             }
             let (window, _shell_view) = open_shell_window(options, cx, |window, cx| {
-                cx.new(|cx| shell::Shell::new(window, cx))
+                cx.new(|cx| app::Shell::new(window, cx))
             })
             .expect("open GPUI window");
             #[cfg(feature = "dev-capture")]
@@ -261,26 +261,26 @@ fn main() {
         // input consumes these first; an unhandled action reaches the
         // active window's editor model. Every menu-bar action follows
         // the key window, not the first one opened.
-        fn to_active(command: shell::Command, cx: &mut App) {
-            if let Some((handle, shell)) = shell::windows::active(cx) {
+        fn to_active(command: app::Command, cx: &mut App) {
+            if let Some((handle, shell)) = app::windows::active(cx) {
                 let _ = handle.update(cx, |_, w, cx| {
                     shell.update(cx, |s, cx| s.command(command, w, cx))
                 });
-            } else if command == shell::Command::NewWindow {
-                let _ = shell::windows::open(None, cx);
-            } else if command == shell::Command::QuitApp {
+            } else if command == app::Command::NewWindow {
+                let _ = app::windows::open(None, cx);
+            } else if command == app::Command::QuitApp {
                 cx.quit();
             }
         }
-        cx.on_action(|_: &ui::input::Undo, cx| to_active(shell::Command::Undo, cx));
-        cx.on_action(|_: &ui::input::Redo, cx| to_active(shell::Command::Redo, cx));
-        shell::on_global_shell_actions(cx, to_active);
-        cx.set_dock_menu(shell::dock_menu());
-        shell::on_app_actions(cx);
+        cx.on_action(|_: &ui::input::Undo, cx| to_active(app::Command::Undo, cx));
+        cx.on_action(|_: &ui::input::Redo, cx| to_active(app::Command::Redo, cx));
+        app::on_global_shell_actions(cx, to_active);
+        cx.set_dock_menu(app::dock_menu());
+        app::on_app_actions(cx);
         // `window-all-closed`: on macOS the app stays until it is quit (a
         // capture ends with its window).
         cx.on_window_closed(move |cx, _| {
-            if cx.windows().is_empty() && (background || shell::windows::last_close_quits(cx)) {
+            if cx.windows().is_empty() && (background || app::windows::last_close_quits(cx)) {
                 cx.quit();
             }
         })

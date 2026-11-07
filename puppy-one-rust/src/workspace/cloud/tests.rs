@@ -7,16 +7,16 @@
 //!
 //! | # | Row | Evidence |
 //! |---|---|---|
-//! | 1 | No local folder: sign in, list, open, read, write | `live_files_share_the_facade_without_a_local_root_or_git_fallback`, `shell::tests::a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project` |
-//! | 2 | Missing, wrong-host or unauthorized association stays Local with scoped recovery | `shell::tests::a_refused_association_leaves_the_account_catalog_usable`, `shell::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place`, `workspace::cloud::repository` |
-//! | 3 | A mismatched target or failed root read commits nothing | `exact_authorized_root_and_running_generation_are_required_before_handoff`, `shell::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place` |
-//! | 4 | Cancel, a new selection, sign-out or another account: no late navigation or old-account mutation | `lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts`, `explicit_opening_cancelled_at_files_cannot_deliver_a_provider`, `shell::tests::turning_cloud_off_cancels_an_opening_in_flight` |
+//! | 1 | No local folder: sign in, list, open, read, write | `live_files_share_the_facade_without_a_local_root_or_git_fallback`, `app::tests::cloud_opening::a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project` |
+//! | 2 | Missing, wrong-host or unauthorized association stays Local with scoped recovery | `app::tests::cloud_opening::a_refused_association_leaves_the_account_catalog_usable`, `app::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place`, `workspace::cloud::repository` |
+//! | 3 | A mismatched target or failed root read commits nothing | `exact_authorized_root_and_running_generation_are_required_before_handoff`, `app::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place` |
+//! | 4 | Cancel, a new selection, sign-out or another account: no late navigation or old-account mutation | `lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts`, `explicit_opening_cancelled_at_files_cannot_deliver_a_provider`, `app::tests::cloud_opening::turning_cloud_off_cancels_an_opening_in_flight` |
 //! | 5 | The same account signing in again rebinds documents and saves | `a_reopened_lease_rebinds_a_document_baseline_and_saves`, `documents::tests::a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving` |
-//! | 6 | Homepage listing, merge, order, Open menu, account frame, cancel and retry | `shell::tests::the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened`, `workspace::cloud::catalog` |
-//! | 7 | Projects isolate content and drafts; Local restores | `content_integrity_and_foreign_revisions_fail_closed`, `shell::tests::the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts` |
+//! | 6 | Homepage listing, merge, order, Open menu, account frame, cancel and retry | `app::tests::the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened`, `workspace::cloud::catalog` |
+//! | 7 | Projects isolate content and drafts; Local restores | `content_integrity_and_foreign_revisions_fail_closed`, `app::tests::the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts` |
 //! | 8 | Read-only grants and Scope hold; an outage never shows local bytes | `readonly_grants_and_invalid_paths_fail_before_mutation_dispatch`, `exact_authorized_root_and_running_generation_are_required_before_handoff`, `live_files_share_the_facade_without_a_local_root_or_git_fallback` |
 //!
-//! Failure injection (C-15.2): `shell::tests::injected_opening_failures_reach_the_recovery_with_the_product_code`
+//! Failure injection (C-15.2): `app::tests::cloud_opening::injected_opening_failures_reach_the_recovery_with_the_product_code`
 //! (transport, timeouts, 5xx, reason codes, 402/403/404/426/429),
 //! `workspace::cloud::failure` (the full table), `service_generation_errors_are_not_misclassified_as_file_conflicts`
 //! and `reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease`

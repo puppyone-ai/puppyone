@@ -34,7 +34,7 @@ binary = next(json.loads(line)['executable'] for line in build.stdout.splitlines
               if line.startswith('{') and json.loads(line).get('profile', {}).get('test')
               and json.loads(line).get('executable'))
 
-tests = {'editor': 'editor::view::bench::editor_frame_cost', 'window': 'shell::bench::window_frame_cost'}
+tests = {'editor': 'editor::view::bench::editor_frame_cost', 'window': 'app::dev::bench::window_frame_cost'}
 results = []
 for sections in [int(s) for s in args.sections.split(',')]:
     for surface, test in tests.items():

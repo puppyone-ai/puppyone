@@ -4,7 +4,7 @@
 //!
 //! | §15 row | Evidence |
 //! |---|---|
-//! | Sign-in canceled | `shell::tests::a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it` |
+//! | Sign-in canceled | `app::tests::a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it` |
 //! | Project create response lost | `a_lost_creation_response_is_retried_with_the_same_idempotency_key` |
 //! | Credential response lost | `a_lost_credential_response_replays_the_same_secret` |
 //! | Remote appears at another URL | `an_existing_puppyone_remote_is_refused_before_anything_is_created`, `issued_remotes_must_be_canonical_and_trusted` |
@@ -15,9 +15,9 @@
 //! | Push fails before acceptance | `a_restart_reconciles_the_pending_operation_and_derives_its_actions`, `workspace::cloud::publish` derivation |
 //! | Remote main changes concurrently | `a_concurrent_remote_main_is_a_conflict_not_an_overwrite` |
 //! | Desktop restarts | `a_restart_reconciles_the_pending_operation_and_derives_its_actions` |
-//! | User signs out after link | `shell::tests::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
+//! | User signs out after link | `app::tests::cloud_opening::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
 //! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
-//! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `shell::tests::a_vanished_cloud_project_is_replaced_only_after_a_second_404` |
+//! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_project_is_replaced_only_after_a_second_404` |
 use super::{
     api::{CloudOps, Credential, Organization},
     git::{Cli, GitOps, Identity, Remote, Status},
