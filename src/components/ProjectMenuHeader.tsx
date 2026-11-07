@@ -3,11 +3,10 @@ import { Check, Copy } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopMenuItem } from "./DesktopMenu";
 import { writeClipboardText } from "../lib/clipboard";
-import { getWorkspacePathForDisplay } from "../lib/workspaceHomeModel";
 
 /**
- * The name is already on the row that opened this menu, so it only says where the
- * folder is, on one quiet line, and leads with copying the full path.
+ * Copying the folder's full path, first in its menu. The path itself is not printed:
+ * a raw path reads as a title the menu does not need, and copying is what it is for.
  */
 export function ProjectMenuHeader({ path }: { path: string }) {
   const { t } = useLocalization();
@@ -27,7 +26,6 @@ export function ProjectMenuHeader({ path }: { path: string }) {
   if (path.startsWith("puppyone-cloud:")) return null;
 
   return (<>
-    <bdi className="desktop-project-menu-header-path" dir="ltr">{getWorkspacePathForDisplay(path)}</bdi>
     <DesktopMenuItem
       icon={copied ? <Check size={14} /> : <Copy size={14} />}
       label={t(copied ? "common.action.copied" : "shell.workspaceSwitcher.copyPath")}

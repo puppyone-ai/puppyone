@@ -61,6 +61,7 @@
   "windowControls.close": "Fechar janela",
   "workspaceSwitcher.openMenu": "Abrir menu do workspace: {workspace}",
   "workspaceSwitcher.copyPath": "Copiar caminho",
+  "workspaceSwitcher.moveTo": "Mover para",
   "workspaceSwitcher.copyPathFailed": "Não foi possível copiar. Tente novamente.",
   "workspaceSwitcher.shareViaCloud": "Compartilhar na nuvem",
   "workspaceSwitcher.remoteCopies": "Versões do projeto",

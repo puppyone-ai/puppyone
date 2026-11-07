@@ -8,7 +8,7 @@ import {
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
-import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
+import { ProjectRowActions, type ProjectActionSurface, type ProjectMoveTarget } from "../ProjectRowActions";
 import { DesktopMenuItem } from "../DesktopMenu";
 import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
@@ -25,10 +25,14 @@ type ProjectChanges = {
 export type ProjectListSharing = Readonly<{
   sharedFolderIds: ReadonlySet<string>;
   onSharingSettings: (folder: Readonly<{ folderId: string; name: string; rootPath: string }>) => void;
+  /** Keeps the folder to this computer again, as moving it to On this computer. */
+  onStopSharing?: (folder: Readonly<{ folderId: string; rootPath: string }>) => void;
 }>;
 
 type OnboardingProjectListProps = ProjectChanges & {
   sharing?: ProjectListSharing;
+  /** The other groups each project can be moved to from its menu. */
+  moveTargets?: (item: ProjectHomeItem) => readonly ProjectMoveTarget[];
   /** The rows are not settled yet, so the mark stands in for them. */
   held?: boolean;
   items: ProjectHomeItem[];
@@ -54,6 +58,7 @@ export function OnboardingProjectList({
   onDragStart,
   onDragEnd,
   sharing,
+  moveTargets,
   ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
@@ -120,6 +125,7 @@ export function OnboardingProjectList({
               className="onboarding-project-cloud-link" tabIndex={tabIndex}
               onOpen={() => onOpenCloudProject(linked.id)} />}
             <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
+              moveTargets={moveTargets?.(item)}
               onSharingSettings={sharedId && sharing
                 ? () => sharing.onSharingSettings({ folderId: sharedId, name, rootPath: item.localPath }) : undefined}
               onSurfaceChange={(next) => {
@@ -152,9 +158,10 @@ function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: Proj
 }
 
 /** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
-function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, onSharingSettings, ...changes }: ProjectChanges & {
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, onSharingSettings, moveTargets, ...changes }: ProjectChanges & {
   item: ProjectHomeItem;
   onSharingSettings?: () => void;
+  moveTargets?: readonly ProjectMoveTarget[];
   name: string;
   busy: boolean;
   surface: ProjectActionSurface;
@@ -162,7 +169,7 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
   onSurfaceChange: (surface: ProjectActionSurface) => void;
 }) {
   const offered = { ...offeredProjectChanges(item, changes), onSharingSettings };
-  if (!Object.values(offered).some(Boolean)) return null;
+  if (!Object.values(offered).some(Boolean) && !moveTargets?.length) return null;
   return (
     <ProjectRowActions
       project={{ name, path: item.localPath || undefined }}
@@ -172,6 +179,7 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
       triggerClassName="desktop-menu-icon-button onboarding-project-actions"
       triggerTabIndex={tabIndex}
       menuPlacement="beside"
+      moveTargets={moveTargets}
       {...offered}
     />
   );

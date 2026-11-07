@@ -61,6 +61,7 @@
   "windowControls.close": "关闭窗口",
   "workspaceSwitcher.openMenu": "打开工作区菜单：{workspace}",
   "workspaceSwitcher.copyPath": "复制路径",
+  "workspaceSwitcher.moveTo": "移到",
   "workspaceSwitcher.copyPathFailed": "复制失败，请重试。",
   "workspaceSwitcher.shareViaCloud": "通过云端分享",
   "workspaceSwitcher.remoteCopies": "项目版本",
