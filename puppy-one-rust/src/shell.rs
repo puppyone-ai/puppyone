@@ -13,6 +13,7 @@ mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
 mod chrome;
+pub use chrome::Popover;
 mod cloud_agents_ui;
 mod cloud_authority;
 mod cloud_publish;
@@ -56,17 +57,6 @@ fn fill() -> StyleRefinement {
     StyleRefinement::default().size_full()
 }
 
-/// Header popovers owned by the shell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Popover {
-    Project,
-    /// `ProjectPlaceMenu`: where the open project is.
-    Place,
-    /// `CloudWorkspaceShareDialog`: the Share card under its button.
-    Share,
-    /// `CloudWorkspaceAgentsPanel`: the Agents card under their marks.
-    Agents,
-}
 pub struct Shell {
     /// The documents runtime, the project lifecycle, the owner key and the
     /// applied title.
@@ -453,42 +443,6 @@ impl Shell {
     fn opening(&self, cx: &App) -> bool {
         self.session.project.read(cx).opening(cx)
     }
-    /// What the window's features read of the session, handed over when it
-    /// changed.
-    fn sync_session_view(&mut self, cx: &mut Context<Self>) {
-        let files = &self.files(cx);
-        let home = self.home_visible(cx);
-        let view = session::SessionView {
-            home,
-            listing: home || self.chrome.read(cx).popover == Some(Popover::Project),
-            workspace: files.workspace.is_some(),
-            root: self.workspace_root(cx),
-            busy: self.session.project.read(cx).picking
-                || files.busy()
-                || files.folder_busy
-                || files.cloud_opening().is_some(),
-            cloud_opening: files.cloud_opening().is_some(),
-            restoring: self.restoring(cx),
-            name: self.session.project.read(cx).record.name.clone(),
-            cloud_project: self.session.project.read(cx).record.cloud.clone(),
-            hosted: self.hosted_project(cx),
-            opening: self.opening(cx),
-            file_mode: self.file_mode(),
-            home_requested: self.session.project.read(cx).home,
-            entries: self.session.project.read(cx).record.entries,
-            fixture: self.session.project.read(cx).record.fixture,
-        };
-        self.home
-            .update(cx, |h, cx| h.set_session(view.clone(), cx));
-        self.chrome
-            .update(cx, |c, cx| c.set_session(view.clone(), cx));
-        let popover = self.chrome.read(cx).popover;
-        self.cloud.update(cx, |c, cx| {
-            c.set_session(view, cx);
-            c.set_popover(popover, cx);
-        });
-        self.guard_cloud_history(cx);
-    }
 
     /// The pixel lab's Homepage (`shell-home-*`): no fixture workspace and
     /// no capture of its own. `played` starts after the intro, as if it had
@@ -642,21 +596,6 @@ impl Shell {
         let root = self.workspace_root(cx);
         let name = self.session.project.read(cx).record.name.clone();
         self.session.apply_title(window, file, root, &name);
-    }
-    /// Store the committed pane layout (`setExplorerWidth`,
-    /// `setSidebarCollapsed`, `setRightSidebarWidth`).
-    fn persist_panes(&mut self, cx: &mut Context<Self>) {
-        let stored = self.panes.read(cx).stored();
-        self.prefs.store.update(cx, |store, cx| {
-            store.change(
-                |p| {
-                    p.sidebar_collapsed = stored.explorer_collapsed;
-                    p.explorer_width = stored.explorer_width;
-                    p.right_sidebar_width = stored.right_width;
-                },
-                cx,
-            )
-        });
     }
 }
 impl Shell {

@@ -13,7 +13,7 @@ mod project_menu;
 mod rail;
 
 use super::{
-    Command, Popover,
+    Command,
     coachmarks::{Coachmark, HeaderCoachmarks},
     editor_area::EditorArea,
     header,
@@ -34,6 +34,17 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
+/// Header popovers the chrome holds: one at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Popover {
+    Project,
+    /// `ProjectPlaceMenu`: where the open project is.
+    Place,
+    /// `CloudWorkspaceShareDialog`: the Share card under its button.
+    Share,
+    /// `CloudWorkspaceAgentsPanel`: the Agents card under their marks.
+    Agents,
+}
 /// What the chrome asks of the window.
 pub(super) enum ChromeEvent {
     Command(Command),
