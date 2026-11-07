@@ -195,7 +195,10 @@ impl Shell {
         // A file window has no Explorer rows or Git; its file must be open.
         let file = self.file_mode();
         // A file window held loading or showing it cannot open is settled.
-        let file_settled = file && self.file_shown(cx) != super::file_mode::Shown::Document
+        let file_settled = self
+            .file
+            .as_ref()
+            .is_some_and(|f| f.read(cx).shown(cx) != super::file_mode::Shown::Document)
             || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
         let workspace_ready = file_settled
             || self.files(cx).workspace.is_some()
@@ -477,14 +480,19 @@ impl Shell {
                 self.cloud.update(cx, |c, cx| c.open_manage_agents(cx));
             }
             Step::FileMenu(menu) => {
-                if let Some(file) = &mut self.file {
-                    file.menu = Some(*menu);
+                if let Some(file) = &self.file {
+                    let menu = *menu;
+                    file.update(cx, |f, cx| {
+                        f.menu = Some(menu);
+                        cx.notify();
+                    });
                 }
             }
             // Typed through the input handler at the end of the first line
             // (invisible there, and nothing scrolls).
             Step::FileEdit => {
-                let Some(editor) = self.file_editor(cx) else {
+                let Some(editor) = self.file.as_ref().and_then(|f| f.read(cx).file_editor(cx))
+                else {
                     return false;
                 };
                 editor.update(cx, |e, cx| {

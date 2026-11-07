@@ -8,21 +8,29 @@
 //! The document area follows `FileModeApp`: `PageLoading` until the file is
 //! found, `FileUnavailable` when it is gone or over the editor's 1 MB limit,
 //! and text that is not UTF-8 opens read-only under a notice.
-use super::*;
+//!
+//! [`FileWindow`] is the entity a file window shows instead of the project
+//! panes: the title bar and the document area over the window's documents
+//! runtime and editor area. Its answers to the close question go back to
+//! the window ([`FileEvent`]).
+use super::{Command, editor_area::EditorArea, session::DocumentSession};
 use crate::{
     editor::workbench::pane::{Action, ItemKind},
+    geometry::Rect,
     localization::{t as tr, tf},
-    theme::metric,
+    theme::{self, metric},
     ui::{
+        appearance::ActiveAppearance,
         components::{Button, ButtonVariant, Icon, Menu, MenuItem, MenuVariant, PopoverMenu},
         loading::{LoaderSize, LoadingMark, Tone},
     },
 };
+use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{Selectable as _, h_flex},
     component::Sizable as _,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// `createWindow({ initialFilePath })`: a file window is 860 × 760.
 pub const FILE_WINDOW_SIZE: (f32, f32) = (860., 760.);
@@ -85,13 +93,31 @@ pub struct FileWindow {
     pub target: FileTarget,
     pub(super) menu: Option<FileMenu>,
     pub(super) asking: bool,
+    docs: Entity<DocumentSession>,
+    editor: Entity<EditorArea>,
+    weak: WeakEntity<Self>,
 }
+/// What the file window asks of the window.
+pub(super) enum FileEvent {
+    /// The close question's answer.
+    Command(Command),
+}
+impl EventEmitter<FileEvent> for FileWindow {}
 impl FileWindow {
-    pub fn new(target: FileTarget) -> Self {
+    pub(super) fn new(
+        target: FileTarget,
+        docs: Entity<DocumentSession>,
+        editor: Entity<EditorArea>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        cx.observe(&editor, |_, _, cx| cx.notify()).detach();
         Self {
             target,
             menu: None,
             asking: false,
+            docs,
+            editor,
+            weak: cx.weak_entity(),
         }
     }
 }
@@ -138,22 +164,14 @@ pub(super) enum FileMenu {
     Settings,
 }
 
-impl Shell {
-    pub(super) fn file_mode(&self) -> bool {
-        self.file.is_some()
-    }
-    pub(super) fn file_shown(&self, cx: &App) -> Shown {
-        match self.file.as_ref().map(|f| f.target.admission) {
-            Some(Admission::Unavailable) => Shown::Unavailable(None),
-            Some(Admission::TooLarge) => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
-            _ if self.files(cx).workspace.is_none() => Shown::Loading,
+impl FileWindow {
+    pub(super) fn shown(&self, cx: &App) -> Shown {
+        match self.target.admission {
+            Admission::Unavailable => Shown::Unavailable(None),
+            Admission::TooLarge => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
+            _ if self.docs.read(cx).workspace.is_none() => Shown::Loading,
             _ => Shown::Document,
         }
-    }
-    /// The file's text is not UTF-8: it reads, and never writes
-    /// (`editor.fileMode.readOnlyEncoding`).
-    pub(super) fn file_read_only(&self, cx: &App) -> bool {
-        self.editor.read(cx).read_only(cx)
     }
     /// The file window's editor, once its document has a host.
     pub(super) fn file_editor(
@@ -162,7 +180,7 @@ impl Shell {
     ) -> Option<Entity<crate::editor::host::DocumentEditor>> {
         self.editor
             .read(cx)
-            .host(self.files(cx).active_slot())
+            .host(self.docs.read(cx).active_slot())
             .cloned()
     }
     fn file_menu(
@@ -171,7 +189,7 @@ impl Shell {
         trigger: Button,
         build: impl FnOnce(Menu) -> Menu + 'static,
     ) -> PopoverMenu {
-        let open = self.file.as_ref().is_some_and(|f| f.menu == Some(menu));
+        let open = self.menu == Some(menu);
         let host = self.weak.clone();
         PopoverMenu::new(match menu {
             FileMenu::View => "file-view-menu",
@@ -182,10 +200,8 @@ impl Shell {
         .open(open)
         .on_open_change(move |opened, _, cx| {
             let _ = host.update(cx, |s, cx| {
-                if let Some(file) = &mut s.file
-                    && *opened != (file.menu == Some(menu))
-                {
-                    file.menu = opened.then_some(menu);
+                if *opened != (s.menu == Some(menu)) {
+                    s.menu = opened.then_some(menu);
                     cx.notify();
                 }
             });
@@ -198,15 +214,13 @@ impl Shell {
     fn file_controls(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let editor = self.file_editor(cx)?;
         let controls = editor.read(cx).title_controls(cx);
-        let name = self.file.as_ref()?.target.name.clone();
+        let name = self.target.name.clone();
         let action = |action: Action| {
             let editor = editor.downgrade();
             let host = self.weak.clone();
             move |w: &mut Window, cx: &mut App| {
                 let _ = host.update(cx, |s, cx| {
-                    if let Some(file) = &mut s.file {
-                        file.menu = None;
-                    }
+                    s.menu = None;
                     cx.notify();
                 });
                 let _ = editor.update(cx, |e, cx| e.run_title_action(action.clone(), w, cx));
@@ -297,20 +311,12 @@ impl Shell {
     /// `.file-mode-window__titlebar`: the project titlebar's geometry and
     /// divider on the document's colour, the name in the middle of the
     /// window clear of the traffic lights and the file's controls.
-    pub(super) fn file_titlebar(&self, w: f32, cx: &mut Context<Self>) -> AnyElement {
+    fn file_titlebar(&self, w: f32, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let ty = theme::ty().header;
         // `opened?.target.name`: nothing until the file is found.
-        let name = self
-            .file
-            .as_ref()
-            .filter(|_| {
-                !matches!(
-                    self.file_shown(cx),
-                    Shown::Loading | Shown::Unavailable(None)
-                )
-            })
-            .map(|f| f.target.name.clone())
+        let name = (!matches!(self.shown(cx), Shown::Loading | Shown::Unavailable(None)))
+            .then(|| self.target.name.clone())
             .unwrap_or_default();
         let room = theme::control() * 2. + CONTROLS_GAP;
         let start = if cfg!(target_os = "macos") {
@@ -370,11 +376,18 @@ impl Shell {
     }
     /// `.file-mode-window__document`: the document (under the encoding
     /// notice when it only reads), or what stands in for it.
-    pub(super) fn file_document(&self, cx: &mut Context<Self>) -> Div {
-        let r = self.layout.editor;
+    fn file_document(&self, r: Rect, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
-        let area = at(r).bg(t.canvas).flex().flex_col();
-        match self.file_shown(cx) {
+        let area = div()
+            .absolute()
+            .left(px(r.x))
+            .top(px(r.y))
+            .w(px(r.w))
+            .h(px(r.h))
+            .bg(t.canvas)
+            .flex()
+            .flex_col();
+        match self.shown(cx) {
             Shown::Loading => area.items_center().justify_center().child(
                 LoadingMark::new("file-mode-loading")
                     .area()
@@ -418,7 +431,7 @@ impl Shell {
             }
             Shown::Document => {
                 let ty = theme::ty().header;
-                let notice = self.file_read_only(cx).then(|| {
+                let notice = self.editor.read(cx).read_only(cx).then(|| {
                     div()
                         .flex_none()
                         .py(px(NOTICE_PADDING.0))
@@ -428,7 +441,7 @@ impl Shell {
                         .line_height(px(ty.line_height))
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
-                let slot = self.files(cx).active_slot();
+                let slot = self.docs.read(cx).active_slot();
                 let editor_area = self.editor.read(cx);
                 let document = editor_area.host(slot).map(|editor| {
                     div()
@@ -445,14 +458,14 @@ impl Shell {
     /// `askToSaveFile`: unsaved edits when a file window closes, in a
     /// native warning (Save is the default, Cancel takes Escape). One
     /// question at a time; its answer runs as a command.
-    pub(super) fn ask_to_save_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(file) = self.file.as_mut().filter(|f| !f.asking) else {
+    pub(super) fn ask_to_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.asking {
             return;
-        };
-        file.asking = true;
+        }
+        self.asking = true;
         let message = tf(
             "native.fileClose.message",
-            &[("name", file.target.name.clone().into())],
+            &[("name", self.target.name.clone().into())],
         );
         let answer = window.prompt(
             PromptLevel::Warning,
@@ -471,14 +484,28 @@ impl Shell {
                 Ok(1) => Command::DiscardFileChanges,
                 _ => Command::CancelFileClose,
             };
-            let _ = this.update_in(cx, |s, window, cx| {
-                if let Some(file) = &mut s.file {
-                    file.asking = false;
-                }
-                s.command(command, window, cx);
+            let _ = this.update(cx, |s, cx| {
+                s.asking = false;
+                cx.emit(FileEvent::Command(command));
             });
         })
         .detach();
+    }
+}
+
+impl Render for FileWindow {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let size = window.viewport_size();
+        let (w, h) = (f32::from(size.width), f32::from(size.height));
+        // `.file-mode-window`: the title bar over the document alone.
+        let editor = Rect::new(0., theme::HEADER, w, h - theme::HEADER);
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .child(self.file_document(editor, cx))
+            .child(self.file_titlebar(w, cx))
     }
 }
 

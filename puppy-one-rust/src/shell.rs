@@ -125,7 +125,7 @@ pub struct Shell {
     /// and a hosted Project's History.
     sidebar: right_sidebar::RightSidebar,
     /// A file window's own state (File Mode); `None` for a project window.
-    pub(super) file: Option<file_mode::FileWindow>,
+    pub(super) file: Option<Entity<file_mode::FileWindow>>,
     popover: Option<Popover>,
     weak: WeakEntity<Shell>,
     /// Header introductions (`useHeaderCoachmarks`).
@@ -706,21 +706,11 @@ impl Shell {
         #[cfg(not(feature = "dev-capture"))]
         let file = launch.file.clone();
         if let Some(file) = file.and_then(file_mode::FileTarget::of) {
-            // The file's folder is the window's root; only the file shows,
-            // and it saves when asked. A file that is gone or too large is
-            // never read.
-            s.session.docs.update(cx, |d, _| d.file_window = true);
             #[cfg(feature = "dev-capture")]
             let hold = std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
             #[cfg(not(feature = "dev-capture"))]
             let hold = false;
-            if file.admission == file_mode::Admission::Readable && !hold {
-                s.session.project.open_first = Some(PathBuf::from(&file.name));
-                s.session
-                    .docs
-                    .update(cx, |d, _| d.begin(Intent::OpenFolder(file.root.clone())));
-            }
-            s.file = Some(file_mode::FileWindow::new(file));
+            s.bind_file(file, hold, window, cx);
         } else if let Some(path) = workspace {
             if launch.open.is_some() {
                 s.session.project.open_first = launch.open.clone();
@@ -869,6 +859,37 @@ impl Shell {
             self.constrain_window(window, cx);
             self.push_explorer_host(window, cx);
         }
+    }
+    /// The file's folder is the window's root; only the file shows, and it
+    /// saves when asked. A file that is gone or too large is never read
+    /// (nor one `hold` keeps loading).
+    fn bind_file(
+        &mut self,
+        file: file_mode::FileTarget,
+        hold: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.session.docs.update(cx, |d, _| d.file_window = true);
+        if file.admission == file_mode::Admission::Readable && !hold {
+            self.session.project.open_first = Some(PathBuf::from(&file.name));
+            let root = file.root.clone();
+            self.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFolder(root)));
+        }
+        let (docs, editor) = (self.session.docs.clone(), self.editor.clone());
+        let file = cx.new(|cx| file_mode::FileWindow::new(file, docs, editor, cx));
+        cx.subscribe_in(&file, window, |s, _, event, w, cx| {
+            let file_mode::FileEvent::Command(command) = event;
+            s.command(*command, w, cx)
+        })
+        .detach();
+        self.file = Some(file);
+    }
+    /// A file window (File Mode): one file, no project.
+    pub(super) fn file_mode(&self) -> bool {
+        self.file.is_some()
     }
     /// The documents runtime, read.
     fn files<'a>(&self, cx: &'a App) -> &'a Documents {
@@ -1297,7 +1318,9 @@ impl Shell {
         match command {
             // `askToSaveFile`: a file window with unsaved edits asks first.
             Command::Quit if self.file_mode() && self.files(cx).dirty => {
-                self.ask_to_save_file(window, cx);
+                if let Some(file) = self.file.clone() {
+                    file.update(cx, |f, cx| f.ask_to_save(window, cx));
+                }
                 return;
             }
             Command::SaveFileAndClose => {
@@ -2043,7 +2066,8 @@ impl Shell {
     /// represented file; nothing in full screen, where macOS shows it.
     /// A file window is titled by its file and shows when it is unsaved.
     fn sync_window_title(&mut self, window: &mut Window, cx: &App) {
-        let (title, path, edited) = match self.file.as_ref().map(|f| &f.target) {
+        let target = self.file.as_ref().map(|f| f.read(cx).target.clone());
+        let (title, path, edited) = match target {
             Some(file) => (
                 file.name.clone(),
                 Some(file.path.clone()),
@@ -2306,7 +2330,10 @@ impl Render for Shell {
         // The panes' frames under the editor; the Homepage and a file window
         // show none.
         root = root.child(if file {
-            self.file_document(cx).into_any_element()
+            self.file
+                .clone()
+                .map(|f| f.into_any_element())
+                .unwrap_or_else(|| Empty.into_any_element())
         } else {
             let mut stack = PaneStack::new();
             if !home && panes.start.is_some() {
@@ -2349,11 +2376,10 @@ impl Render for Shell {
         if opening {
             root = root.children(self.project_preparation(w, h, cx));
         }
-        root = if file {
-            root.child(self.file_titlebar(w, cx))
-        } else {
-            root.child(at(self.layout.header).child(self.header(cx)))
-        };
+        // A file window draws its own title bar.
+        if !file {
+            root = root.child(at(self.layout.header).child(self.header(cx)));
+        }
         if !home && !opening && !file {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }

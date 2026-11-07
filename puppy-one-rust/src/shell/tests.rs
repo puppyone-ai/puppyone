@@ -4244,15 +4244,10 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     std::fs::write(root.join("notes.md"), "# Notes\n").unwrap();
     std::fs::write(root.join("other.md"), "# Other\n").unwrap();
     let (view, cx) = setup(cx);
-    view.update(cx, |s, cx| {
+    view.update_in(cx, |s, w, cx| {
         let file = file_mode::FileTarget::of(root.join("notes.md")).unwrap();
         s.session.project.fixture = false;
-        s.session.docs.update(cx, |d, _| d.file_window = true);
-        s.session.project.open_first = Some(PathBuf::from(&file.name));
-        s.session
-            .docs
-            .update(cx, |d, _| d.begin(Intent::OpenFolder(file.root.clone())));
-        s.file = Some(file_mode::FileWindow::new(file));
+        s.bind_file(file, false, w, cx);
     });
     settle_cloud(&view, cx, "the file", &|s, cx| {
         s.files(cx)
@@ -4328,7 +4323,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     cx.run_until_parked();
     view.read_with(cx, |s, cx| {
         assert!(!s.files(cx).allow_quit);
-        assert!(!s.file.as_ref().unwrap().asking);
+        assert!(!s.file.as_ref().unwrap().read(cx).asking);
     });
     assert!(!cx.has_pending_prompt());
 }

@@ -218,7 +218,7 @@ pub fn open_file(path: PathBuf, cx: &mut App) -> anyhow::Result<AnyWindowHandle>
             .read(cx)
             .file
             .as_ref()
-            .is_some_and(|f| f.target.path == path)
+            .is_some_and(|f| f.read(cx).target.path == path)
     }) {
         let _ = handle.update(cx, |_, w, _| w.activate_window());
         return Ok(handle);
