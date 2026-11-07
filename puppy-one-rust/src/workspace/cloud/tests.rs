@@ -1277,7 +1277,7 @@ fn one_provider_runs_its_mutations_one_at_a_time() {
     assert_eq!(ws.read(p("live.md")).unwrap().text, "first\n");
 }
 #[test]
-fn viewers_admit_the_smaller_of_their_own_budget_and_the_cloud_text_bound() {
+fn a_cloud_workspace_bounds_text_at_8_mib() {
     let f = Fixture::new();
     f.state
         .files
@@ -1285,15 +1285,9 @@ fn viewers_admit_the_smaller_of_their_own_budget_and_the_cloud_text_bound() {
         .unwrap()
         .insert("big.md".into(), Some(vec![b'a'; 9 * 1024 * 1024]));
     let ws = f.open();
-    // Markdown admits 16 MiB locally, 8 MiB in Cloud; HTML keeps its 4 MiB.
-    assert_eq!(
-        crate::documents::read_budget("big.md", &ws),
-        8 * 1024 * 1024
-    );
-    assert_eq!(
-        crate::documents::read_budget("page.html", &ws),
-        4 * 1024 * 1024
-    );
+    // Viewers admit the smaller of their own budget and this bound
+    // (`documents::read_budget`): Markdown 8 MiB in Cloud, HTML its 4 MiB.
+    assert_eq!(ws.text_limit(), 8 * 1024 * 1024);
     assert!(ws.read(p("big.md")).is_err());
     assert_eq!(ws.read(p("live.md")).unwrap().text, "live before Git\n");
 }

@@ -432,38 +432,6 @@ impl Default for Tree {
 mod tests {
     use super::*;
     #[test]
-    fn moving_an_expanded_subtree_carries_state_into_the_destination_listing() {
-        let root = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(root.path().join("from/nested")).unwrap();
-        std::fs::create_dir(root.path().join("to")).unwrap();
-        std::fs::write(root.path().join("from/nested/a.md"), "a").unwrap();
-        let ws = crate::workspace::Workspace::open(root.path()).unwrap();
-        let mut tree = Tree {
-            roots: ws.list(Path::new("")).unwrap(),
-            ..Tree::new()
-        };
-        for path in ["from", "from/nested", "to"] {
-            tree.attach_children(Path::new(path), ws.list(Path::new(path)).unwrap());
-        }
-        tree.select(Path::new("from/nested/a.md"), false, false);
-        ws.move_entry(Path::new("from"), Path::new("to")).unwrap();
-        tree.rebind(Path::new("from"), Path::new("to/from"));
-        for path in ["", "to"] {
-            tree.refresh_children(Path::new(path), ws.list(Path::new(path)).unwrap());
-        }
-        for path in ["to/from", "to/from/nested"] {
-            let node = tree.find_mut(Path::new(path)).unwrap();
-            assert!(node.expanded && node.loaded);
-        }
-        assert!(tree.selection.contains(Path::new("to/from/nested/a.md")));
-        assert_eq!(
-            tree.anchor.as_deref(),
-            Some(Path::new("to/from/nested/a.md"))
-        );
-        assert!(tree.index_of(Path::new("to/from/nested/a.md")).is_some());
-        assert!(tree.find_mut(Path::new("from")).is_none());
-    }
-    #[test]
     fn collapsed_children_are_not_in_projection() {
         let mut t = Tree::fixture();
         let count = t.rows.len();

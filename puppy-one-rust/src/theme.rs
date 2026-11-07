@@ -840,6 +840,23 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
     #[test]
+    fn every_file_icon_binding_uses_the_active_palette_and_inherited_ink() {
+        for (pack, _) in pack_choices() {
+            for dark in [false, true] {
+                let palette = pack_theme(pack, dark);
+                for id in crate::file_kind::themes() {
+                    for token in crate::file_kind::theme(id).ink_tokens() {
+                        let ink = palette.file_ink(token, palette.muted);
+                        assert!(ink.r.is_finite() && ink.g.is_finite() && ink.b.is_finite());
+                        if token == "currentColor" {
+                            assert_eq!(ink, palette.muted);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
     fn the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll() {
         let scrollbar = product_scrollbar(&Theme::new(false));
         assert_eq!(scrollbar.mode(), gpui_kit::base::ScrollbarMode::Hover);

@@ -595,3 +595,15 @@ fn a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog() {
     assert_eq!(d.save_status(), SaveStatus::Saved);
     assert!(!d.dirty);
 }
+
+#[test]
+fn viewers_admit_the_smaller_of_their_own_budget_and_the_workspace_text_bound() {
+    let temp = tempfile::tempdir().unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    // Locally Markdown keeps the provider's text bound; HTML its own 4 MiB.
+    assert_eq!(
+        super::read_budget("big.md", &ws),
+        crate::editor::registry::source_budget("big.md").min(ws.text_limit() as u64)
+    );
+    assert_eq!(super::read_budget("page.html", &ws), 4 * 1024 * 1024);
+}

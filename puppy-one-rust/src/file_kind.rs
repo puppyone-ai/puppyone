@@ -40,6 +40,15 @@ pub struct ThemeDefinition {
     pub id: String,
     glyphs: HashMap<String, Glyph>,
 }
+impl ThemeDefinition {
+    /// The ink tokens its glyphs bind (resolved against the active palette).
+    pub fn ink_tokens(&self) -> impl Iterator<Item = &str> {
+        self.glyphs
+            .values()
+            .flat_map(|glyph| &glyph.bindings)
+            .map(|binding| binding.token.as_str())
+    }
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Catalog {
@@ -274,25 +283,6 @@ mod tests {
             assert_eq!(parse_theme(Some(id)), Some("default"));
         }
         assert_eq!(parse_theme(Some("unknown")), None);
-    }
-    #[test]
-    fn every_theme_binding_uses_the_active_palette_and_inherited_ink() {
-        for (pack, _) in crate::theme::pack_choices() {
-            for dark in [false, true] {
-                let palette = crate::theme::pack_theme(pack, dark);
-                for id in themes() {
-                    for glyph in theme(id).glyphs.values() {
-                        for binding in &glyph.bindings {
-                            let ink = palette.file_ink(&binding.token, palette.muted);
-                            assert!(ink.r.is_finite() && ink.g.is_finite() && ink.b.is_finite());
-                            if binding.token == "currentColor" {
-                                assert_eq!(ink, palette.muted);
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
     #[test]
     fn every_kind_has_late_bound_ink_and_valid_geometry_at_each_size() {
