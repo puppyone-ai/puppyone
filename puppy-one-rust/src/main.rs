@@ -155,9 +155,12 @@ fn main() {
             return;
         }
         // Dev captures of the shell run like the lab: an accessory window
-        // behind every other one that never takes the keyboard.
+        // behind every other one that never takes the keyboard. A live
+        // capture (`PUPPYONE_CAPTURE_LIVE`, for frame timing) replays its
+        // scenario in an ordinary foreground window on the display link.
         #[cfg(feature = "dev-capture")]
-        let background = std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let background = std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
+            && std::env::var_os("PUPPYONE_CAPTURE_LIVE").is_none();
         #[cfg(not(feature = "dev-capture"))]
         let background = false;
         #[cfg(feature = "dev-capture")]

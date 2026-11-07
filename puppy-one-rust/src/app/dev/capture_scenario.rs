@@ -27,7 +27,9 @@
 //! `agent-history-open` (its first chat opens), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
-//! for the homepage's project activity and an open diff.
+//! for the homepage's project activity and an open diff. With
+//! `PUPPYONE_CAPTURE_LIVE` the scenario replays in an ordinary foreground
+//! window on the display link (`tools/frame-pacing.py` times its frames).
 use crate::app::*;
 use explorer::{MenuAt, RowTrigger};
 use std::collections::VecDeque;
