@@ -236,7 +236,7 @@ export function MinimalOnboarding({
   // Audience, not storage location, owns the headings. A held catalog is one
   // wait; device composition can add local offers to the personal shared area.
   const cloudGroups = useCloudProjectGroups({
-    spaces: projectView.places.size === 0 || projectView.places.has("cloud") ? cloudSpaces : [],
+    spaces: cloudSpaces,
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
     onDragEnd: () => setDraggingPath(null),
@@ -265,7 +265,6 @@ export function MinimalOnboarding({
       items: localItems,
       render: projectList,
     } : null,
-    showOtherComputers: projectView.places.size === 0,
   };
   let projects: ReactNode = projectList(projectView.visibleItems);
   if (!groupsHeld && projectGroups) projects = projectGroups(groupsBase);

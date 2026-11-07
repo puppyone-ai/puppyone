@@ -43,9 +43,9 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   });
   const others = catalog.devices.filter((device) => device.id !== catalog.thisComputerId);
   const localFolderIds = new Set(local?.items.flatMap((item) => item.hostFolderId ? [item.hostFolderId] : []));
-  const visible = base.showOtherComputers ? others.map((device) => ({ ...device,
+  const visible = others.map((device) => ({ ...device,
     folders: device.folders.filter((folder) => !localFolderIds.has(folder.id)),
-  })).filter((device) => device.folders.length > 0) : [];
+  })).filter((device) => device.folders.length > 0);
   if (visible.length) {
     const index = groups.findIndex((group) => group.id === "personal-shared");
     const previous = groups[index] ?? base.cloud.find((group) => group.id === "personal-shared");
