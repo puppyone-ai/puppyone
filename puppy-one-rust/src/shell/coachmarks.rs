@@ -173,8 +173,8 @@ impl Shell {
             agent_open: self.right_shows(Surface::Agent, cx),
             changes_open: self.right_shows(Surface::Git, cx),
             local: repository.then_some(status.local),
-            entry: entry.as_deref().filter(|_| !self.homepage.open),
-            scope: scope.as_deref().filter(|_| !self.homepage.open),
+            entry: entry.as_deref().filter(|_| !self.session.home),
+            scope: scope.as_deref().filter(|_| !self.session.home),
             always: prefs.experimental.always_show_onboarding_coachmarks,
             progress: prefs.header_coachmarks,
         };

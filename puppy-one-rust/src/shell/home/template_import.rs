@@ -31,7 +31,7 @@ pub(in crate::shell) struct TemplateImport {
     pub(in crate::shell) new_window: bool,
 }
 
-impl Shell {
+impl Homepage {
     /// `openTemplate`: the card for `url`, in place of the entry dialogs.
     pub(in crate::shell) fn open_template_link(
         &mut self,
@@ -46,9 +46,9 @@ impl Shell {
         ] {
             self.close_dialog(key, cx);
         }
-        self.homepage.create = None;
+        self.create = None;
         let name = self.project_name_input(String::new(), window, cx, Self::submit_template);
-        self.homepage.template = Some(Box::new(TemplateImport {
+        self.template = Some(Box::new(TemplateImport {
             url,
             destination: Destination {
                 name,
@@ -62,14 +62,14 @@ impl Shell {
             editing: false,
             submitting: false,
             error: None,
-            new_window: self.workspace_root().is_some() && !self.home_visible(),
+            new_window: self.session.root.is_some() && !self.session.home,
         }));
         self.open_dialog(DialogKey::TemplateImport, cx);
         self.resolve_template(window, cx);
         cx.notify();
     }
     fn template_import(&mut self) -> Option<&mut TemplateImport> {
-        self.homepage.template.as_deref_mut()
+        self.template.as_deref_mut()
     }
     /// `resolve`: the template's details, in the app's language.
     fn resolve_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -110,19 +110,18 @@ impl Shell {
         })
         .detach();
     }
-    fn close_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn close_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.template_import().is_some_and(|i| i.submitting) {
             return;
         }
-        self.homepage.template = None;
+        self.template = None;
         self.close_dialog(DialogKey::TemplateImport, cx);
-        self.focus.focus(window, cx);
+        self.window_focus.focus(window, cx);
         cx.notify();
     }
     /// A template the store keeps for accounts, and nobody signed in.
     fn template_needs_sign_in(&self, cx: &App) -> bool {
-        self.homepage
-            .template
+        self.template
             .as_ref()
             .is_some_and(|import| import.detail.as_ref().is_some_and(|d| d.requires_sign_in))
             && !crate::features::cloud::account::has_account(cx)
@@ -188,18 +187,12 @@ impl Shell {
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
-            let _ = this.update_in(cx, |s, window, cx| {
+            let _ = this.update_in(cx, |s, _, cx| {
                 match result {
                     Ok((path, open)) => {
-                        s.homepage.template = None;
+                        s.template = None;
                         s.close_dialog(DialogKey::TemplateImport, cx);
-                        s.open_created_project(
-                            path,
-                            open.map(PathBuf::from),
-                            new_window,
-                            window,
-                            cx,
-                        );
+                        s.open_created_project(path, open.map(PathBuf::from), new_window, cx);
                     }
                     Err(error) => {
                         if let Some(import) = s.template_import() {
@@ -432,13 +425,5 @@ impl Shell {
                     .on_click(cx.listener(|s, _, w, cx| s.close_template(w, cx))),
             )
             .footer(primary)
-    }
-    /// Escape, unless a copy is on its way.
-    pub(in crate::shell) fn dismiss_template(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.close_template(window, cx);
     }
 }

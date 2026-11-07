@@ -17,6 +17,29 @@ pub(super) struct WindowSession {
     pub key: String,
     /// The window title, represented file and edited mark last applied.
     pub title: Option<(String, Option<PathBuf>, bool)>,
+    /// The person asked for the Homepage over the open project.
+    pub home: bool,
+}
+
+/// What the window's features read of its session, handed to them when it
+/// changes (after each pump of the documents runtime).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct SessionView {
+    /// The window shows the Homepage.
+    pub home: bool,
+    /// The Homepage or the Header's project menu lists the projects.
+    pub listing: bool,
+    /// A workspace is open.
+    pub workspace: bool,
+    /// The open local project's folder.
+    pub root: Option<PathBuf>,
+    /// The documents, the folder or the picker are busy, or a Cloud
+    /// project is on its way in.
+    pub busy: bool,
+    /// A Cloud project is on its way in.
+    pub cloud_opening: bool,
+    /// The launch reopens the last project (`RestoringWorkspaceScreen`).
+    pub restoring: bool,
 }
 
 /// The project this window shows and how it came to show it: its name, the

@@ -332,3 +332,152 @@ pub(super) fn brand_name(cx: &App) -> Div {
         .text_color(cx.palette().utility)
         .child(tr("shell.brand.name"))
 }
+
+/// `HomepageCloudStatus`: the account, never a project row. Loading,
+/// a failure (with what helps) or an empty catalog lead it; then the
+/// account's initial, or Sign in. `opening`: a Cloud project is on its way
+/// in; `empty`: the Homepage lists nothing.
+pub(super) fn cloud_status(
+    catalog: &Entity<crate::features::cloud::catalog::CloudCatalog>,
+    opening: bool,
+    empty: bool,
+    on_retry: impl Fn(&mut Window, &mut App) + 'static,
+    on_account: impl Fn(&mut Window, &mut App) + 'static,
+    cx: &App,
+) -> AnyElement {
+    use crate::features::cloud::account::Status;
+    use crate::features::cloud::catalog::State;
+    let t = cx.palette();
+    let ty = theme::ty().header;
+    let account = cx
+        .try_global::<crate::features::cloud::account::CloudAccountService>()
+        .map(|s| s.0.read(cx).snapshot.clone())
+        .unwrap_or_default();
+    let status = account.as_ref().map(|a| a.status);
+    let email = account
+        .as_ref()
+        .and_then(|a| a.account.as_ref())
+        .map(|a| a.email.clone());
+    let restoring = status == Some(Status::Restoring);
+    let signing_in = status == Some(Status::SigningIn);
+    let auth_error = account
+        .as_ref()
+        .filter(|a| a.account.is_none())
+        .and_then(|a| a.error);
+    let catalog = catalog.read(cx).state.clone();
+    let text = |text: String, color: Rgba| {
+        div()
+            .min_w_0()
+            .truncate()
+            .text_size(px(ty.content))
+            .line_height(px(ty.line_height))
+            .text_color(color)
+            .child(text)
+    };
+    let on_retry = Rc::new(on_retry);
+    let feedback: Option<AnyElement> = if opening {
+        None
+    } else if catalog == State::Failed || auth_error.is_some() {
+        let label = match &auth_error {
+            Some(error) => error.to_string(),
+            None => tr("cloud.catalog.loadFailed").to_owned(),
+        };
+        let sign_in = auth_error.is_some();
+        Some(
+            h_flex()
+                .min_w_0()
+                .gap(px(8.))
+                .child(text(label, t.danger))
+                .child(
+                    Button::new("homepage-cloud-retry")
+                        .variant(ButtonVariant::Titlebar)
+                        .label(tr("cloud.common.retry"))
+                        .on_click(move |_, window, cx| {
+                            if sign_in {
+                                crate::features::cloud::account::sign_in(cx);
+                            } else {
+                                on_retry(window, cx);
+                            }
+                        }),
+                )
+                .into_any_element(),
+        )
+    } else if restoring || catalog == State::Loading || (email.is_none() && signing_in) {
+        Some(
+            h_flex()
+                .gap(px(6.))
+                .child(
+                    crate::ui::loading::LoadingMark::new("homepage-cloud-loading")
+                        .size(crate::ui::loading::LoaderSize::Xs)
+                        .tone(crate::ui::loading::Tone::Neutral),
+                )
+                .child(text(
+                    tr(if signing_in {
+                        "cloud.home.waitingForSignIn"
+                    } else {
+                        "cloud.home.loading"
+                    })
+                    .to_owned(),
+                    t.utility,
+                ))
+                .into_any_element(),
+        )
+    } else if email.is_some() && matches!(&catalog, State::Ready(list) if list.is_empty()) && empty
+    {
+        Some(text(tr("cloud.catalog.empty").to_owned(), t.utility).into_any_element())
+    } else {
+        None
+    };
+    let entry: Option<AnyElement> = (!restoring).then(|| match &email {
+        Some(email) => {
+            let initial = email
+                .trim()
+                .chars()
+                .next()
+                .map(|c| c.to_uppercase().to_string())
+                .unwrap_or_else(|| "P".into());
+            let size = 22.;
+            div()
+                .id("homepage-cloud-avatar")
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .size(px(size))
+                .mr(px((theme::control() - 4. - size) / 2.))
+                .rounded_full()
+                .bg(t.control)
+                .text_color(t.utility)
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .cursor(theme::clickable_cursor())
+                .hover(move |s| s.bg(t.control_hover).text_color(t.text))
+                .tooltip(crate::ui::components::tooltip(format!(
+                    "{}: {email}",
+                    tr("settings.sidebar.account")
+                )))
+                .on_click(move |_, window, cx| on_account(window, cx))
+                .child(initial)
+                .into_any_element()
+        }
+        None => Button::new("homepage-cloud-sign-in")
+            .variant(ButtonVariant::Titlebar)
+            .label(tr("cloud.auth.signIn"))
+            .accessibility_label(tr("cloud.auth.signInToCloud"))
+            .pl(px(7.))
+            .pr(px(8.))
+            .text_size(px(ty.content))
+            .line_height(px(ty.line_height))
+            .on_click(|_, _, cx| crate::features::cloud::account::sign_in(cx))
+            .into_any_element(),
+    });
+    h_flex()
+        .min_w_0()
+        .max_w(px(360.))
+        .h(px(theme::control() - 4.))
+        .gap(px(8.))
+        .justify_end()
+        .children(feedback)
+        .children(entry)
+        .into_any_element()
+}

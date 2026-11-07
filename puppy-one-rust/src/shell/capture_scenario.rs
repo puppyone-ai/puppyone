@@ -214,7 +214,7 @@ impl Shell {
         }
         let Some(step) = scenario.steps.front().cloned() else {
             let reading =
-                self.homepage.reading || self.sidebar.source_control.read(cx).reading_detail();
+                self.home.read(cx).reading || self.sidebar.source_control.read(cx).reading_detail();
             return !reading || timed_out;
         };
         if let Step::Wait(ms) = step {
@@ -296,7 +296,7 @@ impl Shell {
                 .sidebar
                 .source_control
                 .update(cx, |s, cx| s.open_history(cx)),
-            Step::ProjectEntry => self.open_project_entry(cx),
+            Step::ProjectEntry => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
                 let (from, to) = (at(self.layout.editor.x), at(*x));
@@ -317,14 +317,9 @@ impl Shell {
                 }
             }
             Step::CreateProject(name) => {
-                self.begin_create_project(window, cx);
-                if let Some(create) = self.homepage.create.as_mut() {
-                    let name = name.clone();
-                    create
-                        .destination
-                        .name
-                        .update(cx, |input, cx| input.set_text(name, cx));
-                }
+                let name = name.clone();
+                self.home
+                    .update(cx, |h, cx| h.capture_create_project(name, window, cx));
             }
             Step::Collapse(path) => {
                 if self
@@ -427,41 +422,32 @@ impl Shell {
                 )
             }),
             Step::HomeHover(index) => {
-                let Some(item) = self.visible_projects(cx).into_iter().nth(*index) else {
-                    return false;
-                };
-                self.homepage.hovered = Some(item.id);
-            }
-            Step::HomeActions(index) => {
-                let Some(item) = self.visible_projects(cx).into_iter().nth(*index) else {
-                    return false;
-                };
-                let Some(target) = super::project_actions::Target::of(&item) else {
-                    return true;
-                };
-                let bounds = self
-                    .homepage
-                    .action_bounds
-                    .get(&item.id)
-                    .map(|b| b.get())
-                    .unwrap_or_default();
-                if bounds.size.width <= px(0.) {
+                let index = *index;
+                if !self.home.update(cx, |h, cx| h.capture_hover(index, cx)) {
                     return false;
                 }
-                self.homepage.hovered = Some(item.id.clone());
-                self.homepage.actions = Some(item.id);
-                self.open_project_actions(target, bounds, true, window.viewport_size(), cx);
+            }
+            Step::HomeActions(index) => {
+                let index = *index;
+                if !self
+                    .home
+                    .update(cx, |h, cx| h.capture_actions(index, window, cx))
+                {
+                    return false;
+                }
             }
             Step::Pin(path) => {
                 let path = path.clone();
                 self.explorer_session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
             }
-            Step::Template => self.open_template_link(
-                "https://www.puppyone.ai/t/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),
-                window,
-                cx,
-            ),
+            Step::Template => self.home.update(cx, |h, cx| {
+                h.open_template_link(
+                    "https://www.puppyone.ai/t/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),
+                    window,
+                    cx,
+                )
+            }),
             Step::AgentsFixture(open_links) => {
                 self.cloud.capture_hosted = true;
                 let client = crate::features::cloud::agents::lab_client(*open_links);

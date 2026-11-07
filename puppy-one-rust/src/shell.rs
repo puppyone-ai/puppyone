@@ -111,7 +111,7 @@ pub struct Shell {
     /// The window's Cloud: catalog, association, publication, Agents, Share.
     cloud: window_cloud::WindowCloud,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
-    project_actions: Option<project_actions::ActionsMenu>,
+    project_actions: Entity<project_actions::ProjectActions>,
     dark: bool,
     locale: Locale,
     /// The Explorer's and the right sidebar's frames: open, width, edge
@@ -137,7 +137,7 @@ pub struct Shell {
     /// pins, kept per project) and its view on the left.
     explorer_session: Entity<ExplorerSession>,
     explorer: Entity<Explorer>,
-    homepage: home::Homepage,
+    home: Entity<home::Homepage>,
     cloud_services: Entity<crate::features::cloud::services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     preference_slices: PreferenceSlices,
@@ -229,6 +229,26 @@ impl Shell {
         let key = crate::features::agent_presence::owner(window);
         let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
         let dialog_focus = dialogs.read(cx).focus_handle().clone();
+        let catalog = crate::features::cloud::catalog::global(cx);
+        let project_actions = cx.new(|cx| {
+            project_actions::ProjectActions::new(
+                preferences.clone(),
+                catalog.clone(),
+                &dialogs,
+                focus.clone(),
+                cx,
+            )
+        });
+        let home = cx.new(|cx| {
+            home::Homepage::new(
+                preferences.clone(),
+                catalog.clone(),
+                project_actions.clone(),
+                &dialogs,
+                focus.clone(),
+                cx,
+            )
+        });
         let mut s = Self {
             session: session::WindowSession {
                 files: if fixture {
@@ -254,14 +274,15 @@ impl Shell {
                 picking: false,
                 key: key.clone(),
                 title: None,
+                home: false,
             },
             cloud: window_cloud::WindowCloud::new(
-                crate::features::cloud::catalog::global(cx),
+                catalog,
                 Self::new_cloud_publish(cx),
                 Self::new_repository_cloud(cx),
                 cx.new(|_| crate::features::cloud::agents::CloudAgents::new()),
             ),
-            project_actions: None,
+            project_actions,
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
             panes: {
@@ -292,7 +313,7 @@ impl Shell {
                         .with_presence_owner(owner)
                 })
             },
-            homepage: Default::default(),
+            home,
             cloud_services: cx
                 .new(|cx| crate::features::cloud::services::CloudServices::new(window, cx)),
             preferences,
@@ -323,6 +344,26 @@ impl Shell {
             Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
             _ => {}
         }
+        // What the Homepage and the project actions ask of the window.
+        cx.subscribe_in(&s.home, window, |s, _, event, w, cx| {
+            s.home_event(event, w, cx)
+        })
+        .detach();
+        cx.observe(&s.home, |_, _, cx| cx.notify()).detach();
+        cx.subscribe(&s.project_actions, |s, _, event, cx| {
+            match event {
+                project_actions::ActionsEvent::Opened => s.popover = None,
+                project_actions::ActionsEvent::Renamed { path, name } => {
+                    if s.workspace_root().as_deref() == Some(path.as_path()) {
+                        s.session.project.name = name.clone();
+                    }
+                }
+            }
+            cx.notify();
+        })
+        .detach();
+        cx.observe(&s.project_actions, |_, _, cx| cx.notify())
+            .detach();
         // The dialogs' answers, and the window taking the focus back.
         cx.subscribe_in(&s.dialogs, window, |s, _, event, w, cx| {
             s.dialog_event(event, w, cx)
@@ -585,7 +626,7 @@ impl Shell {
                     return;
                 }
                 let _ = shell.update(cx, |s, cx| {
-                    if s.replay_home_intro(cx) {
+                    if s.home.update(cx, |h, cx| h.replay_intro(cx)) {
                         cx.stop_propagation();
                     }
                 });
@@ -837,7 +878,6 @@ impl Shell {
         crate::editor::markdown::core::commands::block_move::set_enabled(
             p.experimental.markdown_block_drag,
         );
-        self.homepage.recent = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
         let (routing, payments) = (p.agent_routing.clone(), p.experimental.payments);
         self.sidebar
@@ -875,6 +915,99 @@ impl Shell {
             self.push_explorer_host(window, cx);
         }
     }
+    /// Web hides the workspace chrome on the homepage; so does the native shell.
+    fn home_visible(&self) -> bool {
+        // A project on its way in takes the window from the Homepage.
+        !self.session.project.fixture
+            && !self.file_mode()
+            && !self.opening()
+            && (self.session.home || self.session.files.workspace.is_none())
+    }
+    /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
+    /// the window shows a quiet loading mark, never the Homepage.
+    fn restoring(&self) -> bool {
+        self.session.files.workspace.is_none()
+            && (self.session.project.restore_last || self.session.project.restoring_open)
+    }
+    /// What the window's features read of the session, handed over when it
+    /// changed.
+    fn sync_session_view(&mut self, cx: &mut Context<Self>) {
+        let files = &self.session.files;
+        let home = self.home_visible();
+        let view = session::SessionView {
+            home,
+            listing: home || self.popover.is_some(),
+            workspace: files.workspace.is_some(),
+            root: self.workspace_root(),
+            busy: self.session.picking
+                || files.busy()
+                || files.folder_busy
+                || files.cloud_opening().is_some(),
+            cloud_opening: files.cloud_opening().is_some(),
+            restoring: self.restoring(),
+        };
+        self.home.update(cx, |h, cx| h.set_session(view, cx));
+    }
+    /// What the Homepage asks for.
+    fn home_event(&mut self, event: &home::HomeEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            home::HomeEvent::OpenProject(path) => {
+                return self.open_project(path.clone(), window, cx);
+            }
+            home::HomeEvent::OpenCloud(project) => {
+                self.popover = None;
+                self.open_cloud(project.clone(), cx);
+            }
+            home::HomeEvent::OpenCreated {
+                path,
+                open,
+                new_window,
+            } => {
+                let (path, open) = (path.clone(), open.clone());
+                if *new_window {
+                    cx.defer(move |cx| {
+                        if let Err(error) = windows::open_created(path, open, cx) {
+                            eprintln!("Could not open the new window: {error:#}");
+                        }
+                    });
+                    return;
+                }
+                self.open_project(path, window, cx);
+                if self.session.files.busy() {
+                    self.session.project.open_first = open;
+                }
+            }
+            home::HomeEvent::Command(command) => return self.command(*command, window, cx),
+        }
+        self.receive(window, cx);
+        cx.notify();
+    }
+    /// Opens an entry of the Header's project menu in this window: a local
+    /// folder, or a Cloud project (`selectCloudProject`).
+    fn open_item(
+        &mut self,
+        item: &crate::workspace::cloud::catalog::Item,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.popover = None;
+        match (&item.local_path, &item.cloud_project) {
+            (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
+            (None, Some(project)) => self.open_cloud(project.clone(), cx),
+            _ => {}
+        }
+        cx.notify();
+    }
+    /// The pixel lab's Homepage (`shell-home-*`): no fixture workspace and
+    /// no capture of its own. `played` starts after the intro, as if it had
+    /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_home(&mut self, played: bool, cx: &mut Context<Self>) {
+        self.session.project.fixture = false;
+        self.captured = true;
+        self.home.update(cx, |h, _| h.lab(played));
+        self.sync_session_view(cx);
+    }
     /// A dialog takes the window: the dialog layer, or the Documents error.
     fn modal(&self, cx: &App) -> bool {
         // A held-back Cloud conflict is a floating notice, not a dialog.
@@ -911,24 +1044,9 @@ impl Shell {
     /// A feature dialog this window renders: `key` on the layer, drawn and
     /// dismissed by the shell.
     fn open_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
-        let (render, dismiss) = (self.weak.clone(), self.weak.clone());
+        let owner = self.weak.clone();
         self.dialogs.update(cx, |d, cx| {
-            d.open_owned(
-                key,
-                move |_, window, cx| {
-                    render
-                        .update(cx, |s, cx| s.owned_dialog(key, window, cx))
-                        .unwrap_or_else(|_| Empty.into_any_element())
-                },
-                move |window, cx| {
-                    let _ = dismiss.update(cx, |s, cx| {
-                        s.dismiss_owned(key, window, cx);
-                        s.receive(window, cx);
-                        cx.notify();
-                    });
-                },
-                cx,
-            )
+            d.open_for(key, owner, Self::owned_dialog, Self::dismiss_owned, cx)
         });
     }
     /// The Settings page `page`, opened.
@@ -1026,10 +1144,17 @@ impl Shell {
             _ => self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx)),
         }
     }
-    /// The window's own feature dialogs (not the Explorer's rename, not
-    /// the Cloud services entity).
+    /// The window's own feature dialogs: the Cloud flows (the Homepage,
+    /// the project actions, the rename and the Cloud services keep theirs).
     fn owns_dialog(&self, key: DialogKey) -> bool {
-        !matches!(key, DialogKey::Rename | DialogKey::CloudServices)
+        matches!(
+            key,
+            DialogKey::CloudPublish
+                | DialogKey::ConfirmPublish
+                | DialogKey::ReplaceCloud
+                | DialogKey::CloudRecovery
+                | DialogKey::ManageAgents
+        )
     }
     /// Draws the feature dialog `key` from the state it keeps here.
     fn owned_dialog(
@@ -1038,29 +1163,7 @@ impl Shell {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let home = &self.homepage;
         match key {
-            DialogKey::CreateProject => home
-                .create
-                .as_ref()
-                .map(|c| self.create_project_dialog(c, cx).into_any_element()),
-            DialogKey::TemplateImport => home
-                .template
-                .as_ref()
-                .map(|t| self.template_import_dialog(t, cx).into_any_element()),
-            DialogKey::ImportRepository => home
-                .import
-                .as_ref()
-                .map(|i| self.import_dialog(i, cx).into_any_element()),
-            DialogKey::ProjectEntry => Some(self.project_entry_dialog(cx).into_any_element()),
-            DialogKey::RenameProject => home
-                .rename
-                .as_ref()
-                .map(|r| self.project_rename_dialog(r, cx).into_any_element()),
-            DialogKey::ConfirmProject => home
-                .confirm
-                .as_ref()
-                .map(|c| self.project_confirm_dialog(c, cx).into_any_element()),
             DialogKey::CloudPublish => Some(self.cloud_publish_dialog(cx).into_any_element()),
             DialogKey::ConfirmPublish => {
                 Some(self.publish_confirmation_dialog(cx).into_any_element())
@@ -1075,17 +1178,13 @@ impl Shell {
                     .into_any_element()
             }),
             DialogKey::ManageAgents => Some(self.manage_agents_dialog(cx).into_any_element()),
-            DialogKey::Rename | DialogKey::CloudServices => None,
+            _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
     }
     /// Escape on the feature dialog `key`, each with its own cancel.
     fn dismiss_owned(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
         match key {
-            DialogKey::CreateProject => self.close_create_project(window, cx),
-            DialogKey::TemplateImport => self.dismiss_template(window, cx),
-            DialogKey::ImportRepository => self.close_import(window, cx),
-            DialogKey::ProjectEntry => self.close_project_entry(cx),
             DialogKey::CloudPublish | DialogKey::ConfirmPublish => {
                 self.close_dialog(key, cx);
             }
@@ -1095,12 +1194,9 @@ impl Shell {
                     self.close_replace_cloud(cx);
                 }
             }
-            DialogKey::RenameProject | DialogKey::ConfirmProject => {
-                self.close_project_dialog(window, cx)
-            }
             DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
             DialogKey::ManageAgents => self.close_manage_agents(window, cx),
-            DialogKey::Rename | DialogKey::CloudServices => {}
+            _ => {}
         }
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1353,7 +1449,7 @@ impl Shell {
             }
             Command::Quit => self.session.files.begin(Intent::Quit, &self.session.wake),
             Command::OpenFolder => self.pick_workspace(window, cx),
-            Command::CreateNew => self.open_project_entry(cx),
+            Command::CreateNew => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
             Command::RetryProjectOpen => {
                 let failed = self.dialogs.read(cx).failed_project();
                 self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
@@ -1409,9 +1505,9 @@ impl Shell {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !self.home_visible() {
-                    self.hold_home_list();
+                    self.home.update(cx, |h, _| h.hold_list());
                 }
-                self.homepage.open = true;
+                self.session.home = true;
             }
             // With no dialog open, Escape closes a menu.
             // Escape cancels a Cloud opening; whatever showed stays.
@@ -1443,7 +1539,9 @@ impl Shell {
                         .and_then(|item| item.text())
                         .unwrap_or_default();
                     if crate::platform::templates::link::looks_like(&text) {
-                        self.open_template_link(text.trim().to_owned(), window, cx);
+                        let url = text.trim().to_owned();
+                        self.home
+                            .update(cx, |h, cx| h.open_template_link(url, window, cx));
                     }
                 }
             }
@@ -1595,7 +1693,7 @@ impl Shell {
             self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
             let root = ws.local_root().map(PathBuf::from);
             self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
-            self.homepage.open = false;
+            self.session.home = false;
             let opened = ws.local_root().map(PathBuf::from);
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1633,6 +1731,7 @@ impl Shell {
         self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
         self.sync_dialog_status(cx);
+        self.sync_session_view(cx);
         if self.session.files.allow_quit && self.dialogs.read(cx).creating(cx) {
             return;
         }
@@ -2013,7 +2112,7 @@ impl Shell {
             .as_ref()
             .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
         {
-            self.homepage.open = false;
+            self.session.home = false;
         } else if !self.session.picking && !self.session.files.navigation_blocked() {
             // `ProjectNavigation.select`: a newer choice replaces the one
             // still opening.
@@ -2059,7 +2158,8 @@ impl Shell {
         .items_center()
         .pt(px(12.))
         .gap(px(6.));
-        for (index, project) in self.homepage.recent.iter().take(12).enumerate() {
+        let recent = self.preferences.read(cx).state.recent_projects.clone();
+        for (index, project) in recent.iter().take(12).enumerate() {
             let active = current.as_ref() == Some(&project.path);
             let initial = project
                 .name
@@ -2102,7 +2202,9 @@ impl Shell {
                         cx.listener(move |s, e: &MouseDownEvent, w, cx| {
                             cx.stop_propagation();
                             let at = Bounds::new(e.position, size(px(0.), px(0.)));
-                            s.open_project_actions(target.clone(), at, false, w.viewport_size(), cx)
+                            let (target, viewport) = (target.clone(), w.viewport_size());
+                            s.project_actions
+                                .update(cx, |a, cx| a.open(target, at, false, viewport, None, cx))
                         })
                     })
                     .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
@@ -2167,7 +2269,9 @@ impl Shell {
         if self.session.files.cloud_opening().is_some() {
             let project = self.session.project.cloud.as_deref()?;
             return Some(
-                self.project_items(cx)
+                self.home
+                    .read(cx)
+                    .project_items(cx)
                     .into_iter()
                     .find(|i| i.cloud_project.as_deref() == Some(project))
                     .map(|i| i.label)
@@ -2176,8 +2280,10 @@ impl Shell {
         }
         let root = self.session.files.preparing_root()?;
         Some(
-            self.homepage
-                .recent
+            self.preferences
+                .read(cx)
+                .state
+                .recent_projects
                 .iter()
                 .find(|p| p.path == root)
                 .map(|p| p.name.clone())
@@ -2232,12 +2338,27 @@ impl Shell {
         let home = self.home_visible();
         if home {
             let mut bar = header::TitleBar::new();
-            let has_projects = !self.project_items(cx).is_empty() || self.homepage.list_held();
-            if has_projects {
+            let home = self.home.read(cx);
+            let empty = home.project_items(cx).is_empty();
+            if !empty || home.list_held() {
                 bar = bar.leading(header::brand_name(cx));
             }
             if crate::features::flags::cloud_enabled(&self.preferences, cx) {
-                bar = bar.action(self.homepage_account(cx));
+                let (retry, account) = (self.weak.clone(), self.weak.clone());
+                bar = bar.action(header::cloud_status(
+                    &self.cloud.catalog,
+                    self.session.files.cloud_opening().is_some(),
+                    empty,
+                    move |_, cx| {
+                        let _ = retry.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
+                    },
+                    move |window, cx| {
+                        let _ = account.update(cx, |s, cx| {
+                            s.open_settings(crate::features::settings::Page::Account, window, cx)
+                        });
+                    },
+                    cx,
+                ));
             }
             return bar;
         }
@@ -2378,7 +2499,6 @@ impl Render for Shell {
         crate::web_host::frame_drawn(window);
         if !cx.has_active_drag() {
             self.editor.drop = None;
-            self.homepage.dragging_path = None;
         }
         #[cfg(test)]
         {
@@ -2407,9 +2527,6 @@ impl Render for Shell {
         self.sync_repository_cloud(cx);
         self.sync_cloud_publish(cx);
         self.guard_cloud_authority(window, cx);
-        self.refresh_home_activity(cx);
-        self.sync_first_run(cx);
-        self.sync_home_intro(window, cx);
         self.sync_coachmarks(cx);
         self.sync_window_title(window);
         #[cfg(feature = "dev-capture")]
@@ -2490,12 +2607,10 @@ impl Render for Shell {
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
         });
+        // The Homepage, with its intro's curtain over the window under the
+        // Header.
         if home {
-            root = root.child(if self.first_run_sign_in(cx) {
-                self.first_run_view(cx).into_any_element()
-            } else {
-                self.home_view(window, cx)
-            });
+            root = root.child(self.home.clone());
         }
         if self.rail && !home && !file {
             root = root.child(self.project_rail(h, cx));
@@ -2503,11 +2618,6 @@ impl Render for Shell {
         let opening = !home && self.opening();
         if opening {
             root = root.children(self.project_preparation(w, h, cx));
-        }
-        // The intro's curtain covers the window under the Header, whose
-        // titlebar stays above it (`z-index: 60` over the curtain's 3).
-        if home {
-            root = root.children(self.home_intro_curtain(w, h, cx));
         }
         root = if file {
             root.child(self.file_titlebar(w, cx))
@@ -2520,7 +2630,7 @@ impl Render for Shell {
         if !home && !opening {
             root = root.children(self.notices(w, cx));
         }
-        root = root.children(self.project_actions_menu(cx));
+        root = root.child(self.project_actions.clone());
         root = root.children(self.coachmark_overlay(w, cx));
         root.child(self.dialogs.clone())
     }

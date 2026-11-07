@@ -197,7 +197,9 @@ impl Shell {
             Place::Local
         };
         let linked_folder = hosted.as_ref().and_then(|project| {
-            self.project_items(cx)
+            self.home
+                .read(cx)
+                .project_items(cx)
                 .into_iter()
                 .find(|i| i.linked.as_ref().is_some_and(|l| &l.id == project))
                 .and_then(|i| Some((PathBuf::from(i.local_path?), i.label)))
@@ -534,7 +536,7 @@ impl Shell {
     /// project; it is said before it exists.
     pub(super) fn publish_confirmation_dialog(&self, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
-        let name = self.project_display_name();
+        let name = self.project_display_name(cx);
         let host = self.weak.clone();
         Dialog::new("cloud-publish-confirmation")
             .width(400.)

@@ -150,11 +150,13 @@ impl Shell {
             }
         });
     }
-    pub(super) fn project_display_name(&self) -> String {
+    pub(super) fn project_display_name(&self, cx: &App) -> String {
         self.workspace_root()
             .and_then(|root| {
-                self.homepage
-                    .recent
+                self.preferences
+                    .read(cx)
+                    .state
+                    .recent_projects
                     .iter()
                     .find(|p| p.path == root)
                     .map(|p| p.name.clone())
@@ -164,7 +166,7 @@ impl Shell {
     /// The Cloud switch dialog for a checkout with no Cloud Project yet.
     pub(super) fn publish_dialog(&self, dialog: Dialog, cx: &mut Context<Self>) -> Dialog {
         let publish = self.cloud.publish.read(cx);
-        let name = self.project_display_name();
+        let name = self.project_display_name(cx);
         let pending = publish
             .outcome
             .as_ref()

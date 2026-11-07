@@ -10,16 +10,25 @@
 //!
 //! - [`create_project`]: the "Create a project" dialog
 //! - [`folder`]: the project folder and its marks
-use super::*;
+use super::{
+    Command, at,
+    dialogs::{DialogKey, DialogLayer},
+    project_actions::ProjectActions,
+    session::SessionView,
+};
 use crate::workspace::cloud::{
     catalog::{self, Item},
     locator::{self, Locator},
 };
 use crate::{
-    features::settings::preference_types::RecentProject,
+    features::{
+        cloud::catalog::CloudCatalog,
+        settings::{preference_types::RecentProject, preferences_store::PreferencesStore},
+    },
+    geometry::Rect,
     localization::{TimeUnit, relative_past, t as tr, tf},
     platform::project_activity,
-    theme::metric,
+    theme::{self, Theme, metric},
     ui::{
         appearance::ActiveAppearance,
         components::{
@@ -27,13 +36,14 @@ use crate::{
         },
     },
 };
+use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,
 };
 use std::{
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -59,14 +69,37 @@ const PAGE_WIDTH: f32 = 680.;
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
 const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
 
-/// The Homepage (`MinimalOnboarding` and its stores): whether the window
-/// shows it, the remembered projects it lists, and its own state.
-#[derive(Default)]
-pub(super) struct Homepage {
-    /// The window shows the Homepage instead of a project.
-    pub open: bool,
-    /// Remembered projects, newest first (`recentProjects`).
-    pub recent: Vec<crate::features::settings::preference_types::RecentProject>,
+/// What the Homepage asks of the window.
+pub(in crate::shell) enum HomeEvent {
+    /// Open this local folder here.
+    OpenProject(PathBuf),
+    /// Open this Cloud project here.
+    OpenCloud(String),
+    /// A project just made: open it here (or, when `new_window`, in a
+    /// window of its own) on `open`.
+    OpenCreated {
+        path: PathBuf,
+        open: Option<PathBuf>,
+        new_window: bool,
+    },
+    Command(Command),
+}
+
+/// The Homepage (`MinimalOnboarding` and its stores): the remembered and
+/// Cloud projects it lists, its own state, and the ways into a new project
+/// with their dialogs. What the window shows reaches it as a
+/// [`SessionView`]; what it asks for leaves as a [`HomeEvent`].
+pub(in crate::shell) struct Homepage {
+    session: SessionView,
+    preferences: Entity<PreferencesStore>,
+    catalog: Entity<CloudCatalog>,
+    actions: Entity<ProjectActions>,
+    dialogs: WeakEntity<DialogLayer>,
+    /// The dialog layer's focus, which the dialogs here keep.
+    dialog_focus: FocusHandle,
+    /// The window's own focus, which takes the keyboard back.
+    window_focus: FocusHandle,
+    weak: WeakEntity<Self>,
     /// The project list's scroller.
     pub scroll: ScrollHandle,
     /// When each project last changed (`None`: unknown), by path.
@@ -76,7 +109,7 @@ pub(super) struct Homepage {
     locators: HashMap<PathBuf, Option<Locator>>,
     /// The projects the activity was read for; a new list reads again.
     read_for: Option<Vec<PathBuf>>,
-    /// The homepage was showing at the last frame.
+    /// The projects were listed at the last change.
     shown: bool,
     /// Activity is being read.
     pub reading: bool,
@@ -103,8 +136,6 @@ pub(super) struct Homepage {
     pub hovered: Option<String>,
     /// Each tile's sheet motion: target, since, from.
     sheets: HashMap<String, (bool, Instant, f32)>,
-    /// The project whose actions are open.
-    pub actions: Option<String>,
     /// A folder is being dragged over the window.
     pub dragging: bool,
     /// The project being dragged out, by its absolute path (`draggingPath`).
@@ -113,7 +144,7 @@ pub(super) struct Homepage {
     pub error: Option<String>,
     /// The empty-state intro that is playing.
     pub(in crate::shell) intro: Option<crate::ui::motion::Timeline>,
-    /// Whether the visible Homepage had no projects at the last frame
+    /// Whether the visible Homepage had no projects at the last change
     /// (`None` while it is hidden, so showing it again replays the intro).
     intro_empty: Option<bool>,
     /// This Homepage has shown the analytics disclosure; it stays for as
@@ -125,14 +156,157 @@ pub(super) struct Homepage {
     pub(in crate::shell) template: Option<Box<TemplateImport>>,
     /// Cloning a repository into a new project, while its dialog is open.
     pub(in crate::shell) import: Option<ImportRepository>,
-    /// A remembered project's rename, while its dialog is open.
-    pub(in crate::shell) rename: Option<super::project_actions::ProjectRename>,
-    /// Unlinking or deleting a remembered project, while it is asked.
-    pub(in crate::shell) confirm: Option<super::project_actions::ProjectConfirm>,
 }
+impl EventEmitter<HomeEvent> for Homepage {}
+
 impl Homepage {
+    pub fn new(
+        preferences: Entity<PreferencesStore>,
+        catalog: Entity<CloudCatalog>,
+        actions: Entity<ProjectActions>,
+        dialogs: &Entity<DialogLayer>,
+        window_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        // The list, the first run and the intro follow what they read.
+        cx.observe(&preferences, |h, _, cx| h.refresh(cx)).detach();
+        cx.observe(&catalog, |h, _, cx| h.refresh(cx)).detach();
+        cx.observe(&actions, |_, _, cx| cx.notify()).detach();
+        if let Some(account) = cx
+            .try_global::<crate::features::cloud::account::CloudAccountService>()
+            .map(|s| s.0.clone())
+        {
+            cx.observe(&account, |h, _, cx| h.refresh(cx)).detach();
+        }
+        // The disclosure follows the analytics state.
+        if let Some(telemetry) = crate::features::telemetry::global(cx) {
+            cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
+        }
+        Self {
+            session: SessionView::default(),
+            preferences,
+            catalog,
+            actions,
+            dialogs: dialogs.downgrade(),
+            dialog_focus: dialogs.read(cx).focus_handle().clone(),
+            window_focus,
+            weak: cx.weak_entity(),
+            scroll: ScrollHandle::default(),
+            activity: HashMap::new(),
+            locators: HashMap::new(),
+            read_for: None,
+            shown: false,
+            reading: false,
+            first_paint: None,
+            released_for: None,
+            list_held_since: None,
+            places: Default::default(),
+            shown_dates: HashMap::new(),
+            menu: None,
+            stop: None,
+            focus: HashMap::new(),
+            action_bounds: HashMap::new(),
+            hovered: None,
+            sheets: HashMap::new(),
+            dragging: false,
+            dragging_path: None,
+            error: None,
+            intro: None,
+            intro_empty: None,
+            disclosure_shown: false,
+            create: None,
+            template: None,
+            import: None,
+        }
+    }
+    /// What the window shows changed.
+    pub fn set_session(&mut self, session: SessionView, cx: &mut Context<Self>) {
+        if self.session != session {
+            self.session = session;
+            self.refresh(cx);
+        }
+    }
+    /// What the page reads changed: the list, the first run and the intro
+    /// catch up, and the page draws again.
+    fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.refresh_activity(cx);
+        self.sync_project_view(cx);
+        self.sync_first_run(cx);
+        self.sync_intro(cx);
+        if self.session.home && self.released_for != Some(self.first_paint_account(cx)) {
+            self.first_paint.get_or_insert_with(Instant::now);
+        }
+        cx.notify();
+    }
     pub fn list_held(&self) -> bool {
         self.list_held_since.is_some()
+    }
+    fn recent<'a>(&self, cx: &'a App) -> &'a [RecentProject] {
+        &self.preferences.read(cx).state.recent_projects
+    }
+    fn open_project(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        cx.emit(HomeEvent::OpenProject(path));
+    }
+    fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
+        cx.emit(HomeEvent::OpenCloud(project));
+    }
+    fn command(&mut self, command: Command, cx: &mut Context<Self>) {
+        cx.emit(HomeEvent::Command(command));
+    }
+    // -------------------------------------------------------------- dialogs
+    fn open_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
+        let owner = self.weak.clone();
+        let _ = self.dialogs.update(cx, |d, cx| {
+            d.open_for(key, owner, Self::render_dialog, Self::dismiss_dialog, cx)
+        });
+    }
+    /// Closes `key`; `false` when it was not open.
+    fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) -> bool {
+        self.dialogs
+            .update(cx, |d, cx| d.close(key, cx))
+            .unwrap_or(false)
+    }
+    fn dialog_open(&self, key: DialogKey, cx: &App) -> bool {
+        self.dialogs
+            .upgrade()
+            .is_some_and(|d| d.read(cx).contains(key))
+    }
+    /// The dialog on top of the layer, while it is one of these.
+    fn top_dialog(&self, cx: &App) -> Option<DialogKey> {
+        self.dialogs.upgrade()?.read(cx).top_key()
+    }
+    fn render_dialog(
+        &mut self,
+        key: DialogKey,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        match key {
+            DialogKey::CreateProject => self
+                .create
+                .as_ref()
+                .map(|c| self.create_project_dialog(c, cx).into_any_element()),
+            DialogKey::TemplateImport => self
+                .template
+                .as_ref()
+                .map(|t| self.template_import_dialog(t, cx).into_any_element()),
+            DialogKey::ImportRepository => self
+                .import
+                .as_ref()
+                .map(|i| self.import_dialog(i, cx).into_any_element()),
+            DialogKey::ProjectEntry => Some(self.project_entry_dialog(cx).into_any_element()),
+            _ => None,
+        }
+        .unwrap_or_else(|| Empty.into_any_element())
+    }
+    /// Escape on one of the Homepage's dialogs, each with its own cancel.
+    fn dismiss_dialog(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
+        match key {
+            DialogKey::CreateProject => self.close_create_project(window, cx),
+            DialogKey::TemplateImport => self.close_template(window, cx),
+            DialogKey::ImportRepository => self.close_import(window, cx),
+            _ => self.close_project_entry(cx),
+        }
     }
 }
 
@@ -221,41 +395,28 @@ fn modification_time(changed: SystemTime, now: SystemTime) -> String {
     relative_past(n.max(1) as i64, unit)
 }
 
-impl Shell {
-    /// Web hides the workspace chrome on the homepage; so does the native shell.
-    pub(super) fn home_visible(&self) -> bool {
-        // A project on its way in takes the window from the Homepage.
-        !self.session.project.fixture
-            && !self.file_mode()
-            && !self.opening()
-            && (self.homepage.open || self.session.files.workspace.is_none())
-    }
+impl Homepage {
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project
     /// menu appears or the list changes, off the main thread. A visit ends
     /// when the page hides: its filter and shown dates go with it.
-    pub(super) fn refresh_home_activity(&mut self, cx: &mut Context<Self>) {
-        let shown = self.home_visible() || self.popover.is_some();
-        let appeared = shown && !self.homepage.shown;
-        if !self.home_visible() && !self.homepage.places.is_empty() {
-            self.homepage.places.clear();
+    fn refresh_activity(&mut self, cx: &mut Context<Self>) {
+        let shown = self.session.listing;
+        let appeared = shown && !self.shown;
+        if !self.session.home && !self.places.is_empty() {
+            self.places.clear();
         }
-        if appeared && self.home_visible() {
-            self.homepage.shown_dates.clear();
-            self.homepage.menu = None;
+        if appeared && self.session.home {
+            self.shown_dates.clear();
+            self.menu = None;
         }
-        self.homepage.shown = shown;
-        let paths: Vec<PathBuf> = self
-            .homepage
-            .recent
-            .iter()
-            .map(|p| p.path.clone())
-            .collect();
-        if !shown || (!appeared && self.homepage.read_for.as_ref() == Some(&paths)) {
+        self.shown = shown;
+        let paths: Vec<PathBuf> = self.recent(cx).iter().map(|p| p.path.clone()).collect();
+        if !shown || (!appeared && self.read_for.as_ref() == Some(&paths)) {
             return;
         }
-        self.homepage.read_for = Some(paths.clone());
-        self.homepage.reading = true;
+        self.read_for = Some(paths.clone());
+        self.reading = true;
         let read = cx.background_executor().spawn(async move {
             paths
                 .into_iter()
@@ -270,46 +431,47 @@ impl Shell {
         cx.spawn(async move |this, cx| {
             let read = read.await;
             let _ = this.update(cx, |s, cx| {
-                s.homepage.locators = read
+                s.locators = read
                     .iter()
                     .filter_map(|(path, _, remote)| Some((path.clone(), remote.clone()?)))
                     .collect();
-                s.homepage.activity = read
+                s.activity = read
                     .into_iter()
                     .map(|(path, changed, _)| (path, changed))
                     .collect();
-                s.homepage.reading = false;
+                s.reading = false;
                 // The list is whole: it may be seen now.
-                s.homepage.list_held_since = None;
-                cx.notify();
+                s.list_held_since = None;
+                s.refresh(cx);
             });
         })
         .detach();
     }
     /// `useHomepageListHold`: Home leaves at once and only the list waits,
     /// so the project just left is in its new place the first time it shows.
-    pub(super) fn hold_home_list(&mut self) {
-        self.homepage.list_held_since = Some(Instant::now());
+    pub(in crate::shell) fn hold_list(&mut self) {
+        self.list_held_since = Some(Instant::now());
         // A re-read even of an unchanged list, as the product refreshes it.
-        self.homepage.read_for = None;
+        self.read_for = None;
     }
-    /// `useHomepageFirstPaint`: `true` while the first Homepage of an
-    /// account still waits for its list (whole, final order), up to four
-    /// seconds; the window shows the restoring mark meanwhile.
-    pub(super) fn home_first_paint_pending(&mut self, window: &mut Window, cx: &App) -> bool {
-        if !self.home_visible() || self.restoring() {
-            return false;
-        }
-        let account = crate::features::cloud::account::broker_and_binding(cx)
+    /// The account the first Homepage waits for (`None`: signed out or no
+    /// Cloud).
+    fn first_paint_account(&self, cx: &App) -> Option<String> {
+        crate::features::cloud::account::broker_and_binding(cx)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx))
-            .map(|(_, b)| format!("{}\n{}", b.environment.api(), b.user));
-        if self.homepage.released_for.as_ref() == Some(&account) {
-            return false;
+            .map(|(_, b)| format!("{}\n{}", b.environment.api(), b.user))
+    }
+    /// `useHomepageFirstPaint`: the first Homepage of an account waits for
+    /// its list (whole, final order), up to four seconds. `Some(account)`
+    /// once it may show for `account`; `None` while it still waits.
+    fn first_paint_released(&self, cx: &App) -> Option<Option<String>> {
+        let account = self.first_paint_account(cx);
+        if self.session.restoring || self.released_for.as_ref() == Some(&account) {
+            return Some(account);
         }
-        let since = *self.homepage.first_paint.get_or_insert_with(Instant::now);
         // `settled`: no Cloud result is still on its way that would reorder
         // the list (a cached stand-in is not the account's own answer).
-        let catalog = self.cloud.catalog.read(cx);
+        let catalog = self.catalog.read(cx);
         let catalog_settled = account.is_none()
             || matches!(
                 catalog.state,
@@ -319,27 +481,35 @@ impl Shell {
                 catalog.state,
                 crate::features::cloud::catalog::State::Ready(_)
             ) && catalog.fresh);
-        let settled = !self.homepage.reading && self.homepage.read_for.is_some() && catalog_settled;
-        if settled || since.elapsed() >= FIRST_PAINT_BUDGET {
-            self.homepage.released_for = Some(account);
-            self.homepage.first_paint = None;
-            self.homepage.list_held_since = None;
-            return false;
+        let settled = !self.reading && self.read_for.is_some() && catalog_settled;
+        let over = self
+            .first_paint
+            .is_some_and(|since| since.elapsed() >= FIRST_PAINT_BUDGET);
+        (settled || over).then_some(account)
+    }
+    /// The first paint may show: it shows for this account from now on.
+    fn release_first_paint(&mut self, cx: &mut Context<Self>) {
+        if let Some(account) = self.first_paint_released(cx)
+            && self.released_for.as_ref() != Some(&account)
+            && !self.session.restoring
+        {
+            self.released_for = Some(account);
+            self.first_paint = None;
+            self.list_held_since = None;
+            cx.notify();
         }
-        window.request_animation_frame();
-        true
     }
     /// `useHomepageCloudProjects().items`: the one flat project list the
     /// Homepage and the Header project menu share. Location chooses icons
     /// and actions, never the rank; Cloud entries come only from the
     /// current account's catalog, and a folder links to one only through
     /// its freshly read, trusted Project-root locator.
-    pub(super) fn project_items(&self, cx: &App) -> Vec<Item> {
+    pub(in crate::shell) fn project_items(&self, cx: &App) -> Vec<Item> {
         use crate::features::cloud::catalog::State;
         let account = crate::features::cloud::account::broker_and_binding(cx)
             .map(|(_, binding)| binding)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx));
-        let catalog = self.cloud.catalog.read(cx);
+        let catalog = self.catalog.read(cx);
         let (cloud, activity) = match (&catalog.state, &account) {
             (State::Ready(entries), Some(_)) => (entries.as_slice(), &catalog.activity),
             _ => (&[][..], &catalog.activity),
@@ -354,32 +524,21 @@ impl Shell {
                 .map(|d| d.as_millis() as i64)
         };
         let local: Vec<catalog::LocalEntry> = self
-            .homepage
-            .recent
+            .recent(cx)
             .iter()
             .map(|p| catalog::LocalEntry {
                 path: p.path.to_string_lossy().into_owned(),
                 name: project_name(p),
                 modified: self
-                    .homepage
                     .activity
                     .get(&p.path)
                     .copied()
                     .flatten()
                     .and_then(millis),
                 trusted_locator: api.as_deref().and_then(|api| {
-                    self.homepage
-                        .locators
-                        .get(&p.path)
-                        .cloned()
-                        .flatten()
-                        .filter(|l| {
-                            locator::is_trusted_git_origin(
-                                &l.origin,
-                                api,
-                                hosted_git_origin.as_deref(),
-                            )
-                        })
+                    self.locators.get(&p.path).cloned().flatten().filter(|l| {
+                        locator::is_trusted_git_origin(&l.origin, api, hosted_git_origin.as_deref())
+                    })
                 }),
             })
             .collect();
@@ -387,35 +546,33 @@ impl Shell {
     }
     /// `showEmptyStateIntro`: the intro plays whenever the Homepage appears
     /// (or loses its last project) with no projects, unless motion is
-    /// reduced; the disclosure waits for it. Called once per frame.
-    pub(super) fn sync_home_intro(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let visible = self.home_visible() && !self.restoring() && !self.first_run_sign_in(cx);
+    /// reduced; the disclosure waits for it.
+    fn sync_intro(&mut self, cx: &mut Context<Self>) {
+        let visible = self.session.home && !self.session.restoring && !self.first_run_sign_in(cx);
         if !visible {
-            self.homepage.intro = None;
-            self.homepage.intro_empty = None;
-            self.homepage.disclosure_shown = false;
+            self.intro = None;
+            self.intro_empty = None;
+            self.disclosure_shown = false;
             return;
         }
         let empty = self.project_items(cx).is_empty();
-        if self.homepage.intro_empty != Some(empty) {
-            self.homepage.intro_empty = Some(empty);
-            self.homepage.intro = (empty && !cx.reduce_motion())
+        if self.intro_empty != Some(empty) {
+            self.intro_empty = Some(empty);
+            self.intro = (empty && !cx.reduce_motion())
                 .then(|| crate::ui::motion::Timeline::start(intro::TOTAL));
         }
-        match self.homepage.intro {
-            Some(timeline) if timeline.finished() => self.homepage.intro = None,
-            Some(_) => window.request_animation_frame(),
-            None => {}
+        if self.intro.is_some_and(|timeline| timeline.finished()) {
+            self.intro = None;
         }
         // `OnboardingTelemetryDisclosure ready={!showEmptyStateIntro}`: shown
         // on an empty Homepage once the intro is over, then marked seen.
         if empty
-            && self.homepage.intro.is_none()
-            && !self.homepage.disclosure_shown
+            && self.intro.is_none()
+            && !self.disclosure_shown
             && let Some(telemetry) = crate::features::telemetry::global(cx)
             && telemetry.read(cx).disclosure_required()
         {
-            self.homepage.disclosure_shown = true;
+            self.disclosure_shown = true;
             telemetry.update(cx, |t, cx| t.disclosure_presented(cx));
         }
     }
@@ -423,35 +580,31 @@ impl Shell {
     /// no capture of its own. `played` starts after the intro, as if it had
     /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
     #[cfg(feature = "dev-capture")]
-    pub fn lab_home(&mut self, played: bool) {
-        self.session.project.fixture = false;
-        self.captured = true;
+    pub fn lab(&mut self, played: bool) {
         if played {
-            self.homepage.intro_empty = Some(true);
+            self.intro_empty = Some(true);
         }
     }
     /// Dev builds: Alt+Shift+L replays the intro on an empty Homepage.
-    pub(super) fn replay_home_intro(&mut self, cx: &mut Context<Self>) -> bool {
-        if !cfg!(debug_assertions)
-            || self.homepage.intro.is_some()
-            || self.homepage.intro_empty != Some(true)
-        {
+    pub(in crate::shell) fn replay_intro(&mut self, cx: &mut Context<Self>) -> bool {
+        if !cfg!(debug_assertions) || self.intro.is_some() || self.intro_empty != Some(true) {
             return false;
         }
-        self.homepage.intro = Some(crate::ui::motion::Timeline::start(intro::TOTAL));
+        self.intro = Some(crate::ui::motion::Timeline::start(intro::TOTAL));
         cx.notify();
         true
     }
-    /// The curtain over the whole window while the intro plays.
-    pub(super) fn home_intro_curtain(&self, w: f32, h: f32, cx: &App) -> Option<AnyElement> {
-        let timeline = self.homepage.intro.as_ref()?;
+    /// The curtain over the whole window while the intro plays (the
+    /// Header's titlebar stays above it, `z-index: 60` over the curtain's 3).
+    fn intro_curtain(&self, w: f32, h: f32, cx: &App) -> Option<AnyElement> {
+        let timeline = self.intro.as_ref()?;
         let frame = intro::current(timeline, w, h);
         Some(intro::curtain(frame.radius, w, h, cx.palette().dark).into_any_element())
     }
     /// `.onboarding-telemetry-disclosure`: one caption line in the bottom
     /// end corner, the Learn More link underlined at 45%.
     fn telemetry_disclosure(&self, w: f32, cx: &App) -> Option<AnyElement> {
-        if !self.homepage.disclosure_shown || self.homepage.intro.is_some() {
+        if !self.disclosure_shown || self.intro.is_some() {
             return None;
         }
         let t = cx.palette();
@@ -484,19 +637,31 @@ impl Shell {
                 .into_any_element(),
         )
     }
-    pub(super) fn home_view(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        if self.restoring() || self.home_first_paint_pending(window, cx) {
+    fn home_view(
+        &mut self,
+        w: f32,
+        h: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        if self.session.restoring {
             return self.restoring_view(cx).into_any_element();
         }
-        self.sync_project_view(cx);
+        match self.first_paint_released(cx) {
+            None => {
+                // The budget is checked again on the next frame.
+                window.request_animation_frame();
+                return self.restoring_view(cx).into_any_element();
+            }
+            Some(account) if self.released_for.as_ref() != Some(&account) => {
+                cx.defer_in(window, |h, _, cx| h.release_first_paint(cx));
+            }
+            Some(_) => {}
+        }
         let t = cx.palette();
         let all = self.project_items(cx);
-        let has_projects = !all.is_empty() || self.homepage.list_held();
-        let busy = self.session.picking
-            || self.session.files.busy()
-            || self.session.files.folder_busy
-            || self.session.files.cloud_opening().is_some();
-        let (w, h) = (self.layout.header.w, self.layout.editor.bottom());
+        let has_projects = !all.is_empty() || self.list_held();
+        let busy = self.session.busy;
         let pad = metric::UTILITY_PADDING_INLINE;
         let page_w = PAGE_WIDTH.min(w - pad * 2.).max(0.);
         let column = if has_projects {
@@ -505,7 +670,7 @@ impl Shell {
             COLUMN_EMPTY
         }
         .min(page_w);
-        let error = self.homepage.error.clone().map(|error| {
+        let error = self.error.clone().map(|error| {
             // `.onboarding-error.onboarding-homepage-error`.
             h_flex()
                 .flex_none()
@@ -525,7 +690,6 @@ impl Shell {
                 .child(div().min_w_0().child(error))
         });
         let intro = self
-            .homepage
             .intro
             .as_ref()
             .map(|timeline| intro::current(timeline, w, h).content);
@@ -541,7 +705,7 @@ impl Shell {
                 .text_color(t.muted)
                 .child(self.project_toolbar(busy, cx))
                 .child(self.entry_menu(busy, w <= 696., cx));
-            let list = self.project_list(items, column, busy, window, cx);
+            let list = self.project_list(items, column, w <= 520., busy, window, cx);
             // `.onboarding-home-primary[data-onboarding-primary="projects"]`:
             // the projects sit on the page; a fill appears only for a drop.
             let primary = div()
@@ -551,7 +715,7 @@ impl Shell {
                 .flex()
                 .flex_col()
                 .rounded(px(metric::CARD_RADIUS))
-                .when(self.homepage.dragging, |d| d.bg(t.hover))
+                .when(self.dragging, |d| d.bg(t.hover))
                 .child(list);
             v_flex()
                 .w(px(page_w))
@@ -600,7 +764,7 @@ impl Shell {
                 .w_full()
                 .mb(px(8.))
                 .rounded(px(metric::CARD_RADIUS))
-                .when(self.homepage.dragging, |d| d.bg(t.hover))
+                .when(self.dragging, |d| d.bg(t.hover))
                 .child(self.create_action(true, busy, cx).w_full());
             let actions = h_flex()
                 .w_full()
@@ -616,8 +780,8 @@ impl Shell {
                         .min_w_0()
                         .text_size(px(theme::ty().ui.body))
                         .font_weight(FontWeight::NORMAL)
-                        .when(self.homepage.dragging, |b| b.bg(t.control_hover))
-                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
+                        .when(self.dragging, |b| b.bg(t.control_hover))
+                        .on_click(cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx))),
                 )
                 .child(self.import_action(t, busy, cx).flex_1().min_w_0());
             v_flex()
@@ -651,20 +815,20 @@ impl Shell {
             .child(page)
             // `useWorkspaceFolderDrop`: a folder dropped anywhere opens.
             .on_drag_move::<ExternalPaths>(cx.listener(|s, _, _, cx| {
-                if !s.homepage.dragging {
-                    s.homepage.dragging = true;
+                if !s.dragging {
+                    s.dragging = true;
                     cx.notify();
                 }
             }))
-            .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
-                s.homepage.dragging = false;
-                s.drop_on_homepage(paths.paths(), w, cx);
+            .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
+                s.dragging = false;
+                s.drop_on_homepage(paths.paths(), cx);
             }))
             .on_hover(move |hovered, _, cx| {
                 if !*hovered {
                     let _ = host.update(cx, |s, cx| {
-                        if s.homepage.dragging {
-                            s.homepage.dragging = false;
+                        if s.dragging {
+                            s.dragging = false;
                             cx.notify();
                         }
                     });
@@ -675,169 +839,25 @@ impl Shell {
             })
             .into_any_element()
     }
-    /// `HomepageCloudStatus`: the account, never a project row. Loading,
-    /// a failure (with what helps) or an empty catalog lead it; then the
-    /// account's initial, or Sign in.
-    pub(super) fn homepage_account(&self, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::cloud::account::Status;
-        use crate::features::cloud::catalog::State;
-        let t = cx.palette();
-        let ty = theme::ty().header;
-        let account = cx
-            .try_global::<crate::features::cloud::account::CloudAccountService>()
-            .map(|s| s.0.read(cx).snapshot.clone())
-            .unwrap_or_default();
-        let status = account.as_ref().map(|a| a.status);
-        let email = account
-            .as_ref()
-            .and_then(|a| a.account.as_ref())
-            .map(|a| a.email.clone());
-        let restoring = status == Some(Status::Restoring);
-        let signing_in = status == Some(Status::SigningIn);
-        let auth_error = account
-            .as_ref()
-            .filter(|a| a.account.is_none())
-            .and_then(|a| a.error);
-        let catalog = self.cloud.catalog.read(cx).state.clone();
-        let text = |text: String, color: Rgba| {
-            div()
-                .min_w_0()
-                .truncate()
-                .text_size(px(ty.content))
-                .line_height(px(ty.line_height))
-                .text_color(color)
-                .child(text)
-        };
-        let feedback: Option<AnyElement> = if self.session.files.cloud_opening().is_some() {
-            None
-        } else if catalog == State::Failed || auth_error.is_some() {
-            let label = match &auth_error {
-                Some(error) => error.to_string(),
-                None => tr("cloud.catalog.loadFailed").to_owned(),
-            };
-            let sign_in = auth_error.is_some();
-            Some(
-                h_flex()
-                    .min_w_0()
-                    .gap(px(8.))
-                    .child(text(label, t.danger))
-                    .child(
-                        Button::new("homepage-cloud-retry")
-                            .variant(ButtonVariant::Titlebar)
-                            .label(tr("cloud.common.retry"))
-                            .on_click(cx.listener(move |s, _, _, cx| {
-                                if sign_in {
-                                    crate::features::cloud::account::sign_in(cx);
-                                } else {
-                                    s.refresh_cloud_catalog(true, cx);
-                                }
-                            })),
-                    )
-                    .into_any_element(),
-            )
-        } else if restoring || catalog == State::Loading || (email.is_none() && signing_in) {
-            Some(
-                h_flex()
-                    .gap(px(6.))
-                    .child(
-                        crate::ui::loading::LoadingMark::new("homepage-cloud-loading")
-                            .size(crate::ui::loading::LoaderSize::Xs)
-                            .tone(crate::ui::loading::Tone::Neutral),
-                    )
-                    .child(text(
-                        tr(if signing_in {
-                            "cloud.home.waitingForSignIn"
-                        } else {
-                            "cloud.home.loading"
-                        })
-                        .to_owned(),
-                        t.utility,
-                    ))
-                    .into_any_element(),
-            )
-        } else if email.is_some()
-            && matches!(&catalog, State::Ready(list) if list.is_empty())
-            && self.project_items(cx).is_empty()
-        {
-            Some(text(tr("cloud.catalog.empty").to_owned(), t.utility).into_any_element())
-        } else {
-            None
-        };
-        let entry: Option<AnyElement> = (!restoring).then(|| match &email {
-            Some(email) => {
-                let initial = email
-                    .trim()
-                    .chars()
-                    .next()
-                    .map(|c| c.to_uppercase().to_string())
-                    .unwrap_or_else(|| "P".into());
-                let size = 22.;
-                div()
-                    .id("homepage-cloud-avatar")
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .size(px(size))
-                    .mr(px((theme::control() - 4. - size) / 2.))
-                    .rounded_full()
-                    .bg(t.control)
-                    .text_color(t.utility)
-                    .text_size(px(ty.content))
-                    .line_height(px(ty.line_height))
-                    .cursor(theme::clickable_cursor())
-                    .hover(move |s| s.bg(t.control_hover).text_color(t.text))
-                    .tooltip(crate::ui::components::tooltip(format!(
-                        "{}: {email}",
-                        tr("settings.sidebar.account")
-                    )))
-                    .on_click(cx.listener(|s, _, w, cx| {
-                        s.open_settings(crate::features::settings::Page::Account, w, cx)
-                    }))
-                    .child(initial)
-                    .into_any_element()
-            }
-            None => Button::new("homepage-cloud-sign-in")
-                .variant(ButtonVariant::Titlebar)
-                .label(tr("cloud.auth.signIn"))
-                .accessibility_label(tr("cloud.auth.signInToCloud"))
-                .pl(px(7.))
-                .pr(px(8.))
-                .text_size(px(ty.content))
-                .line_height(px(ty.line_height))
-                .on_click(cx.listener(|_, _, _, cx| crate::features::cloud::account::sign_in(cx)))
-                .into_any_element(),
-        });
-        h_flex()
-            .min_w_0()
-            .max_w(px(360.))
-            .h(px(theme::control() - 4.))
-            .gap(px(8.))
-            .justify_end()
-            .children(feedback)
-            .children(entry)
-            .into_any_element()
-    }
     /// A folder dropped on the page opens; anything else says why not.
-    fn drop_on_homepage(&mut self, paths: &[PathBuf], window: &mut Window, cx: &mut Context<Self>) {
+    fn drop_on_homepage(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
         match paths.iter().find(|p| p.is_dir()) {
             Some(folder) if paths.len() == 1 => {
-                self.homepage.error = None;
-                self.open_project(folder.clone(), window, cx);
+                self.error = None;
+                self.open_project(folder.clone(), cx);
             }
             _ => {
-                self.homepage.error = Some(tr("onboarding.error.dropLocalFolder").into());
+                self.error = Some(tr("onboarding.error.dropLocalFolder").into());
                 cx.notify();
             }
         }
     }
     /// Opens an entry in this window: a local folder, or a Cloud project
     /// (`selectCloudProject`); a folder's Cloud project is its own entry.
-    pub(super) fn open_item(&mut self, item: &Item, window: &mut Window, cx: &mut Context<Self>) {
-        self.popover = None;
-        self.homepage.error = None;
+    fn open_item(&mut self, item: &Item, cx: &mut Context<Self>) {
+        self.error = None;
         match (&item.local_path, &item.cloud_project) {
-            (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
+            (Some(path), _) => self.open_project(PathBuf::from(path), cx),
             (None, Some(project)) => self.open_cloud(project.clone(), cx),
             _ => {}
         }
@@ -891,6 +911,97 @@ impl Shell {
             .on_click(cx.listener(|s, _, w, cx| s.begin_import(w, cx)))
             // `.onboarding-entry-import-brand-badge`, ringed in the control.
             .trailing(project_entry::import_badges(t, t.canvas, busy))
+    }
+}
+
+/// Captures reach for the page the way a person would.
+#[cfg(feature = "dev-capture")]
+impl Homepage {
+    /// "Create a project", named `name`.
+    pub(in crate::shell) fn capture_create_project(
+        &mut self,
+        name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.begin_create_project(window, cx);
+        if let Some(create) = self.create.as_mut() {
+            create
+                .destination
+                .name
+                .update(cx, |input, cx| input.set_text(name, cx));
+        }
+    }
+    /// The pointer on the project at `index`; `false` before it is listed.
+    pub(in crate::shell) fn capture_hover(&mut self, index: usize, cx: &mut Context<Self>) -> bool {
+        let Some(item) = self.visible_projects(cx).into_iter().nth(index) else {
+            return false;
+        };
+        self.hovered = Some(item.id);
+        cx.notify();
+        true
+    }
+    /// The actions of the project at `index`, beside its trigger; `false`
+    /// until the trigger is painted.
+    pub(in crate::shell) fn capture_actions(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(item) = self.visible_projects(cx).into_iter().nth(index) else {
+            return false;
+        };
+        let Some(target) = super::project_actions::Target::of(&item) else {
+            return true;
+        };
+        let bounds = self
+            .action_bounds
+            .get(&item.id)
+            .map(|b| b.get())
+            .unwrap_or_default();
+        if bounds.size.width <= px(0.) {
+            return false;
+        }
+        self.hovered = Some(item.id.clone());
+        let viewport = window.viewport_size();
+        self.actions.update(cx, |a, cx| {
+            a.open(target, bounds, true, viewport, Some(item.id), cx)
+        });
+        true
+    }
+}
+
+impl Render for Homepage {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let size = window.viewport_size();
+        let (w, h) = (f32::from(size.width), f32::from(size.height));
+        let root = div().absolute().top_0().left_0().size_full();
+        if !self.session.home {
+            return root;
+        }
+        // The intro's frames, and what follows its end.
+        match &self.intro {
+            Some(timeline) if timeline.finished() => {
+                cx.defer_in(window, |h, _, cx| h.refresh(cx));
+            }
+            Some(_) => window.request_animation_frame(),
+            None => {}
+        }
+        // A drag that ended outside any target leaves nothing dragged.
+        if self.dragging_path.is_some() && !cx.has_active_drag() {
+            cx.defer_in(window, |h, _, cx| {
+                if !cx.has_active_drag() && h.dragging_path.take().is_some() {
+                    cx.notify();
+                }
+            });
+        }
+        let page = if self.first_run_sign_in(cx) {
+            self.first_run_view(w, h, cx).into_any_element()
+        } else {
+            self.home_view(w, h, window, cx)
+        };
+        root.child(page).children(self.intro_curtain(w, h, cx))
     }
 }
 

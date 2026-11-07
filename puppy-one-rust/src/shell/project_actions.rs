@@ -4,16 +4,26 @@
 //! folder's menu leads with where it is and Copy path, then Rename and
 //! Unlink (the files stay); a Cloud project offers Rename and Delete, and
 //! only what this account may do.
-use super::*;
+//!
+//! [`ProjectActions`] is one entity per window: the Homepage's rows, the
+//! project rail and the Header's project menu open it beside their entry.
+//! It draws the menu, owns the rename and confirm dialogs (on the dialog
+//! layer) and tells the window what changed ([`ActionsEvent`]).
+use super::dialogs::{DialogKey, DialogLayer};
 use crate::{
+    features::{cloud::catalog::CloudCatalog, settings::preferences_store::PreferencesStore},
     localization::{t as tr, tf},
+    theme,
+    ui::appearance::ActiveAppearance,
     ui::{
         components::{AnchoredMenu, Button, ButtonVariant, Dialog, Menu, MenuItem},
         form_input::{InputEvent, TextInput},
     },
     workspace::cloud::catalog::Item,
 };
+use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, v_flex};
+use std::path::PathBuf;
 
 /// `PROJECT_ACTION_MENU_WIDTH`: the local menu carries the folder's path.
 const MENU_WIDTH_LOCAL: f32 = 224.;
@@ -94,7 +104,32 @@ pub(in crate::shell) struct ActionsMenu {
     pub target: Target,
     pub position: Point<Pixels>,
     pub copied: Option<bool>,
+    /// The Homepage entry it opened from (that entry stays lit).
+    pub item: Option<String>,
 }
+
+/// What the window does about a change made here.
+pub(in crate::shell) enum ActionsEvent {
+    /// The menu opened: the Header's popovers give way.
+    Opened,
+    /// A folder took a new shown name.
+    Renamed { path: PathBuf, name: String },
+}
+
+pub(in crate::shell) struct ProjectActions {
+    preferences: Entity<PreferencesStore>,
+    catalog: Entity<CloudCatalog>,
+    dialogs: WeakEntity<DialogLayer>,
+    /// The dialog layer's focus, which the dialogs here keep.
+    dialog_focus: FocusHandle,
+    /// The window's own focus, which takes the keyboard back.
+    window_focus: FocusHandle,
+    weak: WeakEntity<Self>,
+    pub(in crate::shell) menu: Option<ActionsMenu>,
+    pub(in crate::shell) rename: Option<ProjectRename>,
+    pub(in crate::shell) confirm: Option<ProjectConfirm>,
+}
+impl EventEmitter<ActionsEvent> for ProjectActions {}
 
 /// `resolveDesktopActionMenuPositionBeside`: to the right of the trigger,
 /// else under (or over) it, inside a 12px margin.
@@ -127,40 +162,92 @@ pub(in crate::shell) fn beside(
     )
 }
 
-impl Shell {
+impl ProjectActions {
+    pub fn new(
+        preferences: Entity<PreferencesStore>,
+        catalog: Entity<CloudCatalog>,
+        dialogs: &Entity<DialogLayer>,
+        window_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self {
+            preferences,
+            catalog,
+            dialogs: dialogs.downgrade(),
+            dialog_focus: dialogs.read(cx).focus_handle().clone(),
+            window_focus,
+            weak: cx.weak_entity(),
+            menu: None,
+            rename: None,
+            confirm: None,
+        }
+    }
     /// Opens `target`'s actions; `trigger` is the control it hangs beside,
-    /// or the pointer of a right click.
-    pub(in crate::shell) fn open_project_actions(
+    /// or the pointer of a right click; `item` is the Homepage entry.
+    pub(in crate::shell) fn open(
         &mut self,
         target: Target,
         trigger: Bounds<Pixels>,
         beside: bool,
         viewport: Size<Pixels>,
+        item: Option<String>,
         cx: &mut Context<Self>,
     ) {
-        self.popover = None;
         let position = if beside {
             self::beside(trigger, target.width(), viewport)
         } else {
             trigger.origin
         };
-        self.project_actions = Some(ActionsMenu {
+        self.menu = Some(ActionsMenu {
             target,
             position,
             copied: None,
+            item,
         });
+        cx.emit(ActionsEvent::Opened);
         cx.notify();
     }
-    fn close_project_actions(&mut self, cx: &mut Context<Self>) {
-        self.project_actions = None;
-        self.homepage.actions = None;
-        cx.notify();
+    pub(in crate::shell) fn close(&mut self, cx: &mut Context<Self>) {
+        if self.menu.take().is_some() {
+            cx.notify();
+        }
     }
-    pub(in crate::shell) fn project_actions_menu(
-        &self,
+    /// The Homepage entry whose actions are open.
+    pub(in crate::shell) fn item(&self) -> Option<&str> {
+        self.menu.as_ref()?.item.as_deref()
+    }
+    fn open_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
+        let owner = self.weak.clone();
+        let _ = self.dialogs.update(cx, |d, cx| {
+            d.open_for(key, owner, Self::render_dialog, Self::dismiss_dialog, cx)
+        });
+    }
+    fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) {
+        let _ = self.dialogs.update(cx, |d, cx| d.close(key, cx));
+    }
+    fn render_dialog(
+        &mut self,
+        key: DialogKey,
+        _: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let open = self.project_actions.clone()?;
+    ) -> AnyElement {
+        match key {
+            DialogKey::RenameProject => self
+                .rename
+                .as_ref()
+                .map(|r| self.project_rename_dialog(r, cx).into_any_element()),
+            _ => self
+                .confirm
+                .as_ref()
+                .map(|c| self.project_confirm_dialog(c, cx).into_any_element()),
+        }
+        .unwrap_or_else(|| Empty.into_any_element())
+    }
+    fn dismiss_dialog(&mut self, _: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_project_dialog(window, cx);
+    }
+    fn project_actions_menu(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let open = self.menu.clone()?;
         let t = cx.palette();
         let host = self.weak.clone();
         let target = open.target.clone();
@@ -203,7 +290,7 @@ impl Shell {
                 .on_click(move |_, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(full.clone()));
                     let _ = host.update(cx, |s, cx| {
-                        if let Some(open) = &mut s.project_actions {
+                        if let Some(open) = &mut s.menu {
                             open.copied = Some(true);
                         }
                         cx.notify();
@@ -247,31 +334,38 @@ impl Shell {
                 .icon(if can_unlink { "unlink" } else { "trash-2" })
                 .danger()
                 .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.project_actions = None;
-                        s.homepage.confirm = Some(ProjectConfirm {
-                            target: target.clone(),
-                            pending: false,
-                            error: None,
-                        });
-                        s.open_dialog(DialogKey::ConfirmProject, cx);
-                        s.focus_dialogs(w, cx);
-                        cx.notify();
-                    });
+                    let _ = host.update(cx, |s, cx| s.ask_confirm(target.clone(), w, cx));
                 }),
             );
         }
         let dismiss = host.clone();
         let menu = menu.on_dismiss(move |_, cx| {
-            let _ = dismiss.update(cx, |s, cx| s.close_project_actions(cx));
+            let _ = dismiss.update(cx, |s, cx| s.close(cx));
         });
         Some(
             AnchoredMenu::new("project-actions-menu", open.position, menu)
                 .on_dismiss(move |_, cx| {
-                    let _ = host.update(cx, |s, cx| s.close_project_actions(cx));
+                    let _ = host.update(cx, |s, cx| s.close(cx));
                 })
                 .into_any_element(),
         )
+    }
+    /// `ProjectRowConfirmDialog` for `target`'s unlink or delete.
+    pub(in crate::shell) fn ask_confirm(
+        &mut self,
+        target: Target,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.menu = None;
+        self.confirm = Some(ProjectConfirm {
+            target,
+            pending: false,
+            error: None,
+        });
+        self.open_dialog(DialogKey::ConfirmProject, cx);
+        self.dialog_focus.focus(window, cx);
+        cx.notify();
     }
     pub(in crate::shell) fn begin_project_rename(
         &mut self,
@@ -279,7 +373,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.project_actions = None;
+        self.menu = None;
         let max = match target {
             Target::Local { .. } => NAME_MAX_LOCAL,
             Target::Cloud { .. } => NAME_MAX_CLOUD,
@@ -296,7 +390,7 @@ impl Shell {
                 s.submit_project_rename(w, cx)
             } else {
                 // Save follows the edited name; an error clears with an edit.
-                if let Some(rename) = s.homepage.rename.as_mut() {
+                if let Some(rename) = s.rename.as_mut() {
                     rename.error = None;
                 }
                 cx.notify();
@@ -304,7 +398,7 @@ impl Shell {
         })
         .detach();
         input.read(cx).focus_handle(cx).focus(window, cx);
-        self.homepage.rename = Some(ProjectRename {
+        self.rename = Some(ProjectRename {
             target,
             input,
             pending: false,
@@ -320,7 +414,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(rename) = self.homepage.rename.as_ref() else {
+        let Some(rename) = self.rename.as_ref() else {
             return;
         };
         if rename.pending {
@@ -332,21 +426,18 @@ impl Shell {
         }
         match rename.target.clone() {
             Target::Local { path, .. } => {
-                self.homepage.rename = None;
+                self.rename = None;
                 self.close_dialog(DialogKey::RenameProject, cx);
-                self.homepage.actions = None;
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.rename_project(&path, &name), cx));
-                if self.workspace_root().as_deref() == Some(path.as_path()) {
-                    self.session.project.name = name;
-                }
-                self.focus.focus(window, cx);
+                cx.emit(ActionsEvent::Renamed { path, name });
+                self.window_focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
                 let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
-                if let Some(rename) = self.homepage.rename.as_mut() {
+                if let Some(rename) = self.rename.as_mut() {
                     rename.pending = true;
                 }
                 let update = crate::workspace::cloud::services::ProjectUpdate {
@@ -362,17 +453,16 @@ impl Shell {
                     let _ = this.update_in(cx, |s, w, cx| {
                         match result {
                             Ok(updated) => {
-                                s.homepage.rename = None;
+                                s.rename = None;
                                 s.close_dialog(DialogKey::RenameProject, cx);
-                                s.homepage.actions = None;
-                                let catalog = s.cloud.catalog.clone();
+                                let catalog = s.catalog.clone();
                                 catalog.update(cx, |c, cx| {
                                     c.apply_rename(&project, &updated.name, cx)
                                 });
-                                s.focus.focus(w, cx);
+                                s.window_focus.focus(w, cx);
                             }
                             Err(error) => {
-                                if let Some(rename) = s.homepage.rename.as_mut() {
+                                if let Some(rename) = s.rename.as_mut() {
                                     rename.pending = false;
                                     rename.error = Some(project_change_error(&error));
                                 }
@@ -392,16 +482,16 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         // A change on its way cannot be dismissed (`onClose` is withheld).
-        if self.homepage.rename.as_ref().is_some_and(|r| !r.pending) {
-            self.homepage.rename = None;
+        if self.rename.as_ref().is_some_and(|r| !r.pending) {
+            self.rename = None;
             self.close_dialog(DialogKey::RenameProject, cx);
         }
-        if self.homepage.confirm.as_ref().is_some_and(|c| !c.pending) {
-            self.homepage.confirm = None;
+        if self.confirm.as_ref().is_some_and(|c| !c.pending) {
+            self.confirm = None;
             self.close_dialog(DialogKey::ConfirmProject, cx);
         }
-        self.homepage.actions = None;
-        self.focus.focus(window, cx);
+        self.menu = None;
+        self.window_focus.focus(window, cx);
         cx.notify();
     }
     pub(in crate::shell) fn project_rename_dialog(
@@ -518,7 +608,7 @@ impl Shell {
                     .variant(ButtonVariant::Secondary)
                     .label(tr("common.action.cancel"))
                     .disabled(pending)
-                    .track_focus(&self.dialog_focus(cx))
+                    .track_focus(&self.dialog_focus)
                     .on_click(cx.listener(|s, _, w, cx| s.close_project_dialog(w, cx))),
             )
             .footer(
@@ -537,7 +627,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(confirm) = self.homepage.confirm.as_ref() else {
+        let Some(confirm) = self.confirm.as_ref() else {
             return;
         };
         if confirm.pending {
@@ -545,18 +635,17 @@ impl Shell {
         }
         match confirm.target.clone() {
             Target::Local { path, .. } => {
-                self.homepage.confirm = None;
+                self.confirm = None;
                 self.close_dialog(DialogKey::ConfirmProject, cx);
-                self.homepage.actions = None;
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
-                self.focus.focus(window, cx);
+                self.window_focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
                 let Some(client) = crate::features::cloud::services::services_client(cx) else {
                     return;
                 };
-                if let Some(confirm) = self.homepage.confirm.as_mut() {
+                if let Some(confirm) = self.confirm.as_mut() {
                     confirm.pending = true;
                     confirm.error = None;
                 }
@@ -569,15 +658,14 @@ impl Shell {
                     let _ = this.update_in(cx, |s, w, cx| {
                         match result {
                             Ok(()) => {
-                                s.homepage.confirm = None;
+                                s.confirm = None;
                                 s.close_dialog(DialogKey::ConfirmProject, cx);
-                                s.homepage.actions = None;
-                                let catalog = s.cloud.catalog.clone();
+                                let catalog = s.catalog.clone();
                                 catalog.update(cx, |c, cx| c.apply_delete(&project, cx));
-                                s.focus.focus(w, cx);
+                                s.window_focus.focus(w, cx);
                             }
                             Err(error) => {
-                                if let Some(confirm) = s.homepage.confirm.as_mut() {
+                                if let Some(confirm) = s.confirm.as_mut() {
                                     confirm.pending = false;
                                     confirm.error = Some(project_change_error(&error));
                                 }
@@ -590,6 +678,12 @@ impl Shell {
             }
         }
         cx.notify();
+    }
+}
+
+impl Render for ProjectActions {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div().children(self.project_actions_menu(cx))
     }
 }
 

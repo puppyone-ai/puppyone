@@ -156,6 +156,8 @@ impl Shell {
         let hosted = self.hosted_project();
         let t = cx.palette();
         let projects = self
+            .home
+            .read(cx)
             .project_items(cx)
             .into_iter()
             .enumerate()

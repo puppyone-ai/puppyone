@@ -743,7 +743,7 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Home);
     view.update(cx, |s, _| {
-        assert!(s.homepage.open && s.popover.is_none());
+        assert!(s.session.home && s.popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
         assert!(!s.home_visible());
     });
@@ -1459,8 +1459,12 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     draw(cx);
     let pushed = renders(cx);
     assert!(pushed > before, "a host change renders the Explorer");
-    // A preference the Explorer does not read leaves it alone…
+    // A preference the Explorer does not read leaves it alone (the first
+    // change projects the whole appearance once, as loading does)…
     let store = view.read_with(cx, |s, _| s.preferences.clone());
+    store.update(cx, |p, cx| p.change(|p| p.right_sidebar_width = 380., cx));
+    draw(cx);
+    let pushed = renders(cx);
     store.update(cx, |p, cx| p.change(|p| p.right_sidebar_width = 400., cx));
     draw(cx);
     assert_eq!(renders(cx), pushed, "a pane width is not the Explorer's");
@@ -2048,13 +2052,14 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
             p.state.remember_project(&plain, 2);
             p.state.remember_project(&linked, 1);
         });
-        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
         s.refresh_cloud_catalog(true, cx);
         // The Header project menu hydrates the same list as the Homepage.
         s.popover = Some(Popover::Project);
     });
     let locations = |s: &Shell, cx: &App| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .iter()
             .map(|i| (i.label.clone(), i.location()))
             .collect::<Vec<_>>()
@@ -2069,7 +2074,7 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         assert!(found.contains(&("plain".into(), Location::Local)));
         assert!(found.contains(&("Fixture Cloud".into(), Location::CloudOnly)));
         assert!(found.contains(&("Hosted only".into(), Location::CloudOnly)));
-        s.project_items(cx)
+        s.home.read(cx).project_items(cx)
     });
     let folder = items.iter().find(|i| i.label == "linked").unwrap();
     assert_eq!(
@@ -2147,7 +2152,7 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
         s.hosted_project().is_none() && s.session.project.cloud.is_none()
     });
     view.read_with(cx, |s, _| {
-        assert!(s.homepage.open);
+        assert!(s.session.home);
         assert!(s.session.project.authority.is_none());
     });
 }
@@ -2386,7 +2391,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
 
 #[gpui::test]
 fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppContext) {
-    use super::project_actions::{ProjectConfirm, Target};
+    use super::project_actions::Target;
     let (view, cx) = setup(cx);
     let path = PathBuf::from("/p/notes");
     let target = Target::Local {
@@ -2396,26 +2401,36 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&path, 1));
-        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
-        s.open_project_actions(
-            target.clone(),
-            Bounds::new(point(px(20.), px(80.)), size(px(0.), px(0.))),
-            false,
-            size(px(1180.), px(760.)),
-            cx,
-        );
+        let target = target.clone();
+        s.project_actions.update(cx, |a, cx| {
+            a.open(
+                target,
+                Bounds::new(point(px(20.), px(80.)), size(px(0.), px(0.))),
+                false,
+                size(px(1180.), px(760.)),
+                None,
+                cx,
+            )
+        });
     });
     draw(cx);
     view.update_in(cx, |s, w, cx| {
-        assert!(s.project_actions.is_some());
-        s.begin_project_rename(target.clone(), w, cx);
-        assert!(s.project_actions.is_none());
-        let Some(rename) = s.homepage.rename.as_ref() else {
+        assert!(s.project_actions.read(cx).menu.is_some());
+        s.project_actions
+            .update(cx, |a, cx| a.begin_project_rename(target.clone(), w, cx));
+        assert!(s.project_actions.read(cx).menu.is_none());
+        let Some(input) = s
+            .project_actions
+            .read(cx)
+            .rename
+            .as_ref()
+            .map(|r| r.input.clone())
+        else {
             panic!("no rename dialog")
         };
-        let input = rename.input.clone();
         input.update(cx, |i, cx| i.set_text(String::from("Field notes"), cx));
-        s.submit_project_rename(w, cx);
+        s.project_actions
+            .update(cx, |a, cx| a.submit_project_rename(w, cx));
     });
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
@@ -2425,17 +2440,15 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         );
     });
     // Unlink forgets the Project (its files stay where they are).
-    view.update(cx, |s, cx| {
-        s.homepage.confirm = Some(ProjectConfirm {
-            target,
-            pending: false,
-            error: None,
-        });
-        s.open_dialog(DialogKey::ConfirmProject, cx);
-        cx.notify();
+    view.update_in(cx, |s, w, cx| {
+        s.project_actions
+            .update(cx, |a, cx| a.ask_confirm(target, w, cx));
     });
     draw(cx);
-    view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.project_actions
+            .update(cx, |a, cx| a.confirm_project_change(w, cx))
+    });
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
         assert!(s.preferences.read(cx).state.recent_projects.is_empty())
@@ -2446,7 +2459,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
 /// everyone, so the account's catalog follows the server's answer.
 #[gpui::test]
 fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
-    use super::project_actions::{ProjectConfirm, Target};
+    use super::project_actions::Target;
     let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     // The server's one Project: its name, or gone.
     let server = std::sync::Arc::new(std::sync::Mutex::new(Some(String::from("Fixture Cloud"))));
@@ -2488,12 +2501,16 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
         s.refresh_cloud_catalog(true, cx);
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .iter()
             .any(|i| i.label == "Fixture Cloud")
     });
     let item = view.read_with(cx, |s, cx| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .into_iter()
             .find(|i| i.label == "Fixture Cloud")
             .unwrap()
@@ -2509,29 +2526,39 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
         }
     );
     view.update_in(cx, |s, w, cx| {
-        s.begin_project_rename(target.clone(), w, cx);
-        let Some(rename) = s.homepage.rename.as_ref() else {
+        s.project_actions
+            .update(cx, |a, cx| a.begin_project_rename(target.clone(), w, cx));
+        let Some(input) = s
+            .project_actions
+            .read(cx)
+            .rename
+            .as_ref()
+            .map(|r| r.input.clone())
+        else {
             panic!("no rename dialog")
         };
-        let input = rename.input.clone();
         input.update(cx, |i, cx| i.set_text(String::from("Renamed"), cx));
-        s.submit_project_rename(w, cx);
+        s.project_actions
+            .update(cx, |a, cx| a.submit_project_rename(w, cx));
     });
     settle_cloud(&view, cx, "the rename", &|s, cx| {
-        s.dialogs.read(cx).is_empty() && s.project_items(cx).iter().any(|i| i.label == "Renamed")
+        s.dialogs.read(cx).is_empty()
+            && s.home
+                .read(cx)
+                .project_items(cx)
+                .iter()
+                .any(|i| i.label == "Renamed")
     });
-    view.update(cx, |s, cx| {
-        s.homepage.confirm = Some(ProjectConfirm {
-            target,
-            pending: false,
-            error: None,
-        });
-        s.open_dialog(DialogKey::ConfirmProject, cx);
-        cx.notify();
+    view.update_in(cx, |s, w, cx| {
+        s.project_actions
+            .update(cx, |a, cx| a.ask_confirm(target, w, cx));
     });
-    view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.project_actions
+            .update(cx, |a, cx| a.confirm_project_change(w, cx))
+    });
     settle_cloud(&view, cx, "the deletion", &|s, cx| {
-        s.dialogs.read(cx).is_empty() && s.project_items(cx).is_empty()
+        s.dialogs.read(cx).is_empty() && s.home.read(cx).project_items(cx).is_empty()
     });
     let requests = requests.lock().unwrap();
     assert!(requests.iter().any(|r| r == "PUT /projects/project-a"));
@@ -2745,14 +2772,16 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     draw(cx);
-    view.read_with(cx, |s, cx| assert!(s.first_run_sign_in(cx)));
+    view.read_with(cx, |s, cx| assert!(s.home.read(cx).first_run_sign_in(cx)));
     // Continue locally completes it for good.
     view.update(cx, |s, cx| {
-        s.complete_first_run(cx);
-        s.sync_first_run(cx);
+        s.home.update(cx, |h, cx| {
+            h.complete_first_run(cx);
+            h.sync_first_run(cx)
+        });
     });
     view.read_with(cx, |s, cx| {
-        assert!(!s.first_run_sign_in(cx));
+        assert!(!s.home.read(cx).first_run_sign_in(cx));
         assert!(s.preferences.read(cx).state.first_run_sign_in_completed);
     });
     let _ = account;
@@ -2763,17 +2792,18 @@ fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppConte
     let temp = tempfile::tempdir().unwrap();
     let parent = temp.path().canonicalize().unwrap();
     let (view, cx) = setup(cx);
-    view.update_in(cx, |s, w, cx| s.begin_import(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.begin_import(w, cx))
+    });
     // An unsupported URL is refused before anything runs.
     view.update_in(cx, |s, w, cx| {
-        let Some(import) = s.homepage.import.as_ref() else {
+        let Some(url) = s.home.read(cx).import.as_ref().map(|i| i.url.clone()) else {
             panic!("no import dialog")
         };
-        let url = import.url.clone();
         url.update(cx, |i, cx| {
             i.set_text(String::from("https://example.com/a/b"), cx)
         });
-        s.submit_import(w, cx);
+        s.home.update(cx, |h, cx| h.submit_import(w, cx));
     });
     draw(cx);
     view.read_with(cx, |s, cx| {
@@ -2840,7 +2870,9 @@ fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppCon
     view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
     command(&view, cx, Command::CreateNew);
     view.update_in(cx, |s, w, cx| {
-        s.choose_project_entry(super::home::project_entry::Route::Create, w, cx)
+        s.home.update(cx, |h, cx| {
+            h.choose_project_entry(super::home::project_entry::Route::Create, w, cx)
+        })
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.has_dialog("ProjectEntry", cx));
@@ -2849,7 +2881,9 @@ fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppCon
     command(&view, cx, Command::Escape);
     command(&view, cx, Command::CreateNew);
     view.update_in(cx, |s, w, cx| {
-        s.choose_project_entry(super::home::project_entry::Route::Import, w, cx)
+        s.home.update(cx, |h, cx| {
+            h.choose_project_entry(super::home::project_entry::Route::Import, w, cx)
+        })
     });
     view.read_with(cx, |s, cx| {
         assert!(s.top_dialog(cx).as_deref() == Some("ImportRepository"))
@@ -2916,24 +2950,31 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         s.session.project.fixture = false;
-        s.begin_create_project(w, cx);
-        let create = s.homepage.create.as_mut().unwrap();
-        create.destination.location = Some(parent.clone());
-        create
-            .destination
-            .name
-            .update(cx, |input, cx| input.set_text("Notes".to_owned(), cx));
+        s.home.update(cx, |h, cx| {
+            h.begin_create_project(w, cx);
+            let create = h.create.as_mut().unwrap();
+            create.destination.location = Some(parent.clone());
+            create
+                .destination
+                .name
+                .update(cx, |input, cx| input.set_text("Notes".to_owned(), cx));
+        });
     });
     cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string("just words".into())));
-    view.update_in(cx, |s, w, cx| s.paste_template_link(w, cx));
-    view.update(cx, |s, _| {
-        let create = s.homepage.create.as_mut().unwrap();
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.paste_template_link(w, cx))
+    });
+    view.update(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let create = home.create.as_ref().unwrap();
         assert_eq!(
             create.error.as_deref(),
             Some(crate::localization::t("onboarding.template.noLink"))
         );
     });
-    view.update_in(cx, |s, w, cx| s.submit_create_project(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
+    });
     settle_cloud(&view, cx, "the new project", &|s, _| {
         s.session
             .files
@@ -2966,26 +3007,31 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     });
     // ⌘V on the Homepage takes the link.
     command(&view, cx, Command::PasteTemplateLink);
-    view.update(cx, |s, _| {
-        let Some(import) = s.homepage.template.as_deref_mut() else {
-            panic!("the template card");
-        };
-        import.destination.location = Some(parent.clone());
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| {
+            let Some(import) = h.template.as_deref_mut() else {
+                panic!("the template card");
+            };
+            import.destination.location = Some(parent.clone());
+        })
     });
-    settle_cloud(&view, cx, "the template", &|s, _| {
-        s.homepage
+    settle_cloud(&view, cx, "the template", &|s, cx| {
+        s.home
+            .read(cx)
             .template
             .as_ref()
             .is_some_and(|i| i.detail.is_some())
     });
     view.read_with(cx, |s, cx| {
-        let Some(import) = s.homepage.template.as_deref() else {
+        let Some(import) = s.home.read(cx).template.as_deref() else {
             unreachable!()
         };
         // A display name becomes a folder name.
         assert_eq!(import.destination.name.read(cx).text(), "Weekly plan");
     });
-    view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_template(w, cx))
+    });
     settle_cloud(&view, cx, "the copy", &|s, _| {
         s.session
             .files
@@ -3006,21 +3052,28 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
         "https://www.puppyone.ai/t/{}",
         crate::platform::templates::package::tests::ID
     );
-    view.update_in(cx, |s, w, cx| s.open_template_link(link, w, cx));
-    view.update(cx, |s, _| {
-        let Some(import) = s.homepage.template.as_deref_mut() else {
-            panic!("the template card");
-        };
-        assert!(import.new_window);
-        import.destination.location = Some(parent.clone());
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.open_template_link(link, w, cx))
     });
-    settle_cloud(&view, cx, "the template again", &|s, _| {
-        s.homepage
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| {
+            let Some(import) = h.template.as_deref_mut() else {
+                panic!("the template card");
+            };
+            assert!(import.new_window);
+            import.destination.location = Some(parent.clone());
+        })
+    });
+    settle_cloud(&view, cx, "the template again", &|s, cx| {
+        s.home
+            .read(cx)
             .template
             .as_ref()
             .is_some_and(|i| i.detail.is_some())
     });
-    view.update_in(cx, |s, w, cx| s.submit_template(w, cx));
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_template(w, cx))
+    });
     settle_cloud(&view, cx, "the second window", &|_, cx| {
         windows::count(cx) == 2
     });
@@ -3042,14 +3095,15 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
         s.session.project.fixture = false;
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&folder, 1));
-        s.homepage.recent = s.preferences.read(cx).state.recent_projects.clone();
     });
     command(&view, cx, Command::Home);
-    settle_cloud(&view, cx, "the Homepage list", &|s, _| {
-        !s.homepage.list_held()
+    settle_cloud(&view, cx, "the Homepage list", &|s, cx| {
+        !s.home.read(cx).list_held()
     });
     draw(cx);
-    let id = view.read_with(cx, |s, cx| s.visible_projects(cx)[0].id.clone());
+    let id = view.read_with(cx, |s, cx| {
+        s.home.read(cx).visible_projects(cx)[0].id.clone()
+    });
     let selector: &'static str = Box::leak(format!("home-project:{id}").into_boxed_str());
     let row = cx.debug_bounds(selector).unwrap();
     let from = row.center();
@@ -3065,8 +3119,11 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
         cx.read_from_clipboard().and_then(|c| c.text()),
         Some(path.clone())
     );
-    view.read_with(cx, |s, _| {
-        assert_eq!(s.homepage.dragging_path.as_deref(), Some(path.as_str()))
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.home.read(cx).dragging_path.as_deref(),
+            Some(path.as_str())
+        )
     });
     cx.simulate_mouse_up(
         point(from.x + px(40.), from.y + px(30.)),
@@ -3074,8 +3131,8 @@ fn a_homepage_project_drags_out_as_its_path(cx: &mut TestAppContext) {
         Modifiers::default(),
     );
     draw(cx);
-    view.read_with(cx, |s, _| {
-        assert!(s.homepage.dragging_path.is_none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.home.read(cx).dragging_path.is_none());
         // Dragging is not opening.
         assert!(s.home_visible());
     });
@@ -3094,25 +3151,29 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     cx.run_until_parked();
     draw(cx);
     view.update(cx, |s, cx| {
-        assert!(!s.homepage.list_held());
-        assert!(s.home_visible() && s.project_items(cx).is_empty());
-        assert!(s.homepage.intro.is_some());
+        let home = s.home.read(cx);
+        assert!(!home.list_held());
+        assert!(s.home_visible() && home.project_items(cx).is_empty());
+        assert!(home.intro.is_some());
         // The disclosure waits for the intro.
-        assert!(!s.homepage.disclosure_shown);
+        assert!(!home.disclosure_shown);
     });
     assert!(cx.debug_bounds("onboarding-empty-state-intro").is_some());
     assert!(cx.debug_bounds("onboarding-telemetry-disclosure").is_none());
-    view.update(cx, |s, _| {
-        s.homepage
-            .intro
-            .as_mut()
-            .unwrap()
-            .advance(std::time::Duration::from_millis(1200))
-    });
+    let advance = |s: &mut Shell, cx: &mut Context<Shell>| {
+        s.home.update(cx, |h, _| {
+            h.intro
+                .as_mut()
+                .unwrap()
+                .advance(std::time::Duration::from_millis(1200))
+        })
+    };
+    view.update(cx, advance);
     draw(cx);
     draw(cx);
-    view.update(cx, |s, _| {
-        assert!(s.homepage.intro.is_none() && s.homepage.disclosure_shown);
+    view.update(cx, |s, cx| {
+        let home = s.home.read(cx);
+        assert!(home.intro.is_none() && home.disclosure_shown);
     });
     assert!(cx.debug_bounds("onboarding-empty-state-intro").is_none());
     let disclosure = cx.debug_bounds("onboarding-telemetry-disclosure").unwrap();
@@ -3126,29 +3187,32 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     state.update(cx, |t, _| {
         t.snapshot = Some(telemetry::fixture(Level::Basic, true, false))
     });
-    view.update(cx, |s, _| s.session.project.fixture = true);
+    let fixture = |on: bool| {
+        move |s: &mut Shell, w: &mut Window, cx: &mut Context<Shell>| {
+            s.session.project.fixture = on;
+            s.receive(w, cx)
+        }
+    };
+    view.update_in(cx, fixture(true));
     draw(cx);
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update_in(cx, fixture(false));
     draw(cx);
-    view.update(cx, |s, _| {
-        assert!(s.homepage.intro.is_some() && !s.homepage.disclosure_shown);
-        s.homepage
-            .intro
-            .as_mut()
-            .unwrap()
-            .advance(std::time::Duration::from_millis(1200));
+    view.update(cx, |s, cx| {
+        let home = s.home.read(cx);
+        assert!(home.intro.is_some() && !home.disclosure_shown);
     });
+    view.update(cx, advance);
     draw(cx);
     draw(cx);
     assert!(cx.debug_bounds("onboarding-telemetry-disclosure").is_none());
 
     // Reduced motion: no intro at all.
     cx.update(|_, cx| cx.set_reduce_motion(true));
-    view.update(cx, |s, _| s.session.project.fixture = true);
+    view.update_in(cx, fixture(true));
     draw(cx);
-    view.update(cx, |s, _| s.session.project.fixture = false);
+    view.update_in(cx, fixture(false));
     draw(cx);
-    view.update(cx, |s, _| assert!(s.homepage.intro.is_none()));
+    view.update(cx, |s, cx| assert!(s.home.read(cx).intro.is_none()));
 }
 
 #[gpui::test]
@@ -3312,7 +3376,9 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
     // The catalog still loads and lists the Cloud Project (merged by the
     // checkout's trusted locator, not by the refused authorization).
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .iter()
             .any(|i| i.cloud_project.as_deref() == Some("project-a"))
     });
@@ -3365,7 +3431,9 @@ fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestA
         assert!(s.session.files.cloud_opening().is_none());
         // The catalog is untouched.
         assert!(
-            s.project_items(cx)
+            s.home
+                .read(cx)
+                .project_items(cx)
                 .iter()
                 .any(|i| i.cloud_project.as_deref() == Some("project-a"))
         );
@@ -3389,9 +3457,11 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    // Turning Cloud on loads the catalog.
     view.update(cx, |s, cx| {
-        s.preferences
-            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+        s.preferences.update(cx, |p, cx| {
+            p.change(|p| p.experimental.cloud_workspace = true, cx)
+        })
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         matches!(
@@ -3870,7 +3940,9 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
         s.cloud.repository.read(cx).context.project() == Some("project-a")
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .iter()
             .any(|i| i.cloud_project.as_deref() == Some("project-a"))
     });
@@ -4063,7 +4135,9 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
-        s.project_items(cx)
+        s.home
+            .read(cx)
+            .project_items(cx)
             .iter()
             .any(|i| i.label == "Fixture Cloud")
     });
@@ -4159,7 +4233,7 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
     });
     // Project commands, Settings, Help and Close File do nothing here.
     command(&view, cx, Command::Home);
-    view.read_with(cx, |s, _| assert!(!s.homepage.open && !s.home_visible()));
+    view.read_with(cx, |s, _| assert!(!s.session.home && !s.home_visible()));
     for c in [
         Command::Settings,
         Command::Feedback,

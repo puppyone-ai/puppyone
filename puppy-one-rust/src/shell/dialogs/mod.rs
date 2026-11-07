@@ -218,6 +218,30 @@ impl DialogLayer {
             cx,
         );
     }
+    /// Opens `key` for `owner`, which keeps the dialog's state: `render`
+    /// draws it from that state and `dismiss` answers Escape.
+    pub fn open_for<T: 'static>(
+        &mut self,
+        key: DialogKey,
+        owner: WeakEntity<T>,
+        render: fn(&mut T, DialogKey, &mut Window, &mut Context<T>) -> AnyElement,
+        dismiss: fn(&mut T, DialogKey, &mut Window, &mut Context<T>),
+        cx: &mut Context<Self>,
+    ) {
+        let dismissed = owner.clone();
+        self.open_owned(
+            key,
+            move |_, window, cx| {
+                owner
+                    .update(cx, |owner, cx| render(owner, key, window, cx))
+                    .unwrap_or_else(|_| Empty.into_any_element())
+            },
+            move |window, cx| {
+                let _ = dismissed.update(cx, |owner, cx| dismiss(owner, key, window, cx));
+            },
+            cx,
+        );
+    }
     /// Closes the topmost dialog that matches.
     pub fn remove(
         &mut self,

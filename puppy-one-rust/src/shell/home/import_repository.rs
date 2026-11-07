@@ -20,7 +20,7 @@ pub(in crate::shell) struct ImportRepository {
     error: Option<String>,
 }
 
-impl Shell {
+impl Homepage {
     pub(in crate::shell) fn begin_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let url = cx.new(|cx| {
             let mut input = TextInput::new(
@@ -44,7 +44,7 @@ impl Shell {
         })
         .detach();
         url.read(cx).focus_handle(cx).focus(window, cx);
-        self.homepage.import = Some(ImportRepository {
+        self.import = Some(ImportRepository {
             url,
             location: create_project::default_location(),
             cloning: None,
@@ -54,7 +54,7 @@ impl Shell {
         cx.notify();
     }
     fn import_state(&mut self) -> Option<&mut ImportRepository> {
-        self.homepage.import.as_mut()
+        self.import.as_mut()
     }
     pub(in crate::shell) fn close_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(import) = self.import_state()
@@ -62,9 +62,9 @@ impl Shell {
         {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        self.homepage.import = None;
+        self.import = None;
         self.close_dialog(DialogKey::ImportRepository, cx);
-        self.focus.focus(window, cx);
+        self.window_focus.focus(window, cx);
         cx.notify();
     }
     fn choose_import_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -117,16 +117,16 @@ impl Shell {
             .spawn(async move { repository_import::clone_into(&location, &repository, &cancel) });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
-            let _ = this.update_in(cx, |s, w, cx| {
+            let _ = this.update_in(cx, |s, _, cx| {
                 let Some(import) = s.import_state() else {
                     return;
                 };
                 import.cloning = None;
                 match result {
                     Ok(path) => {
-                        s.homepage.import = None;
+                        s.import = None;
                         s.close_dialog(DialogKey::ImportRepository, cx);
-                        s.open_project(path, w, cx);
+                        s.open_project(path, cx);
                     }
                     Err(error) => import.error = Some(error),
                 }

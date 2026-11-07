@@ -284,7 +284,10 @@ fn open_template_link(url: &str, cx: &mut App) -> bool {
     if let Some((handle, shell)) = target {
         let _ = handle.update(cx, |_, window, cx| {
             window.activate_window();
-            shell.update(cx, |s, cx| s.open_template_link(share, window, cx));
+            shell.update(cx, |s, cx| {
+                s.home
+                    .update(cx, |h, cx| h.open_template_link(share, window, cx))
+            });
         });
     }
     true

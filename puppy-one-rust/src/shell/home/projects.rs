@@ -194,61 +194,58 @@ pub(super) fn grid_columns(width: f32) -> usize {
     (((width + CELL_GAP) / (CELL_MIN + CELL_GAP)).floor() as usize).max(1)
 }
 
-impl Shell {
+impl Homepage {
     /// `useHomepageProjectView` with the page's own state applied, and the
     /// shown dates settled (called once per frame while the page shows).
     pub(super) fn sync_project_view(&mut self, cx: &mut Context<Self>) {
-        if !self.home_visible() || self.homepage.list_held() {
+        if !self.session.home || self.list_held() {
             return;
         }
         let mut items = self.project_items(cx);
-        settle_dates(&mut self.homepage.shown_dates, &mut items);
+        settle_dates(&mut self.shown_dates, &mut items);
         // A place can empty out from under its filter (signing out).
         let present: BTreeSet<Place> = items.iter().map(place_of).collect();
-        self.homepage.places.retain(|p| present.contains(p));
+        self.places.retain(|p| present.contains(p));
     }
     /// The projects the page shows, in the order it shows them.
     pub(in crate::shell) fn visible_projects(&self, cx: &App) -> Vec<Item> {
-        if self.homepage.list_held() {
+        if self.list_held() {
             return vec![];
         }
         let mut items = self.project_items(cx);
         for item in &mut items {
-            if let Some(date) = self.homepage.shown_dates.get(&item.id) {
+            if let Some(date) = self.shown_dates.get(&item.id) {
                 item.modified = Some(*date);
             }
         }
         let sort = self.preferences.read(cx).state.homepage_project_sort;
         view_items(
             items,
-            &self.homepage.places,
+            &self.places,
             sort,
             tr("onboarding.projects.untitled"),
         )
     }
     /// The roving stop: the project last focused, else the first.
     fn project_stop(&self, items: &[Item]) -> Option<String> {
-        self.homepage
-            .stop
+        self.stop
             .as_ref()
             .filter(|id| items.iter().any(|i| &i.id == *id))
             .cloned()
             .or_else(|| items.first().map(|i| i.id.clone()))
     }
     fn project_focus(&mut self, id: &str, cx: &mut Context<Self>) -> FocusHandle {
-        self.homepage
-            .focus
+        self.focus
             .entry(id.to_owned())
             .or_insert_with(|| cx.focus_handle())
             .clone()
     }
     /// `true` while a project is reached for: pointer, key focus or menu.
-    fn project_lit(&self, item: &Item, window: &Window) -> bool {
-        self.homepage.hovered.as_deref() == Some(item.id.as_str())
-            || self.homepage.actions.as_deref() == Some(item.id.as_str())
+    fn project_lit(&self, item: &Item, window: &Window, cx: &App) -> bool {
+        self.hovered.as_deref() == Some(item.id.as_str())
+            || self.actions.read(cx).item() == Some(item.id.as_str())
             || (window.last_input_was_keyboard()
                 && self
-                    .homepage
                     .focus
                     .get(&item.id)
                     .is_some_and(|f| f.is_focused(window)))
@@ -270,16 +267,14 @@ impl Shell {
             let to = if target { 1. } else { 0. };
             (from + (to - from) * eased, progress)
         };
-        let state = *self.homepage.sheets.entry(id.to_owned()).or_insert((
-            lit,
-            now,
-            if lit { 1. } else { 0. },
-        ));
+        let state =
+            *self
+                .sheets
+                .entry(id.to_owned())
+                .or_insert((lit, now, if lit { 1. } else { 0. }));
         let (current, progress) = at(state);
         if state.0 != lit {
-            self.homepage
-                .sheets
-                .insert(id.to_owned(), (lit, now, current));
+            self.sheets.insert(id.to_owned(), (lit, now, current));
             window.request_animation_frame();
             return current;
         }
@@ -303,7 +298,7 @@ impl Shell {
         build: impl FnOnce(Menu) -> Menu + 'static,
         cx: &App,
     ) -> PopoverMenu {
-        let open = self.homepage.menu == Some(menu) && !disabled;
+        let open = self.menu == Some(menu) && !disabled;
         let host = self.weak.clone();
         let t = cx.palette();
         let trigger = IconButton::new(("home-view-menu", menu as usize), icon)
@@ -318,9 +313,9 @@ impl Shell {
             .open(open)
             .on_open_change(move |opened, _, cx| {
                 let _ = host.update(cx, |s, cx| {
-                    let is = s.homepage.menu == Some(menu);
+                    let is = s.menu == Some(menu);
                     if *opened != is {
-                        s.homepage.menu = opened.then_some(menu);
+                        s.menu = opened.then_some(menu);
                         cx.notify();
                     }
                 });
@@ -344,7 +339,7 @@ impl Shell {
         let present: BTreeSet<Place> = self.project_items(cx).iter().map(place_of).collect();
         let chosen: Vec<Place> = [Place::Local, Place::Cloud]
             .into_iter()
-            .filter(|p| self.homepage.places.contains(p))
+            .filter(|p| self.places.contains(p))
             .collect();
         let place_label = |place: Place| -> String {
             match place {
@@ -389,7 +384,7 @@ impl Shell {
                         .hover(move |s| s.bg(t.control_hover))
                         .on_click(move |_, _, cx| {
                             let _ = host.update(cx, |s, cx| {
-                                s.homepage.places.remove(&place);
+                                s.places.remove(&place);
                                 cx.notify();
                             });
                         })
@@ -413,7 +408,7 @@ impl Shell {
         };
         let filter = {
             let host = host.clone();
-            let chosen_set = self.homepage.places.clone();
+            let chosen_set = self.places.clone();
             let entries: Vec<(Place, String, bool, bool)> = [Place::Local, Place::Cloud]
                 .into_iter()
                 .map(|p| {
@@ -443,7 +438,7 @@ impl Shell {
                         .stay_open()
                         .on_click(move |_, cx| {
                             let _ = host.update(cx, |s, cx| {
-                                s.homepage.places.clear();
+                                s.places.clear();
                                 cx.notify();
                             });
                         })
@@ -461,8 +456,8 @@ impl Shell {
                             .stay_open()
                             .on_click(move |_, cx| {
                                 let _ = host.update(cx, |s, cx| {
-                                    if !s.homepage.places.remove(&place) {
-                                        s.homepage.places.insert(place);
+                                    if !s.places.remove(&place) {
+                                        s.places.insert(place);
                                     }
                                     cx.notify();
                                 });
@@ -566,7 +561,7 @@ impl Shell {
     /// holding Open a folder and Import. `narrow` hides New's words.
     pub(super) fn entry_menu(&self, busy: bool, narrow: bool, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
-        let open = self.homepage.menu == Some(HomeMenu::Entry) && !busy;
+        let open = self.menu == Some(HomeMenu::Entry) && !busy;
         let host = self.weak.clone();
         let more = tr("onboarding.action.moreEntries");
         let trigger = Button::new("home-entry-more")
@@ -585,9 +580,9 @@ impl Shell {
             .open(open)
             .on_open_change(move |opened, _, cx| {
                 let _ = host.update(cx, |s, cx| {
-                    let is = s.homepage.menu == Some(HomeMenu::Entry);
+                    let is = s.menu == Some(HomeMenu::Entry);
                     if *opened != is {
-                        s.homepage.menu = opened.then_some(HomeMenu::Entry);
+                        s.menu = opened.then_some(HomeMenu::Entry);
                         cx.notify();
                     }
                 });
@@ -600,9 +595,8 @@ impl Shell {
                         let host = host.clone();
                         MenuItem::new(tr("onboarding.action.openFolder"))
                             .icon_sized(Icon::product(ProductIcon::Folder).small().stroke(1.85))
-                            .on_click(move |w, cx| {
-                                let _ =
-                                    host.update(cx, |s, cx| s.command(Command::OpenFolder, w, cx));
+                            .on_click(move |_, cx| {
+                                let _ = host.update(cx, |s, cx| s.command(Command::OpenFolder, cx));
                             })
                     };
                     let import = {
@@ -639,15 +633,15 @@ impl Shell {
         &mut self,
         items: Vec<Item>,
         width: f32,
+        narrow: bool,
         busy: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        if self.homepage.list_held() {
+        if self.list_held() {
             // `.onboarding-project-list-wait`: the mark at the area's centre,
             // revealed after 120ms.
             let shown = self
-                .homepage
                 .list_held_since
                 .is_some_and(|since| since.elapsed() >= std::time::Duration::from_millis(120));
             if !shown {
@@ -678,12 +672,9 @@ impl Shell {
         let ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();
         let mut children = Vec::with_capacity(items.len());
         for (index, item) in items.into_iter().enumerate() {
-            self.homepage
-                .action_bounds
-                .entry(item.id.clone())
-                .or_default();
+            self.action_bounds.entry(item.id.clone()).or_default();
             let focus = self.project_focus(&item.id, cx);
-            let lit = self.project_lit(&item, window);
+            let lit = self.project_lit(&item, window, cx);
             let rise = match layout {
                 HomepageLayout::Grid => self.sheet_rise(&item.id, lit, window, cx),
                 HomepageLayout::List => 0.,
@@ -698,7 +689,7 @@ impl Shell {
                     let key = match key {
                         "up" | "down" | "left" | "right" | "home" | "end" => key,
                         "enter" | "space" => {
-                            let _ = host.update(cx, |s, cx| s.open_home_item_at(index, window, cx));
+                            let _ = host.update(cx, |s, cx| s.open_home_item_at(index, cx));
                             cx.stop_propagation();
                             return;
                         }
@@ -712,8 +703,8 @@ impl Shell {
                     };
                     let _ = host.update(cx, |s, cx| {
                         let id = ids[target].clone();
-                        s.homepage.stop = Some(id.clone());
-                        if let Some(handle) = s.homepage.focus.get(&id) {
+                        s.stop = Some(id.clone());
+                        if let Some(handle) = s.focus.get(&id) {
                             handle.focus(window, cx);
                         }
                         cx.notify();
@@ -725,7 +716,7 @@ impl Shell {
                     self.project_tile(index, &item, focus, rise, lit, is_stop, busy, keys, cx)
                 }
                 HomepageLayout::List => {
-                    self.project_row(index, &item, focus, lit, is_stop, busy, keys, cx)
+                    self.project_row(index, &item, focus, lit, is_stop, narrow, busy, keys, cx)
                 }
             });
         }
@@ -737,9 +728,9 @@ impl Shell {
             .py(px(8.))
             .pr(px(SCROLLBAR_SIZE))
             .overflow_y_scroll()
-            .track_scroll(&self.homepage.scroll)
+            .track_scroll(&self.scroll)
             .on_hover(cx.listener(|s, hovered: &bool, _, cx| {
-                if !*hovered && s.homepage.hovered.take().is_some() {
+                if !*hovered && s.hovered.take().is_some() {
                     cx.notify();
                 }
             }));
@@ -801,19 +792,14 @@ impl Shell {
             .child(fade(false))
             .child(crate::ui::scrollbar::vertical(
                 "home-projects-scrollbar",
-                &self.homepage.scroll,
+                &self.scroll,
             ))
             .into_any_element()
     }
     /// Opens the project at `index` of the visible list.
-    pub(super) fn open_home_item_at(
-        &mut self,
-        index: usize,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn open_home_item_at(&mut self, index: usize, cx: &mut Context<Self>) {
         if let Some(item) = self.visible_projects(cx).get(index).cloned() {
-            self.open_item(&item, window, cx);
+            self.open_item(&item, cx);
         }
     }
     /// The parts every project has: its open control and what it reacts to.
@@ -848,23 +834,21 @@ impl Shell {
             .on_key_down(keys)
             .on_hover(cx.listener(move |s, hovered: &bool, _, cx| {
                 let next = hovered.then(|| hover_id.clone());
-                if s.homepage.hovered != next
-                    && (*hovered || s.homepage.hovered.as_ref() == Some(&hover_id))
-                {
-                    s.homepage.hovered = next;
+                if s.hovered != next && (*hovered || s.hovered.as_ref() == Some(&hover_id)) {
+                    s.hovered = next;
                     cx.notify();
                 }
             }))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |s, _, _, cx| {
-                    s.homepage.stop = Some(focus_id.clone());
+                    s.stop = Some(focus_id.clone());
                     cx.notify();
                 }),
             )
             .when(!busy, |d| {
                 d.cursor(theme::clickable_cursor())
-                    .on_click(cx.listener(move |s, _, w, cx| s.open_item(&open, w, cx)))
+                    .on_click(cx.listener(move |s, _, _, cx| s.open_item(&open, cx)))
             })
             .when_some(drag, |d, drag| {
                 let host = cx.weak_entity();
@@ -872,7 +856,7 @@ impl Shell {
                     cx.write_to_clipboard(ClipboardItem::new_string(drag.path.clone()));
                     let path = drag.path.clone();
                     let _ = host.update(cx, |s, cx| {
-                        s.homepage.dragging_path = Some(path);
+                        s.dragging_path = Some(path);
                         cx.notify();
                     });
                     // Out of the window as text; when that session ends, so
@@ -893,7 +877,7 @@ impl Shell {
                                     cx.stop_active_drag(window);
                                 });
                                 let _ = host.update(cx, |s, cx| {
-                                    s.homepage.dragging_path = None;
+                                    s.dragging_path = None;
                                     cx.notify();
                                 });
                             }
@@ -908,9 +892,10 @@ impl Shell {
             })
     }
     /// `.onboarding-project-row-wrap.is-dragging`.
-    fn dragging_item(&self, item: &Item) -> bool {
+    fn dragging_item(&self, item: &Item, cx: &App) -> bool {
         item.local_path.is_some()
-            && self.homepage.dragging_path.as_deref() == item.local_path.as_deref().map(str::trim)
+            && cx.has_active_drag()
+            && self.dragging_path.as_deref() == item.local_path.as_deref().map(str::trim)
     }
     /// One project as a row (`DesktopMenuItem.onboarding-project-row`).
     #[allow(clippy::too_many_arguments)]
@@ -921,6 +906,7 @@ impl Shell {
         focus: FocusHandle,
         lit: bool,
         is_stop: bool,
+        narrow: bool,
         busy: bool,
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         cx: &mut Context<Self>,
@@ -940,8 +926,7 @@ impl Shell {
                 SystemTime::now(),
             )
         });
-        let narrow = self.layout.header.w <= 520.;
-        let dragging = self.dragging_item(item);
+        let dragging = self.dragging_item(item, cx);
         // `.has-cloud-project` rests quieter: the Cloud project is where
         // people and agents work.
         let name_color = if linked && !lit { t.subtle } else { t.text };
@@ -1100,7 +1085,7 @@ impl Shell {
             .text_color(t.text)
             .when(lit && !busy, |d| d.bg(t.hover))
             .when(busy, |d| d.opacity(0.58))
-            .when(self.dragging_item(item), |d| d.opacity(0.62))
+            .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
             .child(super::folder::grid_folder(item.location(), rise, lit, t))
             .child(
@@ -1205,14 +1190,13 @@ impl Shell {
         let target = super::super::project_actions::Target::of(item)?;
         let t = cx.palette();
         let name = item_name(item);
-        let open = self.homepage.actions.as_deref() == Some(item.id.as_str());
+        let open = self.actions.read(cx).item() == Some(item.id.as_str());
         let id = item.id.clone();
         let label = tf(
             "shell.workspaceSwitcher.projectActionsFor",
             &[("project", name.into())],
         );
         let bounds = self
-            .homepage
             .action_bounds
             .get(&item.id)
             .cloned()
@@ -1234,20 +1218,15 @@ impl Shell {
                     .disabled(busy)
                     .on_click(cx.listener(move |s, _, w, cx| {
                         cx.stop_propagation();
-                        if s.homepage.actions.as_deref() == Some(id.as_str()) {
-                            s.homepage.actions = None;
-                            s.project_actions = None;
-                            cx.notify();
+                        let actions = s.actions.clone();
+                        if actions.read(cx).item() == Some(id.as_str()) {
+                            actions.update(cx, |a, cx| a.close(cx));
                             return;
                         }
-                        s.homepage.actions = Some(id.clone());
-                        s.open_project_actions(
-                            target.clone(),
-                            bounds.get(),
-                            true,
-                            w.viewport_size(),
-                            cx,
-                        );
+                        let (target, at, viewport) =
+                            (target.clone(), bounds.get(), w.viewport_size());
+                        let item = Some(id.clone());
+                        actions.update(cx, |a, cx| a.open(target, at, true, viewport, item, cx));
                     })),
                 )
                 .child(

@@ -53,7 +53,7 @@ fn create_folder(
     Ok((path, plan.initial_open))
 }
 
-impl Shell {
+impl Homepage {
     /// The project name field, `text` selected for replacing.
     pub(in crate::shell) fn project_name_input(
         &mut self,
@@ -92,7 +92,7 @@ impl Shell {
             Self::submit_create_project,
         );
         name.read(cx).focus_handle(cx).focus(window, cx);
-        self.homepage.create = Some(CreateProject {
+        self.create = Some(CreateProject {
             destination: Destination {
                 name,
                 location: default_location(),
@@ -105,23 +105,21 @@ impl Shell {
     }
     /// The destination of the entry dialog on top.
     pub(in crate::shell) fn destination(&mut self, cx: &App) -> Option<&mut Destination> {
-        match self.dialogs.read(cx).top_key()? {
-            DialogKey::CreateProject => self.homepage.create.as_mut().map(|c| &mut c.destination),
-            DialogKey::TemplateImport => {
-                self.homepage.template.as_mut().map(|t| &mut t.destination)
-            }
+        match self.top_dialog(cx)? {
+            DialogKey::CreateProject => self.create.as_mut().map(|c| &mut c.destination),
+            DialogKey::TemplateImport => self.template.as_mut().map(|t| &mut t.destination),
             _ => None,
         }
     }
     fn set_destination_error(&mut self, error: Option<String>, cx: &App) {
-        match self.dialogs.read(cx).top_key() {
+        match self.top_dialog(cx) {
             Some(DialogKey::CreateProject) => {
-                if let Some(create) = self.homepage.create.as_mut() {
+                if let Some(create) = self.create.as_mut() {
                     create.error = error
                 }
             }
             Some(DialogKey::TemplateImport) => {
-                if let Some(import) = self.homepage.template.as_mut() {
+                if let Some(import) = self.template.as_mut() {
                     import.error = error
                 }
             }
@@ -133,9 +131,9 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.homepage.create = None;
+        self.create = None;
         if self.close_dialog(DialogKey::CreateProject, cx) {
-            self.focus.focus(window, cx);
+            self.window_focus.focus(window, cx);
             cx.notify();
         }
     }
@@ -187,10 +185,10 @@ impl Shell {
     }
     pub(in crate::shell) fn submit_create_project(
         &mut self,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(create) = self.homepage.create.as_mut() else {
+        let Some(create) = self.create.as_mut() else {
             return;
         };
         let Some(location) = create.destination.location.clone() else {
@@ -204,9 +202,9 @@ impl Shell {
             .and_then(|name| create_folder(&location, name, &crate::localization::current_code()));
         match created {
             Ok((path, open)) => {
-                self.homepage.create = None;
+                self.create = None;
                 self.close_dialog(DialogKey::CreateProject, cx);
-                self.open_created_project(path, open.map(PathBuf::from), false, window, cx);
+                self.open_created_project(path, open.map(PathBuf::from), false, cx);
             }
             Err(error) => {
                 create.error = Some(error);
@@ -221,21 +219,13 @@ impl Shell {
         path: PathBuf,
         open: Option<PathBuf>,
         new_window: bool,
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if new_window {
-            cx.defer(move |cx| {
-                if let Err(error) = windows::open_created(path, open, cx) {
-                    eprintln!("Could not open the new window: {error:#}");
-                }
-            });
-            return;
-        }
-        self.open_project(path, window, cx);
-        if self.session.files.busy() {
-            self.session.project.open_first = open;
-        }
+        cx.emit(HomeEvent::OpenCreated {
+            path,
+            open,
+            new_window,
+        });
     }
     /// "Paste template link": the clipboard is read only now, when asked,
     /// and only a template link is acted on.
@@ -250,7 +240,7 @@ impl Shell {
             .unwrap_or_default();
         if templates::link::looks_like(&text) {
             self.open_template_link(text.trim().to_owned(), window, cx);
-        } else if let Some(create) = self.homepage.create.as_mut() {
+        } else if let Some(create) = self.create.as_mut() {
             create.error = Some(tr("onboarding.template.noLink").into());
             cx.notify();
         }

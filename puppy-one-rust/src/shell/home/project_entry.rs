@@ -4,7 +4,7 @@
 //! choosing a folder and importing keep their own dialogs.
 use crate::{
     localization::t as tr,
-    shell::{Shell, command::Command, dialogs::DialogKey},
+    shell::{command::Command, dialogs::DialogKey, home::Homepage},
     theme::{self, Theme, metric},
     ui::{
         appearance::ActiveAppearance,
@@ -52,7 +52,7 @@ pub(in crate::shell) fn import_badges(t: Theme, ring: Rgba, dimmed: bool) -> Div
         .child(badge("integrations/gitlab.svg").ml(px(-6.)))
 }
 
-impl Shell {
+impl Homepage {
     /// `openProjectLauncher`: any pending navigation is left as is; the
     /// launcher only opens.
     pub(in crate::shell) fn open_project_entry(&mut self, cx: &mut Context<Self>) {
@@ -75,7 +75,7 @@ impl Shell {
         self.close_project_entry(cx);
         match route {
             Route::Create => self.begin_create_project(window, cx),
-            Route::OpenFolder => self.command(Command::OpenFolder, window, cx),
+            Route::OpenFolder => self.command(Command::OpenFolder, cx),
             Route::Import => self.begin_import(window, cx),
         }
     }
@@ -129,7 +129,7 @@ impl Shell {
             .header_bottom(10.)
             .body_padding(4., 12.)
             .body_inline(12.)
-            .focus_handle(self.dialog_focus(cx))
+            .focus_handle(self.dialog_focus.clone())
             .child(
                 v_flex()
                     .gap(px(2.))
@@ -155,13 +155,9 @@ impl Shell {
     }
 }
 
-impl Shell {
+impl Homepage {
     /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
     /// the window shows a quiet loading mark, never the Homepage.
-    pub(in crate::shell) fn restoring(&self) -> bool {
-        self.session.files.workspace.is_none()
-            && (self.session.project.restore_last || self.session.project.restoring_open)
-    }
     pub(in crate::shell) fn restoring_view(&self, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         div()

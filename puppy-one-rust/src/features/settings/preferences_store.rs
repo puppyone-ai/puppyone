@@ -37,7 +37,10 @@ pub fn observe_slice<V: 'static, T: PartialEq + 'static>(
     mut on_change: impl FnMut(&mut V, &T, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> Subscription {
+    // The current value is what the observer already shows: only a later
+    // change reaches it.
     let mut slice = Slice::default();
+    slice.changed(select(store.read(cx)));
     cx.subscribe(store, move |this, store, _: &PreferencesChanged, cx| {
         let next = select(store.read(cx));
         if let Some(value) = slice.changed(next) {
