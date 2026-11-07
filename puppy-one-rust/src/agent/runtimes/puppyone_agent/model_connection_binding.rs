@@ -3,11 +3,11 @@
 //! connection's private configuration over a dedicated pipe.
 use super::puppyone_agent_environment::strip_puppyone_provider_credentials;
 use crate::agent::agent_error::AgentResult;
+use crate::agent::model_connections::schema::{connection_error, model_route, parse_model_route};
 use crate::agent::protocols::pi_rpc::pi_rpc_client::{PiClient, PiClientOptions, PiRpcClient};
 use crate::agent::transports::jsonl_rpc_connection::{
     ConnectionOptions, Spawner, spawn_managed_process,
 };
-use crate::model_connections::schema::{connection_error, model_route, parse_model_route};
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};

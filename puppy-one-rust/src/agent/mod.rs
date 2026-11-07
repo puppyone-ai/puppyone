@@ -29,6 +29,9 @@ pub mod installation;
 pub mod ipc;
 #[allow(dead_code)]
 pub mod migrations;
+/// The Built-in Agent's model connections: their configuration and
+/// credentials (`electron/main/model-connections`).
+pub mod model_connections;
 #[allow(dead_code)]
 pub mod node_path;
 pub mod persistence;

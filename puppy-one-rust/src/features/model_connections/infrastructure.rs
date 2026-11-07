@@ -1,4 +1,4 @@
-use crate::{model_connections::configuration, wake::Wake};
+use crate::{agent::model_connections::configuration, wake::Wake};
 pub use configuration::ModelConnection;
 use std::sync::mpsc::{self, Receiver};
 pub fn load(wake: Wake) -> Receiver<Result<Vec<ModelConnection>, String>> {

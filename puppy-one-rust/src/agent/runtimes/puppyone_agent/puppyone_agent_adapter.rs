@@ -12,6 +12,7 @@ use super::puppyone_agent_public_identity::BUILT_IN_AGENT_DISPLAY_NAME;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::event_loop::AbortSignal;
+use crate::agent::model_connections::schema::{connection_error, parse_model_route};
 use crate::agent::protocols::pi_rpc::pi_rpc_runtime_adapter::{
     PI_CAPABILITIES, PiAdapterOptions, PiRpcRuntimeAdapter,
 };
@@ -20,7 +21,6 @@ use crate::agent::runtime::agent_session_history_port::SessionHistoryPort;
 use crate::agent::security::authorized_project_instructions::{
     format_authorized_project_instructions, load_authorized_project_instructions,
 };
-use crate::model_connections::schema::{connection_error, parse_model_route};
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

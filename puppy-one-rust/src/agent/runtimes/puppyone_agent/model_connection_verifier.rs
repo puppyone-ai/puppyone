@@ -6,7 +6,7 @@ use super::puppyone_agent_discovery::PUPPYONE_AGENT_WORKER_PATH;
 use super::puppyone_agent_environment::build_puppyone_agent_environment;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::event_loop::AbortSignal;
-use crate::model_connections::schema::connection_error;
+use crate::agent::model_connections::schema::connection_error;
 use futures_util::future::LocalBoxFuture;
 use serde_json::Value;
 use std::path::{Path, PathBuf};

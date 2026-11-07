@@ -6,8 +6,8 @@
 //! secret crosses the bootstrap envelope.
 use super::model_connection_binding::ModelConnectionPort;
 use crate::agent::agent_error::AgentResult;
-use crate::model_connections::configuration::{self, ModelConnection};
-use crate::model_connections::schema::{connection_error, model_route, parse_model_route};
+use crate::agent::model_connections::configuration::{self, ModelConnection};
+use crate::agent::model_connections::schema::{connection_error, model_route, parse_model_route};
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::RefCell;

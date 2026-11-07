@@ -24,7 +24,7 @@ pub mod puppyone_agent_public_identity;
 pub mod puppyone_agent_runtime_definition;
 #[cfg(test)]
 mod tests;
-pub use crate::model_connections::configuration;
+pub use crate::agent::model_connections::configuration;
 mod model_client;
 mod tools;
 

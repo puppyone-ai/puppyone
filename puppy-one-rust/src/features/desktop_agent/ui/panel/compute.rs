@@ -47,7 +47,7 @@ fn local_endpoint(endpoint: &str) -> bool {
 /// Reads the connections (blocking: the configuration file and PuppyOne
 /// compute's cached catalog).
 pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
-    use crate::model_connections::configuration;
+    use crate::agent::model_connections::configuration;
     let mut connections = configuration::load().unwrap_or_default();
     let managed = configuration::managed();
     let signed_in = crate::cloud_auth::current().is_some();

@@ -18,7 +18,6 @@ mod geometry;
 mod lab;
 mod localization;
 mod model;
-mod model_connections;
 mod native_window;
 mod platform;
 mod shell;
