@@ -144,7 +144,11 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     const initialSession = await auth.readSession();
     if (!initialSession?.user_id || !initialSession?.session_generation ||
         initialSession.api_base_url !== apiBase) throw new Error("Sign in before sharing a folder.");
-    const expectedSession = { userId: initialSession.user_id, generation: initialSession.session_generation };
+    const expectedSession = request?.expectedSession !== undefined ? requireSession(request.expectedSession)
+      : { userId: initialSession.user_id, generation: initialSession.session_generation };
+    if (initialSession.user_id !== expectedSession.userId || initialSession.session_generation !== expectedSession.generation) {
+      throw new Error("Account changed before sharing.");
+    }
     const name = path.basename(rootPath);
     const writable = request?.writable === true;
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -157,7 +161,12 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     if (answer.response !== 1) return { cancelled: true };
     const currentSession = await auth.readSession();
     if (currentSession?.user_id !== expectedSession.userId ||
-        currentSession?.session_generation !== expectedSession.generation) throw new Error("Account changed during approval.");
+        currentSession?.session_generation !== expectedSession.generation || currentSession.api_base_url !== apiBase) {
+      throw new Error("Account changed during approval.");
+    }
+    // A Homepage gesture first opens its source. Approval cannot outlive that
+    // window's root grant or silently apply to a different project.
+    await authorizeWorkspaceRoot(event, rootPath);
     const running = await host();
     const { deviceId, accountId } = await running.call("identityRegister",
       { name: os.hostname().slice(0, 120), platform: process.platform, expectedSession });

@@ -57,7 +57,7 @@ describe("opening a folder on the owner's other computers", () => {
     expect(radio("View only")?.checked).toBe(true);
     await act(async () => { radio("View and edit")?.click(); });
     await act(async () => { button("Make available")?.click(); });
-    expect(registerHostFolder).toHaveBeenCalledWith({ rootPath: "/Users/me/notes", writable: true });
+    expect(registerHostFolder).toHaveBeenCalledWith({ rootPath: "/Users/me/notes", writable: true, expectedSession });
     expect(onClose).toHaveBeenCalled();
   });
 

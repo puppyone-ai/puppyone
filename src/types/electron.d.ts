@@ -1130,7 +1130,7 @@ declare global {
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
       listHostDevices: (expectedSession: HostSession) => Promise<{ devices: HostCatalogDevice[] }>;
-      registerHostFolder: (request: { rootPath: string; writable?: boolean }) => Promise<
+      registerHostFolder: (request: { rootPath: string; writable?: boolean; expectedSession?: HostSession }) => Promise<
         { deviceId: string; folderId: string } | { cancelled: true }>;
       connectHostDevice: (expectedSession: HostSession) => Promise<{ deviceId: string | null; paused?: boolean }>;
       disconnectHostDevice: () => Promise<{ disconnected: true }>;

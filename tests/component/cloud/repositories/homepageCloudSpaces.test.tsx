@@ -107,13 +107,22 @@ describe("personal and organization destinations", () => {
     await act(async () => entry!.click());
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
   });
-  it("reveals an empty destination only during an explicit drag, with the same exact target", async () => {
-    await render({ projectItems: [local], cloudSpaces: [spaces[0]] });
-    expect(target("personal")).toBeNull();
+  it("reveals an empty team destination during an explicit drag, with the same exact target", async () => {
+    await render({ projectItems: [local], cloudSpaces: [spaces[1]] });
+    expect(target("team")).toBeNull();
     await drag(localButton("Draft"), "dragstart");
-    expect(target("personal").textContent).toContain("My Share Project");
+    expect(target("team").textContent).toContain("Team Share Project");
+    await drag(target("team"), "drop");
+    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "team");
+  });
+  it("never interprets a personal-area drop as a Cloud upload when device sharing is unavailable", async () => {
+    await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
+      cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
+    await drag(localButton("Draft"), "dragstart");
+    const data = await drag(target("personal"), "dragover");
+    expect(data.dropEffect).toBe("none");
     await drag(target("personal"), "drop");
-    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
+    expect(publish).not.toHaveBeenCalled();
   });
   it("puts a recorded shared local folder beside personal hosted projects without moving or duplicating it", async () => {
     await render({ projectItems: [local, { id: "ditherit", label: "ditherit", localPath: "/fixture/ditherit", hostFolderId: "shared-id" },

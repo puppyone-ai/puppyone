@@ -31,6 +31,13 @@ export type OnboardingGroupsBase = Readonly<{
   layout: HomepageProjectLayout;
   cloud: readonly OnboardingProjectGroup[];
   personalSharedTitle: string;
+  /** In-page source only; the owner navigates and confirms before granting access. */
+  localShare?: Readonly<{
+    draggingPath: string | null;
+    busy: boolean;
+    request: (path: string) => Promise<void>;
+    endDrag: () => void;
+  }>;
   local: Readonly<{
     title: string;
     items: readonly ProjectHomeItem[];
