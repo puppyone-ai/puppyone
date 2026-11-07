@@ -14,7 +14,7 @@ import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
 import { AgentToolStepCode, AgentToolStepPath, AgentToolStepText, agentToolStepVerb } from "./AgentToolStepText";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
-import { agentToolStepKind, isActiveToolStatus } from "./agent-tool-steps";
+import { agentToolStepKind } from "./agent-tool-steps";
 import { inputForActivity } from "../../domain/agent-tool-input";
 
 const NO_RESULTS = /^no (?:matches|files|results)(?: found)?\.?$/iu;
@@ -26,9 +26,19 @@ export function AgentFileQueryActivity({ activity, onOpenFile }: { activity: Age
   const results = collectAgentToolResultLines(output);
   const searchable = ["grep", "glob", "search", "list"].includes(tool);
   const stepKind = agentToolStepKind(activity);
+  const outputPaths = Array.isArray(activity.detail.outputPaths)
+    ? activity.detail.outputPaths.filter((value): value is string => typeof value === "string") : undefined;
+  // Older find/ls records contain query-relative text without navigation evidence.
+  const requiresOutputPaths = ["find", "ls"].includes(String(activity.detail.tool).toLowerCase());
+  const reportedCount = (activity.detail.metadata as { resultCount?: unknown } | undefined)?.resultCount;
   // Line counts are only meaningful for local match listings, not web search prose.
-  const countable = (tool === "grep" || tool === "glob") && !isActiveToolStatus(activity.status) && Boolean(output);
-  const resultCount = countable ? countedResults(output, results.totalLines) : null;
+  const countable = (tool === "grep" || tool === "glob") && activity.status === "completed" && Boolean(output);
+  let resultCount: number | null = null;
+  if (countable) {
+    if (outputPaths && typeof reportedCount === "number" && Number.isSafeInteger(reportedCount) && reportedCount >= 0) {
+      resultCount = reportedCount;
+    } else if (!requiresOutputPaths) resultCount = countedResults(output, results.totalLines);
+  }
   return (
     <AgentActivityShell
       title={agentToolStepVerb(stepKind === "generic" ? "search" : stepKind, activity.status, t)}
@@ -48,7 +58,8 @@ export function AgentFileQueryActivity({ activity, onOpenFile }: { activity: Age
         <AgentToolEvidenceTree>
           <AgentToolEvidenceNode kind="result">
             {searchable
-              ? <SearchResults results={results} onOpenFile={onOpenFile} />
+              ? <SearchResults results={results} outputPaths={outputPaths}
+                  onOpenFile={!requiresOutputPaths || outputPaths ? onOpenFile : undefined} />
               : <AgentToolTextEvidence text={output} dir="ltr" />}
           </AgentToolEvidenceNode>
         </AgentToolEvidenceTree>
@@ -83,13 +94,18 @@ function firstText(...values: unknown[]) {
   return "";
 }
 
-function SearchResults({ results, onOpenFile }: { results: ReturnType<typeof collectAgentToolResultLines>; onOpenFile?: (path: string) => void }) {
+function SearchResults({ results, outputPaths, onOpenFile }: {
+  results: ReturnType<typeof collectAgentToolResultLines>;
+  outputPaths?: readonly string[];
+  onOpenFile?: (path: string) => void;
+}) {
   const { t, formatNumber } = useLocalization();
   return (
     <div className="desktop-agent-search-results" data-po-scrollbar="content" dir="ltr" data-source-lines={results.totalLines}>
       {results.lines.length === 0 && <span className="desktop-agent-tool-empty">{t("agent.activity.noResults")}</span>}
       {results.lines.map((line, index) => {
-        const path = resultPath(line);
+        let path = resultPath(line);
+        if (outputPaths) path = outputPaths.includes(line) ? line : "";
         return path && onOpenFile
           ? <button key={`${index}:${line}`} type="button" data-po-interaction="navigation" onClick={() => onOpenFile(path)}>{line}</button>
           : <span key={`${index}:${line}`}>{line}</span>;

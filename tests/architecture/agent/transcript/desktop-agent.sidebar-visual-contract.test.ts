@@ -352,7 +352,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-tool-call\.is-active :is\(\.desktop-agent-tool-name, \.desktop-agent-tool-subject-name, \.desktop-agent-tool-subject-code\)\s*\{[^}]*animation:\s*desktop-agent-tool-shimmer/s);
     expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-call\.is-active :is\([^)]*\)\s*\{[^}]*animation:\s*none/s);
     expect(toolGlyph).toContain('const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "in-progress"])');
-    expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.8/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.25/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph :is\(path, circle, rect, line, polyline, polygon, ellipse\)\s*\{[^}]*vector-effect:\s*non-scaling-stroke/s);
     expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-search\.is-active \.desktop-agent-tool-glyph-motion\s*\{[^}]*desktop-agent-tool-search/s);
     expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-read\.is-active \.desktop-agent-tool-glyph-scan\s*\{[^}]*desktop-agent-tool-read/s);
     expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-glyph-motion,[\s\S]*\.desktop-agent-tool-glyph-scan,[\s\S]*\.desktop-agent-tool-glyph-ink\s*\{\s*animation:\s*none/s);

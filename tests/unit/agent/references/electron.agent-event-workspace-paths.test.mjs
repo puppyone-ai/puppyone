@@ -8,6 +8,20 @@ import {
 } from "../../../../electron/main/agent/domain/agent-event-workspace-paths.mjs";
 
 describe("Agent event workspace path policy", () => {
+  it("normalizes reported query links and never grants navigation outside the workspace", () => {
+    const event = { type: "tool.completed", payload: {
+      outputPreview: "/project/src/a.ts\n/outside/private.ts\n[1 result limit reached]",
+      outputPaths: ["/project/src/a.ts", "/outside/private.ts", "../outside.ts"],
+    } };
+    expect(normalizeAgentEventWorkspacePaths(event, "/project", path.posix).payload).toEqual({
+      outputPreview: "src/a.ts\n/outside/private.ts\n[1 result limit reached]",
+      outputPaths: ["src/a.ts"],
+    });
+    expect(normalizeAgentEventWorkspacePaths({ type: "tool.completed", payload: {
+      outputPreview: "C:/project/src/a.ts", outputPaths: ["C:/project/src/a.ts"],
+    } }, "C:\\project", path.win32).payload).toEqual({ outputPreview: "src/a.ts", outputPaths: ["src/a.ts"] });
+  });
+
   it("normalizes absolute Codex file-change paths before Renderer delivery", () => {
     const root = "/Users/example/project";
     const original = {
