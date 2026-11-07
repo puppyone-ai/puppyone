@@ -1,4 +1,11 @@
 {
+  "sharing.localOnly": "仅此电脑",
+  "sharing.personal": "我的共享项目",
+  "sharing.team": "团队共享项目",
+  "sharing.selectTeam": "选择团队",
+  "sharing.unresolved": "共享项目",
+  "sharing.computers": "管理电脑",
+  "sharing.removeComputer": "移除 {host}",
   "spaces.personal": "个人云空间",
   "spaces.organization": "组织云空间",
   "spaces.addProject": "向 {name} 添加项目",

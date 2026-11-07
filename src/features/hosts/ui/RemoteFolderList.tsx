@@ -22,26 +22,32 @@ export function RemoteFolderList({ device, folders, layout, onOpen }: {
   const navigation = useProjectListNavigation(folders.map((folder) => folder.id), layout);
   const host = bidiIsolate(device.name);
   return (
-    <ul ref={navigation.listRef} className="onboarding-project-list" data-project-layout={layout}
+    <ul ref={navigation.listRef} role="list" className="onboarding-project-list" data-project-layout={layout}
       aria-label={t("hosts.folder.onHost", { host })} onKeyDown={navigation.onKeyDown}>
       {folders.map((folder) => {
         const access = t(folder.capabilities.includes("folder.write") ? "hosts.catalog.editable" : "hosts.catalog.readOnly");
+        const paused = device.state === "paused" || folder.state === "paused";
+        const unavailable = !device.online || paused;
+        let detail = `${host} · ${access}`;
+        if (!device.online) detail = t("hosts.home.computerOffline", { host });
+        else if (paused) detail = `${host} · ${t("hosts.sharing.paused")}`;
         const open = {
           "data-project-open": true,
           tabIndex: folder.id === navigation.stopId ? 0 : -1,
-          disabled: !device.online,
+          disabled: unavailable,
           "aria-label": t("hosts.home.openFolder", { folder: bidiIsolate(folder.name), host }),
           onClick: () => onOpen(folder),
         };
         return (
           <li key={folder.id} className="onboarding-project-row-wrap" data-project-location="computer"
-            data-host-folder={folder.id} onFocus={() => navigation.setFocusedId(folder.id)}>
+            data-host-folder={folder.id} data-inactive={unavailable || undefined}
+            onFocus={() => navigation.setFocusedId(folder.id)}>
             {layout === "grid"
               ? <RemoteFolderTile name={folder.name}
-                place={device.online ? access : t("hosts.home.computerOffline", { host })} {...open} />
+                place={detail} {...open} />
               : <DesktopMenuItem className="onboarding-project-row" role="button"
                 icon={<span className="onboarding-project-icon" aria-hidden="true"><ProjectFolderGlyph /></span>}
-                label={<bdi>{folder.name}</bdi>} detail={access} {...open} />}
+                label={<bdi>{folder.name}</bdi>} detail={detail} {...open} />}
           </li>
         );
       })}

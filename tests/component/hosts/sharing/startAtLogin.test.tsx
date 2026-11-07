@@ -11,7 +11,9 @@ import { withTestLocalization } from "../../../support/react/localization";
 const device = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const session = { user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session_generation: "one" };
 const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", cloud: [], showOtherComputers: true,
-  local: { title: "This computer", render: () => <ul className="onboarding-project-list" /> } };
+  personalSharedTitle: "My shared projects",
+  local: { title: "Only on this computer", items: [{ id: "local", label: "notes", localPath: "/fixture/notes" }],
+    render: () => <ul className="onboarding-project-list" /> } };
 let root: Root | null = null;
 
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
@@ -34,7 +36,7 @@ async function render(bridge: Record<string, unknown>) {
 
 /** This computer's menu item for sharing after a restart, opening the menu first. */
 async function startAtLogin(host: HTMLElement) {
-  const trigger = host.querySelector<HTMLButtonElement>('[data-project-group="this-computer"] .onboarding-project-group-menu');
+  const trigger = host.querySelector<HTMLButtonElement>('[aria-label="Manage computers"]');
   if (trigger?.getAttribute("aria-expanded") !== "true") await act(async () => { trigger?.click(); });
   return [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')]
     .find((item) => item.textContent?.includes("Share after this computer restarts")) ?? null;

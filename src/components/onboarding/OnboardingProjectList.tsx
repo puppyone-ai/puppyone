@@ -70,6 +70,7 @@ export function OnboardingProjectList({
   return (
     <ul
       ref={navigation.listRef}
+      role="list"
       className="onboarding-project-list"
       data-project-layout={layout}
       data-po-scrollbar="menu"

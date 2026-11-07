@@ -24,12 +24,17 @@ export function forgetSharedFolder(folderId: string, rootPath?: string) {
   publish(next);
 }
 
-/** The folder id this computer shares `rootPath` under, as far as this App knows. */
-export function useSharedFolderId(rootPath: string | null | undefined, recorded: string | null | undefined) {
-  const known = useSyncExternalStore((listener) => {
+/** In-window share/stop confirmations, also consumed by Homepage audience grouping. */
+export function useSharedFolderAssignments() {
+  return useSyncExternalStore((listener) => {
     listeners.add(listener);
     return () => { listeners.delete(listener); };
   }, () => byPath);
+}
+
+/** The folder id this computer shares `rootPath` under, as far as this App knows. */
+export function useSharedFolderId(rootPath: string | null | undefined, recorded: string | null | undefined) {
+  const known = useSharedFolderAssignments();
   if (!rootPath) return recorded ?? null;
   return known.has(rootPath) ? known.get(rootPath) ?? null : recorded ?? null;
 }

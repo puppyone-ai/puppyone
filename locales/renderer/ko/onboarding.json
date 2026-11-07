@@ -1,4 +1,11 @@
 {
+  "sharing.localOnly": "이 컴퓨터에서만",
+  "sharing.personal": "내 공유 프로젝트",
+  "sharing.team": "팀 공유 프로젝트",
+  "sharing.selectTeam": "팀 선택",
+  "sharing.unresolved": "공유 프로젝트",
+  "sharing.computers": "컴퓨터 관리",
+  "sharing.removeComputer": "{host} 제거",
   "spaces.personal": "개인 클라우드",
   "spaces.organization": "조직 클라우드",
   "spaces.addProject": "{name}에 프로젝트 추가",

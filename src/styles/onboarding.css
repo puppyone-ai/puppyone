@@ -1131,8 +1131,36 @@ span.homepage-cloud-feedback {
   gap: 2px;
 }
 
-/* A group's head is the page's caption: its icon, its name, one quiet fact, and its
-   menu, which shows only when the group is reached for. */
+/* A single visual grid per audience, even when its entries come from different
+   owners. Keep each list's semantics and keyboard handling; don't add device rows. */
+.onboarding-project-group-content {
+  min-width: 0;
+}
+
+.onboarding-project-group-content:has(> .onboarding-project-list[data-project-layout="grid"]) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 2px;
+  align-content: start;
+}
+
+.onboarding-project-group-content > .onboarding-project-list[data-project-layout="grid"] {
+  display: contents;
+}
+
+.onboarding-team-selector {
+  max-width: 220px;
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* An audience heading names who can open its projects, not where they live. */
 .onboarding-project-group-head {
   display: flex;
   min-width: 0;
@@ -1168,11 +1196,6 @@ span.homepage-cloud-feedback {
   display: inline-flex;
   flex: none;
   color: var(--po-text-subtle);
-}
-
-/* Blue belongs to the Cloud alone. */
-.onboarding-project-group[data-project-group^="cloud"] .onboarding-project-group-icon {
-  color: var(--po-brand-blue);
 }
 
 .onboarding-project-group-detail {
@@ -1220,8 +1243,9 @@ span.homepage-cloud-feedback {
   }
 }
 
-/* An offline computer keeps its folders in view, quieter, until it is back. */
-.onboarding-project-group[data-inactive] .onboarding-project-list {
+/* Unavailability belongs to the folder, not the entire personal audience. */
+.onboarding-project-group[data-inactive] .onboarding-project-list,
+.onboarding-project-row-wrap[data-host-folder][data-inactive] {
   opacity: 0.5;
 }
 
@@ -1237,7 +1261,8 @@ span.homepage-cloud-feedback {
 
 .onboarding-cloud-space-empty {
   margin: 0;
-  min-height: 64px;
+  min-height: 32px;
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   padding: 8px;

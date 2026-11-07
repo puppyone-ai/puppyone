@@ -6,6 +6,7 @@ import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
 import type { OnboardingGroupsBase } from "../../../../src/components/onboarding/OnboardingProjectGroups";
 import type { ProjectListSharing } from "../../../../src/components/onboarding/OnboardingProjectList";
 import { HomepageComputers } from "../../../../src/features/hosts";
+import { forgetSharedFolder, rememberSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { stripBidiIsolation, withTestLocalization } from "../../../support/react/localization";
 
@@ -37,8 +38,14 @@ async function render({ showOtherComputers = true, bridge = {} }: { showOtherCom
   } as never);
   let sharing: ProjectListSharing | undefined;
   const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", showOtherComputers,
-    cloud: [{ id: "cloud", title: "Cloud", children: <ul className="onboarding-project-list" /> }],
-    local: { title: "This computer", render: (given) => { sharing = given; return <ul className="onboarding-project-list" />; } } };
+    personalSharedTitle: "My shared projects",
+    cloud: [{ id: "team-shared", title: "Team shared projects", children: <ul className="onboarding-project-list" /> }],
+    local: { title: "Only on this computer", items: [
+      { id: "local-shared", label: "ditherit", localPath: "/fixture/ditherit", hostFolderId: "f-1" },
+      { id: "local-paused", label: "paused", localPath: "/fixture/paused", hostFolderId: "f-2" },
+      { id: "local-private", label: "private", localPath: "/fixture/private" },
+    ], render: (items, given) => { sharing = given; return <ul className="onboarding-project-list">
+      {items.map((item) => <li key={item.id}>{item.label}</li>)}</ul>; } } };
   const onOpen = vi.fn();
   const host = document.createElement("div");
   document.body.append(host);
@@ -51,20 +58,27 @@ async function render({ showOtherComputers = true, bridge = {} }: { showOtherCom
 
 const titles = (host: HTMLElement) => [...host.querySelectorAll(".onboarding-project-group-title")]
   .map((title) => stripBidiIsolation(title.textContent));
-const group = (host: HTMLElement, id: string) => host.querySelector<HTMLElement>(`[data-project-group="computer:${id}"]`)!;
+const personal = (host: HTMLElement) => host.querySelector<HTMLElement>('[data-project-group="personal-shared"]')!;
+const deviceList = (host: HTMLElement, name: string) => host.querySelector<HTMLElement>(`ul[aria-label="On ⁨${name}⁩"]`)!;
 
 describe("the owner's other computers on the Homepage", () => {
-  it("follows the Cloud and this computer, one group per computer, named as the owner named it", async () => {
+  it("shows three audiences, with shared local and remote folders together rather than device headings", async () => {
     const { host } = await render();
-    expect(titles(host)).toEqual(["Cloud", "This computer", "Studio Mac", "Office PC"]);
-    expect(group(host, STUDIO).querySelector(".onboarding-project-group-detail")?.textContent).toBe("Online");
-    expect(group(host, OFFICE).querySelector(".onboarding-project-group-detail")?.textContent).toMatch(/^Last online/);
+    expect(titles(host)).toEqual(["My shared projects", "Team shared projects", "Only on this computer"]);
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(personal(host).textContent).toContain("paused");
+    expect(personal(host).textContent).toContain("contracts");
+    const localOnly = host.querySelector('[data-project-group="local-only"]');
+    expect(localOnly?.textContent).toContain("private");
+    expect(localOnly?.textContent).not.toContain("ditherit");
+    expect(host.querySelector('[data-project-group^="computer:"]')).toBeNull();
   });
 
   it("lists a computer's open folders by name, and opens one there", async () => {
     const { host, onOpen } = await render();
-    const studio = group(host, STUDIO);
-    expect([...studio.querySelectorAll(".onboarding-project-tile-name")].map((name) => name.textContent)).toEqual(["design", "zines"]);
+    const studio = deviceList(host, "Studio Mac");
+    expect([...studio.querySelectorAll(".onboarding-project-tile-name")].map((name) => name.textContent)).toEqual(["design", "gone", "zines"]);
+    expect(studio.querySelector<HTMLButtonElement>("[data-host-folder='s-3'] button")?.disabled).toBe(true);
     await act(async () => { studio.querySelector<HTMLButtonElement>("[data-host-folder='s-1'] button")?.click(); });
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
       ref: { deployment: API, accountId: session.user_id, deviceId: STUDIO, folderId: "s-1" },
@@ -74,29 +88,53 @@ describe("the owner's other computers on the Homepage", () => {
 
   it("keeps an offline computer's folders in view without letting them open", async () => {
     const { host } = await render();
-    const office = group(host, OFFICE);
-    expect(office.dataset.inactive).toBe("true");
+    const office = deviceList(host, "Office PC");
+    expect(office.querySelector("[data-host-folder='o-1']")?.getAttribute("data-inactive")).toBe("true");
     expect(office.querySelector<HTMLButtonElement>("[data-host-folder='o-1'] button")?.disabled).toBe(true);
   });
 
   it("tells this computer's list which of its folders are open to the others", async () => {
     const { host, sharing } = await render();
-    expect([...sharing()!.sharedFolderIds]).toEqual(["f-1"]);
-    expect(host.querySelector('[data-project-group="this-computer"] .onboarding-project-group-detail')?.textContent)
-      .toContain("1 folder open to your other computers");
+    expect([...sharing()!.sharedFolderIds]).toEqual(["f-1", "f-2"]);
+    expect(personal(host).textContent).not.toContain("folder open to your other computers");
   });
 
   it("leaves other computers out while the page is narrowed to some places", async () => {
     const { host } = await render({ showOtherComputers: false });
-    expect(titles(host)).toEqual(["Cloud", "This computer"]);
+    expect(titles(host)).toEqual(["My shared projects", "Team shared projects", "Only on this computer"]);
+    expect(host.querySelector("[data-host-folder]")).toBeNull();
+  });
+
+  it("retains recorded sharing through a failed catalog read instead of claiming local-only", async () => {
+    const { host } = await render({ bridge: { listHostDevices: async () => { throw new Error("offline"); } } });
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
+    expect(host.querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  it("keeps known sharing and avoids duplicate remote cards when this computer's status is unavailable", async () => {
+    const { host } = await render({ bridge: { getHostStatus: async () => { throw new Error("host unavailable"); } } });
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
+    expect(host.querySelector('[data-host-folder="f-1"]')).toBeNull();
+  });
+
+  it("moves the card only after an explicit stop-sharing confirmation and updates again on sharing", async () => {
+    const { host } = await render();
+    await act(async () => forgetSharedFolder("f-1", "/fixture/ditherit"));
+    expect(personal(host).textContent).not.toContain("ditherit");
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).toContain("ditherit");
+    await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
   });
 
   it("removes another computer through the App, which asks first", async () => {
     const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
     const { host } = await render({ bridge: { revokeHostDevice } });
-    await act(async () => { group(host, OFFICE).querySelector<HTMLButtonElement>(".onboarding-project-group-menu")?.click(); });
+    await act(async () => { personal(host).querySelector<HTMLButtonElement>('[aria-label="Manage computers"]')?.click(); });
     const remove = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-      .find((item) => item.textContent === "Remove computer");
+      .find((item) => stripBidiIsolation(item.textContent).includes("Remove Office PC"));
     await act(async () => { remove?.click(); });
     expect(revokeHostDevice).toHaveBeenCalledWith({ deviceId: OFFICE, expectedSession: { userId: session.user_id, generation: "one" } });
   });
