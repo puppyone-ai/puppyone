@@ -25,6 +25,7 @@ third-party components include, but are not limited to:
 
   - React                              (MIT License)
   - Mammoth.js                          (BSD-2-Clause)
+  - Tesseract.js-core and tessdata     (Apache License 2.0; bundled OCR dependency notices in licenses/THIRD_PARTY_NOTICES.md)
   - PDF.js                             (Apache License 2.0; bundled data notices in licenses/THIRD_PARTY_NOTICES.md)
   - docx-preview / docxjs              (Apache License 2.0)
   - @aiden0z/pptx-renderer             (Apache License 2.0)

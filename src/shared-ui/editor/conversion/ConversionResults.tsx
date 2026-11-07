@@ -54,6 +54,9 @@ function warningKey(code: string) {
     "docx-review": "editor.conversion.warning.docxReview", "docx-layout": "editor.conversion.warning.docxLayout",
     "pdf-layout": "editor.conversion.warning.pdfLayout", "pdf-images": "editor.conversion.warning.pdfImages",
     "pdf-tables": "editor.conversion.warning.pdfTables", "empty-pages": "editor.conversion.warning.emptyPages",
+    "ocr-pages": "editor.conversion.warning.ocrPages", "ocr-confidence": "editor.conversion.warning.ocrConfidence",
+    "image-pages": "editor.conversion.warning.imagePages", "ocr-empty": "editor.conversion.warning.ocrEmpty",
+    "ocr-skipped": "editor.conversion.warning.ocrSkipped",
   };
   return keys[code] ?? "editor.conversion.warning.docxReview";
 }

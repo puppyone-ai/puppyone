@@ -20,7 +20,8 @@ export function extractPdfPage(items: PdfTextItem[], page: number) {
     for (const item of sorted) {
       const gap = previous ? item.transform[4] - previous.transform[4] - previous.width : 0;
       if (!previous || gap > Math.max(24, line.height * 2)) chunks.push({ x: item.transform[4], text: item.str });
-      else chunks[chunks.length - 1].text += (gap > 1 && !/\s$/.test(previous.str) && !/^\s/.test(item.str) ? " " : "") + item.str;
+      else chunks[chunks.length - 1].text += (gap > 1 && !/\s$/.test(previous.str) && !/^\s/.test(item.str)
+        && !(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]$/u.test(previous.str) && /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(item.str)) ? " " : "") + item.str;
       previous = item;
     }
     return chunks;

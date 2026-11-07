@@ -21,6 +21,25 @@ async function render(name = "report.docx") {
 }
 async function click(label: string) { const button = [...container.querySelectorAll("button")].find(item => item.textContent?.trim() === label); expect(button, label).toBeTruthy(); await act(async () => button!.click()); }
 describe("document conversion workflow", () => {
+  it("returns to recognition settings before converting again", async () => {
+    vi.mocked(convertDocument).mockResolvedValue(result);
+    await render("scan.pdf"); await click("Convert"); await click("Start conversion"); await click("Convert again");
+    expect(container.querySelectorAll("select")).toHaveLength(2);
+    expect(convertDocument).toHaveBeenCalledTimes(1);
+    await click("Start conversion"); expect(convertDocument).toHaveBeenCalledTimes(2);
+  });
+  it("sends selected OCR mode and language for PDFs and shows recognition progress", async () => {
+    vi.mocked(convertDocument).mockImplementation(async (_url, _format, _signal, progress) => { progress(2, 3, "ocr", 0.5); return new Promise(() => {}); });
+    await render("scan.pdf"); await click("Convert");
+    const selects = container.querySelectorAll("select");
+    expect(selects[0].value).toBe("auto"); expect(selects[1].value).toBe("chi_sim+eng");
+    await act(async () => { selects[0].value = "always"; selects[0].dispatchEvent(new Event("change", { bubbles: true })); selects[1].value = "eng"; selects[1].dispatchEvent(new Event("change", { bubbles: true })); });
+    await click("Start conversion");
+    expect(vi.mocked(convertDocument).mock.calls[0][4]).toEqual({ mode: "always", language: "eng" });
+    expect(container.textContent).toContain("Recognizing page 2 of 3 · 50%");
+    await click("Cancel"); expect(vi.mocked(convertDocument).mock.calls[0][2].aborted).toBe(true);
+    expect(container.querySelectorAll("select")[0].value).toBe("always");
+  });
   it("opens comparison without replacing the source, converts and saves only selected outputs", async () => {
     vi.mocked(convertDocument).mockResolvedValue(result);
     await render(); await click("Convert");
