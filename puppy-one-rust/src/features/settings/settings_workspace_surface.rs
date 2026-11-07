@@ -31,7 +31,7 @@ pub struct SettingsWorkspaceSurface {
     pub root: Option<PathBuf>,
     pub(super) page: Page,
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
-    pub(super) agents: Entity<crate::features::agent_settings::AgentSettings>,
+    pub(super) agents: Entity<crate::features::local_agents::settings::AgentSettings>,
     pub(super) cloud: Option<Entity<crate::features::cloud::account::CloudAccount>>,
     pub(super) plan_page: super::main::plan_settings_view::PlanPage,
     pub(super) repository: Entity<RepositorySettings>,
@@ -128,7 +128,7 @@ impl SettingsWorkspaceSurface {
         let agents = {
             let preferences = preferences.clone();
             cx.new(|cx| {
-                crate::features::agent_settings::AgentSettings::new(preferences, window, cx)
+                crate::features::local_agents::settings::AgentSettings::new(preferences, window, cx)
             })
         };
         let repository = cx.new(|cx| RepositorySettings::new(window, cx));

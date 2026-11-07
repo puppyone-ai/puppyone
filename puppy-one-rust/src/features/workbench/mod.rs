@@ -220,7 +220,7 @@ pub struct Workbench {
     /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
     preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
     /// The launcher's `LocalAgentSetupSection` (created with the preferences).
-    setup: Option<Entity<crate::features::local_agent_setup::SetupSection>>,
+    setup: Option<Entity<crate::features::local_agents::setup::SetupSection>>,
     /// This window (`agent_presence::owner`).
     owner: String,
     /// `creationFailure`: a History conversation that could not be opened.
@@ -279,10 +279,10 @@ impl Workbench {
         })
         .detach();
         // An activation that installed a CLI rescans the launchers' Agents.
-        let activation = crate::features::local_agent_setup::store(cx);
+        let activation = crate::features::local_agents::setup::store(cx);
         cx.subscribe(
             &activation,
-            |s, _, _: &crate::features::local_agent_setup::InstallationsChanged, cx| s.rescan(cx),
+            |s, _, _: &crate::features::local_agents::setup::InstallationsChanged, cx| s.rescan(cx),
         )
         .detach();
         Self {
@@ -1243,9 +1243,9 @@ impl Workbench {
     fn setup_section(
         &mut self,
         cx: &mut Context<Self>,
-    ) -> Option<Entity<crate::features::local_agent_setup::SetupSection>> {
+    ) -> Option<Entity<crate::features::local_agents::setup::SetupSection>> {
         use crate::{
-            features::local_agent_setup::{Presentation, SetupSection},
+            features::local_agents::setup::{Presentation, SetupSection},
             platform::local_agent_setup::Surface,
         };
         let surface = if self.chat_mode {

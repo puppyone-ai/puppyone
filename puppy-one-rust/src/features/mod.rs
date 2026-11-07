@@ -1,11 +1,10 @@
 pub mod agent_presence;
-pub mod agent_settings;
 pub mod cloud;
 pub mod create_new;
 pub mod desktop_agent;
 pub mod feedback;
 pub mod flags;
-pub mod local_agent_setup;
+pub mod local_agents;
 pub mod model_connections;
 pub mod session_transport;
 pub mod settings;

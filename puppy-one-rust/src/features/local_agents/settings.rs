@@ -7,7 +7,7 @@ use crate::{
         self as local_agent_inventory, Installation,
     },
     features::{
-        local_agent_setup::{self, InstallationsChanged, Presentation, SetupSection},
+        local_agents::setup::{self, InstallationsChanged, Presentation, SetupSection},
         settings::preferences_store::PreferencesStore,
     },
     localization::{t, tf},
@@ -85,7 +85,7 @@ impl AgentSettings {
         .detach();
         cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
         // An activation that installed a CLI refreshes the detected Agents.
-        let activation = local_agent_setup::store(cx);
+        let activation = setup::store(cx);
         cx.subscribe(&activation, |s, _, _: &InstallationsChanged, cx| {
             s.refresh();
             cx.notify();
@@ -244,7 +244,7 @@ impl AgentSettings {
         });
         self.hooks = (self.enrollments)(None).unwrap_or_default();
         self.hooks_phase = HooksPhase::Ready;
-        local_agent_setup::store(cx).update(cx, |s, cx| s.lab_fixture(cx));
+        setup::store(cx).update(cx, |s, cx| s.lab_fixture(cx));
     }
     /// Dev-capture: `agent-hooks` has the Codex Hook installed and the
     /// setup directory open; `agent-activation` adds Codex's dialog.
