@@ -315,9 +315,11 @@ impl FileWindow {
         let t = cx.palette();
         let ty = theme::ty().header;
         // `opened?.target.name`: nothing until the file is found.
-        let name = (!matches!(self.shown(cx), Shown::Loading | Shown::Unavailable(None)))
-            .then(|| self.target.name.clone())
-            .unwrap_or_default();
+        let name = if matches!(self.shown(cx), Shown::Loading | Shown::Unavailable(None)) {
+            String::new()
+        } else {
+            self.target.name.clone()
+        };
         let room = theme::control() * 2. + CONTROLS_GAP;
         let start = if cfg!(target_os = "macos") {
             SAFE_START
