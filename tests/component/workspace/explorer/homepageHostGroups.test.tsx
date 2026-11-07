@@ -46,10 +46,10 @@ function groups(container: HTMLElement) {
   }));
 }
 
-describe("homepage grouped by where each project is", () => {
-  it("puts the Cloud's projects first, then this computer's folders", () => {
+describe("homepage audience grouping", () => {
+  it("keeps unresolved shared ownership reachable without misclassifying local folders", () => {
     const shown = groups(renderHome());
-    expect(shown.map((group) => group.title)).toEqual(["Cloud", "This computer"]);
+    expect(shown.map((group) => group.title)).toEqual(["Shared projects", "Only on this computer"]);
     expect(shown[0].names.join(" ")).toMatch(/shared/);
     expect(shown[0].names.join(" ")).not.toMatch(/notes/);
     // A folder with its own Cloud project is still this computer's folder.
@@ -64,14 +64,14 @@ describe("homepage grouped by where each project is", () => {
     expect(page[0].querySelectorAll(".onboarding-project-list")).toHaveLength(2);
   });
 
-  it("shows just the list, with no heading, when every project is in one place", () => {
+  it("states the local-only audience even when it is the only group", () => {
     const container = renderHome({ projectItems: [local] });
-    expect(container.querySelector(".onboarding-project-groups")).toBeNull();
-    expect(container.querySelector(".onboarding-project-group-title")).toBeNull();
+    expect(container.querySelector(".onboarding-project-groups")).not.toBeNull();
+    expect(container.querySelector(".onboarding-project-group-title")?.textContent).toBe("Only on this computer");
     expect(container.querySelectorAll(".onboarding-project-list")).toHaveLength(1);
   });
 
-  it("hands the Cloud's and this computer's groups, in that order, to whoever adds other computers", () => {
+  it("hands audience composition to the owner of the device catalog", () => {
     let handed: OnboardingGroupsBase | null = null;
     const container = renderHome({
       projectGroups: (base) => {
@@ -80,8 +80,9 @@ describe("homepage grouped by where each project is", () => {
       },
     });
     expect(container.querySelector("[data-test-other-computers]")).not.toBeNull();
-    expect(handed!.cloud[0]?.id).toBe("cloud");
-    expect(handed!.local?.title).toBe("This computer");
+    expect(handed!.cloud[0]?.id).toBe("shared-unresolved");
+    expect(handed!.local?.title).toBe("Only on this computer");
+    expect(handed!.personalSharedTitle).toBe("My shared projects");
     expect(handed!.showOtherComputers).toBe(true);
   });
 });

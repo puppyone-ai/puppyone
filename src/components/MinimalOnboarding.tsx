@@ -29,7 +29,6 @@ import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
 import { onboardingBaseGroups, OnboardingProjectGroups, type OnboardingGroupsBase } from "./onboarding/OnboardingProjectGroups";
-import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
@@ -58,8 +57,8 @@ export type MinimalOnboardingProps = {
   listHeld?: boolean;
   cloudAccountStatus?: ReactNode;
   /**
-   * Draws the page's groups when the owner's other computers join them; given the
-   * Cloud's and this computer's groups, in that order. Absent, the page draws those two.
+   * Adds device folders to the same personal audience as hosted projects.
+   * Without a device catalog, recorded sharing still must not imply local-only.
    */
   projectGroups?: (base: OnboardingGroupsBase) => ReactNode;
   cloudSpaces?: readonly CloudSpace[];
@@ -112,7 +111,6 @@ export function MinimalOnboarding({
   appearance,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
-  const platform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
   // A failure handed down replaces what is shown; the page's own actions clear it.
   const [latestInitialError, setLatestInitialError] = useState(initialError);
@@ -174,7 +172,7 @@ export function MinimalOnboarding({
   });
 
   // Account/auth controls are page chrome, never synthetic Project rows.
-  const hasProjects = items.length > 0 || cloudSpaces.length > 0 || listHeld;
+  const hasProjects = items.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(!hasProjects);
   // The intro belongs to a page that has just become empty, and ends if it fills.
@@ -229,9 +227,8 @@ export function MinimalOnboarding({
       onDragEnd={() => setDraggingPath(null)}
     />
   );
-  // By where each project is: the Cloud's projects are the primary entries
-  // (product philosophy), then this computer's, then each of the owner's other
-  // computers. A held list is one wait, not a wait per group.
+  // Audience, not storage location, owns the headings. A held catalog is one
+  // wait; device composition can add local offers to the personal shared area.
   const cloudGroups = useCloudProjectGroups({
     spaces: projectView.places.size === 0 || projectView.places.has("cloud") ? cloudSpaces : [],
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
@@ -242,11 +239,11 @@ export function MinimalOnboarding({
     label: t("onboarding.projects.title"),
     layout: projectLayout,
     cloud: cloudGroups,
+    personalSharedTitle: t("onboarding.sharing.personal"),
     local: localItems.length > 0 ? {
-      title: t(platform?.platform === "macos"
-        ? "shell.workspaceSwitcher.location.thisMac"
-        : "shell.workspaceSwitcher.location.thisComputer"),
-      render: (sharing) => projectList(localItems, sharing),
+      title: t("onboarding.sharing.localOnly"),
+      items: localItems,
+      render: projectList,
     } : null,
     showOtherComputers: projectView.places.size === 0,
   };

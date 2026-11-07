@@ -41,7 +41,7 @@ const folder = (id: string, name: string, write = false, run = false) => ({ id, 
   ] });
 const devices: HostCatalogDevice[] = [
   { id: THIS, name: "Guantum’s MacBook Pro", platform: "darwin", state: "active", revision: 1, online: true,
-    last_seen_at: hoursAgo(0), folders: [folder("f-vault", "puppyone Vault", true, true), folder("f-todo", "To-Do-List")] },
+    last_seen_at: hoursAgo(0), folders: [folder("f-ditherit", "ditherit"), folder("f-vault", "puppyone Vault", true, true), folder("f-todo", "To-Do-List")] },
   { id: "22222222-2222-4222-8222-222222222222", name: "Studio Mac", platform: "darwin", state: "active", revision: 1,
     online: true, last_seen_at: hoursAgo(0), folders: [folder("s-1", "design-system", true), folder("s-2", "launch-video"),
       folder("s-3", "photos 2026"), folder("s-4", "puppyone-website", true), folder("s-5", "research notes")] },
@@ -52,7 +52,8 @@ const devices: HostCatalogDevice[] = [
 ];
 const status: HostSharingStatus = { state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 1,
   lastAccessAt: null, sandbox: "seatbelt", running: [],
-  folders: [{ folderId: "f-vault", name: "puppyone Vault", writable: true }, { folderId: "f-todo", name: "To-Do-List", writable: false }] };
+  folders: [{ folderId: "f-ditherit", name: "ditherit", writable: false },
+    { folderId: "f-vault", name: "puppyone Vault", writable: true }, { folderId: "f-todo", name: "To-Do-List", writable: false }] };
 
 window.puppyoneDesktop = {
   ...window.puppyoneDesktop,
@@ -76,7 +77,7 @@ const local = (name: string, hostFolderId?: string): ProjectHomeItem => ({ id: `
 const items: ProjectHomeItem[] = [
   { id: "cloud:issues", label: "puppy-issues", localPath: "", cloudProjectId: "issues", lastModifiedAt: hoursAgo(1) },
   { id: "cloud:todo", label: "To-Do-List", localPath: "", cloudProjectId: "todo", lastModifiedAt: hoursAgo(2) },
-  local("ditherit"), local("marketing-pitch"), local("my disk"), local("puppyone Vault", "f-vault"),
+  local("ditherit", "f-ditherit"), local("marketing-pitch"), local("my disk"), local("puppyone Vault", "f-vault"),
   { ...local("To-Do-List", "f-todo"), linkedCloudProject: { id: "todo", name: "To-Do-List" } },
   local("ontology demo"), local("VC pitch"),
 ];

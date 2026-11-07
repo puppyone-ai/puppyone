@@ -1,4 +1,11 @@
 {
+  "sharing.localOnly": "Somente neste computador",
+  "sharing.personal": "Meus projetos compartilhados",
+  "sharing.team": "Projetos compartilhados da equipe",
+  "sharing.selectTeam": "Escolher equipe",
+  "sharing.unresolved": "Projetos compartilhados",
+  "sharing.computers": "Gerenciar computadores",
+  "sharing.removeComputer": "Remover {host}",
   "spaces.personal": "Cloud pessoal",
   "spaces.organization": "Cloud da organização",
   "spaces.addProject": "Adicionar um projeto a {name}",

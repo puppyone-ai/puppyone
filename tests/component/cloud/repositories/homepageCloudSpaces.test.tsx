@@ -28,7 +28,11 @@ async function render(overrides: Partial<HomeWithEntryFlowProps> = {}) {
     onOpenDroppedWorkspace={async () => {}} {...overrides} />)));
   return host;
 }
-const target = (id: string) => document.querySelector<HTMLElement>(`[data-project-group="cloud-space:${id}"]`)!;
+const target = (id: string) => document.querySelector<HTMLElement>(`[data-project-group="${id === "personal" ? "personal" : "team"}-shared"]`)!;
+async function chooseTeam(id: string) {
+  const select = document.querySelector<HTMLSelectElement>('[aria-label="Choose team"]')!;
+  await act(async () => { select.value = id; select.dispatchEvent(new Event("change", { bubbles: true })); });
+}
 async function drag(element: Element, type: string, data = { effectAllowed: "", dropEffect: "", setData: vi.fn(), getData: () => "/forged/path", files: [], types: ["text/plain"] }) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", { value: data });
@@ -39,13 +43,20 @@ const localButton = (name: string) => [...document.querySelectorAll<HTMLButtonEl
   .find((button) => button.textContent?.includes(name))!;
 
 describe("personal and organization destinations", () => {
-  it("keeps empty spaces and separates their projects from local sources", async () => {
+  it("uses audience headings and omits an unused empty personal area", async () => {
     await render();
     expect([...document.querySelectorAll("[data-project-group]")].map((group) => group.getAttribute("data-project-group")))
-      .toEqual(["cloud-space:personal", "cloud-space:team", "cloud-space:read", "this-computer"]);
-    expect(target("personal").textContent).toContain("Personal Cloud");
+      .toEqual(["team-shared", "local-only"]);
+    expect(target("personal")).toBeNull();
+    expect(target("team").textContent).toContain("Team shared projects");
     expect(target("team").textContent).toContain("Team project");
     expect(target("team").textContent).not.toContain("Draft");
+  });
+  it("does not replace a new account's empty start page with unused space placeholders", async () => {
+    const host = await render({ projectItems: [] });
+    expect(host.querySelector('[data-onboarding-state="empty"]')).not.toBeNull();
+    expect(document.querySelector('[data-project-group="personal-shared"]')).toBeNull();
+    expect(document.querySelector('[data-project-group="team-shared"]')).toBeNull();
   });
   it("a trusted local drag chooses the exact destination, without publishing or removing files", async () => {
     await render();
@@ -59,8 +70,10 @@ describe("personal and organization destinations", () => {
   });
   it("rejects a readonly destination and an already linked source", async () => {
     await render();
+    await chooseTeam("read");
     await drag(localButton("Draft"), "dragstart");
     await drag(target("read"), "drop");
+    await chooseTeam("team");
     await drag(localButton("Existing"), "dragstart");
     await drag(target("team"), "drop");
     expect(publish).not.toHaveBeenCalled();
@@ -71,7 +84,8 @@ describe("personal and organization destinations", () => {
     expect(publish).not.toHaveBeenCalled();
   });
   it("offers the same confirmed flow through the accessible group menu", async () => {
-    await render();
+    await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
+      cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
     await act(async () => target("personal").querySelector<HTMLButtonElement>("button")!.click());
     const entry = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent?.includes("Draft"));
     expect(entry).toBeTruthy();
@@ -79,8 +93,30 @@ describe("personal and organization destinations", () => {
     await act(async () => entry!.click());
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
   });
-  it("shows a single empty personal space with its identity instead of dropping the heading", async () => {
-    await render({ projectItems: [], cloudSpaces: [spaces[0]] });
-    expect(target("personal").textContent).toContain("Alex");
+  it("reveals an empty destination only during an explicit drag, with the same exact target", async () => {
+    await render({ projectItems: [local], cloudSpaces: [spaces[0]] });
+    expect(target("personal")).toBeNull();
+    await drag(localButton("Draft"), "dragstart");
+    expect(target("personal").textContent).toContain("My shared projects");
+    await drag(target("personal"), "drop");
+    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
+  });
+  it("puts a recorded shared local folder beside personal hosted projects without moving or duplicating it", async () => {
+    await render({ projectItems: [local, { id: "ditherit", label: "ditherit", localPath: "/fixture/ditherit", hostFolderId: "shared-id" },
+      { id: "personal-project", label: "Personal notes", localPath: "", cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
+    expect(target("personal").textContent).toContain("ditherit");
+    expect(target("personal").textContent).toContain("Personal notes");
+    expect(target("personal").textContent).not.toContain("Drop a project here");
+    expect(document.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
+    expect([...document.querySelectorAll('button[draggable=true]')].filter((button) => button.textContent?.includes("ditherit"))).toHaveLength(1);
+  });
+  it("changes teams inside one area and keeps publication bound to the selected team", async () => {
+    await render({ cloudSpaces: [...spaces, { id: "second", name: "Second team", kind: "team", canCreateProjects: true }] });
+    await chooseTeam("second");
+    expect(target("team").textContent).not.toContain("Team project");
+    await drag(localButton("Draft"), "dragstart");
+    await drag(target("team"), "drop");
+    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "second");
+    expect(document.querySelectorAll('[data-project-group="team-shared"]')).toHaveLength(1);
   });
 });
