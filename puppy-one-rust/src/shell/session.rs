@@ -1,15 +1,118 @@
-//! The window's session: the documents runtime and its worker wake, the
-//! record of the project this window shows (`WindowWorkspaceState`,
-//! `useWorkspaceSession`), the folder picker in flight, this window's task
-//! owner key (`ownerId`) and the title last applied. The shell routes what
-//! the runtime reports (`Shell::receive`) to the owners that show it; the
-//! owners get narrow snapshots, never the runtime itself.
-use crate::{editor::workbench::runtime::Runtime as Documents, wake::Wake};
+//! The window's session: the documents runtime and its worker wake
+//! ([`DocumentSession`]), the record of the project this window shows
+//! (`WindowWorkspaceState`, `useWorkspaceSession`), the folder picker in
+//! flight, this window's task owner key (`ownerId`) and the title last
+//! applied. The shell routes what the runtime reports (`Shell::receive`)
+//! to the owners that show it; the editor area works on the documents
+//! themselves, every other owner gets a narrow [`SessionView`].
+use crate::{
+    documents::{ClientMessage, Intent},
+    editor::workbench::runtime::Runtime as Documents,
+    wake::Wake,
+};
+use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
+/// The documents runtime as an entity: the window's workspace and its open
+/// documents (the workbench runtime), with the wake its workers ring. The
+/// runtime's own methods are reached through `Deref`; the ones that start
+/// work take the wake here.
+pub(super) struct DocumentSession {
+    files: Documents,
+    wake: Wake,
+}
+/// The workers have news: the window pumps the runtime.
+pub(super) struct Woke;
+impl EventEmitter<Woke> for DocumentSession {}
+impl std::ops::Deref for DocumentSession {
+    type Target = Documents;
+    fn deref(&self) -> &Documents {
+        &self.files
+    }
+}
+impl std::ops::DerefMut for DocumentSession {
+    fn deref_mut(&mut self) -> &mut Documents {
+        &mut self.files
+    }
+}
+impl DocumentSession {
+    pub fn new(files: Documents, cx: &mut Context<Self>) -> Self {
+        let (wake, rx) = Wake::channel();
+        cx.spawn(async move |this, cx| {
+            while rx.recv().await.is_ok() {
+                if this.update(cx, |_, cx| cx.emit(Woke)).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+        Self { files, wake }
+    }
+    /// Rings the window's pump.
+    pub fn wake(&self) -> &Wake {
+        &self.wake
+    }
+    /// Replaces the runtime (tests start from a bare one).
+    #[cfg(test)]
+    pub fn replace(&mut self, files: Documents) {
+        self.files = files;
+    }
+    pub fn begin(&mut self, intent: Intent) {
+        self.files.begin(intent, &self.wake);
+    }
+    pub fn poll(&mut self) {
+        self.files.poll(&self.wake);
+    }
+    pub fn client_for(&mut self, slot: u64, message: ClientMessage) {
+        self.files.client_for(slot, message, &self.wake);
+    }
+    pub fn close_slot(&mut self, slot: u64) {
+        self.files.close_slot(slot, &self.wake);
+    }
+    pub fn retry_slot_save(&mut self, slot: u64) {
+        self.files.retry_slot_save(slot, &self.wake);
+    }
+    pub fn load_children(&mut self, path: PathBuf) {
+        self.files.load_children(path, &self.wake);
+    }
+    pub fn cancel_quit(&mut self) {
+        self.files.cancel_quit(&self.wake);
+    }
+    pub fn retry_operation(&mut self) {
+        self.files.retry_operation(&self.wake);
+    }
+    pub fn persist_metadata(&mut self, force: bool) {
+        self.files.persist_metadata(&self.wake, force);
+    }
+    pub fn resource_operation(
+        &mut self,
+        operation: crate::editor::workbench::resource_operations::Operation,
+    ) -> Result<(), String> {
+        self.files.resource_operation(operation, &self.wake)
+    }
+    pub fn open_at_edge(
+        &mut self,
+        path: PathBuf,
+        pane: &str,
+        direction: crate::editor::workbench::layout::Direction,
+        placement: crate::editor::workbench::layout::Placement,
+    ) {
+        self.files
+            .open_at_edge(path, pane, direction, placement, &self.wake);
+    }
+    pub fn open_cloud(
+        &mut self,
+        broker: std::sync::Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
+        project: String,
+    ) {
+        self.files.open_cloud(broker, binding, project, &self.wake);
+    }
+}
+
 pub(super) struct WindowSession {
-    pub files: Documents,
-    pub wake: Wake,
+    /// The documents runtime.
+    pub docs: Entity<DocumentSession>,
     pub project: WindowProject,
     /// The folder picker is open.
     pub picking: bool,

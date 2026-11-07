@@ -155,9 +155,9 @@ impl Shell {
             }
         };
         let current = self
-            .workspace_root()
+            .workspace_root(cx)
             .map(|p| p.to_string_lossy().into_owned());
-        let hosted = self.hosted_project();
+        let hosted = self.hosted_project(cx);
         let t = cx.palette();
         let copied = self.cloud.read(cx).copied_path.clone();
         let projects = self

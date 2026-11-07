@@ -160,8 +160,7 @@ impl Shell {
         let status = super::header::GitTitlebarStatus::of(self.sidebar.source_control.read(cx));
         let repository = self.sidebar.source_control.read(cx).snapshot.is_some();
         let scope = self
-            .session
-            .files
+            .files(cx)
             .workspace
             .as_ref()
             .and_then(|w| w.local_root())
@@ -241,7 +240,7 @@ impl Shell {
     pub(super) fn coachmark_shown(&self, cx: &App) -> bool {
         self.coachmarks.active.is_some()
             && self.coachmarks.anchor.is_some()
-            && !self.home_visible()
+            && !self.home_visible(cx)
             && self.dialogs.read(cx).is_empty()
     }
     /// `dismissOnEscape`: Escape acknowledges the introduction on screen.

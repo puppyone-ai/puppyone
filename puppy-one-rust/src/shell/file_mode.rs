@@ -142,30 +142,27 @@ impl Shell {
     pub(super) fn file_mode(&self) -> bool {
         self.file.is_some()
     }
-    pub(super) fn file_shown(&self) -> Shown {
+    pub(super) fn file_shown(&self, cx: &App) -> Shown {
         match self.file.as_ref().map(|f| f.target.admission) {
             Some(Admission::Unavailable) => Shown::Unavailable(None),
             Some(Admission::TooLarge) => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
-            _ if self.session.files.workspace.is_none() => Shown::Loading,
+            _ if self.files(cx).workspace.is_none() => Shown::Loading,
             _ => Shown::Document,
         }
     }
     /// The file's text is not UTF-8: it reads, and never writes
     /// (`editor.fileMode.readOnlyEncoding`).
-    pub(super) fn file_read_only(&self) -> bool {
-        self.file_mode()
-            && self
-                .session
-                .files
-                .document
-                .as_ref()
-                .is_some_and(|d| d.encoding != crate::workspace::TextEncoding::Utf8)
+    pub(super) fn file_read_only(&self, cx: &App) -> bool {
+        self.editor.read(cx).read_only(cx)
     }
     /// The file window's editor, once its document has a host.
-    pub(super) fn file_editor(&self) -> Option<Entity<crate::editor::host::DocumentEditor>> {
+    pub(super) fn file_editor(
+        &self,
+        cx: &App,
+    ) -> Option<Entity<crate::editor::host::DocumentEditor>> {
         self.editor
-            .hosts
-            .get(&self.session.files.active_slot())
+            .read(cx)
+            .host(self.files(cx).active_slot())
             .cloned()
     }
     fn file_menu(
@@ -199,7 +196,7 @@ impl Shell {
     /// `FileControls`: the view as one control showing the current view,
     /// anything else behind the pane's menu.
     fn file_controls(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let editor = self.file_editor()?;
+        let editor = self.file_editor(cx)?;
         let controls = editor.read(cx).title_controls(cx);
         let name = self.file.as_ref()?.target.name.clone();
         let action = |action: Action| {
@@ -307,7 +304,12 @@ impl Shell {
         let name = self
             .file
             .as_ref()
-            .filter(|_| !matches!(self.file_shown(), Shown::Loading | Shown::Unavailable(None)))
+            .filter(|_| {
+                !matches!(
+                    self.file_shown(cx),
+                    Shown::Loading | Shown::Unavailable(None)
+                )
+            })
             .map(|f| f.target.name.clone())
             .unwrap_or_default();
         let room = theme::control() * 2. + CONTROLS_GAP;
@@ -372,7 +374,7 @@ impl Shell {
         let r = self.layout.editor;
         let t = cx.palette();
         let area = at(r).bg(t.canvas).flex().flex_col();
-        match self.file_shown() {
+        match self.file_shown(cx) {
             Shown::Loading => area.items_center().justify_center().child(
                 LoadingMark::new("file-mode-loading")
                     .area()
@@ -416,7 +418,7 @@ impl Shell {
             }
             Shown::Document => {
                 let ty = theme::ty().header;
-                let notice = self.file_read_only().then(|| {
+                let notice = self.file_read_only(cx).then(|| {
                     div()
                         .flex_none()
                         .py(px(NOTICE_PADDING.0))
@@ -426,14 +428,15 @@ impl Shell {
                         .line_height(px(ty.line_height))
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
-                let slot = self.session.files.active_slot();
-                let document = self.editor.hosts.get(&slot).map(|editor| {
+                let slot = self.files(cx).active_slot();
+                let editor_area = self.editor.read(cx);
+                let document = editor_area.host(slot).map(|editor| {
                     div()
                         .relative()
                         .flex_1()
                         .min_h_0()
                         .child(editor.clone())
-                        .children(self.save_chip(slot, cx))
+                        .children(editor_area.save_chip(slot, cx))
                 });
                 area.children(notice).children(document)
             }

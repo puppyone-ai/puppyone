@@ -33,19 +33,24 @@ fn window_frame_cost() {
     let view = content.unwrap();
     cx.simulate_resize(size(px(1280.), px(800.)));
     view.update_in(cx, |s, w, cx| {
-        s.session.files = Documents::default();
-        s.session.files.workspace = Some(workspace);
-        s.session.files.document = Some(document.clone());
         s.session
-            .files
-            .outgoing
-            .push(crate::documents::HostMessage::Open {
+            .docs
+            .update(cx, |d, _| d.replace(Documents::default()));
+        s.session
+            .docs
+            .update(cx, |d, _| d.workspace = Some(workspace));
+        s.session
+            .docs
+            .update(cx, |d, _| d.document = Some(document.clone()));
+        s.session.docs.update(cx, |d, _| {
+            d.outgoing.push(crate::documents::HostMessage::Open {
                 id: document.id.clone(),
                 name: "bench.md".into(),
                 text: document.text.clone(),
                 revision: 0,
                 external: false,
-            });
+            })
+        });
         s.sync_editor(w, cx);
     });
     let first = bench::draw(cx);
@@ -106,19 +111,24 @@ fn pane_motion_frame_cost() {
     let view = content.unwrap();
     cx.simulate_resize(size(px(1280.), px(800.)));
     view.update_in(cx, |s, w, cx| {
-        s.session.files = Documents::default();
-        s.session.files.workspace = Some(workspace);
-        s.session.files.document = Some(document.clone());
         s.session
-            .files
-            .outgoing
-            .push(crate::documents::HostMessage::Open {
+            .docs
+            .update(cx, |d, _| d.replace(Documents::default()));
+        s.session
+            .docs
+            .update(cx, |d, _| d.workspace = Some(workspace));
+        s.session
+            .docs
+            .update(cx, |d, _| d.document = Some(document.clone()));
+        s.session.docs.update(cx, |d, _| {
+            d.outgoing.push(crate::documents::HostMessage::Open {
                 id: document.id.clone(),
                 name: "bench.md".into(),
                 text: document.text.clone(),
                 revision: 0,
                 external: false,
-            });
+            })
+        });
         s.sync_editor(w, cx);
     });
     for _ in 0..3 {

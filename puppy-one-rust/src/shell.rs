@@ -1,5 +1,5 @@
 use crate::{
-    documents::{ClientMessage, Intent},
+    documents::Intent,
     editor::workbench::runtime::Runtime as Documents,
     geometry::Rect,
     localization::Locale,
@@ -9,7 +9,6 @@ use crate::{
         appearance::ActiveAppearance,
         components::{ButtonVariant, IconButton},
     },
-    wake::Wake,
 };
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
@@ -139,7 +138,7 @@ pub struct Shell {
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     preference_slices: PreferenceSlices,
     /// The editor area's hosts, drops, resizes and save notices.
-    editor: editor_area::EditorArea,
+    editor: Entity<editor_area::EditorArea>,
     focus: FocusHandle,
     project_focus: FocusHandle,
     captured: bool,
@@ -160,7 +159,6 @@ fn at(r: Rect) -> Div {
 }
 impl Shell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let (wake, rx) = Wake::channel();
         let fixture = cfg!(test)
             || std::env::var_os("PUPPYONE_FIXTURE").is_some()
             || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
@@ -169,7 +167,7 @@ impl Shell {
         let weak = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
             weak.update(cx, |s, cx| {
-                if s.session.files.allow_quit {
+                if s.files(cx).allow_quit {
                     s.preferences.read(cx).drained()
                         && !s.dialogs.read(cx).creating(cx)
                         && (windows::count(cx) > 1
@@ -185,34 +183,8 @@ impl Shell {
         crate::features::cloud::account::observe(window, cx, |s, window, cx| {
             s.refresh_cloud_catalog(false, cx);
             s.guard_cloud_authority(window, cx);
-            s.session.wake.notify();
+            s.session.docs.read(cx).wake().notify();
             cx.notify();
-        })
-        .detach();
-        cx.spawn_in(window, async move |this, cx| {
-            while rx.recv().await.is_ok() {
-                if this
-                    .update_in(cx, |s, w, cx| {
-                        let before = (
-                            s.session.files.presentation_key(),
-                            s.session.files.generation,
-                            s.session.project.name.clone(),
-                        );
-                        s.receive(w, cx);
-                        let after = (
-                            s.session.files.presentation_key(),
-                            s.session.files.generation,
-                            s.session.project.name.clone(),
-                        );
-                        if before != after {
-                            cx.notify();
-                        }
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
         })
         .detach();
         // One preference owner for every window; per-window state stays here.
@@ -220,6 +192,26 @@ impl Shell {
         let preferences = windows::shared_preferences(fixture, cx);
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let key = crate::features::agent_presence::owner(window);
+        let docs = cx.new(|cx| {
+            let mut files = if fixture {
+                Documents::default()
+            } else {
+                Documents::native()
+            };
+            files.task_scope = key.clone();
+            session::DocumentSession::new(files, cx)
+        });
+        let editor = cx.new(|cx| {
+            editor_area::EditorArea::new(
+                docs.clone(),
+                explorer_session.clone(),
+                preferences.clone(),
+                focus.clone(),
+                key.clone(),
+                window,
+                cx,
+            )
+        });
         let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
         let catalog = crate::features::cloud::catalog::global(cx);
         let project_actions = cx.new(|cx| {
@@ -244,12 +236,7 @@ impl Shell {
         });
         let mut s = Self {
             session: session::WindowSession {
-                files: if fixture {
-                    Documents::default()
-                } else {
-                    Documents::native()
-                },
-                wake,
+                docs,
                 project: session::WindowProject {
                     name: if fixture {
                         "puppyone".into()
@@ -312,7 +299,7 @@ impl Shell {
             home,
             preferences,
             preference_slices: Default::default(),
-            editor: editor_area::EditorArea::new(cx.new(crate::editor::host::DocumentEditor::new)),
+            editor,
             focus,
             project_focus: cx.focus_handle(),
             captured: false,
@@ -326,12 +313,37 @@ impl Shell {
             #[cfg(test)]
             frames: 0,
         };
-        s.session.files.task_scope = s.session.key.clone();
-        s.editor.hosts.insert(0, s.editor.front.clone());
-        // Agent file presence over the editor panes.
-        if let Some(presence) = crate::features::agent_presence::store(cx) {
-            cx.observe(&presence, |_, _, cx| cx.notify()).detach();
-        }
+        // The workers' news, and what the editor area asks of the window.
+        cx.subscribe_in(&s.session.docs, window, |s, _, _: &session::Woke, w, cx| {
+            let shown = |s: &Shell, cx: &App| {
+                let files = s.files(cx);
+                (
+                    files.presentation_key(),
+                    files.generation,
+                    s.session.project.name.clone(),
+                )
+            };
+            let before = shown(s, cx);
+            s.receive(w, cx);
+            if shown(s, cx) != before {
+                cx.notify();
+            }
+        })
+        .detach();
+        cx.subscribe_in(&s.editor, window, |s, _, event, w, cx| match event {
+            editor_area::EditorEvent::Command(command) => s.command(*command, w, cx),
+            editor_area::EditorEvent::Pump => {
+                s.receive(w, cx);
+                cx.notify();
+            }
+        })
+        .detach();
+        cx.observe(&s.editor, |_, _, cx| cx.notify()).detach();
+        // A dialog of the Agent workbench holds the editors too.
+        cx.observe_in(&s.sidebar.workbench, window, |s, _, w, cx| {
+            s.gate_editors(w, cx)
+        })
+        .detach();
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
             Ok("settings") => s.open_modal(Modal::Task(Task::Settings), cx),
@@ -348,7 +360,7 @@ impl Shell {
             match event {
                 project_actions::ActionsEvent::Opened => s.set_popover(None, cx),
                 project_actions::ActionsEvent::Renamed { path, name } => {
-                    if s.workspace_root().as_deref() == Some(path.as_path()) {
+                    if s.workspace_root(cx).as_deref() == Some(path.as_path()) {
                         s.session.project.name = name.clone();
                     }
                 }
@@ -365,7 +377,7 @@ impl Shell {
         .detach();
         // The create form holds the window open while it writes.
         cx.observe(&s.dialogs, |s, _, cx| {
-            s.session.wake.notify();
+            s.session.docs.read(cx).wake().notify();
             cx.notify()
         })
         .detach();
@@ -380,12 +392,12 @@ impl Shell {
                 if s.session.project.restore_last && s.preferences.read(cx).loaded {
                     s.session.project.restore_last = false;
                     if let Some(path) = windows::last_active_project(cx)
-                        && s.session.files.workspace.is_none()
+                        && s.files(cx).workspace.is_none()
                     {
                         s.open_project(path, w, cx);
                         // Only an opening that started holds the screen (the
                         // Project may already show in another window).
-                        s.session.project.restoring_open = s.session.files.opening_root();
+                        s.session.project.restoring_open = s.files(cx).opening_root();
                     }
                 }
             },
@@ -402,14 +414,15 @@ impl Shell {
         cx.subscribe_in(&s.explorer_session, window, |s, _, event, window, cx| {
             match event {
                 SessionEvent::ReferencesChanged => {}
-                SessionEvent::LoadChildren(path) => {
-                    s.session.files.load_children(path.clone(), &s.session.wake)
-                }
+                SessionEvent::LoadChildren(path) => s
+                    .session
+                    .docs
+                    .update(cx, |d, _| d.load_children(path.clone())),
                 SessionEvent::ResourceOperation(operation) => {
                     if let Err(error) = s
                         .session
-                        .files
-                        .resource_operation(operation.clone(), &s.session.wake)
+                        .docs
+                        .update(cx, |d, _| d.resource_operation(operation.clone()))
                     {
                         s.explorer_session
                             .update(cx, |e, cx| e.operation_failed(cx));
@@ -435,8 +448,8 @@ impl Shell {
             match event {
                 ExplorerEvent::Open(path) => s
                     .session
-                    .files
-                    .begin(Intent::OpenFile(path.clone()), &s.session.wake),
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFile(path.clone()))),
                 ExplorerEvent::Create { entry, parent } => {
                     s.start_create(*entry, parent.clone(), window, cx)
                 }
@@ -456,7 +469,7 @@ impl Shell {
         })
         .detach();
         cx.observe(&s.preferences, |s, _, cx| {
-            s.session.wake.notify();
+            s.session.docs.read(cx).wake().notify();
             cx.notify()
         })
         .detach();
@@ -490,8 +503,7 @@ impl Shell {
                     s.preferences
                         .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
                     s.close_tasks(cx);
-                    if s.session
-                        .files
+                    if s.files(cx)
                         .workspace
                         .as_ref()
                         .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
@@ -525,17 +537,16 @@ impl Shell {
                         &root.to_string_lossy(),
                         path,
                     ) {
-                        s.session.files
-                            .begin(Intent::OpenFile(root.join(path)), &s.session.wake);
+                        s.session.docs.update(cx, |d, _| d.begin(Intent::OpenFile(root.join(path))));
                     }
                 }
                 // A hosted run's accepted changes: reread the Cloud tree and
                 // revalidate the open document (a draft is kept).
                 crate::features::workbench::WorkbenchEvent::CloudPublished => {
-                    if s.hosted_project().is_some() {
+                    if s.hosted_project(cx).is_some() {
                         s.explorer_session
                             .update(cx, |e, cx| e.refresh_published(cx));
-                        s.session.files.observe_publication();
+                        s.session.docs.update(cx, |d, _| d.observe_publication());
                         s.receive(w, cx);
                     }
                 }
@@ -555,8 +566,7 @@ impl Shell {
                 .source_control
                 .update(cx, |sc, cx| sc.set_focused(active, cx));
             if !active {
-                s.editor.drop = None;
-                s.end_editor_resize(false, cx);
+                s.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             } else {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
                 // The catalog refreshes whenever a window regains focus.
@@ -568,34 +578,14 @@ impl Shell {
                 // A file window watches nothing: the file is read again
                 // when the window comes back (FileModeDocument's `focus`).
                 if s.file_mode() {
-                    s.session.files.revalidate();
+                    s.session.docs.update(cx, |d, _| d.revalidate());
                     s.receive(window, cx);
                     cx.notify();
                 }
             }
         })
         .detach();
-        // Escape rolls an editor drag back wherever focus is (TS listens on
-        // `window` in the capture phase): intercepted before any binding.
-        let shell = cx.weak_entity();
         let own = window.window_handle();
-        cx.intercept_keystrokes(move |event, window, cx| {
-            if window.window_handle() != own || event.keystroke.key != "escape" {
-                return;
-            }
-            let _ = shell.update(cx, |s, cx| {
-                if s.editor.drop.take().is_some() {
-                    cx.stop_active_drag(window);
-                    cx.stop_propagation();
-                    cx.notify();
-                }
-                if s.editor.resize.is_some() {
-                    s.end_editor_resize(false, cx);
-                    cx.stop_propagation();
-                }
-            });
-        })
-        .detach();
         // An open Header introduction closes on Escape wherever focus is
         // (`dismissOnEscape`, a capturing document listener that lets the
         // key go on).
@@ -648,8 +638,8 @@ impl Shell {
                 match event {
                     SourceControlEvent::OpenFile(path) => {
                         s.session
-                            .files
-                            .begin(Intent::OpenFile(PathBuf::from(path)), &s.session.wake);
+                            .docs
+                            .update(cx, |d, _| d.begin(Intent::OpenFile(PathBuf::from(path))));
                         s.receive(window, cx);
                     }
                     SourceControlEvent::Surface => s.sidebar.store(&s.preferences, cx),
@@ -669,23 +659,6 @@ impl Shell {
                 cx.notify();
             },
         )
-        .detach();
-        cx.subscribe_in(&s.editor.front, window, |s, _, event, window, cx| {
-            // Pane menu commands (open in default app, close) are the shell's.
-            if let ClientMessage::Action { action } = event {
-                if s.session.files.state().is_some() {
-                    return;
-                }
-                if let Some(command) = Command::from_protocol(action) {
-                    s.command(command, window, cx);
-                }
-                return;
-            }
-            s.session
-                .files
-                .client_for(0, event.clone(), &s.session.wake);
-            cx.notify();
-        })
         .detach();
         let mut workspace = if cfg!(test) || !launch.from_args {
             launch.workspace.clone()
@@ -736,7 +709,7 @@ impl Shell {
             // The file's folder is the window's root; only the file shows,
             // and it saves when asked. A file that is gone or too large is
             // never read.
-            s.session.files.file_window = true;
+            s.session.docs.update(cx, |d, _| d.file_window = true);
             #[cfg(feature = "dev-capture")]
             let hold = std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
             #[cfg(not(feature = "dev-capture"))]
@@ -744,8 +717,8 @@ impl Shell {
             if file.admission == file_mode::Admission::Readable && !hold {
                 s.session.project.open_first = Some(PathBuf::from(&file.name));
                 s.session
-                    .files
-                    .begin(Intent::OpenFolder(file.root.clone()), &s.session.wake);
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFolder(file.root.clone())));
             }
             s.file = Some(file_mode::FileWindow::new(file));
         } else if let Some(path) = workspace {
@@ -753,8 +726,8 @@ impl Shell {
                 s.session.project.open_first = launch.open.clone();
             }
             s.session
-                .files
-                .begin(Intent::OpenFolder(path), &s.session.wake);
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFolder(path)));
         } else if launch.from_args && !fixture && !cfg!(test) {
             // `readLastActiveWorkspaceComposition`: the last active project.
             s.session.project.restore_last = true;
@@ -849,6 +822,7 @@ impl Shell {
         // panes (Explorer, workbench, Changes) read them while rendering, so
         // the whole window renders again.
         window.refresh();
+        self.gate_editors(window, cx);
     }
     /// The parts of the preferences other owners read, handed to them; each
     /// takes only a change (nothing here renders the window again).
@@ -896,40 +870,44 @@ impl Shell {
             self.push_explorer_host(window, cx);
         }
     }
+    /// The documents runtime, read.
+    fn files<'a>(&self, cx: &'a App) -> &'a Documents {
+        self.session.docs.read(cx)
+    }
     /// Web hides the workspace chrome on the homepage; so does the native shell.
-    fn home_visible(&self) -> bool {
+    fn home_visible(&self, cx: &App) -> bool {
         // A project on its way in takes the window from the Homepage.
         !self.session.project.fixture
             && !self.file_mode()
-            && !self.opening()
-            && (self.session.home || self.session.files.workspace.is_none())
+            && !self.opening(cx)
+            && (self.session.home || self.files(cx).workspace.is_none())
     }
     /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
     /// the window shows a quiet loading mark, never the Homepage.
-    fn restoring(&self) -> bool {
-        self.session.files.workspace.is_none()
+    fn restoring(&self, cx: &App) -> bool {
+        self.files(cx).workspace.is_none()
             && (self.session.project.restore_last || self.session.project.restoring_open)
     }
     /// What the window's features read of the session, handed over when it
     /// changed.
     fn sync_session_view(&mut self, cx: &mut Context<Self>) {
-        let files = &self.session.files;
-        let home = self.home_visible();
+        let files = &self.files(cx);
+        let home = self.home_visible(cx);
         let view = session::SessionView {
             home,
             listing: home || self.popover == Some(Popover::Project),
             workspace: files.workspace.is_some(),
-            root: self.workspace_root(),
+            root: self.workspace_root(cx),
             busy: self.session.picking
                 || files.busy()
                 || files.folder_busy
                 || files.cloud_opening().is_some(),
             cloud_opening: files.cloud_opening().is_some(),
-            restoring: self.restoring(),
+            restoring: self.restoring(cx),
             name: self.session.project.name.clone(),
             cloud_project: self.session.project.cloud.clone(),
-            hosted: self.hosted_project(),
-            opening: self.opening(),
+            hosted: self.hosted_project(cx),
+            opening: self.opening(cx),
             file_mode: self.file_mode(),
         };
         self.home
@@ -949,8 +927,7 @@ impl Shell {
                 let resource = match self.explorer_session.read(cx).selected_folder() {
                     Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
                     None => self
-                        .session
-                        .files
+                        .files(cx)
                         .opened()
                         .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
                 };
@@ -1004,13 +981,13 @@ impl Shell {
             return;
         }
         self.session.project.authority = None;
-        self.session.files.cancel_cloud();
+        self.session.docs.update(cx, |d, _| d.cancel_cloud());
         if self.popover == Some(Popover::Share) {
             self.set_popover(None, cx);
         }
-        if self.hosted_project().is_some() {
+        if self.hosted_project(cx).is_some() {
             self.close_workspace_sidebars(window, cx);
-            self.session.files.deactivate();
+            self.session.docs.update(cx, |d, _| d.deactivate());
             self.session.home = true;
             self.receive(window, cx);
         }
@@ -1043,7 +1020,7 @@ impl Shell {
                     return;
                 }
                 self.open_project(path, window, cx);
-                if self.session.files.busy() {
+                if self.files(cx).busy() {
                     self.session.project.open_first = open;
                 }
             }
@@ -1082,7 +1059,7 @@ impl Shell {
     fn modal(&self, cx: &App) -> bool {
         // A held-back Cloud conflict is a floating notice, not a dialog.
         !self.dialogs.read(cx).is_empty()
-            || (self.session.files.error.is_some() && !self.session.files.cloud_conflict())
+            || (self.files(cx).error.is_some() && !self.files(cx).cloud_conflict())
     }
     /// A notice over everything else; a later one replaces it.
     fn show_error(&mut self, error: impl Into<String>, cx: &mut Context<Self>) {
@@ -1137,8 +1114,7 @@ impl Shell {
             } => {
                 self.focus.focus(window, cx);
                 if !self
-                    .session
-                    .files
+                    .files(cx)
                     .workspace
                     .as_ref()
                     .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
@@ -1158,10 +1134,10 @@ impl Shell {
                 let (parent, path) = (parent.clone(), path.clone());
                 self.explorer_session
                     .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
-                if !folder && !self.session.files.allow_quit {
+                if !folder && !self.files(cx).allow_quit {
                     self.session
-                        .files
-                        .begin(Intent::OpenFile(path), &self.session.wake)
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
                 }
             }
         }
@@ -1176,10 +1152,10 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(ws) = self.session.files.workspace.clone() else {
+        let Some(ws) = self.files(cx).workspace.clone() else {
             return;
         };
-        if self.session.files.busy() || self.modal(cx) || !kind.available() {
+        if self.files(cx).busy() || self.modal(cx) || !kind.available() {
             return;
         }
         self.dialogs
@@ -1188,13 +1164,19 @@ impl Shell {
     /// Escape on the topmost dialog, each with its own cancel: the Documents
     /// error, then the top of the dialog layer.
     fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.session.files.cloud_conflict() && self.session.files.error.take().is_some() {
+        if !self.files(cx).cloud_conflict()
+            && self
+                .session
+                .docs
+                .update(cx, |d, _| d.error.take())
+                .is_some()
+        {
             return;
         }
         self.dialogs.update(cx, |d, cx| d.dismiss_top(window, cx));
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.picking || self.session.files.busy() || self.session.files.folder_busy {
+        if self.session.picking || self.files(cx).busy() || self.files(cx).folder_busy {
             return;
         }
         self.session.picking = true;
@@ -1261,10 +1243,10 @@ impl Shell {
             }
             // Before any dialog's own handling: a dialog takes no ⌘W.
             Command::CloseEditorOrWindow => {
-                if self.open_editors().is_some() {
+                if self.open_editors(cx).is_some() {
                     self.session
-                        .files
-                        .begin(Intent::CloseFile, &self.session.wake);
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::CloseFile));
                     self.receive(window, cx);
                     cx.notify();
                 } else {
@@ -1310,22 +1292,22 @@ impl Shell {
             return;
         }
         if command == Command::Quit {
-            self.end_editor_resize(false, cx);
+            self.editor.update(cx, |e, cx| e.end_resize(false, cx));
         }
         match command {
             // `askToSaveFile`: a file window with unsaved edits asks first.
-            Command::Quit if self.file_mode() && self.session.files.dirty => {
+            Command::Quit if self.file_mode() && self.files(cx).dirty => {
                 self.ask_to_save_file(window, cx);
                 return;
             }
             Command::SaveFileAndClose => {
-                self.session.files.begin(Intent::Quit, &self.session.wake);
+                self.session.docs.update(cx, |d, _| d.begin(Intent::Quit));
                 self.receive(window, cx);
                 cx.notify();
                 return;
             }
             Command::DiscardFileChanges => {
-                self.session.files.abandon_unsaved();
+                self.session.docs.update(cx, |d, _| d.abandon_unsaved());
                 self.receive(window, cx);
                 cx.notify();
                 return;
@@ -1344,7 +1326,7 @@ impl Shell {
             }
             Command::QuitWithProcesses => {
                 self.close_modal(|m| matches!(m, Modal::ConfirmQuit), cx);
-                self.session.files.begin(Intent::Quit, &self.session.wake);
+                self.session.docs.update(cx, |d, _| d.begin(Intent::Quit));
                 self.receive(window, cx);
                 cx.notify();
                 return;
@@ -1364,7 +1346,7 @@ impl Shell {
             }
             Command::CloseAnyway => {
                 self.close_modal(|m| matches!(m, Modal::CloseAnyway), cx);
-                self.session.files.abandon_unsaved();
+                self.session.docs.update(cx, |d, _| d.abandon_unsaved());
                 self.receive(window, cx);
                 cx.notify();
                 return;
@@ -1385,7 +1367,7 @@ impl Shell {
             match command {
                 Command::Settings if task == Task::Settings => self.close_tasks(cx),
                 Command::Settings => {
-                    let root = self.workspace_root();
+                    let root = self.workspace_root(cx);
                     self.dialogs.update(cx, |d, cx| {
                         d.feedback.update(cx, |f, cx| f.reset(cx));
                         d.set_root(root, cx);
@@ -1393,7 +1375,7 @@ impl Shell {
                     });
                     self.focus.focus(window, cx);
                 }
-                Command::Quit => self.session.files.begin(Intent::Quit, &self.session.wake),
+                Command::Quit => self.session.docs.update(cx, |d, _| d.begin(Intent::Quit)),
                 _ => {}
             }
             self.receive(window, cx);
@@ -1403,33 +1385,27 @@ impl Shell {
         match command {
             Command::Undo | Command::Redo => {
                 if !self.modal(cx)
-                    && !self.session.files.busy()
-                    && let Some(id) = self
-                        .session
-                        .files
-                        .document
-                        .as_ref()
-                        .map(|doc| doc.id.clone())
+                    && !self.files(cx).busy()
+                    && let Some(id) = self.files(cx).document.as_ref().map(|doc| doc.id.clone())
                 {
-                    self.session
-                        .files
-                        .outgoing
-                        .push(crate::documents::HostMessage::History {
+                    self.session.docs.update(cx, |d, _| {
+                        d.outgoing.push(crate::documents::HostMessage::History {
                             id,
                             redo: command == Command::Redo,
-                        });
+                        })
+                    });
                 }
             }
-            Command::Save => self.session.files.begin(Intent::Save, &self.session.wake),
-            Command::Reload => self.session.files.begin(Intent::Reload, &self.session.wake),
+            Command::Save => self.session.docs.update(cx, |d, _| d.begin(Intent::Save)),
+            Command::Reload => self.session.docs.update(cx, |d, _| d.begin(Intent::Reload)),
             Command::CloseFile => self
                 .session
-                .files
-                .begin(Intent::CloseFile, &self.session.wake),
+                .docs
+                .update(cx, |d, _| d.begin(Intent::CloseFile)),
             // Pane menu "Open in default app" (`EditorPaneActionsMenu`).
             Command::OpenExternal => {
                 if let (Some(ws), Some((_, relative))) =
-                    (&self.session.files.workspace, self.session.files.opened())
+                    (&self.files(cx).workspace, self.files(cx).opened())
                 {
                     match ws.absolute(relative) {
                         Ok(path) => {
@@ -1441,7 +1417,7 @@ impl Shell {
                     }
                 }
             }
-            Command::Quit => self.session.files.begin(Intent::Quit, &self.session.wake),
+            Command::Quit => self.session.docs.update(cx, |d, _| d.begin(Intent::Quit)),
             Command::OpenFolder => self.pick_workspace(window, cx),
             Command::CreateNew => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
             Command::RetryProjectOpen => {
@@ -1465,7 +1441,7 @@ impl Shell {
             Command::Settings => {
                 self.set_popover(None, cx);
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
-                let root = self.workspace_root();
+                let root = self.workspace_root(cx);
                 self.dialogs.update(cx, |d, cx| {
                     d.set_root(root, cx);
                     d.open(Modal::Task(Task::Settings), cx)
@@ -1492,15 +1468,15 @@ impl Shell {
             Command::Home => {
                 self.set_popover(None, cx);
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
-                if !self.home_visible() {
+                if !self.home_visible(cx) {
                     self.home.update(cx, |h, _| h.hold_list());
                 }
                 self.session.home = true;
             }
             // With no dialog open, Escape closes a menu.
             // Escape cancels a Cloud opening; whatever showed stays.
-            Command::Escape if self.session.files.cloud_opening().is_some() => {
-                self.session.files.cancel_cloud();
+            Command::Escape if self.files(cx).cloud_opening().is_some() => {
+                self.session.docs.update(cx, |d, _| d.cancel_cloud());
             }
             // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
             Command::Escape
@@ -1536,41 +1512,41 @@ impl Shell {
             // Only Markdown's viewer takes the shortcut (`MarkdownViewer`'s
             // `enableModeToggleShortcut`).
             Command::ToggleMarkdownSource => {
-                let markdown = self.editor.front.read(cx).viewer_id() == Some("markdown");
-                if markdown && !self.session.files.busy() && !self.modal(cx) && !self.home_visible()
-                {
-                    self.editor
-                        .front
-                        .update(cx, |s, cx| s.command("source", window, cx));
+                let front = self.editor.read(cx).front.clone();
+                let markdown = front.read(cx).viewer_id() == Some("markdown");
+                if markdown && !self.files(cx).busy() && !self.modal(cx) && !self.home_visible(cx) {
+                    front.update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
             Command::NextEditor | Command::PreviousEditor => {
-                if let Some((editors, active)) = self.open_editors() {
+                if let Some((editors, active)) = self.open_editors(cx) {
                     let step = if command == Command::NextEditor {
                         1
                     } else {
                         editors.len() - 1
                     };
                     let next = (active + step) % editors.len();
-                    self.session.files.activate(&editors[next]);
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.activate(&editors[next]));
                     self.sync_editor(window, cx);
                 }
             }
             Command::ToggleFullScreen => window.toggle_fullscreen(),
             Command::RetryFileOperation => {
                 self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
-                self.session.files.error = None;
-                self.session.files.retry_operation(&self.session.wake);
+                self.session.docs.update(cx, |d, _| d.error = None);
+                self.session.docs.update(cx, |d, _| d.retry_operation());
             }
             Command::ClearError => {
                 self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
-                self.session.files.error = None;
+                self.session.docs.update(cx, |d, _| d.error = None);
             }
             Command::CloudServices => self
                 .cloud
                 .update(cx, |c, cx| c.open_share(String::new(), window, cx)),
             Command::CloudHistory => {
-                let Some(project) = self.hosted_project() else {
+                let Some(project) = self.hosted_project(cx) else {
                     return;
                 };
                 self.set_popover(None, cx);
@@ -1585,7 +1561,9 @@ impl Shell {
                 }
             }
             Command::ReloadCloudBaseline => {
-                self.session.files.reload_cloud_baseline();
+                self.session
+                    .docs
+                    .update(cx, |d, _| d.reload_cloud_baseline());
                 self.receive(window, cx);
             }
             Command::ManageExecutions => {
@@ -1599,7 +1577,7 @@ impl Shell {
                 self.focus.focus(window, cx);
             }
             Command::Changes => {
-                if self.session.files.workspace.is_none() {
+                if self.files(cx).workspace.is_none() {
                     return;
                 }
                 let open = self.panes.read(cx).right().open;
@@ -1619,18 +1597,18 @@ impl Shell {
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::watchdog::activity("shell.receive");
-        let previous = self.session.files.opened().map(|(id, _)| id.to_owned());
-        self.session.files.poll(&self.session.wake);
-        if let Some((path, message)) = self.session.files.root_failure.take() {
+        let previous = self.files(cx).opened().map(|(id, _)| id.to_owned());
+        self.session.docs.update(cx, |d, _| d.poll());
+        if let Some((path, message)) = self.session.docs.update(cx, |d, _| d.root_failure.take()) {
             self.session.project.restoring_open = false;
             self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
             self.open_modal(Modal::ProjectFailure { path, message }, cx);
         }
-        if self.session.project.restoring_open && self.session.files.workspace.is_some() {
+        if self.session.project.restoring_open && self.files(cx).workspace.is_some() {
             self.session.project.restoring_open = false;
         }
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
-        if let Some(failure) = self.session.files.take_cloud_failure() {
+        if let Some(failure) = self.session.docs.update(cx, |d, _| d.take_cloud_failure()) {
             self.session.project.recovery_details = false;
             let project = self.session.project.cloud.clone().unwrap_or_default();
             self.cloud
@@ -1638,8 +1616,12 @@ impl Shell {
         }
         // `finishInterceptedClose`: a close a document could not finish asks
         // whether to keep the window or close anyway, instead of the error.
-        if std::mem::take(&mut self.session.files.close_refused) {
-            self.session.files.error = None;
+        if self
+            .session
+            .docs
+            .update(cx, |d, _| std::mem::take(&mut d.close_refused))
+        {
+            self.session.docs.update(cx, |d, _| d.error = None);
             if !self
                 .dialogs
                 .read(cx)
@@ -1650,14 +1632,17 @@ impl Shell {
             }
             self.focus_dialogs(window, cx);
         }
-        for (owner, outcome) in std::mem::take(&mut self.session.files.operation_results) {
+        for (owner, outcome) in self
+            .session
+            .docs
+            .update(cx, |d, _| std::mem::take(&mut d.operation_results))
+        {
             self.explorer_session
                 .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
         }
-        if let Some(nodes) = self.session.files.tree_update.take() {
-            self.editor.drop = None;
-            self.end_editor_resize(false, cx);
-            let ws = self.session.files.workspace.clone().unwrap();
+        if let Some(nodes) = self.session.docs.update(cx, |d, _| d.tree_update.take()) {
+            self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
+            let ws = self.files(cx).workspace.clone().unwrap();
             self.explorer_session
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
             if self.file_mode() {
@@ -1697,42 +1682,46 @@ impl Shell {
                 });
             }
         }
-        if let Some((path, result)) = self.session.files.children_update.take() {
+        if let Some((path, result)) = self
+            .session
+            .docs
+            .update(cx, |d, _| d.children_update.take())
+        {
             self.explorer_session
                 .update(cx, |e, cx| e.children_loaded(&path, result, cx));
         }
-        if let Some((id, relative)) = self.session.files.opened()
+        if let Some((id, relative)) = self.files(cx).opened()
             && previous.as_deref() != Some(id)
         {
             let relative = relative.to_path_buf();
             self.explorer_session
                 .update(cx, |e, cx| e.reveal(&relative, cx));
         }
-        if self.session.files.workspace.is_some()
-            && !self.session.files.busy()
+        if self.files(cx).workspace.is_some()
+            && !self.files(cx).busy()
             && let Some(path) = self.session.project.open_first.take()
         {
             self.session
-                .files
-                .begin(Intent::OpenFile(path), &self.session.wake);
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
         }
         self.push_explorer_host(window, cx);
         self.sync_editor(window, cx);
         self.sync_dialog_status(cx);
         self.sync_session_view(cx);
-        if self.session.files.allow_quit && self.dialogs.read(cx).creating(cx) {
+        if self.files(cx).allow_quit && self.dialogs.read(cx).creating(cx) {
             return;
         }
-        if self.session.files.allow_quit && !self.preferences.read(cx).drained() {
+        if self.files(cx).allow_quit && !self.preferences.read(cx).drained() {
             if let Some(error) = self.preferences.read(cx).error.clone() {
                 self.show_error(error, cx);
-                self.session.files.cancel_quit(&self.session.wake);
+                self.session.docs.update(cx, |d, _| d.cancel_quit());
                 windows::cancel_quit(cx);
                 self.sync_editor(window, cx);
             }
             return;
         }
-        if self.session.files.allow_quit {
+        if self.files(cx).allow_quit {
             // The account owner is process-wide: only the app's end drains
             // it; closing one of several windows (or, on macOS, the last
             // one) leaves it running.
@@ -1741,7 +1730,7 @@ impl Shell {
                     Ok(true) => {}
                     Ok(false) => return,
                     Err(error) => {
-                        self.session.files.cancel_quit(&self.session.wake);
+                        self.session.docs.update(cx, |d, _| d.cancel_quit());
                         windows::cancel_quit(cx);
                         self.sync_editor(window, cx);
                         self.show_error(error.to_string(), cx);
@@ -1761,167 +1750,43 @@ impl Shell {
     }
     /// The Documents error shows above the dialogs while it is set.
     fn sync_dialog_status(&mut self, cx: &mut Context<Self>) {
-        let files = &self.session.files;
+        let files = &self.files(cx);
         let status = files.error.clone().filter(|_| !files.cloud_conflict());
         let can_retry = files.can_retry_operation();
         self.dialogs
             .update(cx, |d, cx| d.set_status(status, can_retry, cx));
     }
+    /// What the window holds over the editors: a dialog (here or in the
+    /// Agent workbench), the Homepage, the appearance.
+    fn editor_gate(&self, cx: &App) -> editor_area::EditorGate {
+        editor_area::EditorGate {
+            modal: self.modal(cx) || self.sidebar.workbench.read(cx).dialog_open(),
+            home: self.home_visible(cx),
+            dark: self.dark,
+        }
+    }
+    /// The window's gate over the editors changed.
+    fn gate_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let gate = self.editor_gate(cx);
+        self.editor.update(cx, |e, cx| e.set_gate(gate, window, cx));
+    }
+    /// The editor area takes the runtime's messages under the window's gate.
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.session
-            .files
-            .persist_metadata(&self.session.wake, false);
-        let file = self.file_mode();
-        let active = self.session.files.active_slot();
-        let mut focus_native = self
-            .editor
-            .hosts
-            .get(&active)
-            .is_some_and(|e| e != &self.editor.front);
-        for _ in 0..4 {
-            let messages = self.session.files.take_outgoing();
-            if messages.is_empty() {
-                break;
-            }
-            for (slot, message) in messages {
-                if let std::collections::btree_map::Entry::Vacant(entry) =
-                    self.editor.hosts.entry(slot)
-                {
-                    self.editor.tab_focus.insert(slot, cx.focus_handle());
-                    let owner = cx.entity_id();
-                    let file_mode = self.file.is_some();
-                    let editor = cx.new(|cx| {
-                        let mut editor = crate::editor::host::DocumentEditor::new(cx);
-                        editor.workbench = true;
-                        editor.file_mode = file_mode;
-                        editor.pane_drag =
-                            Some(crate::editor::workbench::pane::PaneDrag { owner, slot });
-                        editor
-                    });
-                    cx.subscribe_in(
-                        &editor,
-                        window,
-                        move |s, _, event: &ClientMessage, window, cx| {
-                            if let ClientMessage::Action { action } = event {
-                                if s.session.files.visible_slots().contains(&slot) && !s.modal(cx) {
-                                    s.focus_editor_slot(slot);
-                                    if action == "close-file" {
-                                        if let Some(mut state) = s.session.files.state_mut() {
-                                            let active = state.layout.active.clone();
-                                            state.close_pane(&active);
-                                        }
-                                    } else if let Some(command) = Command::from_protocol(action) {
-                                        s.command(command, window, cx);
-                                    }
-                                    s.sync_editor(window, cx);
-                                }
-                            } else {
-                                s.session
-                                    .files
-                                    .client_for(slot, event.clone(), &s.session.wake);
-                            }
-                            cx.notify();
-                        },
-                    )
-                    .detach();
-                    entry.insert(editor);
-                }
-                focus_native |= slot == active
-                    && matches!(
-                        message,
-                        crate::documents::HostMessage::Open { .. }
-                            | crate::documents::HostMessage::OpenResource { .. }
-                    );
-                let references =
-                    self.session
-                        .files
-                        .slot(slot)
-                        .filter(|_| !file)
-                        .and_then(|files| {
-                            let workspace = files.workspace.as_ref()?;
-                            let (_, path) = files.opened()?;
-                            self.explorer_session
-                                .update(cx, |session, _| session.reference_context(workspace, path))
-                        });
-                let workspace = self
-                    .session
-                    .files
-                    .slot(slot)
-                    .filter(|_| !file)
-                    .and_then(|files| files.workspace.clone());
-                let replies = self.editor.hosts[&slot].update(cx, |s, cx| {
-                    s.set_reference_context(references, cx);
-                    s.set_workspace(workspace);
-                    s.receive(&message, window, cx)
-                });
-                for reply in replies {
-                    self.session
-                        .files
-                        .client_for(slot, reply, &self.session.wake);
-                }
-            }
-        }
-        let retained = self.session.files.retained_slots();
-        self.editor.hosts.retain(|id, _| retained.contains(id));
-        self.editor.tab_focus.retain(|id, _| retained.contains(id));
-        if let Some(editor) = self.editor.hosts.get(&active) {
-            self.editor.front = editor.clone();
-        }
-        let modal = self.modal(cx) || self.sidebar.workbench.read(cx).dialog_open();
-        let home = self.home_visible();
-        let visible = self.session.files.visible_slots();
-        let read_only = self.file_read_only();
-        for (slot, editor) in &self.editor.hosts {
-            // A lone file has no neighbours (`EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT`).
-            let references = self
-                .session
-                .files
-                .slot(*slot)
-                .filter(|_| !file)
-                .and_then(|files| {
-                    let workspace = files.workspace.as_ref()?;
-                    let (_, path) = files.opened()?;
-                    self.explorer_session
-                        .update(cx, |session, _| session.reference_context(workspace, path))
-                });
-            let blocked = modal
-                || home
-                || !visible.contains(slot)
-                || self
-                    .session
-                    .files
-                    .slot(*slot)
-                    .is_none_or(|f| f.busy() || f.allow_quit);
-            editor.update(cx, |s, cx| {
-                s.set_reference_context(references, cx);
-                s.read_only = read_only;
-                s.gate(blocked, self.dark, window, cx);
-            });
-        }
-        if home || (active == 0 && self.session.files.state().is_some()) {
-            self.focus.focus(window, cx);
-            focus_native = false;
-        }
-        #[cfg(feature = "dev-capture")]
-        if std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
-            && std::env::var("PUPPYONE_EDITOR_FOCUS").as_deref() == Ok("0")
-        {
-            focus_native = false;
-        }
-        if focus_native && !modal && !self.session.files.busy() {
-            self.editor
-                .front
-                .update(cx, |editor, cx| editor.focus_document(window, cx));
-        }
+        let gate = self.editor_gate(cx);
+        let file_mode = self.file_mode();
+        self.editor.update(cx, |e, cx| {
+            e.set_file_mode(file_mode);
+            e.set_gate(gate, window, cx);
+            e.sync(window, cx)
+        });
     }
     /// `useHomepageCloudProjects`: load or revalidate the account catalog.
     pub(super) fn refresh_cloud_catalog(&mut self, retry: bool, cx: &mut Context<Self>) {
         self.cloud.update(cx, |c, cx| c.refresh_catalog(retry, cx));
     }
     /// The hosted Project this window shows (a Cloud workspace, no local root).
-    fn hosted_project(&self) -> Option<String> {
-        self.session
-            .files
+    fn hosted_project(&self, cx: &App) -> Option<String> {
+        self.files(cx)
             .workspace
             .as_ref()
             .filter(|ws| ws.local_root().is_none())
@@ -1936,11 +1801,11 @@ impl Shell {
     }
     /// A project's editor tabs and the active one's index, while they show
     /// (`activeView === "data"` with editors): what ⌘W and ⌃Tab act on.
-    fn open_editors(&self) -> Option<(Vec<String>, usize)> {
-        if self.file_mode() || self.home_visible() {
+    fn open_editors(&self, cx: &App) -> Option<(Vec<String>, usize)> {
+        if self.file_mode() || self.home_visible(cx) {
             return None;
         }
-        let catalog = &self.session.files.state()?.catalog;
+        let catalog = &self.files(cx).state()?.catalog;
         let editors: Vec<String> = catalog.editors.iter().map(|e| e.id.clone()).collect();
         let active = editors
             .iter()
@@ -1953,7 +1818,7 @@ impl Shell {
     }
     /// History out of its scope closes (`useCloudWorkspaceSidebar`).
     fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
-        let project = self.hosted_project();
+        let project = self.hosted_project(cx);
         let open = self.panes.read(cx).right().open;
         if self
             .sidebar
@@ -1966,7 +1831,7 @@ impl Shell {
         // `ProjectNavigation.select`: the same target while it is pending
         // joins that opening; another one replaces it.
         let account = cloud_authority::account_key(cx);
-        if self.session.files.cloud_opening().is_some()
+        if self.files(cx).cloud_opening().is_some()
             && self.session.project.cloud.as_deref() == Some(project.as_str())
             && self.session.project.authority == account
             && account.is_some()
@@ -1984,14 +1849,13 @@ impl Shell {
             return;
         };
         self.session
-            .files
-            .open_cloud(broker, binding, project, &self.session.wake);
+            .docs
+            .update(cx, |d, _| d.open_cloud(broker, binding, project));
         cx.notify();
     }
     /// The local project this window shows.
-    pub fn workspace_root(&self) -> Option<PathBuf> {
-        self.session
-            .files
+    pub fn workspace_root(&self, cx: &App) -> Option<PathBuf> {
+        self.files(cx)
             .workspace
             .as_ref()
             .and_then(|ws| ws.local_root().map(PathBuf::from))
@@ -2005,41 +1869,27 @@ impl Shell {
     ) {
         self.set_popover(None, cx);
         if self
-            .session
-            .files
+            .files(cx)
             .workspace
             .as_ref()
             .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
         {
             self.session.home = false;
-        } else if !self.session.picking && !self.session.files.navigation_blocked() {
+        } else if !self.session.picking && !self.files(cx).navigation_blocked() {
             // `ProjectNavigation.select`: a newer choice replaces the one
             // still opening.
             self.session
-                .files
-                .begin(Intent::OpenFolder(path), &self.session.wake);
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFolder(path)));
         }
         self.receive(window, cx);
         cx.notify();
-    }
-    fn editor(&self, cx: &mut Context<Self>) -> Div {
-        // A project with no open document shows the quiet editor canvas.
-        let r = self.layout.editor;
-        let mut canvas = at(r).bg(cx.palette().canvas);
-        if let Some(state) = self.session.files.state() {
-            canvas =
-                canvas.child(self.editor_node(&state.layout.root, Rect::new(0., 0., r.w, r.h), cx));
-        } else if self.session.files.opened().is_some() {
-            canvas = canvas.child(at(Rect::new(0., 0., r.w, r.h)).child(self.editor.front.clone()));
-        }
-        canvas
     }
     /// Compact `ProjectSwitcherRail`: one mark per remembered project.
     fn project_rail(&self, h: f32, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         let current = self
-            .session
-            .files
+            .files(cx)
             .workspace
             .as_ref()
             .and_then(|ws| ws.local_root().map(PathBuf::from));
@@ -2137,13 +1987,12 @@ impl Shell {
             frame: panes.open_plane(Side::Start, w, h, rail),
             open: panes.explorer().open,
             opened: self
-                .session
-                .files
+                .files(cx)
                 .opened()
                 .map(|(_, relative)| relative.to_path_buf()),
-            open_resources: self.session.files.open_paths(),
-            documents_busy: self.session.files.busy(),
-            folder_busy: self.session.files.folder_busy,
+            open_resources: self.files(cx).open_paths(),
+            documents_busy: self.files(cx).busy(),
+            folder_busy: self.files(cx).folder_busy,
             picking: self.session.picking,
         };
         self.explorer
@@ -2152,8 +2001,8 @@ impl Shell {
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
         let busy = self.session.picking
-            || self.session.files.busy()
-            || self.session.files.folder_busy
+            || self.files(cx).busy()
+            || self.files(cx).folder_busy
             || self.explorer_session.read(cx).busy();
         let shell = cx.weak_entity();
         SidebarFooter::new(move |command, window, cx| {
@@ -2165,7 +2014,7 @@ impl Shell {
     /// The project being entered in this window, named as its Header will
     /// name it (`projectOpening.projectName`).
     pub(super) fn opening_project_name(&self, cx: &App) -> Option<String> {
-        if self.session.files.cloud_opening().is_some() {
+        if self.files(cx).cloud_opening().is_some() {
             let project = self.session.project.cloud.as_deref()?;
             return Some(
                 self.home
@@ -2177,7 +2026,7 @@ impl Shell {
                     .unwrap_or_else(|| project.to_owned()),
             );
         }
-        let root = self.session.files.preparing_root()?;
+        let root = self.files(cx).preparing_root()?;
         Some(
             self.preferences
                 .read(cx)
@@ -2193,15 +2042,15 @@ impl Shell {
     /// `resolveWindowTitle`: "PuppyOne - <project>" with the folder as the
     /// represented file; nothing in full screen, where macOS shows it.
     /// A file window is titled by its file and shows when it is unsaved.
-    fn sync_window_title(&mut self, window: &mut Window) {
+    fn sync_window_title(&mut self, window: &mut Window, cx: &App) {
         let (title, path, edited) = match self.file.as_ref().map(|f| &f.target) {
             Some(file) => (
                 file.name.clone(),
                 Some(file.path.clone()),
-                self.session.files.dirty,
+                self.files(cx).dirty,
             ),
             None => {
-                let root = self.workspace_root();
+                let root = self.workspace_root(cx);
                 let title = if root.is_some() && !self.session.project.name.is_empty() {
                     format!("{} - {}", windows::APP_NAME, self.session.project.name)
                 } else {
@@ -2234,7 +2083,7 @@ impl Shell {
     ///   the Agent entry, on the Cloud's own Header tint.
     fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
         use crate::localization::t as tr;
-        let home = self.home_visible();
+        let home = self.home_visible(cx);
         if home {
             let mut bar = header::TitleBar::new();
             let home = self.home.read(cx);
@@ -2246,7 +2095,7 @@ impl Shell {
                 let (retry, account) = (self.weak.clone(), self.weak.clone());
                 bar = bar.action(header::cloud_status(
                     &self.cloud.read(cx).catalog,
-                    self.session.files.cloud_opening().is_some(),
+                    self.files(cx).cloud_opening().is_some(),
                     empty,
                     move |_, cx| {
                         let _ = retry.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
@@ -2264,19 +2113,18 @@ impl Shell {
         // `ProjectWindow` while another project is on its way in: the
         // Header states that project and its location, and what belongs to
         // the project on screen steps out of it.
-        let opening = self.opening();
+        let opening = self.opening(cx);
         let hosted = if opening {
-            self.session.files.cloud_opening().is_some()
+            self.files(cx).cloud_opening().is_some()
         } else {
-            self.hosted_project().is_some() || self.cloud.read(cx).capture_hosted()
+            self.hosted_project(cx).is_some() || self.cloud.read(cx).capture_hosted()
         };
         let (changes, agent, tabs) = {
             let p = &self.preferences.read(cx).state;
             (
                 !hosted
                     && self
-                        .session
-                        .files
+                        .files(cx)
                         .workspace
                         .as_ref()
                         .is_some_and(|ws| ws.local_root().is_some())
@@ -2286,7 +2134,7 @@ impl Shell {
             )
         };
         let project = !self.rail
-            && (self.session.files.workspace.is_some() || self.session.project.fixture || opening);
+            && (self.files(cx).workspace.is_some() || self.session.project.fixture || opening);
         let mut bar = header::TitleBar::new().cloud(hosted);
         if !self.panes.read(cx).explorer().open {
             bar = bar.leading(
@@ -2304,8 +2152,8 @@ impl Shell {
             return bar;
         }
         // `enableEditorTabsInHeader`: the editor's tabs move into the Header.
-        if tabs && self.session.files.state().is_some() {
-            bar = bar.tabs(self.editor_tabs(cx));
+        if tabs && self.files(cx).state().is_some() {
+            bar = bar.tabs(self.editor.read(cx).tabs(cx));
         }
         if hosted {
             if let Some(agents) = self.cloud.read(cx).agents_control(cx) {
@@ -2316,7 +2164,7 @@ impl Shell {
                 .divider(cx);
         } else {
             // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
-            let share = self.workspace_root().is_some()
+            let share = self.workspace_root(cx).is_some()
                 && crate::features::flags::share_enabled(&self.preferences, cx);
             if share {
                 bar =
@@ -2398,9 +2246,6 @@ impl Render for Shell {
         let overlay = !self.dialogs.read(cx).is_empty() || self.popover.is_some();
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
-        if !cx.has_active_drag() {
-            self.editor.drop = None;
-        }
         #[cfg(test)]
         {
             self.frames += 1;
@@ -2422,9 +2267,8 @@ impl Render for Shell {
         if panes.running {
             window.request_animation_frame();
         }
-        self.sync_editor(window, cx);
         self.sync_coachmarks(cx);
-        self.sync_window_title(window);
+        self.sync_window_title(window, cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
@@ -2444,7 +2288,7 @@ impl Render for Shell {
         let t = cx.palette();
         // ⌘V on the Homepage takes a template link (`onPaste`); elsewhere a
         // paste belongs to what is focused.
-        let homepage = self.home_visible();
+        let homepage = self.home_visible(cx);
         let mut root = div()
             .id("gpui-shell")
             .when(homepage, |d| d.key_context("Homepage"))
@@ -2456,21 +2300,9 @@ impl Render for Shell {
             ))
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
-            .track_focus(&self.focus)
-            .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
-                s.move_editor_resize(e.position, cx);
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|s, e: &MouseUpEvent, _, cx| {
-                    if s.editor.resize.is_some() {
-                        s.move_editor_resize(e.position, cx);
-                        s.end_editor_resize(true, cx);
-                    }
-                }),
-            );
+            .track_focus(&self.focus);
         let file = self.file_mode();
-        let home = self.home_visible();
+        let home = self.home_visible(cx);
         // The panes' frames under the editor; the Homepage and a file window
         // show none.
         root = root.child(if file {
@@ -2497,7 +2329,9 @@ impl Render for Shell {
                     .child(self.sidebar.content());
                 stack = stack.end(self.layout.auxiliary, content);
             }
-            stack.main(self.editor(cx)).into_any_element()
+            stack
+                .main(at(self.layout.editor).child(self.editor.clone()))
+                .into_any_element()
         });
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
@@ -2511,7 +2345,7 @@ impl Render for Shell {
         if self.rail && !home && !file {
             root = root.child(self.project_rail(h, cx));
         }
-        let opening = !home && self.opening();
+        let opening = !home && self.opening(cx);
         if opening {
             root = root.children(self.project_preparation(w, h, cx));
         }
@@ -2593,9 +2427,9 @@ impl Shell {
             );
         }
         // `editor-notice-stack`: the active document's save failure.
-        if let Some(detail) = self.session.files.save_error.clone().filter(|e| {
-            !self.session.files.cloud_conflict()
-                && self.editor.dismissed_save_error.as_ref() != Some(e)
+        if let Some(detail) = self.files(cx).save_error.clone().filter(|e| {
+            !self.files(cx).cloud_conflict()
+                && self.editor.read(cx).dismissed_save_error.as_ref() != Some(e)
         }) {
             let dismiss = self.weak.clone();
             let dismissed = detail.clone();
@@ -2620,7 +2454,9 @@ impl Shell {
                     .tone(NoticeTone::Danger)
                     .on_dismiss(move |_, cx| {
                         let _ = dismiss.update(cx, |s, cx| {
-                            s.editor.dismissed_save_error = Some(dismissed.clone());
+                            let dismissed = dismissed.clone();
+                            s.editor
+                                .update(cx, |e, _| e.dismissed_save_error = Some(dismissed));
                             cx.notify();
                         });
                     }),
@@ -2628,7 +2464,7 @@ impl Shell {
                 .into_any_element(),
             );
         }
-        if self.session.files.cloud_conflict() {
+        if self.files(cx).cloud_conflict() {
             let host = self.weak.clone();
             layers.push(
                 NoticeStack::new(
@@ -2666,7 +2502,7 @@ impl Shell {
     /// subscribes again. Both reread what the Explorer has loaded.
     fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
         self.session.project.notice = None;
-        match self.hosted_project() {
+        match self.hosted_project(cx) {
             Some(project) => self.open_cloud(project, cx),
             None => self.explorer_session.update(cx, |e, cx| e.resubscribe(cx)),
         }

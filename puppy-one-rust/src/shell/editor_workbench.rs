@@ -1,13 +1,32 @@
-//! Shell wiring for the retained Editor workbench. No file reads or saves here.
-use super::*;
-use crate::editor::workbench::layout::{Direction, Node, Placement};
-use crate::ui::components::{Icon, ResizeHandle, tooltip};
+//! The editor workbench's panes, tabs and splits as the editor area paints
+//! them. No file reads or saves here: the runtime does those.
+//!
+//! The panes are laid out in fractions of the area (each split by its
+//! ratio), so they need no measure of their own; what the pointer does over
+//! them is read against the bounds each pane and split was painted at.
+use super::{
+    Command,
+    editor_area::{EditorArea, EditorEvent},
+    explorer,
+};
+use crate::{
+    editor::workbench::layout::{Direction, Node, Placement},
+    geometry::Rect,
+    theme,
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Icon, IconButton, ResizeHandle, tooltip},
+    },
+};
+use gpui::{prelude::*, *};
 use gpui_kit::{base::h_flex, component::Sizable as _};
+use std::path::PathBuf;
 
 pub(super) struct EditorResize {
     pub workspace: String,
     pub split: String,
-    pub rect: Rect,
+    /// Where the split was painted when the drag began.
+    pub bounds: Bounds<Pixels>,
     pub direction: Direction,
     pub original: f64,
 }
@@ -28,58 +47,91 @@ impl Render for TabDrag {
         div().px_2().child(self.label.clone())
     }
 }
-impl Shell {
+/// `rect`, a fraction of the area, as an absolute frame in it.
+fn fraction(rect: Rect) -> Div {
+    div()
+        .absolute()
+        .left(relative(rect.x))
+        .top(relative(rect.y))
+        .w(relative(rect.w))
+        .h(relative(rect.h))
+}
+/// Which edge of `bounds` the pointer at `position` drops on.
+fn drop_edge(position: Point<Pixels>, bounds: Bounds<Pixels>) -> (Direction, Placement) {
+    let point = position - bounds.origin;
+    crate::editor::workbench::layout::drop_edge(
+        f32::from(point.x),
+        f32::from(point.y),
+        f32::from(bounds.size.width),
+        f32::from(bounds.size.height),
+    )
+}
+
+impl EditorArea {
+    /// A handler for a part drawn from a read (the Header's tabs, a file
+    /// window's save chip).
+    pub(super) fn listener<E: ?Sized>(
+        &self,
+        f: impl Fn(&mut Self, &E, &mut Window, &mut Context<Self>) + 'static,
+    ) -> impl Fn(&E, &mut Window, &mut App) + 'static {
+        crate::ui::listener(&self.weak, f)
+    }
     /// A Finder drop that names one file of this window's local workspace,
     /// as a workspace path (folders and anything outside are not admitted).
     pub(super) fn external_document(&self, paths: &ExternalPaths, cx: &App) -> Option<PathBuf> {
         let [path] = paths.paths() else {
             return None;
         };
-        let root = self.workspace_root()?;
+        let root = self
+            .docs
+            .read(cx)
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from))?;
         let relative = path.strip_prefix(&root).ok()?;
         let normal = relative
             .components()
             .all(|c| matches!(c, std::path::Component::Normal(_)));
-        (normal
-            && !relative.as_os_str().is_empty()
-            && !self.explorer_session.read(cx).is_folder(relative))
-        .then(|| relative.to_path_buf())
+        (normal && !relative.as_os_str().is_empty() && !self.explorer.read(cx).is_folder(relative))
+            .then(|| relative.to_path_buf())
+    }
+    /// A "Saved" status lapses on its own: the area draws again then.
+    pub(super) fn schedule_saved_refresh(&mut self, cx: &mut Context<Self>) {
+        use crate::documents::SaveStatus;
+        if self.saved_refresh.is_some() {
+            return;
+        }
+        let docs = self.docs.read(cx);
+        let saved = docs.retained_slots().into_iter().any(|slot| {
+            docs.slot(slot)
+                .is_some_and(|f| f.save_status() == SaveStatus::Saved)
+        });
+        if saved {
+            self.saved_refresh = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(crate::documents::SAVED_STATUS_DURATION)
+                    .await;
+                let _ = this.update(cx, |s, cx| {
+                    s.saved_refresh = None;
+                    cx.notify();
+                });
+            }));
+        }
     }
     /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
     /// Retry everywhere; hosted documents and file windows also show
     /// Saving… and Saved (`showSaveStatus`), and a file window's unsaved
     /// edits offer Save (`saveMode === "manual"`). Clean documents show
     /// nothing.
-    pub(super) fn save_chip(&self, slot: u64, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(super) fn save_chip(&self, slot: u64, cx: &App) -> Option<AnyElement> {
         use crate::documents::SaveStatus;
-        let files = self.session.files.slot(slot)?;
+        let files = self.docs.read(cx).slot(slot)?;
         let hosted = files
             .workspace
             .as_ref()
             .is_some_and(|ws| ws.local_root().is_none());
         let show_status = hosted || files.file_window;
         let status = files.save_status();
-        if status == SaveStatus::Saved && self.editor.saved_refresh.is_none() {
-            let weak = cx.weak_entity();
-            let task = cx.spawn(async move |_, cx| {
-                cx.background_executor()
-                    .timer(crate::documents::SAVED_STATUS_DURATION)
-                    .await;
-                let _ = weak.update(cx, |s, cx| {
-                    s.editor.saved_refresh = None;
-                    cx.notify();
-                });
-            });
-            // Rendering cannot mutate; the timer is kept by the next update.
-            let weak = cx.weak_entity();
-            cx.defer(move |cx| {
-                let _ = weak.update(cx, |s, _| {
-                    if s.editor.saved_refresh.is_none() {
-                        s.editor.saved_refresh = Some(task);
-                    }
-                });
-            });
-        }
         let t = cx.palette();
         // `.editor-save-chip`, fading in over 180ms (`editor-save-fade-in`).
         let chip = |id: &'static str| {
@@ -106,8 +158,8 @@ impl Shell {
                     .hover(|d| d.bg(theme::alpha(t.danger, 0.24)))
                     .child(glyph("editor-save-alert", t.danger))
                     .child(crate::localization::t("editor.save.failed"))
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        s.session.files.retry_slot_save(slot, &s.session.wake);
+                    .on_click(self.listener(move |s, _, _, cx| {
+                        s.docs.update(cx, |d, _| d.retry_slot_save(slot));
                         cx.notify();
                     }))
                     .into_any_element(),
@@ -120,7 +172,9 @@ impl Shell {
                     .hover(|d| d.bg(theme::mix(t.warning, t.text, 0.88)))
                     .child(glyph("editor-save", t.text_inverse))
                     .child(crate::localization::t("editor.save.action"))
-                    .on_click(cx.listener(|s, _, window, cx| s.command(Command::Save, window, cx)))
+                    .on_click(
+                        self.listener(|_, _, _, cx| cx.emit(EditorEvent::Command(Command::Save))),
+                    )
                     .into_any_element(),
             ),
             SaveStatus::Saving if show_status => (
@@ -195,7 +249,7 @@ impl Shell {
         {
             return None;
         }
-        let files = self.session.files.slot(slot)?;
+        let files = self.docs.read(cx).slot(slot)?;
         let root = files.workspace.as_ref()?.local_root()?;
         let relative = match (&files.document, &files.resource) {
             (Some(document), _) => document.relative.as_path(),
@@ -203,9 +257,7 @@ impl Shell {
             (None, None) => return None,
         };
         let store = crate::features::agent_presence::store(cx)?;
-        let projection = store
-            .read(cx)
-            .projection(&self.session.key, root, relative)?;
+        let projection = store.read(cx).projection(&self.owner, root, relative)?;
         Some(
             div()
                 .absolute()
@@ -224,26 +276,31 @@ impl Shell {
                 .into_any_element(),
         )
     }
-    pub(super) fn focus_editor_slot(&mut self, slot: u64) {
-        let pane = self.session.files.state().and_then(|state| {
-            state
-                .layout
-                .root
-                .panes()
-                .into_iter()
-                .find(|(_, key)| {
-                    key.and_then(|key| self.session.files.slot_for_key(key)) == Some(slot)
-                })
-                .map(|(pane, _)| pane.to_owned())
+    /// The pane showing `slot` takes the focus.
+    pub(super) fn focus_slot(&mut self, slot: u64, cx: &mut Context<Self>) {
+        self.docs.update(cx, |d, _| {
+            let pane = d.state().and_then(|state| {
+                state
+                    .layout
+                    .root
+                    .panes()
+                    .into_iter()
+                    .find(|(_, key)| key.and_then(|key| d.slot_for_key(key)) == Some(slot))
+                    .map(|(pane, _)| pane.to_owned())
+            });
+            if let Some(pane) = pane {
+                d.focus(&pane);
+            }
         });
-        if let Some(pane) = pane {
-            self.session.files.focus(&pane);
-        }
     }
-    pub(super) fn editor_tabs(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(state) = self.session.files.state() else {
+    /// `enableEditorTabsInHeader`: the editor's tabs, drawn into the
+    /// Header from a read.
+    pub(super) fn tabs(&self, cx: &App) -> AnyElement {
+        let docs = self.docs.read(cx);
+        let Some(state) = docs.state() else {
             return div().into_any_element();
         };
+        let owner = self.weak.entity_id();
         let palette = cx.palette();
         let mut tabs = div()
             .id("editor-tabs")
@@ -256,11 +313,11 @@ impl Shell {
         for (index, input) in state.catalog.editors.iter().enumerate() {
             let key = input.id.clone();
             let active = state.layout.active_editor() == Some(key.as_str());
-            let slot = self.session.files.slot_for_key(&key).unwrap();
-            let status = self.session.files.slot(slot);
+            let slot = docs.slot_for_key(&key).unwrap();
+            let status = docs.slot(slot);
             let dirty = status.is_some_and(|f| f.dirty);
             let saving = status.is_some_and(|f| f.saving() || f.busy());
-            let focus = self.editor.tab_focus.get(&slot).cloned();
+            let focus = self.tab_focus.get(&slot).cloned();
             let error = status.is_some_and(|f| f.error.is_some());
             let close = crate::localization::tf(
                 "shell.editorTabs.close",
@@ -293,27 +350,29 @@ impl Shell {
                 .hover(move |s| s.bg(palette.hover).text_color(palette.text))
                 .on_mouse_down(
                     MouseButton::Middle,
-                    cx.listener(move |s, _, w, cx| {
-                        s.session.files.close_slot(slot, &s.session.wake);
-                        s.receive(w, cx);
+                    self.listener(move |s, _, _, cx| {
+                        s.docs.update(cx, |d, _| d.close_slot(slot));
+                        cx.emit(EditorEvent::Pump);
                         cx.notify();
                     }),
                 )
                 .on_drag(
                     TabDrag {
-                        owner: cx.entity_id(),
+                        owner,
                         key: key.clone(),
                         label: input.label.clone(),
                     },
                     |drag, _, _, cx| cx.new(|_| drag.clone()),
                 )
-                .on_drop(cx.listener(move |s, drag: &TabDrag, _, cx| {
+                .on_drop(self.listener(move |s, drag: &TabDrag, _, cx| {
                     if drag.owner != cx.entity_id() {
                         return;
                     }
-                    if let Some(mut state) = s.session.files.state_mut() {
-                        state.catalog.move_before(&drag.key, &target);
-                    }
+                    s.docs.update(cx, |d, _| {
+                        if let Some(mut state) = d.state_mut() {
+                            state.catalog.move_before(&drag.key, &target);
+                        }
+                    });
                     cx.notify();
                 }))
                 .child(
@@ -330,12 +389,11 @@ impl Shell {
                         .h_full()
                         .cursor(theme::clickable_cursor())
                         .text_size(px(theme::ty().header.content))
-                        .on_click(cx.listener(move |s, _, w, cx| {
-                            s.session.files.activate(&select);
-                            s.sync_editor(w, cx);
-                            cx.notify();
+                        .on_click(self.listener(move |s, _, w, cx| {
+                            s.docs.update(cx, |d, _| d.activate(&select));
+                            s.sync(w, cx);
                         }))
-                        .on_key_down(cx.listener(move |s, e: &KeyDownEvent, w, cx| {
+                        .on_key_down(self.listener(move |s, e: &KeyDownEvent, w, cx| {
                             let next = match e.keystroke.key.as_str() {
                                 "left" => (index + keyboard_ids.len() - 1) % keyboard_ids.len(),
                                 "right" => (index + 1) % keyboard_ids.len(),
@@ -343,11 +401,10 @@ impl Shell {
                                 "end" => keyboard_ids.len() - 1,
                                 _ => return,
                             };
-                            s.session.files.activate(&keyboard_ids[next]);
-                            s.sync_editor(w, cx);
-                            if let Some(focus) =
-                                s.editor.tab_focus.get(&s.session.files.active_slot())
-                            {
+                            s.docs.update(cx, |d, _| d.activate(&keyboard_ids[next]));
+                            s.sync(w, cx);
+                            let active = s.docs.read(cx).active_slot();
+                            if let Some(focus) = s.tab_focus.get(&active) {
                                 focus.focus(w, cx);
                             }
                             cx.stop_propagation();
@@ -405,10 +462,10 @@ impl Shell {
                         .justify_center()
                         .cursor(theme::clickable_cursor())
                         .tooltip(tooltip(close))
-                        .on_click(cx.listener(move |s, _, w, cx| {
+                        .on_click(self.listener(move |s, _, _, cx| {
                             cx.stop_propagation();
-                            s.session.files.close_slot(slot, &s.session.wake);
-                            s.receive(w, cx);
+                            s.docs.update(cx, |d, _| d.close_slot(slot));
+                            cx.emit(EditorEvent::Pump);
                             cx.notify();
                         }))
                         .child(Icon::new("x").small()),
@@ -417,6 +474,7 @@ impl Shell {
         }
         tabs.into_any_element()
     }
+    /// One node of the workbench layout at `rect`, a fraction of the area.
     pub(super) fn editor_node(
         &self,
         node: &Node,
@@ -431,46 +489,46 @@ impl Shell {
                 let external_target = id.clone();
                 let preview_target = id.clone();
                 let external_preview = id.clone();
-                let mut view = at(rect)
+                let measured = self.pane_bounds.clone();
+                let painted = id.clone();
+                let mut view = fraction(rect)
                     .id(SharedString::from(id.clone()))
                     .overflow_hidden()
+                    .child(
+                        gpui::canvas(
+                            move |b, _, _| {
+                                measured.borrow_mut().insert(painted.clone(), b);
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .absolute()
+                        .size_full(),
+                    )
                     .capture_any_mouse_down(cx.listener(move |s, _, window, cx| {
-                        s.session.files.focus(&pane);
-                        s.sync_editor(window, cx);
-                        cx.notify();
+                        s.docs.update(cx, |d, _| d.focus(&pane));
+                        s.sync(window, cx);
                     }))
                     .on_drag_move(cx.listener(
                         move |s, event: &DragMoveEvent<explorer::DragNodes>, _, cx| {
                             let drag = event.drag(cx);
                             let inside = event.bounds.contains(&event.event.position)
                                 && drag.single_file
-                                && drag.belongs_to(&s.session.files.workspace)
-                                && !s.modal(cx);
+                                && drag.belongs_to(&s.docs.read(cx).workspace)
+                                && !s.gate.modal;
                             if inside {
-                                let point = event.event.position - event.bounds.origin;
                                 let (direction, placement) =
-                                    crate::editor::workbench::layout::drop_edge(
-                                        f32::from(point.x),
-                                        f32::from(point.y),
-                                        f32::from(event.bounds.size.width),
-                                        f32::from(event.bounds.size.height),
-                                    );
+                                    drop_edge(event.event.position, event.bounds);
                                 let preview = Some(EditorDrop {
                                     pane: preview_target.clone(),
                                     direction,
                                     placement,
                                 });
-                                if s.editor.drop != preview {
-                                    s.editor.drop = preview;
+                                if s.drop != preview {
+                                    s.drop = preview;
                                     cx.notify();
                                 }
-                            } else if s
-                                .editor
-                                .drop
-                                .as_ref()
-                                .is_some_and(|p| p.pane == preview_target)
-                            {
-                                s.editor.drop = None;
+                            } else if s.drop.as_ref().is_some_and(|p| p.pane == preview_target) {
+                                s.drop = None;
                                 cx.notify();
                             }
                         },
@@ -478,32 +536,20 @@ impl Shell {
                     .on_drag_move(cx.listener(
                         move |s, event: &DragMoveEvent<ExternalPaths>, _, cx| {
                             let inside = event.bounds.contains(&event.event.position)
-                                && !s.modal(cx)
+                                && !s.gate.modal
                                 && s.external_document(event.drag(cx), cx).is_some();
                             let preview = inside.then(|| {
-                                let point = event.event.position - event.bounds.origin;
                                 let (direction, placement) =
-                                    crate::editor::workbench::layout::drop_edge(
-                                        f32::from(point.x),
-                                        f32::from(point.y),
-                                        f32::from(event.bounds.size.width),
-                                        f32::from(event.bounds.size.height),
-                                    );
+                                    drop_edge(event.event.position, event.bounds);
                                 EditorDrop {
                                     pane: external_preview.clone(),
                                     direction,
                                     placement,
                                 }
                             });
-                            let ours = s
-                                .editor
-                                .drop
-                                .as_ref()
-                                .is_some_and(|p| p.pane == external_preview);
-                            if preview.is_some() && s.editor.drop != preview
-                                || preview.is_none() && ours
-                            {
-                                s.editor.drop = preview;
+                            let ours = s.drop.as_ref().is_some_and(|p| p.pane == external_preview);
+                            if preview.is_some() && s.drop != preview || preview.is_none() && ours {
+                                s.drop = preview;
                                 cx.notify();
                             }
                         },
@@ -511,100 +557,88 @@ impl Shell {
                     .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
                         // `claimEditorDropDocument`: one file of this local
                         // workspace opens; anything else is not admitted.
-                        s.editor.drop = None;
-                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.modal(cx))
+                        s.drop = None;
+                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.gate.modal)
                         else {
                             return;
                         };
-                        let p = w.mouse_position();
-                        let (direction, placement) = crate::editor::workbench::layout::drop_edge(
-                            f32::from(p.x) - s.layout.editor.x - rect.x,
-                            f32::from(p.y) - s.layout.editor.y - rect.y,
-                            rect.w,
-                            rect.h,
-                        );
-                        s.session.files.open_at_edge(
-                            path,
-                            &external_target,
-                            direction,
-                            placement,
-                            &s.session.wake,
-                        );
-                        s.receive(w, cx);
+                        let Some(bounds) = s.pane_bounds.borrow().get(&external_target).copied()
+                        else {
+                            return;
+                        };
+                        let (direction, placement) = drop_edge(w.mouse_position(), bounds);
+                        let target = external_target.clone();
+                        s.docs.update(cx, |d, _| {
+                            d.open_at_edge(path, &target, direction, placement)
+                        });
+                        cx.emit(EditorEvent::Pump);
                         cx.stop_propagation();
                         cx.notify();
                     }))
                     .on_drop(cx.listener(move |s, drag: &explorer::DragNodes, w, cx| {
-                        s.editor.drop = None;
+                        s.drop = None;
                         if !drag.single_file
-                            || !drag.belongs_to(&s.session.files.workspace)
-                            || s.modal(cx)
+                            || !drag.belongs_to(&s.docs.read(cx).workspace)
+                            || s.gate.modal
                         {
                             return;
                         }
-                        let Some(path) = drag.paths.first() else {
+                        let Some(path) = drag.paths.first().cloned() else {
                             return;
                         };
-                        let p = w.mouse_position();
-                        let (direction, placement) = crate::editor::workbench::layout::drop_edge(
-                            f32::from(p.x) - s.layout.editor.x - rect.x,
-                            f32::from(p.y) - s.layout.editor.y - rect.y,
-                            rect.w,
-                            rect.h,
-                        );
-                        s.session.files.open_at_edge(
-                            path.clone(),
-                            &file_target,
-                            direction,
-                            placement,
-                            &s.session.wake,
-                        );
-                        s.receive(w, cx);
+                        let Some(bounds) = s.pane_bounds.borrow().get(&file_target).copied() else {
+                            return;
+                        };
+                        let (direction, placement) = drop_edge(w.mouse_position(), bounds);
+                        let target = file_target.clone();
+                        s.docs.update(cx, |d, _| {
+                            d.open_at_edge(path, &target, direction, placement)
+                        });
+                        cx.emit(EditorEvent::Pump);
                         cx.stop_propagation();
                         cx.notify();
                     }))
                     .on_drop(cx.listener(
                         move |s, drag: &crate::editor::workbench::pane::PaneDrag, w, cx| {
                             if drag.owner != cx.entity_id()
-                                || !s.session.files.visible_slots().contains(&drag.slot)
-                                || s.modal(cx)
+                                || !s.docs.read(cx).visible_slots().contains(&drag.slot)
+                                || s.gate.modal
                             {
                                 return;
                             }
-                            let source = s.session.files.state().and_then(|state| {
-                                state
-                                    .layout
-                                    .root
-                                    .panes()
-                                    .into_iter()
-                                    .find(|(_, key)| {
-                                        key.and_then(|key| s.session.files.slot_for_key(key))
-                                            == Some(drag.slot)
-                                    })
-                                    .map(|(pane, _)| pane.to_owned())
-                            });
-                            let Some(source) = source else {
+                            let Some(bounds) = s.pane_bounds.borrow().get(&target).copied() else {
                                 return;
                             };
-                            let p = w.mouse_position();
-                            let x = f32::from(p.x) - s.layout.editor.x - rect.x;
-                            let y = f32::from(p.y) - s.layout.editor.y - rect.y;
-                            let (direction, placement) =
-                                crate::editor::workbench::layout::drop_edge(x, y, rect.w, rect.h);
-                            if let Some(mut state) = s.session.files.state_mut() {
-                                state
-                                    .layout
-                                    .move_pane(&source, &target, direction, placement);
-                                state.focus(&source);
-                            }
-                            s.sync_editor(w, cx);
-                            cx.notify();
+                            let (direction, placement) = drop_edge(w.mouse_position(), bounds);
+                            let (slot, target) = (drag.slot, target.clone());
+                            s.docs.update(cx, |d, _| {
+                                let source = d.state().and_then(|state| {
+                                    state
+                                        .layout
+                                        .root
+                                        .panes()
+                                        .into_iter()
+                                        .find(|(_, key)| {
+                                            key.and_then(|key| d.slot_for_key(key)) == Some(slot)
+                                        })
+                                        .map(|(pane, _)| pane.to_owned())
+                                });
+                                if let Some(source) = source
+                                    && let Some(mut state) = d.state_mut()
+                                {
+                                    state
+                                        .layout
+                                        .move_pane(&source, &target, direction, placement);
+                                    state.focus(&source);
+                                }
+                            });
+                            s.sync(w, cx);
                         },
                     ));
                 let slot = editor
                     .as_deref()
-                    .and_then(|key| self.session.files.slot_for_key(key));
-                if let Some(editor) = slot.and_then(|slot| self.editor.hosts.get(&slot)) {
+                    .and_then(|key| self.docs.read(cx).slot_for_key(key));
+                if let Some(editor) = slot.and_then(|slot| self.hosts.get(&slot)) {
                     view = view.child(editor.clone());
                     if let Some(chip) = slot.and_then(|slot| self.save_chip(slot, cx)) {
                         view = view.child(chip);
@@ -619,38 +653,29 @@ impl Shell {
                             IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
                                 .label(crate::localization::t("editor.panes.closePane"))
                                 .on_click(cx.listener(move |s, _, w, cx| {
-                                    if let Some(mut state) = s.session.files.state_mut() {
-                                        state.close_pane(&close);
-                                    }
-                                    s.sync_editor(w, cx);
-                                    cx.notify();
+                                    s.docs.update(cx, |d, _| {
+                                        if let Some(mut state) = d.state_mut() {
+                                            state.close_pane(&close);
+                                        }
+                                    });
+                                    s.sync(w, cx);
                                 })),
                         ),
                     );
                 }
                 if cx.has_active_drag()
-                    && let Some(drop) = self.editor.drop.as_ref().filter(|d| d.pane == *id)
+                    && let Some(drop) = self.drop.as_ref().filter(|d| d.pane == *id)
                 {
                     let horizontal = drop.direction == Direction::Horizontal;
                     let first = drop.placement == Placement::First;
                     let preview = if horizontal {
-                        Rect::new(
-                            if first { 0. } else { rect.w / 2. },
-                            0.,
-                            rect.w / 2.,
-                            rect.h,
-                        )
+                        Rect::new(if first { 0. } else { 0.5 }, 0., 0.5, 1.)
                     } else {
-                        Rect::new(
-                            0.,
-                            if first { 0. } else { rect.h / 2. },
-                            rect.w,
-                            rect.h / 2.,
-                        )
+                        Rect::new(0., if first { 0. } else { 0.5 }, 1., 0.5)
                     };
                     let t = cx.palette();
                     view = view.child(
-                        at(preview)
+                        fraction(preview)
                             .bg(theme::alpha(t.accent, 0.12))
                             .border_1()
                             .border_color(t.accent),
@@ -666,30 +691,39 @@ impl Shell {
                 second,
             } => {
                 let horizontal = *direction == Direction::Horizontal;
-                let size = if horizontal { rect.w } else { rect.h };
-                let edge = size * *ratio as f32;
-                let (a, b, lane) = if horizontal {
+                let edge = *ratio as f32;
+                let (a, b) = if horizontal {
                     (
-                        Rect::new(rect.x, rect.y, edge, rect.h),
-                        Rect::new(rect.x + edge, rect.y, rect.w - edge, rect.h),
-                        Rect::new(rect.x + edge - 3., rect.y, 6., rect.h),
+                        Rect::new(rect.x, rect.y, rect.w * edge, rect.h),
+                        Rect::new(rect.x + rect.w * edge, rect.y, rect.w * (1. - edge), rect.h),
                     )
                 } else {
                     (
-                        Rect::new(rect.x, rect.y, rect.w, edge),
-                        Rect::new(rect.x, rect.y + edge, rect.w, rect.h - edge),
-                        Rect::new(rect.x, rect.y + edge - 3., rect.w, 6.),
+                        Rect::new(rect.x, rect.y, rect.w, rect.h * edge),
+                        Rect::new(rect.x, rect.y + rect.h * edge, rect.w, rect.h * (1. - edge)),
                     )
                 };
                 let split = id.clone();
                 let direction = *direction;
                 let original = *ratio;
-                let global = Rect::new(
-                    rect.x + self.layout.editor.x,
-                    rect.y + self.layout.editor.y,
-                    rect.w,
-                    rect.h,
-                );
+                // The 6px lane straddles the split's edge.
+                let lane = if horizontal {
+                    div()
+                        .absolute()
+                        .left(relative(rect.x + rect.w * edge))
+                        .top(relative(rect.y))
+                        .h(relative(rect.h))
+                        .w(px(6.))
+                        .ml(px(-3.))
+                } else {
+                    div()
+                        .absolute()
+                        .top(relative(rect.y + rect.h * edge))
+                        .left(relative(rect.x))
+                        .w(relative(rect.w))
+                        .h(px(6.))
+                        .mt(px(-3.))
+                };
                 let handle = ResizeHandle::new(
                     SharedString::from(format!("editor-resize-{id}")),
                     if horizontal {
@@ -698,67 +732,83 @@ impl Shell {
                         Axis::Vertical
                     },
                 )
-                .absolute()
-                .left(px(lane.x))
-                .top(px(lane.y))
-                .w(px(lane.w))
-                .h(px(lane.h))
+                .size_full()
                 .stroke_at(3.)
                 .rest(cx.palette().divider)
-                .resizing(self.editor.resize.as_ref().is_some_and(|r| r.split == *id))
+                .resizing(self.resize.as_ref().is_some_and(|r| r.split == *id))
                 .on_drag_start(cx.listener(move |s, _, _, cx| {
-                    s.end_editor_resize(false, cx);
-                    let Some(workspace) = s.session.files.workspace_key().map(str::to_owned) else {
+                    s.end_resize(false, cx);
+                    let Some(workspace) = s.docs.read(cx).workspace_key().map(str::to_owned) else {
                         return;
                     };
-                    s.session.files.metadata_suspended = true;
-                    s.editor.resize = Some(EditorResize {
+                    let Some(bounds) = s.split_bounds.borrow().get(&split).copied() else {
+                        return;
+                    };
+                    s.docs.update(cx, |d, _| d.metadata_suspended = true);
+                    s.resize = Some(EditorResize {
                         workspace,
                         split: split.clone(),
-                        rect: global,
+                        bounds,
                         direction,
                         original,
                     });
                     cx.stop_propagation();
                     cx.notify();
                 }));
+                let measured = self.split_bounds.clone();
+                let painted = id.clone();
                 div()
+                    .absolute()
                     .size_full()
+                    .child(
+                        fraction(rect).child(
+                            gpui::canvas(
+                                move |b, _, _| {
+                                    measured.borrow_mut().insert(painted.clone(), b);
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .size_full(),
+                        ),
+                    )
                     .child(self.editor_node(first, a, cx))
                     .child(self.editor_node(second, b, cx))
-                    .child(handle)
+                    .child(lane.child(handle))
                     .into_any_element()
             }
         }
     }
-    pub(super) fn move_editor_resize(&mut self, point: Point<Pixels>, cx: &mut Context<Self>) {
-        let Some(resize) = &self.editor.resize else {
+    pub(super) fn move_resize(&mut self, point: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(resize) = &self.resize else {
             return;
         };
-        if self.session.files.workspace_key() != Some(resize.workspace.as_str()) {
-            self.end_editor_resize(false, cx);
+        if self.docs.read(cx).workspace_key() != Some(resize.workspace.as_str()) {
+            self.end_resize(false, cx);
             return;
         }
+        let bounds = resize.bounds;
         let position = if resize.direction == Direction::Horizontal {
-            (f32::from(point.x) - resize.rect.x) / resize.rect.w.max(1.)
+            f32::from(point.x - bounds.origin.x) / f32::from(bounds.size.width).max(1.)
         } else {
-            (f32::from(point.y) - resize.rect.y) / resize.rect.h.max(1.)
+            f32::from(point.y - bounds.origin.y) / f32::from(bounds.size.height).max(1.)
         };
         let split = resize.split.clone();
-        if let Some(mut state) = self.session.files.state_mut() {
-            state.layout.resize(&split, position.into());
-        }
+        self.docs.update(cx, |d, _| {
+            if let Some(mut state) = d.state_mut() {
+                state.layout.resize(&split, position.into());
+            }
+        });
         cx.notify();
     }
-    pub(super) fn end_editor_resize(&mut self, commit: bool, cx: &mut Context<Self>) {
-        if let Some(resize) = self.editor.resize.take() {
-            if !commit || self.session.files.workspace_key() != Some(resize.workspace.as_str()) {
-                self.session
-                    .files
-                    .cancel_resize(&resize.workspace, &resize.split, resize.original);
-            }
-            self.session.files.metadata_suspended = false;
-            self.session.wake.notify();
+    pub(super) fn end_resize(&mut self, commit: bool, cx: &mut Context<Self>) {
+        if let Some(resize) = self.resize.take() {
+            self.docs.update(cx, |d, _| {
+                if !commit || d.workspace_key() != Some(resize.workspace.as_str()) {
+                    d.cancel_resize(&resize.workspace, &resize.split, resize.original);
+                }
+                d.metadata_suspended = false;
+                d.wake().notify();
+            });
             cx.notify();
         }
     }

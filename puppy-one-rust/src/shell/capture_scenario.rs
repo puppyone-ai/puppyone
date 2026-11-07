@@ -195,15 +195,15 @@ impl Shell {
         // A file window has no Explorer rows or Git; its file must be open.
         let file = self.file_mode();
         // A file window held loading or showing it cannot open is settled.
-        let file_settled = file && self.file_shown() != super::file_mode::Shown::Document
+        let file_settled = file && self.file_shown(cx) != super::file_mode::Shown::Document
             || file && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
         let workspace_ready = file_settled
-            || self.session.files.workspace.is_some()
+            || self.files(cx).workspace.is_some()
                 && !self.session.project.fixture
                 && (file || !self.explorer_session.read(cx).tree().rows.is_empty())
-                && (!file || self.session.files.opened().is_some())
-                && !self.session.files.busy()
-                && !self.session.files.folder_busy;
+                && (!file || self.files(cx).opened().is_some())
+                && !self.files(cx).busy()
+                && !self.files(cx).folder_busy;
         let git_ready = file || self.sidebar.source_control.read(cx).snapshot.is_some();
         if !(workspace_ready && git_ready) && !timed_out {
             return false;
@@ -336,8 +336,8 @@ impl Shell {
             }
             Step::Open(path) => self
                 .session
-                .files
-                .begin(Intent::OpenFile(path.clone()), &self.session.wake),
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.clone()))),
             Step::NodeMenu(path) => {
                 let Some(index) = self.explorer_session.read(cx).tree().index_of(path) else {
                     return false;
@@ -484,7 +484,7 @@ impl Shell {
             // Typed through the input handler at the end of the first line
             // (invisible there, and nothing scrolls).
             Step::FileEdit => {
-                let Some(editor) = self.file_editor() else {
+                let Some(editor) = self.file_editor(cx) else {
                     return false;
                 };
                 editor.update(cx, |e, cx| {
