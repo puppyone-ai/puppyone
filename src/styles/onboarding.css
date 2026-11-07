@@ -278,7 +278,8 @@
   transition: background 130ms ease-out, color 130ms ease-out;
 }
 
-.onboarding-entry-action :is(.po-button__icon, .po-button__label) {
+.onboarding-entry-action :is(.po-button__icon, .po-button__label),
+.onboarding-entry-menu-trigger .po-button__label {
   display: inline-flex;
   align-items: center;
 }
@@ -658,7 +659,30 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+/* The head of a page with projects: New stays one click away, and the arrow holds the
+   other ways to start. */
+.onboarding-entry-menu-root {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 1px;
+  margin-inline-start: auto;
+}
+
+.onboarding-entry-menu-root .onboarding-entry-action {
+  width: auto;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.onboarding-entry-menu-root .onboarding-entry-menu-trigger {
+  width: var(--po-control-size);
+  padding: 0;
+  border-radius: 0 var(--desktop-control-radius) var(--desktop-control-radius) 0;
+}
+
 /* The Homepage's menus, placed under the buttons that open them. */
+.onboarding-entry-menu,
 .onboarding-view-menu {
   position: absolute;
   z-index: 20;
@@ -667,9 +691,15 @@ span.homepage-cloud-feedback {
   padding: var(--po-menu-padding);
 }
 
+.onboarding-entry-menu .desktop-menu-section-list,
 .onboarding-view-menu .desktop-menu-section-list {
   display: grid;
   gap: 2px;
+}
+
+.onboarding-entry-menu {
+  inset-inline-end: 0;
+  width: 232px;
 }
 
 /* Each menu hangs centred under the control that opens it. */
@@ -994,15 +1024,20 @@ span.homepage-cloud-feedback {
   margin-top: 1px;
 }
 
-/* Below the column's width a group's actions keep their marks and give their words to
-   the title, so the labels stay for assistive technology and leave the layout. */
+
+/* Below the column's width New keeps its key and gives its words to the title, so the
+   label stays for assistive technology and leaves the layout. */
 @media (max-width: 696px) {
-  .onboarding-group-action > span {
+  .onboarding-entry-menu-root .onboarding-entry-action .po-button__label {
     position: absolute;
     overflow: hidden;
     width: 1px;
     height: 1px;
     clip-path: inset(50%);
+  }
+
+  .onboarding-entry-menu-root .onboarding-entry-action {
+    padding-inline: 11px;
   }
 }
 
@@ -1121,7 +1156,7 @@ span.homepage-cloud-feedback {
   border-radius: var(--desktop-control-radius);
   padding: 2px 4px;
   background: transparent;
-  color: var(--po-text-subtle);
+  color: inherit;
   font: inherit;
 }
 
@@ -1130,17 +1165,18 @@ span.homepage-cloud-feedback {
   color: var(--po-text);
 }
 
-/* An audience heading names who can open its projects, not where they live: the title
-   in the page's body type, then a quiet detail, a rule, and the group's own actions,
-   the last of which adds a project to it. No mark: the words carry it. */
+/* An audience heading names who can open its projects, not where they live. It is a
+   label, not a title: the size and quiet ink of a menu's section label, and the rule
+   after it in the same ink, so the folders stay the brightest thing on the page. */
 .onboarding-project-group-head {
+  --onboarding-group-ink: var(--po-text-subtle);
   display: flex;
   min-width: 0;
   min-height: 28px;
   align-items: center;
   gap: 8px;
   padding-inline: 8px 0;
-  color: var(--po-text-subtle);
+  color: var(--onboarding-group-ink);
   font-family: var(--po-font-sans);
   font-size: var(--onboarding-caption-font-size);
   line-height: 16px;
@@ -1152,11 +1188,9 @@ span.homepage-cloud-feedback {
   flex: 0 1 auto;
   align-items: center;
   margin: 0;
-  color: var(--po-text);
-  font-family: inherit;
-  font-size: var(--onboarding-row-font-size);
+  color: inherit;
+  font: inherit;
   font-weight: var(--po-text-weight-medium, 500);
-  line-height: var(--onboarding-row-line-height);
 }
 
 .onboarding-project-group-title bdi {
@@ -1176,7 +1210,8 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-group-divider {
   flex: 1 0 24px;
-  border-block-start: 1px solid var(--po-divider);
+  border-block-start: 1px solid var(--onboarding-group-ink);
+  opacity: 0.5;
 }
 
 .onboarding-project-group-actions {
@@ -1184,75 +1219,6 @@ span.homepage-cloud-feedback {
   flex: none;
   align-items: center;
   gap: 2px;
-}
-
-/* A group's action says what it does in words, always shown and always quiet: the
-   page's ink, no fill until reached for, so that three groups never read as three
-   calls to act. A menu behind it says so with a small arrow. */
-.onboarding-group-action {
-  display: inline-flex;
-  height: var(--po-control-size-compact);
-  min-width: 0;
-  flex: none;
-  align-items: center;
-  gap: 4px;
-  padding-inline: 6px;
-  border: 0;
-  border-radius: var(--desktop-control-radius);
-  background: transparent;
-  color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, default);
-  font-family: var(--po-font-sans);
-  font-size: var(--onboarding-caption-font-size);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: 16px;
-  white-space: nowrap;
-  transition: background 120ms ease-out, color 120ms ease-out;
-}
-
-.onboarding-group-action > svg {
-  flex: none;
-}
-
-.onboarding-group-action > svg:last-child:not(:first-child) {
-  color: var(--po-text-subtle);
-}
-
-.onboarding-group-action:hover:not(:disabled),
-.onboarding-group-action[aria-expanded="true"] {
-  background: var(--po-hover);
-  color: var(--po-text);
-}
-
-.onboarding-group-action:focus-visible {
-  outline: 2px solid var(--po-focus-ring);
-  outline-offset: -2px;
-}
-
-.onboarding-group-action:disabled {
-  color: var(--po-text-disabled);
-  cursor: default;
-}
-
-/* New project and the other ways to start one: one control in two parts. */
-.onboarding-group-split {
-  display: inline-flex;
-  align-items: center;
-}
-
-.onboarding-group-split > .onboarding-group-action:first-child {
-  border-start-end-radius: 0;
-  border-end-end-radius: 0;
-}
-
-.onboarding-group-action.is-split-arrow {
-  padding-inline: 4px;
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
-}
-
-.onboarding-group-split:has(> .onboarding-group-action:hover:not(:disabled)) > .onboarding-group-action:not(:disabled) {
-  background: var(--po-hover);
 }
 
 /* Unavailability belongs to the folder, not the entire personal audience. */

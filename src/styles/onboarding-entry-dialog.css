@@ -345,6 +345,43 @@
   stroke-width: 1.8;
 }
 
+/* Where the project starts: a folder here, or a Cloud space, chosen under the field. */
+.onboarding-entry-location-root {
+  position: relative;
+  min-width: 0;
+}
+
+/* The surface clips to its corners; while the place menu is open it may hang past them. */
+.onboarding-entry-dialog.is-create:has(.onboarding-entry-location-menu) {
+  overflow: visible;
+}
+
+.onboarding-entry-dialog.is-create:has(.onboarding-entry-location-menu) .desktop-dialog-footer {
+  border-end-start-radius: 11px;
+  border-end-end-radius: 11px;
+}
+
+.onboarding-entry-location-menu {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--po-menu-padding));
+  inset-inline: 0;
+  box-sizing: border-box;
+  padding: var(--po-menu-padding);
+}
+
+.onboarding-entry-location-menu .desktop-menu-section-list {
+  display: grid;
+  gap: 2px;
+}
+
+.onboarding-entry-location-menu .desktop-menu-item-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .onboarding-entry-location-action {
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
@@ -375,10 +412,6 @@
 .onboarding-entry-dialog .desktop-dialog-error {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.onboarding-entry-paste-template {
-  margin-inline-end: auto;
 }
 
 .onboarding-entry-template {

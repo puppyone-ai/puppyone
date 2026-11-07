@@ -15,6 +15,7 @@ import type {
 } from "../../types/electron";
 import { ProjectEntryLauncherDialog } from "./ProjectEntryLauncherDialog";
 import { ProjectNavigationFailure } from "./ProjectNavigationFailure";
+import type { CloudSpace } from "../../lib/workspaceHomeModel";
 import {
   resolveImportPreviewBrands,
   resolveVisibleImportSources,
@@ -65,6 +66,10 @@ export type ProjectEntryFlowProps = Readonly<{
   onCreateProject?: (
     request: WorkspaceCreateProjectRequest,
   ) => Promise<WorkspaceCreateProjectResult>;
+  /** Cloud spaces a new project may be started in instead of this computer. */
+  cloudSpaces?: readonly CloudSpace[];
+  /** Starts an empty Cloud project in a space and opens it. */
+  onCreateCloudProject?: (spaceId: string, name: string) => Promise<void>;
   onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
   onConnectSource?: (provider: string) => Promise<{ connectionId: string }>;
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
@@ -86,6 +91,8 @@ export function ProjectEntryFlow({
   onDefaultLocation,
   onChooseLocation,
   onCreateProject,
+  cloudSpaces,
+  onCreateCloudProject,
   onImportSource,
   onConnectSource,
   onListResources,
@@ -187,7 +194,8 @@ export function ProjectEntryFlow({
   if (controller.step === "create" && onCreateProject && onChooseLocation) {
     return (
       <OnboardingProjectEntryDialog
-        onOpenTemplate={controller.openTemplate}
+        cloudSpaces={onCreateCloudProject ? cloudSpaces?.filter((space) => space.canCreateProjects) : undefined}
+        onCreateCloudProject={onCreateCloudProject}
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}
