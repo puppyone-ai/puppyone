@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ensurePersonalCloudSpace, listCloudOrganizations, type DesktopCloudSession } from "../../../lib/cloudApi";
 import type { CloudSpace } from "../../../lib/workspaceHomeModel";
+import { readCachedSpaces, writeCachedSpaces } from "../workbench/homepageCloudCatalogCache";
+
+const NO_SPACES: CloudSpace[] = [];
 
 export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
   enabled: boolean; visible: boolean; session: DesktopCloudSession | null; apiBaseUrl: string;
 }) {
   const authority = enabled && session ? JSON.stringify([apiBaseUrl, session.user_id, session.session_generation]) : null;
+  // The same account scope as the catalog cache, which outlives session generations.
+  const accountScope = enabled && session ? JSON.stringify([apiBaseUrl, session.user_id]) : null;
   const current = useRef({ authority, session });
   current.current = { authority, session };
   const [state, setState] = useState<{ authority: string; spaces: CloudSpace[]; status: "ready" | "error" } | null>(null);
@@ -31,13 +36,15 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
         const spaces = organizations.map((org): CloudSpace => ({ id: org.id, name: org.name,
           kind: org.kind === "personal" ? "personal" : "team", canCreateProjects: org.can_create_projects === true }));
         spaces.sort((a, b) => Number(b.kind === "personal") - Number(a.kind === "personal") || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-        if (valid()) setState({ authority, spaces, status: "ready" });
+        if (!valid()) return;
+        if (accountScope) writeCachedSpaces(accountScope, spaces);
+        setState({ authority, spaces, status: "ready" });
       } catch {
         if (valid()) setState({ authority, spaces: [], status: "error" });
       }
     })();
     return () => { cancelled = true; };
-  }, [authority, apiBaseUrl, visible, revision]);
+  }, [authority, accountScope, apiBaseUrl, visible, revision]);
   useEffect(() => {
     if (!visible) return;
     const refresh = () => setRevision((value) => value + 1);
@@ -45,7 +52,11 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
     return () => window.removeEventListener("focus", refresh);
   }, [visible]);
   const own = authority && state?.authority === authority ? state : null;
-  return { spaces: own?.spaces ?? [], authority,
-    status: !authority ? "signed-out" as const : own?.status ?? "loading" as const,
+  // Until this account answers, the spaces it last saw stand in, as its catalog does.
+  const cached = useMemo(() => (accountScope ? readCachedSpaces(accountScope) : undefined), [accountScope]);
+  const standIn = !own && cached ? { spaces: cached, status: "ready" as const } : null;
+  const shown = own ?? standIn;
+  return { spaces: shown?.spaces ?? NO_SPACES, authority,
+    status: !authority ? "signed-out" as const : shown?.status ?? "loading" as const,
     refresh: () => setRevision((value) => value + 1) };
 }
