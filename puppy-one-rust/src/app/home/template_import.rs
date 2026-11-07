@@ -174,7 +174,7 @@ impl Homepage {
                 &detail.id,
                 &detail.release_id,
                 authorize,
-                crate::features::cloud::agents::now_ms(),
+                crate::clock::now_ms(),
             )?;
             // `numberIfTaken`: a copy never fails for a name in use.
             let name = templates::free_name(&parent, &name)?;

@@ -14,11 +14,10 @@ use super::{
     explorer::ExplorerSession,
     session::DocumentSession,
 };
-use crate::{
-    documents::{ClientMessage, HostMessage},
-    editor::host::DocumentEditor,
-    features::settings::preferences_store::PreferencesStore,
-};
+use crate::documents::ClientMessage;
+use crate::documents::HostMessage;
+use crate::editor::host::DocumentEditor;
+use crate::features::settings::PreferencesStore;
 use gpui::{prelude::*, *};
 use std::{
     cell::RefCell,

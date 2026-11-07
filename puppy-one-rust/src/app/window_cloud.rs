@@ -18,19 +18,14 @@ use super::{
     session::SessionView,
     share_panel::SharePanel,
 };
-use crate::{
-    features::{
-        cloud::{
-            agents::CloudAgents,
-            catalog::CloudCatalog,
-            publish::CloudPublish,
-            repository::RepositoryCloud,
-            services::{self, CloudServices, Section},
-        },
-        settings::{Page, preferences_store::PreferencesStore},
-    },
-    workspace::cloud::opening::Failure,
-};
+use crate::features::cloud::CloudAgents;
+use crate::features::cloud::CloudCatalog;
+use crate::features::cloud::CloudPublish;
+use crate::features::cloud::RepositoryCloud;
+use crate::features::cloud::ServicesSection as Section;
+use crate::features::cloud::{CloudServices, ResumePublication, ServicesClose};
+use crate::features::settings::{Page, PreferencesStore};
+use crate::workspace::cloud::opening::Failure;
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
@@ -114,12 +109,12 @@ impl WindowCloud {
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
         let services = cx.new(|cx| CloudServices::new(window, cx));
-        cx.subscribe(&services, |s, _, _: &services::Close, cx| {
+        cx.subscribe(&services, |s, _, _: &ServicesClose, cx| {
             s.close_dialog(DialogKey::CloudServices, cx);
             cx.notify();
         })
         .detach();
-        cx.subscribe(&services, |s, _, _: &services::ResumePublication, cx| {
+        cx.subscribe(&services, |s, _, _: &ResumePublication, cx| {
             s.resume_publication(cx)
         })
         .detach();

@@ -188,9 +188,9 @@ pub struct Workbench {
     /// Each launcher group's scroller.
     launcher_scroll: HashMap<Id, ScrollHandle>,
     /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
-    preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
+    preferences: Option<Entity<crate::features::settings::PreferencesStore>>,
     /// The launcher's `LocalAgentSetupSection` (created with the preferences).
-    setup: Option<Entity<crate::features::local_agents::setup::SetupSection>>,
+    setup: Option<Entity<crate::features::local_agents::SetupSection>>,
     /// This window (`agent_presence::owner`).
     owner: String,
     /// `creationFailure`: a History conversation that could not be opened.
@@ -252,10 +252,10 @@ impl Workbench {
                 .detach();
         });
         // An activation that installed a CLI rescans the launchers' Agents.
-        let activation = crate::features::local_agents::setup::store(cx);
+        let activation = crate::features::local_agents::activation_store(cx);
         cx.subscribe(
             &activation,
-            |s, _, _: &crate::features::local_agents::setup::InstallationsChanged, cx| s.rescan(cx),
+            |s, _, _: &crate::features::local_agents::InstallationsChanged, cx| s.rescan(cx),
         )
         .detach();
         Self {
@@ -372,7 +372,7 @@ impl Workbench {
     pub fn set_preferences(
         &mut self,
         hidden: Vec<String>,
-        routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
+        routing: crate::features::settings::AgentRoutingPreferences,
         payments: bool,
         cx: &mut Context<Self>,
     ) {
@@ -1211,7 +1211,7 @@ impl Workbench {
     }
     pub fn set_preference_store(
         &mut self,
-        store: Entity<crate::features::settings::preferences_store::PreferencesStore>,
+        store: Entity<crate::features::settings::PreferencesStore>,
     ) {
         self.chats.set_preference_store(store.clone());
         self.preferences = Some(store);
@@ -1222,11 +1222,9 @@ impl Workbench {
     fn setup_section(
         &mut self,
         cx: &mut Context<Self>,
-    ) -> Option<Entity<crate::features::local_agents::setup::SetupSection>> {
-        use crate::{
-            features::local_agents::setup::{Presentation, SetupSection},
-            platform::local_agent_setup::Surface,
-        };
+    ) -> Option<Entity<crate::features::local_agents::SetupSection>> {
+        use crate::features::local_agents::{Presentation, SetupSection};
+        use crate::platform::local_agent_setup::Surface;
         let surface = if self.chat_mode {
             Surface::Chat
         } else {
@@ -1424,11 +1422,13 @@ mod tests {
     /// submission keeps its tab; a confirmed running one closes unasked.
     #[gpui::test]
     fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppContext) {
-        use crate::{
-            cloud::auth::{Cancellation, model::ApiRequest},
-            features::desktop_agent::infrastructure::cloud::Hub,
-            workspace::cloud::agent::{Client, Error, Event, Transport},
-        };
+        use crate::cloud::auth::Cancellation;
+        use crate::cloud::auth::model::ApiRequest;
+        use crate::features::desktop_agent::Hub;
+        use crate::workspace::cloud::agent::Client;
+        use crate::workspace::cloud::agent::Error;
+        use crate::workspace::cloud::agent::Event;
+        use crate::workspace::cloud::agent::Transport;
         use serde_json::{Value, json};
         use std::sync::{
             Arc, Mutex,
@@ -1495,7 +1495,7 @@ mod tests {
                 .find_map(|(id, c)| match c {
                     Content::Item { item, .. } => item
                         .view()
-                        .downcast::<crate::features::desktop_agent::ui::panel::AgentChatTabPanel>()
+                        .downcast::<crate::features::desktop_agent::AgentChatTabPanel>()
                         .ok()
                         .map(|chat| (*id, chat)),
                     _ => None,
@@ -1515,7 +1515,7 @@ mod tests {
         };
         let hosted = |cx: &App,
                       f: &dyn Fn(
-            &crate::features::desktop_agent::infrastructure::cloud::CloudAgentController,
+            &crate::features::desktop_agent::CloudAgentController,
         ) -> bool| { chat.read(cx).hosted().is_some_and(f) };
         chat.update(cx, |c, _| c.hosted().unwrap().submit("hello".into()));
         settle(cx, "the lost receipt", &|cx| {
@@ -1601,7 +1601,7 @@ mod tests {
                 id: "agent:thread-1".into(),
                 title: "Saved chat".into(),
                 icon_key: None,
-                payload: crate::features::desktop_agent::domain::agent_chat_history_target::AgentChatHistoryPayload {
+                payload: crate::features::desktop_agent::AgentChatHistoryPayload {
                     runtime_id: "codex".into(),
                     session_id: String::new(),
                 },

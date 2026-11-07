@@ -3,18 +3,22 @@
 //! offers the same moves without a pointer drag.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
-use crate::{
-    features::create_new::create_entry_menu_registry::{Entry, MenuSettings, Placement},
-    localization::{t as tr, tf},
-    theme::{self, Theme},
-    ui::{
-        appearance::ActiveAppearance,
-        components::{
-            AnchoredMenu, Button, FileIcon, Icon, Menu, MenuItem, SettingsCategory,
-            SettingsCategoryList, SettingsSection, tooltip,
-        },
-    },
-};
+use crate::features::create_new::{Entry, MenuSettings, Placement};
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::theme;
+use crate::theme::Theme;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::AnchoredMenu;
+use crate::ui::components::Button;
+use crate::ui::components::FileIcon;
+use crate::ui::components::Icon;
+use crate::ui::components::Menu;
+use crate::ui::components::MenuItem;
+use crate::ui::components::SettingsCategory;
+use crate::ui::components::SettingsCategoryList;
+use crate::ui::components::SettingsSection;
+use crate::ui::components::tooltip;
 use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{Disableable as _, h_flex, v_flex},

@@ -71,7 +71,7 @@ pub enum AgentChatPanelEvent {
     /// `onPreferredRuntimeChange(runtimeId)`.
     PreferredRuntime(Option<String>),
     /// `onPreferredRouteChange(route)`.
-    PreferredRoute(crate::features::settings::agent_routing_preferences::AgentRoutePatch),
+    PreferredRoute(crate::features::settings::AgentRoutePatch),
 }
 
 impl EventEmitter<AgentChatPanelEvent> for AgentChatTabPanel {}

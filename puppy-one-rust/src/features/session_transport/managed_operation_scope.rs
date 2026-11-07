@@ -2,7 +2,7 @@
 //! scope are released together, and a scoped wait ends with the scope.
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::tasks::{CancelSignal, Canceller};
-use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
+use crate::features::desktop_agent::UiRuntime;
 use std::cell::RefCell;
 use std::future::Future;
 use std::rc::Rc;

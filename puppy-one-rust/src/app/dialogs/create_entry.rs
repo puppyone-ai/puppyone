@@ -2,9 +2,7 @@
 //! the shell takes it into the Explorer and the editor
 //! ([`DialogEvent::Created`]).
 use super::*;
-use crate::features::create_new::{
-    create_entry_dialog::CreateEvent, create_entry_menu_registry::Entry,
-};
+use crate::features::create_new::{CreateEvent, Entry};
 
 impl DialogLayer {
     /// Opens the create form for `kind` in `parent`.

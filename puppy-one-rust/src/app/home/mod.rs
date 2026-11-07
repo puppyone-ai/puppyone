@@ -16,25 +16,29 @@ use super::{
     project_actions::ProjectActions,
     session::SessionView,
 };
+use crate::features::cloud::CloudCatalog;
+use crate::features::settings::{PreferencesStore, RecentProject};
+use crate::geometry::Rect;
+use crate::localization::TimeUnit;
+use crate::localization::relative_past;
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::platform::project_activity;
+use crate::theme;
+use crate::theme::Theme;
+use crate::theme::metric;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Icon;
+use crate::ui::components::IconButton;
+use crate::ui::components::Menu;
+use crate::ui::components::MenuItem;
+use crate::ui::components::PopoverMenu;
+use crate::ui::components::ProductIcon;
 use crate::workspace::cloud::{
     catalog::{self, Item},
     locator::{self, Locator},
-};
-use crate::{
-    features::{
-        cloud::catalog::CloudCatalog,
-        settings::{preference_types::RecentProject, preferences_store::PreferencesStore},
-    },
-    geometry::Rect,
-    localization::{TimeUnit, relative_past, t as tr, tf},
-    platform::project_activity,
-    theme::{self, Theme, metric},
-    ui::{
-        appearance::ActiveAppearance,
-        components::{
-            Button, ButtonVariant, Icon, IconButton, Menu, MenuItem, PopoverMenu, ProductIcon,
-        },
-    },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -492,13 +496,10 @@ impl Homepage {
         // the list (a cached stand-in is not the account's own answer).
         let catalog = self.catalog.read(cx);
         let catalog_settled = account.is_none()
-            || matches!(
-                catalog.state,
-                crate::features::cloud::catalog::State::Failed
-            )
+            || matches!(catalog.state, crate::features::cloud::CatalogState::Failed)
             || (matches!(
                 catalog.state,
-                crate::features::cloud::catalog::State::Ready(_)
+                crate::features::cloud::CatalogState::Ready(_)
             ) && catalog.fresh);
         let settled = !self.reading && self.read_for.is_some() && catalog_settled;
         let over = self
@@ -524,7 +525,7 @@ impl Homepage {
     /// current account's catalog, and a folder links to one only through
     /// its freshly read, trusted Project-root locator.
     pub(in crate::app) fn project_items(&self, cx: &App) -> Vec<Item> {
-        use crate::features::cloud::catalog::State;
+        use crate::features::cloud::CatalogState as State;
         let account = crate::features::cloud::account::broker_and_binding(cx)
             .map(|(_, binding)| binding)
             .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx));

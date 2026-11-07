@@ -250,7 +250,7 @@ impl Shell {
     /// Open the create form for `kind` in `parent` (the Explorer's menus).
     pub(in crate::app) fn start_create(
         &mut self,
-        kind: crate::features::create_new::create_entry_menu_registry::Entry,
+        kind: crate::features::create_new::Entry,
         parent: PathBuf,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -282,7 +282,7 @@ impl Shell {
             // `handleAgentOpenFile`: a path inside the chat's project opens
             // in the editor.
             SidebarEvent::OpenAgentFile { root, path } => {
-                use crate::features::desktop_agent::domain::agent_workspace_path::resolve_agent_workspace_provider_path as resolve;
+                use crate::features::desktop_agent::resolve_agent_workspace_provider_path as resolve;
                 if let Some(path) = resolve(&root.to_string_lossy(), path) {
                     let path = root.join(path);
                     self.session
@@ -502,7 +502,7 @@ impl Shell {
     /// restore once they load.
     pub(in crate::app) fn preferences_event(
         &mut self,
-        _: &crate::features::settings::preferences_store::PreferencesChanged,
+        _: &crate::features::settings::PreferencesChanged,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

@@ -24,7 +24,7 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-pub(super) mod activity;
+mod activity;
 mod glyphs;
 mod interaction;
 mod model;

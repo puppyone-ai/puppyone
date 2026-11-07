@@ -266,7 +266,7 @@ pub struct SourceControl {
     collapsed: std::collections::HashSet<Panel>,
     selection: u64,
     detail: Option<Detail>,
-    layout: crate::features::settings::preference_types::GitSidebarLayout,
+    layout: crate::features::settings::GitSidebarLayout,
     icon_theme: String,
     #[cfg(test)]
     painted_rows: usize,
@@ -276,7 +276,7 @@ impl SourceControl {
     /// Appearance → Git sidebar layout and file icon theme.
     pub fn set_presentation(
         &mut self,
-        layout: crate::features::settings::preference_types::GitSidebarLayout,
+        layout: crate::features::settings::GitSidebarLayout,
         icon_theme: String,
         cx: &mut Context<Self>,
     ) {

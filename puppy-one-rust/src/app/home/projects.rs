@@ -8,7 +8,7 @@
 //! sheet, its time gives way to its actions. The list is one Tab stop (a
 //! roving stop, the project last focused); the arrow keys move inside it.
 use super::*;
-use crate::features::settings::preference_types::{HomepageLayout, HomepageSort};
+use crate::features::settings::{HomepageLayout, HomepageSort};
 use gpui_kit::base::Selectable as _;
 use std::collections::BTreeSet;
 mod list;

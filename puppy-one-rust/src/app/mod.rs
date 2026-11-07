@@ -137,7 +137,7 @@ impl Shell {
             )
         });
         let dialogs = cx.new(|cx| DialogLayer::new(preferences.clone(), key.clone(), window, cx));
-        let catalog = crate::features::cloud::catalog::global(cx);
+        let catalog = crate::features::cloud::global_catalog(cx);
         let panes = {
             let right = std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1");
             cx.new(|cx| PaneLayout::new(right, window, cx))

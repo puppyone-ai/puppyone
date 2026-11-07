@@ -108,11 +108,6 @@ pub fn status(agent: &WorkspaceAgent, now_secs: i64) -> Option<String> {
         None => tr("cloud.share.agent.status.none").to_string(),
     })
 }
-pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as i64)
-}
 
 impl CloudAgents {
     pub fn new() -> Self {
@@ -326,7 +321,11 @@ impl CloudAgents {
         self.manageable = true;
         self.open_links = inventory.open_links_enabled;
         self.requests = inventory.pending;
-        self.agents = agents::resolve(&inventory.connections, sessions.as_deref(), now_ms());
+        self.agents = agents::resolve(
+            &inventory.connections,
+            sessions.as_deref(),
+            crate::clock::now_ms(),
+        );
         let pending: HashSet<&str> = self.requests.iter().map(|r| r.id.as_str()).collect();
         self.deciding.retain(|id| pending.contains(id.as_str()));
         // A newcomer, or one asking to join, ends the wait.
@@ -556,7 +555,7 @@ pub fn lab_client(open_links: bool) -> Client {
     impl Transport for Lab {
         fn request(&self, request: ApiRequest) -> services::Result<Value> {
             let ago = |secs: i64| {
-                chrono::DateTime::from_timestamp_millis(now_ms() - secs * 1000)
+                chrono::DateTime::from_timestamp_millis(crate::clock::now_ms() - secs * 1000)
                     .unwrap_or_default()
                     .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
             };

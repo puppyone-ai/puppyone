@@ -8,7 +8,7 @@
 //!   sharing, first-run sign-in, the Homepage account status and marketplace
 //!   template links follow this; while it is off nothing contacts Cloud
 //!   except the account session itself.
-use crate::features::settings::preferences_store::PreferencesStore;
+use crate::features::settings::PreferencesStore;
 use gpui::{App, Entity};
 
 /// `cloudBilling`: on, as the product's `src/features/flags/flags.json` sets

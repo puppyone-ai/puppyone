@@ -7,8 +7,8 @@ use crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key;
 use crate::features::desktop_agent::ui::panel::{
     AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation,
 };
-use crate::features::settings::agent_routing_preferences::AgentRoutingPreferences;
-use crate::features::settings::preferences_store::PreferencesStore;
+use crate::features::settings::AgentRoutingPreferences;
+use crate::features::settings::PreferencesStore;
 use crate::features::workbench::{
     CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, RetainedItem, Workbench,
     WorkbenchEvent, WorkbenchItem,

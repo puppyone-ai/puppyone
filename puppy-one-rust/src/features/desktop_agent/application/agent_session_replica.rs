@@ -19,7 +19,7 @@ use super::ui_runtime::{
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::dto::{AgentProjection, SessionFailure, SessionFrame, SessionSnapshot};
 use crate::agent::contract::protocol::{AgentOperation, FeedAck, FeedTarget, SessionTarget};
-use crate::features::session_transport::managed_operation_scope::{
+use crate::features::session_transport::{
     ManagedOperationScope, scoped_timeout_ms, wait_for_scoped_operation,
 };
 use futures_util::FutureExt;

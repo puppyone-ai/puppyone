@@ -4,6 +4,10 @@ The GPUI shell retains its existing Web content adapter and Rust storage authori
 """
 from pathlib import Path
 import re
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import rust_paths  # noqa: E402
 
 root = Path(__file__).resolve().parents[1]
 errors = []
@@ -150,6 +154,16 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
         continue
     if provider_name.search(code(path)):
         errors.append(f'{path.relative_to(root)}: names a concrete runtime; the Agent window outside its views is provider-neutral')
+# Features are reached through their facades (`features/<name>/mod.rs`):
+# their modules are private, but for the few public API modules below, and
+# nothing names another feature's internals.
+facade_modules = {'cloud': {'account'}}
+for folder in (root / 'src/features').iterdir():
+    if folder.is_dir():
+        for name in rust_paths.submodules(root, folder.name, public=True) - facade_modules.get(folder.name, set()):
+            errors.append(f'src/features/{folder.name}/mod.rs: `pub mod {name}` exposes internals; export its items')
+for path, name in rust_paths.deep_feature_imports(root):
+    errors.append(f'{path}: names another feature\'s internals ({name}); use its facade')
 for path in (root / 'src/model_connections').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration depends on presentation')

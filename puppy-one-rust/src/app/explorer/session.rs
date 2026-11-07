@@ -8,16 +8,13 @@
 //! what it asks for ([`SessionEvent`]).
 use super::Host;
 pub(in crate::app) use crate::editor::workbench::resource_operations::Operation as FileOp;
-use crate::{
-    editor::workbench::resource_operations::Outcome,
-    features::settings::{
-        preference_types::{ExplorerPins, FilesVisibility},
-        preferences_store::{PreferencesStore, observe_slice},
-    },
-    localization::tf,
-    model::{Node, Tree, Visibility},
-    workspace::Workspace,
-};
+use crate::editor::workbench::resource_operations::Outcome;
+use crate::features::settings::{ExplorerPins, FilesVisibility, PreferencesStore, observe_slice};
+use crate::localization::tf;
+use crate::model::Node;
+use crate::model::Tree;
+use crate::model::Visibility;
+use crate::workspace::Workspace;
 use gpui::*;
 use std::{
     path::{Path, PathBuf},

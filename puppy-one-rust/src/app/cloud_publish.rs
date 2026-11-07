@@ -10,12 +10,17 @@
 //! whose focus starts on Cancel).
 use super::window_cloud::WindowCloud;
 use super::*;
-use crate::{
-    cloud::publication::{Action, Code, Stage},
-    features::cloud::publish::{HeaderStatus, Organizations},
-    localization::{t as tr, tf},
-    ui::components::{Button, ButtonVariant, Dialog, Icon, ProductIcon},
-};
+use crate::cloud::publication::Action;
+use crate::cloud::publication::Code;
+use crate::cloud::publication::Stage;
+use crate::features::cloud::{HeaderStatus, Organizations};
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Dialog;
+use crate::ui::components::Icon;
+use crate::ui::components::ProductIcon;
 use gpui_kit::{
     base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,

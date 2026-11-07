@@ -94,7 +94,7 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
         assert_eq!(s.chrome.read(cx).popover, Some(Popover::Agents));
         assert_eq!(
             s.cloud.read(cx).agents.read(cx).opener,
-            crate::features::cloud::agents::Opener::Invite
+            crate::features::cloud::Opener::Invite
         );
     });
     cx.simulate_click(seat.center(), Modifiers::none());
@@ -171,7 +171,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         assert_eq!(offered.len(), 1);
         assert_eq!(
             offered[0].label,
-            crate::features::desktop_agent::infrastructure::cloud::LABEL
+            crate::features::desktop_agent::HOSTED_AGENT_LABEL
         );
     });
     // Opening the Agent sidebar sends nothing.
@@ -285,7 +285,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
         journal::Journal,
         tests::{Fake, coordinator},
     };
-    use crate::features::cloud::publish::Publication;
+    use crate::features::cloud::Publication;
     use std::sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
@@ -317,7 +317,7 @@ fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAp
     // One vault across both runs, as the Keychain is.
     let vault = coordinator(&fake).1;
     cx.update(|_, cx| {
-        crate::features::cloud::publish::install_factory(
+        crate::features::cloud::install_factory(
             Arc::new(move |_, _| Coordinator {
                 git: fake.clone(),
                 cloud: fake.clone(),

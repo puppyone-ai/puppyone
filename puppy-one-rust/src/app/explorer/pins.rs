@@ -6,10 +6,10 @@
 //! or move, and go with a deletion. The session keeps them; this paints
 //! them.
 use super::*;
-use crate::{
-    features::settings::preference_types::ExplorerPins,
-    ui::components::{FileIcon, Icon, ProductIcon},
-};
+use crate::features::settings::ExplorerPins;
+use crate::ui::components::FileIcon;
+use crate::ui::components::Icon;
+use crate::ui::components::ProductIcon;
 use gpui_kit::{
     base::{h_flex, v_flex},
     component::Sizable as _,
@@ -51,7 +51,7 @@ impl Explorer {
         let active = self.host.opened.as_deref().map(relative);
         // The tree's own row fills, so a pin reads as a row, not a button.
         let tint = theme::alpha(t.hover, 0.86);
-        let pin = |index: usize, file: &crate::features::settings::preference_types::PinnedFile| {
+        let pin = |index: usize, file: &crate::features::settings::PinnedFile| {
             let lit = active.as_deref() == Some(file.path.as_str());
             let (label, _) = crate::file_kind::display_name(&file.name, false);
             let path = PathBuf::from(&file.path);

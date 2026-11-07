@@ -24,8 +24,8 @@ use crate::features::desktop_agent::ui::agent_conversation_history::{
 };
 use crate::features::desktop_agent::ui::panel::{AgentChatTabPanel, AgentRouting};
 use crate::features::local_agents::hidden_agent_chat_runtime_ids;
-use crate::features::settings::agent_routing_preferences::AgentRoutingPreferences;
-use crate::features::settings::preferences_store::PreferencesStore;
+use crate::features::settings::AgentRoutingPreferences;
+use crate::features::settings::PreferencesStore;
 use crate::wake::Wake;
 use crate::workspace::cloud::agent::{AgentTarget, BrokerTransport, Client, Session};
 use futures_util::future::LocalBoxFuture;

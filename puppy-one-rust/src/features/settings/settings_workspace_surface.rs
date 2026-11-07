@@ -31,7 +31,7 @@ pub struct SettingsWorkspaceSurface {
     pub root: Option<PathBuf>,
     pub(super) page: Page,
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
-    pub(super) agents: Entity<crate::features::local_agents::settings::AgentSettings>,
+    pub(super) agents: Entity<crate::features::local_agents::AgentSettings>,
     pub(super) cloud: Option<Entity<crate::features::cloud::account::CloudAccount>>,
     pub(super) plan_page: super::main::plan_settings_view::PlanPage,
     pub(super) repository: Entity<RepositorySettings>,
@@ -78,7 +78,7 @@ impl SettingsWorkspaceSurface {
         if !self.preferences.read(cx).state.experimental.payments {
             return;
         }
-        let compute = crate::features::cloud::managed_compute::global(cx);
+        let compute = crate::features::cloud::global_compute(cx);
         compute.update(cx, |c, cx| c.refresh(false, cx));
         if self.compute_timer.is_none() {
             self.compute_timer = Some(cx.spawn(async move |this, cx| {
@@ -88,7 +88,7 @@ impl SettingsWorkspaceSurface {
                         .await;
                     let alive = this.update(cx, |s, cx| {
                         if s.page == Page::Account {
-                            crate::features::cloud::managed_compute::global(cx)
+                            crate::features::cloud::global_compute(cx)
                                 .update(cx, |c, cx| c.refresh(true, cx));
                         }
                     });
@@ -104,7 +104,7 @@ impl SettingsWorkspaceSurface {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let compute = crate::features::cloud::managed_compute::global(cx);
+        let compute = crate::features::cloud::global_compute(cx);
         cx.observe(&compute, |_, _, cx| cx.notify()).detach();
         // Product Analytics follows the process-wide telemetry state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
@@ -127,9 +127,7 @@ impl SettingsWorkspaceSurface {
         .detach();
         let agents = {
             let preferences = preferences.clone();
-            cx.new(|cx| {
-                crate::features::local_agents::settings::AgentSettings::new(preferences, window, cx)
-            })
+            cx.new(|cx| crate::features::local_agents::AgentSettings::new(preferences, window, cx))
         };
         let repository = cx.new(|cx| RepositorySettings::new(window, cx));
         cx.observe(&repository, |_, _, cx| cx.notify()).detach();

@@ -12,7 +12,7 @@ impl WindowCloud {
         let entity = self.agents.clone();
         let control = agents.manageable;
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
-        let now = cloud_agents::now_ms() / 1000;
+        let now = crate::clock::now_ms() / 1000;
         let ground = t.header;
         let caption = |text: String| {
             div()
@@ -152,9 +152,7 @@ impl WindowCloud {
                         t,
                     ))
                     .child(name(agent.agent.name.clone()))
-                    .children(
-                        cloud_agents::status(agent, now).map(|state| caption(state).flex_none()),
-                    )
+                    .children(agent_status(agent, now).map(|state| caption(state).flex_none()))
             });
             let after_requests = control && !agents.requests.is_empty();
             card = card.child(

@@ -1,4 +1,7 @@
-pub mod create_entry_dialog;
-pub mod create_entry_draft;
-pub mod create_entry_menu_registry;
+mod create_entry_dialog;
+mod create_entry_draft;
+mod create_entry_menu_registry;
 mod native_create_entry;
+
+pub use create_entry_dialog::{CreateEntryDialog, CreateEvent};
+pub use create_entry_menu_registry::{Entry, MenuSettings, Placement};

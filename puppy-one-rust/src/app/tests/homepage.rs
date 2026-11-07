@@ -693,7 +693,7 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
 /// the settled order), and signing out removes it.
 #[gpui::test]
 fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mut TestAppContext) {
-    use crate::features::cloud::catalog::State;
+    use crate::features::cloud::CatalogState as State;
     use std::sync::atomic::{AtomicBool, Ordering};
     let dir = tempfile::tempdir().unwrap();
     let slow = std::sync::Arc::new(AtomicBool::new(false));

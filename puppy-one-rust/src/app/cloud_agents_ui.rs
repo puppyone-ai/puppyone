@@ -7,19 +7,21 @@
 //! looks like itself in both (`ReachMemberMark`).
 use super::window_cloud::WindowCloud;
 use super::*;
-use crate::{
-    features::{
-        cloud::agents::{self as cloud_agents, CopyStatus, Opener},
-        source_control::{relative_time, short_date},
-    },
-    localization::{t as tr, tf},
-    theme::metric,
-    ui::{
-        agent_brands,
-        components::{Button, ButtonVariant, Dialog, Icon},
-    },
-    workspace::cloud::agents::{Admission, AgentRequest, WorkspaceAgent, connect_message},
-};
+use crate::features::cloud::{CopyStatus, Opener, agent_status};
+use crate::features::source_control::relative_time;
+use crate::features::source_control::short_date;
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::theme::metric;
+use crate::ui::agent_brands;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Dialog;
+use crate::ui::components::Icon;
+use crate::workspace::cloud::agents::Admission;
+use crate::workspace::cloud::agents::AgentRequest;
+use crate::workspace::cloud::agents::WorkspaceAgent;
+use crate::workspace::cloud::agents::connect_message;
 use gpui_kit::{
     base::{Disableable as _, Popover as KitPopover, h_flex, v_flex},
     component::Sizable as _,
@@ -140,7 +142,7 @@ struct HeaderMark {
 }
 /// Requests first, then whoever is at work.
 fn header_marks(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> Vec<HeaderMark> {
-    let now = cloud_agents::now_ms() / 1000;
+    let now = crate::clock::now_ms() / 1000;
     let mut working: Vec<&WorkspaceAgent> = agents.iter().collect();
     working.sort_by_key(|a| !a.active);
     requests
@@ -157,7 +159,7 @@ fn header_marks(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> Vec<Hea
             name: a.agent.name.clone(),
             active: a.active,
             waiting: false,
-            status: cloud_agents::status(a, now),
+            status: agent_status(a, now),
         }))
         .collect()
 }

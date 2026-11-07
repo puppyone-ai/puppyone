@@ -4,7 +4,7 @@ use super::{AgentChatPanelEvent, AgentChatTabPanel};
 use crate::agent::contract::dto::Model;
 use crate::features::desktop_agent::application::agent_controller_state::AgentControllerState;
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
-use crate::features::settings::agent_routing_preferences::{AgentRoutePatch, AgentRoutePreference};
+use crate::features::settings::{AgentRoutePatch, AgentRoutePreference};
 use gpui::Context;
 
 /// What the Workbench item passes in (`preferredRuntimeId`, `preferredRoute`).

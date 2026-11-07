@@ -10,17 +10,21 @@
 //! It draws the menu, owns the rename and confirm dialogs (on the dialog
 //! layer) and tells the window what changed ([`ActionsEvent`]).
 use super::dialogs::{DialogKey, DialogLayer};
-use crate::{
-    features::{cloud::catalog::CloudCatalog, settings::preferences_store::PreferencesStore},
-    localization::{t as tr, tf},
-    theme,
-    ui::appearance::ActiveAppearance,
-    ui::{
-        components::{AnchoredMenu, Button, ButtonVariant, Dialog, Menu, MenuItem},
-        form_input::{InputEvent, TextInput},
-    },
-    workspace::cloud::catalog::Item,
-};
+use crate::features::cloud::CloudCatalog;
+use crate::features::settings::PreferencesStore;
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::theme;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::AnchoredMenu;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Dialog;
+use crate::ui::components::Menu;
+use crate::ui::components::MenuItem;
+use crate::ui::form_input::InputEvent;
+use crate::ui::form_input::TextInput;
+use crate::workspace::cloud::catalog::Item;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, v_flex};
 use std::path::PathBuf;
@@ -434,7 +438,7 @@ impl ProjectActions {
                 self.window_focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
-                let Some(client) = crate::features::cloud::services::services_client(cx) else {
+                let Some(client) = crate::features::cloud::services_client(cx) else {
                     return;
                 };
                 if let Some(rename) = self.rename.as_mut() {
@@ -642,7 +646,7 @@ impl ProjectActions {
                 self.window_focus.focus(window, cx);
             }
             Target::Cloud { project, .. } => {
-                let Some(client) = crate::features::cloud::services::services_client(cx) else {
+                let Some(client) = crate::features::cloud::services_client(cx) else {
                     return;
                 };
                 if let Some(confirm) = self.confirm.as_mut() {

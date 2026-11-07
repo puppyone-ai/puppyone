@@ -29,7 +29,7 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
         assert!(!s.panes.read(cx).right().open && s.sidebar.read(cx).is(Surface::Git));
         assert_eq!(
             s.prefs.store.read(cx).state.right_sidebar_surface,
-            crate::features::settings::preference_types::RightSidebarSurface::Changes
+            crate::features::settings::RightSidebarSurface::Changes
         );
     });
 }
@@ -64,7 +64,7 @@ fn the_header_entries_switch_and_close_the_right_sidebar(cx: &mut TestAppContext
 }
 #[gpui::test]
 fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
-    use crate::features::settings::preference_types::RightSidebarSurface;
+    use crate::features::settings::RightSidebarSurface;
     let (view, cx) = setup(cx);
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, cx| {

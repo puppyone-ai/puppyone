@@ -1,6 +1,6 @@
 //! Product preferences are independent of a window, filesystem, and controls.
 //! Field defaults mirror `src/preferences.ts` / `localAgentPreferences.ts`.
-use crate::features::create_new::create_entry_menu_registry::MenuSettings;
+use crate::features::create_new::MenuSettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

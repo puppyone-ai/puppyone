@@ -8,26 +8,33 @@
 //! (suggestion preference, operations, the setup directory) and in the
 //! workbench launcher (suggested and running activations only);
 //! [`ActivationDialog`] asks for consent, then follows the operation.
+use crate::agent::connections::legacy_local_agent_inventory as local_agent_inventory;
+use crate::features::desktop_agent::LauncherIdentity;
+use crate::features::desktop_agent::launcher_icon;
+use crate::features::settings::PreferencesStore;
+use crate::localization::t;
+use crate::localization::tf;
+use crate::platform::local_agent_setup as setup;
+use crate::platform::local_agent_setup::Entry;
+use crate::platform::local_agent_setup::Recipe;
+use crate::platform::local_agent_setup::Surface;
+use crate::platform::local_agent_setup::activation;
+use crate::platform::local_agent_setup::activation::Action;
+use crate::platform::local_agent_setup::activation::ErrorCode;
+use crate::platform::local_agent_setup::activation::Operation;
+use crate::platform::local_agent_setup::activation::Plan;
+use crate::platform::local_agent_setup::activation::Snapshot;
+use crate::platform::local_agent_setup::activation::StepState;
+use crate::platform::local_agent_setup::companion;
+use crate::platform::local_agent_setup::companion::Presence;
 #[cfg(not(test))]
 use crate::platform::local_agent_setup::installer;
-use crate::{
-    agent::connections::legacy_local_agent_inventory as local_agent_inventory,
-    features::{
-        desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
-        settings::preferences_store::PreferencesStore,
-    },
-    localization::{t, tf},
-    platform::local_agent_setup::{
-        self as setup, Entry, Recipe, Surface,
-        activation::{self, Action, ErrorCode, Operation, Plan, Snapshot, StepState},
-        companion::{self, Presence},
-    },
-    theme,
-    ui::{
-        appearance::ActiveAppearance,
-        components::{Button, ButtonVariant, Dialog, native_checkbox},
-    },
-};
+use crate::theme;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Dialog;
+use crate::ui::components::native_checkbox;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use std::{
@@ -503,7 +510,7 @@ impl SetupSection {
     }
     fn change_suggestions(
         &self,
-        change: impl FnOnce(&mut crate::features::settings::preference_types::SetupSuggestions),
+        change: impl FnOnce(&mut crate::features::settings::SetupSuggestions),
         cx: &mut Context<Self>,
     ) {
         self.preferences.update(cx, |p, cx| {

@@ -257,8 +257,8 @@ mod tests {
         let mut p: Preferences =
             serde_json::from_str(r#"{"locale":"zh-Hans","dark":false}"#).unwrap();
         p.create_new.move_entry(
-            crate::features::create_new::create_entry_menu_registry::Entry::Text,
-            crate::features::create_new::create_entry_menu_registry::Placement::Main,
+            crate::features::create_new::Entry::Text,
+            crate::features::create_new::Placement::Main,
             0,
         );
         let restored: Preferences =

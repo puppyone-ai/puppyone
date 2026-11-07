@@ -13,13 +13,13 @@ mod notices;
 mod preparation;
 
 use super::session::DocumentSession;
-use crate::{
-    documents::Intent,
-    editor::workbench::resource_operations::Outcome,
-    features::settings::preferences_store::PreferencesStore,
-    model::Node,
-    workspace::{self, Workspace, cloud::opening::Failure},
-};
+use crate::documents::Intent;
+use crate::editor::workbench::resource_operations::Outcome;
+use crate::features::settings::PreferencesStore;
+use crate::model::Node;
+use crate::workspace;
+use crate::workspace::Workspace;
+use crate::workspace::cloud::opening::Failure;
 use gpui::{prelude::*, *};
 use std::{path::PathBuf, sync::Arc};
 

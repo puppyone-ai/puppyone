@@ -191,8 +191,8 @@ impl SettingsWorkspaceSurface {
     /// `AccountAICredits`: the available balance; without Cloud (no Plan
     /// page) Account also sells the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::cloud::managed_compute::{Reason, global, money};
-        let compute = global(cx);
+        use crate::features::cloud::{ComputeReason as Reason, global_compute, money};
+        let compute = global_compute(cx);
         let state = compute.read(cx);
         let reason = state.reason(true);
         let value = match reason {
@@ -220,7 +220,7 @@ impl SettingsWorkspaceSurface {
                         .disabled(pending)
                         .on_click(cx.listener(move |_, _, _, cx| {
                             let id = id.clone();
-                            global(cx).update(cx, |c, cx| c.checkout(id, cx));
+                            global_compute(cx).update(cx, |c, cx| c.checkout(id, cx));
                         })),
                 );
             }
@@ -229,7 +229,7 @@ impl SettingsWorkspaceSurface {
                     .label(tr("agent.compute.refreshBalance"))
                     .disabled(pending)
                     .on_click(cx.listener(|_, _, _, cx| {
-                        global(cx).update(cx, |c, cx| c.refresh(true, cx));
+                        global_compute(cx).update(cx, |c, cx| c.refresh(true, cx));
                     })),
             );
         }

@@ -5,13 +5,21 @@
 //! when the server says so, never when the browser comes back.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
-use crate::{
-    features::cloud::services::billing_client,
-    localization::{t as tr, tf},
-    theme::Theme,
-    ui::components::{Button, ButtonVariant, SettingsSection, SettingsSubsection, ValueRow},
-    workspace::cloud::billing::{self, Catalog, Keys, Quote, Summary, Usage},
-};
+use crate::features::cloud::billing_client;
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::theme::Theme;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::SettingsSection;
+use crate::ui::components::SettingsSubsection;
+use crate::ui::components::ValueRow;
+use crate::workspace::cloud::billing;
+use crate::workspace::cloud::billing::Catalog;
+use crate::workspace::cloud::billing::Keys;
+use crate::workspace::cloud::billing::Quote;
+use crate::workspace::cloud::billing::Summary;
+use crate::workspace::cloud::billing::Usage;
 use gpui::{prelude::*, *};
 use gpui_kit::base::Disableable as _;
 

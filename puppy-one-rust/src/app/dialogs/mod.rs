@@ -22,17 +22,13 @@ mod rename;
 mod tests;
 
 use super::Command;
-use crate::{
-    features::{
-        create_new::create_entry_dialog::CreateEntryDialog,
-        feedback::Feedback,
-        settings::{SettingsWorkspaceSurface, preferences_store::PreferencesStore},
-    },
-    localization::t as tr,
-    model::Node,
-    ui::components::ButtonVariant,
-    workspace::Workspace,
-};
+use crate::features::create_new::CreateEntryDialog;
+use crate::features::feedback::Feedback;
+use crate::features::settings::{PreferencesStore, SettingsWorkspaceSurface};
+use crate::localization::t as tr;
+use crate::model::Node;
+use crate::ui::components::ButtonVariant;
+use crate::workspace::Workspace;
 #[cfg(feature = "dev-capture")]
 pub(crate) use builtin::{settings_dialog, task_backdrop};
 use gpui::{prelude::*, *};

@@ -11,7 +11,7 @@ impl WindowCloud {
         let agents = self.agents.read(cx);
         let entity = self.agents.clone();
         let host = self.weak.clone();
-        let now = cloud_agents::now_ms() / 1000;
+        let now = crate::clock::now_ms() / 1000;
         let ground = t.panel;
         let (connections, links, change_failed) = agents
             .manage
@@ -37,7 +37,7 @@ impl WindowCloud {
             let rows = connections.iter().map(|agent| {
                 let known = live(&agent.grant_id);
                 let facts = [
-                    known.and_then(|a| cloud_agents::status(a, now)),
+                    known.and_then(|a| agent_status(a, now)),
                     Some(
                         tr(match agent.admission {
                             Admission::SignIn => "cloud.share.agent.detail.approved",

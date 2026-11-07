@@ -13,16 +13,15 @@ use super::{
     Command, dialogs::DialogLayer, right_sidebar::RightSidebar, right_sidebar::Surface,
     session::SessionView,
 };
-use crate::{
-    features::settings::{
-        preference_types::HeaderCoachmarks as Progress, preferences_store::PreferencesStore,
-    },
-    theme::{self, Theme, metric},
-    ui::{
-        appearance::ActiveAppearance,
-        components::{Button, ButtonVariant, Icon, MenuVariant},
-    },
-};
+use crate::features::settings::{HeaderCoachmarks as Progress, PreferencesStore};
+use crate::theme;
+use crate::theme::Theme;
+use crate::theme::metric;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Icon;
+use crate::ui::components::MenuVariant;
 use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{h_flex, v_flex},

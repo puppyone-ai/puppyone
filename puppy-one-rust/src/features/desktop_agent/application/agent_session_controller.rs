@@ -46,9 +46,7 @@ use crate::features::desktop_agent::domain::agent_provider_routing::{
 use crate::features::desktop_agent::domain::agent_session_open_error::agent_session_open_error;
 #[cfg(test)]
 use crate::features::desktop_agent::domain::agent_ui_state::AgentViewportGeometry;
-use crate::features::session_transport::managed_operation_scope::{
-    ManagedOperationScope, wait_for_scoped_operation,
-};
+use crate::features::session_transport::{ManagedOperationScope, wait_for_scoped_operation};
 use futures_util::FutureExt;
 use futures_util::future::LocalBoxFuture;
 use std::cell::{Cell, RefCell};

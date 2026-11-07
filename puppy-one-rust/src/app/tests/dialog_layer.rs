@@ -162,7 +162,7 @@ fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
 }
 #[gpui::test]
 fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
-    use crate::features::create_new::create_entry_menu_registry::Entry;
+    use crate::features::create_new::Entry;
     let temp = tempfile::tempdir().unwrap();
     let (view, cx) = setup(cx);
     view.update(cx, |s, cx| {

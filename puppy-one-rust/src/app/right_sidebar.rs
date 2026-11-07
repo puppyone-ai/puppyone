@@ -10,18 +10,16 @@
 //! the preferences; what a surface asks of the window leaves as a
 //! [`SidebarEvent`].
 use super::panes::PaneLayout;
-use crate::{
-    features::{
-        settings::{
-            Page,
-            preference_types::{Preferences, RightSidebarSurface},
-            preferences_store::{PreferencesStore, observe_slice},
-        },
-        source_control::{CloudHistory, CloudHistoryEvent, SourceControl, SourceControlEvent},
-        workbench::{Workbench, WorkbenchEvent},
-    },
-    ui::appearance::ActiveAppearance,
+use crate::features::settings::{
+    Page, Preferences, PreferencesStore, RightSidebarSurface, observe_slice,
 };
+use crate::features::source_control::CloudHistory;
+use crate::features::source_control::CloudHistoryEvent;
+use crate::features::source_control::SourceControl;
+use crate::features::source_control::SourceControlEvent;
+use crate::features::workbench::Workbench;
+use crate::features::workbench::WorkbenchEvent;
+use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
@@ -56,9 +54,9 @@ pub(super) enum SidebarEvent {
 #[derive(Clone, PartialEq)]
 struct Shown {
     hidden: Vec<String>,
-    routing: crate::features::settings::agent_routing_preferences::AgentRoutingPreferences,
+    routing: crate::features::settings::AgentRoutingPreferences,
     payments: bool,
-    layout: crate::features::settings::preference_types::GitSidebarLayout,
+    layout: crate::features::settings::GitSidebarLayout,
     icons: String,
 }
 impl Shown {

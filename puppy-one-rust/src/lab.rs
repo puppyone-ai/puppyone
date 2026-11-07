@@ -14,13 +14,9 @@
 //! - `shell-<scenario>-<mode>`: the feedback dialog, a Header introduction
 //!   below a fixed entry, or a real shell on the empty Homepage of a packaged Stable build that still owes the analytics
 //!   notice (`tools/shell-scenarios.json`).
-use crate::{
-    features::{
-        settings::{Page, SettingsWorkspaceSurface, preferences_store::PreferencesStore},
-        workbench::Workbench,
-    },
-    theme,
-};
+use crate::features::settings::{Page, PreferencesStore, SettingsWorkspaceSurface};
+use crate::features::workbench::Workbench;
+use crate::theme;
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
@@ -36,7 +32,7 @@ enum Surface {
     Feedback(Entity<crate::features::feedback::Feedback>),
     Coachmark(crate::app::coachmarks::Coachmark),
     /// Cached entries, or the skeleton without them.
-    CloudServices(Entity<crate::features::cloud::services::CloudServices>),
+    CloudServices(Entity<crate::features::cloud::CloudServices>),
     Shell(Entity<crate::app::Shell>),
 }
 
@@ -213,7 +209,7 @@ impl Lab {
                 cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
                 Surface::Feedback(feedback)
             } else if let Some(page) = shell.strip_prefix("cloud-services-") {
-                use crate::features::cloud::services::{CloudServices, Section};
+                use crate::features::cloud::{CloudServices, ServicesSection as Section};
                 let section = match page {
                     "history" => Section::History,
                     "mcp" => Section::Mcp,

@@ -407,7 +407,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     cx.update(|_, cx| {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
         let fake = fake.clone();
-        crate::features::cloud::publish::install_factory(
+        crate::features::cloud::install_factory(
             std::sync::Arc::new(move |_, _| coordinator(&fake).0),
             cx,
         );
@@ -459,7 +459,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     view.read_with(cx, |s, cx| {
         assert_eq!(
             s.cloud.read(cx).publish.read(cx).header_status(),
-            Some(crate::features::cloud::publish::HeaderStatus::Completed)
+            Some(crate::features::cloud::HeaderStatus::Completed)
         );
         // The folder stays open: its Cloud project is another project.
         assert_eq!(s.workspace_root(cx).as_deref(), Some(root.as_path()));
@@ -607,7 +607,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
         assert_eq!(s.workspace_root(cx).as_deref(), Some(root.as_path()));
         assert_eq!(
             s.cloud.read(cx).catalog.read(cx).state,
-            crate::features::cloud::catalog::State::Ready(vec![
+            crate::features::cloud::CatalogState::Ready(vec![
                 crate::workspace::cloud::catalog::CloudEntry {
                     id: "project-a".into(),
                     name: "Fixture Cloud".into(),
@@ -688,7 +688,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         matches!(
             s.cloud.read(cx).catalog.read(cx).state,
-            crate::features::cloud::catalog::State::Ready(_)
+            crate::features::cloud::CatalogState::Ready(_)
         )
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
@@ -700,7 +700,7 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     settle_cloud(&view, cx, "the reloaded catalog", &|s, cx| {
         matches!(
             s.cloud.read(cx).catalog.read(cx).state,
-            crate::features::cloud::catalog::State::Ready(_)
+            crate::features::cloud::CatalogState::Ready(_)
         )
     });
     view.update(cx, |s, cx| {

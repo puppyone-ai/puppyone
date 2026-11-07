@@ -314,7 +314,7 @@ pub fn verify(connection: ModelConnection, wake: Wake) -> Receiver<Result<(), St
                         std::time::Duration::from_secs(60),
                         crate::agent::runtimes::puppyone_agent::verify(
                             &connection,
-                            &crate::features::desktop_agent::infrastructure::host::agent_host_global::CloudCompute,
+                            &crate::features::desktop_agent::CloudCompute,
                         ),
                     )
                     .await

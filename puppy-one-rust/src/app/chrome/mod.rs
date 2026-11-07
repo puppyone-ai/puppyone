@@ -25,12 +25,11 @@ use super::{
     session::{DocumentSession, SessionView},
     window_cloud::WindowCloud,
 };
-use crate::{
-    features::settings::preferences_store::{PreferencesStore, observe_slice},
-    theme,
-    ui::components::{ButtonVariant, IconButton},
-    workspace::cloud::catalog::Item,
-};
+use crate::features::settings::{PreferencesStore, observe_slice};
+use crate::theme;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::IconButton;
+use crate::workspace::cloud::catalog::Item;
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
 

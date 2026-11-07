@@ -17,19 +17,14 @@
 //! - [`pins`]: the pinned files above the tree
 //! - [`keyboard`]: Explorer key bindings
 //! - [`motion`]: the disclosure motion
-use crate::{
-    features::{
-        create_new::create_entry_menu_registry::Entry,
-        settings::{
-            preference_types::{ExplorerPins, FilesVisibility},
-            preferences_store::{PreferencesStore, observe_slice},
-        },
-    },
-    geometry::Rect,
-    localization::t as tr,
-    theme::{self, Theme, metric},
-    ui::appearance::ActiveAppearance,
-};
+use crate::features::create_new::Entry;
+use crate::features::settings::{ExplorerPins, FilesVisibility, PreferencesStore, observe_slice};
+use crate::geometry::Rect;
+use crate::localization::t as tr;
+use crate::theme;
+use crate::theme::Theme;
+use crate::theme::metric;
+use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
@@ -81,7 +76,7 @@ struct PaintedPreferences {
     files: FilesVisibility,
     file_icon_theme: String,
     show_file_icons: bool,
-    create_new: crate::features::create_new::create_entry_menu_registry::MenuSettings,
+    create_new: crate::features::create_new::MenuSettings,
     puppy_flow_files: bool,
     cloud_workspace: bool,
     share_onboarding: bool,

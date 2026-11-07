@@ -2,28 +2,28 @@
 //! launcher visibility, rescan, chat-history discovery and the Hooks section
 //! (`LocalAgentHooksSettingsView.tsx`), whose checkboxes install or remove
 //! PuppyOne's Hook in each Agent's configuration.
-use crate::{
-    agent::connections::legacy_local_agent_inventory::{
-        self as local_agent_inventory, Installation,
-    },
-    features::{
-        local_agents::setup::{self, InstallationsChanged, Presentation, SetupSection},
-        settings::preferences_store::PreferencesStore,
-    },
-    localization::{t, tf},
-    platform::agent_activity::{
-        host::Host,
-        registration::{Enrollment, ProviderStatus},
-    },
-    theme::{self, Theme},
-    ui::{
-        appearance::ActiveAppearance,
-        components::{
-            Button, Icon, SettingsCategory, SettingsCategoryList, Switch, native_checkbox,
-        },
-    },
-    wake::Wake,
-};
+use crate::agent::connections::legacy_local_agent_inventory as local_agent_inventory;
+use crate::agent::connections::legacy_local_agent_inventory::Installation;
+use crate::features::local_agents::setup;
+use crate::features::local_agents::setup::InstallationsChanged;
+use crate::features::local_agents::setup::Presentation;
+use crate::features::local_agents::setup::SetupSection;
+use crate::features::settings::PreferencesStore;
+use crate::localization::t;
+use crate::localization::tf;
+use crate::platform::agent_activity::host::Host;
+use crate::platform::agent_activity::registration::Enrollment;
+use crate::platform::agent_activity::registration::ProviderStatus;
+use crate::theme;
+use crate::theme::Theme;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Button;
+use crate::ui::components::Icon;
+use crate::ui::components::SettingsCategory;
+use crate::ui::components::SettingsCategoryList;
+use crate::ui::components::Switch;
+use crate::ui::components::native_checkbox;
+use crate::wake::Wake;
 use gpui::{prelude::*, *};
 use gpui_kit::{base::h_flex, component::Sizable as _};
 use std::sync::mpsc;
@@ -270,9 +270,7 @@ impl AgentSettings {
     }
     /// Category rows for the Settings page (rendered inside its section).
     fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<SettingsCategory> {
-        use crate::features::desktop_agent::ui::agent_brand_mark::{
-            LauncherIdentity, launcher_icon,
-        };
+        use crate::features::desktop_agent::{LauncherIdentity, launcher_icon};
         let dark = cx.is_dark();
         let scanning = self.scanning || self.installations.is_none();
         let prefs = self.preferences.read(cx).state.clone();

@@ -338,15 +338,15 @@ pub(super) fn brand_name(cx: &App) -> Div {
 /// account's initial, or Sign in. `opening`: a Cloud project is on its way
 /// in; `empty`: the Homepage lists nothing.
 pub(super) fn cloud_status(
-    catalog: &Entity<crate::features::cloud::catalog::CloudCatalog>,
+    catalog: &Entity<crate::features::cloud::CloudCatalog>,
     opening: bool,
     empty: bool,
     on_retry: impl Fn(&mut Window, &mut App) + 'static,
     on_account: impl Fn(&mut Window, &mut App) + 'static,
     cx: &App,
 ) -> AnyElement {
+    use crate::features::cloud::CatalogState as State;
     use crate::features::cloud::account::Status;
-    use crate::features::cloud::catalog::State;
     let t = cx.palette();
     let ty = theme::ty().header;
     let account = crate::features::cloud::account::snapshot(cx);

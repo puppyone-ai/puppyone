@@ -463,10 +463,7 @@ impl Shell {
             }
             Step::HomeList => self.prefs.store.update(cx, |p, cx| {
                 p.change(
-                    |p| {
-                        p.homepage_project_layout =
-                            crate::features::settings::preference_types::HomepageLayout::List
-                    },
+                    |p| p.homepage_project_layout = crate::features::settings::HomepageLayout::List,
                     cx,
                 )
             }),
@@ -499,7 +496,7 @@ impl Shell {
                 )
             }),
             Step::AgentsFixture(open_links) => {
-                let client = crate::features::cloud::agents::lab_client(*open_links);
+                let client = crate::features::cloud::lab_agents_client(*open_links);
                 let name = self.session.project.read(cx).record.name.clone();
                 self.cloud.update(cx, |c, cx| {
                     c.capture_hosted = true;
@@ -509,7 +506,7 @@ impl Shell {
                 });
             }
             Step::Agents(opener) => {
-                use crate::features::cloud::agents::Opener;
+                use crate::features::cloud::Opener;
                 if !self.cloud.read(cx).agents.read(cx).manageable {
                     return false;
                 }

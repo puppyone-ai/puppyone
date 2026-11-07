@@ -16,7 +16,7 @@
 //!   the last active project (`readLastActiveWorkspaceComposition`), as
 //!   does a launch without arguments.
 use super::Shell;
-use crate::features::settings::preferences_store::PreferencesStore;
+use crate::features::settings::PreferencesStore;
 use gpui::*;
 use std::path::PathBuf;
 

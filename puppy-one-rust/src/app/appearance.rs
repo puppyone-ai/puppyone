@@ -4,13 +4,8 @@
 //! and editor switches, and the pane layout. Every other owner takes its
 //! own part (`observe_slice`).
 use super::{command::app_menus, panes::StoredPanes};
-use crate::{
-    features::settings::{
-        preference_types::{Preferences, SubThemeIds, ThemeMode},
-        preferences_store::{PreferencesStore, Slice},
-    },
-    localization::Locale,
-};
+use crate::features::settings::{Preferences, PreferencesStore, Slice, SubThemeIds, ThemeMode};
+use crate::localization::Locale;
 use gpui::*;
 
 /// What the process-wide appearance is projected from: a change to any of
