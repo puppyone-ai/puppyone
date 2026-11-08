@@ -54,13 +54,12 @@
   --onboarding-page-gap: 30px;
   --onboarding-title-primary-gap: 58px;
   --onboarding-primary-actions-gap: 30px;
-  /* The page has three levels of type: the title, this body, and the caption below it.
-     A group's label sits one step under the caption, so that it reads as a page break
-     beside the names it gathers rather than as another heading above them. */
+  /* The page has three levels of type and no others: the title, this body, and the
+     caption below it. A group's label is the product's section label: the caption's
+     size in its quiet ink and medium weight, as in Settings and the menus. */
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
   --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
   --onboarding-caption-font-size: var(--po-type-ui-caption, 12px);
-  --onboarding-group-label-font-size: 11px;
   --onboarding-row-line-height: 18px;
   /* A Grid cell, the gutter between cells, and the folder centred in a cell. A name
      may use its whole cell, so the gutter is what keeps two long names apart. */
@@ -690,13 +689,16 @@ span.homepage-cloud-feedback {
   border-radius: 0 var(--desktop-control-radius) var(--desktop-control-radius) 0;
 }
 
-/* The toolbar's weight, a shade deeper than its icons: found at once, never shouting. */
+/* The product's own neutral button, a shade deeper than its usual fill so that it is
+   found at once beside the toolbar's icons without becoming the page's one colour. Its
+   type is every button's: the meta size at the buttons' weight. */
 .onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger) {
   height: var(--po-control-size-compact);
+  min-height: var(--po-control-size-compact);
   background: color-mix(in srgb, var(--po-text) 10%, transparent);
   color: var(--po-text);
   font-size: var(--po-type-ui-meta, 13px);
-  font-weight: var(--po-text-weight-medium, 500);
+  font-weight: 650;
 }
 
 .onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger):hover:not(:disabled) {
@@ -1173,8 +1175,8 @@ span.homepage-cloud-feedback {
   margin-block-end: -4px;
   color: var(--onboarding-group-ink);
   font-family: var(--po-font-sans);
-  font-size: var(--onboarding-group-label-font-size);
-  line-height: 16px;
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 18px;
 }
 
 .onboarding-project-group + .onboarding-project-group .onboarding-project-group-head {
