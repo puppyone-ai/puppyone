@@ -38,6 +38,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   onOpen: (selection: HostFolderSelection) => void;
   base: OnboardingGroupsBase;
 }) {
+  const { t } = useLocalization();
   const catalog = useHostCatalog(session);
   const [sharingTarget, setSharingTarget] = useState<HostFolderSharingTarget | null>(null);
   const assignments = useSharedFolderAssignments();
@@ -78,6 +79,36 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
     };
     if (index < 0) groups.unshift(personal);
     else groups[index] = personal;
+  }
+  const share = base.localShare;
+  if (share) {
+    const candidates = (local?.items ?? []).filter((item) => !item.hostFolderId || !sharedFolderIds.has(item.hostFolderId));
+    const source = candidates.find((item) => item.localPath === share.draggingPath);
+    const index = groups.findIndex((group) => group.id === "personal-shared");
+    if (source || index >= 0) {
+      const previous = groups[index];
+      const personal: OnboardingProjectGroup = {
+        ...previous, id: "personal-shared", title: base.personalSharedTitle,
+        icon: <UserRound size={14} />, alwaysShowHeading: true,
+        dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy, onDrop: () => {
+          share.endDrag();
+          if (source && !share.busy) void share.request(source.localPath);
+        } } : undefined,
+        children: previous?.children ?? <p className="onboarding-cloud-space-empty">{t("hosts.place.share")}</p>,
+      };
+      if (index < 0) groups.push(personal);
+      else groups[index] = personal;
+    }
+    // When the personal area is empty, expose the same action on the local
+    // heading so keyboard users never need a drag to reveal their destination.
+    const personalIndex = groups.findIndex((group) => group.id === "personal-shared");
+    const menuIndex = personalIndex >= 0 ? personalIndex : groups.findIndex((group) => group.id === "local-only");
+    if (menuIndex >= 0) groups[menuIndex] = { ...groups[menuIndex],
+      actions: <OnboardingGroupMenu label={t("hosts.place.share")} disabled={share.busy || candidates.length === 0}>
+        {(close) => candidates.map((item) => <DesktopMenuItem key={item.id} label={item.label}
+          onClick={() => { close(); share.endDrag(); void share.request(item.localPath); }} />)}
+      </OnboardingGroupMenu>,
+    };
   }
   const controls = groups.findIndex((group) => group.id === "personal-shared");
   const controlsIndex = controls >= 0 ? controls : groups.findIndex((group) => group.id === "local-only");

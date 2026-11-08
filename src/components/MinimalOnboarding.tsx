@@ -65,6 +65,7 @@ export type MinimalOnboardingProps = {
   cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
   onRetryCloudSpaces?: () => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
+  onShareLocalFolder?: (path: string) => Promise<void>;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -105,6 +106,7 @@ export function MinimalOnboarding({
   cloudSpacesStatus = "signed-out",
   onRetryCloudSpaces,
   onPublishToSpace,
+  onShareLocalFolder,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
@@ -240,6 +242,9 @@ export function MinimalOnboarding({
     layout: projectLayout,
     cloud: cloudGroups,
     personalSharedTitle: t("onboarding.sharing.personal"),
+    localShare: onShareLocalFolder ? { draggingPath, busy,
+      request: (path) => runOpening(path, () => onShareLocalFolder(path)),
+      endDrag: () => setDraggingPath(null) } : undefined,
     local: localItems.length > 0 ? {
       title: t("onboarding.sharing.localOnly"),
       items: localItems,

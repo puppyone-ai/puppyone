@@ -27,10 +27,12 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
       id, title, icon, alwaysShowHeading: true, empty: projects.length === 0,
-      keepEmpty: Boolean(source && onPublish),
-      dropTarget: draggingPath ? { enabled: writable && Boolean(source), onDrop: () => {
+      keepEmpty: Boolean(space.kind === "team" && source && onPublish),
+      // A personal-area drop means sharing from this computer, not uploading.
+      // Homepage's device composition supplies that action; never fall back here.
+      dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source), onDrop: () => {
         onDragEnd();
-        if (writable && source) void onPublish?.(source.localPath, space.id);
+        if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,
       actions: onPublish && <OnboardingGroupMenu label={t("onboarding.spaces.addProject", { name: space.name })}
         disabled={!writable || candidates.length === 0}>
