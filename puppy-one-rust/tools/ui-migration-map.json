@@ -43,7 +43,14 @@
     "electron/main/ipc/cloud-*",
     "electron/main/auth",
     "shared/presetViewerManifest.json",
-    "shared/fileFormats.json"
+    "shared/fileFormats.json",
+    "src/features/hosts",
+    "src/features/remote-workbench",
+    "electron/main/hosts",
+    "electron/host-service",
+    "electron/main/cli-control",
+    "shared/host-contract",
+    "shared/cli-control-contract"
   ],
   "excluded_patterns": [
     {
@@ -591,14 +598,13 @@
         "src/app/header.rs",
         "src/app/mod.rs",
         "src/theme.rs",
-        "src/app/cloud_agents_ui.rs",
-        "src/app/share_panel.rs"
+        "src/app/cloud_agents_ui.rs"
       ],
       "evidence": [
         "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench",
         "test:pane_widths_follow_the_product_policy"
       ],
-      "remaining": "Project button, place menu, Agents marks, Share, Changes status icons and Header coachmarks are native. Reach and the update button (out of scope, PARITY_TODO §10) are not ported."
+      "remaining": "Project button, place menu (address, brand-blue Cloud mark, who can open it), Agents marks, Changes status icons and Header coachmarks are native. Share and the Cloud Header tint were retired in qubits@6f896add1 and qubits@343998d0c. The update button is out of scope (PARITY_TODO §10)."
     },
     {
       "name": "Project menu, location switcher and project rail",
@@ -670,11 +676,87 @@
         "test:a_repository_counts_its_commit_and_its_changes",
         "test:relative_past_follows_intl_relative_time_format",
         "test:a_template_link_gets_a_copy",
-        "test:the_view_narrows_to_places_and_orders_like_the_product",
+        "test:the_view_orders_like_the_product",
         "test:keys_walk_rows_and_cells_like_the_product",
-        "test:a_homepage_project_drags_out_as_its_path"
+        "test:a_homepage_project_drags_out_as_its_path",
+        "test:the_audience_decides_where_a_new_project_is_kept",
+        "test:a_team_project_is_made_once_in_its_space_and_opens"
       ],
-      "remaining": "The Grid folder wall and List with their remembered switch, filters and sort, row actions, the New project split button, template links (pasted or opened) and dragging a project out as its path are native. The homepage has not been pixel-compared at qubits@671143f2a."
+      "remaining": "The Grid folder wall and List with their remembered switch, sort, row actions, the New project split button, template links (pasted on the page or opened) and dragging a project out as its path are native. The create dialog asks who can open the project first (qubits@686d41c49); All my devices waits for the other computers (DV). The place filter and Paste template link were retired. The homepage has not been pixel-compared at qubits@686d41c49."
+    },
+    {
+      "name": "Homepage audience groups",
+      "status": "partial",
+      "sources": [
+        "src/components/onboarding/OnboardingProjectGroups.tsx",
+        "src/components/onboarding/useCloudProjectGroups.tsx",
+        "src/components/onboarding/OnboardingProjectToolbar.tsx",
+        "src/components/onboarding/OnboardingProjectLayoutSwitch.tsx",
+        "src/components/onboarding/ProjectFolderGlyph.tsx",
+        "src/components/onboarding/useProjectListNavigation.ts"
+      ],
+      "targets": [
+        "src/app/home/groups.rs",
+        "src/app/home/projects.rs",
+        "src/app/home/projects/list.rs",
+        "src/app/home/projects/toolbar.rs",
+        "src/app/home/folder.rs",
+        "src/app/home/mod.rs"
+      ],
+      "evidence": [
+        "test:shared_projects_group_by_audience_team_first",
+        "test:unresolved_ownership_stays_reachable_and_folders_stay_local",
+        "test:a_writable_team_stays_empty_and_takes_a_dragged_unlinked_folder",
+        "test:known_sharing_survives_and_the_personal_area_takes_a_drop",
+        "test:without_device_sharing_an_empty_personal_space_offers_no_drop",
+        "test:the_homepage_groups_projects_by_who_can_open_them",
+        "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team",
+        "test:keys_walk_rows_and_cells_like_the_product"
+      ],
+      "remaining": "Team Share Project, My Share Project, Shared projects and On this computer, each its own grid, with in-page drops on a team and one monochrome folder, are native. The owner's other computers in My Share Project wait for DV. Not pixel-compared at qubits@686d41c49."
+    },
+    {
+      "name": "Who can open it (project audience)",
+      "status": "partial",
+      "sources": [
+        "src/components/project-audience/**"
+      ],
+      "targets": [
+        "src/app/audience.rs",
+        "src/app/project_place.rs",
+        "src/app/project_actions.rs"
+      ],
+      "evidence": [
+        "test:an_unlinked_folder_can_be_copied_to_a_team_and_reaches_only_this_computer",
+        "test:a_linked_copy_hangs_under_the_audience_whose_space_holds_it",
+        "test:a_broken_link_offers_its_remedy_and_disconnect_only_when_possible",
+        "test:nothing_to_say_is_no_audience"
+      ],
+      "remaining": "The three audiences and the Cloud copy's rows are native in the Header place menu and the Homepage project menu. Turning All my devices on or off waits for DV. No pixel comparison."
+    },
+    {
+      "name": "Cloud spaces and team publication",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/spaces/**",
+        "src/features/cloud/initialization/CloudPublishDialog.tsx",
+        "src/features/cloud/initialization/CloudPublishTask.tsx",
+        "src/features/cloud/workbench/useCloudOrganizationName.ts"
+      ],
+      "targets": [
+        "src/workspace/cloud/spaces.rs",
+        "src/features/cloud/spaces.rs",
+        "src/features/cloud/publish.rs",
+        "src/app/cloud_publish.rs",
+        "src/app/window_cloud.rs"
+      ],
+      "evidence": [
+        "test:a_missing_personal_space_is_provisioned_once_and_comes_first",
+        "test:an_undescribed_space_makes_the_answer_unusable",
+        "test:spaces_sort_personal_then_by_name",
+        "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team"
+      ],
+      "remaining": "Discovery, the per-account cache, the publication intent and the explicit organization target are native over scripted transports; acceptance against a real Cloud is pending (VA-1)."
     },
     {
       "name": "Pane frames, edges and the Explorer column",
@@ -1100,9 +1182,9 @@
         "src/features/editor-workbench/layout/EditorPaneShell.tsx",
         "src/features/editor-workbench/layout/EditorPaneChrome.tsx",
         "src/components/EditorPaneActionsMenu.tsx",
-        "src/features/editor-workbench/layout/useEditorPaneChromeReveal.ts",
         "src/features/editor-workbench/layout/desktop-editor-split-view.css",
-        "src/features/editor-workbench/runtime/EditorPaneRuntime.tsx"
+        "src/features/editor-workbench/runtime/EditorPaneRuntime.tsx",
+        "src/components/useEditorPaneChromeReveal.ts"
       ],
       "targets": [
         "src/editor/workbench/pane.rs",
@@ -1196,7 +1278,8 @@
       "sources": [
         "src/features/cloud/workbench/homepageCloudProjects.ts",
         "src/features/cloud/workbench/homepageCloudActivity.ts",
-        "src/features/cloud/workbench/useHomepageCloudProjects.ts"
+        "src/features/cloud/workbench/useHomepageCloudProjects.ts",
+        "src/features/cloud/workbench/homepageCloudCatalogCache.ts"
       ],
       "targets": [
         "src/workspace/cloud/catalog.rs",
@@ -1214,7 +1297,7 @@
         "test:the_project_envelope_parses_into_catalog_entries",
         "test:remotes_are_read_from_a_checkout_and_a_plain_folder_has_none"
       ],
-      "remaining": "A local folder and its Cloud project are two entries in one list (no merged rows, Open menu or opening history, as the product at qubits@671143f2a); the last catalog stands in until the fresh one. No pixel comparison with Cloud rows yet."
+      "remaining": "A local folder and its Cloud project are two entries; the last catalog stands in until the fresh one, cached per account. Entries carry their space (org_id) for the audience groups. No pixel comparison with Cloud rows yet."
     },
     {
       "name": "Cloud repository association and Header switch",
@@ -1240,7 +1323,7 @@
         "test:a_linked_folder_opens_its_cloud_project_in_the_same_window",
         "test:notices_follow_the_association"
       ],
-      "remaining": "The product no longer has a Local/Cloud Header switch: the place menu puts a folder in the Cloud or opens its Cloud project, and a vanished project offers Replace Cloud connection. The place menu and LocalFolderCloudNotice have not been pixel-compared."
+      "remaining": "The product has no Local/Cloud Header switch: the place menu says who can open a folder and opens its Cloud copy; a lost link is a problem row with Disconnect (qubits@9035af9e2). The place menu and LocalFolderCloudNotice have not been pixel-compared."
     },
     {
       "name": "Cloud explicit opening and failures",
@@ -1389,9 +1472,9 @@
         "test:cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything",
         "test:the_managed_helper_round_trips_the_secret_and_restores_the_previous_config",
         "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu",
-        "test:a_vanished_cloud_project_is_replaced_only_after_a_second_404"
+        "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team"
       ],
-      "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending."
+      "remaining": "The coordinator (an explicit organization target with no fallback, journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending."
     },
     {
       "name": "Terminal legacy session hosts (unreachable)",
@@ -1528,20 +1611,6 @@
       "remaining": "useHeaderCoachmarks (once per project entry for the Agent, on the first local change for Changes, Changes queued behind the Agent, acknowledged by opening either panel, persisted as puppyone.desktop.headerCoachmarks.v1 and imported, repeated by enableAlwaysShowOnboardingCoachmarks) and the overlay (320px, end-aligned 10px below its entry, the accent-lit entry, glyph tile, title, body, Later / primary; outside press dismisses) are native. Not ported: Escape dismissal (GPUI keys need focus, the overlay takes none), the toolbar-placement variant, pixel comparison against the product overlay."
     },
     {
-      "name": "Cloud Project Reach (experimental)",
-      "status": "excluded",
-      "sources": [
-        "src/features/cloud/share/project-reach/ProjectReachDialog.tsx",
-        "src/features/cloud/share/project-reach/ReachAddress.tsx",
-        "src/features/cloud/share/project-reach/ReachAgentChoice.tsx",
-        "src/features/cloud/share/project-reach/ReachHandoff.tsx",
-        "src/features/cloud/share/project-reach/projectReach.ts",
-        "src/features/cloud/share/project-reach/reach.css",
-        "src/features/cloud/share/project-reach/useProjectReachFlow.ts"
-      ],
-      "reason": "Experimental enableProjectReach, off by default; not ported, awaiting a decision (C-14.2)."
-    },
-    {
       "name": "Cloud Automation route (experimental)",
       "status": "excluded",
       "sources": [
@@ -1591,101 +1660,86 @@
       "remaining": "Verified over scripted and loopback services only: hosted acceptance and two windows on one session (C-10.6, ISSUE-112) need a real backend."
     },
     {
-      "name": "Cloud sharing",
-      "status": "partial",
-      "sources": [
-        "src/features/cloud/share/CloudShareContext.tsx",
-        "src/features/cloud/share/CloudShareHome.tsx",
-        "src/features/cloud/share/CloudShareStatusCard.tsx",
-        "src/features/cloud/share/CloudWorkspaceShareDialog.tsx",
-        "src/features/cloud/share/CloudWorkspaceSharePreview.tsx",
-        "src/features/cloud/share/ReadersList.tsx",
-        "src/features/cloud/share/ShareWizardDialog.tsx",
-        "src/features/cloud/share/cloudWorkspaceShareResource.ts",
-        "src/features/cloud/share/projectLocationStatus.ts",
-        "src/features/cloud/share/readers-list.css",
-        "src/features/cloud/share/share.css",
-        "src/features/cloud/share/shareHandoff.ts",
-        "src/features/cloud/share/shareStatus.ts",
-        "src/features/cloud/share/shareTargets.ts",
-        "src/features/cloud/share/useProjectShareActivity.ts",
-        "src/features/cloud/share/useProjectShareRevoke.ts",
-        "src/features/cloud/share/useProjectShares.ts",
-        "src/features/cloud/share/workspace-share.css"
-      ],
-      "targets": [
-        "src/workspace/cloud/share.rs",
-        "src/features/cloud/services/mod.rs",
-        "src/app/dialogs/builtin.rs",
-        "src/features/cloud/services/share_status.rs",
-        "src/app/share_panel.rs"
-      ],
-      "evidence": [
-        "test:a_share_issues_one_key_and_the_same_share_is_reused_without_another",
-        "test:a_link_target_never_creates_a_key",
-        "test:stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing",
-        "test:the_share_card_hangs_under_its_button_and_escape_closes_it"
-      ],
-      "remaining": "The preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer. A checkout with no Cloud Project goes through the value page instead of signing in and publishing inside the wizard, so a folder chosen there is not carried across. Resuming a stopped first push from the wizard states the run in words, without CloudPublishProgressIndicator. The status dot does not pulse; no pixel comparison."
-    },
-    {
       "name": "Cloud organization and Billing",
       "status": "partial",
       "sources": [
         "src/features/cloud/billing/cloudBillingApi.ts",
         "src/features/cloud/billing/cloudBillingState.ts",
         "src/features/cloud/billing/useCloudBillingController.ts",
-        "src/features/cloud/organization/CloudOrganizationBillingPage.tsx",
-        "src/features/cloud/organization/CloudOrganizationRouteOutlet.tsx",
         "src/features/cloud/organization/CloudOrganizationTeamPage.tsx",
         "src/features/cloud/organization/organization.css"
       ],
       "targets": [
         "src/workspace/cloud/billing.rs",
-        "src/features/cloud/services/billing.rs",
         "src/features/settings/main/plan_settings_view.rs"
       ],
       "evidence": [
-        "test:success_is_the_servers_word_and_a_retry_keeps_its_key",
-        "test:a_non_owner_sees_no_prices_and_requests_none",
-        "test:another_organization_clears_the_quote_and_its_keys",
         "test:the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage"
       ],
-      "remaining": "Billing follows cloudBilling, which the product turns on. Seat quotes and member activation are verified against a scripted server only, never a real payment provider."
+      "remaining": "Settings › Plan reads billing through workspace::cloud::billing, which cloudBilling turns on. The organization Billing page went with the services Hub (qubits@6f896add1); the Team page is reached from the first publication's organization step. Seat quotes are verified against a scripted server only."
     },
     {
-      "name": "Cloud services History view and graph",
+      "name": "Cloud History graph model",
       "status": "partial",
       "sources": [
-        "src/features/cloud/graph/HistoryGraphVisual.tsx",
         "src/features/cloud/graph/cloudTopology.ts",
         "src/features/cloud/graph/gitTopology.ts",
         "src/features/cloud/graph/graph.css",
         "src/features/cloud/graph/model.ts",
         "src/features/cloud/graph/shared.ts",
-        "src/features/cloud/graph/types.ts",
-        "src/features/cloud/history/CloudHistorySidebar.tsx",
-        "src/features/cloud/history/CloudHistoryView.tsx",
         "src/features/cloud/history/history.css",
         "src/features/cloud/history/styles/sidebar.css"
       ],
       "targets": [
         "src/workspace/cloud/graph.rs",
-        "src/features/cloud/services/mod.rs"
+        "src/features/source_control/cloud_history.rs"
       ],
       "evidence": [
         "test:a_merge_opens_a_lane_and_closes_it_at_the_common_parent",
         "test:refs_become_markers_beside_the_graph_and_outside_heads_get_their_own_rows"
       ],
-      "remaining": "Local Git topology (gitTopology.ts) is not used in the dialog; no pixel comparison."
+      "remaining": "The graph model is native; the two-pane History page and its graph visual went with the services Hub (qubits@6f896add1). Local Git topology (gitTopology.ts) is not used; no pixel comparison."
     },
     {
-      "name": "Cloud services dialog",
+      "name": "Cloud shared presentation and session hooks",
       "status": "partial",
       "sources": [
-        "src/features/cloud/CloudDialog.tsx",
-        "src/features/cloud/CloudServiceMainView.tsx",
-        "src/features/cloud/CloudServiceSidebar.tsx",
+        "src/features/cloud/cloud-service.css",
+        "src/features/cloud/cloudPresentation.ts",
+        "src/features/cloud/components/CloudActivationHero.tsx",
+        "src/features/cloud/components/CloudOverviewHostingIllustration.tsx",
+        "src/features/cloud/components/CloudPublishHeroMarks.tsx",
+        "src/features/cloud/components/McpLogoIcon.tsx",
+        "src/features/cloud/components/command-blocks.css",
+        "src/features/cloud/components/mcp-activation.css",
+        "src/features/cloud/components/shared.css",
+        "src/features/cloud/components/shared.tsx",
+        "src/features/cloud/components/web-page.css",
+        "src/features/cloud/hooks/useCloudAuthController.ts",
+        "src/features/cloud/hooks/useDesktopCloudSession.ts",
+        "src/features/cloud/repositoryTarget.ts",
+        "src/features/cloud/states/CloudProjectRecoveryState.tsx",
+        "src/features/cloud/styles/primitives.css",
+        "src/features/cloud/styles/sidebar-shell.css",
+        "src/features/cloud/utils.ts"
+      ],
+      "targets": [
+        "src/app/cloud_publish.rs",
+        "src/features/cloud/account.rs",
+        "src/app/project/notices.rs",
+        "src/workspace/cloud/services.rs"
+      ],
+      "evidence": [
+        "test:put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it",
+        "test:a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery",
+        "test:identifiers_never_reach_a_path_unescaped"
+      ],
+      "remaining": "What the services Hub left behind and the product still uses: the activation hero and Cloud marks, the shared Cloud styles, the session and sign-in hooks, the project recovery state and the repository target. The Hub itself was retired in qubits@6f896add1 (native dialog removed in puppyone@4d817e857). No pixel comparison."
+    },
+    {
+      "name": "Retired Cloud services Hub (unreachable)",
+      "status": "excluded",
+      "sources": [
         "src/features/cloud/access-points/components/AccessPointCatalogPage.tsx",
         "src/features/cloud/access-points/components/AccessPointEmptyState.tsx",
         "src/features/cloud/access-points/components/AccessPointList.tsx",
@@ -1703,30 +1757,14 @@
         "src/features/cloud/access-points/styles/access-point-list.css",
         "src/features/cloud/access-points/styles/catalog-page.css",
         "src/features/cloud/access-points/styles/manage-dialog.css",
-        "src/features/cloud/cloud-service.css",
-        "src/features/cloud/cloudPresentation.ts",
-        "src/features/cloud/components/CloudActivationHero.tsx",
-        "src/features/cloud/components/CloudOverviewHostingIllustration.tsx",
-        "src/features/cloud/components/CloudPublishHeroMarks.tsx",
         "src/features/cloud/components/CloudServiceUnavailable.tsx",
-        "src/features/cloud/components/McpLogoIcon.tsx",
-        "src/features/cloud/components/command-blocks.css",
-        "src/features/cloud/components/mcp-activation.css",
         "src/features/cloud/components/service-unavailable.css",
-        "src/features/cloud/components/shared.css",
-        "src/features/cloud/components/shared.tsx",
-        "src/features/cloud/components/web-page.css",
         "src/features/cloud/data/adaptCloudAggregateToAccessData.ts",
         "src/features/cloud/data/cloudProjectDetails.ts",
         "src/features/cloud/data/useCloudBranchesGitStatus.ts",
         "src/features/cloud/data/useDesktopCloudData.ts",
-        "src/features/cloud/hooks/useCloudAuthController.ts",
         "src/features/cloud/hooks/useDesktopCloudData.ts",
-        "src/features/cloud/hooks/useDesktopCloudSession.ts",
         "src/features/cloud/navigation.ts",
-        "src/features/cloud/repositoryTarget.ts",
-        "src/features/cloud/routes/CloudProjectRouteOutlet.tsx",
-        "src/features/cloud/routes/CloudRouter.tsx",
         "src/features/cloud/routes/cloudRouteIds.ts",
         "src/features/cloud/routes/cloudRoutes.ts",
         "src/features/cloud/sections/HistorySection.tsx",
@@ -1763,27 +1801,17 @@
         "src/features/cloud/sections/settings/settings.css",
         "src/features/cloud/shell/CloudSurfaceFrame.tsx",
         "src/features/cloud/states.tsx",
-        "src/features/cloud/states/CloudProjectRecoveryState.tsx",
         "src/features/cloud/states/CloudProjectWebSection.tsx",
-        "src/features/cloud/styles/primitives.css",
-        "src/features/cloud/styles/sidebar-shell.css",
         "src/features/cloud/types.ts",
-        "src/features/cloud/utils.ts"
+        "src/features/cloud/organization/CloudOrganizationBillingPage.tsx",
+        "src/features/cloud/graph/HistoryGraphVisual.tsx",
+        "src/features/cloud/graph/types.ts",
+        "src/features/cloud/history/CloudHistorySidebar.tsx",
+        "src/features/cloud/history/CloudHistoryView.tsx",
+        "src/features/cloud/project/cloudProjectAccessData.ts",
+        "src/features/cloud/workspace/usePuppyoneCloudBackup.ts"
       ],
-      "targets": [
-        "src/features/cloud/services/mod.rs",
-        "src/workspace/cloud/services.rs",
-        "src/workspace/cloud/access_points.rs"
-      ],
-      "evidence": [
-        "test:the_homepage_counts_ready_access_and_every_page_renders",
-        "test:a_load_replaced_by_another_project_is_dropped",
-        "test:create_access_reads_folders_on_demand_and_refuses_a_path_with_access",
-        "test:creating_an_mcp_endpoint_shows_its_key_once_and_closing_forgets_it",
-        "test:built_ins_exist_per_target_and_mcp_per_surface",
-        "test:share_opens_the_linked_projects_services_and_signing_out_closes_them"
-      ],
-      "remaining": "No pixel comparison."
+      "reason": "qubits@6f896add1 retired the Cloud services Hub (Overview, Access, MCP, CLI, Team, Settings, History and Billing pages). These files are still in the tree at qubits@686d41c49 but nothing reaches them from src/main.tsx or electron/app-entry.mjs except their own barrels. The native dialog was removed in puppyone@4d817e857; workspace::cloud::billing stays for Settings › Plan."
     },
     {
       "name": "Cloud sign-in surfaces",
@@ -1822,19 +1850,14 @@
         "src/features/cloud/initialization/CloudLocalGitStatusError.tsx",
         "src/features/cloud/initialization/CloudPublishConfirmationDialog.tsx",
         "src/features/cloud/initialization/publishPreparation.ts",
-        "src/features/cloud/project/cloudProjectAccessData.ts",
-        "src/features/cloud/workbench/CloudConnectWorkspaceTool.tsx",
         "src/features/cloud/workbench/CloudWorkspaceHeaderTools.tsx",
         "src/features/cloud/workbench/CloudWorkspaceSidebar.tsx",
-        "src/features/cloud/workbench/CloudWorkspaceToolDialog.tsx",
         "src/features/cloud/workbench/HomepageCloudStatus.tsx",
         "src/features/cloud/workbench/cloudRepositorySmokeFixture.ts",
         "src/features/cloud/workbench/pendingCloudDataService.ts",
         "src/features/cloud/workbench/useCloudWorkspaceSidebar.ts",
-        "src/features/cloud/workbench/workspace-tools.css",
         "src/features/cloud/workspace/cloudProjectResolution.ts",
         "src/features/cloud/workspace/cloudPublishReadiness.ts",
-        "src/features/cloud/workspace/usePuppyoneCloudBackup.ts",
         "src/features/cloud/workspace/workspaceCloudResolutionKey.ts"
       ],
       "targets": [
@@ -1864,15 +1887,15 @@
       "targets": [
         "src/workspace/cloud/services.rs",
         "src/workspace/cloud/client.rs",
-        "src/workspace/cloud/access_points.rs",
         "src/workspace/cloud/billing.rs"
       ],
       "evidence": [
-        "test:a_dashboard_must_name_the_project_and_carry_no_credentials",
-        "test:an_access_inventory_is_exact_about_identity_and_target",
-        "test:identifiers_never_reach_a_path_unescaped"
+        "test:identifiers_never_reach_a_path_unescaped",
+        "test:a_project_is_updated_with_put_and_deleted_with_delete",
+        "test:a_new_cloud_project_names_its_space_and_keeps_its_operation_key",
+        "test:spaces_keep_what_the_server_says_and_nothing_more"
       ],
-      "remaining": "Verified against scripted transports only. cloudApi.ts also carries Automation and Project Reach calls, which follow their experimental features (C-14.1, C-14.2)."
+      "remaining": "Projects, spaces (GET /organizations/, POST /auth/personal-space), Idempotency-Key creation and billing are native over scripted transports. The access-point and dashboard calls went with the services Hub. cloudApi.ts also carries Automation calls, which follow their experimental feature (C-14.1)."
     },
     {
       "name": "Cloud session and sign-in (main process)",
@@ -1931,19 +1954,22 @@
         "src/features/app-shell/project-place/**",
         "src/features/cloud/project/LocalFolderCloudNotice.tsx",
         "src/features/cloud/project/localFolderCloudNoticeState.ts",
-        "src/features/cloud/project/MissingCloudProjectReplacement.tsx"
+        "src/features/cloud/project/CloudLinkDisconnectDialog.tsx"
       ],
       "targets": [
         "src/app/project_place.rs",
-        "src/app/header.rs"
+        "src/app/header.rs",
+        "src/app/audience.rs"
       ],
       "evidence": [
-        "test:the_place_menu_offers_the_one_action_that_applies",
         "test:notices_follow_the_association",
         "test:the_place_menu_states_the_place_and_escape_closes_it",
-        "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu",
+        "test:a_cloud_project_offers_its_folder_and_a_folder_states_its_link",
+        "test:a_local_address_is_the_folder_that_holds_it_shortened",
+        "test:a_vanished_cloud_projects_link_is_ended_from_its_notice"
       ],
-      "remaining": "The place menu (Put in the Cloud, History, Open in Cloud), LocalFolderCloudNotice and Replace Cloud connection are native; they have not been pixel-compared at qubits@671143f2a."
+      "remaining": "The place menu (address, who can open it with the Cloud copy's Open, problem and Send rows, History for a hosted project), LocalFolderCloudNotice and CloudLinkDisconnectDialog are native. A folder on another computer (HostFolderPlace) waits for DV. Not pixel-compared at qubits@686d41c49."
     },
     {
       "name": "Cloud workspace Agents (agent links)",
@@ -1951,10 +1977,10 @@
       "sources": [
         "src/features/cloud/share/CloudWorkspaceAgentInvite.tsx",
         "src/features/cloud/share/CloudWorkspaceAgentsDialog.tsx",
-        "src/features/cloud/share/CloudWorkspaceAgentsPanel.tsx",
         "src/features/cloud/share/agentLinks.ts",
         "src/features/cloud/share/useWorkspaceAgents.ts",
-        "src/app/CloudWorkspaceAgentPeople.tsx"
+        "src/app/CloudWorkspaceAgentPeople.tsx",
+        "src/features/cloud/share/workspace-share.css"
       ],
       "targets": [
         "src/workspace/cloud/agents.rs",
@@ -2248,7 +2274,7 @@
     }
   ],
   "retired_sources": {
-    "note": "Product files deleted with no replacement since v0.4.0. Their native counterparts are removed or rewritten with the checklist items named in each group.",
+    "note": "Product files deleted with no replacement since v0.4.0. Their native counterparts are removed or rewritten with the checklist items named in each group (qubits@686d41c49: Desktop TODO 2026-11-08 RM).",
     "files": [
       {
         "source": "src/components/DesktopProjectLocationSwitcher.tsx",
@@ -2319,6 +2345,181 @@
         "source": "src/features/cloud/auth/desktop-cloud-sign-in-cta.css",
         "deletedBy": "f4e4c79c6",
         "group": "Cloud sign-in surfaces"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/ProjectReachDialog.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/ReachAddress.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/ReachAgentChoice.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/ReachHandoff.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/projectReach.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/reach.css",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/project-reach/useProjectReachFlow.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud Project Reach (experimental)"
+      },
+      {
+        "source": "src/features/cloud/share/CloudShareContext.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/CloudShareHome.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/CloudShareStatusCard.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/CloudWorkspaceShareDialog.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/CloudWorkspaceSharePreview.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/ReadersList.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/ShareWizardDialog.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/cloudWorkspaceShareResource.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/projectLocationStatus.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/readers-list.css",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/share.css",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/shareHandoff.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/shareStatus.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/shareTargets.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/useProjectShareActivity.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/useProjectShareRevoke.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/share/useProjectShares.ts",
+        "deletedBy": "6f896add1",
+        "group": "Cloud sharing"
+      },
+      {
+        "source": "src/features/cloud/organization/CloudOrganizationRouteOutlet.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud organization and Billing"
+      },
+      {
+        "source": "src/features/cloud/CloudDialog.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud services dialog"
+      },
+      {
+        "source": "src/features/cloud/CloudServiceMainView.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud services dialog"
+      },
+      {
+        "source": "src/features/cloud/CloudServiceSidebar.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud services dialog"
+      },
+      {
+        "source": "src/features/cloud/routes/CloudProjectRouteOutlet.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud services dialog"
+      },
+      {
+        "source": "src/features/cloud/routes/CloudRouter.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud services dialog"
+      },
+      {
+        "source": "src/features/cloud/workbench/CloudConnectWorkspaceTool.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud workspace plumbing"
+      },
+      {
+        "source": "src/features/cloud/workbench/CloudWorkspaceToolDialog.tsx",
+        "deletedBy": "6f896add1",
+        "group": "Cloud workspace plumbing"
+      },
+      {
+        "source": "src/features/cloud/workbench/workspace-tools.css",
+        "deletedBy": "6f896add1",
+        "group": "Cloud workspace plumbing"
+      },
+      {
+        "source": "src/features/cloud/project/MissingCloudProjectReplacement.tsx",
+        "deletedBy": "9035af9e2",
+        "group": "Project place menu and local Cloud notice"
+      },
+      {
+        "source": "src/features/cloud/share/CloudWorkspaceAgentsPanel.tsx",
+        "deletedBy": "ba74bd20d",
+        "group": "Cloud workspace Agents (agent links)"
       }
     ]
   }
