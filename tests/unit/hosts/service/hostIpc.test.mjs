@@ -82,6 +82,7 @@ function desktop({ userData, launcher, session, answers = null }) {
       apiCalls.push({ route, method: init?.method ?? "GET" });
       if (route === "/hosts/devices") return { device_id: device };
       if (route === `/hosts/devices/${device}/folders`) return { folder_id: JSON.parse(init.body).folder_id };
+      if (route.startsWith(`/hosts/devices/${device}/folders/`) && init?.method === "DELETE") return { removed: true };
       throw new Error(`unexpected ${route}`);
     },
   };
@@ -196,6 +197,33 @@ describe("host IPC", () => {
     const second = desktop({ userData, launcher: service.launcher, session });
     expect((await second.status()).state).toBe("online");
     expect(service.running.starts).toBe(2);
+  });
+
+  it("withdraws only a share whose folder has gone from disk, once its project was found elsewhere", async () => {
+    const userData = await temporaryRoot();
+    const stateDir = path.join(userData, "host-service");
+    const moved = path.join(userData, "Ambassadors");
+    const kept = path.join(userData, "Notes");
+    await fs.mkdir(moved); await fs.mkdir(kept);
+    const service = inProcessHostService(stateDir, deviceChallenges().fetchImpl);
+    const session = { current: { user_id: owner, session_generation: "one", api_base_url: apiBase } };
+    const app = desktop({ userData, launcher: service.launcher, session });
+    for (const rootPath of [moved, kept]) await app.handlers.get("host:register-folder")({ sender: {} }, { rootPath });
+    // The screen sees shared folders by name only; their paths stay in Main.
+    const shared = async () => (await app.status()).folders.map((folder) => folder.name).sort();
+    expect(await shared()).toEqual(["Ambassadors", "Notes"]);
+
+    // A folder still on disk is never withdrawn this way, whatever asks.
+    expect(await app.ipc.retireSharesAtMissingRoot(kept)).toEqual({ retired: 0 });
+    expect(await app.ipc.retireSharesAtMissingRoot("relative/path")).toEqual({ retired: 0 });
+
+    await fs.rename(moved, path.join(userData, "Ambassadors moved"));
+    expect(await app.ipc.retireSharesAtMissingRoot(moved)).toEqual({ retired: 1 });
+    expect(await shared()).toEqual(["Notes"]);
+    // The Cloud is told too, so the owner's other computers stop listing it.
+    expect(app.apiCalls.filter(({ method }) => method === "DELETE")).toHaveLength(1);
+    // Narrowing only: nobody was asked.
+    expect(app.prompts).toHaveLength(2);
   });
 
   it("stops sharing when the person here signs out or switches accounts, and resumes for the owner", async () => {

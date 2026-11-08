@@ -24,7 +24,7 @@ import {
   type WorkspaceContentChange,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { useLocalization } from "@puppyone/localization";
 import type { DesktopView } from "./components/ProjectShell";
 import {
   isSettingsSectionAvailable,
@@ -33,7 +33,7 @@ import {
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { HomepageComputers, useHomepageFolderSharing, useHostFolderPlace } from "./features/hosts";
-import { FolderDialog, ProjectFolderNotices, canLocate, folderNameOf, folderStatusCaption, folderStatusMessage, useFolderAvailability, useFolderRelocation } from "./features/app-shell/folder-availability";
+import { ProjectFolderNotices, UnavailableProjectDialog, folderStatusCaption, useFolderAvailability, useFolderRelocation } from "./features/app-shell/folder-availability";
 import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
@@ -1745,26 +1745,13 @@ function AppContent() {
       setUnavailableHomeProjectPath(null);
       void removeWorkspaceFromRecents(folderPath);
     };
-    let unavailableHomeProjectDialog = null;
-    if (unavailableHomeProject) {
-      const name = folderNameOf(unavailableHomeProject.path);
-      const close = () => setUnavailableHomeProjectPath(null);
-      const found = unavailableHomeProject.suggestion;
-      let primary = { label: t("common.action.close"), onClick: close };
-      let secondary = { label: t("shell.folderStatus.removeFromList"), onClick: () => removeUnavailableHomeProject(unavailableHomeProject.path) };
-      if (found) {
-        primary = { label: t("shell.folderStatus.useFound", { name: bidiIsolate(found.name) }), onClick: () => { void folderRelocation.apply(found); } };
-        secondary = { label: t("shell.folderStatus.locate"), onClick: () => { void folderRelocation.locate(unavailableHomeProject.path); } };
-      } else if (canLocate(unavailableHomeProject)) {
-        primary = { label: t("shell.folderStatus.locate"), onClick: () => { void folderRelocation.locate(unavailableHomeProject.path); } };
-      }
-      unavailableHomeProjectDialog = (
-        <FolderDialog title={t(unavailableHomeProject.state === "disconnected" || unavailableHomeProject.state === "denied"
-          ? "shell.folderStatus.cantOpenTitle" : "shell.folderStatus.cantFindTitle", { name: bidiIsolate(name) })}
-          body={folderStatusMessage(t, unavailableHomeProject, name)} error={folderRelocation.error}
-          busy={folderRelocation.busy} onClose={close} secondary={secondary} primary={primary} />
-      );
-    }
+    const unavailableHomeProjectDialog = unavailableHomeProject
+      ? <UnavailableProjectDialog status={unavailableHomeProject} busy={folderRelocation.busy} error={folderRelocation.error}
+        onUseFound={(candidate) => { void folderRelocation.apply(candidate); }}
+        onLocate={(folderPath) => { void folderRelocation.locate(folderPath); }}
+        onRemove={removeUnavailableHomeProject}
+        onClose={() => setUnavailableHomeProjectPath(null)} />
+      : null;
     return themeRuntime(<>
       {unavailableHomeProjectDialog}
       {folderRelocation.dialog}

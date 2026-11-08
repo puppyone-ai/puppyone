@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nearestExistingAncestor, probeFolderAvailability } from "../../../../electron/main/folder-availability.mjs";
 import { createFolderRelocation } from "../../../../electron/main/folder-relocation.mjs";
+import { registerWorkspaceNavigationIpcHandlers } from "../../../../electron/main/ipc/workspace-navigation-ipc.mjs";
 
 let root;
 beforeEach(async () => { root = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), "puppyone-relocation-"))); });
@@ -112,5 +113,31 @@ describe("finding where a project's folder went", () => {
     const { relocation } = service({ recents: [record] });
     const [status] = await relocation.status({}, [before]);
     expect(await relocation.relocate(status.suggestion.token)).toMatchObject({ path: after, wasShared: true });
+  });
+});
+
+describe("asking Main about a project's folder from the screen", () => {
+  it("routes each question to the relocation service for the asking window only", async () => {
+    const handlers = new Map();
+    const folderRelocation = {
+      status: vi.fn(async () => [{ path: "/gone", state: "missing" }]),
+      locate: vi.fn(async () => ({ status: "cancelled" })),
+      relocate: vi.fn(async () => ({ from: "/gone", path: "/here", wasShared: false })),
+    };
+    const ownerWindow = { id: "window" };
+    registerWorkspaceNavigationIpcHandlers({
+      ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+      workspaceStateStore: {},
+      folderRelocation,
+      getDialogOwnerWindow: (sender) => (sender.id === 7 ? ownerWindow : null),
+    });
+    const event = { sender: { id: 7 } };
+
+    expect(await handlers.get("workspace:folder-status")(event, { paths: ["/gone"] })).toEqual([{ path: "/gone", state: "missing" }]);
+    expect(folderRelocation.status).toHaveBeenCalledWith(event.sender, ["/gone"]);
+    await handlers.get("workspace:locate-folder")(event, { path: "/gone" });
+    expect(folderRelocation.locate).toHaveBeenCalledWith(event.sender, "/gone", ownerWindow);
+    await handlers.get("workspace:relocate-folder")(event, { token: "t-1" });
+    expect(folderRelocation.relocate).toHaveBeenCalledWith("t-1");
   });
 });
