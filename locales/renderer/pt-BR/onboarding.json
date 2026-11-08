@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, one {# arquivo} other {# arquivos}}",
   "template.getCopy": "Obter uma cópia",
   "template.loading": "Carregando…",
+  "template.copiedNote": "Do link de modelo que você copiou.",
   "template.signIn": "Entrar para usar este modelo",
   "template.signingIn": "Entrando…",
   "projects.groups.cloud": "Nuvem"

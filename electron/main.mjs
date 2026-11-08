@@ -8,7 +8,7 @@ import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
 import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
@@ -51,7 +51,7 @@ import {
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
-import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
+import { parseTemplateLink, resolveTemplateStoreOrigin, templateLinkFromCopiedText, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
 import { createHostServiceLauncher } from "./host-service/launcher.mjs";
@@ -1396,7 +1396,16 @@ function registerIpcHandlers() {
     if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
     if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
     pendingTemplateIntent.ownerId = event.sender.id;
-    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url };
+    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url, copied: pendingTemplateIntent.copied === true };
+  });
+  // A first launch after installing from the store looks once for the link the
+  // store page copied. A link that arrived from the store itself goes first.
+  trustedIpcMain.handle("template:claim-copied-link", (event) => {
+    if (pendingTemplateIntent) return false;
+    const url = templateLinkFromCopiedText(clipboard.readText(), templateLinkOptions);
+    if (!url) return false;
+    pendingTemplateIntent = { id: randomUUID(), url, ownerId: event.sender.id, copied: true };
+    return true;
   });
   trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
     if (pendingTemplateIntent?.id === id && pendingTemplateIntent.ownerId === event.sender.id) pendingTemplateIntent = null;

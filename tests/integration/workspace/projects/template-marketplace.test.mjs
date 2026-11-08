@@ -7,7 +7,7 @@ import { parseTemplatePackage, validateDownloadDescriptor } from "../../../../el
 import { createTemplateMarketplaceService } from "../../../../electron/main/template-marketplace-service.mjs";
 import { createProjectInitializationService } from "../../../../electron/main/project-initialization-service.mjs";
 import { materializeTemplate } from "../../../../electron/local-api/templates/materialize.mjs";
-import { looksLikeTemplateLink, parseTemplateLink, resolveTemplateStoreOrigin } from "../../../../shared/desktop/template-link.mjs";
+import { looksLikeTemplateLink, parseTemplateLink, resolveTemplateStoreOrigin, templateLinkFromCopiedText } from "../../../../shared/desktop/template-link.mjs";
 
 const { fixtures } = JSON.parse(await fs.readFile(new URL("../../../fixtures/workspace/projects/marketplace-packages.json", import.meta.url), "utf8"));
 const first = fixtures[0];
@@ -192,5 +192,15 @@ describe("template links", () => {
     ]) expect(() => parseTemplateLink(link)).toThrow();
     expect(resolveTemplateStoreOrigin({ isPackaged: true, override: "https://evil.example" })).toBe(origin);
     expect(() => resolveTemplateStoreOrigin({ isPackaged: false, override: "https://evil.example" })).toThrow();
+  });
+
+  it("finds a store link that was copied, and nothing in anyone else's text", () => {
+    const share = `${origin}/t/${descriptor.template_id}?release=${descriptor.release_id}`;
+    expect(templateLinkFromCopiedText(`  ${share}\n`)).toBe(share);
+    expect(templateLinkFromCopiedText(`puppyone://templates/import?id=${descriptor.template_id}`)).toBe(`${origin}/t/${descriptor.template_id}`);
+    for (const text of [
+      "", "meeting notes", `see ${share} for details`, `https://evil.example/t/${descriptor.template_id}`,
+      `${share}#code`, `puppyone-development://templates/import?id=${descriptor.template_id}`, undefined,
+    ]) expect(templateLinkFromCopiedText(text)).toBeNull();
   });
 });

@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, other {파일 #개}}",
   "template.getCopy": "사본 받기",
   "template.loading": "불러오는 중…",
+  "template.copiedNote": "복사한 템플릿 링크에서 열었습니다.",
   "template.signIn": "로그인 후 템플릿 사용",
   "template.signingIn": "로그인 중…",
   "projects.groups.cloud": "클라우드"

@@ -1288,8 +1288,11 @@ declare global {
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
-      readTemplateImportIntent: () => Promise<{ id: string; url: string } | null>;
+      /** `copied` marks a link found in the clipboard rather than sent by the store. */
+      readTemplateImportIntent: () => Promise<{ id: string; url: string; copied?: boolean } | null>;
       acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
+      /** Looks once for a copied store link; true when one is now waiting to be read. */
+      claimCopiedTemplateLink: () => Promise<boolean>;
       onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,

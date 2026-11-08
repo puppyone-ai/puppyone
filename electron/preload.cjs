@@ -345,6 +345,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   resolveTemplateLink: (request) => ipcRenderer.invoke("template:resolve", request),
   readTemplateImportIntent: () => ipcRenderer.invoke("template:read-intent"),
   acknowledgeTemplateImportIntent: (id) => ipcRenderer.invoke("template:acknowledge-intent", id),
+  claimCopiedTemplateLink: () => ipcRenderer.invoke("template:claim-copied-link"),
   onTemplateImportRequested: (callback) => {
     const handler = () => callback();
     ipcRenderer.on("template:import-requested", handler);

@@ -1507,11 +1507,12 @@ function AppContent() {
       onDone={() => setDisconnectingCloudLinkPath(null)} />
     : null;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
+  const hasProjects = Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length);
   const firstRunSignIn = useFirstRunSignIn({
     available: cloudEnabled && Boolean(desktopCloudApiBaseUrl),
     restoring: cloudSessionRestoring || restoringWorkspace,
     signedIn: Boolean(activeCloudSession),
-    hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
+    hasProjects,
   });
   const homepageReady = useHomepageFirstPaint({
     restoring: restoringWorkspace,
@@ -1519,6 +1520,9 @@ function AppContent() {
     account: projectCatalog.account,
     accountRestoring: cloudSessionRestoring,
   });
+  // Someone who installed from a store page arrives with its link copied, and
+  // nothing of their own yet. Anyone with a project is past that moment.
+  const offerCopiedTemplate = homepageReady && !hasProjects && !cloudWorkspaceActive && projectCatalog.items.length === 0;
   useHostFolderRestore({ enabled: hostDevicesEnabled, session: activeCloudSession, apiBase: desktopCloudApiBaseUrl,
     restoring: restoringWorkspace || cloudSessionRestoring || !homepageReady, open: selectHostFolder });
   const hostFolderPlace = useHostFolderPlace({
@@ -1631,6 +1635,7 @@ function AppContent() {
       onImportProgress={onImportSourceProgress}
       onOpenFolder={() => void openFolder()}
       projectIsOpen={Boolean(workspace) || cloudWorkspaceActive}
+      offerCopiedTemplate={offerCopiedTemplate}
     />
   </DesktopOverlayPortal>;
   const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);

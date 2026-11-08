@@ -153,22 +153,24 @@ describe("marketplace template links", () => {
     version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: link, fileCount: 12, icon: null, requiresSignIn: false,
   };
   type TemplateBridge = Record<"readTemplateImportIntent" | "acknowledgeTemplateImportIntent" | "onTemplateImportRequested"
-    | "resolveTemplateLink" | "readCloudAuthState", ReturnType<typeof vi.fn>>;
+    | "resolveTemplateLink" | "readCloudAuthState" | "claimCopiedTemplateLink", ReturnType<typeof vi.fn>>;
   let flow: ProjectEntryFlowController;
   const created = {
     initialization: { path: "/projects/Hiring Tracker", initialOpenPath: "README.md" },
     opening: { status: "opened", result: { status: "opened-current" } },
   };
   const onCreateProject = vi.fn(async () => created);
-  function FlowHarness({ projectIsOpen = false }: { projectIsOpen?: boolean }) {
+  function FlowHarness({ projectIsOpen = false, offerCopiedTemplate = false }: { projectIsOpen?: boolean; offerCopiedTemplate?: boolean }) {
     flow = useProjectEntryFlow();
     return <ProjectEntryFlow controller={flow} onOpenFolder={vi.fn()} onCreateProject={onCreateProject as never} projectIsOpen={projectIsOpen}
+      offerCopiedTemplate={offerCopiedTemplate}
       onChooseLocation={async () => null} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} />;
   }
   function installBridge(overrides: Partial<TemplateBridge> = {}): TemplateBridge {
     // Main holds a link until it is acknowledged, then forgets it.
-    let intent: { id: string; url: string } | null = { id: "intent-one", url: link };
+    let intent: { id: string; url: string; copied?: boolean } | null = { id: "intent-one", url: link };
     const bridge: TemplateBridge = {
+      claimCopiedTemplateLink: vi.fn(async () => false),
       readTemplateImportIntent: vi.fn(async () => intent),
       acknowledgeTemplateImportIntent: vi.fn(async () => { intent = null; }),
       onTemplateImportRequested: vi.fn(() => () => {}),
@@ -322,5 +324,45 @@ describe("marketplace template links", () => {
     expect(bridge.resolveTemplateLink).toHaveBeenCalledWith({ url: link, locale: "en" });
     expect(host.textContent).toContain("Hiring Tracker");
     field.remove();
+  });
+  it("offers a copied store link once on a first launch, and says where it came from", async () => {
+    preferences(false);
+    let intent: { id: string; url: string; copied?: boolean } | null = null;
+    const claimCopiedTemplateLink = vi.fn(async () => { intent = { id: "copied-one", url: link, copied: true }; return true; });
+    const bridge = installBridge({
+      claimCopiedTemplateLink,
+      readTemplateImportIntent: vi.fn(async () => intent),
+      acknowledgeTemplateImportIntent: vi.fn(async () => { intent = null; }),
+    });
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness offerCopiedTemplate />)); await flush(); await flush(); });
+
+    expect(claimCopiedTemplateLink).toHaveBeenCalledTimes(1);
+    expect(bridge.acknowledgeTemplateImportIntent).toHaveBeenCalledWith("copied-one");
+    expect(host.textContent).toContain("From the template link you copied.");
+    expect(host.textContent).toContain("Hiring Tracker");
+
+    // Cancel is the answer: a later first-launch screen does not look again.
+    await act(async () => { [...host.querySelectorAll("button")].find((button) => button.textContent === "Cancel")!.click(); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness offerCopiedTemplate key="again" />)); await flush(); await flush(); });
+    expect(claimCopiedTemplateLink).toHaveBeenCalledTimes(1);
+    expect(host.querySelector("form")).toBeNull();
+  });
+
+  it("leaves the clipboard alone once someone has a project", async () => {
+    preferences(false);
+    const bridge = installBridge({ readTemplateImportIntent: vi.fn(async () => null) });
+    mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); });
+    expect(bridge.claimCopiedTemplateLink).not.toHaveBeenCalled();
+  });
+
+  it("says nothing about copying for a link the store sent", async () => {
+    preferences(false);
+    installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness offerCopiedTemplate />)); await flush(); await flush(); });
+    expect(host.textContent).toContain("Hiring Tracker");
+    expect(host.textContent).not.toContain("you copied");
   });
 });
