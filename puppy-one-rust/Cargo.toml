@@ -155,3 +155,5 @@ codegen-units = 1
 # The product code gutter (CodeMirror `.cm-lineNumbers` / `.cm-foldGutter`);
 # see vendor/gpui-base/PUPPYONE_PATCH.md.
 gpui-base = { path = "vendor/gpui-base" }
+# A TypeScript App's certificate signature; see vendor/russh/PUPPYONE_PATCH.md.
+russh = { path = "vendor/russh" }

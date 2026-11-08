@@ -422,3 +422,124 @@ fn two_computers_share_a_folder_through_the_real_cloud() {
         std::panic::resume_unwind(panic);
     }
 }
+
+/// Interop, one way: a folder a TypeScript host shares
+/// (`ACCEPT_INTEROP_FOLDER`), read and edited from this access side.
+#[test]
+#[ignore = "real Cloud interop; run explicitly with a TypeScript host sharing"]
+fn a_folder_a_typescript_host_shares_opens_here() {
+    let folder = std::env::var("ACCEPT_INTEROP_FOLDER").expect("the TypeScript host's folder id");
+    let account = Arc::new(Account::sign_in());
+    let hosts = Hosts::new(Arc::new(Access(account)));
+    let request = |request: Request| runtime().block_on(hosts.request(&folder, &request));
+    let read = request(Request::Read {
+        path: "note.md".into(),
+    })
+    .unwrap();
+    let text = String::from_utf8(
+        STANDARD
+            .decode(read["content_base64"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    eprintln!("[interop] read from the TypeScript host: {text:?}");
+    request(Request::Write {
+        path: "note.md".into(),
+        content_base64: STANDARD.encode("written by the Rust access side\n"),
+        expected_revision: Some(Some(read["revision"].as_str().unwrap().into())),
+    })
+    .unwrap();
+    let list = request(Request::List {
+        path: String::new(),
+    })
+    .unwrap();
+    eprintln!("[interop] listed: {}", list["entries"]);
+    let git = request(Request::Git(GitRequest {
+        op: "status".into(),
+        ..Default::default()
+    }));
+    eprintln!(
+        "[interop] git without consent: {:?}",
+        git.map(|_| ()).map_err(|e| e.code)
+    );
+}
+
+/// Interop, the other way: a folder this host shares, read and edited by
+/// the TypeScript access side (`ACCEPT_TS_ACCESS`, a Node script).
+#[test]
+#[ignore = "real Cloud interop; run explicitly with the TypeScript access script"]
+fn a_folder_this_host_shares_opens_from_typescript() {
+    let script = std::env::var("ACCEPT_TS_ACCESS").expect("the TypeScript access script");
+    let account = Arc::new(Account::sign_in());
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("interop");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::write(folder.join("note.md"), "shared by the Rust host\n").unwrap();
+    let host = HostService::new(
+        temp.path().join("host-service"),
+        vec![],
+        env!("CARGO_PKG_VERSION"),
+        None,
+        Arc::new(|| Box::new(MemoryKeysOnce::get()) as Box<dyn KeyStore>),
+        Mechanism::detect(),
+    );
+    host.set_person(Some(Arc::new(App(account.clone()))));
+    host.configure(&account.api).unwrap();
+    let owner = host
+        .identity_register("Rust interop host", super::service::platform())
+        .unwrap();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let shared = host
+            .registry_register(&owner.device_id, &folder, "interop", true)
+            .unwrap();
+        let folder_id = shared["folderId"].as_str().unwrap().to_owned();
+        host.connect(&owner).unwrap();
+        wait("the host online", Duration::from_secs(30), || {
+            host.status()["state"] == State::Online.as_str()
+        });
+        let output = std::process::Command::new("node")
+            .arg(&script)
+            .arg(&folder_id)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        eprintln!("[interop] TypeScript access side: {text}");
+        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+        let reply: Value = serde_json::from_str(text.trim().lines().last().unwrap()).unwrap();
+        assert_eq!(reply["ok"], true);
+        assert_eq!(reply["text"], "shared by the Rust host\n");
+        assert_eq!(
+            std::fs::read_to_string(folder.join("note.md")).unwrap(),
+            "written by the TypeScript access side\n"
+        );
+    }));
+    host.dispose();
+    let _ = account.blocking(
+        "DELETE",
+        &format!("/hosts/devices/{}", owner.device_id),
+        None,
+    );
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
+    }
+}
+/// One key store per test process, as a keychain would be.
+struct MemoryKeysOnce;
+impl MemoryKeysOnce {
+    fn get() -> impl KeyStore {
+        static KEYS: std::sync::OnceLock<Arc<MemoryKeys>> = std::sync::OnceLock::new();
+        struct Shared(Arc<MemoryKeys>);
+        impl KeyStore for Shared {
+            fn put(&self, i: &str, s: &[u8]) -> Result<(), String> {
+                self.0.put(i, s)
+            }
+            fn get(&self, i: &str) -> Result<Option<Vec<u8>>, String> {
+                self.0.get(i)
+            }
+            fn delete(&self, i: &str) -> Result<(), String> {
+                self.0.delete(i)
+            }
+        }
+        Shared(KEYS.get_or_init(Arc::default).clone())
+    }
+}

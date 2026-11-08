@@ -3,3 +3,4 @@
 **/__pycache__/
 /vendor/*
 !/vendor/gpui-base/
+!/vendor/russh/
