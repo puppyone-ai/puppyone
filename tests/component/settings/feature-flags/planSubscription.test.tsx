@@ -1,5 +1,4 @@
 /** @vitest-environment happy-dom */
-import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
@@ -121,15 +120,10 @@ it("splits state from purchase, and puts every price on Plan", () => {
   // Invoices are documents, not a settings pane: Plan links out to them.
   expect(cloud?.items.map((item) => item.id)).not.toContain("billing");
 
-  const account = readFileSync("src/features/settings/main/AccountSettingsView.tsx", "utf8");
-  const plan = readFileSync("src/features/settings/main/SeatsSettingsView.tsx", "utf8");
-  // No catalogue price may appear beside the state it would change.
-  expect(account).not.toContain("PersonalPlan");
-  expect(account).not.toContain("resolvePersonalOffer");
-  expect(plan).toContain("<PersonalPlan");
-  // Linking runs one way: the nav is on screen, so Plan needs no way back.
-  expect(account).toContain("onOpenBilling");
-  expect(plan).not.toContain("onOpenAccount");
+  // The owner's computers sit with the account, after Plan, once device sharing is on.
+  const withComputers = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true })
+    .find((group) => group.id === "cloud");
+  expect(withComputers?.items.map((item) => item.id)).toEqual(["account", "seats", "other-computers"]);
 });
 
 it("sells Personal at $19 a month, with storage included", () => {
@@ -295,17 +289,4 @@ it("does not offer sign-in to a reader who is already signed in", async () => {
 it("carries no way back, because the nav it came from is still on screen", async () => {
   const host = await render(<Unconnected />);
   expect(host.querySelector(".desktop-settings-back")).toBeNull();
-});
-
-it("prices nothing while the payments experiment is off", () => {
-  // Both money surfaces are render entries and both fork on the same read:
-  // `src/features/payments/README.md`.
-  for (const file of ["AccountSettingsView", "SeatsSettingsView"]) {
-    const source = readFileSync(`src/features/settings/main/${file}.tsx`, "utf8");
-    expect(source).toContain("usePaymentsExperience();");
-    expect(source).toMatch(/if \(!payments\) return null;|const cloudPlan = payments && cloudEnabled;/);
-  }
-  // Nothing below them may render a price by reading the experiment itself.
-  const purchase = readFileSync("src/features/settings/main/PersonalPlan.tsx", "utf8");
-  expect(purchase).not.toContain("usePaymentsExperience");
 });

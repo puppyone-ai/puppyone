@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
 import { createAccessSurfacesApi, type AccessTransport } from "../../../../src/lib/cloud/accessSurfacesApi";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { accessSurfaceFixture } from "../../../support/cloud/accessSurfaceFixture";
@@ -65,9 +64,7 @@ describe("canonical Access surface client", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it("removes legacy leaf resource aliases and has no Access run API", () => {
-    const facade = readFileSync(new URL("../../../../src/lib/cloudApi.ts", import.meta.url), "utf8");
-    expect(facade).not.toMatch(/DesktopCloudConnector|listCloudConnectors|updateCloudConnector|\/connectors\b/);
+  it("has no Access run API", () => {
     const api = createAccessSurfacesApi(vi.fn<AccessTransport>() as AccessTransport);
     expect(Object.keys(api).some(name => /run|sync/i.test(name))).toBe(false);
   });

@@ -176,6 +176,22 @@ describe("appearance surface boundary", () => {
       expect(source(`src/features/themes/builtin/${name}/theme.css`)).not.toContain("@font-face");
     }
   });
+
+  it("authors built-ins as self-describing public-token packages", () => {
+    for (const relativePath of [
+      "src/features/themes/builtin/default-neutral/theme.css",
+      "src/features/themes/builtin/default-warm/theme.css",
+      "src/features/themes/builtin/default-graphite/theme.css",
+      "src/features/themes/builtin/default-github/theme.css",
+      "src/features/themes/builtin/default-newspaper/theme.css",
+      "src/features/themes/builtin/windows-xp-luna-blue/theme.css",
+    ]) {
+      const css = source(relativePath);
+      expect(css).toContain("@puppyone-theme");
+      expect(css).not.toMatch(/--po-host-(?:md|csv)-/);
+      expect(css).not.toMatch(/\.cm-|\.markdown-codemirror-editor|\.csv-table-editor/);
+    }
+  });
 });
 
 function contrastRatio(first: string, second: string): number {

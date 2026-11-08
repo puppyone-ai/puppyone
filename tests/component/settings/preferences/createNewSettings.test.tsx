@@ -4,7 +4,6 @@ import { initializeDesktopPreferences, desktopPreferencesStore as store } from "
  */
 import React from "react";
 import { act } from "react";
-import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CreateNewSettingsView } from "../../../../src/features/settings/main/CreateNewSettingsView";
@@ -138,14 +137,6 @@ describe("Create New settings", () => {
     expect(puppyflow?.dataset.unavailable).toBe("true");
   });
 
-  it("uses Settings surface tokens instead of popup-menu colors and shadows", () => {
-    const css = readFileSync("src/styles/settings-new-menu.css", "utf8");
-
-    expect(css).toContain("background: var(--po-panel)");
-    expect(css).toContain("border: 1px solid var(--po-border-subtle)");
-    expect(css).not.toContain("var(--po-menu-bg)");
-    expect(css).not.toContain("var(--po-menu-shadow");
-  });
 });
 
 function render(settings: CreateNewMenuSettings) {

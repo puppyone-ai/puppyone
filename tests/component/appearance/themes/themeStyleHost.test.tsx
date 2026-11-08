@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 
-import { readFileSync } from "node:fs";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -50,20 +49,7 @@ describe("renderer Sub Theme style host", () => {
     ]);
   });
 
-  it("authors built-ins as self-describing public-token packages and compiles the host boundary", () => {
-    for (const relativePath of [
-      "src/features/themes/builtin/default-neutral/theme.css",
-      "src/features/themes/builtin/default-warm/theme.css",
-      "src/features/themes/builtin/default-graphite/theme.css",
-      "src/features/themes/builtin/default-github/theme.css",
-      "src/features/themes/builtin/default-newspaper/theme.css",
-      "src/features/themes/builtin/windows-xp-luna-blue/theme.css",
-    ]) {
-      const css = readFileSync(`${process.cwd()}/${relativePath}`, "utf8");
-      expect(css).toContain("@puppyone-theme");
-      expect(css).not.toMatch(/--po-host-(?:md|csv)-/);
-      expect(css).not.toMatch(/\.cm-|\.markdown-codemirror-editor|\.csv-table-editor/);
-    }
+  it("compiles each built-in's host boundary", () => {
     const github = BUILTIN_SUB_THEMES.find(({ id }) => id === "default.github");
     const githubLight = github ? getSubThemeVariant(github, "light") : null;
     expect(githubLight?.compiledCss.application).toContain(

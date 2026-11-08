@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("settings visual architecture", () => {
+  it("uses Settings surface tokens instead of popup-menu colors and shadows", () => {
+    const css = source("src/styles/settings-new-menu.css");
+
+    expect(css).toContain("background: var(--po-panel)");
+    expect(css).toContain("border: 1px solid var(--po-border-subtle)");
+    expect(css).not.toContain("var(--po-menu-bg)");
+    expect(css).not.toContain("var(--po-menu-shadow");
+  });
+
   it("keeps General app-scoped and moves project identity into Local Project", () => {
     const view = source("src/features/settings/SettingsView.tsx");
     const app = source("src/App.tsx");
