@@ -1,6 +1,7 @@
 import { useLocalization } from "@puppyone/localization";
 import type { CloudCopy, DevicesAudience, ProjectAudience } from "../../../components/project-audience";
 import type { LocalFolderCloudNotice } from "../../cloud";
+import { cloudLinkProblemMessage } from "./projectPlaceMenuState";
 
 /**
  * Who can open the local folder in this window. Its other computers come from the
@@ -56,29 +57,16 @@ export function useLocalProjectAudience({
   function cloudCopy(link: LocalFolderCloudNotice): CloudCopy {
     const disconnect = disconnectable
       ? { onResolve: handlers.onDisconnect, resolveLabel: t("shell.projectAudience.disconnect") } : {};
-    switch (link.kind) {
-      case "linked":
-        return { onOpen: link.openable ? () => handlers.onOpenCloudProject(link.projectId) : undefined,
-          unsent, onSend: unsent > 0 ? handlers.onSend : undefined };
-      case "sign-in":
-        return { problem: t("cloud.placeMenu.link.signIn"), onResolve: handlers.onSignIn, resolveLabel: t("cloud.auth.signIn") };
-      case "unreachable":
-        return { problem: t("cloud.placeMenu.link.unreachable"), onResolve: handlers.onRetry, resolveLabel: t("common.action.retry") };
-      case "other-environment":
-        return { problem: link.origin
-          ? t("cloud.placeMenu.link.otherEnvironment", { origin: hostOf(link.origin) })
-          : t("cloud.placeMenu.link.otherEnvironmentUnknown"), ...disconnect };
-      case "missing":
-        return { problem: t("cloud.placeMenu.link.missing"), ...disconnect };
-      case "no-access":
-        return { problem: t("cloud.placeMenu.link.noAccess"), ...disconnect };
-      case "ambiguous":
-        return { problem: t("cloud.placeMenu.link.ambiguous") };
+    if (link.kind === "linked") {
+      return { onOpen: link.openable ? () => handlers.onOpenCloudProject(link.projectId) : undefined,
+        unsent, onSend: unsent > 0 ? handlers.onSend : undefined };
     }
+    const message = cloudLinkProblemMessage(link)!;
+    const problem = t(message.id, message.values);
+    if (link.kind === "sign-in") return { problem, onResolve: handlers.onSignIn, resolveLabel: t("cloud.auth.signIn") };
+    if (link.kind === "unreachable") return { problem, onResolve: handlers.onRetry, resolveLabel: t("common.action.retry") };
+    // Nothing here can mend an ambiguous link; the others can at least be let go of.
+    return link.kind === "ambiguous" ? { problem } : { problem, ...disconnect };
   }
 }
 
-/** `http://localhost:9090` reads as `localhost:9090`. */
-function hostOf(origin: string) {
-  try { return new URL(origin).host || origin; } catch { return origin; }
-}

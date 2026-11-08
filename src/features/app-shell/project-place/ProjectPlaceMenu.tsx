@@ -6,7 +6,7 @@ import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/Deskt
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import { ProjectAudienceRows, type ProjectAudience } from "../../../components/project-audience";
 import { useDesktopPlatformCapabilities } from "../../../platform";
-import { cloudLinkHasProblem, type ProjectPlaceAction, type ProjectPlaceCloudLink, type ProjectPlaceMenu } from "./projectPlaceMenuState";
+import { cloudLinkHasProblem, cloudLinkProblemMessage, type ProjectPlaceAction, type ProjectPlaceCloudLink, type ProjectPlaceMenu } from "./projectPlaceMenuState";
 import "./project-place.css";
 
 export type ProjectPlaceHandlers = Readonly<{
@@ -39,6 +39,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const placeLabel = useProjectPlaceLabel(menu.place, menu.label);
+  const linkLabel = useCloudLinkLabel();
   const address = menu.address;
   useEffect(() => { if (projectMenuOpen) setOpen(false); }, [projectMenuOpen]);
   return <div className="desktop-titlebar-place-wrap">
@@ -46,7 +47,7 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
       data-project-place={menu.place} data-place-action={menu.action?.kind}
       data-cloud-link={cloudLinkState(menu.link)}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={[placeLabel, address?.full !== placeLabel && address?.full, menu.link && t("cloud.placeMenu.link.linked"),
+      aria-label={[placeLabel, address?.full !== placeLabel && address?.full, menu.link && linkLabel(menu.link),
         t("cloud.placeMenu.label")].filter(Boolean).join(", ")}
       onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}>
       <span className="desktop-titlebar-workspace-mark" aria-hidden="true">
@@ -123,6 +124,15 @@ function useProjectPlaceActionRow(action: ProjectPlaceAction, handlers: ProjectP
   return { place: "local", icon: <LocalIcon size={15} strokeWidth={1.75} />,
     label: t(`cloud.placeMenu.openFolder.${device}`), detail: bidiIsolate(action.name),
     run: () => handlers.onOpenLocalFolder(action.path) };
+}
+
+/** The link as the button's name says it: linked, or what keeps it from opening. */
+function useCloudLinkLabel() {
+  const { t } = useLocalization();
+  return (link: ProjectPlaceCloudLink) => {
+    const problem = cloudLinkHasProblem(link) ? cloudLinkProblemMessage(link.notice) : null;
+    return problem ? t(problem.id, problem.values) : t("cloud.placeMenu.link.linked");
+  };
 }
 
 function cloudLinkState(link: ProjectPlaceCloudLink | null | undefined) {
