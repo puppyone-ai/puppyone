@@ -24,9 +24,15 @@ export function findUnresolvedViteClientPlaceholders(source) {
 
 export async function probeViteDevServer(
   devUrl,
-  { fetchImpl = globalThis.fetch, signal } = {},
+  { fetchImpl = globalThis.fetch, signal, instanceToken } = {},
 ) {
   try {
+    if (instanceToken) {
+      const ownership = await fetchImpl(new URL("/__puppyone_dev_instance", devUrl), { cache: "no-store", signal });
+      if (!ownership.ok || await ownership.text() !== instanceToken) {
+        return { ready: false, reason: "different-instance" };
+      }
+    }
     const documentResponse = await fetchImpl(devUrl, {
       cache: "no-store",
       signal,

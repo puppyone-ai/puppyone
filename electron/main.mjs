@@ -211,6 +211,7 @@ const desktopBuildInfo = loadDesktopBuildInfo({
 const desktopApplicationIdentity = configureDesktopApplicationIdentity({
   app,
   buildInfo: desktopBuildInfo,
+  projectRoot,
 });
 const desktopPlatformHost = createDesktopPlatformHost({
   safeStorage,
@@ -239,7 +240,7 @@ if (!gotSingleInstanceLock) {
   app.exit(0);
 }
 
-const devServerUrl = process.env.PUPPYONE_DESKTOP_DEV_URL;
+const devServerUrl = app.isPackaged ? undefined : process.env.PUPPYONE_DESKTOP_DEV_URL;
 if (!app.isPackaged && !devServerUrl) {
   try {
     const releaseRendererOutput = acquireRendererOutputLease({

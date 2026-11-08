@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { resolveDevelopmentProfile } from "./development-instance.mjs";
 import {
   assertDesktopBuildInfo,
   getDesktopBuildChannelPolicy,
@@ -45,20 +46,36 @@ export function configureDesktopApplicationIdentity({
   app,
   buildInfo,
   platform = process.platform,
+  projectRoot,
+  environment = process.env,
 }) {
   const identity = assertDesktopBuildInfo(buildInfo);
   const policy = getDesktopBuildChannelPolicy(identity.channel);
-  const userDataPath = path.join(app.getPath("appData"), policy.userDataName);
+  const profile = identity.channel === "dev" && !app.isPackaged
+    ? resolveDevelopmentProfile({ projectRoot: projectRoot ?? app.getAppPath(), environment, platform })
+    : null;
+  const applicationName = profile ? `${policy.applicationName} (${profile})` : policy.applicationName;
+  const applicationId = profile ? `${policy.applicationId}.${profile}` : policy.applicationId;
+  const userDataPath = path.join(app.getPath("appData"), profile
+    ? `${policy.userDataName}-${profile}` : policy.userDataName);
 
-  app.setName(policy.applicationName);
+  fs.mkdirSync(userDataPath, { recursive: true });
+  app.setName(applicationName);
   app.setPath("userData", userDataPath);
+  // Explicitly configure Chromium before ready; it may have cached its default.
+  app.setPath("sessionData", userDataPath);
+  if (profile) {
+    const logsPath = path.join(userDataPath, "logs");
+    fs.mkdirSync(logsPath, { recursive: true });
+    app.setPath("logs", logsPath);
+  }
   if (platform === "win32") {
-    app.setAppUserModelId(policy.applicationId);
+    app.setAppUserModelId(applicationId);
   }
 
   return Object.freeze({
-    applicationId: policy.applicationId,
-    applicationName: policy.applicationName,
+    applicationId,
+    applicationName,
     userDataPath,
   });
 }

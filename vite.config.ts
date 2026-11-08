@@ -7,6 +7,7 @@ import path from "node:path";
 import { rendererOutputLeasePlugin } from "./scripts/desktop/build/renderer-output-lease-plugin.mjs";
 import { cascadeBootstrapPlugin } from "./scripts/styles/cascade-bootstrap-plugin.mjs";
 import { cloudConfigurationPlugin } from "./scripts/desktop/build/cloud-configuration-plugin.mjs";
+import { developmentInstancePlugin } from "./scripts/desktop/dev/instance-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -43,7 +44,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
+  plugins: [rendererOutputLeasePlugin(), developmentInstancePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {

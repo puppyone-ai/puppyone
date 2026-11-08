@@ -9,9 +9,8 @@
  * `puppyone open` uses, so the File Mode window loads from the Vite server and
  * style edits apply live, without packaging.
  *
- * The app only knows that socket, which belongs to the dev channel's user
- * data, not to a checkout: it reaches whichever checkout or worktree is
- * running `npm run dev`, and keeps working after any of them is deleted.
+ * The app targets the isolated profile of the checkout where it was installed.
+ * Reinstall it to target another checkout; it never opens the packaged daily app.
  *
  *   npm run dev:open-with          install or refresh
  *   npm run dev:open-with:remove   uninstall
@@ -26,6 +25,8 @@ import plist from "plist";
 import { resolveCliControlEndpoint } from "../../../electron/main/cli-control/endpoint.mjs";
 import { CLI_CONTROL_PROTOCOL } from "../../../shared/cli-control-contract/protocol.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../shared/desktop-build-identity.mjs";
+import { resolveDevelopmentProfile } from "../../../electron/main/development-instance.mjs";
+import { loadDesktopDevelopmentEnvironment } from "../../local-cloud-dev.mjs";
 import { resolveDesktopAppIcon } from "../../../shared/desktop/app-icon-contract.mjs";
 import { buildMacosAppIcon } from "../build/macos-app-icon.mjs";
 import { FILE_MODE_DOCUMENT_TYPES } from "../build/platforms/macos.mjs";
@@ -37,9 +38,13 @@ export const DEV_NOT_RUNNING_MESSAGE = "PuppyOne isn't running from npm run dev.
 const LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 const run = promisify(execFile);
 
-/** Where every `npm run dev` instance of this user listens, whichever checkout it runs from. */
-export function devControlEndpoint({ homeDirectory = os.homedir(), uid = process.getuid?.() ?? null } = {}) {
-  const userDataPath = path.join(homeDirectory, "Library", "Application Support", getDesktopBuildChannelPolicy("dev").userDataName);
+/** Resolve exactly the same profile as this checkout's development launcher. */
+export function devControlEndpoint({ homeDirectory = os.homedir(), uid = process.getuid?.() ?? null,
+  projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
+  environment = loadDesktopDevelopmentEnvironment({ desktopRoot: projectRoot }),
+} = {}) {
+  const profile = resolveDevelopmentProfile({ projectRoot, environment });
+  const userDataPath = path.join(homeDirectory, "Library", "Application Support", `${getDesktopBuildChannelPolicy("dev").userDataName}-${profile}`);
   return resolveCliControlEndpoint({ userDataPath, platform: "darwin", uid });
 }
 
@@ -136,7 +141,7 @@ export function openerPath(applicationsDirectory = path.join(os.homedir(), "Appl
 export async function installOpener({ repoRoot, applicationsDirectory } = {}) {
   const target = openerPath(applicationsDirectory);
   await assertReplaceable(target);
-  const endpoint = devControlEndpoint();
+  const endpoint = devControlEndpoint({ projectRoot: repoRoot });
   const staging = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-open-with-"));
   try {
     const scriptPath = path.join(staging, "open-with.applescript");

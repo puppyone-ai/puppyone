@@ -56,6 +56,13 @@ X-GNOME-Autostart-enabled=true
 
 export function createHostAutostart({ platform = process.platform, home = os.homedir(), execPath, appPath, isPackaged,
   app = null, fsImpl = fs }) {
+  // A checkout is temporary and its profile may be supplied only by the dev
+  // launcher. Never replace an installed app's persistent OS login entry.
+  if (!isPackaged) return Object.freeze({
+    supported: false,
+    async status() { return { supported: false, enabled: false }; },
+    async set() { return false; },
+  });
   const command = hostServiceCommand({ execPath, appPath, isPackaged });
   const entries = {
     darwin: () => ({ file: path.join(home, "Library", "LaunchAgents", `${LAUNCH_AGENT_LABEL}.plist`), contents: launchAgentPlist(command) }),

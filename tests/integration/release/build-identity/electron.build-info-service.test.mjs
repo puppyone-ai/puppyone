@@ -89,8 +89,8 @@ describe("Electron Build Identity service", () => {
     })).toEqual(buildInfo);
   });
 
-  it("configures name, user data, and Windows application identity before startup", () => {
-    const appDataPath = "/Users/test/Library/Application Support";
+  it("configures name, user data, and Windows application identity before startup", async () => {
+    const appDataPath = await createTemporaryDirectory();
     const userDataPath = path.join(appDataPath, "puppyone-internal");
     const app = {
       getPath: vi.fn(() => appDataPath),
@@ -121,6 +121,38 @@ describe("Electron Build Identity service", () => {
     );
     expect(app.setAppUserModelId).toHaveBeenCalledWith("ai.puppyone.desktop.internal");
   });
+  it("isolates source checkouts and Chromium storage while retaining daily packaged data", async () => {
+    const appData = await createTemporaryDirectory();
+    const checkoutA = await createTemporaryDirectory();
+    const checkoutB = await createTemporaryDirectory();
+    const buildInfo = resolveDesktopBuildIdentity({ baseVersion: "2.0.0", channel: "dev", commitSha });
+    const configure = (projectRoot, isPackaged = false, environment = {}) => {
+      const paths = { appData };
+      const app = {
+        isPackaged, getPath: name => paths[name], setName: vi.fn(),
+        setPath: (name, value) => { paths[name] = value; }, setAppUserModelId: vi.fn(),
+      };
+      const identity = configureDesktopApplicationIdentity({ app, buildInfo, projectRoot, environment, platform: "win32" });
+      return { ...identity, paths, app };
+    };
+    const first = configure(checkoutA);
+    const second = configure(checkoutB);
+    const daily = configure(checkoutA, true, { PUPPYONE_DESKTOP_DEV_PROFILE: "experiment" });
+    expect(first.userDataPath).not.toBe(second.userDataPath);
+    expect(first.userDataPath).not.toBe(daily.userDataPath);
+    expect(first.userDataPath).toBe(configure(checkoutA).userDataPath);
+    expect(first.paths.sessionData).toBe(first.userDataPath);
+    expect(first.paths.logs).toBe(path.join(first.userDataPath, "logs"));
+    expect(first.app.setAppUserModelId).toHaveBeenCalledWith(first.applicationId);
+    expect(first.applicationId).not.toBe(second.applicationId);
+    expect(daily.userDataPath).toBe(path.join(appData, "puppyone-development"));
+    await expect(fs.stat(first.userDataPath)).resolves.toBeDefined();
+    const named = configure(checkoutA, false, { PUPPYONE_DESKTOP_DEV_PROFILE: "agent-call-exp" });
+    expect(named.userDataPath).toBe(configure(checkoutB, false, { PUPPYONE_DESKTOP_DEV_PROFILE: "agent-call-exp" }).userDataPath);
+    expect(named.applicationName).toContain("agent-call-exp");
+    expect(() => configure(checkoutA, false, { PUPPYONE_DESKTOP_DEV_PROFILE: "../../daily" })).toThrow(/profile/i);
+  });
+
 });
 
 async function createTemporaryDirectory() {

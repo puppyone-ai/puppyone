@@ -5,6 +5,7 @@
  * updates identical to the App's.
  */
 import { createRequire } from "node:module";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, powerMonitor, safeStorage, utilityProcess } from "electron";
@@ -18,8 +19,11 @@ const buildInfo = loadDesktopBuildInfo({ app, packageMetadata: require("../../pa
   projectRoot: path.resolve(here, "../..") });
 // Resolve the same channel as Desktop before taking a separate profile and lock.
 // Electron's default package name is not Desktop's dev/internal/stable identity.
-configureDesktopApplicationIdentity({ app, buildInfo });
-app.setPath("userData", hostServiceStateDir(app.getPath("userData")));
+configureDesktopApplicationIdentity({ app, buildInfo, projectRoot: path.resolve(here, "../..") });
+const stateDir = hostServiceStateDir(app.getPath("userData"));
+fs.mkdirSync(stateDir, { recursive: true });
+app.setPath("userData", stateDir);
+app.setPath("sessionData", stateDir);
 if (!app.requestSingleInstanceLock()) {
   app.exit(0);
 } else {

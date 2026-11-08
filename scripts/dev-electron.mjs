@@ -1,4 +1,6 @@
 import { watch, watchFile, unwatchFile } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { resolveDevelopmentProfile } from "../electron/main/development-instance.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDefaultElectronBin } from "./electron-runtime.mjs";
@@ -41,6 +43,8 @@ let renderer = null;
 let rendererHost = null;
 let rendererPort = null;
 let devUrl = null;
+let developmentProfile = null;
+const instanceToken = randomUUID();
 let desktopCloudWebUrl = null;
 let desktopCloudApiUrl = null;
 let healthCheckInFlight = false;
@@ -71,6 +75,8 @@ async function startDevelopmentEnvironment() {
   try {
     repairNodePtyPermissions(desktopRoot);
     const developmentEnvironment = loadDesktopDevelopmentEnvironment({ desktopRoot });
+    developmentProfile = resolveDevelopmentProfile({ projectRoot: desktopRoot, environment: developmentEnvironment });
+    console.info(`[desktop-dev] Isolated profile: ${developmentProfile}`);
     const rendererUrl = parseConfiguredHttpUrl(
       developmentEnvironment.PUPPYONE_DESKTOP_RENDERER_URL,
       "PUPPYONE_DESKTOP_RENDERER_URL",
@@ -145,6 +151,7 @@ function startRendererHealthCheck() {
     let result;
     try {
       result = await probeViteDevServer(devUrl, {
+        instanceToken,
         signal: AbortSignal.timeout(2_000),
       });
     } finally {
@@ -226,7 +233,7 @@ function startRenderer() {
   ], {
     cwd: desktopRoot,
     stdio: "inherit",
-    env: process.env,
+    env: { ...process.env, PUPPYONE_DESKTOP_DEV_INSTANCE_TOKEN: instanceToken },
   });
   renderer = child;
   if (environmentRestarting) {
@@ -268,6 +275,7 @@ function startElectron() {
     stdio: "inherit",
     env: {
       ...process.env,
+      PUPPYONE_DESKTOP_DEV_PROFILE: developmentProfile,
       PUPPYONE_DESKTOP_DEV_URL: devUrl,
       VITE_DESKTOP_CLOUD_API_URL: desktopCloudApiUrl,
       ...(desktopCloudWebUrl

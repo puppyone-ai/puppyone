@@ -14,7 +14,9 @@ import {
   createOpenerScript,
   devControlEndpoint,
 } from "../../../../scripts/desktop/dev/open-with.mjs";
-import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
+import { configureDesktopApplicationIdentity } from "../../../../electron/main/build-info-service.mjs";
+import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
+import { resolveCliControlEndpoint } from "../../../../electron/main/cli-control/endpoint.mjs";
 
 const identity = {
   applicationName: "PuppyOne",
@@ -96,10 +98,20 @@ describe("dev Open With app", () => {
     expect(appleScriptString(String.raw`/a "b"\c`)).toBe(String.raw`"/a \"b\"\\c"`);
   });
 
-  it("reaches the dev channel's socket, which belongs to no checkout", () => {
-    const userDataName = getDesktopBuildChannelPolicy("dev").userDataName;
-    expect(devControlEndpoint({ homeDirectory: "/Users/example", uid: 501 }))
-      .toBe(`/Users/example/Library/Application Support/${userDataName}/cli/control.sock`);
+  it("reaches this worktree's isolated instance, including an explicit profile", () => {
+    const projectRoot = temporaryDirectory();
+    const homeDirectory = temporaryDirectory();
+    const appData = path.join(homeDirectory, "Library", "Application Support");
+    const environment = { PUPPYONE_DESKTOP_DEV_PROFILE: "experiment" };
+    const buildInfo = resolveDesktopBuildIdentity({ baseVersion: "1.0.0", channel: "dev", commitSha: "a".repeat(40) });
+    const actual = configureDesktopApplicationIdentity({
+      app: { isPackaged: false, getPath: () => appData, setPath() {}, setName() {} },
+      buildInfo, projectRoot, environment, platform: "darwin",
+    });
+    expect(devControlEndpoint({ homeDirectory, uid: 501, projectRoot, environment }))
+      .toBe(resolveCliControlEndpoint({ userDataPath: actual.userDataPath, platform: "darwin", uid: 501 }));
+    expect(devControlEndpoint({ homeDirectory, uid: 501, projectRoot, environment: {} }))
+      .not.toBe(devControlEndpoint({ homeDirectory, uid: 501, projectRoot, environment }));
   });
 
   it.runIf(process.platform === "darwin")("asks the running dev instance to open each file, awkward paths intact", async () => {

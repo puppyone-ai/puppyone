@@ -22,15 +22,15 @@ describe("host service at login", () => {
     await expect(fs.access(path.join(home, "Library", "LaunchAgents", `${LAUNCH_AGENT_LABEL}.plist`))).rejects.toThrow();
   });
 
-  it("Linux: an XDG autostart entry with every argument quoted; development builds pass the App path", async () => {
+  it("Linux: an XDG autostart entry with every argument quoted for an installed app", async () => {
     const previous = process.env.XDG_CONFIG_HOME;
     delete process.env.XDG_CONFIG_HOME;
     try {
       const autostart = createHostAutostart({ platform: "linux", home, execPath: "/opt/Puppy One/electron",
-        appPath: "/src/app $x", isPackaged: false });
+        appPath: "/unused", isPackaged: true });
       expect(await autostart.set(true)).toBe(true);
       const entry = await fs.readFile(path.join(home, ".config", "autostart", "puppyone-host.desktop"), "utf8");
-      expect(entry).toContain('Exec="/opt/Puppy One/electron" "/src/app \\$x" "--puppyone-host"');
+      expect(entry).toContain('Exec="/opt/Puppy One/electron" "--puppyone-host"');
       expect((await autostart.status()).enabled).toBe(true);
     } finally {
       if (previous === undefined) delete process.env.XDG_CONFIG_HOME; else process.env.XDG_CONFIG_HOME = previous;
@@ -46,4 +46,15 @@ describe("host service at login", () => {
     expect(await autostart.set(true)).toBe(true);
     expect(settings).toEqual({ openAtLogin: true, path: "C:\\PuppyOne\\PuppyOne.exe", args: ["--puppyone-host"] });
   });
+  it.each(["darwin", "linux", "win32"])("%s: source experiments cannot replace or remove installed login items", async platform => {
+    const forbidden = () => { throw new Error("Source instance touched a login item"); };
+    const autostart = createHostAutostart({ platform, home, execPath: "/electron", appPath: "/source", isPackaged: false,
+      fsImpl: { readFile: forbidden, mkdir: forbidden, writeFile: forbidden, rm: forbidden },
+      app: { getLoginItemSettings: forbidden, setLoginItemSettings: forbidden },
+    });
+    expect(await autostart.status()).toEqual({ supported: false, enabled: false });
+    expect(await autostart.set(true)).toBe(false);
+    expect(await autostart.set(false)).toBe(false);
+  });
+
 });

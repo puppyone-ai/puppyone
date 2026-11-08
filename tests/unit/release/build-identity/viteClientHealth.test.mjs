@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import { developmentInstancePlugin } from "../../../../scripts/desktop/dev/instance-plugin.mjs";
 import { describe, expect, it, vi } from "vitest";
 import {
   findUnresolvedViteClientPlaceholders,
@@ -79,4 +81,44 @@ describe("Vite development client health", () => {
       error: "connection refused",
     });
   });
+  it("refuses a healthy renderer owned by a different development launch", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(response("another-launch"));
+    await expect(probeViteDevServer("http://127.0.0.1:5173", {
+      fetchImpl, instanceToken: "this-launch",
+    })).resolves.toEqual({ ready: false, reason: "different-instance" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts its own renderer before probing the document and Vite client", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(response("this-launch"))
+      .mockResolvedValueOnce(response("<!doctype html>"))
+      .mockResolvedValueOnce(response("const isBundleMode = false;"));
+    await expect(probeViteDevServer("http://127.0.0.1:5173", {
+      fetchImpl, instanceToken: "this-launch",
+    })).resolves.toEqual({ ready: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("verifies ownership through the actual development middleware over HTTP", async () => {
+    let middleware;
+    developmentInstancePlugin({ token: "owned-launch" }).configureServer({
+      middlewares: { use(handler) { middleware = handler; } },
+    });
+    const server = createServer((request, response) => middleware(request, response, () => {
+      response.end(request.url === "/@vite/client" ? "const hmr = true;" : "<!doctype html>");
+    }));
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    try {
+      const url = `http://127.0.0.1:${server.address().port}`;
+      await expect(probeViteDevServer(url, { instanceToken: "owned-launch" })).resolves.toEqual({ ready: true });
+      await expect(probeViteDevServer(url, { instanceToken: "other-launch" })).resolves.toEqual({ ready: false, reason: "different-instance" });
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+  });
+
 });
