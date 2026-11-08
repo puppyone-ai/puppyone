@@ -58,6 +58,11 @@ enum Step {
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
     HomeList,
+    /// `hosts-fixture`: the owner's other computers of
+    /// `#homepage-computers-visual-smoke`, this one sharing three folders.
+    HostsFixture,
+    /// `host-share:<absolute path>`: the sharing dialog for that folder.
+    HostShare(PathBuf),
     HomeHover(usize),
     HomeActions(usize),
     /// `template`: a template link's card (with `PUPPYONE_TEMPLATE_LAB`).
@@ -126,6 +131,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "home-list" => Step::HomeList,
+                "hosts-fixture" => Step::HostsFixture,
+                "host-share" => Step::HostShare(path()),
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
                 "template" => Step::Template,
@@ -471,6 +478,60 @@ impl Shell {
                     return false;
                 }
             }
+            Step::HostsFixture => {
+                const THIS: &str = "11111111-1111-4111-8111-111111111111";
+                let folder = |id: &str, name: &str, write: bool| {
+                    let mut capabilities = vec!["folder.read"];
+                    if write {
+                        capabilities.push("folder.write");
+                    }
+                    serde_json::json!({"id": id, "name": name, "state": "active", "revision": 1,
+                        "capabilities": capabilities})
+                };
+                let id = |n: u8| format!("{n:08x}-0000-4000-8000-{n:012x}");
+                let catalog = serde_json::json!({"devices": [
+                    {"id": THIS, "name": "Guantum’s MacBook Pro", "online": true, "state": "active",
+                        "folders": [folder(&id(1), "ditherit", false), folder(&id(2), "puppyone Vault", true),
+                            folder(&id(3), "To-Do-List", false)]},
+                    {"id": "22222222-2222-4222-8222-222222222222", "name": "Studio Mac", "online": true,
+                        "state": "active", "folders": [folder(&id(11), "design-system", true),
+                            folder(&id(12), "launch-video", false), folder(&id(13), "photos 2026", false),
+                            folder(&id(14), "puppyone-website", true), folder(&id(15), "research notes", false)]},
+                    {"id": "33333333-3333-4333-8333-333333333333", "name": "Office PC", "online": false,
+                        "state": "active", "folders": [folder(&id(21), "Contracts", false),
+                            folder(&id(22), "Finance 2026", true)]},
+                    {"id": "44444444-4444-4444-8444-444444444444", "name": "home-server", "online": true,
+                        "state": "active", "folders": []},
+                ]});
+                crate::features::hosts::global(cx).update(cx, |h, cx| {
+                    h.install_fixture(&catalog, THIS);
+                    cx.notify();
+                });
+                // This computer's own folders, three of them shared.
+                let base = std::path::Path::new("/tmp/po-cap/hosts-fixture");
+                let local = [
+                    ("ditherit", Some(id(1))),
+                    ("puppyone Vault", Some(id(2))),
+                    ("To-Do-List", Some(id(3))),
+                    ("marketing-pitch", None),
+                    ("my disk", None),
+                    ("ontology demo", None),
+                    ("VC pitch", None),
+                ];
+                self.prefs.store.update(cx, |p, cx| {
+                    p.change(
+                        |p| {
+                            for (index, (name, folder)) in local.iter().enumerate() {
+                                let path = base.join(name);
+                                let _ = std::fs::create_dir_all(&path);
+                                p.remember_project(&path, 100 + index as u64);
+                                p.mark_shared(&path, folder.clone());
+                            }
+                        },
+                        cx,
+                    )
+                });
+            }
             Step::HomeList => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| p.homepage_project_layout = crate::features::settings::HomepageLayout::List,
@@ -497,6 +558,11 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
+            }
+            Step::HostShare(path) => {
+                let path = path.clone();
+                self.cloud
+                    .update(cx, |c, cx| c.request_device_sharing(path, window, cx));
             }
             Step::Template => self.home.update(cx, |h, cx| {
                 h.open_template_link(

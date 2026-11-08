@@ -357,7 +357,8 @@ impl WindowCloud {
                 .debug_selector(move || id.into())
                 .gap(px(10.))
                 .items_start()
-                .p(px(10.))
+                .px(px(10.))
+                .py(px(8.))
                 .rounded(px(8.))
                 .border_1()
                 .border_color(if selected { t.accent } else { t.border })
@@ -383,12 +384,11 @@ impl WindowCloud {
                         .flex_none()
                         .rounded_full()
                         .border_1()
-                        .border_color(if selected { t.accent } else { t.border })
+                        .border_color(if selected { t.accent } else { t.muted })
                         .when(selected, |d| d.border_4()),
                 )
                 .child(
                     v_flex()
-                        .gap(px(2.))
                         .child(
                             div()
                                 .text_size(px(ty.body))
@@ -423,7 +423,7 @@ impl WindowCloud {
                 .into_any_element()
         };
         let mut dialog = Dialog::new("host-sharing")
-            .width(460.)
+            .width(440.)
             .title(tf(
                 if share {
                     "hosts.dialog.shareTitle"
@@ -452,12 +452,13 @@ impl WindowCloud {
         } else {
             body = body.child(
                 v_flex()
-                    .gap(px(6.))
+                    .gap(px(4.))
+                    // `.host-sharing-heading`: the section's question, in the ink.
                     .child(
                         div()
-                            .text_size(px(ty.meta))
+                            .text_size(px(ty.body))
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(t.subtle)
+                            .text_color(t.text)
                             .child(tr("hosts.dialog.access")),
                     )
                     .child(option(

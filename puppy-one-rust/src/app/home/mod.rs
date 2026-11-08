@@ -358,7 +358,8 @@ impl Homepage {
     /// This computer's own sharing (`HomepageComputers`): what it offers, its
     /// id among the account's computers, and whether a folder may be offered.
     fn sync_sharing(&mut self, cx: &mut Context<Self>) {
-        let on = crate::features::flags::host_devices_enabled(&self.preferences, cx);
+        let fixture = self.hosts.read(cx).is_fixture();
+        let on = fixture || crate::features::flags::host_devices_enabled(&self.preferences, cx);
         let account = crate::features::cloud::account::broker_and_binding(cx).map(|(_, b)| b.user);
         let link = crate::features::hosts::host_link(cx);
         if on {
@@ -368,7 +369,7 @@ impl Homepage {
             });
         }
         let device = account.as_deref().and_then(|a| link.read(cx).device_for(a));
-        if self.hosts.read(cx).this_device != device {
+        if !fixture && self.hosts.read(cx).this_device != device {
             self.hosts.update(cx, |h, cx| {
                 h.this_device = device;
                 cx.notify();
@@ -420,7 +421,9 @@ impl Homepage {
     }
     /// The folders my other computers offer, but those this computer shares.
     fn remote_items(&self, cx: &App) -> Vec<Item> {
-        if !crate::features::flags::host_devices_enabled(&self.preferences, cx) {
+        if !crate::features::flags::host_devices_enabled(&self.preferences, cx)
+            && !self.hosts.read(cx).is_fixture()
+        {
             return vec![];
         }
         let local: std::collections::HashSet<String> = self

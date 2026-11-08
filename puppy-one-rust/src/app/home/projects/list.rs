@@ -439,7 +439,6 @@ impl Homepage {
         let inactive = item.remote.as_ref().is_some_and(|r| !r.available());
         div()
             .id(id)
-            .when(inactive, |d| d.opacity(0.5))
             .debug_selector(move || selector.clone())
             .track_focus(&focus)
             .on_key_down(keys)
@@ -543,7 +542,18 @@ impl Homepage {
         let dragging = self.dragging_item(item, cx);
         // `.has-cloud-project` rests quieter: the Cloud project is where
         // people and agents work.
-        let name_color = if linked && !lit { t.subtle } else { t.text };
+        // An entry that cannot be opened (an offline computer's folder):
+        // `.desktop-menu-item:disabled` (0.58, the disabled ink) inside the
+        // folder's own fade (0.5).
+        let inactive = item.remote.as_ref().is_some_and(|r| !r.available());
+        let fade = inactive.then_some(0.5 * 0.58);
+        let name_color = if inactive {
+            t.text_disabled
+        } else if linked && !lit {
+            t.subtle
+        } else {
+            t.text
+        };
         let actions = self.project_actions_trigger(index, item, is_stop, busy, cx);
         let cloud_link = item
             .linked
@@ -578,7 +588,7 @@ impl Homepage {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(super::folder::list_folder(lit, t)),
+                    .child(super::folder::list_folder(lit, fade, t)),
             )
             .child(
                 div()
@@ -587,6 +597,7 @@ impl Homepage {
                     .min_w_0()
                     .items_baseline()
                     .gap(px(7.))
+                    .when_some(fade, |d, fade| d.opacity(fade))
                     .child(
                         h_flex()
                             .min_w_0()
@@ -692,6 +703,12 @@ impl Homepage {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(" · ");
+        // An offline computer's folder fades (`data-inactive`, 0.5).
+        let fade = item
+            .remote
+            .as_ref()
+            .is_some_and(|r| !r.available())
+            .then_some(0.5);
         let tile = self
             .open_control(("home-tile", index), item, focus, busy, keys, cx)
             .w_full()
@@ -709,11 +726,12 @@ impl Homepage {
             .when(busy, |d| d.opacity(0.58))
             .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
-            .child(super::folder::grid_folder(rise, lit, t))
+            .child(super::folder::grid_folder(rise, lit, fade, t))
             .child(
                 // `.onboarding-project-tile-label`: the name, and in a shared
                 // group the small mark of where it lives.
                 h_flex()
+                    .when_some(fade, |d, fade| d.opacity(fade))
                     .max_w_full()
                     .min_w_0()
                     .items_center()

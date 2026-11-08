@@ -68,14 +68,31 @@ fn layer(path: &'static str, w: f32, h: f32, color: Rgba) -> Svg {
 
 /// `ProjectFolder` (the Grid's 72 × 57 folder). `rise` is how far the sheet
 /// has risen, 0 at rest and 1 when reached for; `lit` tints the folder.
-pub(super) fn grid_folder(rise: f32, lit: bool, t: Theme) -> Div {
+/// An entry that cannot be opened (an offline computer's folder) at
+/// `strength` of its ink, as `opacity` fades one composited shape: each
+/// layer stays opaque, so no layer shows through another.
+pub(super) fn faded(tones: Tones, strength: Option<f32>, t: Theme) -> Tones {
+    let Some(w) = strength else { return tones };
+    let fade = |c| theme::mix(c, t.canvas, w);
+    Tones {
+        back: fade(tones.back),
+        front: fade(tones.front),
+        sheet: fade(tones.sheet),
+        ink: fade(tones.ink),
+    }
+}
+pub(super) fn grid_folder(rise: f32, lit: bool, fade: Option<f32>, t: Theme) -> Div {
     let (w, h) = (72., 57.);
     let scale = w / GRID.0;
-    let tones = if lit {
-        self::lit(tones(t), t)
-    } else {
-        tones(t)
-    };
+    let tones = faded(
+        if lit {
+            self::lit(tones(t), t)
+        } else {
+            tones(t)
+        },
+        fade,
+        t,
+    );
     let sheet_top = -SHEET_RISE * scale * rise.clamp(0., 1.);
     let sheet = |path: &'static str, color| layer(path, w, h, color).top(px(sheet_top));
     div()
@@ -91,13 +108,17 @@ pub(super) fn grid_folder(rise: f32, lit: bool, t: Theme) -> Div {
 
 /// `.onboarding-project-icon` in a list row: the folder in the Homepage's
 /// fill (19 × 15, overhanging its 14px slot).
-pub(in crate::app) fn list_folder(lit: bool, t: Theme) -> AnyElement {
+pub(in crate::app) fn list_folder(lit: bool, fade: Option<f32>, t: Theme) -> AnyElement {
     let (w, h) = (19., 15.);
-    let tones = if lit {
-        self::lit(tones(t), t)
-    } else {
-        tones(t)
-    };
+    let tones = faded(
+        if lit {
+            self::lit(tones(t), t)
+        } else {
+            tones(t)
+        },
+        fade,
+        t,
+    );
     div()
         .relative()
         .size(px(14.))

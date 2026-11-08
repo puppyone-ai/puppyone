@@ -51,6 +51,8 @@ pub struct HostCatalog {
     /// This computer's device id, once it shares a folder (its own host
     /// service says so); it is listed first and never as another computer.
     pub this_device: Option<String>,
+    /// Captures: a fixed catalog stands in, whatever the account.
+    fixture: bool,
 }
 
 struct Service(Entity<HostCatalog>);
@@ -70,6 +72,7 @@ pub fn global(cx: &mut App) -> Entity<HostCatalog> {
         epoch: 0,
         read_at: None,
         this_device: None,
+        fixture: false,
     });
     cx.set_global(Service(catalog.clone()));
     catalog
@@ -151,6 +154,18 @@ impl HostCatalog {
         self.epoch += 1;
     }
     /// The access side for the signed-in account, once read for it.
+    /// Captures: the catalog of `#homepage-computers-visual-smoke`.
+    #[cfg(feature = "dev-capture")]
+    pub fn install_fixture(&mut self, catalog: &serde_json::Value, this_device: &str) {
+        self.devices = crate::workspace::hosts::remote::parse_catalog(catalog).unwrap_or_default();
+        self.this_device = Some(this_device.to_owned());
+        self.loaded = true;
+        self.read_at = Some(Instant::now());
+        self.fixture = true;
+    }
+    pub fn is_fixture(&self) -> bool {
+        self.fixture
+    }
     pub fn hosts(&self) -> Option<Arc<Hosts>> {
         self.hosts.clone()
     }
