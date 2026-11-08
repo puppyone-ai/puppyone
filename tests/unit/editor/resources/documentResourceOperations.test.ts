@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataPort, DocumentPersistencePort } from "../../../../src/shared-ui/core/types";
+import type { DataPort, DocumentPersistencePort, ConvertedDocumentOutputResult } from "../../../../src/shared-ui/core/types";
 import { withEditorDocumentOperations } from "../../../../src/shared-ui/editor/document-session/documentResourceOperations";
 import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource, getOrCreateDocumentWorkingCopy } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { ResourceOperationQueue } from "../../../../src/shared-ui/editor/document-session/ResourceOperationQueue";
@@ -15,6 +15,28 @@ function open(persistence: DocumentPersistencePort, path: string) {
 }
 
 describe("scoped document operations", () => {
+  it.each([
+    ["reports/report.docx", "converted"],
+    ["puppyone-local://workspace/project/reports/report.docx", "puppyone-local://workspace/project/converted"],
+  ])("waits to move the project output folder while saving %s", async (source, destination) => {
+    let complete!: (result: ConvertedDocumentOutputResult) => void;
+    const move = vi.fn(async () => {});
+    const port = withEditorDocumentOperations({ listChildren: async () => [],
+      documentPersistence: { kind: "local-fs", storageIdentity: `conversion:${source}`, persist: async () => ({ ok: true, version: null }) },
+      saveDocumentConversion: () => new Promise(resolve => { complete = resolve; }), moveNode: move,
+    });
+    const saving = port.saveDocumentConversion!({ path: source, fingerprint: "abc", primaryPath: "report.md", files: [] });
+    await vi.waitFor(() => expect(complete).toBeDefined());
+    const moving = port.moveNode!(destination, destination + "-archived");
+    try {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(move).not.toHaveBeenCalled();
+    } finally {
+      complete({ ok: true, folderPath: "converted/report", openPath: "converted/report/report.md", paths: [] });
+      await saving; await moving;
+    }
+    expect(move).toHaveBeenCalledOnce();
+  });
   it("does not retire a moved model through a close queued against its former address", async () => {
     const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: "operations:move-close", persist: async () => ({ ok: true, version: "saved" }) };
     const current = open(persistence, "old.txt");

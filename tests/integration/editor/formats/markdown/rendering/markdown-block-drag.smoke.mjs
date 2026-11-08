@@ -270,6 +270,94 @@ const longDocumentScenarios = {
   },
 };
 
+const imageScenarios = {
+  async "a block image's handle sits on the image"(page) {
+    await page.call("imageReady");
+    const block = await page.call("blockImage");
+    assert(block, "the fixture did not render a block image");
+    const imageHeight = block.widget.bottom - block.widget.top;
+    const lineHeight = block.line.bottom - block.line.top;
+    // Only the line's own bottom padding may exceed the image.
+    assert(lineHeight - imageHeight <= 8,
+      `the image line wasted ${lineHeight - imageHeight}px around a ${imageHeight}px image`);
+    const handle = await page.hoverUntilHandle(block.widget.left + 40, block.widget.top + 20);
+    assert(handle, "no handle for a block image");
+    assert(handle.y >= block.widget.top - 1,
+      `handle y ${handle.y} floats above the image top ${block.widget.top}`);
+    assert(handle.y <= block.widget.top + 26,
+      `handle y ${handle.y} sits below the image's first row`);
+    assert.equal(block.display, "inline-flex", "a block image must stay inline-level inside its line");
+  },
+
+  async "a block image keeps its neighbours' spacing"(page) {
+    await page.call("imageReady");
+    const block = await page.call("blockImage");
+    const heading = await page.call("row", "健身营养");
+    const paragraph = await page.call("row", "ATP-CP");
+    // The heading and paragraph gap tokens own the outer rhythm (~30px in the
+    // default theme). The phantom-row guard is what happens inside the image's
+    // own line: it may only carry the source-line gap, never a blank text row.
+    assert(block.widget.top - block.line.top <= 8,
+      `the image line pads ${block.widget.top - block.line.top}px above the image`);
+    assert(block.line.bottom - block.widget.bottom <= 8,
+      `the image line pads ${block.line.bottom - block.widget.bottom}px below the image`);
+    assert(block.widget.top >= heading.bottom, "the image overlaps the heading");
+    assert(paragraph.top >= block.line.bottom, "the following paragraph overlaps the image line");
+    assert(block.widget.top - heading.bottom <= 40,
+      `the gap above the image is ${block.widget.top - heading.bottom}px`);
+    assert(paragraph.top - block.widget.bottom <= 40,
+      `the gap below the image is ${paragraph.top - block.widget.bottom}px`);
+  },
+
+  async "dragging a block image marks the image only"(page) {
+    await page.call("imageReady");
+    const block = await page.call("blockImage");
+    const handle = await page.hoverUntilHandle(block.widget.left + 40, block.widget.top + 20);
+    await page.press(handle);
+    await page.dragTo(handle.x + 40, handle.y + 40);
+    const source = await page.call("source");
+    assert(source, "no source mark during the drag");
+    assert((source.bottom - source.top) - (block.widget.bottom - block.widget.top) <= 8,
+      `the source mark is ${(source.bottom - source.top)}px for a ${block.widget.bottom - block.widget.top}px image`);
+    page.send({ type: "keyDown", keyCode: "Escape" }); await sleep(40);
+    await page.release(handle.x + 40, handle.y + 40);
+  },
+
+  async "a narrow pane still keeps the handle on the image"(page) {
+    page.window.setContentSize(420, 800); await sleep(300);
+    await page.call("imageReady");
+    const block = await page.call("blockImage");
+    assert(block.widget.right - block.widget.left <= 420, "the block image overflowed the narrow pane");
+    const handle = await page.hoverUntilHandle(block.widget.left + 40, block.widget.top + 20);
+    assert(handle, "no handle in a narrow pane");
+    assert(handle.x < block.widget.left, "the handle should sit in the rail left of the image");
+    assert(handle.y >= block.widget.top - 1, "the handle floated above the image in a narrow pane");
+  },
+};
+
+const imagePendingScenarios = {
+  async "a loading placeholder adds no phantom row"(page) {
+    await sleep(300);
+    const block = await page.call("blockImage");
+    assert(block, "the placeholder did not render");
+    const height = block.line.bottom - block.line.top;
+    const widgetHeight = block.widget.bottom - block.widget.top;
+    assert(height - widgetHeight <= 8, `the loading line wasted ${height - widgetHeight}px`);
+  },
+};
+
+const imageRtlScenarios = {
+  async "a right-to-left block image keeps the handle on its image"(page) {
+    await page.call("imageReady");
+    const rail = await page.call("rail");
+    const block = await page.call("blockImage");
+    const handle = await page.hoverUntilHandle(rail.left + 100, block.widget.top + 20);
+    assert(handle, "no handle for a right-to-left block image");
+    assert(handle.x > rail.right, `handle ${handle.x} should sit past the right rail ${rail.right}`);
+    assert(handle.y >= block.widget.top - 1, `handle y ${handle.y} floats above the image`);
+  },
+};
+
 const rightToLeftScenarios = {
   async "a right-to-left document puts the handle on its start side"(page) {
     const rail = await page.call("rail");
@@ -314,6 +402,9 @@ async function run() {
   await runAll("doc=long", longDocumentScenarios);
   await runAll("doc=rtl", rightToLeftScenarios);
   await runAll("doc=frontmatter", frontmatterScenarios);
+  await runAll("doc=image", imageScenarios);
+  await runAll("doc=imagePending", imagePendingScenarios);
+  await runAll("doc=imageRtl", imageRtlScenarios);
 }
 
 const failures = () => results.filter(result => !result.ok);

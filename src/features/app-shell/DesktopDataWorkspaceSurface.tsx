@@ -38,6 +38,7 @@ import {
 import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
+import { useDesktopPlatformCapabilities } from "../../platform";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/ProjectShell";
@@ -45,6 +46,8 @@ import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditor
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {
   AgentFilePresence,
+  AgentChangedFileMark,
+  agentChangedFilesStore,
   desktopAgentActivityStore,
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
@@ -104,6 +107,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
+  /** Direct deletion entry for the file tree shortcut; absent keeps it off. */
+  onDeleteNodes?: (nodes: DataNode[], anchorRect: DOMRect) => void | Promise<void>;
   resolvedSurface: ResolvedWorkspaceSurface;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
@@ -144,6 +149,7 @@ export function DesktopDataWorkspaceSurface({
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onNodeActionMenu,
+  onDeleteNodes,
   resolvedSurface,
   sidebarCompanion,
   sidebarUtility,
@@ -158,6 +164,7 @@ export function DesktopDataWorkspaceSurface({
   cloudProjectNotice,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const platformCapabilities = useDesktopPlatformCapabilities();
   const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
   const markdownHeadingOutlineEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownHeadingOutline);
   const editorInteractionPreferences = useMemo(() => ({ showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled }),
@@ -193,6 +200,13 @@ export function DesktopDataWorkspaceSurface({
     ?? workspaceFolders[0]?.uri
     ?? null;
   const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
+  const openReviewedFile = useCallback(async (path: string | null, node?: DataNode | null) => {
+    const resource = localResources && path ? resolveWorkspaceResource(path) : null;
+    const root = resource?.folder.workspace.path;
+    const relative = resource?.providerPath;
+    if (root && relative && node?.type !== "folder") agentChangedFilesStore.requestReview(root, relative);
+    await onActiveDataPathChange(path, node);
+  }, [localResources, onActiveDataPathChange, resolveWorkspaceResource]);
   const pinsProjectKey = getExplorerPinsProjectKey(workspace, workspaceFolders);
   const pins = useExplorerPins(pinsProjectKey);
   const hasPins = pins.files.length > 0;
@@ -273,7 +287,7 @@ export function DesktopDataWorkspaceSurface({
         onExplorerSessionChange={explorerSession.onSessionChange}
         activePath={activeExplorerPath}
         onResourceMove={onResourceMove}
-        onActivePathChange={onActiveDataPathChange}
+        onActivePathChange={openReviewedFile}
         onActiveNodeChange={onActiveDataNodeChange}
         onOpenExternalUrl={openExternalUrl}
         viewerExtensionAdapter={viewerExtensionAdapter}
@@ -309,6 +323,8 @@ export function DesktopDataWorkspaceSurface({
         onCutNodes={fileClipboardController.canCut ? fileClipboardController.cutNodes : undefined}
         onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
+        onDeleteNodes={onDeleteNodes}
+        deleteWithMetaBackspace={platformCapabilities?.platform === "macos"}
         explorerLoadingPresentation="skeleton"
         explorerTreeCollapsed={hasPins && pins.filesCollapsed}
         explorerPinnedSlot={hasPins
@@ -318,7 +334,7 @@ export function DesktopDataWorkspaceSurface({
                 activePath={activeDocumentPath ?? activeExplorerPath}
                 filesCollapsed={pins.filesCollapsed}
                 fileIconTheme={fileIconTheme}
-                onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
+                onOpen={(file) => { void openReviewedFile(file.path, file); }}
                 onContextMenu={(file, event) => {
                   if (!canChangeNodes) return;
                   event.preventDefault();
@@ -377,6 +393,7 @@ export function DesktopDataWorkspaceSurface({
         refreshKey={workspaceRefreshToken}
         atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
+          const changeResource = localResources ? resolveWorkspaceResource(node.path) : null;
           const agentPresencePath = localResources && node.type === "file"
             ? node.workspaceFolderId
               ? resolveWorkspaceResource(node.path)?.providerPath ?? null
@@ -384,6 +401,8 @@ export function DesktopDataWorkspaceSurface({
             : null;
           return (
             <>
+              {changeResource && <AgentChangedFileMark root={changeResource.folder.workspace.path}
+                path={changeResource.providerPath ?? ""} folder={node.type === "folder"} />}
               {agentPresencePath && (
                 <AgentFilePresence
                   path={agentPresencePath}
@@ -433,6 +452,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  onOpenCreatedDocument={editorWorkbench.openDocument}
                   entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
@@ -453,6 +473,10 @@ export function DesktopDataWorkspaceSurface({
                   onFocusPane={editorWorkbench.focusPane}
                   onMovePane={editorWorkbench.movePane}
                   onOpenAtPaneEdge={editorWorkbench.openDocumentAtPaneEdge}
+                  onOpenInPane={(node, paneId) => {
+                    editorWorkbench.focusPane(paneId);
+                    editorWorkbench.openDocument(node);
+                  }}
                   onResizeSplit={editorWorkbench.resizeSplit}
                   onSplitPane={editorWorkbench.splitPane}
                 />
@@ -480,7 +504,7 @@ export function DesktopDataWorkspaceSurface({
           <AiResponseChangesCard
             request={activeAiEditRequest}
             activePath={activeDocumentPath}
-            onOpenFile={onActiveDataPathChange}
+            onOpenFile={openReviewedFile}
           />
         </div>
       )}

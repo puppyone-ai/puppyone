@@ -13,12 +13,14 @@ import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { HtmlViewMenu } from "./HtmlViewMenu";
+import { openWorkspaceDocumentIntent } from "./htmlOpenDocumentIntent";
 import { isHtmlDocumentEmpty } from "./htmlDocumentEmpty";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
 
 type HtmlViewerProps = Pick<PresetViewerRenderContext, "document" | "content" | "fileUrl" | "fileUrlLoading"
-  | "fileUrlError" | "loading" | "error" | "htmlTrustMode" | "canEdit" | "hideSourceView">;
+  | "fileUrlError" | "loading" | "error" | "htmlTrustMode" | "canEdit" | "hideSourceView"
+  | "documentNavigation">;
 type Mode = "preview" | "edit" | "source";
 
 export function HtmlViewer(props: HtmlViewerProps) {
@@ -28,7 +30,7 @@ export function HtmlViewer(props: HtmlViewerProps) {
   return <HtmlDocumentEditor key={props.document.path} {...props} />;
 }
 
-function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit, hideSourceView }: HtmlViewerProps) {
+function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit, hideSourceView, documentNavigation }: HtmlViewerProps) {
   const { t } = useLocalization();
   const owner = useDocumentModelOwner();
   const publishMenu = useEditorPaneMenuContributionPublisher();
@@ -119,6 +121,14 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
     publishMenu({ documentId: document.path, viewItems: viewMenu.options.length > 1 ? [viewMenu] : [] });
     return () => publishMenu(null);
   }, [document.path, publishMenu, viewMenu]);
+  // The preview may ask to open a workspace document. Only the Host port
+  // decides whether that path exists and may open; the frame never names an
+  // absolute path or a URL scheme.
+  const navigation = documentNavigation ?? null;
+  const openDocument = useCallback((intent: { target: string; anchor: string | null }) => {
+    openWorkspaceDocumentIntent(navigation, document.path, intent);
+  }, [document.path, navigation]);
+
   const unavailable = useCallback(() => {
     setPreview(model.readSnapshot().content); setMode("preview"); setError(t("editor.html.unsupported"));
   }, [model, t]);
@@ -138,6 +148,6 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       </div>}
     {!showEmptyPage && (mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
       : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} viewportState={viewport} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
-        : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} /></Suspense></div>)}
+        : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} onOpenDocument={openDocument} /></Suspense></div>)}
   </section>;
 }

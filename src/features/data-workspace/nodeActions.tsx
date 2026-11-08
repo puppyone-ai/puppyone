@@ -443,6 +443,7 @@ export function DesktopNodeActionMenu({
   onCreateInside,
   onRename,
   onDelete,
+  deleteShortcut,
   onOpenInDefaultApp,
   onRevealInFinder,
 }: {
@@ -467,6 +468,8 @@ export function DesktopNodeActionMenu({
   onCreateInside: () => void;
   onRename: () => void;
   onDelete: () => void;
+  /** Platform delete chord, only when the host actually enables it. */
+  deleteShortcut?: string;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
 }) {
@@ -502,6 +505,7 @@ export function DesktopNodeActionMenu({
         onDuplicate={onDuplicate}
         onCreateInside={onCreateInside}
         onDelete={onDelete}
+        deleteShortcut={deleteShortcut}
         onOpenInDefaultApp={onOpenInDefaultApp}
         onRevealInFinder={onRevealInFinder}
       />
@@ -528,6 +532,7 @@ function DesktopNodeActionPopover({
   onDuplicate,
   onCreateInside,
   onDelete,
+  deleteShortcut,
   onOpenInDefaultApp,
   onRevealInFinder,
 }: {
@@ -550,6 +555,7 @@ function DesktopNodeActionPopover({
   onDuplicate: () => void;
   onCreateInside: () => void;
   onDelete: () => void;
+  deleteShortcut?: string;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
 }) {
@@ -720,6 +726,7 @@ function DesktopNodeActionPopover({
         label={draft.operation === "delete"
           ? t("workspace.node.deleting")
           : t("workspace.node.deleteItems", { count: actionCount })}
+        shortcut={deleteShortcut}
         destructive
         disabled={draft.operation !== null}
         onClick={onDelete}

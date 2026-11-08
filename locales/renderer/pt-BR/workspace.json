@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Modificado pelo Agent — ainda não visualizado",
+  "explorer.agentChangedFolder": "Contém arquivos modificados pelo Agent ainda não visualizados",
   "node.copyLink": "Copiar link",
   "workbench.renderFailure": "Não foi possível exibir esta aba.",
   "workbench.reloadView": "Recarregar visualização",
@@ -8,6 +10,7 @@
   "projectSessions.closeFailed": "Não foi possível parar algumas tarefas do projeto.",
   "projectSessions.retryClose": "Tentar fechar novamente",
   "drag.exportFailed": "Não foi possível concluir a operação. Verifique se a origem e o destino estão disponíveis e se o destino aceita esta operação.",
+  "drag.imageInsertFailed": "Não foi possível inserir esta imagem. Formatos aceitos: PNG, JPEG, GIF e WebP, até 20 MB por imagem.",
   "restoring.message": "Abrindo o último projeto…",
   "viewerPack.rootUnavailable": "A raiz do espaço de trabalho não está disponível para ativar o Viewer Pack.",
   "viewerPack.loadingExtension": "Carregando extensão do visualizador…",

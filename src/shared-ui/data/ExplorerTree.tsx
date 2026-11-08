@@ -62,6 +62,7 @@ import {
   EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS,
   useExplorerVirtualWindow,
 } from "./explorer/useExplorerVirtualWindow";
+import { isExplorerDeleteShortcut } from "./explorer/explorerDeleteShortcut";
 
 export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
 /** `flow` keeps the list-end slot after the last row. `sticky` also keeps it
@@ -103,6 +104,10 @@ export type ExplorerTreeProps = {
   onMoveNodes?: (nodes: DataNode[], targetFolderPath: string | null) => void | Promise<void>;
   onCopyNodes?: (nodes: DataNode[]) => void | Promise<void>;
   onCutNodes?: (nodes: DataNode[]) => void | Promise<void>;
+  /** Host-owned deletion; the tree only validates scope and passes the snapshot. */
+  onDeleteNodes?: (nodes: DataNode[], anchorRect: DOMRect) => void | Promise<void>;
+  /** macOS reports Backspace on the keycap printed Delete; the host decides. */
+  deleteWithMetaBackspace?: boolean;
   onPasteNodes?: (targetFolderPath: string | null) => void | Promise<void>;
   onDuplicateNodes?: (nodes: DataNode[]) => void | Promise<void>;
   onImportFiles?: (files: File[], targetFolderPath: string | null) => void | Promise<void>;
@@ -179,6 +184,8 @@ export function ExplorerTree({
   onMoveNodes,
   onCopyNodes,
   onCutNodes,
+  onDeleteNodes,
+  deleteWithMetaBackspace = false,
   onPasteNodes,
   onDuplicateNodes,
   onImportFiles,
@@ -197,6 +204,9 @@ export function ExplorerTree({
   const resolvedRootLabel = rootLabel ?? t("shared-ui.explorer.root");
   const resolvedLoadingLabel = loadingLabel ?? t("shared-ui.loading");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<HTMLDivElement>(null);
+  // The row to fall back to after a shortcut deletion removes the focused one.
+  const deleteFocusRef = useRef<{ path: string; index: number } | null>(null);
   const stickyListEnd = Boolean(renderListEnd) && listEndPlacement === "sticky";
   // Native dragenter/dragleave events fire for descendants too. The target is
   // outside this tree only when the balanced depth returns to zero.
@@ -563,9 +573,44 @@ export function ExplorerTree({
 
   const focusRowAtIndex = useCallback((index: number) => {
     window.requestAnimationFrame(() => {
-      document.getElementById(getExplorerRowDomId(index))?.focus();
+      const row = document.getElementById(getExplorerRowDomId(index));
+      if (row) {
+        row.focus();
+        return;
+      }
+      // The virtual window has not mounted this row yet: scroll it into range,
+      // then focus on the next frame.
+      const scroll = scrollRef.current;
+      if (!scroll) return;
+      scroll.scrollTop = Math.max(0, index * virtualWindow.rowSize - virtualWindow.rowSize * 2);
+      window.requestAnimationFrame(() => {
+        document.getElementById(getExplorerRowDomId(index))?.focus();
+      });
     });
-  }, []);
+  }, [virtualWindow.rowSize]);
+
+  // After a shortcut deletion removes the focused row, keep the keyboard in the
+  // tree: the next surviving row wins, then the previous one. Rows are located
+  // by resource identity, never by the old virtual index.
+  useEffect(() => {
+    const pending = deleteFocusRef.current;
+    if (!pending || visibleModel.pathToIndex.has(pending.path)) return;
+    deleteFocusRef.current = null;
+    const tree = treeRef.current;
+    if (!tree) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused !== document.body && !tree.contains(focused)) return;
+    const start = Math.min(Math.max(0, pending.index), visibleModel.rows.length - 1);
+    const nextIndex = findNavigableRowIndex(visibleModel.rows, start, 1)
+      ?? findNavigableRowIndex(visibleModel.rows, start, -1);
+    const nextRow = nextIndex === null ? null : visibleModel.rows[nextIndex];
+    if (nextIndex === null || !nextRow || nextRow.kind !== "node") {
+      tree.focus();
+      return;
+    }
+    selectNode(nextRow.node);
+    focusRowAtIndex(nextIndex);
+  }, [focusRowAtIndex, selectNode, visibleModel]);
 
   const handleTreeNavigation = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || isEditableEventTarget(event.target)) return;
@@ -615,15 +660,54 @@ export function ExplorerTree({
     focusRowAtIndex(nextIndex);
   }, [activeIndex, direction, expandedPaths, focusRowAtIndex, selectNode, toggleFolder, visibleModel]);
 
+  const handleDeleteShortcut = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!onDeleteNodes) return;
+    if (!isExplorerDeleteShortcut({
+      key: event.key,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      repeat: event.repeat,
+      isComposing: event.nativeEvent.isComposing,
+      defaultPrevented: event.defaultPrevented,
+    }, deleteWithMetaBackspace)) return;
+    // The tree stays mounted behind other views; a hidden tree owns no keys.
+    if (treeRef.current?.closest('[aria-hidden="true"]')) return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (!target || isEditableEventTarget(target) || target.closest(INTERACTIVE_ROW_SELECTOR)) return;
+    const row = target.closest<HTMLElement>("[data-explorer-path]");
+    const rowPath = row?.dataset.explorerPath ?? null;
+    // Focus and selection are separate, asynchronous updates: delete only what
+    // both of them already agree on.
+    if (!rowPath || !selectedPaths.has(rowPath)) return;
+    const nodes = collectTopLevelSelectedNodes(nodeIndex, selectedPaths);
+    // A protected root anywhere in the selection cancels the whole request
+    // rather than silently deleting the rest.
+    if (nodes.length === 0 || nodes.some((node) => node.workspaceFolderRoot)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    deleteFocusRef.current = {
+      path: rowPath,
+      index: visibleModel.pathToIndex.get(rowPath) ?? -1,
+    };
+    const anchorRect = (row ?? event.currentTarget).getBoundingClientRect();
+    void Promise.resolve(onDeleteNodes(nodes, anchorRect)).catch((error) => {
+      console.error("Unable to delete explorer items:", error);
+    });
+  }, [deleteWithMetaBackspace, nodeIndex, onDeleteNodes, selectedPaths, visibleModel]);
+
   const handleTreeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     handleClipboardShortcut(event);
+    handleDeleteShortcut(event);
     handleTreeNavigation(event);
-  }, [handleClipboardShortcut, handleTreeNavigation]);
+  }, [handleClipboardShortcut, handleDeleteShortcut, handleTreeNavigation]);
 
   const externalDropTarget = importEnabled && dropTarget?.valid && dropTarget.operation === "copy" ? dropTarget : null;
   const fileDropDestination = dropTarget?.targetFolderPath === null ? "root" : "folder";
   return (
     <div
+      ref={treeRef}
       className={`explorer-tree-shell ${showRoot ? "has-root" : "no-root"} ${scrollable ? "is-scrollable" : ""} ${draggedNodes.length > 0 ? "is-dragging-node" : ""} ${externalDropTarget ? "is-importing-files" : ""}`}
       data-file-drop-target={externalDropTarget ? fileDropDestination : undefined}
       data-workspace-grouping={softWorkspaceGrouping ? "soft" : undefined}
@@ -940,6 +1024,11 @@ const TreeNodeRow = memo(function TreeNodeRow({
       }}
       onClick={(event) => {
         event.stopPropagation();
+        // Clicking the row body establishes row focus so a following Delete
+        // targets this row; clicks on row controls keep their own focus.
+        if (!(event.target instanceof HTMLElement && event.target.closest(INTERACTIVE_ROW_SELECTOR))) {
+          event.currentTarget.focus();
+        }
         const intent = getSelectionIntent(event);
         onSelectNode(node, intent);
         if (isFolder && !intent.additive && !intent.range) toggleCurrentFolder();
@@ -1407,5 +1496,8 @@ function isPointerInFolderPeerDropZone(event: ReactDragEvent<HTMLElement>): bool
   const peerZoneTop = rect.bottom - rect.height * FOLDER_PEER_DROP_ZONE_RATIO;
   return event.clientY >= peerZoneTop;
 }
+
+/** Row descendants that own their own keyboard/pointer semantics. */
+const INTERACTIVE_ROW_SELECTOR = 'button, [role="button"], a[href], input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]';
 
 const EMPTY_PATH_SET: ReadonlySet<string> = new Set();

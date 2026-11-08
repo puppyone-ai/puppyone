@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   withEditorDocumentOperations,
   getDataResourceName,
@@ -22,6 +22,7 @@ import {
   type DesktopCreateEntryAnchorInput,
   type DesktopCreateEntryDraft,
   type DesktopCreateEntryKind,
+  type DesktopNodeActionError,
   type DesktopNodeActionMenuDraft,
 } from "./nodeActions";
 import {
@@ -72,6 +73,13 @@ export function useDataNodeActions({
     workspace,
     onResourceMoved,
   });
+
+  const [isDeletingNodes, setIsDeletingNodes] = useState(false);
+  // Right-click and the keyboard share one in-flight deletion.
+  const deleteLockRef = useRef(false);
+  const deleteGenerationRef = useRef(0);
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
 
   const resetDataNodeActions = useCallback(() => {
     setCreateEntryDraft(null);
@@ -243,13 +251,7 @@ export function useDataNodeActions({
       await dataPort.renameNode(previousPath, nextName);
       await onResourceMoved?.(previousPath, nextPath);
       setNodeActionMenu(null);
-      setActiveExplorerNode((current) => (
-        current?.path === previousPath
-          ? { ...current, name: nextName, path: nextPath }
-          : current?.path.startsWith(`${previousPath}/`)
-            ? { ...current, path: remapActivePathAfterRename(current.path, previousPath, nextPath) ?? current.path }
-            : current
-      ));
+      setActiveExplorerNode((current) => remapActiveNodeAfterRename(current, previousPath, nextPath, nextName));
       onWorkspaceContentChanged();
       onLocalWorkspaceContentChanged();
     } catch (error) {
@@ -269,68 +271,121 @@ export function useDataNodeActions({
     t,
   ]);
 
-  const deleteNodeFromMenu = useCallback(async () => {
-    if (!dataPort?.deleteNode || !nodeActionMenu || nodeActionMenu.operation) return;
+  const executeDeleteNodes = useCallback(async (
+    nodes: readonly DataNode[],
+    anchor: DesktopNodeActionMenuDraft["anchor"],
+    source: "menu" | "shortcut",
+  ) => {
+    if (!workspace || !dataPort?.deleteNode || nodes.length === 0 || deleteLockRef.current) return;
+    const targets = collapseNestedNodes([...nodes]);
+    // A protected root anywhere in the snapshot cancels the whole request.
+    if (targets.length === 0 || targets.some((node) => node.workspaceFolderRoot)) return;
 
-    const nodes = collapseNestedNodes(nodeActionMenu.nodes);
-    if (nodes.length === 0) return;
-    const confirmed = window.confirm(nodes.length === 1
-      ? t("workspace.node.confirmDeleteOne", { name: bidiIsolate(nodes[0].name) })
-      : t("workspace.node.confirmDeleteMany", { count: nodes.length }));
-    if (!confirmed) return;
-
-    setNodeActionMenu((current) => current ? { ...current, operation: "delete", error: null } : current);
-    const deletedNodes: DataNode[] = [];
-    const failures: Array<{ name: string; message: string }> = [];
-    for (const node of nodes) {
-      try {
-        await dataPort.deleteNode(node.path);
-        deletedNodes.push(node);
-        await onResourceDeleted?.(node.path);
-      } catch (error) {
-        failures.push({
-          name: node.name,
-          message: error instanceof Error ? error.message : String(error),
-        });
+    const workspaceId = workspace.id;
+    const generation = ++deleteGenerationRef.current;
+    const isCurrent = () => deleteGenerationRef.current === generation && workspaceRef.current?.id === workspaceId;
+    deleteLockRef.current = true;
+    setIsDeletingNodes(true);
+    try {
+      const confirmed = window.confirm(targets.length === 1
+        ? t("workspace.node.confirmDeleteOne", { name: bidiIsolate(targets[0].name) })
+        : t("workspace.node.confirmDeleteMany", { count: targets.length }));
+      if (!confirmed) return;
+      if (source === "menu") {
+        setNodeActionMenu((current) => current ? { ...current, operation: "delete", error: null } : current);
       }
-    }
 
-    if (deletedNodes.length > 0) {
-      setActiveExplorerNode((current) => (
-        deletedNodes.some((node) => current?.path === node.path || current?.path.startsWith(`${node.path}/`)) ? null : current
-      ));
-      onWorkspaceContentChanged();
-      onLocalWorkspaceContentChanged();
-    }
+      const deletedNodes: DataNode[] = [];
+      const deleteFailures: Array<{ path: string; name: string; message: string }> = [];
+      const postFailures: Array<{ path: string; name: string; message: string }> = [];
+      for (const node of targets) {
+        try {
+          await dataPort.deleteNode(node.path);
+        } catch (error) {
+          deleteFailures.push({ path: node.path, name: node.name, message: describeError(error) });
+          continue;
+        }
+        deletedNodes.push(node);
+        // The file is gone at this point. A failure while closing resources or
+        // refreshing is post-processing, never a reason to delete it again.
+        try {
+          await onResourceDeleted?.(node.path);
+        } catch (error) {
+          postFailures.push({ path: node.path, name: node.name, message: describeError(error) });
+        }
+      }
+      if (!isCurrent()) return;
 
-    if (failures.length === 0) {
-      setNodeActionMenu(null);
-    } else {
-      setNodeActionMenu((current) => current ? {
-        ...current,
+      if (deletedNodes.length > 0) {
+        setActiveExplorerNode((current) => (
+          deletedNodes.some((node) => current?.path === node.path || current?.path.startsWith(`${node.path}/`)) ? null : current
+        ));
+        onWorkspaceContentChanged();
+        onLocalWorkspaceContentChanged();
+      }
+
+      const failedNodes = targets.filter((node) => deleteFailures.some((failure) => failure.path === node.path));
+      const failure = deleteFailures[0] ?? postFailures[0] ?? null;
+      if (!failure) {
+        if (source === "menu") setNodeActionMenu(null);
+        return;
+      }
+      const error: DesktopNodeActionError = buildDeletionError(
+        failure,
+        deleteFailures.length,
+        deletedNodes.length,
+      );
+
+      if (source === "menu") {
+        setNodeActionMenu((current) => current ? {
+          ...current,
+          nodes: failedNodes.length > 0 ? failedNodes : current.nodes,
+          operation: null,
+          error,
+        } : current);
+        return;
+      }
+      // A shortcut has no menu to update: only the failure case opens one, with
+      // exactly the paths that can still be retried.
+      const displayNode = failedNodes[0] ?? targets[0];
+      const renameDraft = getDesktopRenameDraft(displayNode);
+      setNodeActionMenu({
+        launcherPath: displayNode.path,
+        node: displayNode,
+        nodes: failedNodes,
+        anchor,
+        mode: "actions",
+        renameNameValue: renameDraft.nameValue,
+        renameExtensionValue: renameDraft.extensionValue,
+        renameFocus: "name",
         operation: null,
-        error: deletedNodes.length > 0
-          ? {
-              code: "delete-partial",
-              deletedCount: deletedNodes.length,
-              failedCount: failures.length,
-              detail: `${failures[0]?.name ?? ""}: ${failures[0]?.message ?? ""}`,
-            }
-          : {
-              code: "operation-failed",
-              detail: `${failures[0]?.name ?? ""}: ${failures[0]?.message ?? ""}`,
-            },
-      } : current);
+        error,
+      });
+    } finally {
+      deleteLockRef.current = false;
+      if (isCurrent()) setIsDeletingNodes(false);
     }
   }, [
     dataPort,
-    nodeActionMenu,
     onLocalWorkspaceContentChanged,
     onWorkspaceContentChanged,
     onResourceDeleted,
     setActiveExplorerNode,
     t,
+    workspace,
   ]);
+
+  /** Direct host entry for the file tree's keyboard path; no menu required. */
+  const requestDeleteNodes = useCallback(async (nodes: readonly DataNode[], anchorRect: DOMRect) => {
+    if (nodeActionMenu || createEntryDraft) return;
+    await executeDeleteNodes(nodes, rectToCreateEntryAnchor(anchorRect), "shortcut");
+  }, [createEntryDraft, executeDeleteNodes, nodeActionMenu]);
+
+  /** Right-click still goes through the same execution and confirmation. */
+  const deleteNodeFromMenu = useCallback(async () => {
+    if (!nodeActionMenu || nodeActionMenu.operation) return;
+    await executeDeleteNodes(nodeActionMenu.nodes, nodeActionMenu.anchor, "menu");
+  }, [executeDeleteNodes, nodeActionMenu]);
 
   const copyNodePathFromMenu = useCallback(async () => {
     if (!getPathForCopy || !nodeActionMenu || nodeActionMenu.operation) return;
@@ -397,10 +452,44 @@ export function useDataNodeActions({
     createEntry,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    requestDeleteNodes,
+    isDeletingNodes,
     copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
   };
+}
+
+function remapActiveNodeAfterRename(
+  node: DataNode | null,
+  previousPath: string,
+  nextPath: string,
+  nextName: string,
+): DataNode | null {
+  if (!node) return node;
+  if (node.path === previousPath) return { ...node, name: nextName, path: nextPath };
+  if (!node.path.startsWith(`${previousPath}/`)) return node;
+  return { ...node, path: remapActivePathAfterRename(node.path, previousPath, nextPath) ?? node.path };
+}
+
+function buildDeletionError(
+  failure: { name: string; message: string },
+  deleteFailureCount: number,
+  deletedCount: number,
+): DesktopNodeActionError {
+  const detail = `${failure.name}: ${failure.message}`;
+  if (deleteFailureCount === 0) return { code: "operation-failed", detail };
+  if (deletedCount === 0) return { code: "operation-failed", detail };
+  return {
+    code: "delete-partial",
+    deletedCount,
+    failedCount: deleteFailureCount,
+    detail,
+  };
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function normalizeCreateEntryAnchor(anchor: DesktopCreateEntryAnchorInput) {

@@ -6,7 +6,8 @@ import type {
 } from "../../../registry/viewerTypes";
 import { findMarkdownLinkTokens, isExternalMarkdownHref } from "./markdownLinkModel";
 import { findWikiLinkTokens, splitWikiLinkTarget } from "./wikiLinkModel";
-import { normalizeDataResourcePath } from "../../../../core/dataResourcePath";
+import { isDataResourceUri, normalizeDataResourcePath, resolveDataResourceWorkspaceRoot } from "../../../../core/dataResourcePath";
+import { createResourceUri, createWorkspaceResourceUri, parseResourceUri } from "../../../../core/resourceUri";
 
 export type MarkdownLinkGraphDocument = {
   path: string;
@@ -344,18 +345,30 @@ function resolveWikiLinkTarget(
   const targetPath = normalizeDataPath(rawTargetPath);
   const sourceDocument = pathIndex.get(normalizeDataPath(sourcePath)) ?? null;
   const sourceFolder = sourceDocument ? getParentPath(sourceDocument.path) : getParentPath(sourcePath);
+  const sourceRoot = resolveDataResourceWorkspaceRoot(sourcePath);
 
   if (!targetPath && parts.heading && sourceDocument) {
     return createResolvedTarget(sourceDocument, target, parts.heading, false);
   }
 
   const pathCandidates = createPathCandidates(rawTargetPath, sourceFolder);
+  if (sourceRoot && !isDataResourceUri(rawTargetPath)) {
+    try {
+      addPathCandidate(pathCandidates, createWorkspaceResourceUri(sourceRoot, rawTargetPath.replace(/^\/+/, "")));
+    } catch { /* An authored traversal cannot escape its Workspace Folder. */ }
+  }
   for (const candidate of pathCandidates) {
     const exactMatch = pathIndex.get(candidate);
-    if (exactMatch) return createResolvedTarget(exactMatch, target, parts.heading, false);
+    if (exactMatch && (!sourceRoot || isDataResourceUri(rawTargetPath)
+      || resolveDataResourceWorkspaceRoot(exactMatch.path) === sourceRoot)) {
+      return createResolvedTarget(exactMatch, target, parts.heading, false);
+    }
   }
 
-  const titleMatches = titleIndex.get(normalizeLookupKey(stripKnownFileExtension(getBaseName(targetPath)))) ?? [];
+  const titleMatches = (titleIndex.get(normalizeLookupKey(stripKnownFileExtension(getBaseName(targetPath)))) ?? [])
+    .filter(document => (!sourceRoot || resolveDataResourceWorkspaceRoot(document.path) === sourceRoot)
+      && (!hasKnownFileExtension(targetPath)
+        || normalizeLookupKey(document.name) === normalizeLookupKey(getBaseName(targetPath))));
   if (titleMatches.length === 1) {
     return createResolvedTarget(titleMatches[0], target, parts.heading, false);
   }
@@ -365,7 +378,11 @@ function resolveWikiLinkTarget(
     return createResolvedTarget(nearest, target, parts.heading, true);
   }
 
-  const candidatePaths = createNavigationPathCandidates(rawTargetPath, sourceFolder);
+  const candidatePaths = createNavigationPathCandidates(rawTargetPath, sourceFolder)
+    .map(candidate => sourceRoot && !isDataResourceUri(rawTargetPath) && !isDataResourceUri(candidate)
+      ? createWorkspaceResourceUri(sourceRoot, candidate) : candidate)
+    .filter(candidate => !sourceRoot || isDataResourceUri(rawTargetPath)
+      || resolveDataResourceWorkspaceRoot(candidate) === sourceRoot);
   return {
     exists: false,
     ambiguous: false,
@@ -415,11 +432,10 @@ function addPathCandidate(candidates: string[], path: string) {
   const normalizedPath = normalizeDataPath(path);
   if (!normalizedPath) return;
 
-  const variants = [
+  const variants = hasKnownFileExtension(normalizedPath) ? [normalizedPath] : [
     normalizedPath,
-    stripKnownFileExtension(normalizedPath),
-    hasMarkdownExtension(normalizedPath) ? normalizedPath : `${normalizedPath}.md`,
-    hasMarkdownExtension(normalizedPath) ? normalizedPath : `${normalizedPath}.markdown`,
+    `${normalizedPath}.md`,
+    `${normalizedPath}.markdown`,
   ];
 
   for (const variant of variants) {
@@ -436,7 +452,7 @@ function createNavigationPathCandidates(targetPath: string, sourceFolder: string
   const isRooted = targetPath.startsWith("/");
 
   if (!isRooted && sourceFolder) {
-    addNavigationPathCandidate(candidates, `${sourceFolder}/${targetPath}`);
+    addNavigationPathCandidate(candidates, joinDataPath(sourceFolder, targetPath));
   }
 
   addNavigationPathCandidate(candidates, normalizedTarget);
@@ -564,5 +580,10 @@ function getParentPath(path: string | null): string | null {
 }
 
 function joinDataPath(folderPath: string, name: string): string {
+  if (isDataResourceUri(name)) return name;
+  if (isDataResourceUri(folderPath)) {
+    const folder = parseResourceUri(folderPath);
+    return createResourceUri({ ...folder, path: `${folder.path}/${name}` });
+  }
   return `${folderPath}/${name}`;
 }

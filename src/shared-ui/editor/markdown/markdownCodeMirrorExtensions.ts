@@ -98,13 +98,14 @@ export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHis
 /** Language parsing and source highlighting are installed after first paint. */
 export function markdownCodeMirrorLanguageExtension(
   dialect: MarkdownDialectId = DEFAULT_MARKDOWN_DIALECT,
+  highlight = true,
 ): Extension {
   const composition = getMarkdownFeatureComposition(dialect);
   return [
     markdownDialectFacet.of(dialect),
     markdownFeatureCompositionExtension(dialect),
     markdown({ base: markdownLanguage, extensions: composition.parserExtensions }),
-    syntaxHighlighting(puppyMarkdownHighlightStyle),
+    ...(highlight ? [syntaxHighlighting(puppyMarkdownHighlightStyle)] : []),
   ];
 }
 

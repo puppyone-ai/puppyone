@@ -56,7 +56,8 @@ export type EditorInteractionPreferences = Readonly<{
 export const DEFAULT_EDITOR_INTERACTION_PREFERENCES: EditorInteractionPreferences = {
   showSaveStatus: false,
   markdownBlockDragEnabled: false,
-  markdownHeadingOutlineEnabled: false,
+  /** Opt-out, matching the Desktop setting: the rail is part of the editor. */
+  markdownHeadingOutlineEnabled: true,
 };
 export type EditorSourceRequirement = PresetViewerSource;
 export type MarkdownHtmlTrustMode = "safe" | "localTrusted";

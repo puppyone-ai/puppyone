@@ -1,0 +1,122 @@
+/**
+ * @vitest-environment happy-dom
+ */
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { EditorPaneLayoutLeaf } from "@puppyone/shared-ui";
+import { EditorPaneShell } from "../../../../../src/features/editor-workbench/layout/EditorPaneShell";
+import type { EditorFileDropController } from "../../../../../src/features/editor-workbench/drag-and-drop/useExplorerFileDrop";
+import type { PaneMoveDragController } from "../../../../../src/features/editor-workbench/drag-and-drop/usePaneMoveDrag";
+import { withTestLocalization } from "../../../../support/react/localization";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true;
+
+const pane: EditorPaneLayoutLeaf = {
+  id: "pane-1",
+  kind: "pane",
+  editorId: "editor-1",
+};
+
+const paneMove: PaneMoveDragController = {
+  dragging: false,
+  dropIntent: null,
+  prepare: vi.fn(),
+  start: vi.fn(),
+  move: vi.fn(),
+  end: vi.fn<PaneMoveDragController["end"]>(() => "ignored"),
+  cancel: vi.fn(),
+  lostCapture: vi.fn(),
+};
+
+function dropController(overrides: Partial<EditorFileDropController> = {}): EditorFileDropController {
+  return {
+    dropIntent: null,
+    dropFailure: null,
+    insertTargetPaneId: null,
+    splitTargetPaneId: null,
+    dismissDropFailure: vi.fn(),
+    over: vi.fn(),
+    leave: vi.fn(),
+    drop: vi.fn(),
+    ...overrides,
+  };
+}
+
+let host: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+});
+
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+});
+
+async function render(fileDrop: EditorFileDropController) {
+  await act(async () => root.render(withTestLocalization(
+    <EditorPaneShell
+      active
+      actionsOpen={false}
+      agentPresencePath={null}
+      contentState="document"
+      editorLabel="notes/a.md"
+      fileDrop={fileDrop}
+      findCommand={null}
+      menuContribution={null}
+      pane={pane}
+      paneCount={1}
+      paneMove={paneMove}
+      onActionsPaneChange={() => {}}
+      onActivate={() => {}}
+      onClose={() => {}}
+      onOpenExternal={null}
+      onSplit={() => {}}
+    >
+      <div data-testid="pane-content" />
+    </EditorPaneShell>,
+  )));
+  return host.querySelector<HTMLElement>(".desktop-editor-pane")!;
+}
+
+describe("editor pane insert affordance", () => {
+  it("marks the pane as an insert target and hides the split preview", async () => {
+    const shell = await render(dropController({ insertTargetPaneId: pane.id }));
+    expect(shell.getAttribute("data-drop-kind")).toBe("insert");
+    expect(shell.querySelector(".desktop-editor-drop-preview")).toBeNull();
+  });
+
+  it("keeps the split preview when the drop would split the pane", async () => {
+    const shell = await render(dropController({
+      insertTargetPaneId: null,
+      dropIntent: { targetPaneId: pane.id, edge: "left" },
+    }));
+    expect(shell.getAttribute("data-drop-kind")).toBe("file");
+    expect(shell.getAttribute("data-drop-target")).toBe("left");
+    expect(shell.querySelector(".desktop-editor-drop-preview")).not.toBeNull();
+  });
+  it("does not show insertion feedback on a different pane", async () => {
+    const shell = await render(dropController({ insertTargetPaneId: "another-pane" }));
+    expect(shell.getAttribute("data-drop-kind")).toBeNull();
+  });
+  it("shows four explicit split cards on the pane under the file drag", async () => {
+    const shell = await render(dropController({ splitTargetPaneId: pane.id }));
+    const cards = shell.querySelectorAll("[data-file-split-edge]");
+    expect([...cards].map((card) => card.getAttribute("data-file-split-edge"))).toEqual(["left", "right", "top", "bottom"]);
+    expect(cards[0]?.textContent).toContain("Split editor left");
+    expect(cards[1]?.textContent).toContain("Split editor right");
+    expect(cards[2]?.textContent).toContain("Split editor up");
+    expect(cards[3]?.textContent).toContain("Split editor down");
+  });
+  it("highlights the chosen split card", async () => {
+    const shell = await render(dropController({ splitTargetPaneId: pane.id,
+      dropIntent: { targetPaneId: pane.id, edge: "right" } }));
+    expect(shell.querySelector('[data-file-split-edge="right"]')?.getAttribute("data-active")).toBe("true");
+    expect(shell.querySelector('[data-file-split-edge="left"]')?.getAttribute("data-active")).not.toBe("true");
+  });
+});

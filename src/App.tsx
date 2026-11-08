@@ -224,7 +224,8 @@ function AppContent() {
   const railOwnsProject = useProjectSwitcherSurface() === "rail";
   // macOS opens Settings from the application menu (PuppyOne > Settings…), so
   // the sidebar carries no footer bar there. Other platforms have no such menu.
-  const sidebarFooterVisible = useDesktopPlatformCapabilities()?.platform !== "macos";
+  const platformCapabilities = useDesktopPlatformCapabilities();
+  const sidebarFooterVisible = platformCapabilities?.platform !== "macos";
   const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
   const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
@@ -708,6 +709,8 @@ function AppContent() {
     createEntry,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    requestDeleteNodes,
+    isDeletingNodes,
     copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
@@ -723,6 +726,19 @@ function AppContent() {
     setActiveExplorerNode,
     workspace,
   });
+
+  // The tree shortcut is a host grant: capability, no other modal work in
+  // flight, and the file tree actually being the active view.
+  const deleteEnabled = Boolean(dataPort?.deleteNode);
+  const deleteShortcutLabel = resolveDeleteShortcutLabel(deleteEnabled, platformCapabilities?.platform);
+  const onDeleteNodes = deleteEnabled
+    && !isDeletingNodes
+    && !nodeActionMenu
+    && !createEntryDraft
+    && activeView === "data"
+    && !sidebarCollapsed
+    ? requestDeleteNodes
+    : undefined;
 
   useEffect(() => {
     if (!enableViewerPlugins) setPluginsDialogOpen(false);
@@ -1977,6 +1993,7 @@ function AppContent() {
             onOpenImport={projectEntryFlow.openImport}
             onOpenPlugins={openPluginsDialog}
             onNodeActionMenu={openNodeActionMenu}
+            onDeleteNodes={onDeleteNodes}
             onOpenSettings={openSettingsDialog}
             onPuppyoneConfigChange={handlePuppyoneConfigChange}
             onSelectSettingsSection={setActiveSettingsSection}
@@ -2082,6 +2099,7 @@ function AppContent() {
               onCreateInside={() => openCreateEntryMenu(nodeActionMenu.node.path, nodeActionMenu.anchor)}
               onRename={renameNodeFromMenu}
               onDelete={deleteNodeFromMenu}
+              deleteShortcut={deleteShortcutLabel}
               onOpenInDefaultApp={openNodeInDefaultAppFromMenu}
               onRevealInFinder={revealNodeInFinderFromMenu}
             />
@@ -2109,4 +2127,9 @@ function hasSameActiveDataNodeIdentity(left: DataNode | null, right: DataNode | 
     && left.name === right.name
     && left.type === right.type
     && left.mimeType === right.mimeType;
+}
+
+function resolveDeleteShortcutLabel(enabled: boolean, platform: string | undefined): string | undefined {
+  if (!enabled) return undefined;
+  return platform === "macos" ? "⌘⌫" : "Delete";
 }

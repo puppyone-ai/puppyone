@@ -1,4 +1,17 @@
+import { createHash } from "node:crypto";
 import { nativeSessionId } from "../../../../../shared/agent-contract/native-session-id.mjs";
+
+const TOOL_ID_HASH_PREFIX = "acp-tool-sha256:";
+
+// Native ACP identifiers are opaque strings (Cursor IDs can contain newlines).
+// Preserve identity across partial updates, permissions and history replay while
+// keeping the stricter canonical event contract. Reserve the generated namespace
+// so a native ID shaped like a digest cannot alias another call.
+export function acpToolItemId(value) {
+  if (typeof value !== "string" || value.length === 0) return null;
+  if (safeId(value) && !value.startsWith(TOOL_ID_HASH_PREFIX)) return value;
+  return TOOL_ID_HASH_PREFIX + createHash("sha256").update(value, "utf8").digest("hex");
+}
 
 
 export function isUnavailableAcpSessionError(error) {

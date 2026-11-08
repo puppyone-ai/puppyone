@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Agent가 수정함 — 아직 확인하지 않음",
+  "explorer.agentChangedFolder": "Agent가 수정한 미확인 파일이 있습니다",
   "node.copyLink": "링크 복사",
   "workbench.renderFailure": "이 탭을 표시할 수 없습니다.",
   "workbench.reloadView": "화면 다시 불러오기",
@@ -8,6 +10,7 @@
   "projectSessions.closeFailed": "일부 프로젝트 작업을 중지하지 못했습니다.",
   "projectSessions.retryClose": "닫기 다시 시도",
   "drag.exportFailed": "드롭을 완료할 수 없습니다. 원본과 대상이 사용 가능하고 대상이 이 작업을 지원하는지 확인하세요.",
+  "drag.imageInsertFailed": "이 이미지를 삽입할 수 없습니다. PNG, JPEG, GIF, WebP 형식만 지원하며 한 장당 20MB까지 가능합니다.",
   "restoring.message": "마지막 프로젝트를 여는 중…",
   "viewerPack.rootUnavailable": "Viewer Pack을 활성화할 작업 영역 루트를 사용할 수 없습니다.",
   "viewerPack.loadingExtension": "뷰어 확장 프로그램 불러오는 중…",

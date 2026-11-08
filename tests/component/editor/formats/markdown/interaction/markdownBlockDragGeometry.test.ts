@@ -1,7 +1,10 @@
+import { BlockType, Direction, type EditorView } from "@codemirror/view";
+import type { MarkdownMovableBlockRef } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownBlockBoundaries";
 import { describe, expect, it } from "vitest";
 import {
   getEdgeScrollVelocity,
   pickDropBoundary,
+  readHandlePoint,
 } from "../../../../../../src/shared-ui/editor/markdown/addons/block-drag/blockDragGeometry";
 
 describe("pickDropBoundary", () => {
@@ -51,5 +54,56 @@ describe("getEdgeScrollVelocity", () => {
     expect(getEdgeScrollVelocity(576, 0, 600)).toBe(420);
     expect(getEdgeScrollVelocity(-200, 0, 600)).toBe(-840);
     expect(getEdgeScrollVelocity(900, 0, 600)).toBe(840);
+  });
+});
+
+describe("readHandlePoint", () => {
+  const surface = {
+    documentOffset: 0,
+    railLeft: 40,
+    railRight: 900,
+    originLeft: 0,
+    originTop: 0,
+    scaleX: 1,
+    scaleY: 1,
+  };
+  const block = { from: 10, to: 12, kind: "root", parentFrom: 0, parentTo: 20, parentName: "doc", depth: 1 } as MarkdownMovableBlockRef;
+
+  function viewWith(type: BlockType, line: { top: number; height: number }, coords: { top: number; bottom: number; left: number }) {
+    return {
+      lineBlockAt: () => ({ ...line, type, from: 10, to: 12 }),
+      coordsAtPos: () => ({ ...coords, right: coords.left }),
+      defaultLineHeight: 20,
+      textDirection: Direction.LTR,
+    } as unknown as EditorView;
+  }
+
+  it("centers the handle on the first text row", () => {
+    const point = readHandlePoint(
+      viewWith(BlockType.Text, { top: 200, height: 20 }, { top: 204, bottom: 224, left: 300 }),
+      surface,
+      block,
+    );
+    expect(point.y).toBe(214);
+  });
+
+  it("aligns a widget block to the visible surface, skipping the line's block gap", () => {
+    // The line box starts at 100 (padding), the widget itself at 132.
+    const point = readHandlePoint(
+      viewWith(BlockType.WidgetBefore, { top: 100, height: 420 }, { top: 132, bottom: 500, left: 300 }),
+      surface,
+      block,
+    );
+    expect(point.y).toBe(144);
+  });
+
+  it("falls back to the line box when no coordinates are available", () => {
+    const view = {
+      lineBlockAt: () => ({ top: 100, height: 400, type: BlockType.WidgetBefore, from: 10, to: 12 }),
+      coordsAtPos: () => null,
+      defaultLineHeight: 20,
+      textDirection: Direction.LTR,
+    } as unknown as EditorView;
+    expect(readHandlePoint(view, surface, block).y).toBe(120);
   });
 });

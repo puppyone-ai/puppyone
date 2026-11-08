@@ -53,7 +53,10 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
         ...(baseBuild.mac?.extendInfo ?? {}),
         CFBundleName: identity.applicationName,
         CFBundleDisplayName: identity.applicationName,
-        CFBundleDocumentTypes: FILE_MODE_DOCUMENT_TYPES,
+        CFBundleDocumentTypes: [...FILE_MODE_DOCUMENT_TYPES, {
+          CFBundleTypeName: "puppyone Template", CFBundleTypeExtensions: ["puppyonetemplate"],
+          CFBundleTypeRole: "Viewer", LSHandlerRank: "Owner",
+        }],
         ...createCliDeclaration(identity),
       },
       target: ["dmg", "zip"],

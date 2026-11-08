@@ -12,6 +12,7 @@
 
 /* Media and Office document previews */
 @import "./editor/media-office-preview.css";
+@import "./editor/document-conversion.css";
 
 /* Plain code editor (CodeMirror, technical files) */
 @import "./editor/code-editor.css";
@@ -59,6 +60,7 @@
 
 /* Markdown block drag add-on */
 @import "./editor/markdown-block-drag.css";
+@import "./editor/markdown-image-drop.css";
 
 /* Conflict markers, crash/empty states, misc editor status UI */
 @import "./editor/editor-status.css";

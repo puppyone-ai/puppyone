@@ -16,6 +16,53 @@ afterEach(() => {
 });
 
 describe("Markdown link index boundary", () => {
+  it("keeps basename resolution inside the source Workspace Folder", () => {
+    const a = "puppyone-local://workspace/alpha";
+    const b = "puppyone-local://workspace/beta";
+    const graph = createMarkdownLinkGraph([
+      { path: `${a}/notes/note.md`, name: "note.md" },
+      { path: `${a}/assets/photo.jpg`, name: "photo.jpg" },
+      { path: `${b}/assets/photo.jpg`, name: "photo.jpg" },
+      { path: `${b}/assets/other.jpg`, name: "other.jpg" },
+    ]);
+    expect(graph.resolveWikiLink(`${a}/notes/note.md`, "photo.jpg"))
+      .toMatchObject({ exists: true, ambiguous: false, path: `${a}/assets/photo.jpg` });
+    expect(graph.resolveWikiLink(`${a}/notes/note.md`, "other.jpg")).toMatchObject({ exists: false });
+    const missing = graph.resolveWikiLink(`${b}/notes/note.md`, "missing.jpg");
+    expect(missing.candidatePaths?.every(candidate => candidate.startsWith(`${b}/`))).toBe(true);
+  });
+
+  it("resolves explicit image extensions without confusing same-stem files", () => {
+    const graph = createMarkdownLinkGraph([
+      { path: "attachments/photo.jpg", name: "photo.jpg" },
+      { path: "attachments/photo.png", name: "photo.png" },
+    ]);
+    expect(graph.resolveWikiLink("note.md", "photo.jpg"))
+      .toMatchObject({ exists: true, ambiguous: false, path: "attachments/photo.jpg" });
+    expect(graph.resolveWikiLink("note.md", "photo.gif")).toMatchObject({ exists: false });
+    expect(graph.resolveWikiLink("attachments/note.md", "photo.gif")).toMatchObject({ exists: false });
+  });
+
+  it("qualifies explicit root paths and prevents relative paths from escaping a Folder", () => {
+    const a = "puppyone-local://workspace/alpha";
+    const b = "puppyone-local://workspace/beta";
+    const graph = createMarkdownLinkGraph([
+      { path: `${a}/assets/photo.jpg`, name: "photo.jpg" },
+      { path: `${a}/other/photo.jpg`, name: "photo.jpg" },
+      { path: `${b}/assets/foreign.jpg`, name: "foreign.jpg" },
+      { path: `${a}/assets/%E5%9B%BE%20%E7%89%87%20100%25.jpg`, name: "图 片 100%.jpg" },
+    ]);
+    for (const target of ["/assets/photo.jpg", "assets/photo.jpg"]) {
+      expect(graph.resolveWikiLink(`${a}/notes/note.md`, target))
+        .toMatchObject({ exists: true, ambiguous: false, path: `${a}/assets/photo.jpg` });
+    }
+    const escaped = graph.resolveWikiLink(`${a}/notes/note.md`, "../../beta/assets/foreign.jpg");
+    expect(escaped).toMatchObject({ exists: false });
+    expect(escaped.candidatePaths?.some(candidate => candidate.startsWith(`${b}/`))).toBe(false);
+    expect(graph.resolveWikiLink(`${a}/notes/note.md`, "图 片 100%.jpg"))
+      .toMatchObject({ exists: true, ambiguous: false, path: `${a}/assets/%E5%9B%BE%20%E7%89%87%20100%25.jpg` });
+  });
+
   it("reconstructs the same path resolution and backlinks from a serializable index", () => {
     const documents: MarkdownLinkGraphDocument[] = [
       {

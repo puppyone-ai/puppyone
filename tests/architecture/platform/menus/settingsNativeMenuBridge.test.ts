@@ -19,7 +19,8 @@ describe("native Settings menu bridge", () => {
   it("drops the sidebar footer bar only where the application menu states Settings", () => {
     const app = source("src/App.tsx");
 
-    expect(app).toContain('const sidebarFooterVisible = useDesktopPlatformCapabilities()?.platform !== "macos";');
+    expect(app).toContain('const platformCapabilities = useDesktopPlatformCapabilities();');
+    expect(app).toContain('const sidebarFooterVisible = platformCapabilities?.platform !== "macos";');
     expect(app).toContain("workspaceNavigationVisible={!railOwnsProject && sidebarFooterVisible}");
     expect(app).toContain("onOpenSettings={sidebarFooterVisible ? openSettingsDialog : undefined}");
     expect(app).toContain("utilitySlot={sidebarFooterVisible ? <DesktopHelpLauncher");

@@ -348,7 +348,7 @@ describe("Desktop Agent tool step lists", () => {
       toolPart("tool:grep", "turn:fold", "tool", 2, "grep", "src", "src/a.ts:1:match"),
       toolPart("tool:test", "turn:fold", "command", 3, "bash", "npm test", "passed"),
     ];
-    const running = { ...toolPart("tool:edit", "turn:fold", "tool", 4, "edit", "src/a.ts", ""), status: "running" as const };
+    const running = { ...toolPart("tool:edit", "turn:fold", "tool", 4, "edit", "src/a.ts", ""), status: "running" } as unknown as AgentPart;
     const container = render(
       <AgentToolActivityGroup
         parts={[...parts, running]}

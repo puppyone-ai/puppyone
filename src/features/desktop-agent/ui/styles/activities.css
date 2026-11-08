@@ -137,7 +137,7 @@
   max-width: 100%;
 }
 .desktop-agent-tool-row :is(.desktop-agent-tool-name, .desktop-agent-tool-summary, .desktop-agent-tool-subject-code) {
-  font-size: inherit;
+  font-size: var(--agent-font-size-meta);
 }
 .desktop-agent-tool-live-summary { align-items: center; gap: 6px; }
 .desktop-agent-tool-live-verb { flex: 0 0 auto; }

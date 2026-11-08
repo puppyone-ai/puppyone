@@ -19,11 +19,15 @@
   display: none;
 }
 
+/* A block image still shares its source line with the line box around it. A
+   block-level box here splits that line into an empty row above and below the
+   image, which reads as a blank text line and gives the drag handle something
+   invisible to sit on. Keep the same full-width flex formatting inline. */
 .markdown-codemirror-editor .cm-md-image-widget.is-block {
-  display: flex;
+  display: inline-flex;
   width: 100%;
   max-width: 100%;
-  vertical-align: baseline;
+  vertical-align: top;
 }
 
 .markdown-codemirror-editor .cm-md-image-widget.is-block img {

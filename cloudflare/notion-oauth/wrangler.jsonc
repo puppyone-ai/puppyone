@@ -1,0 +1,13 @@
+{
+  "name": "puppyone-notion-oauth",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-02",
+  "workers_dev": true,
+  "vars": {
+    "PUBLIC_ORIGIN": "https://notion-connect.puppyone.ai",
+    "NOTION_CLIENT_ID": "CONFIGURE_BEFORE_DEPLOYMENT"
+  },
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "NotionOAuthSession" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NotionOAuthSession"] }],
+  "observability": { "enabled": false }
+}

@@ -19,11 +19,15 @@ describe("system file type registration", () => {
   const types = applyMacosBuilderConfig({ config, baseBuild: {}, identity }).mac.extendInfo.CFBundleDocumentTypes;
 
   it("declares Markdown, CSV and HTML on macOS", () => {
-    expect(types.flatMap((type) => type.LSItemContentTypes)).toEqual([
+    expect(types.flatMap((type) => type.LSItemContentTypes ?? [])).toEqual([
       "net.daringfireball.markdown",
       "public.comma-separated-values-text",
       "public.html",
     ]);
+  });
+
+  it("owns the new template format without claiming ordinary document defaults", () => {
+    expect(types.find(type => type.CFBundleTypeExtensions?.includes("puppyonetemplate"))).toMatchObject({ CFBundleTypeRole: "Viewer", LSHandlerRank: "Owner" });
   });
 
   it("declares what puppyone open may ask of this build", () => {
@@ -35,19 +39,19 @@ describe("system file type registration", () => {
   });
 
   it("never claims the user's default app on macOS", () => {
-    for (const type of types) {
+    for (const type of types.filter(type => type.LSItemContentTypes)) {
       expect(type.LSHandlerRank).toBe("Alternate");
       expect(type.CFBundleTypeRole).toBe("Editor");
     }
   });
 
   it("does not mix content types and extensions in one macOS declaration", () => {
-    for (const type of types) expect(type.CFBundleTypeExtensions).toBeUndefined();
+    for (const type of types) expect(Boolean(type.CFBundleTypeExtensions) && Boolean(type.LSItemContentTypes)).toBe(false);
   });
 
-  it("does not use electron-builder fileAssociations, which replace Windows defaults", () => {
+  it("associates only the new template extension on Windows, preserving document defaults", () => {
     const windows = applyWindowsBuilderConfig({ config, identity });
-    expect(windows.fileAssociations).toBeUndefined();
+    expect(windows.fileAssociations).toEqual([{ ext: "puppyonetemplate", name: "puppyone Template", role: "Viewer" }]);
     expect(applyMacosBuilderConfig({ config, baseBuild: {}, identity }).fileAssociations).toBeUndefined();
   });
 

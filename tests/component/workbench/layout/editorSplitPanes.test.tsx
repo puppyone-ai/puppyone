@@ -228,7 +228,12 @@ describe("DesktopEditorSplitView", () => {
       .toHaveLength(3);
   });
 
-  it("opens one Explorer file at the nearest pane edge on drop", () => {
+  it.each([
+    { edge: "left", x: 50, y: 300, rect: [12, 120, 120, 360], direction: "horizontal", placement: "first", label: "Split editor left" },
+    { edge: "right", x: 750, y: 300, rect: [668, 120, 120, 360], direction: "horizontal", placement: "second", label: "Split editor right" },
+    { edge: "top", x: 400, y: 40, rect: [260, 12, 280, 72], direction: "vertical", placement: "first", label: "Split editor up" },
+    { edge: "bottom", x: 400, y: 560, rect: [260, 516, 280, 72], direction: "vertical", placement: "second", label: "Split editor down" },
+  ])("opens one Explorer file on the explicit $edge split card", async ({ edge, x, y, rect, direction, placement, label }) => {
     const onOpenAtPaneEdge = vi.fn();
     const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
     const container = renderSplitView(group, createEditorPaneLayout("a.md"), {
@@ -249,11 +254,16 @@ describe("DesktopEditorSplitView", () => {
       serializeExplorerReferenceDrag("workspace", [node]),
     );
 
-    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
-    expect(pane.dataset.dropTarget).toBe("right");
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, x, y)));
+    const card = pane.querySelector<HTMLElement>(`[data-file-split-edge="${edge}"]`);
+    expect(card?.textContent).toBe(label);
+    card!.getBoundingClientRect = () => new DOMRect(...rect);
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, x, y)));
+    expect(card!.dataset.active).toBe("true");
+    expect(pane.dataset.dropTarget).toBe(edge);
     expect(pane.dataset.dropKind).toBe("file");
 
-    act(() => pane.dispatchEvent(dragEvent("drop", transfer, 790, 300)));
+    await act(async () => { pane.dispatchEvent(dragEvent("drop", transfer, x, y)); });
     expect(onOpenAtPaneEdge).toHaveBeenCalledWith(
       {
         id: "b.md",
@@ -262,10 +272,11 @@ describe("DesktopEditorSplitView", () => {
         type: "markdown",
       },
       "editor-pane-1",
-      "horizontal",
-      "second",
+      direction,
+      placement,
     );
     expect(pane.dataset.dropTarget).toBeUndefined();
+    expect(pane.querySelector("[data-file-split-targets]")).toBeNull();
   });
 
   it("clears an Explorer split preview when the window loses the drag session", () => {
@@ -285,6 +296,8 @@ describe("DesktopEditorSplitView", () => {
       }]),
     );
 
+    act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
+    pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
     act(() => pane.dispatchEvent(dragEvent("dragover", transfer, 790, 300)));
     expect(pane.dataset.dropTarget).toBe("right");
 

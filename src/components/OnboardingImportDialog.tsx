@@ -69,6 +69,7 @@ export function detectRepositoryProvider(value: string): RepositoryProvider | nu
 }
 
 export type OnboardingImportDialogProps = {
+  initialSource?: string | null;
   onClose: () => void;
   /** Issues a grant for the built-in projects folder without a picker. */
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
@@ -84,6 +85,7 @@ export type OnboardingImportDialogProps = {
 };
 
 export function OnboardingImportDialog({
+  initialSource = null,
   onClose,
   onDefaultLocation,
   onChooseLocation,
@@ -95,7 +97,7 @@ export function OnboardingImportDialog({
   visibleSources = DEFAULT_VISIBLE_IMPORT_SOURCES,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
-  const [source, setSource] = useState<OnboardingImportSource | null>(null);
+  const [source, setSource] = useState<OnboardingImportSource | null>(initialSource);
   const [busy, setBusy] = useState(false);
   const selectedDescriptor = visibleSources.find((entry) => entry.id === source);
   const title = source === null
@@ -456,6 +458,7 @@ function RemoteImportStep({
   const { t } = useLocalization();
   const destination = useImportLocation({ onDefaultLocation, onChooseLocation });
   const task = useImportTask({ onImportSource, onCancelImport, onImportProgress, onClose });
+  const [includeSubpages, setIncludeSubpages] = useState(true);
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [resources, setResources] = useState<WorkspaceImportResource[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -550,6 +553,10 @@ function RemoteImportStep({
             </button>}
           </div>
         )}
+        {source.id === "notion" && <label>
+          <input type="checkbox" checked={includeSubpages} disabled={busy} onChange={event => setIncludeSubpages(event.target.checked)} />
+          {t("onboarding.entry.import.includeSubpages")}
+        </label>}
         <ImportLocationField location={destination.location} choosing={destination.choosing} disabled={busy}
           canChoose={destination.canChoose} onChoose={() => void destination.choose()} />
         {task.progress && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
@@ -557,9 +564,10 @@ function RemoteImportStep({
       </div>
       <footer className="desktop-dialog-footer">
         {task.canCancel && <button className="desktop-dialog-button" type="button" onClick={() => void task.cancel()}>{t("common.action.cancel")}</button>}
+        {loading && !connectionId && <button className="desktop-dialog-button" type="button" onClick={() => void onCancelImport("connect-" + source.id)}>{t("common.action.cancel")}</button>}
         <button className="desktop-dialog-button primary file" type="button" disabled={busy || !connectionId || !selectedId}
           onClick={() => void task.submit({ provider: source.id,
-            selection: { connectionId: connectionId!, resourceId: selectedId! },
+            selection: { connectionId: connectionId!, resourceId: selectedId!, ...(source.id === "notion" ? { includeSubpages } : {}) },
             locationGrantId: destination.location?.grantId ?? null })}>
           {t(task.submitting ? "onboarding.entry.clone.submitting" : "onboarding.entry.clone.submit")}
         </button>

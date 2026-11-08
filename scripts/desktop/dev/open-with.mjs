@@ -4,7 +4,7 @@
  *
  * macOS offers only installed apps that declare file types, and the dev build
  * runs inside a generic Electron.app that declares none. This installs a small
- * AppleScript app carrying the packaged build's declarations. Choosing it asks
+ * AppleScript app carrying the packaged build's editor declarations. Choosing it asks
  * the running dev instance to open the file over the per-user socket
  * `puppyone open` uses, so the File Mode window loads from the Vite server and
  * style edits apply live, without packaging.
@@ -116,7 +116,7 @@ end jsonString
 `;
 }
 
-/** Replaces the droplet's accept-everything declaration with the packaged build's. */
+/** Advertises the packaged editor file types supported by the CLI, not template imports. */
 export function createOpenerInfo(info) {
   const { CFBundleIconName: _assetCatalogIcon, ...rest } = info;
   return {

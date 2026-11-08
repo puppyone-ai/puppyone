@@ -188,3 +188,16 @@ button.editor-save-chip {
   color: var(--po-text-disabled);
   font-style: italic;
 }
+
+.markdown-table-insert-backdrop { position: fixed; inset: 0; z-index: var(--po-overlay-z-dialog, 1200); display: grid; place-items: center; padding: 20px; background: var(--po-backdrop); }
+.markdown-table-insert-dialog { box-sizing: border-box; width: min(360px, 100%); padding: 22px; border: 1px solid var(--po-border); border-radius: 12px; background: var(--po-canvas); color: var(--po-text); box-shadow: 0 12px 36px #0003; font-family: var(--po-font-sans); }
+.markdown-table-insert-dialog h2 { margin: 0 0 18px; font-size: var(--po-type-ui-title, 18px); }
+.markdown-table-insert-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.markdown-table-insert-fields label { display: grid; gap: 7px; font-size: var(--po-type-ui-body, 14px); }
+.markdown-table-insert-fields input { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--po-border); border-radius: 5px; background: var(--po-canvas); color: var(--po-text); font: inherit; }
+.markdown-table-insert-dialog p { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 1.5; }
+.markdown-table-insert-actions { display: flex; justify-content: flex-end; gap: 10px; margin-block-start: 20px; }
+.markdown-table-insert-actions button { padding: 6px 12px; border: 1px solid var(--po-border); border-radius: 5px; background: var(--po-surface, var(--po-canvas)); color: var(--po-text); font: inherit; cursor: var(--po-clickable-cursor, default); }
+.markdown-table-insert-actions button:hover:not(:disabled) { background: var(--po-hover); }
+.markdown-table-insert-actions button:disabled { opacity: .5; cursor: default; }
+.markdown-table-insert-dialog :focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }

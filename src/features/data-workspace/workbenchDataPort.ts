@@ -140,6 +140,14 @@ export function createWorkbenchDataService(
   };
 
   const dataPort: DataPort = {
+    listReferenceTargets: async (options) => {
+      const targets = await Promise.all(workbench.folders.map(async (folder) => {
+        const metadata = await requireProvider(folder).listReferenceTargets?.(options) ?? [];
+        return metadata.map((target) => ({ ...target, path: toResourcePath(folder, target.path) }));
+      }));
+      options?.signal?.throwIfAborted();
+      return targets.flat();
+    },
     listChildren: async (folderPath) => {
       if (folderPath === null) {
         if (workbench.folders.length === 1) {
@@ -240,6 +248,16 @@ export function createWorkbenchDataService(
       const provider = requireProvider(target.folder);
       if (!provider.createFolder) throw new Error("Folder creation is unavailable for this provider.");
       await provider.createFolder(target.providerPath);
+    },
+    saveDocumentConversion: async request => {
+      const target = resolveResource(request.path);
+      if (!target.providerPath) throw new Error("A conversion source must be a document.");
+      const provider = requireProvider(target.folder);
+      if (!provider.saveDocumentConversion) throw new Error("Conversion output is unavailable for this provider.");
+      const result = await provider.saveDocumentConversion({ ...request, path: target.providerPath });
+      return result.ok ? { ...result, folderPath: toResourcePath(target.folder, result.folderPath),
+        openPath: toResourcePath(target.folder, result.openPath), paths: result.paths.map(path => toResourcePath(target.folder, path)) }
+        : { ...result, ...(result.folderPath ? { folderPath: toResourcePath(target.folder, result.folderPath) } : {}) };
     },
     createFile: async (path, content) => {
       const target = resolveResource(path);

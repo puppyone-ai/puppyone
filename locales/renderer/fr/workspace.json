@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Modifié par l’Agent — pas encore consulté",
+  "explorer.agentChangedFolder": "Contient des fichiers modifiés par l’Agent à consulter",
   "node.copyLink": "Copier le lien",
   "workbench.renderFailure": "Impossible d’afficher cet onglet.",
   "workbench.reloadView": "Recharger la vue",
@@ -8,6 +10,7 @@
   "projectSessions.closeFailed": "Certaines tâches du projet n’ont pas pu être arrêtées.",
   "projectSessions.retryClose": "Réessayer la fermeture",
   "drag.exportFailed": "Impossible de terminer le dépôt. Vérifiez que la source et la destination sont disponibles et que la destination prend en charge cette opération.",
+  "drag.imageInsertFailed": "Impossible d’insérer cette image. Formats pris en charge : PNG, JPEG, GIF et WebP, jusqu’à 20 Mo par image.",
   "restoring.message": "Ouverture du dernier projet…",
   "viewerPack.rootUnavailable": "Racine de l’espace de travail indisponible pour l’activation du Viewer Pack.",
   "viewerPack.loadingExtension": "Chargement de l’extension de la visionneuse…",

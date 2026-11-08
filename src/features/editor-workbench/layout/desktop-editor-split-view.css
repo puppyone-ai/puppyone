@@ -407,6 +407,97 @@
   inset: 50% 0 0;
 }
 
+.desktop-editor-file-split-targets {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+
+.desktop-editor-file-split-card {
+  position: absolute;
+  box-sizing: border-box;
+  top: 50%;
+  width: min(clamp(72px, 18%, 144px), 40%);
+  height: min(60%, 280px);
+  max-height: calc(100% - 64px);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: min(20px, 3%);
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 16px;
+  background: var(--po-surface-panel);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--po-text) 14%, transparent);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-small, 12px);
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.desktop-editor-file-split-card::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed var(--po-border);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="left"] { left: min(12px, 4%); }
+.desktop-editor-file-split-card[data-file-split-edge="right"] { right: min(12px, 4%); }
+
+/* Side cards occupy the middle 60% of the pane height. Keep each horizontal
+ * card within the outer 18%, including its inset, so all four targets remain
+ * separate even in small nested panes and leave the center free for insertion. */
+.desktop-editor-file-split-card[data-file-split-edge="top"],
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] {
+  top: auto;
+  left: 50%;
+  width: min(60%, 280px);
+  height: min(16%, 72px);
+  max-height: none;
+  transform: translateX(-50%);
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 min(12px, 2%);
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] > svg,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] > svg {
+  flex-shrink: 0;
+  max-height: 100%;
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] > span,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"]::before,
+.desktop-editor-file-split-card[data-file-split-edge="bottom"]::before {
+  inset-block: min(8px, 15%);
+}
+
+.desktop-editor-file-split-card[data-file-split-edge="top"] { top: min(12px, 2%); }
+.desktop-editor-file-split-card[data-file-split-edge="bottom"] { bottom: min(12px, 2%); }
+
+.desktop-editor-file-split-card[data-active="true"] {
+  border-color: var(--po-accent);
+  color: var(--po-accent);
+  background: color-mix(in srgb, var(--po-accent) 8%, var(--po-surface-panel));
+}
+
+.desktop-editor-file-split-card[data-active="true"]::before { border-color: var(--po-accent); }
+
 .desktop-editor-splitter {
   position: relative;
   z-index: 5;
@@ -480,4 +571,11 @@
     transition: none;
   }
 
+}
+
+/* Insert intent: the release edits the document instead of splitting the pane.
+ * The reading area gets the accent ring; the split preview never appears. */
+.desktop-editor-pane[data-drop-kind="insert"] .desktop-editor-pane-content {
+  box-shadow: inset 0 0 0 2px var(--po-accent);
+  border-radius: 6px;
 }

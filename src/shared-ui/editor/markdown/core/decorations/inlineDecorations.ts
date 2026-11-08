@@ -74,6 +74,7 @@ export function addInlineMarkdownDecorations(
         continue;
       }
       const widget = featureComposition?.createInlineWidget(plan, {
+        state,
         htmlTrustMode,
         markdownLinkGraph,
         documentPath,
@@ -116,6 +117,7 @@ export function addInlineMarkdownDecorations(
     );
     const featureWidget = plan.presentation === "inlineAtom" && !expandedFeatureAtom
       ? featureComposition?.createInlineWidget(plan, {
+          state,
           htmlTrustMode,
           markdownLinkGraph,
           documentPath,

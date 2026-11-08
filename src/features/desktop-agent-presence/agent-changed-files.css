@@ -1,0 +1,26 @@
+.desktop-agent-changed-file-mark {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  margin-inline: 4px;
+  border-radius: 50%;
+  background: var(--po-accent);
+}
+
+.tree-row-actions:has(.desktop-agent-changed-file-mark) { opacity: 1; }
+.tree-row:has(.desktop-agent-changed-file-mark) { --tree-row-action-reserve: 78px; }
+.tree-row:has(.desktop-agent-changed-file-mark) .tree-row-content { padding-inline-end: 20px; }
+.tree-row-actions:has(.desktop-agent-changed-file-mark) > .tree-row-action-button { display: none; }
+.tree-row:is(:hover, :focus-within, [data-action-menu-open="true"]):has(.desktop-agent-changed-file-mark) .tree-row-content {
+  padding-inline-end: var(--tree-row-action-reserve);
+}
+.tree-row:is(:hover, :focus-within, [data-action-menu-open="true"]) .tree-row-actions:has(.desktop-agent-changed-file-mark) > .tree-row-action-button {
+  display: inline-flex;
+}
+.tree-row:has(.desktop-agent-changed-file-mark):not(.selected):not(.active) {
+  background: color-mix(in srgb, var(--po-accent) 8%, transparent);
+}
+.tree-row:has(.desktop-agent-changed-file-mark):not(.selected):not(.active) .tree-label-primary {
+  color: var(--po-accent);
+}

@@ -20,6 +20,9 @@ import { MarkdownWidgetMeasureController } from "../../platform/codemirror/layou
 import { getMappedWidgetSourceRange, hasPointerMoved } from "../../shared/widgets/widgetDom";
 import { prepareBrokeredMarkdownImage } from "../media/markdownPassiveImage";
 import type { MarkdownImageDisplayMode } from "../../core/features/markdownFeatureData";
+import { getImageGeometryCache } from "./imageGeometrySession";
+import type { MarkdownImageGeometry } from "./imageGeometryCache";
+const descriptors = new WeakMap<HTMLElement, ImagePreviewWidget>();
 
 /**
  * Immutable image atom descriptor. Asset resolution, measure, and listeners
@@ -38,12 +41,20 @@ export class ImagePreviewWidget extends WidgetType {
     private readonly resolvedSource: string | null = source,
     private readonly displayMode: MarkdownImageDisplayMode = "inline",
     private readonly size: Readonly<{ width: number; height: number | null }> | null = null,
+    private readonly estimatedHeightValue: number = -1,
+    private readonly geometryScope: object | null = null,
   ) {
     super();
     this.sourceLength = Math.max(0, to - from);
   }
 
   eq(widget: WidgetType): boolean {
+    return this.sameImage(widget) && widget.estimatedHeight === this.estimatedHeight;
+  }
+
+  get estimatedHeight(): number { return this.estimatedHeightValue; }
+
+  private sameImage(widget: WidgetType): boolean {
     return (
       widget instanceof ImagePreviewWidget &&
       widget.sourceLength === this.sourceLength &&
@@ -53,16 +64,29 @@ export class ImagePreviewWidget extends WidgetType {
       widget.documentPath === this.documentPath &&
       widget.resolvedSource === this.resolvedSource &&
       widget.displayMode === this.displayMode &&
+      widget.geometryScope === this.geometryScope &&
       widget.size?.width === this.size?.width &&
       widget.size?.height === this.size?.height
     );
+  }
+
+  updateDOM(dom: HTMLElement): boolean {
+    const previous = descriptors.get(dom);
+    if (!previous || !this.sameImage(previous)) return false;
+    descriptors.set(dom, this);
+    return true;
   }
 
   toDOM(view: EditorView): HTMLElement {
     const host = getMarkdownEmbedHost(view, {
       resolveAssetUrl: view.state.facet(markdownAssetUrlResolverFacet),
     });
+    const geometryCache = getImageGeometryCache(view);
+    const documentPath = this.documentPath || view.state.facet(markdownDocumentPathFacet);
+    const geometrySource = this.resolvedSource ?? this.source;
+    const loadingGeometry = new WeakMap<HTMLElement, MarkdownImageGeometry>();
     const wrapper = document.createElement("span");
+    descriptors.set(wrapper, this);
     wrapper.className = `cm-md-image-widget is-${this.displayMode}`;
     wrapper.dataset.displayMode = this.displayMode;
     if (this.title) wrapper.setAttribute("aria-description", this.title);
@@ -160,30 +184,47 @@ export class ImagePreviewWidget extends WidgetType {
       image.hidden = true;
       image.dataset.previewState = "loading";
       image.setAttribute("aria-hidden", "true");
+      const fail = () => {
+        if (abort.signal.aborted || !image.isConnected) return;
+        commitEditorLayout(view.dom, () => {
+          geometryCache.forget(documentPath, geometrySource);
+          wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
+          measure.schedule();
+        });
+      };
       image.addEventListener("load", () => {
         const reveal = () => {
           if (abort.signal.aborted || !image.isConnected) return;
-          commitEditorLayout(view.dom, () => {
+          const geometry = loadingGeometry.get(placeholder);
+          const sameBox = Boolean(placeholder.style.aspectRatio && geometry
+            && geometry.naturalWidth === image.naturalWidth
+            && geometry.naturalHeight === image.naturalHeight);
+          const publish = () => {
             image.hidden = false;
             image.dataset.previewState = "ready";
             image.removeAttribute("aria-hidden");
             placeholder.remove();
-            measure.schedule();
-          });
+            if (getImageGeometryCache(view) === geometryCache) {
+              geometryCache.remember(documentPath, geometrySource, {
+                naturalWidth: image.naturalWidth,
+                naturalHeight: image.naturalHeight,
+              });
+            }
+            if (!sameBox) measure.schedule();
+          };
+          // Replacing equal-sized pixels is not a layout transaction. Asking
+          // the host to restore an anchor here can rewind an active wheel
+          // gesture even though the document geometry never changed.
+          if (sameBox) publish();
+          else commitEditorLayout(view.dom, publish);
         };
         if (typeof image.decode !== "function") {
           reveal();
           return;
         }
-        void image.decode().catch(() => undefined).then(reveal);
+        void image.decode().then(reveal, fail);
       }, { once: true });
-      image.addEventListener("error", () => {
-        if (abort.signal.aborted || !image.isConnected) return;
-        commitEditorLayout(view.dom, () => {
-          wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
-          measure.schedule();
-        });
-      }, { once: true });
+      image.addEventListener("error", fail, { once: true });
       image.src = source;
       return image;
     };
@@ -198,6 +239,26 @@ export class ImagePreviewWidget extends WidgetType {
       const placeholder = createPlaceholder("");
       placeholder.classList.add("is-loading");
       placeholder.setAttribute("aria-hidden", "true");
+      const geometry = geometryCache.read(documentPath, geometrySource);
+      if (geometry) {
+        // CodeMirror retains the measured line offscreen. Remounting a short
+        // loading box would overwrite that height before decoding finishes.
+        // Intrinsic dimensions let CSS fit the *current* pane without reading
+        // layout during widget construction or retaining a stale pixel height.
+        let width = this.size?.width ?? geometry.naturalWidth;
+        if (this.displayMode === "inline" && !this.size) {
+          width = Math.min(width, 320 * geometry.naturalWidth / geometry.naturalHeight);
+        }
+        placeholder.style.width = `${width}px`;
+        placeholder.style.maxWidth = "100%";
+        placeholder.style.aspectRatio = `${geometry.naturalWidth} / ${geometry.naturalHeight}`;
+        placeholder.style.height = this.size && this.size.height !== null ? `${this.size.height}px` : "auto";
+        placeholder.style.maxHeight = this.displayMode === "inline" ? "320px" : "none";
+        placeholder.style.minHeight = "0px";
+        placeholder.style.padding = "0";
+        placeholder.style.borderWidth = "0";
+        loadingGeometry.set(placeholder, geometry);
+      }
       return placeholder;
     };
 
@@ -205,7 +266,11 @@ export class ImagePreviewWidget extends WidgetType {
     // whether reference resolution succeeds. Keeping lifecycle ownership out
     // of individual render branches prevents handles/listeners from drifting
     // apart as new media-reference forms are added.
-    measure.observe(wrapper);
+    // A new observation starts without a previous size and would report a
+    // false geometry change for every remount. Reserved boxes already follow
+    // the pane through responsive CSS; real decoded size changes explicitly
+    // enter the layout coordinator above.
+    if (!geometryCache.read(documentPath, geometrySource)) measure.observe(wrapper);
     host.sessions.mount(wrapper, () => ({
       dispose() {
         abort.abort();
@@ -220,8 +285,8 @@ export class ImagePreviewWidget extends WidgetType {
     }));
 
     wrapper.appendChild(createLoadingPlaceholder());
-    const documentPath = this.documentPath || view.state.facet(markdownDocumentPathFacet);
     if (!this.resolvedSource) {
+      geometryCache.forget(documentPath, geometrySource);
       wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
       return wrapper;
     }
@@ -246,7 +311,10 @@ export class ImagePreviewWidget extends WidgetType {
           wrapper.replaceChildren(placeholder, createImage(handle.url, placeholder));
           handle.subscribe?.((url) => {
             if (abort.signal.aborted || !wrapper.isConnected) return;
-            if (!url) wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
+            if (!url) {
+              geometryCache.forget(documentPath, geometrySource);
+              wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
+            }
             else {
               const loading = createLoadingPlaceholder();
               wrapper.replaceChildren(loading, createImage(url, loading));
@@ -254,12 +322,14 @@ export class ImagePreviewWidget extends WidgetType {
             measure.schedule();
           });
         } else {
+          geometryCache.forget(documentPath, geometrySource);
           wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
         }
         measure.schedule();
       })
       .catch(() => {
         if (abort.signal.aborted || !wrapper.isConnected) return;
+        geometryCache.forget(documentPath, geometrySource);
         wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
         measure.schedule();
       });
@@ -279,6 +349,17 @@ export class ImagePreviewWidget extends WidgetType {
   }
 
   coordsAt(dom: HTMLElement, pos: number, side: number): Rect | null {
-    return getInlineWidgetTextCoords(dom, getInlineWidgetEdgeX(dom, pos, side));
+    const text = getInlineWidgetTextCoords(dom, getInlineWidgetEdgeX(dom, pos, side));
+    if (this.displayMode !== "block" || !text) return text;
+    const image = dom.getBoundingClientRect();
+    const height = Math.min(image.height, Math.max(0, text.bottom - text.top));
+    const atEnd = (this.sourceLength > 0 && pos >= this.sourceLength) || (pos > 0 && side >= 0);
+    // The source endpoints of a standalone image bracket its visual surface.
+    // Reporting its first text row for the end makes end-of-document scrolling
+    // align the image's top to the viewport bottom when there is no final LF.
+    return { ...text,
+      top: atEnd ? image.bottom - height : image.top,
+      bottom: atEnd ? image.bottom : image.top + height,
+    };
   }
 }

@@ -6,9 +6,12 @@ import type { ItemCloseResult } from "../../../../shared/item-host-contract/life
 export class AgentControllerRegistry {
   private readonly controllers = new Map<string, AgentSessionController>();
   private readonly closing = new Map<AgentSessionController, Promise<boolean | ItemCloseResult>>();
+  private readonly observers = new Map<AgentSessionController, () => void>();
   private disposed = false;
 
-  constructor(private readonly root: string, private readonly createClient: (itemId: string) => AgentClientProvider, private readonly preserveDraftOnDispose = false) {}
+  constructor(private readonly root: string, private readonly createClient: (itemId: string) => AgentClientProvider,
+    private readonly preserveDraftOnDispose = false,
+    private readonly observeController?: (controller: AgentSessionController) => () => void) {}
 
   get(id: string) {
     if (this.disposed) throw new Error("This project's Agent controllers have been released.");
@@ -16,6 +19,7 @@ export class AgentControllerRegistry {
     if (!controller) {
       controller = new AgentSessionController(this.root, this.createClient(id));
       this.controllers.set(id, controller);
+      if (this.observeController) this.observers.set(controller, this.observeController(controller));
     }
     return controller;
   }
@@ -33,6 +37,7 @@ export class AgentControllerRegistry {
   private async closeController(id: string, controller: AgentSessionController) {
     const result = await controller.closeTabSession();
     if (!result) return false;
+    this.releaseObserver(controller);
     controller.dispose();
     if (this.controllers.get(id) === controller) this.controllers.delete(id);
     return result;
@@ -44,13 +49,20 @@ export class AgentControllerRegistry {
     // Detach the abandoned reservation before awaiting native rollback. Its
     // completion must never remove a replacement using the same Item id.
     this.controllers.delete(id);
+    this.releaseObserver(controller);
     await controller.rollbackPreparation();
   }
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    for (const controller of this.observers.keys()) this.releaseObserver(controller);
     this.controllers.forEach((controller) => controller.dispose({ preserveDraft: this.preserveDraftOnDispose }));
     this.controllers.clear();
+  }
+
+  private releaseObserver(controller: AgentSessionController) {
+    this.observers.get(controller)?.();
+    this.observers.delete(controller);
   }
 }

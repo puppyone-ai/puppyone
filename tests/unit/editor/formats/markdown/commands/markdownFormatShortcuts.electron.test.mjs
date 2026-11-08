@@ -8,6 +8,13 @@ import {
 } from "../../../../../../electron/main/ipc/markdown-format-ipc.mjs";
 
 describe("Markdown format window shortcuts", () => {
+  it("routes heading keys before the application zoom menu and uses physical Mac Option keys", () => {
+    expect(matchMarkdownFormatInput({ type: "keyDown", key: "0", meta: true }, "darwin")).toBe("paragraph");
+    expect(matchMarkdownFormatInput({ type: "keyDown", key: "2", meta: true }, "darwin")).toBe("heading2");
+    expect(matchMarkdownFormatInput({ type: "keyDown", key: "ø", code: "KeyO", meta: true, alt: true }, "darwin")).toBe("orderedList");
+    expect(matchMarkdownFormatInput({ type: "keyDown", key: "C", code: "KeyC", control: true, shift: true }, "win32")).toBe("codeBlock");
+    expect(matchMarkdownFormatInput({ type: "keyDown", key: "@", code: "KeyQ", control: true, alt: true }, "win32")).toBeNull();
+  });
   it("matches the complete macOS format shortcut set", () => {
     expect(matchMarkdownFormatInput({
       type: "keyDown",

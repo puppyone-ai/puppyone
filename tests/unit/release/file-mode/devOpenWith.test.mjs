@@ -75,7 +75,7 @@ const opened = (request) => ({
 });
 
 describe("dev Open With app", () => {
-  it("offers exactly the packaged build's file types instead of every file", () => {
+  it("offers the packaged editor file types supported by the CLI, excluding template imports", () => {
     const droplet = {
       CFBundleExecutable: "droplet",
       CFBundleIdentifier: "T",
@@ -84,7 +84,8 @@ describe("dev Open With app", () => {
     };
     const info = createOpenerInfo(droplet);
 
-    expect(info.CFBundleDocumentTypes).toEqual(packagedTypes);
+    expect(info.CFBundleDocumentTypes).toEqual(packagedTypes.filter(type => type.CFBundleTypeRole === "Editor"));
+    expect(info.CFBundleDocumentTypes.some(type => type.CFBundleTypeExtensions?.includes("puppyonetemplate"))).toBe(false);
     expect(info.CFBundleIdentifier).toBe(OPENER_BUNDLE_ID);
     expect(info.CFBundleExecutable).toBe("droplet");
     // An asset catalog icon would win over the dev icon.

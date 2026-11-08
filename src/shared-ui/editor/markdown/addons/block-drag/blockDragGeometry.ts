@@ -92,10 +92,13 @@ export function readHandlePoint(
   // A top-level list shares the rail with paragraphs, so the handle holds still
   // moving between them. Only deeper items step in beside their own marker.
   const edge = source.depth > 1 && anchor ? toOverlayX(surface, anchor.left) : readRailStart(surface, rtl);
-  // A widget reports its whole box here, so align to its first row instead.
-  const y = block.type === BlockType.Text && anchor
-    ? ((anchor.top + anchor.bottom) / 2 - surface.originTop) / surface.scaleY
-    : toOverlayY(surface, block.top + Math.min(block.height / 2, view.defaultLineHeight));
+  // A widget reports its whole box here. Its line box starts above the visible
+  // surface (the line carries the block gap as padding), so a widget block
+  // aligns to the top of what the reader sees, never to that padding.
+  const anchorCenterY = anchor ? handleAnchorCenterY(block.type === BlockType.Text, anchor) : null;
+  const y = anchorCenterY === null
+    ? toOverlayY(surface, block.top + Math.min(block.height / 2, view.defaultLineHeight))
+    : (anchorCenterY - surface.originTop) / surface.scaleY;
   return {
     x: rtl ? edge + inset : Math.max(BLOCK_DRAG_HANDLE_WIDTH_PX / 2, edge - inset),
     y,
@@ -135,6 +138,18 @@ export function readPreviewPoint(
     x: surface.originLeft - root.left + surface.railLeft * surface.scaleX,
     y: surface.originTop - root.top + toOverlayY(surface, readBlockTop(view, block)) * surface.scaleY,
   };
+}
+
+/** Text centers on its first row; a replaced widget starts at its visible top. */
+function handleAnchorCenterY(
+  isText: boolean,
+  anchor: { top: number; bottom: number },
+): number {
+  if (isText) return (anchor.top + anchor.bottom) / 2;
+  return anchor.top + Math.min(
+    BLOCK_DRAG_HANDLE_HEIGHT_PX / 2,
+    Math.max(0, (anchor.bottom - anchor.top) / 2),
+  );
 }
 
 function readRailStart(surface: BlockDragSurface, rtl: boolean): number {

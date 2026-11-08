@@ -46,12 +46,16 @@ function fixture() {
     const drop = useExplorerFileDrop(workspace, (...args) => {
       open(...args);
       workbench.openDocumentAtPaneEdge(...args);
-    }, { paneIds: panes, workspacePath: `/${workspace}` });
+    }, { paneIds: panes, workspacePath: `/${workspace}` }, {
+      onOpenInPane: (node, paneId) => { workbench.focusPane(paneId); workbench.openDocument(node); },
+    });
     const exportNodes = useResourceDragExport(resolve);
     return <><div draggable data-source onDragStart={(event) => exportNodes([{ id: uri, path: uri, name: entry.name, type: "file" }], event)} />
       {panes.map((id) => <section key={id} data-pane={id} data-edge={drop.dropIntent?.edge}
-        onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)} />)}
-      <output>{drop.dropFailed ? "failed" : "ok"}</output></>;
+        onDragOver={(event) => drop.over(event, id)} onDrop={(event) => drop.drop(event, id)}>
+        {drop.splitTargetPaneId === id && <div data-file-split-targets>{["left", "right", "top", "bottom"].map(edge => <div key={edge} data-file-split-edge={edge} />)}</div>}
+      </section>)}
+      <output>{drop.dropFailure ?? "ok"}</output></>;
   }
   const render = (workspace?: string, panes?: string[]) => act(() => root.render(<Harness workspace={workspace} panes={panes} />));
   render();
@@ -66,13 +70,25 @@ function nativeFiles() {
   Object.defineProperty(transfer, "types", { value: ["Files"] });
   return transfer;
 }
-function drag(type: string, transfer: DataTransfer) {
-  const event = new DragEvent(type, { bubbles: true, cancelable: true, clientX: 790, clientY: 300 });
-  Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: 790 }, clientY: { value: 300 } });
+function exposeCards(pane: HTMLElement, transfer: DataTransfer) {
+  act(() => pane.dispatchEvent(drag("dragover", transfer)));
+  pane.querySelector<HTMLElement>('[data-file-split-edge="left"]')!.getBoundingClientRect = () => new DOMRect(0, 120, 120, 360);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="right"]')!.getBoundingClientRect = () => new DOMRect(680, 120, 120, 360);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="top"]')!.getBoundingClientRect = () => new DOMRect(260, 12, 280, 72);
+  pane.querySelector<HTMLElement>('[data-file-split-edge="bottom"]')!.getBoundingClientRect = () => new DOMRect(260, 516, 280, 72);
+}
+function drag(type: string, transfer: DataTransfer, x = 790, y = 300) {
+  const event = new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y });
+  Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: x }, clientY: { value: y } });
   return event;
 }
 
-it("connects the ordinary native source to Editor using Files and the canonical root-qualified identity", async () => {
+it.each([
+  { edge: "left", x: 50, y: 300, direction: "horizontal", placement: "first" },
+  { edge: "right", x: 750, y: 300, direction: "horizontal", placement: "second" },
+  { edge: "top", x: 400, y: 40, direction: "vertical", placement: "first" },
+  { edge: "bottom", x: 400, y: 560, direction: "vertical", placement: "second" },
+])("routes native Files on the $edge card through canonical admission", async ({ edge, x, y, direction, placement }) => {
   const f = fixture();
   const startEvent = drag("dragstart", new DataTransfer());
   await act(async () => { f.container.querySelector("[data-source]")!.dispatchEvent(startEvent); });
@@ -80,11 +96,12 @@ it("connects the ordinary native source to Editor using Files and the canonical 
   expect(f.start).toHaveBeenCalledWith({ resources: [uri] });
   expect(f.pointer).toHaveBeenLastCalledWith({ active: true });
   const transfer = nativeFiles();
-  act(() => f.pane.dispatchEvent(drag("dragover", transfer)));
-  expect(f.pane.dataset.edge).toBe("right");
-  await act(async () => { f.pane.dispatchEvent(drag("drop", transfer)); });
+  exposeCards(f.pane, transfer);
+  act(() => f.pane.dispatchEvent(drag("dragover", transfer, x, y)));
+  expect(f.pane.dataset.edge).toBe(edge);
+  await act(async () => { f.pane.dispatchEvent(drag("drop", transfer, x, y)); });
   expect(f.claim).toHaveBeenCalledWith({ files: [transfer.files[0]], intent: "editor-open", targetResource: undefined });
-  expect(f.open).toHaveBeenCalledExactlyOnceWith({ id: uri, path: uri, name: "same.md", type: "markdown" }, "pane-1", "horizontal", "second");
+  expect(f.open).toHaveBeenCalledExactlyOnceWith({ id: uri, path: uri, name: "same.md", type: "markdown" }, "pane-1", direction, placement);
   expect(f.pane.dataset.edge).toBeUndefined();
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
 });
@@ -93,7 +110,9 @@ it("claims without relying on a preview that window drop capture has already cle
   const f = fixture();
   let complete!: (value: { entries: typeof entry[] }) => void;
   f.claim.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
-  act(() => { f.publish({ id: "native-1", entries: [entry] }); f.pane.dispatchEvent(drag("drop", nativeFiles())); });
+  act(() => f.publish({ id: "native-1", entries: [entry] }));
+  exposeCards(f.pane, nativeFiles());
+  act(() => { f.pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(f.open).not.toHaveBeenCalled();
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
   // Native end and HTML dragend retire presentation, not a valid pending receipt.
@@ -119,7 +138,7 @@ it("reports a rejected native claim without falling back to the preview or raw p
   act(() => f.publish({ id: "native-1", entries: [entry] }));
   await act(async () => { f.pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(f.open).not.toHaveBeenCalled();
-  expect(f.container.querySelector("output")?.textContent).toBe("failed");
+  expect(f.container.querySelector("output")?.textContent).toBe("export");
   expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
 });
 
@@ -152,11 +171,15 @@ it("opens an empty pane, splits distinct same-named resources, then focuses an a
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(1);
   expect(f.workbench.activeEditorId).toBe(uri);
+  act(() => f.publish({ id: "native-1", entries: [entry] }));
+  exposeCards(pane, nativeFiles());
   const other = { ...entry, path: uri.replace("root-b", "root-a") };
   f.claim.mockResolvedValueOnce({ entries: [other] });
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(2);
   expect(f.workbench.state.editors.map((editor) => editor.id).sort()).toEqual([other.path, uri]);
+  act(() => f.publish({ id: "native-2", entries: [entry] }));
+  exposeCards(pane, nativeFiles());
   await act(async () => { pane.dispatchEvent(drag("drop", nativeFiles())); });
   expect(getEditorPanes(f.workbench.paneLayout)).toHaveLength(2);
   expect(f.workbench.activeEditorId).toBe(uri);

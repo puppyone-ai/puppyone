@@ -46,6 +46,7 @@ describe("workspace file IPC authorization", () => {
     const event = { sender: { id: 7 } };
     const requests = new Map([
       ["workspace:list-folder-children", { rootPath: otherRoot, folderPath: null }],
+      ["workspace:list-reference-targets", { rootPath: otherRoot }],
       ["workspace:resolve-node", { rootPath: otherRoot, path: "secret.txt" }],
       ["workspace:read-file", { rootPath: otherRoot, path: "secret.txt" }],
       ["workspace:get-file-url", { rootPath: otherRoot, path: "secret.txt" }],
@@ -53,6 +54,7 @@ describe("workspace file IPC authorization", () => {
       ["workspace:convert-office-docx", { rootPath: otherRoot, path: "secret.rtf" }],
       ["workspace:write-file", { rootPath: otherRoot, path: "secret.txt", content: "changed" }],
       ["workspace:create-entry", { rootPath: otherRoot, parentPath: null, name: "new.txt", kind: "file" }],
+      ["workspace:save-document-conversion", { rootPath: otherRoot, path: "secret.docx", files: [] }],
       ["workspace:instantiate-template", { rootPath: otherRoot, parentPath: null, name: "Deck", templateId: "slides.default" }],
       ["workspace:rename-entry", { rootPath: otherRoot, path: "secret.txt", nextName: "renamed.txt" }],
       ["workspace:move-entry", { rootPath: otherRoot, fromPath: "secret.txt", toPath: "moved.txt" }],

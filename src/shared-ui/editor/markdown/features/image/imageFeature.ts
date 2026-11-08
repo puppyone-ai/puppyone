@@ -5,6 +5,8 @@ import { getObsidianMediaEmbedNodesInRange } from "../media/markdownMediaSyntaxN
 import { isObsidianImageEmbedSize } from "../media/obsidianMediaEmbed";
 import { resolveMarkdownMediaReference } from "../media/markdownMediaReference";
 import { ImagePreviewWidget } from "./imagePreviewWidget";
+import { imageGeometryExtension, imageGeometryPresentation } from "./imageGeometrySession";
+import { estimateMarkdownImageHeight } from "./imageGeometryCache";
 import { compileImageElementPlan } from "./imagePlan";
 import { parseMarkdownImageSize, splitMarkdownImageAlt, type MarkdownImageSize } from "./markdownImageSize";
 import { findMarkdownReferenceImageTokens } from "./markdownReferenceImages";
@@ -15,6 +17,7 @@ export const imageFeature = defineMarkdownFeature({
   semanticKinds: ["image"],
   inlineWidgetKinds: ["image"],
   blockWidgetKinds: [],
+  livePreviewExtensions: [imageGeometryExtension],
   collectRange(state, from, to) {
     return getObsidianMediaEmbedNodesInRange(state, from, to, "image").map((token) => (
       createImageElement({
@@ -54,6 +57,13 @@ export const imageFeature = defineMarkdownFeature({
       plan.atom.referenceKind,
       context.markdownLinkGraph,
     );
+    const presentation = context.state?.field(imageGeometryPresentation, false);
+    const estimate = estimateMarkdownImageHeight(
+      plan.atom.displayMode === "block" ? presentation?.snapshot?.read(context.documentPath, resolvedSource ?? plan.atom.href) ?? null : null,
+      presentation?.width ?? 0,
+      plan.atom.displayMode,
+      plan.atom.size,
+    );
     return new ImagePreviewWidget(
       plan.sourceRange.from,
       plan.sourceRange.to,
@@ -64,6 +74,8 @@ export const imageFeature = defineMarkdownFeature({
       resolvedSource,
       plan.atom.displayMode,
       plan.atom.size,
+      estimate,
+      presentation?.generation ?? null,
     );
   },
 });

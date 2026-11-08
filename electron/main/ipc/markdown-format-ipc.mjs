@@ -1,3 +1,4 @@
+import { matchMarkdownShortcutInput } from "../../../shared/markdown-shortcuts.mjs";
 export const MARKDOWN_FORMAT_ACTIVE_CHANNEL = "editor:markdown-format-active";
 export const MARKDOWN_FORMAT_SHORTCUT_CHANNEL = "editor:markdown-format-shortcut";
 
@@ -10,23 +11,11 @@ export function isMarkdownFormatCommand(value) {
 }
 
 /**
- * Window-level Markdown format keys. Chromium/macOS otherwise steal Cmd+I / Cmd+U
- * before the editor keymap can toggle italic and underline.
+ * Route editor-owned Markdown keys before native menu accelerators, including
+ * formatting, heading, and insertion commands. Focus controls activation.
  */
 export function matchMarkdownFormatInput(input, platform = process.platform) {
-  if (!input || input.type !== "keyDown" || input.isAutoRepeat || input.alt) return null;
-
-  const isMac = platform === "darwin";
-  const hasMod = isMac ? Boolean(input.meta) && !input.control : Boolean(input.control) && !input.meta;
-  if (!hasMod) return null;
-
-  const key = typeof input.key === "string" ? input.key.toLowerCase() : "";
-  if (input.shift) return key === "x" ? "strike" : null;
-  if (key === "b") return "strong";
-  if (key === "i") return "emphasis";
-  if (key === "u") return "underline";
-  if (key === "d") return "strike";
-  return null;
+  return matchMarkdownShortcutInput(input, platform);
 }
 
 export function attachMarkdownFormatShortcuts(

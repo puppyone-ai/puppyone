@@ -34,6 +34,8 @@ import {
   type ViewerExtensionHostAdapter,
   type Workspace,
   type WorkspaceContentChange,
+  createDocumentDropRegistry,
+  DocumentDropTargetProvider,
 } from "@puppyone/shared-ui";
 import {
   useExplorerFileDrop,
@@ -53,9 +55,10 @@ import {
   usePersistentEditorPaneHosts,
   type PersistentEditorPaneHosts,
 } from "./pane-host/usePersistentEditorPaneHosts";
-import { toWorkspaceRelativePath } from "../../desktop-agent-presence";
+import { toWorkspaceRelativePath, agentChangedFilesStore } from "../../desktop-agent-presence";
 
 export type DesktopEditorSplitViewProps = Readonly<{
+  onOpenCreatedDocument?: (node: DocumentDataNode) => void;
   aiEditRequest: AiEditRequest | null;
   /** The project's first document is still on its way to these panes. */
   entering?: boolean;
@@ -94,6 +97,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
     direction: EditorSplitDirection,
     placement: NonNullable<EditorPaneSplitOptions["placement"]>,
   ) => void;
+  onOpenInPane?: (node: DocumentDataNode, targetPaneId: string) => void;
   onSplitPane: (
     paneId: string,
     direction: EditorSplitDirection,
@@ -102,6 +106,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
 }>;
 
 export function DesktopEditorSplitView({
+  onOpenCreatedDocument,
   aiEditRequest,
   entering = false,
   dataPort,
@@ -122,6 +127,7 @@ export function DesktopEditorSplitView({
   onFocusPane,
   onMovePane,
   onOpenAtPaneEdge,
+  onOpenInPane,
   onResizeSplit,
   onSplitPane,
 }: DesktopEditorSplitViewProps) {
@@ -151,10 +157,11 @@ export function DesktopEditorSplitView({
       ?.focus({ preventScroll: true });
   }, [layout.activePaneId, paneHosts, panes]);
   const paneMove = usePaneMoveDrag(onMovePane);
+  const dropRegistry = useMemo(() => createDocumentDropRegistry(), []);
   const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge, {
     workspacePath: workspace.path,
     paneIds: panes.map((pane) => pane.id),
-  });
+  }, { registry: dropRegistry, onOpenInPane });
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {
@@ -169,21 +176,25 @@ export function DesktopEditorSplitView({
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
       <FloatingNoticePortal stack={noticeStack}>
-        {fileDrop.dropFailed && (
+        {fileDrop.dropFailure && (
           <FloatingNotice tone="danger" onDismiss={fileDrop.dismissDropFailure}>
-            {t("workspace.drag.exportFailed")}
+            {t(fileDrop.dropFailure === "image"
+              ? "workspace.drag.imageInsertFailed"
+              : "workspace.drag.exportFailed")}
           </FloatingNotice>
         )}
       </FloatingNoticePortal>
-      <EditorLayoutNode
-        node={layout.root}
-        touchesBlockEnd
-        touchesInlineStart
-        paneHosts={paneHosts}
-        onResizeSplit={onResizeSplit}
-      />
-      {panes.map((pane) => createPortal(
+      <DocumentDropTargetProvider registry={dropRegistry}>
+        <EditorLayoutNode
+          node={layout.root}
+          touchesBlockEnd
+          touchesInlineStart
+          paneHosts={paneHosts}
+          onResizeSplit={onResizeSplit}
+        />
+        {panes.map((pane) => createPortal(
         <EditorPane
+          onOpenCreatedDocument={onOpenCreatedDocument}
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
           entering={entering}
@@ -209,9 +220,10 @@ export function DesktopEditorSplitView({
           onOpenActionsPaneChange={setOpenActionsPaneId}
           onSplitPane={onSplitPane}
         />,
-        paneHosts.get(pane.id)!,
-        pane.id,
-      ))}
+          paneHosts.get(pane.id)!,
+          pane.id,
+        ))}
+      </DocumentDropTargetProvider>
     </div>
   );
 }
@@ -280,6 +292,7 @@ function EditorSplit({
 }
 
 type EditorPaneProps = Readonly<{
+  onOpenCreatedDocument?: DesktopEditorSplitViewProps["onOpenCreatedDocument"];
   activePaneId: string;
   aiEditRequest: AiEditRequest | null;
   entering: boolean;
@@ -307,6 +320,7 @@ type EditorPaneProps = Readonly<{
 }>;
 
 function EditorPane({
+  onOpenCreatedDocument,
   activePaneId,
   aiEditRequest,
   entering,
@@ -378,7 +392,13 @@ function EditorPane({
       menuContribution={paneMenuContribution}
       onActionsPaneChange={onOpenActionsPaneChange}
       onActivate={() => {
-        if (!active) onFocusPane(pane.id);
+        if (!active) {
+          if (agentPresencePath) agentChangedFilesStore.requestReview(editorWorkspace.path, agentPresencePath);
+          onFocusPane(pane.id);
+        }
+      }}
+      onReview={() => {
+        if (agentPresencePath) agentChangedFilesStore.requestReview(editorWorkspace.path, agentPresencePath);
       }}
       onClose={() => onClosePane(pane.id)}
       onOpenExternal={externalOpen && externalOpenPath
@@ -393,6 +413,8 @@ function EditorPane({
           : null}
       >
         <EditorPaneRuntime
+          agentReviewPath={agentPresencePath}
+          onOpenCreatedDocument={onOpenCreatedDocument}
           aiEditFile={getAiEditFileForPath(aiEditRequest, editor?.resource) ?? null}
           dataPort={dataPort}
           documentSourceKind={documentSourceKind}

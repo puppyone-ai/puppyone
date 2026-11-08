@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from "react";
+import { PanelBottom, PanelLeft, PanelRight, PanelTop } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type {
   EditorFindCommand,
@@ -10,12 +11,31 @@ import type {
 import { ProjectOpeningLoading } from "../../../components/loading";
 import type { EditorFileDropController } from "../drag-and-drop/useExplorerFileDrop";
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
+import type { PaneDropEdge } from "../drag-and-drop/paneDropGeometry";
 import { EditorPaneChrome } from "./EditorPaneChrome";
 import { useEditorPaneChromeReveal } from "../../../components/useEditorPaneChromeReveal";
 import {
   AgentFilePresence,
   desktopAgentActivityStore,
 } from "../../desktop-agent-presence";
+
+const FILE_SPLIT_CARDS = [
+  { edge: "left", Icon: PanelLeft, label: "editor.panes.splitLeft" },
+  { edge: "right", Icon: PanelRight, label: "editor.panes.splitRight" },
+  { edge: "top", Icon: PanelTop, label: "editor.panes.splitUp" },
+  { edge: "bottom", Icon: PanelBottom, label: "editor.panes.splitDown" },
+] as const;
+
+function resolveDropKind(
+  insertIntent: boolean,
+  fileEdge: PaneDropEdge | null,
+  paneEdge: PaneDropEdge | null,
+): "insert" | "file" | "pane" | undefined {
+  if (insertIntent) return "insert";
+  if (fileEdge) return "file";
+  if (paneEdge) return "pane";
+  return undefined;
+}
 
 export type EditorPaneShellProps = Readonly<{
   active: boolean;
@@ -33,6 +53,7 @@ export type EditorPaneShellProps = Readonly<{
   paneMove: PaneMoveDragController;
   onActionsPaneChange: (paneId: string | null) => void;
   onActivate: () => void;
+  onReview?: () => void;
   onClose: () => void;
   onOpenExternal: (() => void | Promise<void>) | null;
   onSplit: (
@@ -57,6 +78,7 @@ export function EditorPaneShell({
   paneMove,
   onActionsPaneChange,
   onActivate,
+  onReview,
   onClose,
   onOpenExternal,
   onSplit,
@@ -93,7 +115,11 @@ export function EditorPaneShell({
       data-handle-hot={chromeReveal.revealed ? "true" : undefined}
       data-pane-menu-open={actionsOpen ? "true" : undefined}
       data-drop-target={dropEdge ?? undefined}
-      data-drop-kind={fileDropEdge ? "file" : paneMoveEdge ? "pane" : undefined}
+      data-drop-kind={resolveDropKind(
+        fileDrop.insertTargetPaneId === pane.id,
+        fileDropEdge,
+        paneMoveEdge,
+      )}
       aria-label={editorLabel
         ? t("editor.panes.label", { name: editorLabel })
         : t("editor.panes.empty")}
@@ -103,7 +129,7 @@ export function EditorPaneShell({
       onPointerUp={(event) => {
         // Focusable editors activate through focus after native caret placement.
         // Pointer-up covers non-focusable previews after selection handling.
-        if (event.button === 0) onActivate();
+        if (event.button === 0) { onReview?.(); onActivate(); }
       }}
       onDragEnterCapture={(event) => fileDrop.over(event, pane.id)}
       onDragOverCapture={(event) => fileDrop.over(event, pane.id)}
@@ -130,6 +156,17 @@ export function EditorPaneShell({
       <div className="desktop-editor-pane-content">
         {contentState === "document" ? children : emptyContent}
       </div>
+      {fileDrop.splitTargetPaneId === pane.id && (
+        <div className="desktop-editor-file-split-targets" data-file-split-targets aria-hidden="true">
+          {FILE_SPLIT_CARDS.map(({ edge, Icon, label }) => (
+            <div key={edge} className="desktop-editor-file-split-card" data-file-split-edge={edge}
+              data-active={fileDropEdge === edge ? "true" : undefined}>
+              <Icon size={20} />
+              <span>{t(label)}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {dropEdge && <div className="desktop-editor-drop-preview" data-edge={dropEdge} />}
       <div className="desktop-editor-pane-interaction-frame" aria-hidden="true" />
     </section>

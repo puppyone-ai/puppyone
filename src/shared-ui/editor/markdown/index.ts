@@ -15,6 +15,7 @@ export {
   type MarkdownWikiLinkToken,
 } from "./core/links/wikiLinkModel";
 export { resolveMarkdownAssetPath } from "./features/media/markdownMediaReference";
+export { isDropImageName } from "./features/image/markdownImageDropSyntax";
 export {
   getMarkdownConformanceSnapshot,
   projectMarkdownConformanceSurface,
@@ -50,3 +51,5 @@ export type {
   MermaidSvgMount,
   MermaidThemeSnapshot,
 } from "./features/mermaid/mermaidRenderer";
+
+export { MARKDOWN_SHORTCUT_DEFINITIONS, isMarkdownShortcutCommand, type MarkdownShortcutDefinition } from "./core/commands/markdownShortcutDefinitions";

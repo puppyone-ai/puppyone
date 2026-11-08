@@ -136,12 +136,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => {
       const type = payload?.type;
-      if (
-        type === "strong"
-        || type === "emphasis"
-        || type === "underline"
-        || type === "strike"
-      ) {
+      if (typeof type === "string" && /^[A-Za-z][A-Za-z0-9]{0,47}$/.test(type)) {
         callback({ type });
       }
     };
@@ -342,6 +337,11 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
   getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
+  openLocalTemplateFile: (file) => {
+    const filePath = webUtils.getPathForFile(file);
+    if (!filePath) return Promise.reject(new Error("Drop a local template file from Finder or File Explorer."));
+    return ipcRenderer.invoke("template:open-local", { path: filePath });
+  },
   resolveTemplateLink: (request) => ipcRenderer.invoke("template:resolve", request),
   readTemplateImportIntent: () => ipcRenderer.invoke("template:read-intent"),
   acknowledgeTemplateImportIntent: (id) => ipcRenderer.invoke("template:acknowledge-intent", id),
@@ -387,6 +387,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   }),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
+  listReferenceTargets: (request) => ipcRenderer.invoke("workspace:list-reference-targets", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),
   openDatabasePreview: (request) => ipcRenderer.invoke("database-preview:open", request),
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
@@ -413,6 +414,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
   writeFile: (request) => ipcRenderer.invoke("workspace:write-file", request),
   createEntry: (request) => ipcRenderer.invoke("workspace:create-entry", request),
+  saveDocumentConversion: (request) => ipcRenderer.invoke("workspace:save-document-conversion", request),
   instantiateTemplate: (request) => ipcRenderer.invoke("workspace:instantiate-template", request),
   renameEntry: (request) => ipcRenderer.invoke("workspace:rename-entry", request),
   moveEntry: (request) => ipcRenderer.invoke("workspace:move-entry", request),

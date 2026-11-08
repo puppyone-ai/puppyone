@@ -11,8 +11,13 @@ import {
   EXPLORER_REFERENCE_DRAG_TYPE,
   classifyReferenceDataTransfer,
   type DocumentDataNode,
+  type DocumentDropPayload,
+  type DocumentDropRegistry,
+  type DocumentDropTargetRegistration,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
+  type ReferenceDataTransferSource,
+  isDropImageName,
 } from "@puppyone/shared-ui";
 import {
   acquireNativeSurfacePointerPassthroughLease,
@@ -25,12 +30,13 @@ import {
   type InteractionTerminationReason,
 } from "../interactions/useInteractionTermination";
 import {
-  closestPaneDropEdge,
   paneSplitDefinition,
   type PaneDropIntent,
 } from "./paneDropGeometry";
+import { fileSplitDropEdge, type FileSplitDropEdge } from "./fileSplitDropTarget";
 import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
-import { claimEditorDropDocument, editorDropDocument } from "./editorResourceDrop";
+import { editorDropDocument } from "./editorResourceDrop";
+import { resolveResourceDropSource } from "../../../platform";
 
 export type EditorFileDropHandler = (
   node: DocumentDataNode,
@@ -39,9 +45,17 @@ export type EditorFileDropHandler = (
   placement: NonNullable<EditorPaneSplitOptions["placement"]>,
 ) => void;
 
+export type EditorDropFailure = "export" | "image";
+
 export type EditorFileDropController = Readonly<{
   dropIntent: PaneDropIntent | null;
-  dropFailed: boolean;
+  /** `image` means the document claimed the drop but could not insert it;
+   * `export` is the pane's own open/export failure. */
+  dropFailure: EditorDropFailure | null;
+  /** The pointer is over a document drop target: releasing inserts, not splits. */
+  insertTargetPaneId: string | null;
+  /** The hovered file-drop pane exposes all four explicit split cards. */
+  splitTargetPaneId: string | null;
   dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -59,21 +73,48 @@ type ExplorerFileDropPreview = Readonly<{
   sessionId: string;
 }>;
 
+export type ExplorerFileDropOptions = Readonly<{
+  /** Document targets registered below the pane tree handle image insertion. */
+  registry?: DocumentDropRegistry | null;
+  onOpenInPane?: (node: DocumentDataNode, paneId: string) => void;
+}>;
+
+/** Only a visible split card takes precedence over a document image drop. */
+export function shouldRouteToDocumentDrop(input: Readonly<{
+  splitEdge: FileSplitDropEdge | null;
+  payloadName: string;
+  hasTarget: boolean;
+}>): boolean {
+  return input.splitEdge === null && input.hasTarget && isDropImageName(input.payloadName);
+}
+
 export function useExplorerFileDrop(
   workspaceId: string,
   onOpenAtPaneEdge: EditorFileDropHandler,
   target: Readonly<{ workspacePath: string; paneIds: readonly string[] }>,
+  options: ExplorerFileDropOptions = {},
 ): EditorFileDropController {
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
-  const [dropFailed, setDropFailed] = useState(false);
+  const [dropFailure, setDropFailure] = useState<EditorDropFailure | null>(null);
+  const [insertTargetPaneId, setInsertTargetPaneId] = useState<string | null>(null);
+  const [splitTargetPaneId, setSplitTargetPaneId] = useState<string | null>(null);
+  const clearCardsFrame = useRef<number | null>(null);
+  const registry = options.registry ?? null;
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
+  const insertPreviewRef = useRef<{ paneId: string; target: DocumentDropTargetRegistration } | null>(null);
+  const clearInsertPreview = useCallback(() => {
+    insertPreviewRef.current?.target.clearInsertPreview?.();
+    insertPreviewRef.current = null;
+  }, []);
   // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
   const targetsRef = useRef(new Map<string, object>());
   const openRef = useRef(onOpenAtPaneEdge);
+  const openInPaneRef = useRef(options.onOpenInPane);
   useLayoutEffect(() => { openRef.current = onOpenAtPaneEdge; });
+  useLayoutEffect(() => { openInPaneRef.current = options.onOpenInPane; });
   useLayoutEffect(() => {
     const targets = targetsRef.current;
-    setDropFailed(false);
+    setDropFailure(null);
     return () => { targets.clear(); };
   }, [workspaceId, target.workspacePath]);
   useLayoutEffect(() => {
@@ -83,6 +124,8 @@ export function useExplorerFileDrop(
   });
 
   const beginFileDrag = useCallback((): ExplorerFileDropSession => {
+    if (clearCardsFrame.current !== null) window.cancelAnimationFrame(clearCardsFrame.current);
+    clearCardsFrame.current = null;
     const current = sessionRef.current;
     if (current) return current;
     const id = createNativeSurfacePointerSessionId("explorer-file-drop");
@@ -98,7 +141,14 @@ export function useExplorerFileDrop(
     return session;
   }, []);
 
-  const finishFileDrag = useCallback((reason: InteractionTerminationReason): boolean => {
+  const finishFileDrag = useCallback((reason: InteractionTerminationReason, deferInsertCleanup = reason === "drop"): boolean => {
+    if (deferInsertCleanup) {
+      // Window capture runs before the pane can freeze the painted anchor.
+      // Also clean up drops outside every pane after synchronous dispatch ends.
+      const pending = insertPreviewRef.current;
+      queueMicrotask(() => { if (insertPreviewRef.current === pending) clearInsertPreview(); });
+    } else clearInsertPreview();
+    if (reason === "unmount" && clearCardsFrame.current !== null) window.cancelAnimationFrame(clearCardsFrame.current);
     const session = sessionRef.current;
     if (!session) return false;
     sessionRef.current = null;
@@ -106,9 +156,16 @@ export function useExplorerFileDrop(
     session.releaseOcclusion();
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
+      setInsertTargetPaneId(null);
+      // Window capture retires native preview before the pane's drop capture.
+      // Keep card geometry until that event has snapshotted its actual hit.
+      clearCardsFrame.current = window.requestAnimationFrame(() => {
+        clearCardsFrame.current = null;
+        if (!sessionRef.current) setSplitTargetPaneId(null);
+      });
     }
     return true;
-  }, []);
+  }, [clearInsertPreview]);
 
   useInteractionTermination({
     finish: finishFileDrag,
@@ -133,9 +190,12 @@ export function useExplorerFileDrop(
       const native = resourceDragPreviewStore.getSnapshot();
       if (native?.entries.length === 1 && native.entries[0].entryType === "file") {
         beginFileDrag();
-        setDropFailed(false);
+        setDropFailure(null);
       } else {
-        finishFileDrag("dragend");
+        // The preview store also clears in window drop capture. Let the pane
+        // freeze the painted anchor before retiring presentation. Admission
+        // still uses its independent receipt, never this preview metadata.
+        finishFileDrag("dragend", true);
       }
     };
     const unsubscribe = resourceDragPreviewStore.subscribe(sync);
@@ -151,23 +211,46 @@ export function useExplorerFileDrop(
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
     const session = beginFileDrag();
-    setPreview({
+    setSplitTargetPaneId(paneId);
+    const edge = fileSplitDropEdge(event.currentTarget, event.clientX, event.clientY);
+    // Native Files are protected during dragover. Session names are presentation
+    // only; the drop still obtains an independent Main receipt below.
+    const candidateName = hasNativeFiles(event.dataTransfer)
+      ? native?.entries[0]?.name
+      : dropCandidate(classifyReferenceDataTransfer(event.dataTransfer), workspaceId)?.name;
+    const target = edge === null ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    if (candidateName && target && shouldRouteToDocumentDrop({
+      splitEdge: edge,
+      payloadName: candidateName,
+      hasTarget: true,
+    })) {
+      // No split preview: the release will edit the document.
+      if (insertPreviewRef.current?.target !== target) clearInsertPreview();
+      insertPreviewRef.current = { paneId, target };
+      const accepts = target.previewInsert?.({ x: event.clientX, y: event.clientY }) ?? true;
+      event.dataTransfer.dropEffect = accepts ? "copy" : "none";
+      setPreview(null);
+      setInsertTargetPaneId(accepts ? paneId : null);
+      return;
+    }
+    clearInsertPreview();
+    setInsertTargetPaneId(null);
+    setPreview(edge ? {
       sessionId: session.id,
       intent: {
         targetPaneId: paneId,
-        edge: closestPaneDropEdge(
-          event.currentTarget.getBoundingClientRect(),
-          event.clientX,
-          event.clientY,
-        ),
+        edge,
       },
-    });
-  }, [beginFileDrag]);
+    } : null);
+  }, [beginFileDrag, clearInsertPreview, registry, workspaceId]);
 
   const leave = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    if (insertPreviewRef.current?.paneId === paneId) clearInsertPreview();
+    setInsertTargetPaneId((current) => current === paneId ? null : current);
+    setSplitTargetPaneId((current) => current === paneId ? null : current);
     setPreview((current) => current?.intent.targetPaneId === paneId ? null : current);
-  }, []);
+  }, [clearInsertPreview]);
 
   const drop = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
     if (!hasExplorerFileDrag(event.dataTransfer) && !hasNativeFiles(event.dataTransfer)) return;
@@ -178,36 +261,78 @@ export function useExplorerFileDrop(
     const source = hasNativeFiles(event.dataTransfer)
       ? { kind: "files" as const, files: Array.from(event.dataTransfer.files) }
       : classifyReferenceDataTransfer(event.dataTransfer);
-    const edge = closestPaneDropEdge(
-      event.currentTarget.getBoundingClientRect(),
-      event.clientX,
-      event.clientY,
-    );
+    const edge = fileSplitDropEdge(event.currentTarget, event.clientX, event.clientY);
     finishFileDrag("drop");
-    setDropFailed(false);
+    setDropFailure(null);
+    setInsertTargetPaneId(null);
+    setSplitTargetPaneId(null);
+
     const lifetime = targetsRef.current.get(paneId);
-    if (!lifetime) return;
-    const { direction, placement } = paneSplitDefinition(edge);
+    const isCurrent = () => Boolean(lifetime && targetsRef.current.get(paneId) === lifetime);
+    if (source.kind === "files" && source.files.length !== 1) return;
     const deliver = (node: DocumentDataNode | null) => {
-      if (node && targetsRef.current.get(paneId) === lifetime) {
-        openRef.current(node, paneId, direction, placement);
+      if (node && isCurrent()) {
+        if (edge) {
+          const { direction, placement } = paneSplitDefinition(edge);
+          openRef.current(node, paneId, direction, placement);
+        } else {
+          openInPaneRef.current?.(node, paneId);
+        }
       }
     };
-    if (source.kind === "files") {
-      void claimEditorDropDocument(source).then(deliver).catch(() => {
-        if (targetsRef.current.get(paneId) === lifetime) setDropFailed(true);
-      });
-    } else {
-      deliver(editorDropDocument(source, workspaceId));
-    }
-  }, [finishFileDrag, workspaceId]);
+    const candidate = dropCandidate(source, workspaceId);
+    const target = edge === null ? registry?.find(event.clientX, event.clientY) ?? null : null;
+    const complete = candidate && target && isDropImageName(candidate.name)
+      ? target.prepareInsert({ x: event.clientX, y: event.clientY }) : null;
+    void (async () => {
+      let admitted: ReferenceDataTransferSource;
+      try {
+        admitted = await resolveResourceDropSource(source, "editor-open");
+      } catch {
+        await complete?.(null);
+        if (isCurrent()) setDropFailure("export");
+        return;
+      }
+      const node = editorDropDocument(admitted, workspaceId);
+      if (!isCurrent()) { await complete?.(null); return; }
+      if (!complete) { deliver(node); return; }
+      // A receipt supplies canonical identity. Only a genuine external file
+      // (no receipt) reaches the document's existing asset import port.
+      const payload = dropCandidate(admitted, workspaceId)?.payload ?? null;
+      try {
+        if (!await complete(payload) && isCurrent()) setDropFailure("image");
+      } catch {
+        if (isCurrent()) setDropFailure("image");
+      }
+    })();
+  }, [finishFileDrag, registry, workspaceId]);
 
-  const dismissDropFailure = useCallback(() => setDropFailed(false), []);
+  const dismissDropFailure = useCallback(() => setDropFailure(null), [])
   const dropIntent = preview?.intent ?? null;
   return useMemo(
-    () => ({ dropIntent, dropFailed, dismissDropFailure, over, leave, drop }),
-    [dismissDropFailure, drop, dropFailed, dropIntent, leave, over],
+    () => ({ dropIntent, dropFailure, insertTargetPaneId, splitTargetPaneId, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailure, dropIntent, insertTargetPaneId, splitTargetPaneId, leave, over],
   );
+}
+
+/** Only a single file from this workspace may become a document edit. Native
+ * drops keep the original `File` handle: Electron's user-selected path grant
+ * does not survive reconstruction. */
+function dropCandidate(
+  source: ReferenceDataTransferSource,
+  workspaceId: string,
+): { payload: DocumentDropPayload; name: string } | null {
+  if (source.kind === "files") {
+    if (source.files.length !== 1) return null;
+    const file = source.files[0];
+    return file ? { payload: { kind: "file", file }, name: file.name } : null;
+  }
+  const node = editorDropDocument(source, workspaceId);
+  if (!node) return null;
+  return {
+    payload: { kind: "workspace-entry", path: node.path, name: node.name },
+    name: node.name,
+  };
 }
 
 function hasNativeFiles(dataTransfer: DataTransfer): boolean {

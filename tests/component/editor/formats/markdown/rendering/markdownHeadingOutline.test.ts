@@ -40,9 +40,9 @@ describe("Markdown heading outline", () => {
     ].join("\n"));
 
     expect(collectMarkdownHeadingOutlineEntries(state)).toEqual([
-      { from: 2, level: 1, title: "Company" },
-      { from: 14, level: 2, title: "Design" },
-      { from: 26, level: 3, title: "Frontend" },
+      { from: 2, level: 1, title: "Company", plainTitle: "Company" },
+      { from: 14, level: 2, title: "Design", plainTitle: "Design" },
+      { from: 26, level: 3, title: "Frontend", plainTitle: "Frontend" },
     ]);
   });
 
@@ -95,13 +95,17 @@ describe("Markdown heading outline", () => {
     expect(view.dom.querySelector(".cm-md-heading-outline-grip")).toBeNull();
     expect(view.dom.querySelector(".cm-md-heading-outline-spine")).toBeNull();
 
+    const popover = view.dom.querySelector<HTMLElement>(".cm-md-heading-outline-popover");
+    expect(popover?.style.left).toBe("26px");
+
     const rail = view.dom.querySelector<HTMLElement>(".cm-md-heading-outline-rail");
     expect(rail?.getAttribute("role")).toBe("navigation");
     expect(rail?.getAttribute("aria-label")).toBe("Document outline");
     expect(rail?.style.width).toBe("");
     expect(rail?.style.left).toBe("4px");
     expect(rail?.style.right).toBe("");
-    expect(rail?.style.top).toBe("22px");
+    // 120px viewport, 52px rail: the map is vertically centered.
+    expect(rail?.style.top).toBe("34px");
     expect(rail?.style.height).toBe("52px");
 
     const ticks = [...view.dom.querySelectorAll<HTMLButtonElement>(".cm-md-heading-outline-tick")];
@@ -259,6 +263,9 @@ describe("Markdown heading outline", () => {
     expect(css).toContain(".cm-md-heading-outline-item");
     expect(css).toContain(".cm-md-heading-outline-layer.is-popover-open");
     expect(css).toContain("left: 22px");
+    // The document map is vertically centered, not pinned to the top.
+    expect(css).toContain("top: 50%");
+    expect(css).toContain("translate(0, -50%)");
     expect(css).toContain("height: 2px");
     expect(css).not.toContain(".cm-md-heading-outline-panel");
     expect(css).not.toContain(".cm-md-heading-outline-grip");

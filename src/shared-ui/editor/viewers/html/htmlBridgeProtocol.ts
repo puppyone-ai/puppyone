@@ -43,3 +43,44 @@ export function decodeHtmlBridgeMessage(value: unknown): HtmlBridgeMessage | nul
   return { type: "selection", id: message.id, edit: message.edit, reason: message.reason as HtmlSelectionMessage["reason"], anchor: { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     clip: { top: clip.top, right: clip.right, bottom: clip.bottom, left: clip.left }, styles };
 }
+
+export type HtmlOpenDocumentMessage = Readonly<{
+  type: "puppyone-html-open-document";
+  channel: string;
+  target: string;
+}>;
+
+const OPEN_DOCUMENT_TYPE = "puppyone-html-open-document";
+const MAX_CHANNEL_LENGTH = 64;
+const MAX_TARGET_LENGTH = 2048;
+
+/**
+ * The frame is untrusted content. It may only express "open this relative
+ * path": the channel proves the message came from the script this host
+ * injected, and the target is bounded before it reaches the navigation port.
+ */
+export function decodeHtmlOpenDocumentMessage(
+  value: unknown,
+  expectedChannel: string,
+): HtmlOpenDocumentMessage | null {
+  if (!value || typeof value !== "object") return null;
+  const message = value as Record<string, unknown>;
+  if (message.type !== OPEN_DOCUMENT_TYPE) return null;
+  if (
+    typeof message.channel !== "string"
+    || message.channel.length === 0
+    || message.channel.length > MAX_CHANNEL_LENGTH
+    || message.channel !== expectedChannel
+  ) return null;
+  if (
+    typeof message.target !== "string"
+    || message.target.length === 0
+    || message.target.length > MAX_TARGET_LENGTH
+    || /[\u0000-\u001f\u007f\\]/u.test(message.target)
+  ) return null;
+  return Object.freeze({
+    type: OPEN_DOCUMENT_TYPE,
+    channel: message.channel,
+    target: message.target,
+  });
+}

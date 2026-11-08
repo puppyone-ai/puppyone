@@ -1,5 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { saveWorkspaceDocumentConversion } from "../../local-api/files/document-conversion-save.mjs";
 import {
   copyWorkspaceEntry,
   copyWorkspaceEntryBetweenRoots,
@@ -18,6 +19,7 @@ import {
   writeWorkspaceTextFile,
 } from "../../local-api/workspace.mjs";
 import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../local-api/edit-review.mjs";
+import { createWorkspaceReferenceTargetReader } from "../../local-api/files/reference-targets.mjs";
 
 async function absorbWorkspaceEditReviewPath(rootPath, resource) {
   try { await updateWorkspaceEditReviewPath(rootPath, resource); }
@@ -80,6 +82,7 @@ export function registerWorkspaceFileIpcHandlers({
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
+  const readReferenceTargets = createWorkspaceReferenceTargetReader();
   const runWorkspaceMutation = (rootPath, operation) => (
     workspaceMutationTracker?.run
       ? workspaceMutationTracker.run(rootPath, operation)
@@ -95,6 +98,11 @@ export function registerWorkspaceFileIpcHandlers({
   ipcMain.handle("workspace:resolve-node", async (event, request) => {
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return resolveWorkspaceNode(rootPath, request?.path);
+  });
+
+  ipcMain.handle("workspace:list-reference-targets", async (event, request) => {
+    const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
+    return readReferenceTargets(rootPath);
   });
 
   ipcMain.handle("workspace:read-file", async (event, request) => {
@@ -305,6 +313,11 @@ export function registerWorkspaceFileIpcHandlers({
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
       return result;
     });
+  });
+
+  ipcMain.handle("workspace:save-document-conversion", async (event, request) => {
+    const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
+    return runWorkspaceMutation(rootPath, () => saveWorkspaceDocumentConversion(rootPath, request));
   });
 
   ipcMain.handle("workspace:instantiate-template", async (event, request) => {

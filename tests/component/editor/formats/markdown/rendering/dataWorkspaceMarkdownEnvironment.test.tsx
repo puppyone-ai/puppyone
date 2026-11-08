@@ -27,6 +27,59 @@ afterEach(() => {
 });
 
 describe("DataWorkspace Markdown environment", () => {
+  it("resolves wiki images in unopened attachment folders independently of content indexing", async () => {
+    const folder: DataNode = { id: "attachments", path: "attachments", name: "attachments", type: "folder", source: "local" };
+    const file: DataNode = { id: "note.md", path: "note.md", name: "note.md", type: "markdown", source: "local" };
+    let finishIndex!: (targets: { path: string; name: string }[]) => void;
+    const targetRequest = new Promise<{ path: string; name: string }[]>(resolve => { finishIndex = resolve; });
+    const getFileUrl = vi.fn(async (path: string) => {
+      if (path !== "attachments/photo.jpg") throw new Error("Missing asset");
+      return "blob:https://app/photo";
+    });
+    const listChildren = vi.fn(async () => [file, folder]);
+    const readFile = vi.fn();
+    const dataPort = { listChildren, readFile, getFileUrl, listReferenceTargets: vi.fn(() => targetRequest) };
+    let latestState: DataWorkspaceState | null = null;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    let refreshKey: import("../../../../../../src/shared-ui/core/types").WorkspaceContentChange | undefined;
+    const render = () => act(async () => root?.render(withTestLocalization(
+      <DataWorkspace dataPort={dataPort} refreshKey={refreshKey} enableMarkdownLinkContentIndexing={false}
+        loadActiveFileSource={false} showHeader={false}
+        workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
+        mainSlot={(state) => {
+          latestState = state;
+          return <MarkdownCodeMirrorEditor value={"# Note\n\n![[photo.jpg]]"} readOnly livePreview documentPath="note.md"
+            markdownLinkGraph={state.markdownEnvironment.linkGraph}
+            markdownAssetUrlResolver={state.markdownEnvironment.assetUrlResolver}
+            markdownAssetResolverRevision={state.markdownEnvironment.assetResolverRevision} />;
+        }} />,
+    )));
+    await render();
+    await waitForCondition(() => !!container.querySelector(".cm-md-image-placeholder"));
+    await act(async () => finishIndex([{ path: "attachments/photo.jpg", name: "photo.jpg" }]));
+    await waitForCondition(() => !!container.querySelector('img[src="blob:https://app/photo"]'));
+    expect(latestState!.markdownEnvironment.linkGraph?.resolveWikiLink("note.md", "photo.jpg"))
+      .toMatchObject({ exists: true, ambiguous: false, path: "attachments/photo.jpg" });
+    expect(latestState!.tree.find(node => node.path === "attachments")?.children).toBeUndefined();
+    expect(listChildren).toHaveBeenCalledTimes(1);
+    expect(readFile).not.toHaveBeenCalled();
+    expect(getFileUrl).toHaveBeenLastCalledWith("attachments/photo.jpg", { purpose: "markdown-asset" });
+    const widget = container.querySelector(".cm-md-image-widget");
+    const graph = latestState!.markdownEnvironment.linkGraph;
+    const refreshTargets = new Promise<{ path: string; name: string }[]>(resolve => { finishIndex = resolve; });
+    dataPort.listReferenceTargets.mockImplementationOnce(() => refreshTargets);
+    refreshKey = { sequence: 1, entries: [{ sequence: 1, rootUri: null, paths: ["other.md"] }] };
+    await render();
+    await waitForCondition(() => dataPort.listReferenceTargets.mock.calls.length === 2);
+    expect(container.querySelector(".cm-md-image-widget")).toBe(widget);
+    expect(latestState!.markdownEnvironment.linkGraph).toBe(graph);
+    await act(async () => finishIndex([{ path: "attachments/photo.jpg", name: "photo.jpg" }]));
+    expect(container.querySelector(".cm-md-image-widget")).toBe(widget);
+    expect(latestState!.markdownEnvironment.linkGraph).toBe(graph);
+  });
+
   it("retains the open Markdown table when an unloaded parent folder first loads children", async () => {
     const folder: DataNode = { id: "notes", path: "notes", name: "notes", type: "folder", source: "local" };
     const file: DataNode = { id: "notes/open.md", path: "notes/open.md", name: "open.md", type: "markdown", source: "local" };

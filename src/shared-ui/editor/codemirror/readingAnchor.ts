@@ -19,6 +19,15 @@ export function captureReadingAnchor(view: EditorView): ReadingAnchor | null {
   const edge = scroll.scrollTop <= 1 ? "start"
     : maxScroll > 1 && maxScroll - scroll.scrollTop <= 1 ? "end" : null;
   const snapshot = scroll.scrollTop <= 1 ? view.scrollSnapshot() : null;
+  const anchorAt = (position: number, offset: number): ReadingAnchor => ({
+    position, offset, edge,
+    // scrollIntoView clamps yMargin to one viewport. A tall inline image can place
+    // its source endpoint farther away while its pixels are still visible.
+    // The public snapshot preserves that line-relative offset without the
+    // clamp; end pinning continues to follow the growing document instead.
+    snapshot: snapshot ?? (edge !== "end" && Math.abs(offset) > scroll.offsetHeight
+      ? view.scrollSnapshot() : null),
+  });
   const block = view.elementAtHeight(viewportTop + 1 - view.documentTop);
   if (block.type !== BlockType.Text) {
     // A replaced block has no character geometry inside its source range, so
@@ -36,7 +45,7 @@ export function captureReadingAnchor(view: EditorView): ReadingAnchor | null {
   if (position === null) return null;
   const coords = view.coordsAtPos(position, 1);
   if (!coords) return null;
-  return { position, offset: coords.top - viewportTop, edge, snapshot };
+  return anchorAt(position, coords.top - viewportTop);
 }
 
 export function mapReadingAnchor(anchor: ReadingAnchor | null, update: ViewUpdate): ReadingAnchor | null {
@@ -48,7 +57,7 @@ export function mapReadingAnchor(anchor: ReadingAnchor | null, update: ViewUpdat
 }
 
 export function restoreReadingAnchor(view: EditorView, anchor: ReadingAnchor): void {
-  if (anchor.edge === "start" && anchor.snapshot) {
+  if (anchor.edge !== "end" && anchor.snapshot) {
     view.dispatch({ effects: anchor.snapshot });
     return;
   }

@@ -43,6 +43,7 @@ import {
   DocumentSurfaceReadinessBoundary,
 } from "./DocumentSurfaceHost";
 import { exceedsUtf8ByteLimit, formatByteLimit } from "./sourceAdmission";
+import { DocumentConversionSurface } from "../conversion/DocumentConversionSurface";
 
 export type { EditorDocument, EditorDocumentKind, EditorSaveMode, MarkdownHtmlTrustMode } from "../registry/viewerTypes";
 
@@ -272,7 +273,9 @@ function EditorDocumentSurface({
 
   return (
     <EditorFindHost documentId={document.path}>
-      {editor}
+      <DocumentConversionSurface document={document} fileUrl={document.url}>
+        {editor}
+      </DocumentConversionSurface>
     </EditorFindHost>
   );
 }

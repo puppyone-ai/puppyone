@@ -6,6 +6,7 @@ declare global {
     resourceSmoke: {
       config(): Promise<{ workspacePath: string }>;
       read: NonNullable<DataPort["readFile"]>;
+      persist: NonNullable<DataPort["documentPersistence"]>["persist"];
       record(entry: Record<string, unknown>): void;
     };
   }

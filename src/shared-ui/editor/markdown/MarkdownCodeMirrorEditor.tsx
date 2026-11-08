@@ -2,6 +2,9 @@
 
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { isolateHistory } from "@codemirror/commands";
+import { markdownImageInsertIndent } from "./core/syntax/markdownInsertBoundaries";
+import { markdownImageDropPreview } from "./features/image/markdownImageDropPreview";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -17,7 +20,18 @@ import {
 import { markdownLivePreviewContextExtension } from "./core/editor/markdownLivePreviewContext";
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./addons/block-drag";
-import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
+import {
+  collectMarkdownHeadingOutlineEntries,
+  findOutlineHeadingIndexForAnchor,
+  markdownHeadingOutlineExtension,
+  scrollMarkdownViewToHeading,
+} from "./core/interaction/markdownHeadingOutline";
+import {
+  clearDocumentAnchorReveal,
+  consumeDocumentAnchorReveal,
+  subscribeDocumentAnchorReveal,
+  type DocumentAnchorRevealRequest,
+} from "../navigation/documentAnchorReveal";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
@@ -43,6 +57,11 @@ import {
   resolveMarkdownContentLanguage,
   type MarkdownContentLanguageResolution,
 } from "./core/presentation/markdownContentLanguage";
+import { MarkdownTableInsertDialog } from "./MarkdownTableInsertDialog";
+import { requestMarkdownTableEffect, insertMarkdownTable } from "./core/commands/markdownInsertCommands";
+import { MARKDOWN_SHORTCUT_DEFINITIONS } from "./core/commands/markdownShortcutDefinitions";
+import { runMarkdownCommand } from "./core/commands/markdownCommandRegistry";
+import type { EditorPaneMenuItem } from "../editorPaneMenuContribution";
 import { bindMarkdownFormatHotkeys } from "./core/commands/markdownFormatHotkeys";
 import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
@@ -51,6 +70,18 @@ import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
 import { useEditorTaskOwner } from "../runtime/EditorTaskContext";
 import { markdownTaskOwner } from "./platform/codemirror/markdownTaskOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
+import { useDocumentAssetImport, type DocumentAssetImportPort } from "../resource/DocumentAssetImport";
+import {
+  useRegisterDocumentDropTarget,
+  type DocumentDropPayload,
+  type DocumentDropTargetRegistration,
+} from "../resource/DocumentDropTarget";
+import {
+  buildMarkdownImageSnippet,
+  escapeMarkdownDestination,
+  isDropImageName,
+  relativeMarkdownDestination,
+} from "./features/image/markdownImageDropSyntax";
 
 const rendererPerformance = getRendererPerformanceTracker();
 
@@ -59,6 +90,7 @@ export type MarkdownCodeMirrorEditorProps = {
   readOnly: boolean;
   livePreview: boolean;
   blockDragEnabled?: boolean;
+  onMenuCommandsChange?: (items: readonly EditorPaneMenuItem[]) => void;
   headingOutlineEnabled?: boolean;
   aiEditFile?: AiEditFile | null;
   htmlTrustMode?: MarkdownHtmlTrustMode;
@@ -89,6 +121,7 @@ export function MarkdownCodeMirrorEditor({
   readOnly,
   livePreview,
   blockDragEnabled = false,
+  onMenuCommandsChange,
   headingOutlineEnabled = false,
   aiEditFile = null,
   htmlTrustMode = "safe",
@@ -108,6 +141,7 @@ export function MarkdownCodeMirrorEditor({
   onPreviewReady,
   onPreviewError,
 }: MarkdownCodeMirrorEditorProps) {
+  const [tableInsertionOpen, setTableInsertionOpen] = useState(false);
   const appearanceRevision = useEditorAppearanceRevision();
   const taskOwner = useEditorTaskOwner();
   // The view is created once per model; later owners are reconfigured below.
@@ -146,6 +180,15 @@ export function MarkdownCodeMirrorEditor({
   const contentLanguage = contentLanguageState.resolution;
   const initialLocalizationRef = useRef(localization);
   const findAdapter = useMemo(() => new CodeMirrorFindAdapter(), []);
+  const assets = useDocumentAssetImport();
+  const pendingImageDropsRef = useRef(new Set<{ view: EditorView; position: number }>());
+  const dropLifetimeRef = useRef({ active: false });
+  useLayoutEffect(() => {
+    const lifetime = { active: true };
+    dropLifetimeRef.current = lifetime;
+    const pending = pendingImageDropsRef.current;
+    return () => { lifetime.active = false; pending.clear(); };
+  }, [assets, documentPath, readOnly, workspaceId, workspaceRoot]);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const modelOwner = useDocumentModelOwner();
   const modelRef = useRef<CodeMirrorDocumentModel | null>(null);
@@ -260,6 +303,11 @@ export function MarkdownCodeMirrorEditor({
       parent: host,
       dispatchTransactions: (transactions, targetView) => {
         const startedAt = performance.now();
+        for (const transaction of transactions) {
+          for (const drop of pendingImageDropsRef.current) {
+            if (drop.view === targetView) drop.position = transaction.changes.mapPos(drop.position, 1);
+          }
+        }
         model.acceptTransactions(transactions, targetView);
         if (transactions.some((transaction) => (
           transaction.docChanged
@@ -270,6 +318,12 @@ export function MarkdownCodeMirrorEditor({
       },
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
+          markdownImageDropPreview,
+          EditorView.updateListener.of(update => {
+            if (update.transactions.some(transaction => transaction.effects.some(effect => effect.is(requestMarkdownTableEffect)))) {
+              setTableInsertionOpen(true);
+            }
+          }),
           taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
@@ -355,6 +409,25 @@ export function MarkdownCodeMirrorEditor({
     viewRef.current?.dispatch({ effects: taskOwnerCompartment.current.reconfigure(markdownTaskOwner.of(taskOwner)) });
   }, [taskOwner]);
 
+  // A deep link may ask for a heading after the document opens. The request is
+  // one-shot and only the document it names consumes it.
+  useEffect(() => {
+    if (!documentPath) return undefined;
+    const reveal = (request: DocumentAnchorRevealRequest) => {
+      if (request.path !== documentPath) return;
+      const view = viewRef.current;
+      clearDocumentAnchorReveal(request.id);
+      if (!view) return;
+      const headings = collectMarkdownHeadingOutlineEntries(view.state);
+      const index = findOutlineHeadingIndexForAnchor(headings, request.anchor);
+      const heading = headings[index];
+      if (heading) scrollMarkdownViewToHeading(view, heading);
+    };
+    const pending = consumeDocumentAnchorReveal();
+    if (pending) reveal(pending);
+    return subscribeDocumentAnchorReveal(reveal);
+  }, [documentPath]);
+
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -420,9 +493,9 @@ export function MarkdownCodeMirrorEditor({
       if (!isCurrent()) return;
       const languageStartedAt = performance.now();
       try {
-        const languageExtension = livePreview
-          ? markdownCodeMirrorLanguageExtension(resolvedDialect)
-          : [];
+        // Source mode also needs semantic block boundaries for image drops.
+        // Keep parsing deferred, and retain its existing unhighlighted surface.
+        const languageExtension = markdownCodeMirrorLanguageExtension(resolvedDialect, livePreview);
         view.dispatch({
           effects: languageCompartmentRef.current.reconfigure(languageExtension),
         });
@@ -612,11 +685,80 @@ export function MarkdownCodeMirrorEditor({
     if (viewRef.current) createMarkdownLayoutCoordinator(viewRef.current).invalidate("appearance");
   }, [appearanceRevision]);
 
-  const previewMessage = previewState === "error"
-    ? t("editor.markdown.previewUnavailable")
-    : previewState === "pending" && showPendingMessage
-      ? t("editor.markdown.preparingPreview")
-      : null;
+  const dropRegistration = useMemo<DocumentDropTargetRegistration | null>(() => {
+    if (readOnly || !documentPath) return null;
+    return {
+      containsPoint(clientX, clientY) {
+        const view = viewRef.current;
+        if (!view) return false;
+        // The editor viewport, not the text box: a short document leaves most
+        // of the editor empty, and that empty area still belongs to the document.
+        const rect = view.scrollDOM.getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right
+          && clientY >= rect.top && clientY <= rect.bottom;
+      },
+      previewInsert(point) {
+        return viewRef.current?.plugin(markdownImageDropPreview)?.preview(point) ?? false;
+      },
+      clearInsertPreview() {
+        viewRef.current?.plugin(markdownImageDropPreview)?.clear();
+      },
+      prepareInsert(point) {
+        const view = viewRef.current;
+        if (!view) return async () => false;
+        const drop = view.plugin(markdownImageDropPreview)?.capture(point);
+        // A hidden/offscreen boundary consumes the gesture without falling back
+        // to the old caret, opening another document or importing an asset.
+        if (!drop) return async () => true;
+        const lifetime = dropLifetimeRef.current;
+        const focusAtRelease = view.dom.ownerDocument.activeElement;
+        const anchor = { view, position: drop.position };
+        const pending = pendingImageDropsRef.current;
+        pending.add(anchor);
+        const isCurrent = () => lifetime.active && viewRef.current === view && !view.state.readOnly;
+        return async (payload) => {
+          try {
+            if (!payload || !isCurrent()) return true;
+            const target = await resolveDropTarget(payload, documentPath, assets);
+            if (!isCurrent()) return true;
+            if (!target) return false;
+            const destination = relativeMarkdownDestination(documentPath, target.path, workspaceRoot);
+            if (!destination) return false;
+            const snippet = buildMarkdownImageSnippet(
+              escapeMarkdownDestination(destination),
+              target.name.replace(/\.[^.]+$/, ""),
+            );
+            if (!insertMarkdownImageAt(view, anchor.position, snippet)) return false;
+            if (view.dom.ownerDocument.activeElement === focusAtRelease) view.focus();
+            return true;
+          } catch (error) {
+            if (!isCurrent()) return true;
+            throw error;
+          } finally {
+            pending.delete(anchor);
+          }
+        };
+      },
+    };
+  }, [assets, documentPath, readOnly, workspaceRoot]);
+  useRegisterDocumentDropTarget(dropRegistration);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !onMenuCommandsChange) return;
+    onMenuCommandsChange(MARKDOWN_SHORTCUT_DEFINITIONS.filter(command => command.menu && !readOnly).map(command => ({
+      kind: "command", id: `markdown-${command.id}`, label: t(command.labelId), disabled: readOnly,
+      run: () => {
+        const currentView = viewRef.current;
+        if (currentView) { currentView.focus(); runMarkdownCommand(currentView, command.id); }
+      },
+    })));
+    return () => onMenuCommandsChange([]);
+  }, [onMenuCommandsChange, readOnly, t]);
+
+  let previewMessage: string | null = null;
+  if (previewState === "error") previewMessage = t("editor.markdown.previewUnavailable");
+  else if (previewState === "pending" && showPendingMessage) previewMessage = t("editor.markdown.preparingPreview");
   // The source stays editable when Live Preview fails, so its notice can be put away.
   const [previewFailureNotice, dismissPreviewFailure] = useDismissibleNotice(
     previewState === "error" ? previewMessage : null,
@@ -638,6 +780,14 @@ export function MarkdownCodeMirrorEditor({
         data-readonly={readOnly ? "true" : "false"}
         aria-busy={previewState === "pending"}
       />
+      {tableInsertionOpen && !readOnly && <MarkdownTableInsertDialog
+        onCancel={() => { setTableInsertionOpen(false); viewRef.current?.focus(); }}
+        onInsert={shape => {
+          const view = viewRef.current;
+          if (view) { insertMarkdownTable(view, shape); view.focus(); }
+          setTableInsertionOpen(false);
+        }}
+      />}
       <span
         className="markdown-preview-announcer"
         role="status"
@@ -655,6 +805,44 @@ export function MarkdownCodeMirrorEditor({
       )}
     </>
   );
+}
+
+type ResolvedDropTarget = Readonly<{ path: string; name: string }>;
+
+/** Workspace entries are already stored; Finder/paste files land next to the
+ * document first. Both end up as a workspace-relative image reference. */
+async function resolveDropTarget(
+  payload: DocumentDropPayload,
+  documentPath: string,
+  assets: DocumentAssetImportPort | null,
+): Promise<ResolvedDropTarget | null> {
+  if (payload.kind === "workspace-entry") {
+    return isDropImageName(payload.name) ? { path: payload.path, name: payload.name } : null;
+  }
+  if (!assets || !isDropImageName(payload.file.name)) return null;
+  const imported = await assets.importImage(documentPath, payload.file);
+  return { path: imported.path, name: payload.file.name };
+}
+
+/** One source transaction and undo step; existing paragraph spacing survives. */
+export function insertMarkdownImageAt(view: EditorView, position: number, snippet: string): boolean {
+  if (view.state.readOnly) return false;
+  const indent = markdownImageInsertIndent(view.state, position);
+  if (indent === null) return false;
+  const { doc } = view.state;
+  const before = doc.sliceString(Math.max(0, position - 2), position);
+  const after = doc.sliceString(position, Math.min(doc.length, position + 2));
+  let prefix = "", suffix = "";
+  if (before && !before.endsWith("\n\n")) prefix = before.endsWith("\n") ? "\n" : "\n\n";
+  if (after && !after.startsWith("\n\n")) suffix = after.startsWith("\n") ? "\n" : "\n\n";
+  const insert = prefix + indent + snippet + suffix;
+  view.dispatch({
+    changes: { from: position, insert },
+    selection: { anchor: position + prefix.length + indent.length + snippet.length },
+    annotations: isolateHistory.of("full"),
+    userEvent: "input.drop",
+  });
+  return true;
 }
 
 function getEditableExtensions(readOnly: boolean): Extension[] {

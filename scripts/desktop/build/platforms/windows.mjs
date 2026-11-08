@@ -3,6 +3,7 @@ import { resolveDesktopAppIcon } from "../../../../shared/desktop/app-icon-contr
 export function applyWindowsBuilderConfig({ config, identity }) {
   return {
     ...config,
+    fileAssociations: [...(config.fileAssociations ?? []), { ext: "puppyonetemplate", name: "puppyone Template", role: "Viewer" }],
     win: {
       target: ["nsis"],
       executableName: identity.applicationName,

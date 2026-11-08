@@ -301,6 +301,7 @@ export type DataCapabilities = {
 };
 
 export type DataPort = {
+  saveDocumentConversion?: (request: ConvertedDocumentOutputRequest) => Promise<ConvertedDocumentOutputResult>;
   previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
   editorAssets?: import("../editor/resource/DocumentAssetImport").DocumentAssetImportPort;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
@@ -308,6 +309,9 @@ export type DataPort = {
   getCachedChildren?: (folderPath: string | null) => DataNode[] | undefined;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;
+  /** Complete filename metadata for link resolution, without loading previews
+   * or expanding the Explorer. Reject rather than return a truncated index. */
+  listReferenceTargets?: (options?: DataReadOptions) => Promise<readonly Pick<DataNode, "path" | "name">[]>;
   readFile?: (path: string, options?: DataReadOptions) => Promise<FileContent>;
   getFileUrl?: (path: string, options?: DataFileUrlOptions) => string | Promise<string>;
   revokeFileUrl?: (url: string) => void | Promise<void>;
@@ -329,6 +333,16 @@ export type DataPort = {
     options?: DataCopyOptions,
   ) => Promise<DataCopyResult>;
 };
+
+export type ConvertedDocumentOutputRequest = {
+  path: string;
+  fingerprint: string;
+  primaryPath: string;
+  files: { path: string; bytes: Uint8Array }[];
+};
+export type ConvertedDocumentOutputResult =
+  | { ok: true; folderPath: string; openPath: string; paths: string[] }
+  | { ok: false; reason: "source-changed" | "invalid" | "io"; folderPath?: string };
 
 export type DataTemplateInstantiationRequest = {
   templateId: "slides.default";

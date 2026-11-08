@@ -120,6 +120,10 @@
   overflow: hidden;
 }
 
+.desktop-settings-dialog-layout {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
 .desktop-settings-dialog-navigation,
 .desktop-settings-dialog-content,
 .desktop-plugins-dialog-navigation,
@@ -232,3 +236,37 @@
     max-width: none;
   }
 }
+
+.desktop-shortcuts-settings { max-width: 840px; }
+.desktop-shortcuts-detail, .desktop-shortcuts-scope { color: var(--po-text-muted); line-height: 1.55; }
+.desktop-shortcuts-detail { margin: 10px 0 22px; }
+.desktop-shortcuts-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-block-end: 24px; }
+.desktop-shortcuts-search { display: flex; align-items: center; flex: 1 1 220px; gap: 8px; min-width: 0; padding: 7px 10px; border: 1px solid var(--po-border); border-radius: 7px; background: var(--po-input-bg, var(--po-canvas)); color: var(--po-text-muted); }
+.desktop-shortcuts-search:focus-within { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }
+.desktop-settings-view .desktop-shortcuts-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--po-text); font: inherit; box-shadow: none; }
+.desktop-shortcuts-search button { display: grid; place-items: center; padding: 3px; border: 0; border-radius: 3px; color: var(--po-text-muted); background: transparent; cursor: var(--po-clickable-cursor, default); }
+.desktop-shortcuts-search button:hover { background: var(--po-hover); }
+.desktop-shortcuts-platform { flex: 0 0 auto; }
+.desktop-shortcuts-platform button { min-height: 28px; padding-inline: 10px; cursor: var(--po-clickable-cursor, default); }
+.desktop-shortcuts-platform button[aria-pressed="true"] { background: var(--po-selected-bg, var(--po-hover)); color: var(--po-text); }
+.desktop-shortcuts-group { margin-block-end: 28px; }
+.desktop-shortcuts-group h3 { margin: 0 0 5px; color: var(--po-text); font-size: var(--po-type-ui-body, 14px); font-weight: 600; }
+.desktop-shortcuts-scope { margin: 0 0 10px; font-size: var(--po-type-ui-caption, 12px); }
+.desktop-shortcuts-table { width: 100%; table-layout: fixed; border-collapse: collapse; color: var(--po-text); }
+.desktop-shortcuts-table th { text-align: start; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); font-weight: 500; }
+.desktop-shortcuts-table th, .desktop-shortcuts-table td { padding: 10px 0; border-block-end: 1px solid var(--po-border); vertical-align: middle; overflow-wrap: anywhere; }
+.desktop-shortcuts-table th:first-child, .desktop-shortcuts-table td:first-child { width: 49%; padding-inline-end: 16px; }
+.desktop-shortcuts-table th:last-child { text-align: end; }
+.desktop-shortcut-alternatives { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 10px; }
+.desktop-shortcut-alternative, .desktop-shortcut-chord { display: inline-flex; align-items: center; gap: 4px; }
+.desktop-shortcut-or { color: var(--po-text-muted); padding-inline-end: 5px; font-size: var(--po-type-ui-caption, 12px); }
+.desktop-shortcut-chord kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; min-height: 24px; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--po-border); border-radius: 4px; background: var(--po-surface, var(--po-canvas)); color: var(--po-text); font-family: inherit; font-size: var(--po-type-ui-caption, 12px); line-height: 1.2; box-shadow: 0 1px 0 var(--po-border); }
+.desktop-shortcuts-empty { padding-block: 32px; color: var(--po-text-muted); text-align: center; }
+@media (max-width: 600px) {
+  .desktop-shortcuts-toolbar { align-items: stretch; flex-direction: column; }
+  .desktop-shortcuts-search { flex-basis: auto; }
+  .desktop-shortcuts-platform { align-self: flex-start; }
+  .desktop-shortcuts-table th:first-child, .desktop-shortcuts-table td:first-child { width: 44%; padding-inline-end: 10px; }
+}
+.desktop-settings-view .desktop-shortcuts-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.desktop-shortcuts-search button:focus-visible, .desktop-shortcuts-platform button:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }

@@ -42,7 +42,7 @@ import { getMarkdownPlansInRange } from "../plans/markdownPlanIndex";
 import { getDocRevision } from "../../platform/brokers/transactionBroker";
 import { getMarkdownFragmentPosition } from "../links/markdownFragmentTargets";
 
-type ProjectionRangeReason = "benchmark";
+type ProjectionRangeReason = "benchmark" | "layout";
 
 export type MarkdownProjectionRangeRequest = {
   from: number;

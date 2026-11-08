@@ -40,6 +40,8 @@ export type MarkdownFeatureCompileContext = Readonly<{
 }>;
 
 export type MarkdownFeatureWidgetContext = Readonly<{
+  /** Optional state port for Feature-owned immutable presentation snapshots. */
+  state?: EditorState;
   htmlTrustMode: MarkdownHtmlTrustMode;
   markdownLinkGraph: MarkdownLinkGraph | null;
   documentPath: string;

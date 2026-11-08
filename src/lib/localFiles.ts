@@ -75,6 +75,12 @@ export function createLocalDataPort(rootPath: string): DataPort {
     },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
+    listReferenceTargets: async (options) => {
+      options?.signal?.throwIfAborted();
+      const targets = await getDesktopBridge().listReferenceTargets({ rootPath });
+      options?.signal?.throwIfAborted();
+      return targets;
+    },
     // Text/content reads do not mint a browser capability URL. Resource URLs
     // have their own mounted-preview lifecycle and are revoked separately.
     readFile: async (path, options) => {
@@ -174,6 +180,7 @@ export function createLocalDataPort(rootPath: string): DataPort {
       const { parentPath, name } = splitDataPath(path);
       return getDesktopBridge().createEntry({ rootPath, parentPath, name, kind: "file", content }).then(() => undefined);
     },
+    saveDocumentConversion: request => getDesktopBridge().saveDocumentConversion({ ...request, rootPath }),
     instantiateTemplate: ({ templateId, parentPath, name }) => getDesktopBridge().instantiateTemplate({
       rootPath,
       templateId,

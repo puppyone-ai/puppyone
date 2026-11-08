@@ -144,6 +144,9 @@ export { DataWorkspace } from "./data/DataWorkspace";
 export { DataWorkspaceFrame } from "./data/DataWorkspaceFrame";
 export type { DataWorkspaceExplorerFrame, DataWorkspaceFrameProps } from "./data/DataWorkspaceFrame";
 export { resolveMarkdownAssetPath } from "./editor/markdown";
+// Drops in the reading area edit the document; the pane and the editor share
+// one name test instead of two extension lists.
+export { isDropImageName } from "./editor/markdown";
 export { createDataPortMarkdownAssetResolver } from "./editor/markdown/dataPortAssetResolver";
 export {
   createDocumentNavigationPort,
@@ -694,5 +697,22 @@ export { useEditorTaskOwner } from "./editor/runtime/EditorTaskContext";
 export { reconcilePendingDocumentOperations } from "./editor/document-session/documentResourceOperations";
 export { subscribeDocumentRetirements } from "./editor/document-session/documentRetirementEvents";
 export { createDocumentAssetImportPort } from "./editor/resource/DocumentAssetImport";
+export {
+  createDocumentDropRegistry,
+  DocumentDropTargetProvider,
+  useRegisterDocumentDropTarget,
+} from "./editor/resource/DocumentDropTarget";
+export type {
+  DocumentDropPayload,
+  DocumentDropPoint,
+  DocumentDropInsertion,
+  DocumentDropRegistry,
+  DocumentDropTargetRegistration,
+} from "./editor/resource/DocumentDropTarget";
 
 export { commitEditorLayout } from "./editor/runtime/editorLayout";
+
+export { MARKDOWN_SHORTCUT_DEFINITIONS, isMarkdownShortcutCommand, type MarkdownShortcutDefinition } from "./editor/markdown";
+export * from "./editor/conversion/types";
+export { tableToCsv } from "./editor/conversion/output";
+export { DocumentConversionProvider } from "./editor/conversion/DocumentConversionProvider";

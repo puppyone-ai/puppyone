@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import type { EditorPaneMenuItem } from "../editorPaneMenuContribution";
 import { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
 import type { PresetViewerRenderContext } from "../registry/viewerTypes";
-import { TextEditorFrame } from "../viewers/shared/TextEditorFrame";
+import { TextEditorFrame, type TextEditorControls } from "../viewers/shared/TextEditorFrame";
 
 type MarkdownViewerProps = Pick<
   PresetViewerRenderContext,
@@ -19,6 +21,37 @@ type MarkdownViewerProps = Pick<
 >;
 
 export function MarkdownViewer(context: MarkdownViewerProps) {
+  const [menuCommands, setMenuCommands] = useState<readonly EditorPaneMenuItem[]>([]);
+  const renderEditor = (
+    value: string,
+    controls: TextEditorControls,
+    livePreview: boolean,
+  ) => (
+    <MarkdownCodeMirrorEditor
+      onMenuCommandsChange={setMenuCommands}
+      value={value}
+      readOnly={!controls.canEdit}
+      livePreview={livePreview}
+      blockDragEnabled={livePreview
+        ? context.editorInteractionPreferences.markdownBlockDragEnabled
+        : false}
+      headingOutlineEnabled={livePreview
+        && context.editorInteractionPreferences.markdownHeadingOutlineEnabled !== false}
+      aiEditFile={context.aiEditFile}
+      htmlTrustMode={context.htmlTrustMode}
+      documentPath={context.document.path}
+      markdownDialect={context.document.markdownDialect}
+      workspaceId={context.workspaceId}
+      workspaceRoot={context.workspaceRoot}
+      markdownLinkGraph={context.markdownEnvironment?.linkGraph}
+      markdownLinkCommands={context.markdownEnvironment?.linkCommands}
+      markdownAssetUrlResolver={context.markdownEnvironment?.assetUrlResolver}
+      markdownAssetResolverRevision={context.markdownEnvironment?.assetResolverRevision}
+      onSourceRevisionChange={controls.onSourceRevisionChange}
+      onSnapshotPortChange={controls.onSnapshotPortChange}
+    />
+  );
+
   return (
     <TextEditorFrame
       documentId={context.document.path}
@@ -30,49 +63,10 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
       hideSourceView={context.hideSourceView}
       enableModeToggleShortcut
       modeControlPlacement="pane-menu"
+      additionalMenuItems={menuCommands}
       sourceSnapshotMode
-      renderLive={(value, controls) => (
-        <MarkdownCodeMirrorEditor
-          value={value}
-          readOnly={!controls.canEdit}
-          livePreview
-          blockDragEnabled={context.editorInteractionPreferences.markdownBlockDragEnabled}
-          headingOutlineEnabled={
-            context.editorInteractionPreferences.markdownHeadingOutlineEnabled === true
-          }
-          aiEditFile={context.aiEditFile}
-          htmlTrustMode={context.htmlTrustMode}
-          documentPath={context.document.path}
-          markdownDialect={context.document.markdownDialect}
-          workspaceId={context.workspaceId}
-          workspaceRoot={context.workspaceRoot}
-          markdownLinkGraph={context.markdownEnvironment?.linkGraph}
-          markdownLinkCommands={context.markdownEnvironment?.linkCommands}
-          markdownAssetUrlResolver={context.markdownEnvironment?.assetUrlResolver}
-          markdownAssetResolverRevision={context.markdownEnvironment?.assetResolverRevision}
-          onSourceRevisionChange={controls.onSourceRevisionChange}
-          onSnapshotPortChange={controls.onSnapshotPortChange}
-        />
-      )}
-      renderSource={(value, controls) => (
-        <MarkdownCodeMirrorEditor
-          value={value}
-          readOnly={!controls.canEdit}
-          livePreview={false}
-          aiEditFile={context.aiEditFile}
-          htmlTrustMode={context.htmlTrustMode}
-          documentPath={context.document.path}
-          markdownDialect={context.document.markdownDialect}
-          workspaceId={context.workspaceId}
-          workspaceRoot={context.workspaceRoot}
-          markdownLinkGraph={context.markdownEnvironment?.linkGraph}
-          markdownLinkCommands={context.markdownEnvironment?.linkCommands}
-          markdownAssetUrlResolver={context.markdownEnvironment?.assetUrlResolver}
-          markdownAssetResolverRevision={context.markdownEnvironment?.assetResolverRevision}
-          onSourceRevisionChange={controls.onSourceRevisionChange}
-          onSnapshotPortChange={controls.onSnapshotPortChange}
-        />
-      )}
+      renderLive={(value, controls) => renderEditor(value, controls, true)}
+      renderSource={(value, controls) => renderEditor(value, controls, false)}
     />
   );
 }

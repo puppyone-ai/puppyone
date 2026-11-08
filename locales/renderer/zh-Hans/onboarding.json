@@ -137,5 +137,8 @@
   "template.loading": "加载中…",
   "template.signIn": "登录后使用模板",
   "template.signingIn": "登录中…",
-  "projects.groups.cloud": "云端"
+  "projects.groups.cloud": "云端",
+  "entry.import.includeSubpages": "包含子页面",
+  "template.unpack": "解包并打开",
+  "template.localDescription": "将模板文件解包为一个新项目。"
 }

@@ -11,19 +11,28 @@ const RAIL_WIDTH_PX = 14;
 const RAIL_LEFT_OFFSET_PX = 28;
 const RAIL_READING_GAP_PX = 8;
 const RAIL_VERTICAL_MARGIN_PX = 16;
-const RAIL_TOP_RATIO = 0.18;
 const RAIL_TICK_SPACING_PX = 19;
 const RAIL_TICK_TARGET_PX = 14;
+const POPOVER_RAIL_GAP_PX = 22;
 const SCROLL_HEIGHT_PADDING_PX = 8;
 const ACTIVE_SCROLL_OFFSET_PX = 24;
 const POPOVER_CLOSE_DELAY_MS = 140;
 const POPOVER_MAX_HEIGHT_PX = 320;
 let nextOutlinePopoverId = 0;
 
-type HeadingEntry = Readonly<{
+/** One heading in the document outline. `title` keeps the authored inline
+ * Markdown; `plainTitle` is what a reader-facing list should render. */
+export type MarkdownOutlineHeading = Readonly<{
   from: number;
   level: number;
   title: string;
+  plainTitle: string;
+}>;
+
+export type MarkdownOutlineNode = Readonly<{
+  heading: MarkdownOutlineHeading;
+  index: number;
+  children: MarkdownOutlineNode[];
 }>;
 
 type TickMeasurement = Readonly<{
@@ -46,7 +55,7 @@ class MarkdownHeadingOutlineController {
   private readonly popover: HTMLDivElement;
   private readonly popoverList: HTMLDivElement;
   private readonly measureKey = {};
-  private headings: readonly HeadingEntry[] = [];
+  private headings: readonly MarkdownOutlineHeading[] = [];
   private activeIndex = -1;
   private visible = false;
   private disposed = false;
@@ -85,8 +94,10 @@ class MarkdownHeadingOutlineController {
     this.popover.addEventListener("focusout", this.scheduleClose);
     this.popover.addEventListener("keydown", this.onPopoverKeyDown);
 
-    this.rail.append(this.ticks, this.popover);
-    this.layer.append(this.rail);
+    this.rail.append(this.ticks);
+    // The popover is centered in the editor rather than hanging from the rail:
+    // a document map should read as one centered object, not a corner badge.
+    this.layer.append(this.rail, this.popover);
     view.dom.append(this.layer);
     view.dom.classList.add("cm-md-heading-outline-enabled");
 
@@ -139,7 +150,7 @@ class MarkdownHeadingOutlineController {
   private jumpToHeading(index: number) {
     const heading = this.headings[index];
     if (!heading) return;
-    scrollCodeMirrorIntoView(this.view, heading.from, { y: "start", yMargin: 16 });
+    scrollMarkdownViewToHeading(this.view, heading);
     this.view.focus();
     this.scheduleMeasure();
   }
@@ -168,10 +179,10 @@ class MarkdownHeadingOutlineController {
         }));
         return {
           ticks,
-          activeIndex: resolveActiveHeadingIndex(
+          activeIndex: resolveActiveOutlineIndex(
             headings,
             view.scrollDOM.scrollTop,
-            view,
+            (from) => view.lineBlockAt(from).top,
           ),
           rail,
         };
@@ -190,6 +201,7 @@ class MarkdownHeadingOutlineController {
         this.rail.style.left = `${rail.left}px`;
         this.rail.style.top = `${rail.top}px`;
         this.rail.style.height = `${rail.height}px`;
+        this.popover.style.left = `${rail.left + POPOVER_RAIL_GAP_PX}px`;
         this.popover.style.maxHeight = `${rail.popoverMaxHeight}px`;
 
         this.activeIndex = activeIndex;
@@ -387,8 +399,8 @@ export function markdownHeadingOutlineExtension(): Extension {
   return markdownHeadingOutlinePlugin;
 }
 
-export function collectMarkdownHeadingOutlineEntries(state: EditorState): HeadingEntry[] {
-  const headings: HeadingEntry[] = [];
+export function collectMarkdownHeadingOutlineEntries(state: EditorState): MarkdownOutlineHeading[] {
+  const headings: MarkdownOutlineHeading[] = [];
   let fence: { character: "`" | "~"; length: number } | null = null;
 
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
@@ -412,45 +424,116 @@ export function collectMarkdownHeadingOutlineEntries(state: EditorState): Headin
     if (fence) continue;
 
     const headingMatch = /^( {0,3})(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/.exec(text);
-    if (!headingMatch) continue;
-    const leading = headingMatch[1];
-    const marker = headingMatch[2];
-    const authoredTitle = headingMatch[3] ?? "";
-    const title = authoredTitle.replace(/[ \t]+#+[ \t]*$/, "").trim();
-    const contentOffset = text.indexOf(authoredTitle, leading.length + marker.length);
+    if (headingMatch) {
+      const leading = headingMatch[1];
+      const marker = headingMatch[2];
+      const authoredTitle = headingMatch[3] ?? "";
+      const title = authoredTitle.replace(/[ \t]+#+[ \t]*$/, "").trim();
+      const contentOffset = text.indexOf(authoredTitle, leading.length + marker.length);
+      headings.push({
+        from: line.from + (contentOffset >= 0 ? contentOffset : text.length),
+        level: marker.length,
+        title: title || "Untitled",
+        plainTitle: stripMarkdownInlineText(title) || "Untitled",
+      });
+      continue;
+    }
+
+    // A paragraph line underlined with === or --- is a setext heading. The
+    // underline line itself is consumed so it can never be read as a heading.
+    if (lineNumber >= state.doc.lines || !isSetextHeadingText(text)) continue;
+    const underline = /^ {0,3}(=+|-+)[ \t]*$/.exec(state.doc.line(lineNumber + 1).text);
+    if (!underline) continue;
+    const setextTitle = text.trim();
     headings.push({
-      from: line.from + (contentOffset >= 0 ? contentOffset : text.length),
-      level: marker.length,
-      title: title || "Untitled",
+      from: line.from,
+      level: underline[1][0] === "=" ? 1 : 2,
+      title: setextTitle,
+      plainTitle: stripMarkdownInlineText(setextTitle) || "Untitled",
     });
+    lineNumber += 1;
   }
 
   return headings;
 }
 
-function collectHeadings(view: EditorView): HeadingEntry[] {
+/** Groups a flat heading list into the tree a reader-facing panel renders.
+ * Skipped levels (`##` followed by `####`) nest under the shallower heading. */
+export function buildMarkdownOutlineTree(
+  headings: readonly MarkdownOutlineHeading[],
+): MarkdownOutlineNode[] {
+  const roots: MarkdownOutlineNode[] = [];
+  const stack: Array<{ level: number; children: MarkdownOutlineNode[] }> = [
+    { level: 0, children: roots },
+  ];
+  for (const [index, heading] of headings.entries()) {
+    while (stack.length > 1 && stack[stack.length - 1]!.level >= heading.level) stack.pop();
+    const node: MarkdownOutlineNode = { heading, index, children: [] };
+    stack[stack.length - 1]!.children.push(node);
+    stack.push({ level: heading.level, children: node.children });
+  }
+  return roots;
+}
+
+const SETEXT_LIST_OR_QUOTE = /^ {0,3}(?:[-*+][ \t]|\d{1,9}[.)][ \t]|>)/;
+
+function isSetextHeadingText(text: string): boolean {
+  if (!text.trim()) return false;
+  // Indented code, lists, quotes, and bare rule/underline punctuation are not
+  // paragraph lines and must not become headings.
+  if (/^ {4,}/.test(text)) return false;
+  if (SETEXT_LIST_OR_QUOTE.test(text)) return false;
+  if (/^ {0,3}#/.test(text)) return false;
+  return !/^[-=*_\s]+$/.test(text.trim());
+}
+
+/** Reader-facing heading text: authored inline Markdown is reduced to the text
+ * a reader actually sees. */
+function stripMarkdownInlineText(value: string): string {
+  return value
+    .replace(/!?\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(?<![\w*])\*(?!\s)([^*]+?)\*(?![\w*])/g, "$1")
+    .replace(/(?<![\w_])_(?!\s)([^_]+?)_(?![\w_])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectHeadings(view: EditorView): MarkdownOutlineHeading[] {
   return collectMarkdownHeadingOutlineEntries(view.state);
 }
 
-function shouldShowOutline(view: EditorView, headings: readonly HeadingEntry[]): boolean {
+function shouldShowOutline(view: EditorView, headings: readonly MarkdownOutlineHeading[]): boolean {
   if (headings.length < MIN_HEADING_COUNT) return false;
   return view.scrollDOM.scrollHeight > view.scrollDOM.clientHeight + SCROLL_HEIGHT_PADDING_PX;
 }
 
-function resolveActiveHeadingIndex(
-  headings: readonly HeadingEntry[],
+/** Activates the last heading whose block top has crossed the reading marker.
+ * Kept free of `EditorView` so lists and tests can resolve it from geometry. */
+export function resolveActiveOutlineIndex(
+  headings: readonly MarkdownOutlineHeading[],
   scrollTop: number,
-  view: EditorView,
+  blockTop: (from: number) => number,
 ): number {
   if (headings.length === 0) return -1;
   let active = 0;
   const marker = scrollTop + ACTIVE_SCROLL_OFFSET_PX;
   for (let index = 0; index < headings.length; index += 1) {
-    const block = view.lineBlockAt(headings[index].from);
-    if (block.top <= marker) active = index;
+    if (blockTop(headings[index]!.from) <= marker) active = index;
     else break;
   }
   return active;
+}
+
+/** Scrolls a heading to the top of the reading area without stealing focus:
+ * panel clicks must leave the caret and the editor's own focus alone. */
+export function scrollMarkdownViewToHeading(
+  view: EditorView,
+  heading: MarkdownOutlineHeading,
+): void {
+  scrollCodeMirrorIntoView(view, heading.from, { y: "start", yMargin: 16 });
 }
 
 function resolveRailLayout(view: EditorView, headingCount: number): RailMeasurement {
@@ -477,12 +560,14 @@ function resolveRailLayout(view: EditorView, headingCount: number): RailMeasurem
     (headingCount - 1) * RAIL_TICK_SPACING_PX + RAIL_TICK_TARGET_PX,
   );
   const height = Math.min(availableHeight, desiredHeight);
-  const maximumTop = Math.max(0, viewportHeight - height - RAIL_VERTICAL_MARGIN_PX);
-  const preferredTop = Math.max(
+  const maximumTop = Math.max(
     RAIL_VERTICAL_MARGIN_PX,
-    Math.round(viewportHeight * RAIL_TOP_RATIO),
+    viewportHeight - height - RAIL_VERTICAL_MARGIN_PX,
   );
-  const top = Math.min(preferredTop, maximumTop);
+  const top = Math.min(
+    maximumTop,
+    Math.max(RAIL_VERTICAL_MARGIN_PX, Math.round((viewportHeight - height) / 2)),
+  );
   return {
     left,
     top,
@@ -499,4 +584,34 @@ function headingTickTop(
   if (headingCount <= 1) return railHeight / 2;
   const spacing = (railHeight - RAIL_TICK_TARGET_PX) / (headingCount - 1);
   return RAIL_TICK_TARGET_PX / 2 + spacing * index;
+}
+
+/**
+ * Finds the heading a fragment identifies. Markdown headings carry no ids, so
+ * the authored text is the target: whitespace is normalized and a
+ * percent-encoded fragment is decoded first.
+ */
+export function findOutlineHeadingIndexForAnchor(
+  headings: readonly MarkdownOutlineHeading[],
+  anchor: string,
+): number {
+  const target = normalizeHeadingText(anchor);
+  if (!target) return -1;
+  for (const [index, heading] of headings.entries()) {
+    if (normalizeHeadingText(heading.plainTitle) === target) return index;
+  }
+  for (const [index, heading] of headings.entries()) {
+    if (normalizeHeadingText(heading.title) === target) return index;
+  }
+  return -1;
+}
+
+function normalizeHeadingText(value: string): string {
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    // A malformed escape is ordinary text, not a fragment.
+  }
+  return decoded.replace(/\s+/gu, " ").trim();
 }

@@ -51,6 +51,9 @@ import {
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
+import { createNotionConnector, NOTION_OAUTH_ORIGIN } from "./main/project-import/notion/oauth.mjs";
+import { createLocalTemplateStore } from "./main/project-import/local-template-store.mjs";
+import { readLocalSourceTemplate, LOCAL_SOURCE_TEMPLATE_EXTENSION } from "./main/project-import/local-template.mjs";
 import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
@@ -535,10 +538,18 @@ const workspaceStateStore = createWorkspaceStateStore({
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
 });
+const localTemplatePackages = createLocalTemplateStore();
+const localWorkflowTargets = new Map();
+const connectNotion = createNotionConnector({
+  origin: !app.isPackaged && process.env.PUPPYONE_NOTION_OAUTH_ORIGIN
+    ? process.env.PUPPYONE_NOTION_OAUTH_ORIGIN : NOTION_OAUTH_ORIGIN,
+});
 const projectEntryService = createProjectEntryService({
+  connectNotion,
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
-  resolveTemplate: (source, locale) => templateMarketplaceService.resolveTemplate(source, locale),
-  validateTemplateSource: (plan) => templateMarketplaceService.validateSource(plan),
+  resolveTemplate: (source, locale) => source?.ref?.sourceId === "local-package"
+    ? localTemplatePackages.resolveTemplate(source) : templateMarketplaceService.resolveTemplate(source, locale),
+  validateTemplateSource: (plan) => { localTemplatePackages.validateSource(plan); return templateMarketplaceService.validateSource(plan); },
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
@@ -685,6 +696,8 @@ async function createWindow(options = {}) {
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {
     // Fence admission even if the renderer disappears during initial loading.
+    localTemplatePackages.releaseOwner(webContentsId);
+    localWorkflowTargets.delete(webContentsId);
     void projectSessions.closeWindow(webContentsId).catch((error) => console.error("Project shutdown after renderer destruction failed:", error));
   });
   windowStateById.set(webContentsId, new WindowWorkspaceState({
@@ -986,6 +999,19 @@ const openPathFromSystem = createSystemOpenRoute({
 /** The system's and a second instance's view of the route: true when a window shows the path. */
 async function openSystemPath(targetPath) {
   try {
+    if (typeof targetPath === "string" && targetPath.toLowerCase().endsWith(LOCAL_SOURCE_TEMPLATE_EXTENSION)) {
+      const plan = await readLocalSourceTemplate(targetPath);
+      const intent = { id: randomUUID(), kind: "local-template", plan, ownerId: null };
+      pendingTemplateIntent = intent;
+      if (initialWindowReady) {
+        const window = await createOrRevealWindow();
+        if (pendingTemplateIntent === intent && !window.isDestroyed()) {
+          intent.ownerId = window.webContents.id;
+          window.webContents.send("template:import-requested");
+        }
+      }
+      return true;
+    }
     await openPathFromSystem(targetPath);
     return true;
   } catch (error) {
@@ -1364,6 +1390,11 @@ function registerIpcHandlers() {
     attachWorkspaceToCurrentWindow,
     detachWorkspaceFromCurrentWindow,
   });
+  trustedIpcMain.handle("template:open-local", async (event, request) => {
+    if (typeof request?.path !== "string") throw new Error("Drop a local template file into puppyone.");
+    const plan = await readLocalSourceTemplate(request.path);
+    return localTemplatePackages.register(plan, event.sender.id);
+  });
   // Failed Cloud Computer openings go to the app log file so a report can be
   // matched to the server log by request id.
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService, diagnostics: cloudOpeningLog });
@@ -1383,6 +1414,14 @@ function registerIpcHandlers() {
     if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
     if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
     pendingTemplateIntent.ownerId = event.sender.id;
+    if (pendingTemplateIntent.kind === "local-template") {
+      if (pendingTemplateIntent.detailOwnerId !== event.sender.id) {
+        pendingTemplateIntent.detail = localTemplatePackages.register(pendingTemplateIntent.plan, event.sender.id);
+        pendingTemplateIntent.detailOwnerId = event.sender.id;
+      }
+      return { id: pendingTemplateIntent.id, kind: "local-template", detail: pendingTemplateIntent.detail };
+    }
+    if (pendingTemplateIntent.kind === "source") return { id: pendingTemplateIntent.id, kind: "source", provider: pendingTemplateIntent.provider, name: pendingTemplateIntent.name };
     return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url };
   });
   trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
@@ -1703,21 +1742,33 @@ async function createProjectForCurrentWindow(sender, request) {
   if (!request?.operationId || !request?.source) throw new Error("A project initialization request is required.");
   return runProjectEntryOperation(sender, () => workspaceNavigation.run(sender.id, async (assertOpen) => {
     const parentPath = projectLocationGrants.resolve(sender, request?.locationGrantId, request.operationId);
+    const source = localTemplatePackages.authorize(request.source, sender.id);
+    const workflow = localTemplatePackages.workflowFor(source, sender.id);
     const project = await projectEntryService.createProject({
       parentPath,
       name,
-      source: request.source,
+      source,
       operationId: request.operationId,
       locale: request.locale ?? localeService.getSnapshot().locale,
       numberIfTaken: request.numberIfTaken === true,
     });
     // Retain authority only for this committed operation, not another create.
     projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
+    localWorkflowTargets.delete(sender.id);
     try {
       assertOpen();
       const result = request.openInNewWindow === true
         ? await openWorkspaceInNewWindow(project.path, { initialOpenPath: project.initialization.initialOpenPath })
         : await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      if (workflow?.kind === "import-source") {
+        const target = findProjectWindowForFolder([...windowStateById].map(([id, state]) => ({ state, window: windowsById.get(id) })), project.path);
+        if (target) {
+          const ownerId = target.webContents.id;
+          localWorkflowTargets.set(ownerId, { parentPath: path.join(project.path, "projects"), grant: null });
+          pendingTemplateIntent = { id: randomUUID(), kind: "source", provider: workflow.provider, name: project.name, ownerId };
+          target.webContents.send("template:import-requested");
+        }
+      }
       return { initialization: project.initialization, opening: { status: "opened", result } };
     } catch (error) {
       return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
@@ -1730,7 +1781,9 @@ async function selectProjectLocationForCurrentWindow(sender) {
     const parentPath = await selectProjectParentDirectory(sender, "create");
     if (!parentPath) return null;
     const canonicalPath = await fs.promises.realpath(parentPath);
-    return projectLocationGrants.issue(sender, canonicalPath);
+    const grant = projectLocationGrants.issue(sender, canonicalPath);
+    if (localWorkflowTargets.has(sender.id)) localWorkflowTargets.set(sender.id, { parentPath: canonicalPath, grant: Promise.resolve(grant) });
+    return grant;
   });
 }
 
@@ -1740,20 +1793,44 @@ async function selectProjectLocationForCurrentWindow(sender) {
  * main process, never by the renderer, so it stays inside the grant model.
  */
 async function getDefaultProjectLocationForCurrentWindow(sender) {
+  const target = localWorkflowTargets.get(sender.id);
+  if (target) {
+    // The opening project can remount its dialog while the first request is
+    // still resolving. Keep one grant for this workflow until Browse/import
+    // consumes the context, rather than rejecting or replacing its authority.
+    if (!target.grant) {
+      const request = (async () => {
+        await fs.promises.mkdir(target.parentPath, { recursive: true });
+        const canonicalPath = await fs.promises.realpath(target.parentPath);
+        if (sender.isDestroyed() || localWorkflowTargets.get(sender.id) !== target || target.grant !== request) throw new Error("This import destination has changed. Choose its location again.");
+        return projectLocationGrants.issue(sender, canonicalPath);
+      })().catch((error) => { if (target.grant === request) target.grant = null; throw error; });
+      target.grant = request;
+    }
+    return target.grant;
+  }
   return runProjectEntryOperation(sender, async () => {
     const parentPath = path.join(app.getPath("documents"), DEFAULT_PROJECTS_FOLDER_NAME);
     await fs.promises.mkdir(parentPath, { recursive: true });
     const canonicalPath = await fs.promises.realpath(parentPath);
-    return projectLocationGrants.issue(sender, canonicalPath);
+    const grant = projectLocationGrants.issue(sender, canonicalPath);
+    return grant;
   });
 }
 
 async function connectImportSourceForCurrentWindow(sender, request) {
-  return runProjectEntryOperation(sender, () => projectEntryService.connectImportSource({
-    provider: request?.provider,
-    ownerId: sender.id,
-    context: { ownerWindow: getDialogOwnerWindow(sender), shell },
-  }));
+  return runProjectEntryOperation(sender, async () => {
+    const controller = new AbortController();
+    const provider = request?.provider;
+    importSourceTasks.set(sender.id, { taskId: "connect-" + provider, controller, phase: "preparing" });
+    try {
+      const connection = await projectEntryService.connectImportSource({
+        provider, ownerId: sender.id,
+        context: { ownerWindow: getDialogOwnerWindow(sender), openExternal: url => externalNavigation.open(url), signal: controller.signal },
+      });
+      return connection;
+    } finally { importSourceTasks.delete(sender.id); }
+  });
 }
 
 async function listImportResourcesForCurrentWindow(sender, request) {
@@ -1797,7 +1874,7 @@ async function importSourceForCurrentWindow(sender, request) {
       if (typeof connectionId !== "string" || typeof resourceId !== "string" || !resourceId) {
         throw new Error("Choose a connected resource before importing.");
       }
-      source = { provider: descriptor.id, connectionId, resourceId };
+      source = { provider: descriptor.id, connectionId, resourceId, includeSubpages: request?.selection?.includeSubpages !== false };
     }
     const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
       ? request.locationGrantId
@@ -1826,7 +1903,8 @@ async function importSourceForCurrentWindow(sender, request) {
       });
       importSourceTasks.delete(sender.id);
       if (grantId) projectLocationGrants.revoke(sender, grantId);
-      return openWorkspaceInCurrentWindow(sender, project.path);
+      localWorkflowTargets.delete(sender.id);
+      return openWorkspaceInCurrentWindow(sender, project.path, { initialOpenPath: project.initialOpenPath });
     } finally {
       importSourceTasks.delete(sender.id);
     }

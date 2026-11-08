@@ -1,4 +1,6 @@
 {
+  "explorer.agentChangedFile": "Agent が変更しました — 未確認",
+  "explorer.agentChangedFolder": "Agent が変更した未確認のファイルがあります",
   "node.copyLink": "リンクをコピー",
   "workbench.renderFailure": "このタブを表示できません。",
   "workbench.reloadView": "表示を再読み込み",
@@ -8,6 +10,7 @@
   "projectSessions.closeFailed": "一部のプロジェクトのタスクを停止できませんでした。",
   "projectSessions.retryClose": "もう一度閉じる",
   "drag.exportFailed": "ドロップを完了できません。元の項目と移動先が利用可能で、この操作に対応しているか確認してください。",
+  "drag.imageInsertFailed": "この画像を挿入できません。対応形式は PNG、JPEG、GIF、WebP で、1 枚あたり 20 MB までです。",
   "restoring.message": "前回のプロジェクトを開いています…",
   "viewerPack.rootUnavailable": "Viewer Pack を有効にするためのワークスペースルートを利用できません。",
   "viewerPack.loadingExtension": "ビューアー拡張機能を読み込んでいます…",
