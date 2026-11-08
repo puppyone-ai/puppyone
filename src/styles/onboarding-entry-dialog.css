@@ -329,8 +329,8 @@
   background: color-mix(in srgb, var(--po-text) 8%, transparent);
   color: var(--po-text-muted);
   content: counter(import-step);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--po-text-size-caption, 11px);
+  font-weight: var(--po-text-weight-semibold, 600);
   line-height: 1;
 }
 
