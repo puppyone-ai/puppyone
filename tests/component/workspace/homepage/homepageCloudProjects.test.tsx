@@ -267,9 +267,12 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.body.textContent).toContain("Project bob-only");
     await act(async () => pending.resolve([project("alice-only")]));
     expect(document.body.textContent).not.toContain("Project alice-only");
+    localStorage.setItem("puppyone.desktop.cloud-spaces.v1", JSON.stringify({ scope: "bob", spaces: [] }));
     await render({ currentSession: null });
     expect(document.body.textContent).not.toContain("Project bob-only");
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(1);
+    // Nothing of the account stays on this computer for whoever signs in next.
+    expect(Object.keys(localStorage).filter((key) => /cloud-(project-catalog|organization-names|spaces)/.test(key))).toEqual([]);
   });
 
   it("loads only on the visible enabled Homepage, and revalidates on return or a new session generation", async () => {
