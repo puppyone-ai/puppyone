@@ -444,9 +444,10 @@ function AppContent() {
   const workbenchDataService = useMemo(
     () => (workbenchWorkspace ? createWorkbenchDataService(workbenchWorkspace, {
       unavailableFolderPaths: new Set(unavailableFolderKey ? unavailableFolderKey.split("\n") : []),
+      unavailableFolderMessage: t("shell.folderStatus.fileUnavailable"),
       onFolderReadFailed: () => { void refreshWindowFolderAvailability(); },
     }) : null),
-    [workbenchWorkspace, unavailableFolderKey, refreshWindowFolderAvailability],
+    [workbenchWorkspace, unavailableFolderKey, refreshWindowFolderAvailability, t],
   );
   const dataPort = useMemo(
     () => (workbenchDataService

@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "Abrir de novo para seus outros computadores?",
   "folderRelocate.wasShared": "“{name}” estava aberta para seus outros computadores. Como mudou de lugar, eles só vão acessá-la depois que você abri-la no novo lugar.",
   "folderRelocate.notNow": "Agora não",
-  "folderRelocate.shareAgain": "Ativar"
+  "folderRelocate.shareAgain": "Ativar",
+  "folderStatus.fileUnavailable": "A pasta deste arquivo não pode ser aberta agora."
 }

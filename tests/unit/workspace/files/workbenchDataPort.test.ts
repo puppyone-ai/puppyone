@@ -77,6 +77,18 @@ describe("WorkbenchDataService", () => {
     }
   });
 
+  it("answers a read of a gone folder's file in the person's words, without touching the disk", async () => {
+    const workbench = createWorkbenchWorkspace([workspace("b", "Gone", "/gone")]);
+    const gone = provider("Gone");
+    const service = createWorkbenchDataService(workbench, {
+      createProvider: () => gone,
+      unavailableFolderPaths: new Set(["/gone"]),
+      unavailableFolderMessage: "This file’s folder can’t be opened right now.",
+    });
+    await expect(service.dataPort.readFile!("note.md")).rejects.toThrow("This file’s folder can’t be opened right now.");
+    expect(gone.readFile).not.toHaveBeenCalled();
+  });
+
   it("copies readable absolute paths from the owning root, preserving decoded file names", () => {
     const workbench = createWorkbenchWorkspace([
       workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta"),

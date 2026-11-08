@@ -48,6 +48,8 @@ export function createWorkbenchDataService(
     copyBetweenRoots?: typeof copyWorkspaceEntryBetweenRoots;
     /** Folders known to be gone or out of reach now: shown empty, never read. */
     unavailableFolderPaths?: ReadonlySet<string>;
+    /** What reading a file of such a folder says, in the person's language. */
+    unavailableFolderMessage?: string;
     /** A folder failed to read; whoever shows the window checks why. */
     onFolderReadFailed?: (folder: WorkspaceFolder) => void;
   }> = {},
@@ -58,9 +60,12 @@ export function createWorkbenchDataService(
 
   const providers = new Map(workbench.folders.map((folder) => {
     const provider = options.createProvider?.(folder) ?? createLocalDataPort(folder.workspace.path);
-    return [folder.id, options.unavailableFolderPaths?.has(folder.workspace.path)
-      ? { ...provider, listChildren: async () => [], resolveNode: async () => null }
-      : provider];
+    if (!options.unavailableFolderPaths?.has(folder.workspace.path)) return [folder.id, provider];
+    const unavailable = async (): Promise<never> => {
+      throw new Error(options.unavailableFolderMessage ?? "This folder cannot be opened now.");
+    };
+    return [folder.id, { ...provider, listChildren: async () => [], resolveNode: async () => null,
+      readFile: unavailable, getFileUrl: unavailable }];
   }));
   const readChildren = async (folder: WorkspaceFolder, folderPath: string | null) => {
     try {

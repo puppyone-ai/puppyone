@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "Wieder für deine anderen Computer öffnen?",
   "folderRelocate.wasShared": "„{name}“ war für deine anderen Computer geöffnet. Da er verschoben wurde, erreichen sie ihn erst wieder, wenn du ihn am neuen Ort öffnest.",
   "folderRelocate.notNow": "Nicht jetzt",
-  "folderRelocate.shareAgain": "Einschalten"
+  "folderRelocate.shareAgain": "Einschalten",
+  "folderStatus.fileUnavailable": "Der Ordner dieser Datei lässt sich gerade nicht öffnen."
 }

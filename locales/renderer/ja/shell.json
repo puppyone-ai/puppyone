@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "ほかのコンピュータにもう一度公開しますか？",
   "folderRelocate.wasShared": "「{name}」はほかのコンピュータに公開されていました。場所が変わったため、新しい場所から公開し直すまでほかのコンピュータでは開けません。",
   "folderRelocate.notNow": "今はしない",
-  "folderRelocate.shareAgain": "オンにする"
+  "folderRelocate.shareAgain": "オンにする",
+  "folderStatus.fileUnavailable": "このファイルがあるフォルダは今は開けません。"
 }

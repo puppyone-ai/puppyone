@@ -1385,6 +1385,12 @@ function registerIpcHandlers() {
       relocateRecent: (from, to) => workspaceStateStore.relocateRecentWorkspacePath(from, to),
       // Registered below; only called once a person has confirmed a new place.
       retireSharesAtMissingRoot: (rootPath) => hostIpc.retireSharesAtMissingRoot(rootPath),
+      // The gone place's sessions can do nothing more; the same folder reopens at its new place.
+      closeSessionsAt: async (rootPath) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) await projectSessions.closeRoot(window.webContents.id, rootPath);
+        }
+      },
       home: app.getPath("home"),
     }),
     getDialogOwnerWindow,

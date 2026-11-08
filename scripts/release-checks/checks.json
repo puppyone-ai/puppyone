@@ -275,6 +275,18 @@
       "artifacts": []
     },
     {
+      "id": "missing-project-folder",
+      "name": "A project folder renamed on disk, on the Homepage and in its window",
+      "group": "app",
+      "command": ["npm", "run", "smoke:missing-project-folder"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",
