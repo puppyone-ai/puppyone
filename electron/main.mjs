@@ -118,7 +118,7 @@ import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ip
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
-import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { parseLocalFileUrl, registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
 import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "./main/preview-document-service.mjs";
 import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
@@ -313,6 +313,18 @@ const windowsById = new Map();
 const windowStateById = new Map();
 const workspaceWindows = new WorkspaceWindowIndex();
 const localFileCapabilities = createLocalFileCapabilityStore();
+/** True while a frame shows a projection of a page allowed to use its folder. */
+function isOfflineDocumentFrame(frameUrl) {
+  try {
+    const url = new URL(frameUrl);
+    url.hash = "";
+    const { token, purpose, requestPath } = parseLocalFileUrl(url.toString());
+    return purpose === "document-projection"
+      && localFileCapabilities.resolve({ token, purpose, requestPath })?.snapshot?.offline === true;
+  } catch {
+    return false;
+  }
+}
 const previewDocumentService = createPreviewDocumentService();
 let lastFocusedWindowId = null;
 let initialWindowReady = false;
@@ -681,6 +693,7 @@ async function createWindow(options = {}) {
     applicationUrl: rendererApplicationUrl,
     externalNavigation,
     isAuthorizedCloudResource: cloudPreviewResourceService.allowed,
+    isOfflineDocumentFrame,
   });
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {

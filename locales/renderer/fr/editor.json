@@ -442,5 +442,12 @@
   "html.align.center": "Centrer",
   "html.align.right": "Aligner à droite",
   "html.chooseColor": "Choisir {color}",
-  "html.customColor": "Personnalisé"
+  "html.customColor": "Personnalisé",
+  "html.folderAccessTitle": "Cette page veut utiliser son dossier",
+  "html.folderAccessChangedTitle": "Cette page a changé depuis que vous l’avez autorisée",
+  "html.folderAccessDescription": "« {page} » veut lire et modifier des fichiers texte, comme .md, dans le dossier « {folder} ». Si vous l’autorisez, la page fonctionne hors ligne et ne peut rien atteindre en dehors de ce dossier. N’autorisez que les pages de confiance.",
+  "html.folderAccessAllow": "Autoriser",
+  "html.folderAccessDecline": "Ne pas autoriser, afficher seulement",
+  "html.folderAccessToggle": "Autoriser cette page à utiliser son dossier",
+  "html.folderAccessUnavailable": "Cette page ne peut pas utiliser son dossier ici. Ouvrez-la depuis un projet sur cet ordinateur."
 }

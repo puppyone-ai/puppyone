@@ -1,19 +1,23 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Code2, MousePointer2, Pencil } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Code2, FolderOpen, MousePointer2, Pencil } from "lucide-react";
+import { Button } from "../../../primitives/Button";
+import { EmptyState } from "../../../primitives/EmptyState";
 import { FloatingNotice, FloatingNoticeStack } from "../../../primitives/FloatingNotice";
-import { type EditorPaneMenuSegmentedControl, useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
+import { type EditorPaneMenuItem, type EditorPaneMenuSegmentedControl, useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import { useLocalization } from "@puppyone/localization/react";
 import { CodeMirrorCodeEditor } from "../code/CodeMirrorCodeEditor";
 import { DocumentSurfacePending } from "../../host/DocumentSurfaceHost";
-import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
+import type { EditorDocument, PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { HtmlViewMenu } from "./HtmlViewMenu";
 import { isHtmlDocumentEmpty } from "./htmlDocumentEmpty";
+import { digestHtmlSource, readHtmlFolderAccessGrant, requestsHtmlFolderAccess, writeHtmlFolderAccessGrant } from "./htmlFolderAccess";
+import type { HtmlFolderAccessPort } from "../../preview-services/types";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
 
@@ -33,7 +37,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   const owner = useDocumentModelOwner();
   const publishMenu = useEditorPaneMenuContributionPublisher();
   const editingSource = useEditableDocumentSource();
-  const projection = useEditorPreviewServices().services?.documentProjection;
+  const previewServices = useEditorPreviewServices().services;
+  const projection = previewServices?.documentProjection;
   // Cloud can read/write HTML text without a native interactive projection
   // service. Present the interactive page and source editor instead of starting an
   // editing bridge the provider cannot support.
@@ -114,11 +119,19 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       if (value === "preview" || value === "edit" || value === "source" && !hideSourceView) void switchMode(value);
     },
   }), [mode, canVisualEdit, hideSourceView, switchMode, t]);
+  const folderAccess = useHtmlFolderAccessDecision(document, preview, previewServices?.htmlFolderAccess);
+  const viewItems = useMemo<EditorPaneMenuItem[]>(() => [
+    ...(viewMenu.options.length > 1 ? [viewMenu] : []),
+    ...(folderAccess.session && folderAccess.state !== "checking" ? [{
+      kind: "toggle" as const, id: "html-folder-access", label: t("editor.html.folderAccessToggle"),
+      checked: folderAccess.state === "allowed", setChecked: folderAccess.setAllowed,
+    }] : []),
+  ], [viewMenu, folderAccess.session, folderAccess.state, folderAccess.setAllowed, t]);
   useLayoutEffect(() => {
     if (!publishMenu) return;
-    publishMenu({ documentId: document.path, viewItems: viewMenu.options.length > 1 ? [viewMenu] : [] });
+    publishMenu({ documentId: document.path, viewItems });
     return () => publishMenu(null);
-  }, [document.path, publishMenu, viewMenu]);
+  }, [document.path, publishMenu, viewItems]);
   const unavailable = useCallback(() => {
     setPreview(model.readSnapshot().content); setMode("preview"); setError(t("editor.html.unsupported"));
   }, [model, t]);
@@ -138,6 +151,52 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       </div>}
     {!showEmptyPage && (mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
       : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} viewportState={viewport} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
-        : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} /></Suspense></div>)}
+        : folderAccess.state === "checking" ? <DocumentSurfacePending label={t("editor.html.loading")} />
+        : folderAccess.state === "ask" || folderAccess.state === "changed" ? <div className="html-folder-access-consent editor-state">
+          <EmptyState icon={<FolderOpen size={18} />}
+            title={t(folderAccess.state === "changed" ? "editor.html.folderAccessChangedTitle" : "editor.html.folderAccessTitle")}
+            description={t("editor.html.folderAccessDescription", { page: document.name, folder: folderAccess.session?.folderName ?? "" })}
+            action={<div className="html-folder-access-consent__actions">
+              <Button tone="primary" onClick={() => folderAccess.setAllowed(true)}>{t("editor.html.folderAccessAllow")}</Button>
+              <Button onClick={() => folderAccess.setAllowed(false)}>{t("editor.html.folderAccessDecline")}</Button>
+            </div>} />
+        </div>
+        : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null} /></Suspense></div>)}
   </section>;
+}
+
+type FolderAccessState = "none" | "checking" | "ask" | "changed" | "allowed" | "declined";
+/** Declining lasts until PuppyOne restarts; allowing lasts until the page text changes. */
+const declinedHtmlPages = new Set<string>();
+
+/**
+ * Pages that use the folder picker ask once, before they run, so the frame can
+ * start with the matching policy: offline with its folder, or online without it.
+ */
+function useHtmlFolderAccessDecision(document: EditorDocument, source: string,
+  port: HtmlFolderAccessPort | undefined) {
+  const session = useMemo(() => document.sourceKind === "local" ? port?.open(document.path) ?? null : null, [document.path, document.sourceKind, port]);
+  const wanted = !!session && requestsHtmlFolderAccess(source);
+  const [decision, setDecision] = useState<{ source: string; digest: string; state: FolderAccessState } | null>(null);
+  useEffect(() => {
+    if (!wanted) return;
+    let cancelled = false;
+    void digestHtmlSource(source).then((digest) => {
+      if (cancelled) return;
+      const granted = readHtmlFolderAccessGrant(document.path);
+      const state: FolderAccessState = granted === digest ? "allowed"
+        : declinedHtmlPages.has(`${document.path}\0${digest}`) ? "declined" : granted ? "changed" : "ask";
+      setDecision({ source, digest, state });
+    });
+    return () => { cancelled = true; };
+  }, [wanted, source, document.path]);
+  const current = wanted && decision?.source === source ? decision : null;
+  const setAllowed = useCallback((allowed: boolean) => {
+    if (!current) return;
+    const key = `${document.path}\0${current.digest}`;
+    if (allowed) declinedHtmlPages.delete(key); else declinedHtmlPages.add(key);
+    writeHtmlFolderAccessGrant(document.path, allowed ? current.digest : null);
+    setDecision({ ...current, state: allowed ? "allowed" : "declined" });
+  }, [current, document.path]);
+  return { session: wanted ? session : null, state: !wanted ? "none" as const : current?.state ?? "checking" as const, setAllowed };
 }

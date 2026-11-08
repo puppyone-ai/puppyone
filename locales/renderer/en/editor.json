@@ -442,5 +442,12 @@
   "html.align.center": "Align center",
   "html.align.right": "Align right",
   "html.chooseColor": "Choose {color}",
-  "html.customColor": "Custom"
+  "html.customColor": "Custom",
+  "html.folderAccessTitle": "This page wants to use its folder",
+  "html.folderAccessChangedTitle": "This page changed since you allowed it",
+  "html.folderAccessDescription": "“{page}” wants to read and edit text files, such as .md, in the “{folder}” folder. If you allow it, the page runs offline and can't reach anything outside that folder. Only allow pages you trust.",
+  "html.folderAccessAllow": "Allow",
+  "html.folderAccessDecline": "Don't allow, just view",
+  "html.folderAccessToggle": "Let this page use its folder",
+  "html.folderAccessUnavailable": "This page can't use its folder here. Open it from a project on this computer."
 }

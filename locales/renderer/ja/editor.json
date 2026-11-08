@@ -442,5 +442,12 @@
   "html.align.center": "中央揃え",
   "html.align.right": "右揃え",
   "html.chooseColor": "{color} を選択",
-  "html.customColor": "カスタム"
+  "html.customColor": "カスタム",
+  "html.folderAccessTitle": "このページはフォルダを使おうとしています",
+  "html.folderAccessChangedTitle": "このページは許可した後に変更されました",
+  "html.folderAccessDescription": "「{page}」が「{folder}」フォルダ内のテキストファイル（.md など）の読み書きを求めています。許可すると、ページはオフラインで動作し、このフォルダ以外にはアクセスできません。信頼できるページだけを許可してください。",
+  "html.folderAccessAllow": "許可",
+  "html.folderAccessDecline": "許可せず表示のみ",
+  "html.folderAccessToggle": "このページにフォルダの使用を許可",
+  "html.folderAccessUnavailable": "ここではこのページはフォルダを使えません。このコンピュータ上のプロジェクトから開いてください。"
 }

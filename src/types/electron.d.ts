@@ -1353,7 +1353,7 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
-      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean; offline?: boolean }) => Promise<{ url: string }>;
       createSandboxedPreviewDocument: (request: { content: string; interactive?: boolean }) => Promise<{ url: string }>;
       revokeSandboxedPreviewDocument: (request: { url: string }) => Promise<{ revoked: boolean }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];

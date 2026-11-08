@@ -442,5 +442,12 @@
   "html.align.center": "Centralizar",
   "html.align.right": "Alinhar à direita",
   "html.chooseColor": "Escolher {color}",
-  "html.customColor": "Personalizado"
+  "html.customColor": "Personalizado",
+  "html.folderAccessTitle": "Esta página quer usar a pasta dela",
+  "html.folderAccessChangedTitle": "Esta página mudou desde que você a permitiu",
+  "html.folderAccessDescription": "“{page}” quer ler e editar arquivos de texto, como .md, na pasta “{folder}”. Se você permitir, a página funciona offline e não alcança nada fora dessa pasta. Permita apenas páginas confiáveis.",
+  "html.folderAccessAllow": "Permitir",
+  "html.folderAccessDecline": "Não permitir, só ver",
+  "html.folderAccessToggle": "Permitir que esta página use a pasta dela",
+  "html.folderAccessUnavailable": "Esta página não pode usar a pasta aqui. Abra-a a partir de um projeto neste computador."
 }

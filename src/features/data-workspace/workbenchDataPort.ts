@@ -173,6 +173,10 @@ export function createWorkbenchDataService(
       const port = requireProvider(target.folder).previewServices?.documentProjection;
       if (!port) throw new Error("capability-unavailable");
       return port.create(target.providerPath, content, signal, options);
+    } }, htmlFolderAccess: { open: (path) => {
+      const target = tryResolveResource(path);
+      if (!target?.providerPath) return null;
+      return requireProvider(target.folder).previewServices?.htmlFolderAccess?.open(target.providerPath) ?? null;
     } }, database: { open: async (path, signal) => {
       const target = resolveResource(path);
       if (target.providerPath === null) throw new Error("invalid-request");

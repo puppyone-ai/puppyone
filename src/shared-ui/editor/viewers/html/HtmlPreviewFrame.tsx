@@ -6,6 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { resolveFileFormat } from "../../../core/fileFormats";
 import { HTML_PAGE_SCROLLBAR_STYLE, htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
+import type { HtmlFolderAccessSession } from "../../preview-services/types";
+import { htmlFolderAccessScript, useHtmlFolderAccessBridge } from "./htmlFolderAccess";
+import { useLocalization } from "@puppyone/localization/react";
 
 export function HtmlPreviewFrame({
   path,
@@ -15,6 +18,7 @@ export function HtmlPreviewFrame({
   htmlTrustMode,
   interactive = false,
   viewportState,
+  folderAccess = null,
 }: {
   path: string;
   title: string;
@@ -23,8 +27,12 @@ export function HtmlPreviewFrame({
   htmlTrustMode: MarkdownHtmlTrustMode;
   interactive?: boolean;
   viewportState?: HtmlPageViewport;
+  /** Set only after the person allowed this page to use its folder; the page then runs offline. */
+  folderAccess?: HtmlFolderAccessSession | null;
 }) {
-  const policy = getHtmlPreviewPolicy(htmlTrustMode, interactive);
+  const { t } = useLocalization();
+  const offline = interactive && !!folderAccess;
+  const policy = offline ? OFFLINE_HTML_PREVIEW_POLICY : getHtmlPreviewPolicy(htmlTrustMode, interactive);
   const frame = useRef<HTMLIFrameElement>(null);
   const [viewportChannel] = useState(() => crypto.randomUUID());
   const hasContentSnapshot = content !== null && content !== undefined;
@@ -32,13 +40,16 @@ export function HtmlPreviewFrame({
     path,
     htmlTrustMode,
     String(interactive),
+    String(offline),
     fileUrl ?? "",
     hasContentSnapshot ? `${content.length}:${hashString(content)}` : "",
   ].join("|");
   const projectionPort = useEditorPreviewServices().services?.documentProjection;
+  const folderName = folderAccess?.folderName;
   const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl,
-    getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined) : null,
-    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel]);
+    offline ? OFFLINE_HTML_PREVIEW_POLICY : getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined,
+    offline && folderName !== undefined ? htmlFolderAccessScript(viewportChannel, folderName) : undefined) : null,
+    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel, offline, folderName]);
   const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
   const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024
     && resolveFileFormat({ name: path }).defaultViewer === "html-artifact";
@@ -47,13 +58,13 @@ export function HtmlPreviewFrame({
     const abort = new AbortController();
     let release: (() => Promise<void>) | undefined;
     // Ordinary previews retain their existing link/interaction policy through the iframe sandbox.
-    void projectionPort.create(path, projection, abort.signal, { interactive: true, baseHref: readHtmlBaseHref(content ?? "") }).then(async (lease) => {
+    void projectionPort.create(path, projection, abort.signal, { interactive: true, baseHref: readHtmlBaseHref(content ?? ""), offline }).then(async (lease) => {
       if (abort.signal.aborted) { await lease.close(); return; }
       release = lease.close;
       setResource({ key: frameKey, url: lease.url });
     }).catch(() => { if (!abort.signal.aborted) setResource({ key: frameKey, url: null }); });
     return () => { abort.abort(); void release?.().catch(() => undefined); };
-  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content]);
+  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content, offline]);
   const resourceReady = resource?.key === frameKey;
   const projectionUrl = resourceReady ? resource.url : undefined;
   const waitingForProjection = useProjection && !resourceReady;
@@ -63,6 +74,12 @@ export function HtmlPreviewFrame({
     enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });
   const frameSource = resolveFrameSource({ fileUrl, hasContentSnapshot, projection,
     projectionUrl, waiting: waitingForProjection });
+  useHtmlFolderAccessBridge({ frame, channel: viewportChannel, session: offline ? folderAccess : null });
+
+  // Only a served projection carries the no-network header and the navigation lock.
+  if (offline && (!useProjection || (resourceReady && !projectionUrl))) {
+    return <div className="editor-state danger" dir="auto">{t("editor.html.folderAccessUnavailable")}</div>;
+  }
 
   return (
     <iframe
@@ -109,6 +126,16 @@ type HtmlPreviewPolicy = {
   linkTarget?: "_self" | "_blank";
 };
 
+/** A page that can use its folder may not reach the network or leave its frame. */
+const OFFLINE_HTML_PREVIEW_POLICY: HtmlPreviewPolicy = {
+  sandbox: "allow-scripts allow-forms allow-modals",
+  csp: ["default-src 'none'", "script-src 'unsafe-inline' puppyone-local:", "style-src 'unsafe-inline' puppyone-local:",
+    "img-src data: blob: puppyone-local:", "media-src data: blob: puppyone-local:", "font-src data: puppyone-local:",
+    "connect-src 'none'", "object-src 'none'", "frame-src 'none'", "child-src 'none'", "worker-src 'none'",
+    "base-uri puppyone-local:", "form-action 'none'"].join("; "),
+  linkTarget: "_self",
+};
+
 const SAFE_HTML_PREVIEW_CSP = [
   "default-src 'none'",
   "img-src data: blob: https: puppyone-local:",
@@ -150,7 +177,8 @@ export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, inter
   };
 }
 
-export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy, viewportChannel?: string): string {
+export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy,
+  viewportChannel?: string, headScript?: string): string {
   const tree = parse(rawHtml);
   const html = tree.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "html")!;
   const head = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "head")!;
@@ -191,7 +219,7 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
     : `<base target="${target}">`;
   const interactionStyle = `<style id="puppyone-html-preview-interaction">${getHtmlPreviewInteractionCss("body")}</style>`;
 
-  head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}${HTML_PAGE_SCROLLBAR_STYLE}`).childNodes);
+  head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}${HTML_PAGE_SCROLLBAR_STYLE}${headScript ?? ""}`).childNodes);
   if (viewportChannel) {
     const body = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "body")!;
     body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);

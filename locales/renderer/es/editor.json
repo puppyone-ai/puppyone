@@ -442,5 +442,12 @@
   "html.align.center": "Centrar",
   "html.align.right": "Alinear a la derecha",
   "html.chooseColor": "Elegir {color}",
-  "html.customColor": "Personalizado"
+  "html.customColor": "Personalizado",
+  "html.folderAccessTitle": "Esta página quiere usar su carpeta",
+  "html.folderAccessChangedTitle": "Esta página cambió desde que la permitiste",
+  "html.folderAccessDescription": "«{page}» quiere leer y editar archivos de texto, como .md, en la carpeta «{folder}». Si lo permites, la página funciona sin conexión y no puede llegar a nada fuera de esa carpeta. Permite solo páginas de confianza.",
+  "html.folderAccessAllow": "Permitir",
+  "html.folderAccessDecline": "No permitir, solo ver",
+  "html.folderAccessToggle": "Permitir que esta página use su carpeta",
+  "html.folderAccessUnavailable": "Esta página no puede usar su carpeta aquí. Ábrela desde un proyecto en este equipo."
 }

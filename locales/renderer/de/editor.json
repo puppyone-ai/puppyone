@@ -442,5 +442,12 @@
   "html.align.center": "Zentriert",
   "html.align.right": "Rechtsbündig",
   "html.chooseColor": "{color} wählen",
-  "html.customColor": "Benutzerdefiniert"
+  "html.customColor": "Benutzerdefiniert",
+  "html.folderAccessTitle": "Diese Seite möchte ihren Ordner verwenden",
+  "html.folderAccessChangedTitle": "Diese Seite wurde geändert, seit du sie erlaubt hast",
+  "html.folderAccessDescription": "„{page}“ möchte Textdateien wie .md im Ordner „{folder}“ lesen und bearbeiten. Wenn du es erlaubst, läuft die Seite offline und erreicht nichts außerhalb dieses Ordners. Erlaube nur Seiten, denen du vertraust.",
+  "html.folderAccessAllow": "Erlauben",
+  "html.folderAccessDecline": "Nicht erlauben, nur ansehen",
+  "html.folderAccessToggle": "Dieser Seite ihren Ordner erlauben",
+  "html.folderAccessUnavailable": "Diese Seite kann ihren Ordner hier nicht verwenden. Öffne sie aus einem Projekt auf diesem Computer."
 }

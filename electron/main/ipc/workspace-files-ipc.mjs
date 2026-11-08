@@ -176,7 +176,8 @@ export function registerWorkspaceFileIpcHandlers({
     const bytes = Buffer.from(request.content, "utf8");
     const token = localFileCapabilities.issue({ senderId: requireIpcSenderId(event), rootPath, relativePath,
       scope: "exact", purpose: "document-projection", reuse: false,
-      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true } });
+      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true,
+        offline: request.interactive === true && request.offline === true } });
     return { url: buildLocalFileCapabilityUrl({ relativePath, token, purpose: "document-projection" }) };
   });
 

@@ -49,9 +49,7 @@ export function registerLocalFileProtocol({
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
         // Enforce an opaque sandbox even if a projection lease is navigated outside its iframe.
-        ...(purpose === "document-projection" ? { "Content-Security-Policy": capability.snapshot?.interactive
-          ? "sandbox allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts"
-          : "sandbox allow-scripts" } : {}),
+        ...(purpose === "document-projection" ? { "Content-Security-Policy": getDocumentProjectionPolicy(capability.snapshot) } : {}),
       };
       responseHeaders = { ...securityHeaders, ...corsHeaders };
       if (contentType === "application/pdf") {
@@ -179,6 +177,22 @@ export function registerLocalFileProtocol({
       });
     }
   });
+}
+
+/** A page allowed to use its folder runs offline; the header holds even if its own meta tag is removed. */
+export const OFFLINE_DOCUMENT_PROJECTION_POLICY = [
+  "sandbox allow-forms allow-modals allow-scripts",
+  "default-src 'none'", "script-src 'unsafe-inline' puppyone-local:", "style-src 'unsafe-inline' puppyone-local:",
+  "img-src data: blob: puppyone-local:", "media-src data: blob: puppyone-local:", "font-src data: puppyone-local:",
+  "connect-src 'none'", "object-src 'none'", "frame-src 'none'", "child-src 'none'", "worker-src 'none'",
+  "base-uri puppyone-local:", "form-action 'none'",
+].join("; ");
+
+function getDocumentProjectionPolicy(snapshot) {
+  if (snapshot?.offline) return OFFLINE_DOCUMENT_PROJECTION_POLICY;
+  return snapshot?.interactive
+    ? "sandbox allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts"
+    : "sandbox allow-scripts";
 }
 
 export function parseLocalFileUrl(rawUrl) {

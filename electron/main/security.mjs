@@ -54,6 +54,7 @@ export function installWindowNavigationSecurity({
   applicationUrl,
   externalNavigation,
   isAuthorizedCloudResource,
+  isOfflineDocumentFrame = () => false,
 }) {
   if (!externalNavigation || typeof externalNavigation.openDetached !== "function") {
     throw new TypeError("Window navigation security requires the external navigation service.");
@@ -74,7 +75,9 @@ export function installWindowNavigationSecurity({
   webContents.on("will-frame-navigate", (details) => {
     if (!details || details.isMainFrame) return;
     if ((isEmbeddedPdfFrame(details.frame) && !isAllowedPdfResource(details.url, isAuthorizedCloudResource))
-      || shouldBlockEmbeddedFrameNavigation(details.url, applicationUrl)) {
+      || shouldBlockEmbeddedFrameNavigation(details.url, applicationUrl)
+      // A page with folder access could carry file contents out in a URL.
+      || shouldBlockOfflineFrameNavigation(details.frame, details.url, isOfflineDocumentFrame)) {
       details.preventDefault();
     }
   });
@@ -86,6 +89,22 @@ export function installWindowNavigationSecurity({
     }
     return { action: "deny" };
   });
+}
+
+/** Such a page may reload itself, but neither it nor any frame inside it may go anywhere else. */
+export function shouldBlockOfflineFrameNavigation(frame, targetUrl, isOfflineDocumentFrame) {
+  const withoutHash = (value) => {
+    try { const url = new URL(value); url.hash = ""; return url.href; } catch { return null; }
+  };
+  try {
+    for (let current = frame; current; current = current.parent) {
+      if (typeof current.url !== "string" || !isOfflineDocumentFrame(current.url)) continue;
+      return current !== frame || withoutHash(targetUrl) !== withoutHash(current.url);
+    }
+  } catch {
+    // A detached frame has nothing left to navigate.
+  }
+  return false;
 }
 
 /**
