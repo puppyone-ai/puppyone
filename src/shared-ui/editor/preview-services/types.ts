@@ -46,9 +46,12 @@ export type HtmlFolderAccessSession = Readonly<{
   write: (name: string, content: string, expectedVersion: string | null) => Promise<{ version: string | null }>;
   create: (name: string) => Promise<void>;
 }>;
+export type HtmlFolderAccessConsentRequest = Readonly<{ pageName: string; folderName: string; changed: boolean }>;
 export type HtmlFolderAccessPort = Readonly<{
   /** Null for a page at a project root or a provider without folder access. */
   open: (documentPath: string) => HtmlFolderAccessSession | null;
+  /** The host's own dialog; resolves false when the person declines or dismisses it. */
+  confirm: (request: HtmlFolderAccessConsentRequest, signal: AbortSignal) => Promise<boolean>;
 }>;
 export type EditorPreviewServices = Readonly<{
   database?: DatabasePreviewPort; documentProjection?: DocumentProjectionPort; htmlFolderAccess?: HtmlFolderAccessPort;

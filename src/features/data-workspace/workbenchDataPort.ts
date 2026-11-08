@@ -18,6 +18,7 @@ import {
   createLocalDataPort,
 } from "../../lib/localFiles";
 import { projectLocalResourcePath } from "../../../shared/workspace-resource-reference.mjs";
+import { requestHtmlFolderAccessConsent } from "../../lib/htmlFolderAccessConsent";
 
 export type ResolvedWorkbenchDataResource = Readonly<{
   folder: WorkspaceFolder;
@@ -177,7 +178,7 @@ export function createWorkbenchDataService(
       const target = tryResolveResource(path);
       if (!target?.providerPath) return null;
       return requireProvider(target.folder).previewServices?.htmlFolderAccess?.open(target.providerPath) ?? null;
-    } }, database: { open: async (path, signal) => {
+    }, confirm: requestHtmlFolderAccessConsent }, database: { open: async (path, signal) => {
       const target = resolveResource(path);
       if (target.providerPath === null) throw new Error("invalid-request");
       const port = requireProvider(target.folder).previewServices?.database;

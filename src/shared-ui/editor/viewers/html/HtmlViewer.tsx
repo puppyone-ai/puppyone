@@ -1,9 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Code2, FolderOpen, MousePointer2, Pencil } from "lucide-react";
-import { Button } from "../../../primitives/Button";
-import { EmptyState } from "../../../primitives/EmptyState";
+import { Code2, MousePointer2, Pencil } from "lucide-react";
 import { FloatingNotice, FloatingNoticeStack } from "../../../primitives/FloatingNotice";
 import { type EditorPaneMenuItem, type EditorPaneMenuSegmentedControl, useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import { useLocalization } from "@puppyone/localization/react";
@@ -152,15 +150,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
     {!showEmptyPage && (mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
       : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} viewportState={viewport} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
         : folderAccess.state === "checking" ? <DocumentSurfacePending label={t("editor.html.loading")} />
-        : folderAccess.state === "ask" || folderAccess.state === "changed" ? <div className="html-folder-access-consent editor-state">
-          <EmptyState icon={<FolderOpen size={18} />}
-            title={t(folderAccess.state === "changed" ? "editor.html.folderAccessChangedTitle" : "editor.html.folderAccessTitle")}
-            description={t("editor.html.folderAccessDescription", { page: document.name, folder: folderAccess.session?.folderName ?? "" })}
-            action={<div className="html-folder-access-consent__actions">
-              <Button tone="primary" onClick={() => folderAccess.setAllowed(true)}>{t("editor.html.folderAccessAllow")}</Button>
-              <Button onClick={() => folderAccess.setAllowed(false)}>{t("editor.html.folderAccessDecline")}</Button>
-            </div>} />
-        </div>
+        // The host's dialog is asking; the page stays unloaded until it answers.
+        : folderAccess.state === "ask" || folderAccess.state === "changed" ? <div className="editor-state" />
         : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null} /></Suspense></div>)}
   </section>;
 }
@@ -191,6 +182,7 @@ function useHtmlFolderAccessDecision(document: EditorDocument, source: string,
     return () => { cancelled = true; };
   }, [wanted, source, document.path]);
   const current = wanted && decision?.source === source ? decision : null;
+  const asking = current?.state === "ask" || current?.state === "changed";
   const setAllowed = useCallback((allowed: boolean) => {
     if (!current) return;
     const key = `${document.path}\0${current.digest}`;
@@ -198,5 +190,12 @@ function useHtmlFolderAccessDecision(document: EditorDocument, source: string,
     writeHtmlFolderAccessGrant(document.path, allowed ? current.digest : null);
     setDecision({ ...current, state: allowed ? "allowed" : "declined" });
   }, [current, document.path]);
+  useEffect(() => {
+    if (!asking || !port || !session || !current) return;
+    const abort = new AbortController();
+    void port.confirm({ pageName: document.name, folderName: session.folderName, changed: current.state === "changed" }, abort.signal)
+      .then((allowed) => { if (!abort.signal.aborted) setAllowed(allowed); }, () => undefined);
+    return () => abort.abort();
+  }, [asking, port, session, current, document.name, setAllowed]);
   return { session: wanted ? session : null, state: !wanted ? "none" as const : current?.state ?? "checking" as const, setAllowed };
 }

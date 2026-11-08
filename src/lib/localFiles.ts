@@ -51,6 +51,7 @@ import {
 } from "../features/data-workspace/appPreviewCreation";
 import { parseAppPreviewManifest } from "../../shared/appPreviewManifest.js";
 import { createDatabasePreviewPort } from "../platform/databasePreviewClient";
+import { requestHtmlFolderAccessConsent } from "./htmlFolderAccessConsent";
 
 export type { Workspace };
 export type FileKind = DataNodeKind;
@@ -74,7 +75,10 @@ export function createLocalDataPort(rootPath: string): DataPort {
         if (signal.aborted) { await close(); signal.throwIfAborted(); }
         return { url, close };
       } },
-      htmlFolderAccess: { open: (documentPath) => openHtmlFolderAccess(rootPath, documentPath) },
+      htmlFolderAccess: {
+        open: (documentPath) => openHtmlFolderAccess(rootPath, documentPath),
+        confirm: requestHtmlFolderAccessConsent,
+      },
     },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),

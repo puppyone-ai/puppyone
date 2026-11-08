@@ -203,7 +203,7 @@ export type {
   RendererPerformanceTrace,
 } from "./performance/rendererPerformance";
 export { FilePreview } from "./editor/host/FilePreview";
-export type { EditorPreviewServices, DatabaseInfo, DatabasePage, DatabasePageRequest, DatabasePreviewSession, DatabasePreviewPort, HtmlFolderAccessPort, HtmlFolderAccessSession, HtmlFolderFile } from "./editor/preview-services/types";
+export type { EditorPreviewServices, DatabaseInfo, DatabasePage, DatabasePageRequest, DatabasePreviewSession, DatabasePreviewPort, HtmlFolderAccessConsentRequest, HtmlFolderAccessPort, HtmlFolderAccessSession, HtmlFolderFile } from "./editor/preview-services/types";
 export { isHtmlFolderFileName } from "./editor/viewers/html/htmlFolderFiles";
 export type { FilePreviewProps } from "./editor/host/FilePreview";
 export { ProjectsHeader as WorkspaceHeader } from "./data/ProjectsHeader";

@@ -68,6 +68,3 @@
 .html-floating-toolbar__image input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: inherit; }
 .html-floating-toolbar__image:focus-within { outline: 2px solid var(--html-editor-accent); }
 .html-floating-toolbar__popover > input { box-sizing: border-box; max-width: 100%; padding: 6px 8px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 5px; color: inherit; background: var(--po-control, #f8f9fa); font: inherit; }
-.html-folder-access-consent { flex: 1; min-height: 0; padding: 24px; }
-.html-folder-access-consent .po-empty-state > span { max-width: 420px; line-height: 1.5; }
-.html-folder-access-consent__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }

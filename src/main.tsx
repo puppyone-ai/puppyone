@@ -14,6 +14,7 @@ import { LocalizationProvider } from "@puppyone/localization/react";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
 import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
+import { HtmlFolderAccessDialog } from "./components/HtmlFolderAccessDialog";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
@@ -195,6 +196,7 @@ async function renderApplication() {
           <ScrollbarActivity />
           {surface}
           <DesktopTooltipLayer />
+          <HtmlFolderAccessDialog />
         </ApplicationRenderBoundary>
       </LocalizationProvider>
     </React.StrictMode>,
