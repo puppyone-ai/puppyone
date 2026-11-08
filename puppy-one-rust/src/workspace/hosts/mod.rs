@@ -2,7 +2,7 @@
 //! protocol, the host's own file service and, over SSH that ends on the
 //! host, the access side that opens those folders here.
 #[cfg(test)]
-mod acceptance;
+pub(crate) mod acceptance;
 pub mod connector;
 pub mod control;
 pub mod device;

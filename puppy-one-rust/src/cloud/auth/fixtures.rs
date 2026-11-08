@@ -250,3 +250,44 @@ pub(super) fn snapshot(broker: &Broker) -> Snapshot {
 pub(super) fn binding(broker: &Broker) -> Binding {
     snapshot(broker).account.unwrap().binding
 }
+/// A broker signed in as a real account from its refresh token, over the
+/// real transport: acceptance against a deployment, never a unit test.
+pub fn refresh_token_broker(
+    api: &str,
+    web: &str,
+    user: &str,
+    email: &str,
+    refresh: &str,
+) -> Arc<Broker> {
+    let environment = Environment::new(api, web).expect("acceptance environment");
+    let store = MemoryStore::default();
+    *store.saved.lock().unwrap() = Some(Credential {
+        version: 1,
+        environment: environment.clone(),
+        user: user.into(),
+        email: email.into(),
+        refresh: Secret(refresh.into()),
+    });
+    let broker = Broker::new(
+        environment,
+        Arc::new(super::http::Http::new().expect("HTTP")),
+        Arc::new(store),
+    )
+    .0;
+    broker.restore();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let snapshot = broker.subscribe().borrow().clone();
+        if snapshot.status == Status::Authenticated && broker.signed_in_binding().is_some() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the account did not restore: {:?} {:?}",
+            snapshot.status,
+            snapshot.error
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    broker
+}

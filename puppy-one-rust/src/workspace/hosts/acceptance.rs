@@ -33,14 +33,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct Account {
-    api: String,
-    token: String,
-    user: String,
+pub(crate) struct Account {
+    pub api: String,
+    pub token: String,
+    pub user: String,
+    /// The grant itself (`refresh_token`, `user.email`).
+    pub grant: Value,
     http: reqwest::Client,
 }
 impl Account {
-    fn sign_in() -> Self {
+    pub(crate) fn sign_in() -> Self {
         let home = std::env::var("HOME").unwrap();
         let read = |var: &str, default: &str| -> Value {
             let path = std::env::var(var).unwrap_or_else(|_| format!("{home}/.secrets/{default}"));
@@ -69,6 +71,7 @@ impl Account {
             api,
             token: grant["access_token"].as_str().expect("signed in").into(),
             user: grant["user"]["id"].as_str().unwrap().into(),
+            grant,
             http,
         }
     }
