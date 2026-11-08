@@ -6,6 +6,7 @@ import type { HostCatalogDevice, HostFolderCapability } from "../../../../shared
 import { useHostCatalog } from "../../../../src/features/hosts/data/useHostCatalog";
 import { HostFolderSharingDialog, type HostFolderSharingTarget } from "../../../../src/features/hosts/ui/HostFolderSharingDialog";
 import { useHostFolderPlace } from "../../../../src/features/hosts";
+import { ProjectAudienceRows } from "../../../../src/components/project-audience";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -108,24 +109,30 @@ describe("changing what other computers may do with a shared folder", () => {
   });
 });
 
-describe("the folder's place in the Header", () => {
+describe("all my devices, in the folder's place menu", () => {
+  const studio: HostCatalogDevice = { id: "22222222-2222-4222-8222-222222222222", name: "Studio Mac", platform: "darwin",
+    state: "active", revision: 1, online: true, last_seen_at: null, folders: [] };
+  const office: HostCatalogDevice = { ...studio, id: "33333333-3333-4333-8333-333333333333", name: "Office PC" };
   function Place({ recorded }: { recorded: string | null }) {
     const [dismissed, setDismissed] = useState(0);
     // Its own folder: this App remembers what it shared and stopped sharing above.
     const place = useHostFolderPlace({ enabled: true, session: session as never, rootPath: "/Users/me/place",
       recordedFolderId: recorded, name: "notes" });
     return <>
-      <div data-dismissed={dismissed}>{place.placeRows?.(() => setDismissed((count) => count + 1))}</div>
+      <div data-dismissed={dismissed}>
+        <ProjectAudienceRows audience={{ devices: place.devices }} onDismiss={() => setDismissed((count) => count + 1)} />
+      </div>
       {place.dialog}
     </>;
   }
 
-  async function renderPlace(recorded: string | null) {
+  async function renderPlace(recorded: string | null, bridge: Record<string, unknown> = {}) {
     installDesktopBridge({
-      listHostDevices: async () => ({ devices: catalogWith(["folder.read", "folder.write"]) }),
+      listHostDevices: async () => ({ devices: [...catalogWith(["folder.read", "folder.write"]), studio, office] }),
       getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 0,
         folders: recorded ? [{ folderId: FOLDER, name: "notes", writable: true }] : [] }),
       onHostStatus: () => () => {},
+      ...bridge,
     } as never);
     const host = document.createElement("div");
     document.body.append(host);
@@ -134,22 +141,35 @@ describe("the folder's place in the Header", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     return host;
   }
+  const devicesRow = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>(".project-audience-tier")]
+    .find((row) => row.textContent?.includes("All my devices"))!;
 
-  it("offers to open a folder that is not shared yet", async () => {
+  it("turns a folder that is not shared yet on through the sharing dialog", async () => {
     const host = await renderPlace(null);
-    const row = host.querySelector<HTMLButtonElement>('[data-project-place-row="other-computers"]');
-    expect(row?.textContent).toBe("Open on my other computers…");
-    await act(async () => { row?.click(); });
+    const row = devicesRow(host);
+    expect(row.getAttribute("aria-checked")).toBe("false");
+    expect(row.textContent).toContain("Turn on");
+    await act(async () => { row.click(); });
     expect(host.querySelector("[data-dismissed]")?.getAttribute("data-dismissed")).toBe("1");
     expect(button("Make available")).not.toBeNull();
   });
 
-  it("says how a shared folder is open, and changes it in the same dialog", async () => {
+  it("names the other computers that can open a shared folder, and changes how in the same dialog", async () => {
     const host = await renderPlace(FOLDER);
-    const row = host.querySelector<HTMLButtonElement>('[data-project-place-row="other-computers"]');
-    expect(row?.textContent).toBe("Available on your other computersCan edit");
-    await act(async () => { row?.click(); });
+    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
+    const who = host.querySelector<HTMLButtonElement>(".project-audience-detail")!;
+    expect(who.textContent).toBe("Studio Mac and 1 other");
+    await act(async () => { who.click(); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(button("Stop sharing")).not.toBeNull();
+  });
+
+  it("stops sharing from its own row after Main asks, and changes nothing when that is declined", async () => {
+    const removeHostFolder = vi.fn(async () => ({ cancelled: true as const }));
+    const host = await renderPlace(FOLDER, { removeHostFolder });
+    expect(devicesRow(host).textContent).toContain("Stop");
+    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
+    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: FOLDER, expectedSession });
+    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
   });
 });

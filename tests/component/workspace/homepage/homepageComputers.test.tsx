@@ -29,7 +29,7 @@ const devices: HostCatalogDevice[] = [
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-async function render({ showOtherComputers = true, bridge = {} }: { showOtherComputers?: boolean; bridge?: Record<string, unknown> } = {}) {
+async function render({ bridge = {} }: { bridge?: Record<string, unknown> } = {}) {
   installDesktopBridge({
     listHostDevices: async () => ({ devices }),
     getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 0, running: [] }),
@@ -37,7 +37,7 @@ async function render({ showOtherComputers = true, bridge = {} }: { showOtherCom
     ...bridge,
   } as never);
   let sharing: ProjectListSharing | undefined;
-  const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", showOtherComputers,
+  const base: OnboardingGroupsBase = { label: "Projects", layout: "grid",
     personalSharedTitle: "My shared projects",
     cloud: [{ id: "team-shared", title: "Team shared projects", children: <ul className="onboarding-project-list" /> }],
     local: { title: "Only on this computer", items: [
@@ -97,12 +97,6 @@ describe("the owner's other computers on the Homepage", () => {
     const { host, sharing } = await render();
     expect([...sharing()!.sharedFolderIds]).toEqual(["f-1", "f-2"]);
     expect(personal(host).textContent).not.toContain("folder open to your other computers");
-  });
-
-  it("leaves other computers out while the page is narrowed to some places", async () => {
-    const { host } = await render({ showOtherComputers: false });
-    expect(titles(host)).toEqual(["Team shared projects", "My shared projects", "Only on this computer"]);
-    expect(host.querySelector("[data-host-folder]")).toBeNull();
   });
 
   it("retains recorded sharing through a failed catalog read instead of claiming local-only", async () => {

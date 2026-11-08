@@ -15,7 +15,8 @@ function Harness({ user = session }: { user?: DesktopCloudSession | null }) {
   state = useCloudSpaces({ enabled: true, visible: true, session: user, apiBaseUrl: "https://fixture.puppyone.ai/api/v1" });
   return null;
 }
-beforeEach(() => { vi.resetAllMocks(); root = createRoot(document.createElement("div")); });
+// Each case starts with no spaces seen before: the cache stands in only across launches.
+beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); root = createRoot(document.createElement("div")); });
 afterEach(async () => { await act(async () => root.unmount()); });
 it("ensures a separate personal space, then sorts personal before organizations", async () => {
   vi.mocked(listCloudOrganizations).mockResolvedValue([team] as never);
@@ -47,4 +48,36 @@ it("late discovery cannot leak spaces into another account or provision after si
   await act(async () => finish([team] as never));
   expect(state.spaces).toEqual([]); expect(state.status).toBe("signed-out");
   expect(ensurePersonalCloudSpace).not.toHaveBeenCalled();
+});
+it("groups from the spaces an account last saw while it answers, then from its answer", async () => {
+  vi.mocked(listCloudOrganizations).mockResolvedValue([team, personal] as never);
+  await act(async () => root.render(<Harness />));
+  await act(async () => root.unmount());
+  root = createRoot(document.createElement("div"));
+  let answer!: (value: never) => void;
+  vi.mocked(listCloudOrganizations).mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  await act(async () => root.render(<Harness />));
+  // The next launch's first frame: last time's spaces, ready, before the account answers.
+  expect(state.status).toBe("ready");
+  expect(state.spaces.map((space) => space.id)).toEqual(["personal", "team"]);
+  await act(async () => answer([personal] as never));
+  expect(state.spaces.map((space) => space.id)).toEqual(["personal"]);
+});
+it("keeps the spaces last answered when a later read fails, and reports the failure", async () => {
+  vi.mocked(listCloudOrganizations).mockResolvedValue([team, personal] as never);
+  await act(async () => root.render(<Harness />));
+  vi.mocked(listCloudOrganizations).mockRejectedValue(new Error("offline"));
+  await act(async () => state.refresh());
+  expect(state.status).toBe("error");
+  expect(state.spaces.map((space) => space.id)).toEqual(["personal", "team"]);
+});
+it("never stands in one account's spaces for another's", async () => {
+  vi.mocked(listCloudOrganizations).mockResolvedValue([team, personal] as never);
+  await act(async () => root.render(<Harness />));
+  let answer!: (value: never) => void;
+  vi.mocked(listCloudOrganizations).mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  await act(async () => root.render(<Harness user={{ ...session, user_id: "b" }} />));
+  expect(state.status).toBe("loading");
+  expect(state.spaces).toEqual([]);
+  await act(async () => answer([] as never));
 });

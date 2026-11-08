@@ -36,6 +36,10 @@ describe("Homepage visual contract", () => {
     expect(css).toMatch(/:is\(\.onboarding-entry-action, \.onboarding-entry-menu-trigger\) \{[^}]*font-size: var\(--po-type-ui-meta/);
   });
 
+  it("divides groups with a hairline on each later heading's own edge, in the divider's ink", () => {
+    expect(css).toMatch(/\.onboarding-project-group \+ \.onboarding-project-group \.onboarding-project-group-head \{[^}]*border-block-start: 1px solid var\(--po-divider\);/);
+  });
+
   describe("page", () => {
     it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
       expect(onboardingCss).not.toMatch(/\.onboarding-home-primary[^{]*\{[^}]*border-(?:block|top|bottom)\s*:/s);
