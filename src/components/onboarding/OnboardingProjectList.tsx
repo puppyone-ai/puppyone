@@ -8,7 +8,8 @@ import {
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
-import { ProjectRowActions, type ProjectActionSurface, type ProjectMoveTarget } from "../ProjectRowActions";
+import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
+import { hasProjectAudience, type ProjectAudience } from "../project-audience";
 import { DesktopMenuItem } from "../DesktopMenu";
 import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
@@ -27,12 +28,14 @@ export type ProjectListSharing = Readonly<{
   onSharingSettings: (folder: Readonly<{ folderId: string; name: string; rootPath: string }>) => void;
   /** Keeps the folder to this computer again, as moving it to On this computer. */
   onStopSharing?: (folder: Readonly<{ folderId: string; rootPath: string }>) => void;
+  /** The owner's other computers, by name, that a shared folder is open to. */
+  otherComputers?: readonly string[];
 }>;
 
 type OnboardingProjectListProps = ProjectChanges & {
   sharing?: ProjectListSharing;
-  /** The other groups each project can be moved to from its menu. */
-  moveTargets?: (item: ProjectHomeItem) => readonly ProjectMoveTarget[];
+  /** Who can open each project, and the way to change it, in its menu. */
+  audience?: (item: ProjectHomeItem) => ProjectAudience | null;
   /** The rows are not settled yet, so the mark stands in for them. */
   held?: boolean;
   items: ProjectHomeItem[];
@@ -58,7 +61,7 @@ export function OnboardingProjectList({
   onDragStart,
   onDragEnd,
   sharing,
-  moveTargets,
+  audience,
   ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
@@ -125,9 +128,7 @@ export function OnboardingProjectList({
               className="onboarding-project-cloud-link" tabIndex={tabIndex}
               onOpen={() => onOpenCloudProject(linked.id)} />}
             <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
-              moveTargets={moveTargets?.(item)}
-              onSharingSettings={sharedId && sharing
-                ? () => sharing.onSharingSettings({ folderId: sharedId, name, rootPath: item.localPath }) : undefined}
+              audience={audience?.(item)}
               onSurfaceChange={(next) => {
                 if (!next) navigation.handOffFocusIfGone(item.id);
                 setActions(next && { id: item.id, surface: next });
@@ -158,18 +159,17 @@ function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: Proj
 }
 
 /** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
-function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, onSharingSettings, moveTargets, ...changes }: ProjectChanges & {
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, audience, ...changes }: ProjectChanges & {
   item: ProjectHomeItem;
-  onSharingSettings?: () => void;
-  moveTargets?: readonly ProjectMoveTarget[];
+  audience?: ProjectAudience | null;
   name: string;
   busy: boolean;
   surface: ProjectActionSurface;
   tabIndex: number;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
 }) {
-  const offered = { ...offeredProjectChanges(item, changes), onSharingSettings };
-  if (!Object.values(offered).some(Boolean) && !moveTargets?.length) return null;
+  const offered = offeredProjectChanges(item, changes);
+  if (!Object.values(offered).some(Boolean) && !hasProjectAudience(audience)) return null;
   return (
     <ProjectRowActions
       project={{ name, path: item.localPath || undefined }}
@@ -179,7 +179,7 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
       triggerClassName="desktop-menu-icon-button onboarding-project-actions"
       triggerTabIndex={tabIndex}
       menuPlacement="beside"
-      moveTargets={moveTargets}
+      audience={audience}
       {...offered}
     />
   );

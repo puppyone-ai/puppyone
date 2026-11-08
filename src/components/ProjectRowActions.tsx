@@ -1,4 +1,4 @@
-import { LocalIcon, Tooltip } from "@puppyone/shared-ui";
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useEffect,
   useLayoutEffect,
@@ -15,9 +15,9 @@ import {
 } from "./DesktopDialog";
 import {
   DesktopMenuItem,
-  DesktopMenuSection,
   DesktopMenuSeparator,
 } from "./DesktopMenu";
+import { hasProjectAudience, ProjectAudienceRows, type ProjectAudience } from "./project-audience";
 import {
   DesktopSidebarActionMenu,
   resolveDesktopActionMenuPositionBeside,
@@ -30,7 +30,7 @@ import { ProjectMenuHeader } from "./ProjectMenuHeader";
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
 
 /** The local menu has room for its folder's commands and where it can move. */
-const PROJECT_ACTION_MENU_WIDTH = { local: 224, cloud: 184 } as const;
+const PROJECT_ACTION_MENU_WIDTH = { local: 260, cloud: 184 } as const;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 const PROJECT_NAME_MAX_LENGTH = { local: 120, cloud: 200 } as const;
 const PROJECT_ACTION_MENU_POSITION = {
@@ -61,18 +61,14 @@ export type ProjectRowActionsProps = Readonly<{
   onRename?: (name: string) => Promise<void>;
   onUnlink?: () => Promise<void>;
   onDelete?: () => Promise<void>;
-  /** What the owner's other computers may do with this folder; only where it is open to them. */
-  onSharingSettings?: () => void;
-  /** The Homepage groups this project can be moved to, as dragging it there would. */
-  moveTargets?: readonly ProjectMoveTarget[];
+  /** Who can open this project, and the way to change it, as the Header's place menu says. */
+  audience?: ProjectAudience | null;
   disabled?: boolean;
   triggerClassName?: string;
   /** For a list that keeps its rows out of the way of the Tab key. */
   triggerTabIndex?: number;
   menuPlacement?: keyof typeof PROJECT_ACTION_MENU_POSITION;
 }>;
-
-export type ProjectMoveTarget = Readonly<{ id: string; label: string; icon: ReactNode; onMove: () => void }>;
 
 export function ProjectRowActions({
   project,
@@ -81,8 +77,7 @@ export function ProjectRowActions({
   onRename,
   onUnlink,
   onDelete,
-  onSharingSettings,
-  moveTargets = [],
+  audience,
   disabled = false,
   triggerClassName = "desktop-project-switcher-row-action",
   triggerTabIndex,
@@ -256,33 +251,11 @@ export function ProjectRowActions({
                 }}
               />
             )}
-            {onSharingSettings && (
-              <DesktopMenuItem
-                icon={<LocalIcon size={14} />}
-                label={t("hosts.home.sharingSettings")}
-                onClick={() => {
-                  onSurfaceChange(null);
-                  onSharingSettings();
-                }}
-              />
-            )}
-            {moveTargets.length > 0 && <>
+            {hasProjectAudience(audience) && <>
               <DesktopMenuSeparator />
-              <DesktopMenuSection label={t("shell.workspaceSwitcher.moveTo")}>
-                {moveTargets.map((target) => (
-                  <DesktopMenuItem
-                    key={target.id}
-                    icon={target.icon}
-                    label={target.label}
-                    onClick={() => {
-                      onSurfaceChange(null);
-                      target.onMove();
-                    }}
-                  />
-                ))}
-              </DesktopMenuSection>
+              <ProjectAudienceRows audience={audience} onDismiss={() => onSurfaceChange(null)} />
             </>}
-            {(onRename || onSharingSettings || moveTargets.length > 0) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
+            {(onRename || hasProjectAudience(audience)) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
             {onUnlink && (
               <DesktopMenuItem
                 destructive

@@ -99,6 +99,7 @@ import {
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { cloudProjectAddress, localProjectAddress, resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
+import { useLocalProjectAudience } from "./features/app-shell/project-place/useLocalProjectAudience";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
@@ -1523,6 +1524,37 @@ function AppContent() {
     enabled: hostDevicesEnabled && Boolean(window.puppyoneDesktop && desktopCloudApiBaseUrl) && !cloudWorkspaceActive,
     session: activeCloudSession, rootPath: workspace?.path, recordedFolderId: workspace?.hostFolderId,
     name: workspace?.name ?? "" });
+  // Who can open the local folder in this window, for its place menu: my devices
+  // directly, a team through a copy in the Cloud.
+  const linkedCloudProjectId = cloudProjectNoticeState?.kind === "linked" ? cloudProjectNoticeState.projectId : null;
+  const linkedSpaceId = linkedCloudProjectId
+    ? projectCatalog.items.find((item) => item.cloudProjectId === linkedCloudProjectId)?.cloudOrganizationId : undefined;
+  const linkedSpaceKind = cloudSpaces.spaces.find((space) => space.id === linkedSpaceId)?.kind;
+  const copyTeam = cloudSpaces.spaces.find((space) => space.kind === "team" && space.canCreateProjects);
+  const localAudience = useLocalProjectAudience({
+    cloudEnabled,
+    devices: hostFolderPlace.devices,
+    notice: cloudProjectNoticeState,
+    disconnectable: cloudLinkDisconnectable,
+    unhosted: projectCloudContext.status === "local-only",
+    publishPending: repositoryCloudInitializationPending,
+    linkedSpaceKind,
+    canCopyToTeam: Boolean(copyTeam),
+    unsent: gitTitlebarStatus.outgoing,
+    handlers: {
+      onCopyToTeam: () => {
+        openCloudPublish();
+        if (!repositoryCloudInitializationPending && copyTeam && workspace?.path && cloudSpaces.authority) {
+          setCloudPublishTarget({ path: workspace.path, organizationId: copyTeam.id, authority: cloudSpaces.authority });
+        }
+      },
+      onOpenCloudProject: (projectId) => { void selectCloudProject(projectId); },
+      onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
+      onRetry: revalidateRepositoryContext,
+      onDisconnect: openCloudLinkDisconnect,
+      onSend: () => { void handlePushGit(); },
+    },
+  });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1758,8 +1790,8 @@ function AppContent() {
   // the rail on, the name and the place are in the rail's rows, and repeating
   // them here would give the window two places to read the same fact from.
   const headerWorkspace = cloudWorkspaceActive && hostedWorkspace ? hostedWorkspace : workspace;
-  // Where the open project is and its one action: put the folder in the Cloud
-  // (the conversion entry), or open the other project of a linked pair.
+  // Where the open project is, and who can open it; a Cloud copy offers the
+  // folder it was made from.
   const openCloudProjectId = cloudWorkspaceActive && accountCloud.context.status === "resolved"
     ? accountCloud.context.projectId : null;
   const linkedFolder = openCloudProjectId
@@ -1769,22 +1801,15 @@ function AppContent() {
       cloudEnabled,
       place: workspaceLocation,
       address: workspaceLocation === "cloud" ? cloudProjectAddress(openCloudOrganizationName) : localProjectAddress(workspace?.path),
-      unhosted: projectCloudContext.status === "local-only",
-      publishPending: repositoryCloudInitializationPending,
       notice: cloudProjectNoticeState,
       disconnectable: cloudLinkDisconnectable,
       linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
     }),
     handlers: {
-      onPutInCloud: openCloudPublish,
-      onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
-      onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
-      onRetryCloudLink: revalidateRepositoryContext,
-      onDisconnectCloudLink: openCloudLinkDisconnect,
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
       ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
     },
-    hostRows: hostFolderPlace.placeRows,
+    audience: localAudience,
   } : null;
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext

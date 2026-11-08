@@ -1,0 +1,84 @@
+@layer features {
+  /* Who can open a project: a quiet label, three rows with a tick, and the lines a
+     Cloud copy or my devices hang under their row. The row is the control; its
+     action is the small word at its end. Shared by the Header and the Homepage. */
+  .project-audience {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .project-audience-title {
+    padding: 4px var(--po-menu-item-padding-inline) 2px;
+    color: var(--po-text-subtle);
+    font-size: var(--po-menu-meta-font-size, 12px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: var(--po-menu-meta-line-height, 15px);
+  }
+
+  .desktop-menu-item.project-audience-tier {
+    color: var(--po-text-muted);
+  }
+
+  .desktop-menu-item.project-audience-tier[data-checked] {
+    color: var(--po-text);
+  }
+
+  /* A row that only states whether it applies is not dimmed: it is a fact, not a
+     control that is unavailable. */
+  .desktop-menu-item.project-audience-tier[aria-disabled="true"],
+  .desktop-menu-item.project-audience-detail[aria-disabled="true"] {
+    opacity: 1;
+  }
+
+  .desktop-menu-item.project-audience-tier[aria-disabled="true"]:not([data-checked]) {
+    color: var(--po-text-muted);
+  }
+
+  .project-audience-tier .desktop-menu-item-icon {
+    opacity: 1;
+  }
+
+  .project-audience-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--po-text-muted);
+    font-size: var(--po-menu-meta-font-size, 12px);
+    white-space: nowrap;
+  }
+
+  .desktop-menu-item:is(:hover, :focus-visible):not([aria-disabled="true"]) .project-audience-action {
+    color: var(--po-text);
+  }
+
+  /* Lines under a row start where the row's words start, in the smaller type. */
+  .desktop-menu-item.project-audience-detail {
+    height: auto;
+    min-height: 26px;
+    gap: 6px;
+    padding-inline-start: calc(var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap));
+    color: var(--po-text-subtle);
+    font-size: var(--po-menu-meta-font-size, 12px);
+  }
+
+  .project-audience-detail .desktop-menu-item-icon {
+    width: 14px;
+    height: 14px;
+    flex-basis: 14px;
+  }
+
+  .project-audience-detail .desktop-menu-item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-menu-item.project-audience-detail[aria-disabled="true"] {
+    color: var(--po-text-subtle);
+  }
+
+  .desktop-menu-item.project-audience-detail[data-tone="warning"] {
+    color: var(--po-warning);
+  }
+}

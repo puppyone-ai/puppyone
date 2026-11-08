@@ -142,13 +142,13 @@ const noop = () => undefined;
 function FixturePlaceMenu({ shared }: { shared: boolean }) {
   const place = useHostFolderPlace({ enabled: true, session, rootPath: "/Users/demo/Projects/puppyone Vault",
     recordedFolderId: shared ? "f-vault" : null, name: "puppyone Vault" });
-  const menu = resolveProjectPlaceMenu({ place: "local", unhosted: true, publishPending: false, disconnectable: false,
-    notice: null, linkedFolder: null, address: { short: "~/Projects", full: "~/Projects/puppyone Vault" } });
+  const menu = resolveProjectPlaceMenu({ place: "local", address: { short: "~/Projects", full: "~/Projects/puppyone Vault" } });
   return <>
     <DesktopMenuSurface className="desktop-project-place-menu" elevation="compact"
       style={{ position: "fixed", top: 52, left: 220, width: 300, padding: "var(--po-menu-padding)", zIndex: 30 }}>
-      <ProjectPlaceRows menu={menu} hostRows={place.placeRows} onDismiss={noop} handlers={{ onPutInCloud: noop,
-        onOpenCloudProject: noop, onSignIn: noop, onRetryCloudLink: noop, onDisconnectCloudLink: noop, onOpenLocalFolder: noop }} />
+      <ProjectPlaceRows menu={menu} onDismiss={noop} handlers={{ onOpenLocalFolder: noop }}
+        audience={{ devices: place.devices, team: shared
+          ? { copy: { onOpen: noop, unsent: 2, onSend: noop } } : { copy: null, onCopy: noop } }} />
     </DesktopMenuSurface>
     {place.dialog}
   </>;
