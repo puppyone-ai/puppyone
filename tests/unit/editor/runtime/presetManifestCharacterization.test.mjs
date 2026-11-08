@@ -40,10 +40,20 @@ async function loadManifest(runtime, input) {
   }
 }
 
-for (const runtime of ["main", "renderer"]) {
-  describe(`${runtime} manifest characterization`, () => {
-    it.each(manifestCases)("preserves %s", async (_name, input) => {
-      expect(await loadManifest(runtime, input)).toMatchSnapshot();
-    });
+describe("preset manifest characterization", () => {
+  it.each(manifestCases)("Main and the renderer read %s alike", async (_name, input) => {
+    const main = await loadManifest("main", input);
+    const renderer = await loadManifest("renderer", input);
+    // Both accept and refuse the same manifests. An accepted manifest is its own
+    // input, frozen, as loadManifest checks; only a refusal has words to keep,
+    // and where the two word it differently, both are kept.
+    expect("error" in renderer).toBe("error" in main);
+    if (!("error" in main)) {
+      expect(renderer).toEqual(main);
+      expect("accepted").toMatchSnapshot();
+    } else {
+      expect(renderer.error).toBe(main.error);
+      expect(renderer.message === main.message ? main : { main, renderer }).toMatchSnapshot();
+    }
   });
-}
+});
