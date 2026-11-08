@@ -6,6 +6,7 @@ import {
   createDesktopBillingIdempotencyKey,
   openCloudBillingExternalUrl,
   type DesktopBillingCatalog,
+  type DesktopBillingQuote,
   type DesktopBillingSummary,
   type DesktopBillingUsage,
   type DesktopCloudSession,
@@ -129,6 +130,8 @@ function ConnectedPlans({
     setSeats(onTeam ? holding.seats : teamMinimum);
   }, [holding.seats, onTeam, setSeats, teamMinimum]);
 
+  const quoteTiming = describeQuoteTiming(billing.quote, holding, localization);
+
   const refreshAll = useCallback(() => {
     controller.refresh();
     onRefresh();
@@ -209,6 +212,16 @@ function ConnectedPlans({
         usage={billing.usage ?? usage}
         addOns={view.addOns}
         localization={localization}
+        scheduledAction={holding.scheduled && current.catalogPlan ? (
+          <button
+            type="button"
+            className="desktop-settings-action"
+            disabled={busy || !sellable}
+            onClick={() => void controller.quotePlan(current.catalogPlan!, holding.seats)}
+          >
+            {t("settings.plan.keepCurrent")}
+          </button>
+        ) : undefined}
         action={holding.subscribed && effectiveSummary?.portal_available ? (
           <button
             type="button"
@@ -239,12 +252,12 @@ function ConnectedPlans({
                 disabled={billing.action !== null}
                 onClick={() => void controller.confirmQuote().then(refreshAll)}
               >
-                <span>{t("settings.plan.confirmAndPay")}</span>
-                <ExternalLink size={12} aria-hidden="true" />
+                <span>{t(quoteTiming.confirm)}</span>
+                {quoteTiming.opensBrowser && <ExternalLink size={12} aria-hidden="true" />}
               </button>
             )}
           />
-          <p className="desktop-plan-note">{t("settings.plan.quoteNote")}</p>
+          <p className="desktop-plan-note">{quoteTiming.note}</p>
         </SettingsSubsection>
       )}
       {billing.actionError && (
@@ -277,6 +290,48 @@ function ConnectedPlans({
   );
 }
 
+function describeScheduledChange(holding: PlanHolding, localization: LocalizationContextValue): string {
+  const { t } = localization;
+  const scheduled = holding.scheduled!;
+  const date = localization.formatDate(scheduled.effectiveAt, { month: "short", day: "numeric" });
+  if (scheduled.planId === holding.planId) {
+    return t("settings.plan.scheduledSeats", { count: scheduled.seats, date });
+  }
+  return t("settings.plan.scheduledPlan", {
+    plan: t(`settings.plan.name.${planKey(String(scheduled.planId))}`),
+    date,
+  });
+}
+
+/**
+ * What confirming a quote will do, in words: pay now, wait for renewal, or
+ * withdraw a scheduled change by keeping what is held.
+ */
+export function describeQuoteTiming(
+  quote: DesktopBillingQuote | null,
+  holding: PlanHolding,
+  localization: LocalizationContextValue,
+): { confirm: string; note: string; opensBrowser: boolean } {
+  const { t } = localization;
+  const keeps = quote !== null
+    && holding.scheduled !== null
+    && planKey(quote.target_plan_id) === holding.planId
+    && quote.target_seats === holding.seats;
+  if (keeps) {
+    return { confirm: "settings.plan.keepCurrent", note: t("settings.plan.quoteKeep"), opensBrowser: false };
+  }
+  if (quote?.effective === "next_period" && holding.renewsAt) {
+    return {
+      confirm: "settings.plan.confirmSchedule",
+      note: t("settings.plan.quoteNextPeriod", {
+        date: localization.formatDate(holding.renewsAt, { month: "short", day: "numeric" }),
+      }),
+      opensBrowser: false,
+    };
+  }
+  return { confirm: "settings.plan.confirmAndPay", note: t("settings.plan.quoteNote"), opensBrowser: true };
+}
+
 /** The plan held, and this period's agent hours and storage against it. */
 export function CurrentPlan({
   offer,
@@ -285,6 +340,7 @@ export function CurrentPlan({
   addOns,
   localization,
   action,
+  scheduledAction,
 }: {
   offer: PlanOffer;
   holding: PlanHolding;
@@ -292,6 +348,8 @@ export function CurrentPlan({
   addOns: readonly AddOnOffer[];
   localization: LocalizationContextValue;
   action?: ReactNode;
+  /** Withdraws a scheduled downgrade; shown beside it. */
+  scheduledAction?: ReactNode;
 }) {
   const { t } = localization;
   const reading = resolveAllowance(usage, offer, holding, addOns);
@@ -321,6 +379,13 @@ export function CurrentPlan({
   return (
     <SettingsSubsection leading>
       <SettingsValueRow label={t("settings.plan.currentLabel")} value={parts.join(" · ")} action={action} />
+      {holding.scheduled && (
+        <SettingsValueRow
+          label={t("settings.plan.scheduledLabel")}
+          value={describeScheduledChange(holding, localization)}
+          action={scheduledAction}
+        />
+      )}
       <MeterRow
         label={t("settings.plan.hoursLabel")}
         value={describeHoursReading(reading, localization)}

@@ -12,10 +12,15 @@ import {
   resolvePlanCatalog,
   resolvePlanHolding,
 } from "../../../../src/features/settings/main/planPricing";
-import { CloudPlans } from "../../../../src/features/settings/main/CloudPlans";
+import {
+  CloudPlans,
+  CurrentPlan,
+  describeQuoteTiming,
+} from "../../../../src/features/settings/main/CloudPlans";
 import { AccountUsageMeters } from "../../../../src/features/settings/main/AccountUsageMeters";
 import type {
   DesktopBillingCatalog,
+  DesktopBillingQuote,
   DesktopBillingSummary,
   DesktopBillingUsage,
 } from "../../../../src/lib/cloudApi";
@@ -311,4 +316,100 @@ it("never reads a few saved files as zero gigabytes", () => {
 it("carries no way back, because the nav it came from is still on screen", async () => {
   const host = await render(<SignedOut />);
   expect(host.querySelector(".desktop-settings-back")).toBeNull();
+});
+
+/**
+ * Downgrades and seat decreases decided on 2026-11-09: they wait for renewal,
+ * keep everything paid for until then, and refund nothing.
+ */
+const SCHEDULED_TEAM = summaryOf({
+  plan_id: "team",
+  seat_quantity: 3,
+  current_period_end: "2026-12-08T12:00:00Z",
+  pending_plan_id: null,
+  pending_seat_quantity: 2,
+  pending_effective_at: "2026-12-08T12:00:00Z",
+});
+
+it("reads a scheduled seat decrease and a scheduled downgrade from the summary", () => {
+  expect(resolvePlanHolding(SCHEDULED_TEAM, CATALOG).scheduled).toEqual({
+    planId: "team", seats: 2, effectiveAt: "2026-12-08T12:00:00Z",
+  });
+  const downgrade = resolvePlanHolding(summaryOf({
+    ...SCHEDULED_TEAM, pending_plan_id: "plus", pending_seat_quantity: 1,
+  }), CATALOG);
+  expect(downgrade.scheduled?.planId).toBe("personal");
+  // A change still waiting on the payment service is not a schedule.
+  expect(resolvePlanHolding(summaryOf({ status: "change_pending", pending_plan_id: "team" }), CATALOG)
+    .scheduled).toBeNull();
+});
+
+function ScheduledCard({ summary, onKeep }: { summary: DesktopBillingSummary; onKeep: () => void }) {
+  const localization = useLocalization();
+  const { plans, addOns } = resolvePlanCatalog(CATALOG);
+  const holding = resolvePlanHolding(summary, CATALOG);
+  return (
+    <CurrentPlan
+      offer={plans.find((plan) => plan.id === holding.planId)!}
+      holding={holding}
+      usage={null}
+      addOns={addOns}
+      localization={localization}
+      scheduledAction={<button type="button" onClick={onKeep}>Keep current plan</button>}
+    />
+  );
+}
+
+it("says what changes at renewal and offers to keep the current plan", async () => {
+  const keep = vi.fn();
+  const host = await render(<ScheduledCard summary={SCHEDULED_TEAM} onKeep={keep} />);
+  expect(host.textContent).toContain("Scheduled change");
+  expect(host.textContent).toMatch(/2 people from Dec 8/);
+  await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
+  expect(keep).toHaveBeenCalledOnce();
+
+  const downgrade = await render(
+    <ScheduledCard
+      summary={summaryOf({ ...SCHEDULED_TEAM, pending_plan_id: "personal", pending_seat_quantity: 1 })}
+      onKeep={() => undefined}
+    />,
+  );
+  expect(downgrade.textContent).toMatch(/Personal from Dec 8/);
+});
+
+function QuoteTiming({ quote, summary }: { quote: DesktopBillingQuote; summary: DesktopBillingSummary }) {
+  const localization = useLocalization();
+  const timing = describeQuoteTiming(quote, resolvePlanHolding(summary, CATALOG), localization);
+  return <p data-confirm={localization.t(timing.confirm)} data-browser={String(timing.opensBrowser)}>{timing.note}</p>;
+}
+
+const quoteOf = (values: Partial<DesktopBillingQuote>) => ({
+  quote_id: "q1", org_id: "o1", kind: "plan", current_plan_id: "team", target_plan_id: "team",
+  current_seats: 3, target_seats: 3, currency: "USD", current_amount_cents: 6000, target_amount_cents: 6000,
+  delta_amount_cents: 0, application_mode: "plan_change", effective: "now", requires_confirmation: true,
+  catalog_version: "2026-11-08.1", expires_at: "2026-11-09T00:00:00Z", details: {}, ...values,
+}) as DesktopBillingQuote;
+
+it("tells a downgrade apart from a payment before it is confirmed", async () => {
+  const later = await render(
+    <QuoteTiming
+      quote={quoteOf({ target_seats: 2, target_amount_cents: 4000, effective: "next_period" })}
+      summary={summaryOf({ plan_id: "team", seat_quantity: 3, current_period_end: "2026-12-08T12:00:00Z" })}
+    />,
+  );
+  const note = later.querySelector("p")!;
+  expect(note.textContent).toMatch(/Takes effect on Dec 8.*nothing is refunded/);
+  expect([note.dataset.confirm, note.dataset.browser]).toEqual(["Schedule change", "false"]);
+
+  const keep = await render(<QuoteTiming quote={quoteOf({})} summary={SCHEDULED_TEAM} />);
+  expect(keep.querySelector("p")!.dataset.confirm).toBe("Keep current plan");
+
+  const pay = await render(
+    <QuoteTiming
+      quote={quoteOf({ target_seats: 4, target_amount_cents: 8000 })}
+      summary={summaryOf({ plan_id: "team", seat_quantity: 3 })}
+    />,
+  );
+  expect([pay.querySelector("p")!.dataset.confirm, pay.querySelector("p")!.dataset.browser])
+    .toEqual(["Confirm and pay", "true"]);
 });

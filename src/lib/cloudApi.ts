@@ -231,6 +231,9 @@ export type DesktopBillingSummary = {
     | "disputed";
   seat_quantity: number;
   pending_plan_id: string | null;
+  /** A downgrade or seat decrease waiting for renewal; absent from older servers. */
+  pending_seat_quantity?: number | null;
+  pending_effective_at?: string | null;
   cancel_at_period_end: boolean;
   current_period_end: string | null;
   catalog_version: string;
@@ -311,6 +314,8 @@ export type DesktopBillingQuote = {
   target_amount_cents: number;
   delta_amount_cents: number;
   application_mode: "checkout" | "plan_change" | "seat_change";
+  /** Downgrades and seat decreases wait for renewal; absent from older servers. */
+  effective?: "now" | "next_period";
   requires_confirmation: boolean;
   catalog_version: string;
   expires_at: string;
@@ -1174,6 +1179,13 @@ export function validateDesktopBillingSummary(value: unknown): DesktopBillingSum
     0,
   );
   requireBillingOptionalString(summary.pending_plan_id, "summary.pending_plan_id");
+  if (summary.pending_seat_quantity !== undefined && summary.pending_seat_quantity !== null) {
+    requireBillingInteger(summary.pending_seat_quantity, "summary.pending_seat_quantity", 1);
+  }
+  requireBillingOptionalTimestamp(
+    summary.pending_effective_at ?? null,
+    "summary.pending_effective_at",
+  );
   requireBillingOptionalTimestamp(summary.current_period_end, "summary.current_period_end");
   if (summary.add_ons !== undefined) {
     if (!Array.isArray(summary.add_ons)) {
@@ -1221,6 +1233,9 @@ export function validateDesktopBillingQuote(value: unknown): DesktopBillingQuote
   requireBillingBoolean(quote.requires_confirmation, "quote.requires_confirmation");
   if (!["checkout", "plan_change", "seat_change"].includes(String(quote.application_mode))) {
     throw new Error("Cloud returned an invalid billing quote.application_mode.");
+  }
+  if (quote.effective !== undefined) {
+    requireBillingEnum(quote.effective, ["now", "next_period"] as const, "quote.effective");
   }
   requireBillingRecord(quote.details, "quote.details");
   return quote as unknown as DesktopBillingQuote;

@@ -218,6 +218,14 @@ export type PlanHolding = {
   cancelAtPeriodEnd: boolean;
   /** Add-on quantities held, by id. */
   addOns: Record<string, number>;
+  /** A downgrade or seat decrease that waits for renewal. */
+  scheduled: ScheduledPlanChange | null;
+};
+
+export type ScheduledPlanChange = {
+  planId: PlanId | string;
+  seats: number;
+  effectiveAt: string;
 };
 
 /**
@@ -239,6 +247,7 @@ export function resolvePlanHolding(
       renewsAt: null,
       cancelAtPeriodEnd: false,
       addOns: {},
+      scheduled: null,
     };
   }
   const plan = catalog?.plans.find((candidate) => candidate.id === summary.plan_id
@@ -259,6 +268,13 @@ export function resolvePlanHolding(
     renewsAt: summary.current_period_end,
     cancelAtPeriodEnd: summary.cancel_at_period_end,
     addOns,
+    scheduled: summary.pending_effective_at
+      ? {
+        planId: canonicalPlanId(summary.pending_plan_id ?? plan?.id ?? summary.plan_id),
+        seats: summary.pending_seat_quantity ?? seats,
+        effectiveAt: summary.pending_effective_at,
+      }
+      : null,
   };
 }
 

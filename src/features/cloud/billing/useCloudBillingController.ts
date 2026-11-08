@@ -302,12 +302,12 @@ export function useCloudBillingController(
     dispatch({ type: "setSeatQuantity", contextKey, value });
   }, [contextKey]);
 
-  const quotePlan = useCallback(async (plan: DesktopBillingPlan) => {
+  const quotePlan = useCallback(async (plan: DesktopBillingPlan, seatQuantity?: number) => {
     const capturedContextKey = contextKey;
     const capturedOrganizationId = organizationId;
     if (!enabled || !capturedOrganizationId || !plan.purchasable) return;
     const capturedActionEpoch = ++actionEpochRef.current;
-    const seats = clampBillingSeats(state.seatQuantity, plan);
+    const seats = clampBillingSeats(seatQuantity ?? state.seatQuantity, plan);
     const intent = `plan-quote:${capturedOrganizationId}:${plan.id}:${seats}`;
     dispatch({
       type: "quoteStarted",
