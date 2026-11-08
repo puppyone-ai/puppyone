@@ -89,9 +89,6 @@ impl Shell {
         else {
             return;
         };
-        if self.chrome.read(cx).popover == Some(Popover::Agents) {
-            self.set_popover(None, cx);
-        }
         if hosted {
             self.close_workspace_sidebars(window, cx);
             self.receive(window, cx);

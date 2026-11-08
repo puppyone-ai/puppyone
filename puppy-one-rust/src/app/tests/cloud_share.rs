@@ -3,21 +3,37 @@
 use super::*;
 use core::prelude::v1::test;
 
-/// C-3, N-6: the Agents in a hosted workspace stand beside Share, someone
-/// asking to join first. Any mark opens their card and the same mark closes
-/// it; a press outside closes it; Manage agents opens over the window.
+/// qubits `ba74bd20d`, `8a7c78a3a`: the Agents in a hosted workspace. Only
+/// what is live stands on its own — someone asking to join first — and the
+/// Agents at rest are one stack. A request keeps its own card under the
+/// Header until it is answered; pressing a mark meanwhile only brings its
+/// Deny into reach. Then any mark opens the Agents dialog, whose seat shows
+/// how to invite; Escape closes it.
 #[gpui::test]
-fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
+fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext) {
+    use std::sync::{Arc, Mutex};
     let (view, cx) = setup(cx);
     let base = cloud_project_responder();
-    let responder = with_catalog(std::sync::Arc::new(move |request| {
+    let pending = Arc::new(Mutex::new(true));
+    let decided = Arc::new(Mutex::new(Vec::<String>::new()));
+    let (asking, answers) = (pending.clone(), decided.clone());
+    let responder = with_catalog(Arc::new(move |request| {
         let path = request.path.as_str();
         if path.ends_with("/agent-links") && request.method == reqwest::Method::GET {
-            return Ok(serde_json::json!({"code": 0, "data": {"links": [],
+            let mut inventory = serde_json::json!({"links": [],
                 "connections": [{"id": "c1", "name": "Claude Code", "admission": "sign_in",
-                    "grant_id": "g1", "connected_at": "2026-10-30T12:00:00Z", "expires_at": null}],
-                "pending": [{"id": "r1", "name": "Codex", "admission": "sign_in",
-                    "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}]}}));
+                    "grant_id": "g1", "connected_at": "2026-10-30T12:00:00Z", "expires_at": null}]});
+            if *asking.lock().unwrap() {
+                inventory["pending"] = serde_json::json!([{"id": "r1", "name": "Robo",
+                    "avatar": "other", "admission": "sign_in",
+                    "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}]);
+            }
+            return Ok(serde_json::json!({"code": 0, "data": inventory}));
+        }
+        if path.ends_with("/decision") {
+            answers.lock().unwrap().push(path.to_owned());
+            *asking.lock().unwrap() = false;
+            return Ok(serde_json::json!({}));
         }
         if path.ends_with("/access/sessions") {
             return Ok(serde_json::json!({"code": 0, "data": []}));
@@ -36,65 +52,69 @@ fn the_agents_stand_beside_share_and_open_their_card(cx: &mut TestAppContext) {
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the Agents", &|s, cx| {
-        s.cloud.read(cx).agents.read(cx).manageable
+        let agents = s.cloud.read(cx).agents.read(cx);
+        agents.manageable && !agents.requests.is_empty()
     });
     draw(cx);
     let request = cx.debug_bounds("cloud-workspace-agent:r1").unwrap();
-    let agent = cx.debug_bounds("cloud-workspace-agent:c1").unwrap();
-    let seat = cx
-        .debug_bounds("cloud-workspace-tool:invite-agent")
-        .unwrap();
-    assert!(request.origin.x < agent.origin.x && agent.origin.x < seat.origin.x);
-    cx.simulate_click(agent.center(), Modifiers::none());
-    draw(cx);
-    view.read_with(cx, |s, cx| {
-        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Agents))
-    });
-    let card = cx.debug_bounds("cloud-agents-panel").unwrap();
-    assert!((f32::from(card.size.width) - 320.).abs() < 0.5);
-    assert!(card.origin.y > agent.origin.y);
-    assert!(cx.debug_bounds("cloud-agent-row:c1").is_some());
-    // Another mark moves the card; the same one closes it.
-    cx.simulate_click(seat.center(), Modifiers::none());
-    draw(cx);
-    view.read_with(cx, |s, cx| {
-        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Agents));
-        assert_eq!(
-            s.cloud.read(cx).agents.read(cx).opener,
-            crate::features::cloud::Opener::Invite
-        );
-    });
-    cx.simulate_click(seat.center(), Modifiers::none());
-    draw(cx);
-    view.read_with(cx, |s, cx| assert_eq!(s.chrome.read(cx).popover, None));
-    // A press outside closes it.
-    cx.simulate_click(agent.center(), Modifiers::none());
-    draw(cx);
+    let stack = cx.debug_bounds("cloud-workspace-agent-stack").unwrap();
+    assert!(request.origin.x < stack.origin.x);
+    // Somebody is here, so there is no empty seat in the Header.
+    assert!(
+        cx.debug_bounds("cloud-workspace-tool:invite-agent")
+            .is_none()
+    );
+    // The request's own card, below the Header, until it is answered.
+    let card = cx.debug_bounds("cloud-agent-request-card").unwrap();
+    assert!((f32::from(card.size.width) - 288.).abs() < 0.5);
+    assert!(card.origin.y > request.origin.y);
+    command(&view, cx, Command::Escape);
     cx.simulate_click(point(px(400.), px(500.)), Modifiers::none());
     draw(cx);
-    view.read_with(cx, |s, cx| assert_eq!(s.chrome.read(cx).popover, None));
-    // Manage agents takes the card's place, and Escape closes it.
-    cx.simulate_click(agent.center(), Modifiers::none());
+    assert!(cx.debug_bounds("cloud-agent-request-card").is_some());
+    // A mark brings the decision into keyboard reach without making it.
+    cx.simulate_click(stack.center(), Modifiers::none());
     draw(cx);
-    let manage = cx.debug_bounds("cloud-agents-manage").unwrap();
-    cx.simulate_click(manage.center(), Modifiers::none());
-    settle_cloud(&view, cx, "Manage agents", &|s, cx| {
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("Agents", cx)));
+    // Allow, from the card (the kit's buttons carry no selectors).
+    view.update(cx, |s, cx| {
         s.cloud
             .read(cx)
             .agents
-            .read(cx)
-            .manage
-            .as_ref()
-            .is_some_and(|m| m.inventory.connections.len() == 1)
+            .clone()
+            .update(cx, |a, cx| a.decide("r1", true, cx))
     });
+    settle_cloud(&view, cx, "the answer", &|s, cx| {
+        s.cloud.read(cx).agents.read(cx).requests.is_empty()
+    });
+    assert_eq!(
+        decided.lock().unwrap().as_slice(),
+        ["/agent-links/connections/r1/decision"]
+    );
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-request-card").is_none());
+    // Any mark opens the dialog: the roster, then the invite seat.
+    let stack = cx.debug_bounds("cloud-workspace-agent-stack").unwrap();
+    cx.simulate_click(stack.center(), Modifiers::none());
+    draw(cx);
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.chrome.read(cx).popover, None);
-        assert!(s.top_dialog(cx).as_deref() == Some("ManageAgents"));
+        assert!(s.top_dialog(cx).as_deref() == Some("Agents"));
+        assert_eq!(
+            s.cloud.read(cx).agents.read(cx).opener,
+            crate::features::cloud::Opener::More
+        );
     });
+    let tile = cx.debug_bounds("cloud-agent-row:c1").unwrap();
+    let seat = cx.debug_bounds("cloud-agent-invite-seat").unwrap();
+    assert!(tile.origin.x < seat.origin.x);
+    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_none());
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_some());
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
-        assert!(s.cloud.read(cx).agents.read(cx).manage.is_none());
+        assert!(!s.cloud.read(cx).agents.read(cx).invite_open);
     });
 }
 

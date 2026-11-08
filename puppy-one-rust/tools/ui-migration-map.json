@@ -1972,30 +1972,46 @@
       "remaining": "The place menu (address, who can open it with the Cloud copy's Open, problem and Send rows, History for a hosted project), LocalFolderCloudNotice and CloudLinkDisconnectDialog are native. A folder on another computer (HostFolderPlace) waits for DV. Not pixel-compared at qubits@686d41c49."
     },
     {
-      "name": "Cloud workspace Agents (agent links)",
+      "name": "Cloud workspace Agents",
       "status": "partial",
       "sources": [
+        "src/app/CloudWorkspaceAgentCard.tsx",
+        "src/app/CloudWorkspaceAgentPeople.tsx",
+        "src/components/brand/AgentAvatarMark.tsx",
+        "src/components/brand/AgentCreature.tsx",
+        "src/components/brand/agent-avatar.css",
         "src/features/cloud/share/CloudWorkspaceAgentInvite.tsx",
+        "src/features/cloud/share/CloudWorkspaceAgentRequestCard.tsx",
         "src/features/cloud/share/CloudWorkspaceAgentsDialog.tsx",
         "src/features/cloud/share/agentLinks.ts",
+        "src/features/cloud/share/agentMark.tsx",
+        "src/features/cloud/share/useAgentRequestAnswer.ts",
         "src/features/cloud/share/useWorkspaceAgents.ts",
-        "src/app/CloudWorkspaceAgentPeople.tsx",
         "src/features/cloud/share/workspace-share.css"
       ],
       "targets": [
         "src/workspace/cloud/agents.rs",
         "src/features/cloud/agents.rs",
-        "src/app/cloud_agents_ui.rs"
+        "src/app/cloud_agents_ui.rs",
+        "src/app/cloud_agents_ui/dialog.rs",
+        "src/app/cloud_agents_ui/paste_art.rs",
+        "src/ui/agent_creature.rs"
       ],
       "evidence": [
         "test:a_link_is_made_for_the_running_workspace_and_its_prompt_names_the_project",
         "test:owner_changes_use_the_products_requests",
+        "test:what_the_header_says_about_an_agent",
+        "test:an_invite_shows_only_the_start_of_its_secret",
         "test:an_open_card_or_a_waiting_invite_asks_every_three_seconds",
-        "test:manage_removes_an_agent_and_tells_the_header",
-        "test:the_agents_stand_beside_share_and_open_their_card",
-        "test:requests_lead_then_whoever_is_at_work"
+        "test:copying_an_invite_waits_for_a_newcomer",
+        "test:the_dialog_opens_on_inviting_only_while_nobody_is_here",
+        "test:removing_asks_once_on_the_tile_and_tells_the_header",
+        "test:requests_lead_then_whoever_is_at_work_and_the_rest_rest",
+        "test:the_agents_stand_in_the_header_and_open_their_dialog",
+        "test:a_name_makes_the_products_creature",
+        "test:the_drawing_ends_each_pass_on_the_answered_chat"
       ],
-      "remaining": "The Header marks, the Agents card (requests, connected agents, invite, Manage) and the agentLinks requests are native over scripted services; hosted acceptance against a real backend and a pixel comparison remain."
+      "remaining": "The Header (live marks, the resting stack, the empty seat), the hover card, the persistent request card, the Agents dialog with its two-step invite and paste drawing, Agent avatars and creatures, and the command-based at-work rule (qubits@686d41c49) are native over scripted services. Hosted acceptance against a real backend and a pixel comparison remain; the Header mark's hop moves but does not tilt."
     },
     {
       "name": "Window project, opening surface and file mode",

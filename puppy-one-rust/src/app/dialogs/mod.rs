@@ -69,8 +69,8 @@ pub(super) enum DialogKey {
     CloudDisconnect,
     /// `CloudWorkspaceRecovery` for a Cloud opening that failed.
     CloudRecovery,
-    /// `CloudWorkspaceAgentsDialog`: Manage agents.
-    ManageAgents,
+    /// `CloudWorkspaceAgentsDialog`: who is in a hosted project.
+    Agents,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;

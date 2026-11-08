@@ -1,8 +1,9 @@
 //! `share/agentLinks.ts` and `useWorkspaceAgents.resolveWorkspaceAgents`:
 //! the Agents connected to a hosted workspace, the ones asking to join, and
-//! the links that invite them. A link is made only when its prompt is
-//! copied, so looking mints nothing; only the owner may read or change any
-//! of it.
+//! the invites that let them in. An invite is made only when its prompt is
+//! copied, so looking mints nothing; it lets one Agent in after the owner
+//! allows it and is then spent, so there are no links to look after. Only
+//! the owner may read or change any of it.
 use super::services::{Error, Result, Transport, decode, segment};
 use crate::cloud::auth::model::ApiRequest;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -11,9 +12,27 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
-/// A recent session still counts: an Agent opens one connection per command,
-/// so "connected at this instant" would be false for most of a busy task.
+/// An Agent works in bursts: a command, then a pause while it thinks, then
+/// the next. "Running a command at this instant" would be false for much of
+/// a busy task, so a recent command still counts.
 const ACTIVE_GRACE_MS: i64 = 120_000;
+/// How much of an invite's secret is shown; the rest is masked, as it is the
+/// key to the project.
+const SHOWN_SECRET: usize = 8;
+/// The part of the link only copying makes, shown as what it is: not made.
+pub const UNMADE: &str = "••••••";
+/// `INVITABLE_AGENTS`: an invite asks the Agent to make its own key and
+/// connect, so only Agents that run commands can follow one.
+pub const INVITABLE: [&str; 8] = [
+    "claude",
+    "codex",
+    "cursor",
+    "gemini",
+    "github-copilot",
+    "opencode",
+    "hermes",
+    "devin",
+];
 
 /// Who a link lets in: an Agent its owner allows, or any Agent holding it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -34,6 +53,11 @@ impl Admission {
 pub struct ConnectedAgent {
     pub id: String,
     pub name: String,
+    /// The picture the Agent chose from the server's list when it
+    /// connected: a brand the Desktop draws, or "other". Absent when it
+    /// chose nothing, and from servers that predate the choice.
+    #[serde(default)]
+    pub avatar: Option<String>,
     pub admission: Admission,
     pub grant_id: String,
     #[serde(default)]
@@ -46,6 +70,9 @@ pub struct ConnectedAgent {
 pub struct AgentRequest {
     pub id: String,
     pub name: String,
+    /// As on a connected Agent, so the owner sees it before allowing it.
+    #[serde(default)]
+    pub avatar: Option<String>,
     pub admission: Admission,
     pub requested_at: String,
     #[serde(default)]
@@ -70,8 +97,9 @@ pub struct Inventory {
     #[serde(default)]
     pub pending: Vec<AgentRequest>,
 }
-/// One connection to the workspace.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+/// One connection to the workspace, kept open across the commands an Agent
+/// runs over it.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Session {
     pub grant_id: String,
     pub state: String,
@@ -79,6 +107,12 @@ pub struct Session {
     #[serde(default)]
     pub closed_at: Option<String>,
     pub lease_until: String,
+    /// Commands running over it now. Absent from servers that predate it.
+    #[serde(default)]
+    pub commands_running: Option<u32>,
+    /// When its last command started or ended; none before its first.
+    #[serde(default)]
+    pub last_command_at: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -96,8 +130,11 @@ fn millis(iso: &str) -> Option<i64> {
         .ok()
         .map(|t| t.timestamp_millis())
 }
-/// `resolveWorkspaceAgents`: whether each Agent is at work, and when it
-/// last was. A lapsed lease is a connection nobody closed, not one in use.
+/// `resolveWorkspaceAgents`: at work means running commands, not being
+/// connected — one connection now stays open across many. A server that
+/// does not report commands only says when a connection opened or closed,
+/// which is all an older one can tell. A lapsed lease is a connection nobody
+/// closed, not one in use.
 pub fn resolve(
     connections: &[ConnectedAgent],
     sessions: Option<&[Session]>,
@@ -117,15 +154,21 @@ pub fn resolve(
             let mut last: Option<(i64, &str)> = None;
             let mut active = false;
             for session in sessions.iter().filter(|s| s.grant_id == agent.grant_id) {
-                let at = session.closed_at.as_deref().unwrap_or(&session.created_at);
-                if let Some(ms) = millis(at)
+                let reports_commands = session.commands_running.is_some();
+                let at = if reports_commands {
+                    session.last_command_at.as_deref()
+                } else {
+                    Some(session.closed_at.as_deref().unwrap_or(&session.created_at))
+                };
+                if let Some(at) = at
+                    && let Some(ms) = millis(at)
                     && last.is_none_or(|(known, _)| ms > known)
                 {
                     last = Some((ms, at));
                 }
-                if session.state != "closed"
-                    && millis(&session.lease_until).is_some_and(|lease| lease > now_ms)
-                {
+                let open = session.state != "closed"
+                    && millis(&session.lease_until).is_some_and(|lease| lease > now_ms);
+                if open && (!reports_commands || session.commands_running.unwrap_or(0) > 0) {
                     active = true;
                 }
             }
@@ -153,6 +196,18 @@ pub fn link_preview(api: &str) -> String {
     url::Url::parse(api)
         .map(|url| format!("{}/agent/", url.origin().ascii_serialization()))
         .unwrap_or_default()
+}
+/// `maskSecret`: the link as shown, its last segment, the secret, keeping
+/// only its start.
+pub fn mask_secret(url: &str) -> String {
+    let cut = url.rfind('/').map_or(0, |i| i + 1);
+    let secret = &url[cut..];
+    if secret.chars().count() > SHOWN_SECRET {
+        let shown: String = secret.chars().take(SHOWN_SECRET).collect();
+        format!("{}{shown}{UNMADE}", &url[..cut])
+    } else {
+        url.to_owned()
+    }
 }
 /// `invitationSecret`: 32 random bytes.
 fn invitation_secret() -> String {
@@ -228,11 +283,6 @@ impl Client {
         self.send(Method::POST, path, Some(json!({"decision": decision})))
             .map(drop)
     }
-    /// `stopSharingWithAgents`: links and connections end together.
-    pub fn stop_sharing(&self, project: &str) -> Result<()> {
-        let path = format!("/projects/{}/agent-links", segment(project)?);
-        self.send(Method::DELETE, path, None).map(drop)
-    }
 }
 
 #[cfg(test)]
@@ -251,6 +301,7 @@ mod tests {
         ConnectedAgent {
             id: "c1".into(),
             name: "秘书小陈".into(),
+            avatar: None,
             admission: Admission::SignIn,
             grant_id: "g1".into(),
             connected_at: at(9000),
@@ -264,6 +315,7 @@ mod tests {
             created_at: at(seconds_ago + 1),
             closed_at: Some(at(seconds_ago)),
             lease_until: at(seconds_ago - 30),
+            ..Default::default()
         }
     }
     fn one(sessions: Option<&[Session]>) -> WorkspaceAgent {
@@ -279,6 +331,7 @@ mod tests {
             created_at: at(900),
             closed_at: None,
             lease_until: at(-30),
+            ..Default::default()
         };
         assert!(one(Some(&[open])).active);
         // Still active between the one-second connections of a task.
@@ -294,6 +347,7 @@ mod tests {
             created_at: at(4000),
             closed_at: None,
             lease_until: at(3900),
+            ..Default::default()
         };
         assert!(!one(Some(&[abandoned])).active);
         // Never another Agent's session.
@@ -302,6 +356,49 @@ mod tests {
         // Unreadable sessions are not "none".
         assert!(!one(None).activity_known);
         assert!(one(Some(&[])).activity_known);
+        // A server that reports commands: connected but idle is at rest,
+        // and only a command counts as activity.
+        let idle = Session {
+            grant_id: "g1".into(),
+            state: "active".into(),
+            created_at: at(9000),
+            lease_until: at(-30),
+            commands_running: Some(0),
+            last_command_at: Some(at(1200)),
+            ..Default::default()
+        };
+        let quiet = one(Some(std::slice::from_ref(&idle)));
+        assert!(!quiet.active);
+        assert_eq!(quiet.last_active_at, Some(at(1200)));
+        let running = Session {
+            commands_running: Some(1),
+            ..idle.clone()
+        };
+        assert!(one(Some(&[running])).active);
+        // Within two minutes of its last command it still counts.
+        let between = Session {
+            last_command_at: Some(at(60)),
+            ..idle.clone()
+        };
+        assert!(one(Some(&[between])).active);
+        let never = Session {
+            last_command_at: None,
+            ..idle
+        };
+        let fresh = one(Some(&[never]));
+        assert!(!fresh.active && fresh.last_active_at.is_none());
+    }
+
+    #[test]
+    fn an_invite_shows_only_the_start_of_its_secret() {
+        assert_eq!(
+            mask_secret("https://api.puppyone.ai/agent/pai_abcdefghijk"),
+            format!("https://api.puppyone.ai/agent/pai_abcd{UNMADE}")
+        );
+        assert_eq!(
+            mask_secret("https://api.puppyone.ai/agent/short"),
+            "https://api.puppyone.ai/agent/short"
+        );
     }
 
     struct Recorded(Mutex<Vec<ApiRequest>>, Vec<Value>);
@@ -378,7 +475,6 @@ mod tests {
         let client = Client::new(transport.clone());
         client.remove("p1", "g1").unwrap();
         client.decide("r1", false).unwrap();
-        client.stop_sharing("p1").unwrap();
         assert!(client.remove("p1", "../x").is_err());
         let seen = transport.0.lock().unwrap();
         let calls: Vec<_> = seen
@@ -398,7 +494,6 @@ mod tests {
                     "/agent-links/connections/r1/decision".into(),
                     Some(json!({"decision": "reject"}))
                 ),
-                ("DELETE".into(), "/projects/p1/agent-links".into(), None),
             ]
         );
     }

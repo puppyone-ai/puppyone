@@ -39,8 +39,6 @@ pub enum Popover {
     Project,
     /// `ProjectPlaceMenu`: where the open project is.
     Place,
-    /// `CloudWorkspaceAgentsPanel`: the Agents card under their marks.
-    Agents,
 }
 /// What the chrome asks of the window.
 pub(super) enum ChromeEvent {

@@ -86,7 +86,6 @@ impl WindowChrome {
         let id = match popover {
             Popover::Project => "project-menu",
             Popover::Place => "place-menu",
-            Popover::Agents => "agents-panel",
         };
         let host = self.weak.clone();
         let mut menu = PopoverMenu::new(id)
@@ -138,8 +137,6 @@ impl WindowChrome {
                         });
                     }
                 }
-                // The Agents have their own control (`agents_control`).
-                Popover::Agents => {}
             }
         }
         menu

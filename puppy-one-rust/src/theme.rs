@@ -49,6 +49,18 @@ pub fn control() -> f32 {
 pub fn opencode_mark_surface() -> Rgba {
     rgb(0x111418)
 }
+/// `AgentCreature`'s bodies: clear, mid-light colours that stay apart from
+/// each other and readable on light and dark Headers.
+pub fn agent_creature(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4DB6A4, 0xE5484D, 0x3D7FF5, 0x57B96A, 0xE8489A, 0x8A5CF6, 0xF2994A, 0xD9B23A,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
+/// `.desktop-agent-creature-eyes`.
+pub fn agent_creature_eyes() -> Rgba {
+    rgb(0x18181b)
+}
 /// `.desktop-cloud-history-ref-badge.tag`: the graph's tag yellow.
 pub fn history_tag() -> Rgba {
     rgb(0xffd21f)

@@ -18,9 +18,10 @@
 //! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
 //! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
-//! `agents-fixture:open` (the Cloud Header with fixture Agents, open links
-//! allowed or not), `agents:<more|invite|agent id>` (their card),
-//! `manage-agents`, `agent-chat:<runtime id>` (a new chat on a detected
+//! `agents-fixture:<roster|empty>` (the Cloud Header with fixture Agents,
+//! nobody asking to join, or nobody yet), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
+//! (the card under a Header face), `agents-copy` (the invite copied),
+//! `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
 //! running), `agent-history` (History with discovery allowed) and
@@ -63,9 +64,15 @@ enum Step {
     Template,
     /// `pin:<path>`: pin a file above the tree.
     Pin(PathBuf),
-    AgentsFixture(bool),
+    /// `agents-fixture[:roster|empty]`: a hosted project's Agents, one
+    /// asking to join; nobody asking; or nobody yet.
+    AgentsFixture(String),
+    /// `agents:<opener>`: the Agents dialog, opened from a mark.
     Agents(String),
-    ManageAgents,
+    /// `agent-card:<id>`: the card under a Header face.
+    AgentCard(String),
+    /// `agents-copy`: the invite copied, on to its second step.
+    AgentsCopy,
     FileMenu(crate::app::file_mode::FileMenu),
     FileEdit,
     Blur,
@@ -123,9 +130,10 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
                 "template" => Step::Template,
                 "pin" => Step::Pin(path()),
-                "agents-fixture" => Step::AgentsFixture(arg == "open"),
+                "agents-fixture" => Step::AgentsFixture(arg.to_string()),
                 "agents" => Step::Agents(arg.to_string()),
-                "manage-agents" => Step::ManageAgents,
+                "agent-card" => Step::AgentCard(arg.to_string()),
+                "agents-copy" => Step::AgentsCopy,
                 "file-menu" => Step::FileMenu(match arg {
                     "settings" => crate::app::file_mode::FileMenu::Settings,
                     _ => crate::app::file_mode::FileMenu::View,
@@ -497,8 +505,8 @@ impl Shell {
                     cx,
                 )
             }),
-            Step::AgentsFixture(open_links) => {
-                let client = crate::features::cloud::lab_agents_client(*open_links);
+            Step::AgentsFixture(variant) => {
+                let client = crate::features::cloud::lab_agents_client(variant);
                 let name = self.session.project.read(cx).record.name.clone();
                 self.cloud.update(cx, |c, cx| {
                     c.capture_hosted = true;
@@ -517,13 +525,21 @@ impl Shell {
                     "invite" => Opener::Invite,
                     id => Opener::Agent(id.to_owned()),
                 };
-                self.cloud.update(cx, |c, cx| c.press_agents(opener, cx));
+                self.cloud
+                    .update(cx, |c, cx| c.press_agents(opener, window, cx));
             }
-            Step::ManageAgents => {
+            Step::AgentCard(id) => {
                 if !self.cloud.read(cx).agents.read(cx).manageable {
                     return false;
                 }
-                self.cloud.update(cx, |c, cx| c.open_manage_agents(cx));
+                self.cloud.update(cx, |c, cx| {
+                    c.agent_cards.shown = Some(id.clone());
+                    cx.notify()
+                });
+            }
+            Step::AgentsCopy => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| a.copy_invite(cx));
             }
             Step::FileMenu(menu) => {
                 if let Some(file) = &self.file {

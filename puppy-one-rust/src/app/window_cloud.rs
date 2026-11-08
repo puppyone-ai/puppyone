@@ -12,7 +12,7 @@
 //! dialog layer.
 use super::{
     Command, Popover,
-    cloud_agents_ui::AgentsAnchor,
+    cloud_agents_ui::{AgentCards, AgentsAnchor},
     dialogs::{DialogKey, DialogLayer},
     project_place::Disconnect,
     session::SessionView,
@@ -64,6 +64,12 @@ pub(super) struct WindowCloud {
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     pub agents: Entity<CloudAgents>,
     pub agents_anchor: AgentsAnchor,
+    /// The card under the Header face pointed at.
+    pub(super) agent_cards: AgentCards,
+    /// The request card's Deny, which a press on a Header mark reaches.
+    pub(super) deny_focus: FocusHandle,
+    /// Where the Agents dialog's invite seat is, so the steps point at it.
+    pub(super) invite_seat_bounds: AgentsAnchor,
     /// Captures: the Header shows the Cloud tools over a local folder.
     #[cfg(feature = "dev-capture")]
     pub capture_hosted: bool,
@@ -143,6 +149,9 @@ impl WindowCloud {
             repository,
             agents,
             agents_anchor: Default::default(),
+            agent_cards: Default::default(),
+            deny_focus: cx.focus_handle(),
+            invite_seat_bounds: Default::default(),
             #[cfg(feature = "dev-capture")]
             capture_hosted: false,
             dismissed_notice: None,
@@ -361,7 +370,7 @@ impl WindowCloud {
                 self.cloud_open_recovery_dialog(project, failure, cx)
                     .into_any_element()
             }),
-            DialogKey::ManageAgents => Some(self.manage_agents_dialog(cx).into_any_element()),
+            DialogKey::Agents => Some(self.agents_dialog(cx).into_any_element()),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
@@ -379,7 +388,7 @@ impl WindowCloud {
                 }
             }
             DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
-            DialogKey::ManageAgents => self.close_manage_agents(window, cx),
+            DialogKey::Agents => self.close_agents_dialog(window, cx),
             _ => {}
         }
         cx.notify();

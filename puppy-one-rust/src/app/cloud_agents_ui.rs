@@ -1,100 +1,120 @@
-//! `CloudWorkspaceHeaderTools`' Agents: `CloudWorkspaceAgentPeople` (the
-//! marks beside Share, an empty seat to invite one), the Agents card under
-//! them (`CloudWorkspaceAgentsPanel` with `CloudWorkspaceAgentInvite`) and
-//! Manage agents (`CloudWorkspaceAgentsDialog`). An Agent asking to join
-//! comes first, since only the owner can move it on; then whoever is at
-//! work. The marks are the same in the Header and in the lists, so an Agent
-//! looks like itself in both (`ReachMemberMark`).
+//! `CloudWorkspaceHeaderTools`' Agents: `CloudWorkspaceAgentPeople` (whoever
+//! is live, each its own button, then the Agents at rest as one stack, or an
+//! empty seat while nobody is here), the card an Agent's mark shows under
+//! the pointer (`CloudWorkspaceAgentCard`), the persistent card of an Agent
+//! asking to join (`CloudWorkspaceAgentRequestCard`) and the Agents dialog
+//! (`dialog`). The mark is the same everywhere (`AgentAvatarMark`), so an
+//! Agent looks like itself in the Header, its card and the dialog.
 use super::window_cloud::WindowCloud;
 use super::*;
-use crate::features::cloud::{CopyStatus, Opener, agent_status};
-use crate::features::source_control::relative_time;
-use crate::features::source_control::short_date;
-use crate::localization::t as tr;
-use crate::localization::tf;
-use crate::theme::metric;
-use crate::ui::agent_brands;
-use crate::ui::components::Button;
-use crate::ui::components::ButtonVariant;
-use crate::ui::components::Dialog;
-use crate::ui::components::Icon;
-use crate::workspace::cloud::agents::Admission;
-use crate::workspace::cloud::agents::AgentRequest;
-use crate::workspace::cloud::agents::WorkspaceAgent;
-use crate::workspace::cloud::agents::connect_message;
+use crate::features::cloud::{Opener, agent_status};
+use crate::features::source_control::{relative_time, short_date};
+use crate::localization::{t as tr, tf};
+use crate::ui::{
+    agent_brands, agent_creature,
+    components::{Button, ButtonVariant, Icon},
+};
+use crate::workspace::cloud::agents::{Admission, AgentRequest, WorkspaceAgent};
 use gpui_kit::{
-    base::{Disableable as _, Popover as KitPopover, h_flex, v_flex},
+    base::{Disableable as _, Positioner, h_flex, v_flex},
     component::Sizable as _,
 };
-use std::{cell::Cell, rc::Rc};
-mod manage;
-mod panel;
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+    time::Duration,
+};
+mod dialog;
+mod paste_art;
 
 /// Enough faces to recognize the room; the rest are a count.
 const VISIBLE_AGENT_LIMIT: usize = 3;
-/// `preferredWidth={320}`, `gap={6}`, `--share-inset: 6px`.
-const PANEL_WIDTH: f32 = 320.;
-const PANEL_GAP: f32 = 6.;
-const PANEL_INSET: f32 = 6.;
-const MARK: f32 = 22.;
+/// Long enough that passing over the Header shows nothing; the card then
+/// follows the pointer at once.
+const CARD_DELAY: Duration = Duration::from_millis(350);
+const CARD_WIDTH: f32 = 288.;
+/// The mark in a card, larger than in the Header, as a face on a card is.
+const CARD_MARK: f32 = 56.;
 
-/// The Header's Agents anchor: the card hangs under it, and a press inside
-/// it is the marks' own, not a press outside the card.
+/// The Header's Agents anchor: the request card hangs under it.
 pub(super) type AgentsAnchor = Rc<Cell<Bounds<Pixels>>>;
 
-/// How a mark sits on its surface.
-#[derive(Clone, Copy, PartialEq)]
-enum Seat {
-    /// The Header: at rest only its outline.
-    Header,
-    /// A list on the card or the dialog, on `ground`.
-    List(Rgba),
+/// Where each Header face is, for the card under the one pointed at, and
+/// which card shows.
+#[derive(Default)]
+pub(super) struct AgentCards {
+    faces: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
+    /// The face whose card shows.
+    pub(super) shown: Option<String>,
+    timer: Option<gpui::Task<()>>,
 }
 
-/// `ReachMemberMark`: an Agent is its brand, else its initial, in one round
-/// mark. Lit (filled, in its own colours, with the success lamp) means at
-/// work right now; at rest it is grey. Asking to join is a dashed edge.
-fn agent_mark(name: &str, active: bool, waiting: bool, seat: Seat, t: Theme) -> Div {
-    let ground = match seat {
-        Seat::Header => t.header,
-        Seat::List(ground) => ground,
+/// How an Agent's mark is drawn where it stands.
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct Look {
+    pub size: f32,
+    /// The surface it stands on, which rings it.
+    pub ground: Rgba,
+    pub active: bool,
+    pub waiting: bool,
+    /// The Header greys a brand at rest; lists show it as itself.
+    pub header: bool,
+}
+
+/// `AgentAvatarMark`: the brand the Agent chose (else the one its name
+/// names), or its own creature; a brand sits in a round mark, quiet at
+/// rest. At work the mark fills, hops and wears the success lamp; asking to
+/// join it waits behind a dashed edge.
+pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme) -> AnyElement {
+    let brand = if avatar == Some("other") {
+        None
+    } else {
+        avatar
+            .and_then(agent_brands::get)
+            .or_else(|| agent_brands::resolve(None, None, Some(name)))
     };
-    let quiet = !active && !waiting;
-    let fg = if quiet { t.muted } else { t.text };
-    let brand = agent_brands::resolve(None, None, Some(name));
-    let inner: AnyElement = match brand {
-        Some(brand) if agent_brands::tile(brand) => agent_brands::artwork(brand, t.dark, MARK)
+    let Look {
+        size,
+        ground,
+        active,
+        waiting,
+        header,
+    } = look;
+    let ink = if active || waiting { t.text } else { t.muted };
+    let drawing: AnyElement = match brand {
+        None => {
+            let scale = if waiting { 0.68 } else { 1. };
+            img(agent_creature::image(name, active, ground))
+                .size(px(size * scale))
+                .flex_none()
+                .into_any_element()
+        }
+        Some(brand) if agent_brands::tile(brand) => agent_brands::artwork(brand, t.dark, size)
             .rounded_full()
-            .when(quiet, |i| i.grayscale(true).opacity(0.7))
+            .when(!active && header, |i| i.grayscale(true))
+            .when(!active, |i| i.opacity(0.7))
             .into_any_element(),
         Some(brand) => match agent_brands::monochrome(brand) {
             Some(path) => svg()
                 .path(path)
-                .size(px(MARK * 0.62))
-                .text_color(fg)
-                .when(quiet, |s| s.opacity(0.7))
+                .size(px(size * 0.62))
+                .text_color(ink)
+                .when(!active, |s| s.opacity(0.7))
                 .into_any_element(),
-            None => agent_brands::artwork(brand, t.dark, MARK * 0.62 * brand.scale)
-                .when(quiet, |i| i.grayscale(true).opacity(0.7))
+            None => agent_brands::artwork(brand, t.dark, size * 0.62 * brand.scale)
+                .when(!active && header, |i| i.grayscale(true))
+                .when(!active, |i| i.opacity(0.7))
                 .into_any_element(),
         },
-        None => div()
-            .text_size(px(theme::ty().ui.micro))
-            .line_height(px(1. * theme::ty().ui.micro))
-            .font_weight(FontWeight::MEDIUM)
-            .child(
-                name.trim()
-                    .chars()
-                    .next()
-                    .map(|c| c.to_uppercase().to_string())
-                    .unwrap_or_default(),
-            )
-            .into_any_element(),
     };
-    let fill = if active {
-        Some(theme::mix(t.panel_raised, ground, 0.92))
-    } else if waiting || seat == Seat::Header {
+    let creature = brand.is_none();
+    let fill = if waiting || creature {
         None
+    } else if active {
+        Some(theme::mix(t.panel_raised, ground, 0.92))
+    } else if header {
+        Some(theme::mix(ink, ground, 0.14))
     } else {
         Some(ground)
     };
@@ -110,173 +130,205 @@ fn agent_mark(name: &str, active: bool, waiting: bool, seat: Seat, t: Theme) -> 
             .border_color(ground)
             .bg(color)
     };
-    div()
+    let mark = div()
         .relative()
-        .size(px(MARK))
+        .size(px(size))
         .flex_none()
         .flex()
         .items_center()
         .justify_center()
         .rounded_full()
         .when_some(fill, |d, fill| d.bg(fill))
-        .border_1()
         .when(waiting, |d| {
-            d.border_dashed().border_color(theme::alpha(fg, 0.55))
+            d.border_1()
+                .border_dashed()
+                .border_color(theme::alpha(ink, 0.55))
         })
-        .when(!waiting, |d| d.border_color(theme::alpha(fg, 0.30)))
-        .text_color(fg)
-        .child(inner)
-        .when(active, |d| d.child(dot(t.success, 1.)))
-        .when(waiting && seat == Seat::Header, |d| {
-            d.child(dot(t.accent, 2.))
+        .when(!waiting && !creature && !header, |d| {
+            d.border_1().border_color(theme::alpha(ink, 0.30))
         })
+        .text_color(ink)
+        .child(drawing)
+        .when(active, |d| d.child(dot(t.success, 0.5)))
+        .when(waiting && header, |d| d.child(dot(t.accent, 1.)));
+    if active && header {
+        hop(mark, name)
+    } else {
+        mark.into_any_element()
+    }
+}
+/// `desktop-project-reach-hop`: a mark at work hops now and then; a person
+/// who asked for less motion sees it still.
+fn hop(mark: Div, name: &str) -> AnyElement {
+    if crate::platform::accessibility::reduce_motion() {
+        return mark.into_any_element();
+    }
+    let lift = |delta: f32| -> f32 {
+        // 0%, 26%, 100%: rest; 5%: up 3; 10%: down; 15%: up 2; 20%: down.
+        let keys = [
+            (0., 0.),
+            (0.05, -3.),
+            (0.10, 0.),
+            (0.15, -2.),
+            (0.20, 0.),
+            (0.26, 0.),
+        ];
+        for pair in keys.windows(2) {
+            let ((a, ya), (b, yb)) = (pair[0], pair[1]);
+            if delta >= a && delta <= b {
+                return ya + (yb - ya) * (delta - a) / (b - a);
+            }
+        }
+        0.
+    };
+    div()
+        .relative()
+        .child(mark)
+        .with_animation(
+            SharedString::from(format!("agent-hop:{name}")),
+            Animation::new(Duration::from_millis(2800)).repeat(),
+            move |d, delta| d.top(px(lift(delta))),
+        )
+        .into_any_element()
 }
 
-/// One of the Header's marks.
-struct HeaderMark {
+/// A Header mark: an Agent at work, or one asking to join.
+struct Live {
     id: String,
     name: String,
+    avatar: Option<String>,
     active: bool,
     waiting: bool,
     status: Option<String>,
 }
-/// Requests first, then whoever is at work.
-fn header_marks(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> Vec<HeaderMark> {
+/// What the Header shows of who is here: who is live (requests, then
+/// whoever is at work), the first three on their own, and everyone else as
+/// one stack.
+fn people(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> (Vec<Live>, Vec<Live>) {
     let now = crate::clock::now_ms() / 1000;
-    let mut working: Vec<&WorkspaceAgent> = agents.iter().collect();
-    working.sort_by_key(|a| !a.active);
-    requests
+    let mark = |a: &WorkspaceAgent| Live {
+        id: a.agent.id.clone(),
+        name: a.agent.name.clone(),
+        avatar: a.agent.avatar.clone(),
+        active: a.active,
+        waiting: false,
+        status: agent_status(a, now),
+    };
+    let mut live: Vec<Live> = requests
         .iter()
-        .map(|r| HeaderMark {
+        .map(|r| Live {
             id: r.id.clone(),
             name: r.name.clone(),
+            avatar: r.avatar.clone(),
             active: false,
             waiting: true,
             status: Some(tr("cloud.share.agent.request.status").to_string()),
         })
-        .chain(working.into_iter().map(|a| HeaderMark {
-            id: a.agent.id.clone(),
-            name: a.agent.name.clone(),
-            active: a.active,
-            waiting: false,
-            status: agent_status(a, now),
-        }))
-        .collect()
+        .chain(agents.iter().filter(|a| a.active).map(mark))
+        .collect();
+    let mut resting = live.split_off(live.len().min(VISIBLE_AGENT_LIMIT));
+    resting.extend(agents.iter().filter(|a| !a.active).map(mark));
+    (live, resting)
 }
 
-/// `.desktop-titlebar-cloud-agent`: a round compact button.
-fn mark_button(id: SharedString, label: String, pressed: bool, t: Theme) -> Stateful<Div> {
+/// `.desktop-titlebar-cloud-agent`: a mark is its button's own circle.
+fn mark_button(id: SharedString, label: String, t: Theme) -> Stateful<Div> {
     div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
-        .size(px(theme::control_compact()))
+        .h(px(theme::control_compact()))
+        .min_w(px(theme::control_compact()))
         .flex_none()
         .flex()
         .items_center()
-        .justify_center()
         .rounded_full()
         .text_color(t.muted)
         .cursor(theme::clickable_cursor())
-        .hover(|s| s.bg(t.hover).text_color(t.text))
-        .when(pressed, |d| d.bg(t.hover))
         .tooltip(crate::ui::components::tooltip(label))
+}
+/// Records where a face is, for the card under it.
+fn measured(faces: &Rc<RefCell<HashMap<String, Bounds<Pixels>>>>, id: &str) -> impl IntoElement {
+    let (faces, id) = (faces.clone(), id.to_owned());
+    canvas(
+        move |bounds, _, _| {
+            faces.borrow_mut().insert(id, bounds);
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .size_full()
 }
 
 impl WindowCloud {
-    /// `CloudWorkspaceHeaderTools`' Agents anchor: the marks, the overflow
-    /// count and the invite seat, and the card they open. Nothing when the
-    /// account may not manage the list and nobody is in it.
+    /// `CloudWorkspaceHeaderTools`' Agents anchor: who is live, the stack of
+    /// the ones at rest and, while nobody is here, the empty seat; the
+    /// card of the face pointed at and an unanswered request's card.
+    /// Nothing when the account may not manage the list and nobody is in it.
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
-        if !listed && !agents.manageable {
+        let checking = !agents.known;
+        let seat = !listed && (agents.manageable || checking);
+        if !listed && !seat {
             return None;
         }
         let t = cx.palette();
-        let open = self.popover == Some(Popover::Agents);
-        let marks = header_marks(&agents.agents, &agents.requests);
-        let overflow = marks.len().saturating_sub(VISIBLE_AGENT_LIMIT);
-        let opener = agents.opener.clone();
-        let press = |opener: Opener| {
+        let size = theme::control_compact();
+        let ground = t.header;
+        let (live, resting) = people(&agents.agents, &agents.requests);
+        let faces = self.agent_cards.faces.clone();
+        let hover = |id: String| {
             let host = self.weak.clone();
-            move |_: &ClickEvent, _: &mut Window, cx: &mut App| {
-                let _ = host.update(cx, |s, cx| s.press_agents(opener.clone(), cx));
+            move |hovered: &bool, _: &mut Window, cx: &mut App| {
+                let id = id.clone();
+                let _ = host.update(cx, |s, cx| s.hover_agent(hovered.then_some(id), cx));
             }
         };
-        let mut row = h_flex().gap(px(2.)).items_center();
-        for mark in marks.iter().take(VISIBLE_AGENT_LIMIT) {
+        let press = |opener: Opener| {
+            let host = self.weak.clone();
+            move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| s.press_agents(opener.clone(), window, cx));
+            }
+        };
+        let mut row = h_flex().gap(px(6.)).items_center();
+        for mark in &live {
             let label = [Some(mark.name.clone()), mark.status.clone()]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(" · ");
-            let pressed = open && opener == Opener::Agent(mark.id.clone());
             row = row.child(
                 mark_button(
                     SharedString::from(format!("cloud-workspace-agent:{}", mark.id)),
                     label,
-                    pressed,
                     t,
                 )
+                .relative()
                 .child(agent_mark(
                     &mark.name,
-                    mark.active,
-                    mark.waiting,
-                    Seat::Header,
+                    mark.avatar.as_deref(),
+                    Look {
+                        size,
+                        ground,
+                        active: mark.active,
+                        waiting: mark.waiting,
+                        header: true,
+                    },
                     t,
                 ))
+                .child(measured(&faces, &mark.id))
+                .on_hover(hover(mark.id.clone()))
                 .on_click(press(Opener::Agent(mark.id.clone()))),
             );
         }
-        if overflow > 0 {
-            row = row.child(
-                mark_button(
-                    "cloud-workspace-agent-more".into(),
-                    tr("cloud.share.agent.connected").to_string(),
-                    open && opener == Opener::More,
-                    t,
-                )
-                .child(
-                    div()
-                        .size(px(MARK))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_size(px(theme::ty().ui.micro))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(t.muted)
-                        .child(tf("shell.projectReach.more", &[("count", overflow.into())])),
-                )
-                .on_click(press(Opener::More)),
-            );
+        if !resting.is_empty() {
+            row = row.child(self.resting_stack(&resting, size, ground, cx));
         }
-        if agents.manageable {
-            let invite_open = open && opener == Opener::Invite;
-            row = row.child(
-                mark_button(
-                    "cloud-workspace-tool:invite-agent".into(),
-                    tr("cloud.share.agent.invite.title").to_string(),
-                    invite_open,
-                    t,
-                )
-                .when(invite_open, |d| d.text_color(t.text))
-                .child(
-                    div()
-                        .size(px(MARK))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_full()
-                        .border_1()
-                        .border_dashed()
-                        .border_color(theme::alpha(t.muted, 0.45))
-                        .child(Icon::new("plus").with_size(px(12.)).stroke(2.)),
-                )
-                .on_click(press(Opener::Invite)),
-            );
+        if seat {
+            row = row.child(self.empty_seat(checking, cx));
         }
         let anchor = self.agents_anchor.clone();
-        let trigger = div()
+        let mut control = div()
             .relative()
             .flex()
             .flex_none()
@@ -287,84 +339,530 @@ impl WindowCloud {
                 canvas(move |bounds, _, _| anchor.set(bounds), |_, _, _, _| {})
                     .absolute()
                     .size_full(),
-            )
-            .into_any_element();
-        let panel = open.then(|| self.agents_panel(cx).into_any_element());
+            );
+        if let Some(card) = self.agent_card(cx) {
+            control = control.child(card);
+        }
+        if let Some(card) = self.request_card(cx) {
+            control = control.child(card);
+        }
+        Some(control.into_any_element())
+    }
+    /// `RestingAgents`: stacked like a pile of tokens with the first in
+    /// front, and a count past three. Each face still shows its own card.
+    fn resting_stack(&self, resting: &[Live], size: f32, ground: Rgba, cx: &App) -> AnyElement {
+        let t = cx.palette();
+        let stacked = &resting[..resting.len().min(VISIBLE_AGENT_LIMIT)];
+        let overflow = resting.len() - stacked.len();
+        let step = size * 0.28;
+        let width = size + step * (stacked.len().saturating_sub(1)) as f32;
+        let label = resting
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let faces = self.agent_cards.faces.clone();
+        // Painted back to front, so the first covers the ones behind it.
+        let mut pile = div().relative().w(px(width)).h(px(size)).flex_none();
+        for (index, face) in stacked.iter().enumerate().rev() {
+            let host = self.weak.clone();
+            let id = face.id.clone();
+            pile = pile.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "cloud-workspace-agent-face:{}",
+                        face.id
+                    )))
+                    .absolute()
+                    .top_0()
+                    .left(px(step * index as f32))
+                    .size(px(size))
+                    .rounded_full()
+                    // A ring of the Header's colour keeps each face apart.
+                    .shadow(vec![BoxShadow {
+                        color: ground.into(),
+                        offset: point(px(0.), px(0.)),
+                        blur_radius: px(0.),
+                        spread_radius: px(1.5),
+                        inset: false,
+                    }])
+                    .child(agent_mark(
+                        &face.name,
+                        face.avatar.as_deref(),
+                        Look {
+                            size,
+                            ground,
+                            active: false,
+                            waiting: false,
+                            header: true,
+                        },
+                        t,
+                    ))
+                    .child(measured(&faces, &face.id))
+                    .on_hover(move |hovered, _, cx| {
+                        let id = id.clone();
+                        let _ = host.update(cx, |s, cx| s.hover_agent(hovered.then_some(id), cx));
+                    }),
+            );
+        }
         let host = self.weak.clone();
-        Some(
-            KitPopover::new("cloud-agents-panel")
-                .anchor(Anchor::TopCenter)
-                .offset(px(PANEL_GAP))
-                // The marks open and close the card themselves.
-                .mouse_button(MouseButton::Navigate(NavigationDirection::Forward))
-                .overlay_closable(false)
-                .open(open)
-                .on_open_change(move |opened, _, cx| {
-                    if !*opened {
-                        let _ = host.update(cx, |s, cx| s.close_agents(cx));
-                    }
+        mark_button("cloud-workspace-agent-stack".into(), label, t)
+            .gap(px(5.))
+            .child(pile)
+            .when(overflow > 0, |d| {
+                d.child(
+                    div()
+                        .mr(px(2.))
+                        .text_size(px(theme::ty().ui.caption))
+                        .text_color(t.muted)
+                        .child(tf("shell.projectReach.more", &[("count", overflow.into())])),
+                )
+            })
+            .on_click(move |_, window, cx| {
+                let _ = host.update(cx, |s, cx| s.press_agents(Opener::More, window, cx));
+            })
+            .into_any_element()
+    }
+    /// `InviteAgentTool`: an empty seat where the Agents will be. While the
+    /// server says whether this person may invite, it holds its place.
+    fn empty_seat(&self, checking: bool, cx: &App) -> AnyElement {
+        let t = cx.palette();
+        let size = theme::control_compact();
+        let host = self.weak.clone();
+        let label = tr(if checking {
+            "shell.workspaceSwitcher.location.checking"
+        } else {
+            "cloud.share.agent.invite.title"
+        });
+        mark_button(
+            "cloud-workspace-tool:invite-agent".into(),
+            label.to_string(),
+            t,
+        )
+        .when(checking, |d| d.opacity(0.7).cursor_default())
+        .when(!checking, |d| {
+            d.hover(|d| d.text_color(t.text))
+                .on_click(move |_, window, cx| {
+                    let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
                 })
-                .trigger_with(move |_, _, _| trigger)
-                .content(move |_, _, _| panel.unwrap_or_else(|| div().into_any_element()))
-                .into_any_element(),
+        })
+        .child(
+            div()
+                .size(px(size))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .border_1()
+                .border_dashed()
+                .border_color(theme::alpha(t.muted, 0.45))
+                .child(if checking {
+                    Icon::new("loader-circle")
+                        .with_size(px(13.))
+                        .stroke(2.)
+                        .spinning("cloud-agent-seat-checking")
+                } else {
+                    Icon::new("plus").with_size(px(13.)).stroke(2.)
+                }),
+        )
+        .into_any_element()
+    }
+    /// A face was pointed at or left. The first card waits a moment, so
+    /// passing over the Header shows nothing; then it follows the pointer
+    /// from face to face at once.
+    pub(super) fn hover_agent(&mut self, face: Option<String>, cx: &mut Context<Self>) {
+        let suppressed =
+            self.dialog_open(DialogKey::Agents, cx) || !self.agents.read(cx).requests.is_empty();
+        let cards = &mut self.agent_cards;
+        cards.timer = None;
+        match face {
+            Some(face) if !suppressed => {
+                if cards.shown.is_some() {
+                    cards.shown = Some(face);
+                    cx.notify();
+                } else {
+                    cards.timer = Some(cx.spawn(async move |this, cx| {
+                        cx.background_executor().timer(CARD_DELAY).await;
+                        let _ = this.update(cx, |s, cx| {
+                            s.agent_cards.shown = Some(face);
+                            cx.notify();
+                        });
+                    }));
+                }
+            }
+            _ => {
+                if cards.shown.take().is_some() {
+                    cx.notify();
+                }
+            }
+        }
+    }
+    /// `CloudWorkspaceAgentCard`: an Agent at a glance under its mark —
+    /// when it last worked, then the Agent, how it got in and how long it
+    /// may stay. It only reads, so it never takes the pointer.
+    fn agent_card(&self, cx: &App) -> Option<AnyElement> {
+        let id = self.agent_cards.shown.as_ref()?;
+        let anchor = *self.agent_cards.faces.borrow().get(id)?;
+        let agents = self.agents.read(cx);
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let now = crate::clock::now_ms() / 1000;
+        let (name, avatar, live, when, facts) =
+            if let Some(agent) = agents.agents.iter().find(|a| &a.agent.id == id) {
+                let joined = tr(match agent.agent.admission {
+                    Admission::SignIn => "cloud.share.agent.detail.approved",
+                    Admission::Link => "cloud.share.agent.detail.joinedByLink",
+                })
+                .to_string();
+                let stay = match agent.agent.expires_at.as_deref().and_then(short_date) {
+                    Some(date) => tf("cloud.share.agent.detail.ends", &[("date", date.into())]),
+                    None => tf(
+                        "cloud.share.agent.detail.since",
+                        &[(
+                            "date",
+                            short_date(&agent.agent.connected_at)
+                                .unwrap_or_default()
+                                .into(),
+                        )],
+                    ),
+                };
+                (
+                    agent.agent.name.clone(),
+                    agent.agent.avatar.clone(),
+                    agent.active,
+                    agent_status(agent, now).unwrap_or_default(),
+                    vec![joined, stay],
+                )
+            } else {
+                let request = agents.requests.iter().find(|r| &r.id == id)?;
+                (
+                    request.name.clone(),
+                    request.avatar.clone(),
+                    false,
+                    format!(
+                        "{} · {}",
+                        tr("cloud.share.agent.request.status"),
+                        relative_time(&request.requested_at, now).unwrap_or_default()
+                    ),
+                    vec![],
+                )
+            };
+        let ground = t.menu_bg;
+        let card = v_flex()
+            .id("cloud-agent-card")
+            .debug_selector(|| "cloud-agent-card".into())
+            .w(px(CARD_WIDTH))
+            .rounded(px(12.))
+            .border_1()
+            .border_color(t.shell_divider)
+            .bg(ground)
+            .text_color(t.text)
+            .shadow(card_shadow(t))
+            .child(
+                h_flex()
+                    .gap(px(7.))
+                    .px(px(14.))
+                    .py(px(9.))
+                    .border_b_1()
+                    .border_color(t.shell_divider)
+                    .text_size(px(ty.caption))
+                    .line_height(px(16.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if live { t.text } else { t.muted })
+                    .when(live, |d| {
+                        d.child(div().size(px(7.)).flex_none().rounded_full().bg(t.success))
+                    })
+                    .child(when),
+            )
+            .child(
+                h_flex()
+                    .gap(px(14.))
+                    .p(px(14.))
+                    .child(agent_mark(
+                        &name,
+                        avatar.as_deref(),
+                        Look {
+                            size: CARD_MARK,
+                            ground,
+                            active: live,
+                            waiting: false,
+                            header: false,
+                        },
+                        t,
+                    ))
+                    .child(
+                        v_flex()
+                            .gap(px(1.))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(ty.control))
+                                    .line_height(px(20.))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(name),
+                            )
+                            .children(facts.into_iter().enumerate().map(|(index, fact)| {
+                                div()
+                                    .text_size(px(ty.caption))
+                                    .line_height(px(17.))
+                                    .text_color(if index == 0 { t.muted } else { t.subtle })
+                                    .child(fact)
+                            })),
+                    ),
+            );
+        let center = anchor.center().x;
+        let left = (f32::from(center) - CARD_WIDTH / 2.).max(8.);
+        Some(
+            deferred(
+                Positioner::corner(Anchor::TopLeft, point(px(left), anchor.bottom() + px(6.)))
+                    .margin(px(8.))
+                    .child(card),
+            )
+            .with_priority(gpui_kit::base::POPUP_PRIORITY + 1)
+            .into_any_element(),
         )
     }
-    /// A mark, the count or the seat was pressed.
-    pub(super) fn press_agents(&mut self, opener: Opener, cx: &mut Context<Self>) {
-        let open = self.popover == Some(Popover::Agents);
-        let show = self.agents.update(cx, |a, _| a.press(opener, open));
-        self.show_popover(show.then_some(Popover::Agents), cx);
-    }
-    fn close_agents(&mut self, cx: &mut Context<Self>) {
-        if self.popover == Some(Popover::Agents) {
-            self.show_popover(None, cx);
+    /// `CloudWorkspaceAgentRequestCard`: the oldest request, below the
+    /// Header until it is answered. Nothing dismisses it — no outside
+    /// press, no Escape, no hover lifetime; the server's next list removes
+    /// an answered or expired request and brings the next. It does not take
+    /// the editor's focus when it arrives; pressing a Header mark brings
+    /// Deny into keyboard reach.
+    fn request_card(&self, cx: &App) -> Option<AnyElement> {
+        let agents = self.agents.read(cx);
+        if !agents.manageable {
+            return None;
         }
+        let request = agents.requests.first()?;
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let now = crate::clock::now_ms() / 1000;
+        let ground = t.menu_bg;
+        let deciding = agents.deciding.contains(&request.id);
+        let count = agents.requests.len();
+        let project = agents.project_name().unwrap_or_default().to_owned();
+        let answer = |allow: bool| {
+            let entity = self.agents.clone();
+            let id = request.id.clone();
+            move |_: &ClickEvent, _: &mut Window, cx: &mut App| {
+                entity.update(cx, |a, cx| a.decide(&id, allow, cx));
+            }
+        };
+        let card = v_flex()
+            .id("cloud-agent-request-card")
+            .debug_selector(|| "cloud-agent-request-card".into())
+            .occlude()
+            .w(px(CARD_WIDTH))
+            .rounded(px(12.))
+            .border_1()
+            .border_color(t.shell_divider)
+            .bg(ground)
+            .text_color(t.text)
+            .shadow(card_shadow(t))
+            .child(
+                h_flex()
+                    .gap(px(7.))
+                    .px(px(14.))
+                    .py(px(9.))
+                    .border_b_1()
+                    .border_color(t.shell_divider)
+                    .text_size(px(ty.caption))
+                    .line_height(px(16.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.muted)
+                    .child(format!(
+                        "{} · {}",
+                        tr("cloud.share.agent.request.status"),
+                        relative_time(&request.requested_at, now).unwrap_or_default()
+                    ))
+                    .when(count > 1, |d| {
+                        d.child(div().ml_auto().child(tf(
+                            "cloud.share.agent.request.count",
+                            &[("count", count.into())],
+                        )))
+                    }),
+            )
+            .child(
+                h_flex()
+                    .gap(px(14.))
+                    .p(px(14.))
+                    .child(agent_mark(
+                        &request.name,
+                        request.avatar.as_deref(),
+                        Look {
+                            size: CARD_MARK,
+                            ground,
+                            active: false,
+                            waiting: false,
+                            header: false,
+                        },
+                        t,
+                    ))
+                    .child(
+                        v_flex()
+                            .gap(px(1.))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(ty.control))
+                                    .line_height(px(20.))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(request.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(ty.caption))
+                                    .line_height(px(17.))
+                                    .text_color(t.muted)
+                                    .child(project),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .px(px(14.))
+                    .pb(px(12.))
+                    .text_size(px(ty.caption))
+                    .line_height(px(18.))
+                    .text_color(t.muted)
+                    .child(tr("cloud.share.agent.request.access")),
+            )
+            .when(agents.decision_failed, |d| {
+                d.child(
+                    div()
+                        .px(px(14.))
+                        .pb(px(12.))
+                        .text_size(px(ty.caption))
+                        .line_height(px(18.))
+                        .text_color(t.danger)
+                        .child(tr("cloud.share.agent.changeFailed")),
+                )
+            })
+            .child(
+                h_flex()
+                    .justify_end()
+                    .gap(px(8.))
+                    .px(px(14.))
+                    .pb(px(14.))
+                    .child(
+                        Button::new("cloud-agent-request-deny")
+                            .variant(ButtonVariant::Pattern)
+                            .label(tr("cloud.share.agent.request.deny"))
+                            .accessibility_label(format!(
+                                "{} {}",
+                                tr("cloud.share.agent.request.deny"),
+                                request.name
+                            ))
+                            .track_focus(&self.deny_focus)
+                            .disabled(deciding)
+                            .on_click(answer(false)),
+                    )
+                    .child(
+                        Button::new("cloud-agent-request-allow")
+                            .variant(ButtonVariant::PatternPrimary)
+                            .label(tr("cloud.share.agent.request.allow"))
+                            .accessibility_label(format!(
+                                "{} {}",
+                                tr("cloud.share.agent.request.allow"),
+                                request.name
+                            ))
+                            .disabled(deciding)
+                            .on_click(answer(true)),
+                    ),
+            );
+        let anchor = self.agents_anchor.get();
+        let left = (f32::from(anchor.right()) - CARD_WIDTH).max(8.);
+        Some(
+            deferred(
+                Positioner::corner(Anchor::TopLeft, point(px(left), anchor.bottom() + px(6.)))
+                    .margin(px(8.))
+                    .occlude()
+                    .child(card),
+            )
+            .with_priority(gpui_kit::base::POPUP_PRIORITY)
+            .into_any_element(),
+        )
     }
-    /// `onManage`: the card gives way to Manage agents.
-    pub(super) fn open_manage_agents(&mut self, cx: &mut Context<Self>) {
+    /// A mark, the stack or the seat: the Agents open straight into their
+    /// dialog. While a request waits, the press brings its Deny into
+    /// keyboard reach instead, without answering it.
+    pub(super) fn press_agents(
+        &mut self,
+        opener: Opener,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hover_agent(None, cx);
+        if !self.agents.read(cx).requests.is_empty() && self.agents.read(cx).manageable {
+            self.deny_focus.focus(window, cx);
+            return;
+        }
         self.show_popover(None, cx);
-        self.agents.update(cx, |a, cx| a.open_manage(cx));
-        if !self.dialog_open(DialogKey::ManageAgents, cx) {
-            self.open_dialog(DialogKey::ManageAgents, cx);
+        self.agents.update(cx, |a, cx| a.open(opener, cx));
+        if !self.dialog_open(DialogKey::Agents, cx) {
+            self.open_dialog(DialogKey::Agents, cx);
         }
-        cx.notify();
+        self.refresh(cx);
     }
-    pub(super) fn close_manage_agents(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.close_dialog(DialogKey::ManageAgents, cx);
-        self.agents.update(cx, |a, cx| a.close_manage(cx));
+    pub(super) fn close_agents_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_dialog(DialogKey::Agents, cx);
         self.focus_window(window, cx);
-        cx.notify();
+        self.refresh(cx);
     }
     /// The hosted Project at its root keeps its Agents current; anything
-    /// else forgets them, and Manage agents goes with them.
+    /// else forgets them, and their dialog goes with them. A request takes
+    /// the place of the dialog, never another overlay beside it.
     pub(super) fn sync_cloud_agents(&mut self, cx: &mut Context<Self>) {
         let project = self.hosted().filter(|_| {
             !self.session().opening && !self.session().file_mode && self.cloud_enabled(cx)
         });
-        let open = self.popover == Some(Popover::Agents);
         let name = self.session().name.clone();
+        let open = self.dialog_open(DialogKey::Agents, cx);
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
-        if self.agents.read(cx).manage.is_none() {
-            self.close_dialog(DialogKey::ManageAgents, cx);
-        }
-        if open && self.agents_control_hidden(cx) {
-            self.show_popover(None, cx);
-        }
-    }
-    /// The card has nothing to stand on once nobody is listed and the list
-    /// cannot be managed.
-    fn agents_control_hidden(&self, cx: &App) -> bool {
         let agents = self.agents.read(cx);
-        agents.agents.is_empty() && agents.requests.is_empty() && !agents.manageable
+        let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
+        let pending = agents.manageable && !agents.requests.is_empty();
+        let gone =
+            agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
+        if open && (pending || gone) {
+            self.close_dialog(DialogKey::Agents, cx);
+        }
+        if pending || gone {
+            self.agent_cards.shown = None;
+            self.agent_cards.timer = None;
+        }
     }
+}
+
+/// The card's shadow, as a menu's.
+fn card_shadow(t: Theme) -> Vec<BoxShadow> {
+    vec![
+        BoxShadow {
+            color: theme::alpha(t.shadow, 0.35).into(),
+            offset: point(px(0.), px(2.)),
+            blur_radius: px(4.),
+            spread_radius: px(0.),
+            inset: false,
+        },
+        BoxShadow {
+            color: theme::alpha(t.shadow, 0.60).into(),
+            offset: point(px(0.), px(12.)),
+            blur_radius: px(32.),
+            spread_radius: px(-6.),
+            inset: false,
+        },
+    ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::cloud::agents::{AgentRequest, ConnectedAgent};
+    use crate::workspace::cloud::agents::ConnectedAgent;
     use core::prelude::v1::test;
 
     fn agent(id: &str, active: bool) -> WorkspaceAgent {
@@ -372,6 +870,7 @@ mod tests {
             agent: ConnectedAgent {
                 id: id.into(),
                 name: id.into(),
+                avatar: None,
                 admission: Admission::SignIn,
                 grant_id: format!("g-{id}"),
                 connected_at: String::new(),
@@ -383,62 +882,33 @@ mod tests {
         }
     }
 
+    /// `CloudWorkspaceAgentPeople`: only what is live stands on its own —
+    /// an Agent asking to join, then whoever is at work — at most three;
+    /// everyone else is one stack.
     #[test]
-    fn requests_lead_then_whoever_is_at_work() {
+    fn requests_lead_then_whoever_is_at_work_and_the_rest_rest() {
         let request = AgentRequest {
             id: "r".into(),
             name: "Codex".into(),
+            avatar: None,
             admission: Admission::SignIn,
             requested_at: "2026-10-30T12:00:00Z".into(),
             expires_at: String::new(),
         };
-        let marks = header_marks(&[agent("a", false), agent("b", true)], &[request]);
-        assert_eq!(
-            marks
-                .iter()
-                .map(|m| (m.id.as_str(), m.waiting))
-                .collect::<Vec<_>>(),
-            vec![("r", true), ("b", false), ("a", false)]
-        );
+        let agents = [
+            agent("a", false),
+            agent("b", true),
+            agent("c", true),
+            agent("d", true),
+        ];
+        let (live, resting) = people(&agents, &[request]);
+        let ids = |marks: &[Live]| marks.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&live), ["r", "b", "c"]);
+        assert!(live[0].waiting);
+        // The one at work past three, then the ones at rest.
+        assert_eq!(ids(&resting), ["d", "a"]);
+        let (live, resting) = people(&[agent("a", false)], &[]);
+        assert!(live.is_empty());
+        assert_eq!(ids(&resting), ["a"]);
     }
-}
-
-/// A card under the Header on the project menu's own surface, `inset` from
-/// its edge.
-pub(super) fn card(
-    id: &'static str,
-    t: Theme,
-    width: f32,
-    inset: f32,
-    max_height: Pixels,
-) -> Stateful<Div> {
-    v_flex()
-        .id(id)
-        .debug_selector(move || id.into())
-        .occlude()
-        .w(px(width))
-        .max_h(max_height)
-        .overflow_y_scroll()
-        .p(px(inset))
-        .rounded(px(crate::theme::metric::MENU_RADIUS))
-        .border_1()
-        .border_color(t.shell_divider)
-        .bg(t.header)
-        .text_color(t.text)
-        .shadow(vec![
-            BoxShadow {
-                color: theme::alpha(t.shadow, 0.45).into(),
-                offset: point(px(0.), px(2.)),
-                blur_radius: px(4.),
-                spread_radius: px(0.),
-                inset: false,
-            },
-            BoxShadow {
-                color: theme::alpha(t.shadow, 0.70).into(),
-                offset: point(px(0.), px(12.)),
-                blur_radius: px(28.),
-                spread_radius: px(-8.),
-                inset: false,
-            },
-        ])
 }

@@ -1,8 +1,9 @@
-//! `useWorkspaceAgents` and the state behind `CloudWorkspaceAgentsPanel`,
-//! `CloudWorkspaceAgentInvite` and `CloudWorkspaceAgentsDialog`: who is in a
-//! hosted workspace, kept current for a Header that never closes. Only the
-//! owner may read the list, so a 403 ends the asking for good; a bad network
-//! keeps what is known instead of emptying the Header.
+//! `useWorkspaceAgents` and the state behind `CloudWorkspaceAgentsDialog`,
+//! `CloudWorkspaceAgentInvite`, `CloudWorkspaceAgentRequestCard` and
+//! `useAgentRequestAnswer`: who is in a hosted workspace, kept current for
+//! a Header that never closes. Only the owner may read the list, so a 403
+//! ends the asking for good; a bad network keeps what is known instead of
+//! emptying the Header.
 use crate::{
     features::{cloud::account, source_control::relative_time},
     localization::{t as tr, tf},
@@ -18,16 +19,12 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 const REFRESH: Duration = Duration::from_secs(10);
 /// While someone waits on an Agent, a request appears about as it is made.
 const WAITING_REFRESH: Duration = Duration::from_secs(3);
-/// The Manage dialog shows an Agent the owner just allowed on its own.
-const MANAGE_REFRESH: Duration = Duration::from_secs(5);
 /// A sign-in request lasts ten minutes, so an invite unanswered by then is
 /// not awaited.
 const INVITE_WAIT: Duration = Duration::from_secs(10 * 60);
-/// Long enough to read, short enough to invite a second Agent.
-const COPIED: Duration = Duration::from_secs(3);
 
-/// Who opened the Agents card: one Agent's mark, the overflow count, or the
-/// invite seat.
+/// Who opened the Agents dialog: one Agent's mark, the stack of the ones at
+/// rest, or the empty seat.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Opener {
     Agent(String),
@@ -43,20 +40,14 @@ pub enum CopyStatus {
     Failed,
     NotOwner,
 }
-/// `CloudWorkspaceAgentsDialog`'s own reading of the links and connections.
-#[derive(Default)]
-pub struct Manage {
-    pub inventory: Inventory,
-    pub change_failed: bool,
-    _poll: Option<Task<()>>,
-}
-
 struct Scope {
     /// A fixture outlives the account (tests, captures).
     fixture: bool,
     key: String,
     project: String,
     project_name: String,
+    /// The API the invite links point under (`linkPreview`).
+    api: String,
     client: Client,
 }
 
@@ -66,26 +57,31 @@ pub struct CloudAgents {
     pub requests: Vec<AgentRequest>,
     /// Only someone the server lets read the list may manage it.
     pub manageable: bool,
-    pub open_links: bool,
+    /// The server has said whether this person may manage the Agents.
+    pub known: bool,
     denied: bool,
     latest: u64,
     visible: bool,
-    panel_open: bool,
+    dialog_open: bool,
     poll: Option<Task<()>>,
     /// The Agents already here when the last invite was copied.
     invite: Option<HashSet<String>>,
     invite_timer: Option<Task<()>>,
     pub opener: Opener,
-    pub admission: Admission,
+    /// The invite's steps show under the seat.
+    pub invite_open: bool,
     pub copy: CopyStatus,
-    copy_timer: Option<Task<()>>,
-    /// The invite form is asked for beside the Agents.
-    pub expanded: bool,
-    /// Requests being answered; each row stays, disabled, until the list
-    /// that no longer holds it arrives.
+    /// The invite last copied, its secret masked past its start.
+    pub made: Option<String>,
+    /// Requests being answered; each stays, disabled, until the list that
+    /// no longer holds it arrives.
     pub deciding: HashSet<String>,
     pub decision_failed: bool,
-    pub manage: Option<Manage>,
+    /// The tile asking once whether to remove its Agent, and the one being
+    /// removed.
+    pub confirming: Option<String>,
+    pub removing: Option<String>,
+    pub change_failed: bool,
 }
 
 /// `workspaceAgentStatus`: the server lists recent sessions only, so an
@@ -116,22 +112,23 @@ impl CloudAgents {
             agents: vec![],
             requests: vec![],
             manageable: false,
-            open_links: false,
+            known: false,
             denied: false,
             latest: 0,
             visible: true,
-            panel_open: false,
+            dialog_open: false,
             poll: None,
             invite: None,
             invite_timer: None,
             opener: Opener::More,
-            admission: Admission::SignIn,
+            invite_open: false,
             copy: CopyStatus::Idle,
-            copy_timer: None,
-            expanded: false,
+            made: None,
             deciding: HashSet::new(),
             decision_failed: false,
-            manage: None,
+            confirming: None,
+            removing: None,
+            change_failed: false,
         }
     }
     /// The hosted Project at its root for the signed-in account
@@ -139,7 +136,7 @@ impl CloudAgents {
     pub fn sync(
         &mut self,
         project: Option<(&str, &str)>,
-        panel_open: bool,
+        dialog_open: bool,
         cx: &mut Context<Self>,
     ) {
         let target = project.and_then(|(project, name)| {
@@ -153,7 +150,7 @@ impl CloudAgents {
             Some((key, project, name, broker, binding))
         });
         if self.scope.as_ref().is_some_and(|s| s.fixture) {
-            self.set_panel_open(panel_open, cx);
+            self.set_dialog_open(dialog_open, cx);
             return;
         }
         let key = target.as_ref().map(|t| t.0.clone());
@@ -163,6 +160,7 @@ impl CloudAgents {
                 key,
                 project: project.to_owned(),
                 project_name: name.to_owned(),
+                api: binding.environment.api().to_string(),
                 client: Client::new(Arc::new(services::BrokerTransport {
                     broker,
                     binding,
@@ -173,7 +171,7 @@ impl CloudAgents {
         } else if let (Some(scope), Some((_, name))) = (&mut self.scope, project) {
             scope.project_name = name.to_owned();
         }
-        self.set_panel_open(panel_open, cx);
+        self.set_dialog_open(dialog_open, cx);
     }
     /// Tests and captures: a Project read through `client`.
     #[cfg(any(test, feature = "dev-capture"))]
@@ -190,16 +188,17 @@ impl CloudAgents {
                 key: format!("fixture\n{project}"),
                 project: project.into(),
                 project_name: name.into(),
+                api: "https://api.puppyone.ai/api/v1".into(),
                 client,
             }),
             cx,
         );
     }
     fn attach(&mut self, scope: Option<Scope>, cx: &mut Context<Self>) {
-        let panel_open = self.panel_open;
+        let dialog_open = self.dialog_open;
         let visible = self.visible;
         *self = Self::new();
-        self.panel_open = panel_open;
+        self.dialog_open = dialog_open;
         self.visible = visible;
         self.scope = scope;
         if self.scope.is_some() {
@@ -211,20 +210,18 @@ impl CloudAgents {
     pub fn project_name(&self) -> Option<&str> {
         self.scope.as_ref().map(|s| s.project_name.as_str())
     }
-    /// The Agents card is open, so a request should appear about as soon
+    /// The Agents dialog is open, so a request should appear about as soon
     /// as it is made.
-    fn set_panel_open(&mut self, open: bool, cx: &mut Context<Self>) {
-        if self.panel_open != open {
+    fn set_dialog_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.dialog_open != open {
             let waiting = self.fast();
-            self.panel_open = open;
-            // The card's own state goes with it.
+            self.dialog_open = open;
+            // The dialog's own state goes with it.
             if !open {
                 self.decision_failed = false;
-                self.expanded = false;
-                self.admission = Admission::SignIn;
-                if self.copy != CopyStatus::Copying {
-                    self.copy = CopyStatus::Idle;
-                }
+                self.confirming = None;
+                self.change_failed = false;
+                self.close_invite(cx);
             }
             if self.fast() != waiting {
                 self.refresh(cx);
@@ -246,7 +243,7 @@ impl CloudAgents {
         self.invite.is_some()
     }
     fn fast(&self) -> bool {
-        self.panel_open || self.waiting()
+        self.dialog_open || self.waiting()
     }
     fn schedule(&mut self, cx: &mut Context<Self>) {
         if self.scope.is_none() {
@@ -312,14 +309,16 @@ impl CloudAgents {
                 self.agents.clear();
                 self.requests.clear();
                 self.manageable = false;
+                self.known = true;
                 self.poll = None;
                 cx.notify();
                 return;
             }
             Err(_) => return,
         };
+        let present = self.agents.len() + self.requests.len();
         self.manageable = true;
-        self.open_links = inventory.open_links_enabled;
+        self.known = true;
         self.requests = inventory.pending;
         self.agents = agents::resolve(
             &inventory.connections,
@@ -328,6 +327,19 @@ impl CloudAgents {
         );
         let pending: HashSet<&str> = self.requests.iter().map(|r| r.id.as_str()).collect();
         self.deciding.retain(|id| pending.contains(id.as_str()));
+        // A removed Agent's tile leaves with the list that no longer holds it.
+        if self
+            .removing
+            .as_ref()
+            .is_some_and(|id| !self.agents.iter().any(|a| &a.agent.id == id))
+        {
+            self.removing = None;
+            self.confirming = None;
+        }
+        // The steps give way as soon as an Agent turns up in the row.
+        if self.agents.len() + self.requests.len() > present {
+            self.close_invite(cx);
+        }
         // A newcomer, or one asking to join, ends the wait.
         let answered = self.invite.as_ref().is_some_and(|known| {
             !self.requests.is_empty() || self.agents.iter().any(|a| !known.contains(&a.agent.id))
@@ -345,16 +357,47 @@ impl CloudAgents {
             self.schedule(cx);
         }
     }
-    /// A mark, the count or the invite seat was pressed: the same one
-    /// closes the card, another one moves it.
-    pub fn press(&mut self, opener: Opener, open: bool) -> bool {
-        let close = open && self.opener == opener;
+    /// A mark, the stack or the seat opens the dialog; with nobody here
+    /// yet it opens on how to invite (`openFirst`).
+    pub fn open(&mut self, opener: Opener, cx: &mut Context<Self>) {
         self.opener = opener;
-        !close
+        self.confirming = None;
+        self.change_failed = false;
+        self.decision_failed = false;
+        self.invite_open = self.agents.is_empty() && self.requests.is_empty();
+        cx.notify();
+    }
+    /// The seat shows or folds the invite's steps.
+    pub fn toggle_invite(&mut self, cx: &mut Context<Self>) {
+        if self.invite_open {
+            self.close_invite(cx);
+        } else {
+            self.invite_open = true;
+            cx.notify();
+        }
+    }
+    /// Opened again, the steps start over from what to copy.
+    pub fn close_invite(&mut self, cx: &mut Context<Self>) {
+        self.invite_open = false;
+        if self.copy != CopyStatus::Copying {
+            self.copy = CopyStatus::Idle;
+        }
+        self.made = None;
+        cx.notify();
+    }
+    /// The prompt as shown: the link not made yet, then the one made, its
+    /// secret masked past its start.
+    pub fn prompt(&self) -> Option<String> {
+        let scope = self.scope.as_ref()?;
+        let link = self
+            .made
+            .clone()
+            .unwrap_or_else(|| format!("{}{}", agents::link_preview(&scope.api), agents::UNMADE));
+        Some(agents::connect_message(&scope.project_name, &link))
     }
 
-    /// `copy`: every copy is a new link, and the prompt goes to the
-    /// clipboard.
+    /// `copy`: nothing is made until Copy is pressed, and every press makes
+    /// a new invite, each letting one Agent in after the owner allows it.
     pub fn copy_invite(&mut self, cx: &mut Context<Self>) {
         let Some(scope) = &self.scope else {
             return;
@@ -363,12 +406,7 @@ impl CloudAgents {
             return;
         }
         self.copy = CopyStatus::Copying;
-        self.copy_timer = None;
-        let admission = if self.open_links {
-            self.admission
-        } else {
-            Admission::SignIn
-        };
+        let admission = Admission::SignIn;
         let (client, project, name) = (
             scope.client.clone(),
             scope.project.clone(),
@@ -387,16 +425,8 @@ impl CloudAgents {
                         cx.write_to_clipboard(ClipboardItem::new_string(agents::connect_message(
                             &name, &url,
                         )));
+                        s.made = Some(agents::mask_secret(&url));
                         s.copy = CopyStatus::Copied;
-                        s.copy_timer = Some(cx.spawn(async move |this, cx| {
-                            cx.background_executor().timer(COPIED).await;
-                            let _ = this.update(cx, |s, cx| {
-                                if s.copy == CopyStatus::Copied {
-                                    s.copy = CopyStatus::Idle;
-                                    cx.notify();
-                                }
-                            });
-                        }));
                         s.invited(cx);
                     }
                     Err(Error::Status(403)) => s.copy = CopyStatus::NotOwner,
@@ -421,16 +451,9 @@ impl CloudAgents {
         self.refresh(cx);
         self.schedule(cx);
     }
-    pub fn choose(&mut self, admission: Admission, cx: &mut Context<Self>) {
-        self.admission = admission;
-        self.copy = CopyStatus::Idle;
-        cx.notify();
-    }
-    pub fn expand_invite(&mut self, cx: &mut Context<Self>) {
-        self.expanded = true;
-        cx.notify();
-    }
-    /// The owner's answer to a waiting Agent.
+    /// `useAgentRequestAnswer`: the owner's answer to a waiting Agent. While
+    /// it is on its way it cannot be given twice; if it fails it can be
+    /// given again; a late answer for another project changes nothing.
     pub fn decide(&mut self, request: &str, allow: bool, cx: &mut Context<Self>) {
         let Some(scope) = &self.scope else {
             return;
@@ -440,6 +463,7 @@ impl CloudAgents {
         }
         self.decision_failed = false;
         let client = scope.client.clone();
+        let key = scope.key.clone();
         let id = request.to_owned();
         let task = cx.background_spawn({
             let id = id.clone();
@@ -448,6 +472,9 @@ impl CloudAgents {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |s, cx| {
+                if s.scope.as_ref().map(|s| &s.key) != Some(&key) {
+                    return;
+                }
                 match result {
                     Ok(()) => s.refresh(cx),
                     Err(_) => {
@@ -462,81 +489,52 @@ impl CloudAgents {
         cx.notify();
     }
 
-    /// Manage agents opens over the window and keeps its own list current.
-    pub fn open_manage(&mut self, cx: &mut Context<Self>) {
-        if self.scope.is_none() {
+    /// Removing asks once, on the tile itself, so a slip never takes an
+    /// Agent out.
+    pub fn confirm_remove(&mut self, agent: Option<String>, cx: &mut Context<Self>) {
+        if self.removing.is_none() {
+            self.confirming = agent;
+            self.change_failed = false;
+            cx.notify();
+        }
+    }
+    /// `removeConnectedAgent`: its grant is revoked, then the Header's
+    /// Agents are read again so the row and the Header follow at once.
+    pub fn remove(&mut self, agent: &str, cx: &mut Context<Self>) {
+        let Some(scope) = &self.scope else {
+            return;
+        };
+        let Some(grant) = self
+            .agents
+            .iter()
+            .find(|a| a.agent.id == agent)
+            .map(|a| a.agent.grant_id.clone())
+        else {
+            return;
+        };
+        if self.removing.is_some() {
             return;
         }
-        let poll = cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(MANAGE_REFRESH).await;
-                if this.update(cx, |s, cx| s.refresh_manage(cx)).is_err() {
-                    break;
-                }
-            }
-        });
-        self.manage = Some(Manage {
-            _poll: Some(poll),
-            ..Default::default()
-        });
-        self.refresh_manage(cx);
-        cx.notify();
-    }
-    pub fn close_manage(&mut self, cx: &mut Context<Self>) {
-        self.manage = None;
-        cx.notify();
-    }
-    /// What is shown stays until a read succeeds.
-    fn refresh_manage(&mut self, cx: &mut Context<Self>) {
-        let (Some(scope), Some(_)) = (&self.scope, &self.manage) else {
-            return;
-        };
-        let (client, project) = (scope.client.clone(), scope.project.clone());
-        let task = cx.background_spawn(async move { client.links(&project) });
-        cx.spawn(async move |this, cx| {
-            if let Ok(inventory) = task.await {
-                let _ = this.update(cx, |s, cx| {
-                    if let Some(manage) = &mut s.manage {
-                        manage.inventory = inventory;
-                        cx.notify();
-                    }
-                });
-            }
-        })
-        .detach();
-    }
-    /// `removeConnectedAgent`.
-    pub fn remove(&mut self, grant: &str, cx: &mut Context<Self>) {
-        let grant = grant.to_owned();
-        self.change(move |client, project| client.remove(project, &grant), cx);
-    }
-    /// `stopSharingWithAgents`: links and connections end together.
-    pub fn remove_all(&mut self, cx: &mut Context<Self>) {
-        self.change(|client, project| client.stop_sharing(project), cx);
-    }
-    fn change(
-        &mut self,
-        action: impl FnOnce(&Client, &str) -> services::Result<()> + Send + 'static,
-        cx: &mut Context<Self>,
-    ) {
-        let (Some(scope), Some(manage)) = (&self.scope, &mut self.manage) else {
-            return;
-        };
-        manage.change_failed = false;
-        let (client, project) = (scope.client.clone(), scope.project.clone());
-        let task = cx.background_spawn(async move { action(&client, &project) });
+        self.removing = Some(agent.to_owned());
+        self.change_failed = false;
+        let (client, project, key) = (
+            scope.client.clone(),
+            scope.project.clone(),
+            scope.key.clone(),
+        );
+        let task = cx.background_spawn(async move { client.remove(&project, &grant) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |s, cx| {
+                if s.scope.as_ref().map(|s| &s.key) != Some(&key) {
+                    return;
+                }
                 match result {
-                    Ok(()) => {
-                        s.refresh_manage(cx);
-                        s.refresh(cx);
-                    }
+                    Ok(()) => s.refresh(cx),
                     Err(_) => {
-                        if let Some(manage) = &mut s.manage {
-                            manage.change_failed = true;
-                        }
+                        s.removing = None;
+                        s.confirming = None;
+                        s.change_failed = true;
                     }
                 }
                 cx.notify();
@@ -546,12 +544,13 @@ impl CloudAgents {
         cx.notify();
     }
 }
-/// Captures: a project with Agents at work, at rest and asking to join.
+/// Captures: a project with Agents at work, at rest and one asking to join;
+/// `roster`, nobody asking; `empty`, nobody yet.
 #[cfg(feature = "dev-capture")]
-pub fn lab_client(open_links: bool) -> Client {
+pub fn lab_client(variant: &str) -> Client {
     use crate::{cloud::auth::model::ApiRequest, workspace::cloud::services::Transport};
     use serde_json::{Value, json};
-    struct Lab(bool);
+    struct Lab(String);
     impl Transport for Lab {
         fn request(&self, request: ApiRequest) -> services::Result<Value> {
             let ago = |secs: i64| {
@@ -563,30 +562,39 @@ pub fn lab_client(open_links: bool) -> Client {
                 json!({"id": id, "name": name, "admission": admission, "grant_id": format!("g-{id}"),
                     "connected_at": ago(86_400), "expires_at": "2026-12-04T00:00:00Z"})
             };
+            if request.method == reqwest::Method::GET && request.path.ends_with("/workbench") {
+                return Ok(json!({"workspace": {"id": "wb-lab"}}));
+            }
+            if request.method == reqwest::Method::POST && request.path.ends_with("/agent-links") {
+                return Ok(json!({"agent_url": "https://api.puppyone.ai/agent/pai_lab0123456789"}));
+            }
             Ok(if request.path.ends_with("/access/sessions") {
                 json!([
-                    {"grant_id": "g-claude", "state": "active", "created_at": ago(20),
-                        "closed_at": null, "lease_until": ago(-60)},
+                    {"grant_id": "g-claude", "state": "active", "created_at": ago(900),
+                        "closed_at": null, "lease_until": ago(-60), "commands_running": 1,
+                        "last_command_at": ago(5)},
                     {"grant_id": "g-codex", "state": "closed", "created_at": ago(301),
                         "closed_at": ago(300), "lease_until": ago(270)},
                 ])
+            } else if self.0 == "empty" {
+                json!({"links": [], "connections": [], "pending": []})
             } else {
                 json!({
-                    "links": [{"id": "l1", "admission": "sign_in", "expires_at": "2026-11-11T00:00:00Z"}],
-                    "open_links_enabled": self.0,
+                    "links": [],
                     "connections": [
                         agent("claude", "Claude Code", "sign_in"),
                         agent("codex", "Codex", "link"),
                         agent("cursor", "Cursor", "sign_in"),
                         agent("helper", "Research helper", "sign_in"),
                     ],
-                    "pending": [{"id": "opencode", "name": "OpenCode", "admission": "sign_in",
-                        "requested_at": ago(60), "expires_at": ago(-540)}],
+                    "pending": if self.0 == "roster" { json!([]) } else { json!([{"id": "robo",
+                        "name": "Robo", "avatar": "other", "admission": "sign_in",
+                        "requested_at": ago(60), "expires_at": ago(-540)}]) },
                 })
             })
         }
     }
-    Client::new(Arc::new(Lab(open_links)))
+    Client::new(Arc::new(Lab(variant.to_owned())))
 }
 impl Default for CloudAgents {
     fn default() -> Self {
@@ -708,7 +716,7 @@ mod tests {
         cx.executor().advance_clock(WAITING_REFRESH);
         cx.run_until_parked();
         assert_eq!(server.lists(), calls);
-        agents.update(cx, |a, cx| a.set_panel_open(true, cx));
+        agents.update(cx, |a, cx| a.set_dialog_open(true, cx));
         cx.run_until_parked();
         let calls = server.lists();
         cx.executor().advance_clock(WAITING_REFRESH);
@@ -739,36 +747,72 @@ mod tests {
         agents.read_with(cx, |a, _| {
             assert_eq!(a.copy, CopyStatus::Copied);
             assert!(a.waiting());
+            // The prompt now shows the link made, its secret masked.
+            assert_eq!(a.made.as_deref(), Some("https://api.puppyone.ai/agent/x"));
         });
-        // The same Agents do not end the wait; a newcomer does.
+        // The same Agents do not end the wait; a newcomer does, and the
+        // steps give way to it.
+        agents.update(cx, |a, cx| {
+            a.invite_open = true;
+            cx.notify()
+        });
         cx.executor().advance_clock(WAITING_REFRESH);
         cx.run_until_parked();
-        agents.read_with(cx, |a, _| {
-            assert!(a.waiting());
-            assert_eq!(a.copy, CopyStatus::Idle);
-        });
+        agents.read_with(cx, |a, _| assert!(a.waiting() && a.invite_open));
         *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
         cx.executor().advance_clock(WAITING_REFRESH);
         cx.run_until_parked();
-        agents.read_with(cx, |a, _| assert!(!a.waiting()));
-        // Pressing the mark that opened the card closes it.
-        agents.update(cx, |a, _| {
-            assert!(a.press(Opener::Invite, false));
-            assert!(!a.press(Opener::Invite, true));
-            assert!(a.press(Opener::More, true));
+        agents.read_with(cx, |a, _| {
+            assert!(!a.waiting() && !a.invite_open);
+            assert_eq!((a.copy, a.made.as_deref()), (CopyStatus::Idle, None));
         });
     }
 
     #[gpui::test]
-    fn manage_removes_an_agent_and_tells_the_header(cx: &mut TestAppContext) {
+    fn the_dialog_opens_on_inviting_only_while_nobody_is_here(cx: &mut TestAppContext) {
         let (server, agents) = setup(cx);
-        agents.update(cx, |a, cx| a.open_manage(cx));
-        cx.run_until_parked();
-        agents.read_with(cx, |a, _| {
-            assert_eq!(a.manage.as_ref().unwrap().inventory.connections.len(), 1)
-        });
+        agents.update(cx, |a, cx| a.open(Opener::More, cx));
+        agents.read_with(cx, |a, _| assert!(!a.invite_open));
         *server.connections.lock().unwrap() = json!([]);
-        agents.update(cx, |a, cx| a.remove("g-c1", cx));
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        agents.update(cx, |a, cx| a.open(Opener::Invite, cx));
+        agents.read_with(cx, |a, _| {
+            assert!(a.invite_open);
+            // Before Copy, the link is shown as not made yet.
+            assert_eq!(
+                a.prompt().as_deref(),
+                Some("Connect to my puppyone project \"Docs\" by following https://api.puppyone.ai/agent/••••••")
+            );
+        });
+        // Folded and opened again, the steps start over.
+        agents.update(cx, |a, cx| {
+            a.toggle_invite(cx);
+            a.toggle_invite(cx);
+        });
+        agents.read_with(cx, |a, _| assert!(a.invite_open && a.made.is_none()));
+    }
+
+    #[gpui::test]
+    fn removing_asks_once_on_the_tile_and_tells_the_header(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        agents.update(cx, |a, cx| a.confirm_remove(Some("c1".into()), cx));
+        agents.read_with(cx, |a, _| assert_eq!(a.confirming.as_deref(), Some("c1")));
+        // Keep takes nothing out.
+        agents.update(cx, |a, cx| a.confirm_remove(None, cx));
+        assert!(
+            !server
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|c| c.starts_with("PATCH"))
+        );
+        *server.connections.lock().unwrap() = json!([]);
+        agents.update(cx, |a, cx| {
+            a.confirm_remove(Some("c1".into()), cx);
+            a.remove("c1", cx)
+        });
         cx.run_until_parked();
         assert!(
             server
@@ -779,7 +823,7 @@ mod tests {
         );
         agents.read_with(cx, |a, _| {
             assert!(a.agents.is_empty());
-            assert!(a.manage.as_ref().unwrap().inventory.connections.is_empty());
+            assert!(a.removing.is_none() && a.confirming.is_none());
         });
     }
 }
