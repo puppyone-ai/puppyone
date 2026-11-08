@@ -22,7 +22,8 @@ type OnboardingEntryMenuProps = {
 /**
  * Every way to start a project, at the head of a page that already has some. A new
  * project stays one click away; opening a folder and importing wait behind the arrow,
- * since a returning user mostly picks from the projects below.
+ * since a returning user mostly picks from the projects below. It is a quiet control
+ * of the toolbar's own weight, not the page's one colour: the folders are the page.
  */
 export function OnboardingEntryMenu({
   busy,
@@ -48,13 +49,13 @@ export function OnboardingEntryMenu({
       <OnboardingCreateProjectAction
         busy={busy}
         canCreateProject={canCreateProject}
-        prominent
+        withIcon={false}
         onCreateProject={onCreateProject}
       />
       <Tooltip content={label}>
         <Button
-          className="onboarding-entry-action-default onboarding-entry-menu-trigger"
-          tone="primary"
+          className="onboarding-entry-menu-trigger"
+          tone="neutral"
           data-onboarding-action="more"
           aria-label={label}
           aria-haspopup="menu"
