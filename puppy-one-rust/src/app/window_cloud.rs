@@ -35,10 +35,6 @@ pub(super) enum CloudEvent {
     OpenSettings(Page),
     /// A Header card opened or closed.
     Popover(Option<Popover>),
-    /// Open this folder to my other computers (the hosts own it).
-    ShareDevices(PathBuf),
-    /// A folder's other-computer sharing: stop it or open its settings.
-    Devices(super::audience::AudienceAction),
     Error(String),
 }
 
@@ -77,6 +73,8 @@ pub(super) struct WindowCloud {
     pub dismissed_notice: Option<String>,
     /// `CloudLinkDisconnectDialog`, while it is open.
     pub disconnect: Option<Disconnect>,
+    /// `HostFolderSharingDialog`, while it is open.
+    pub(super) host_sharing: Option<super::host_sharing::HostSharing>,
     /// The open folder's one `puppyone` remote (`canDisconnectCloudLink`),
     /// read on a worker for the folder it names.
     pub(super) cloud_remote: Option<(PathBuf, String)>,
@@ -127,6 +125,26 @@ impl WindowCloud {
         // Cloud turned on or off, Share, the account: everything follows.
         cx.observe(&preferences, |s, _, cx| s.refresh(cx)).detach();
         crate::features::cloud::account::observe(window, cx, |s, _, cx| s.refresh(cx)).detach();
+        // What this computer's host shared or stopped is remembered with
+        // the folder, and the window follows its sharing.
+        let link = crate::features::hosts::host_link(cx);
+        cx.observe(&link, |s, link, cx| {
+            let marks = link.update(cx, |l, _| l.take_marks());
+            if !marks.is_empty() {
+                s.preferences.update(cx, |p, cx| {
+                    p.change(
+                        |p| {
+                            for (root, folder) in marks {
+                                p.mark_shared(&root, folder);
+                            }
+                        },
+                        cx,
+                    )
+                });
+            }
+            cx.notify();
+        })
+        .detach();
         // A hidden window is not polled for its Agents, and catches up
         // when it returns.
         let hidden = agents.downgrade();
@@ -156,6 +174,7 @@ impl WindowCloud {
             capture_hosted: false,
             dismissed_notice: None,
             disconnect: None,
+            host_sharing: None,
             cloud_remote: None,
             source_control,
             pending_publish: None,
@@ -193,8 +212,51 @@ impl WindowCloud {
     /// A drop on My Share Project: open that exact folder to my other
     /// computers, after the owner's confirmation (the other computers'
     /// sharing, `useHomepageFolderSharing`).
-    pub fn request_device_sharing(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        cx.emit(CloudEvent::ShareDevices(path));
+    pub fn request_device_sharing(
+        &mut self,
+        path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let name = self
+            .preferences
+            .read(cx)
+            .state
+            .recent_projects
+            .iter()
+            .find(|p| p.path == path)
+            .map(|p| p.name.clone())
+            .filter(|n| !n.trim().is_empty())
+            .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+        self.open_host_sharing(
+            super::host_sharing::Target::Share { root: path, name },
+            false,
+            window,
+            cx,
+        );
+    }
+    /// A shared folder's settings, or straight to stopping it.
+    pub(super) fn device_settings(
+        &mut self,
+        folder: String,
+        path: &std::path::Path,
+        stop: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let name = crate::features::hosts::read_link(cx)
+            .and_then(|l| l.status.as_ref())
+            .and_then(|s| s.folders.iter().find(|f| f.folder_id == folder))
+            .map(|f| f.name.clone())
+            .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+        self.open_host_sharing(
+            super::host_sharing::Target::Settings { folder, name },
+            stop,
+            window,
+            cx,
+        );
     }
     /// The intent meets the folder it named, or is dropped.
     fn settle_pending_publish(&mut self, cx: &mut Context<Self>) {
@@ -371,6 +433,10 @@ impl WindowCloud {
                     .into_any_element()
             }),
             DialogKey::Agents => Some(self.agents_dialog(cx).into_any_element()),
+            DialogKey::HostSharing => self
+                .host_sharing
+                .is_some()
+                .then(|| self.host_sharing_dialog(cx).into_any_element()),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
@@ -389,6 +455,7 @@ impl WindowCloud {
             }
             DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
             DialogKey::Agents => self.close_agents_dialog(window, cx),
+            DialogKey::HostSharing => self.close_host_sharing(cx),
             _ => {}
         }
         cx.notify();

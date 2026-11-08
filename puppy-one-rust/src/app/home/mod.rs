@@ -159,6 +159,8 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) local_share: bool,
     /// The owner's other computers, by name (`OtherComputersLabel`).
     pub(in crate::app) other_computers: Vec<String>,
+    /// This computer's sharing, for My Share Project's heading.
+    presence: Option<(String, bool)>,
     /// `settleShownDates`: each project's date as first shown this visit.
     shown_dates: HashMap<String, i64>,
     /// The toolbar or entry menu that is open.
@@ -213,6 +215,8 @@ impl Homepage {
         cx.observe(&spaces, |h, _, cx| h.refresh(cx)).detach();
         let hosts = crate::features::hosts::global(cx);
         cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
+        let link = crate::features::hosts::host_link(cx);
+        cx.observe(&link, |h, _, cx| h.refresh(cx)).detach();
         // Coming back to the window reads the spaces and the computers
         // again while the page shows.
         cx.observe_window_activation(window, |h, window, cx| {
@@ -290,6 +294,7 @@ impl Homepage {
             shared_ids: None,
             local_share: false,
             other_computers: vec![],
+            presence: None,
             shown_dates: HashMap::new(),
             menu: None,
             stop: None,
@@ -320,20 +325,7 @@ impl Homepage {
     fn refresh(&mut self, cx: &mut Context<Self>) {
         self.read_spaces(false, cx);
         self.read_hosts(false, cx);
-        let (others, offered) = {
-            let hosts = self.hosts.read(cx);
-            let on = crate::features::flags::host_devices_enabled(&self.preferences, cx);
-            (
-                hosts
-                    .others()
-                    .filter(|_| on)
-                    .map(|d| d.name.clone())
-                    .collect::<Vec<_>>(),
-                hosts.offered_here().filter(|_| on && !hosts.error()),
-            )
-        };
-        self.other_computers = others;
-        self.shared_ids = offered;
+        self.sync_sharing(cx);
         self.refresh_activity(cx);
         self.sync_project_view(cx);
         self.sync_first_run(cx);
@@ -362,6 +354,58 @@ impl Homepage {
         let visible = self.session.home;
         self.hosts
             .update(cx, |h, cx| h.ensure(enabled, visible, retry, cx));
+    }
+    /// This computer's own sharing (`HomepageComputers`): what it offers, its
+    /// id among the account's computers, and whether a folder may be offered.
+    fn sync_sharing(&mut self, cx: &mut Context<Self>) {
+        let on = crate::features::flags::host_devices_enabled(&self.preferences, cx);
+        let account = crate::features::cloud::account::broker_and_binding(cx).map(|(_, b)| b.user);
+        let link = crate::features::hosts::host_link(cx);
+        if on {
+            link.update(cx, |l, cx| {
+                l.sync_account(cx);
+                l.ensure(false, cx);
+            });
+        }
+        let device = account.as_deref().and_then(|a| link.read(cx).device_for(a));
+        if self.hosts.read(cx).this_device != device {
+            self.hosts.update(cx, |h, cx| {
+                h.this_device = device;
+                cx.notify();
+            });
+        }
+        let own: Option<std::collections::HashSet<String>> = link
+            .read(cx)
+            .status
+            .as_ref()
+            .filter(|_| on)
+            .map(|s| s.folders.iter().map(|f| f.folder_id.clone()).collect());
+        let hosts = self.hosts.read(cx);
+        self.other_computers = hosts
+            .others()
+            .filter(|_| on)
+            .map(|d| d.name.clone())
+            .collect();
+        self.shared_ids = own.or_else(|| hosts.offered_here().filter(|_| on && !hosts.error()));
+        // A device key needs this computer's keychain.
+        self.local_share = on && account.is_some() && cfg!(target_os = "macos");
+        // `ThisComputerDetail`: paused sharing is resumed where it is seen.
+        self.presence = link.read(cx).status.as_ref().filter(|_| on).and_then(|s| {
+            let key = if s.state == "outdated" {
+                "hosts.sharing.outdated"
+            } else if s.folders.is_empty() {
+                return None;
+            } else if s.paused {
+                "hosts.sharing.paused"
+            } else if s.state == "connecting" {
+                "hosts.sharing.connecting"
+            } else if s.state == "offline" {
+                "hosts.sharing.reconnecting"
+            } else {
+                return None;
+            };
+            Some((tr(key).to_owned(), s.paused && s.state != "outdated"))
+        });
     }
     /// The folders my other computers offer, but those this computer shares.
     fn remote_items(&self, cx: &App) -> Vec<Item> {
@@ -642,6 +686,7 @@ impl Homepage {
             shared_ids: self.shared_ids.as_ref(),
             local_share: self.local_share,
             remote: self.remote_items(cx),
+            presence: self.presence.clone(),
         })
     }
     /// `projectAudience` of `MinimalOnboarding`: who can open a local folder

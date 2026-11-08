@@ -71,6 +71,8 @@ pub(super) enum DialogKey {
     CloudRecovery,
     /// `CloudWorkspaceAgentsDialog`: who is in a hosted project.
     Agents,
+    /// `HostFolderSharingDialog`: a folder here, for my other computers.
+    HostSharing,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;

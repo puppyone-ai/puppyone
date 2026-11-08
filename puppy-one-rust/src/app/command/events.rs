@@ -56,9 +56,6 @@ impl Shell {
             CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
             CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
             CloudEvent::Error(error) => self.show_error(error.clone(), cx),
-            // The owner's other computers come with the hosts; until this
-            // window has them there is nothing to open the folder to.
-            CloudEvent::ShareDevices(_) | CloudEvent::Devices(_) => {}
         }
         self.receive(window, cx);
         cx.notify();
@@ -146,7 +143,7 @@ impl Shell {
             home::HomeEvent::ShareFolder { path } => {
                 let path = path.clone();
                 self.cloud
-                    .update(cx, |c, cx| c.request_device_sharing(path, cx));
+                    .update(cx, |c, cx| c.request_device_sharing(path, window, cx));
             }
             home::HomeEvent::Command(command) => return self.command(*command, window, cx),
         }

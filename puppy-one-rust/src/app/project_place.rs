@@ -358,10 +358,62 @@ impl WindowCloud {
     /// fill this in.
     pub(super) fn devices_audience(
         &self,
-        _root: &std::path::Path,
-        _cx: &App,
+        root: &std::path::Path,
+        cx: &App,
     ) -> Option<super::audience::Devices> {
-        None
+        use super::audience::{AudienceAction as A, Devices};
+        if !crate::features::flags::host_devices_enabled(&self.preferences, cx)
+            || !crate::features::cloud::account::has_account(cx)
+            || self.session().file_mode
+        {
+            return None;
+        }
+        let link = crate::features::hosts::read_link(cx);
+        let status = link.and_then(|l| l.status.as_ref());
+        let recorded = self
+            .preferences
+            .read(cx)
+            .state
+            .recent_projects
+            .iter()
+            .find(|p| p.path == root)
+            .and_then(|p| p.host_folder.clone());
+        let folder = link
+            .and_then(|l| l.folder_of(root))
+            .map(|f| f.folder_id.clone())
+            .or(recorded);
+        // Until this computer's own host answers, a recorded share is taken
+        // at its word.
+        let shared = folder
+            .as_ref()
+            .is_some_and(|id| status.is_none_or(|s| s.folders.iter().any(|f| &f.folder_id == id)));
+        let names: Vec<String> = crate::features::hosts::read(cx)
+            .map(|c| c.others().map(|d| d.name.clone()).collect())
+            .unwrap_or_default();
+        let path = root.to_path_buf();
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        Some(Devices {
+            on: shared,
+            detail: shared.then(|| {
+                super::audience::other_computers(&names, status.is_some_and(|s| s.paused))
+            }),
+            turn_on: (!shared).then(|| A::TurnOnDevices { path: path.clone() }),
+            stop: folder
+                .clone()
+                .filter(|_| shared && status.is_some())
+                .map(|folder| A::StopDevices {
+                    folder,
+                    path: path.clone(),
+                }),
+            settings: folder.filter(|_| shared).map(|folder| A::DeviceSettings {
+                folder,
+                name,
+                path,
+            }),
+        })
     }
     /// `.desktop-titlebar-place-button`: the place's mark, then its address
     /// (or the kind of place while the address is unknown), and a small
@@ -538,9 +590,12 @@ impl WindowCloud {
             A::Retry => self.repository.update(cx, |r, cx| r.retry(cx)),
             A::Disconnect => self.open_disconnect(window, cx),
             A::Send => self.source_control.update(cx, |s, cx| s.push(cx)),
-            A::TurnOnDevices { path } => cx.emit(CloudEvent::ShareDevices(path)),
-            A::StopDevices { .. } | A::DeviceSettings { .. } => {
-                cx.emit(CloudEvent::Devices(action))
+            A::TurnOnDevices { path } => self.request_device_sharing(path, window, cx),
+            A::StopDevices { folder, path } => {
+                self.device_settings(folder, &path, true, window, cx)
+            }
+            A::DeviceSettings { folder, path, .. } => {
+                self.device_settings(folder, &path, false, window, cx)
             }
         }
         cx.notify();

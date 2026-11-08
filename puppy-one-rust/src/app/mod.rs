@@ -24,6 +24,7 @@ mod explorer;
 mod file_mode;
 mod header;
 mod home;
+mod host_sharing;
 mod panes;
 mod project;
 mod project_actions;
@@ -121,8 +122,10 @@ impl Shell {
         })
         .detach();
         let hosts = crate::features::hosts::global(cx);
-        cx.observe_in(&hosts, window, |s, _, window, cx| s.restore_device(window, cx))
-            .detach();
+        cx.observe_in(&hosts, window, |s, _, window, cx| {
+            s.restore_device(window, cx)
+        })
+        .detach();
         // One preference owner for every window; per-window state stays here.
         let launch = windows::take_launch(cx);
         let preferences = windows::shared_preferences(fixture, cx);

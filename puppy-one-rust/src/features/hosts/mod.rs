@@ -5,8 +5,10 @@
 //! account. Opening another computer's folder needs no device key, so it
 //! works where this computer cannot share its own. The folders this
 //! computer opened recently are kept for restoring a window ([`recents`]).
+mod link;
 mod recents;
 mod tools;
+pub use link::{HostLink, SharedFolder, global as host_link, read as read_link};
 pub use recents::Recent;
 pub use tools::{HostTools, Target, Tool};
 
@@ -152,21 +154,9 @@ impl HostCatalog {
     pub fn hosts(&self) -> Option<Arc<Hosts>> {
         self.hosts.clone()
     }
-    pub fn authority(&self) -> Option<&str> {
-        self.authority.as_deref()
-    }
-    pub fn loaded(&self) -> bool {
-        self.loaded
-    }
     /// The last read failed (`hosts.catalog.unavailable`).
     pub fn error(&self) -> bool {
         self.error
-    }
-    /// The owner's computers, this one first once it is known.
-    pub fn devices(&self) -> Vec<&Device> {
-        let mut devices: Vec<&Device> = self.devices.iter().collect();
-        devices.sort_by_key(|d| Some(&d.id) != self.this_device.as_ref());
-        devices
     }
     /// Every computer of the owner's but this one.
     pub fn others(&self) -> impl Iterator<Item = &Device> {

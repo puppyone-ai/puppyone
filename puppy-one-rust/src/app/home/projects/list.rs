@@ -244,6 +244,26 @@ impl Homepage {
             .teams
             .clone()
             .map(|(teams, chosen)| self.team_selector(teams, chosen, busy, cx));
+        let presence = group.presence.clone().map(|(text, resume)| {
+            h_flex()
+                .debug_selector(|| "home-this-computer".into())
+                .flex_none()
+                .gap(px(6.))
+                .items_center()
+                .text_color(t.subtle)
+                .child(text)
+                .when(resume, |d| {
+                    d.child(
+                        Button::new("home-sharing-resume")
+                            .variant(ButtonVariant::GitAction)
+                            .label(tr("hosts.sharing.resume"))
+                            .on_click(|_, _, cx| {
+                                crate::features::hosts::host_link(cx)
+                                    .update(cx, |l, cx| l.set_paused(false, cx));
+                            }),
+                    )
+                })
+        });
         let head = h_flex()
             .min_w_0()
             .items_center()
@@ -264,6 +284,7 @@ impl Homepage {
                     .child(group.title.clone()),
             )
             .children(detail)
+            .children(presence)
             .child(div().flex_1())
             .children(head_end);
         let drop_action = group.drop.clone().filter(|d| d.enabled).map(|d| d.action);

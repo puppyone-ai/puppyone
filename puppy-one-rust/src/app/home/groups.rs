@@ -75,6 +75,9 @@ pub(in crate::app) struct Group {
     pub drop: Option<DropTarget>,
     /// Several teams: which one the group shows (`id`, name), and the chosen.
     pub teams: Option<(Vec<(String, String)>, String)>,
+    /// This computer's sharing, said at the end of My Share Project's
+    /// heading (`ThisComputerDetail`), and whether it offers Resume.
+    pub presence: Option<(String, bool)>,
 }
 
 /// What the groups are made from.
@@ -96,6 +99,8 @@ pub(in crate::app) struct Inputs<'a> {
     pub local_share: bool,
     /// The folders my other computers offer, each computer's by name.
     pub remote: Vec<Item>,
+    /// This computer's sharing, when it shares anything.
+    pub presence: Option<(String, bool)>,
 }
 
 /// The groups in page order, without the empty ones that do not stay.
@@ -147,6 +152,7 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
                     keep_empty: false,
                     drop: None,
                     teams: None,
+                    presence: None,
                 },
             ),
         }
@@ -161,6 +167,7 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
             keep_empty: false,
             drop: None,
             teams: None,
+            presence: None,
         });
     }
     // `HomepageComputers`' local share: the personal area is always there
@@ -193,8 +200,12 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
                 keep_empty: false,
                 drop,
                 teams: None,
+                presence: None,
             }),
         }
+    }
+    if let Some(personal) = groups.iter_mut().find(|g| g.id == GroupId::PersonalShared) {
+        personal.presence = inputs.presence;
     }
     let mut groups: Vec<Group> = groups
         .into_iter()
@@ -263,6 +274,7 @@ fn cloud_groups(
                 },
             }),
             teams: None,
+            presence: None,
         }
     };
     let mut groups = vec![];
@@ -315,6 +327,7 @@ fn cloud_groups(
             keep_empty: false,
             drop: None,
             teams: None,
+            presence: None,
         });
     }
     groups
@@ -375,6 +388,7 @@ mod tests {
             shared_ids: None,
             local_share: false,
             remote: vec![],
+            presence: None,
         }
     }
     fn ids(groups: &[Group]) -> Vec<&'static str> {

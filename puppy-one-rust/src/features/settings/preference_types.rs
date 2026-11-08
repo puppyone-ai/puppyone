@@ -520,6 +520,13 @@ impl Preferences {
             },
         );
     }
+    /// `markWorkspaceShared`: the id `path` is open to the owner's other
+    /// computers under, or none once it is not.
+    pub fn mark_shared(&mut self, path: &std::path::Path, folder: Option<String>) {
+        if let Some(project) = self.recent_projects.iter_mut().find(|p| p.path == path) {
+            project.host_folder = folder;
+        }
+    }
     /// `renameRecentWorkspacePath`: the shown name only.
     pub fn rename_project(&mut self, path: &std::path::Path, name: &str) {
         let name = name.trim();

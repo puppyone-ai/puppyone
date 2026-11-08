@@ -233,10 +233,4 @@ impl CloudSpaces {
     pub fn space(&self, id: &str) -> Option<&Space> {
         self.spaces().iter().find(|s| s.id == id)
     }
-    /// Tests: stand in an answer for `authority`.
-    #[cfg(test)]
-    pub fn install(&mut self, authority: &str, spaces: Vec<Space>) {
-        self.authority = Some(authority.to_owned());
-        self.own = Some((authority.to_owned(), spaces, false));
-    }
 }
