@@ -665,8 +665,8 @@ fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
 }
 /// The tunnel offers the token only as a subprotocol, takes `version.v1`
 /// back, and carries bytes; a refused upgrade keeps its status.
-#[test]
 #[allow(clippy::result_large_err)] // tungstenite's handshake callback
+#[test]
 fn a_host_tunnel_offers_the_token_as_a_subprotocol_and_carries_bytes() {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::{Message, handshake::server};
