@@ -54,12 +54,17 @@
   --onboarding-page-gap: 30px;
   --onboarding-title-primary-gap: 58px;
   --onboarding-primary-actions-gap: 30px;
-  /* The page has three levels of type and no others: the title, this body, and the
-     caption below it. A size between two of them reads as noise, not as hierarchy. */
+  /* The page has three levels of type: the title, this body, and the caption below it.
+     A group's label sits one step under the caption, so that it reads as a page break
+     beside the names it gathers rather than as another heading above them. */
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
   --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
   --onboarding-caption-font-size: var(--po-type-ui-caption, 12px);
+  --onboarding-group-label-font-size: 11px;
   --onboarding-row-line-height: 18px;
+  /* A Grid cell and the folder centred in it; their difference is the groups' inset. */
+  --onboarding-tile-width: 128px;
+  --onboarding-folder-width: 72px;
   display: grid;
   width: min(680px, 100%);
   max-height: 100%;
@@ -113,6 +118,11 @@
   justify-self: center;
   justify-items: stretch;
   gap: 0;
+}
+
+/* On the Grid the toolbar ends where the groups' rules and last folders do. */
+.onboarding-homepage:has(.onboarding-project-group .onboarding-project-list[data-project-layout="grid"]) .onboarding-brand-lockup {
+  padding-inline-end: calc((var(--onboarding-tile-width) - var(--onboarding-folder-width)) / 2);
 }
 
 .onboarding-brand-lockup {
@@ -900,7 +910,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
-  width: 72px;
+  width: var(--onboarding-folder-width);
   height: 57px;
 }
 
@@ -1061,7 +1071,7 @@ span.homepage-cloud-feedback {
   min-width: 0;
   min-height: 0;
   align-content: start;
-  gap: 28px;
+  gap: 20px;
   padding-block: 4px 24px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1080,27 +1090,34 @@ span.homepage-cloud-feedback {
   mask-image: none;
 }
 
+/* One rectangle holds a group: its rule, its label and its projects share the same
+   left and right edges. In a list those are the rows' own inset; on the Grid they are
+   the folders' edges, so the group itself is the grid, the head spans its columns,
+   and however many columns fit, the rule ends where the last column's folder does. */
 .onboarding-project-group {
+  --onboarding-group-inset: 8px;
   position: relative;
   display: grid;
   min-width: 0;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  row-gap: 2px;
   transition: opacity 160ms ease;
+}
+
+.onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
+  --onboarding-group-inset: calc((var(--onboarding-tile-width) - var(--onboarding-folder-width)) / 2);
+  grid-template-columns: repeat(auto-fill, var(--onboarding-tile-width));
 }
 
 /* A single visual grid per audience, even when its entries come from different
    owners. Keep each list's semantics and keyboard handling; don't add device rows. */
 .onboarding-project-group-content {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 
-.onboarding-project-group-content:has(> .onboarding-project-list[data-project-layout="grid"]) {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 2px;
-  align-content: start;
-}
-
+.onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-project-group-content,
 .onboarding-project-group-content > .onboarding-project-list[data-project-layout="grid"] {
   display: contents;
 }
@@ -1122,20 +1139,27 @@ span.homepage-cloud-feedback {
 }
 
 /* An audience heading names who can open its projects, not where they live. It is a
-   label, not a title: the size and quiet ink of a menu's section label, and the rule
-   after it in the same ink, so the folders stay the brightest thing on the page. */
+   label, not a title: small and quiet, close above its projects, under a hairline that
+   turns the page to the next group. Like a menu's separator, the hairline runs exactly
+   as wide as the content it divides, never past it; the first group has none. */
 .onboarding-project-group-head {
   --onboarding-group-ink: var(--po-text-subtle);
   display: flex;
+  grid-column: 1 / -1;
   min-width: 0;
-  min-height: 28px;
   align-items: center;
   gap: 8px;
-  padding-inline: 8px;
+  margin-inline: var(--onboarding-group-inset);
+  padding-block: 0 4px;
   color: var(--onboarding-group-ink);
   font-family: var(--po-font-sans);
-  font-size: var(--onboarding-caption-font-size);
+  font-size: var(--onboarding-group-label-font-size);
   line-height: 16px;
+}
+
+.onboarding-project-group + .onboarding-project-group .onboarding-project-group-head {
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--po-divider);
 }
 
 .onboarding-project-group-title {
@@ -1181,10 +1205,8 @@ span.homepage-cloud-feedback {
   color: var(--po-text);
 }
 
-.onboarding-project-group-divider {
-  flex: 1 0 24px;
-  border-block-start: 1px solid var(--onboarding-group-ink);
-  opacity: 0.5;
+.onboarding-project-group-spacer {
+  flex: 1 0 0;
 }
 
 .onboarding-project-group-actions {
@@ -1252,7 +1274,7 @@ span.homepage-cloud-feedback {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  padding: 8px;
+  padding: 8px var(--onboarding-group-inset, 8px);
   color: var(--po-text-subtle);
   font-size: var(--onboarding-caption-font-size);
 }
