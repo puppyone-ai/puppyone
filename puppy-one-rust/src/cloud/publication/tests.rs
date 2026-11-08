@@ -645,7 +645,8 @@ fn every_repository_shape_but_lfs_passes_the_preflight() {
             ],
         );
     }
-    let shapes: [(&str, fn(&Path), usize); 7] = [
+    type Shape = (&'static str, fn(&Path), usize);
+    let shapes: [Shape; 7] = [
         (
             "linear",
             |r| {

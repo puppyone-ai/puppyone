@@ -302,6 +302,9 @@ fn accept(mut stream: UnixStream, tx: &async_channel::Sender<Incoming>, app: &Ap
 }
 
 #[cfg(test)]
+const CONTRACT_DIGEST: &str = "5e6f53c3b594f56aa2b0ee7232f5fc93a76e6e3085dd49024753de5ec1133d2a";
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use core::prelude::v1::test;
@@ -456,6 +459,3 @@ mod tests {
         assert_eq!(answer["results"][0]["error"]["code"], "PATH_NOT_FOUND");
     }
 }
-
-#[cfg(test)]
-const CONTRACT_DIGEST: &str = "5e6f53c3b594f56aa2b0ee7232f5fc93a76e6e3085dd49024753de5ec1133d2a";

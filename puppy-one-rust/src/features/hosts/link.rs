@@ -488,11 +488,8 @@ impl HostLink {
                 .map(|_| ())
                 .map_err(failed)
         };
-        let apply = move |s: &mut Self,
-                          cx: &mut Context<Self>,
-                          then: Box<
-            dyn FnOnce(&mut Self, Result<(), String>, &mut Context<Self>),
-        >| {
+        type Then = Box<dyn FnOnce(&mut HostLink, Result<(), String>, &mut Context<HostLink>)>;
+        let apply = move |s: &mut Self, cx: &mut Context<Self>, then: Then| {
             let execution_local = local.clone();
             s.call(
                 "registrySetAccess",

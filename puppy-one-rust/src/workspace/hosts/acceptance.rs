@@ -373,11 +373,10 @@ fn two_computers_share_a_folder_through_the_real_cloud() {
                 let mut session = access.session("shell", 80, 24).await.unwrap();
                 session.input(b"echo $((40 + 2)); exit\n").await;
                 let mut text = String::new();
-                loop {
-                    match tokio::time::timeout(Duration::from_secs(20), session.next()).await {
-                        Ok(Output::Data(bytes)) => text.push_str(&String::from_utf8_lossy(&bytes)),
-                        Ok(Output::Exit(_)) | Ok(Output::Closed) | Err(_) => break,
-                    }
+                while let Ok(Output::Data(bytes)) =
+                    tokio::time::timeout(Duration::from_secs(20), session.next()).await
+                {
+                    text.push_str(&String::from_utf8_lossy(&bytes));
                 }
                 text
             });

@@ -46,7 +46,7 @@ pub(super) enum ChromeEvent {
     /// A Header popover opened or closed.
     Popover(Option<Popover>),
     /// The project menu's entry: enter it here.
-    OpenItem(Item),
+    OpenItem(Box<Item>),
     /// A rail project: enter it here.
     OpenProject(PathBuf),
     /// The account's catalog, loaded again (`Retry`).

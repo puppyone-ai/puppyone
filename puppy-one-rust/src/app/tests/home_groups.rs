@@ -132,7 +132,8 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let folder = temp.path().canonicalize().unwrap().join("Notes");
     std::fs::create_dir(&folder).unwrap();
-    let posts: Arc<Mutex<Vec<(serde_json::Value, Option<String>)>>> = Default::default();
+    type Posts = Arc<Mutex<Vec<(serde_json::Value, Option<String>)>>>;
+    let posts: Posts = Default::default();
     let seen = posts.clone();
     let creating: crate::cloud::auth::Responder = Arc::new(move |request| {
         if request.method == reqwest::Method::POST && request.path == "/projects/" {

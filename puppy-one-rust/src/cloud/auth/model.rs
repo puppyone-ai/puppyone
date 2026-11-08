@@ -50,28 +50,34 @@ impl Diagnostic {
         }
     }
 }
-/// A request id accepted only as a plain token (`[A-Za-z0-9._:-]{1,128}`),
-/// kept inline so that an error stays `Copy`.
+/// A request id accepted only as a plain token (`[A-Za-z0-9._:-]{1,128}`).
+/// Ids are interned so that an error stays `Copy` and small; a process
+/// keeps at most [`RequestId::KEPT`] of them, and one past that is not shown.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct RequestId {
-    len: u8,
-    bytes: [u8; 128],
-}
+pub struct RequestId(&'static str);
 impl RequestId {
+    pub const KEPT: usize = 4096;
     pub fn parse(value: &str) -> Option<Self> {
         let plain = |b: &u8| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b':' | b'-');
         if value.is_empty() || value.len() > 128 || !value.bytes().all(|b| plain(&b)) {
             return None;
         }
-        let mut bytes = [0; 128];
-        bytes[..value.len()].copy_from_slice(value.as_bytes());
-        Some(Self {
-            len: value.len() as u8,
-            bytes,
-        })
+        static KEPT: std::sync::Mutex<Option<std::collections::HashSet<&'static str>>> =
+            std::sync::Mutex::new(None);
+        let mut kept = KEPT.lock().ok()?;
+        let kept = kept.get_or_insert_with(Default::default);
+        if let Some(known) = kept.get(value) {
+            return Some(Self(known));
+        }
+        if kept.len() >= Self::KEPT {
+            return None;
+        }
+        let interned: &'static str = Box::leak(value.to_owned().into_boxed_str());
+        kept.insert(interned);
+        Some(Self(interned))
     }
     pub fn as_str(&self) -> &str {
-        std::str::from_utf8(&self.bytes[..self.len as usize]).unwrap_or_default()
+        self.0
     }
 }
 impl std::fmt::Debug for RequestId {

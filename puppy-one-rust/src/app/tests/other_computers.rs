@@ -279,7 +279,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
         s.cloud.update(cx, |c, cx| c.sharing_press("share", cx))
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.cloud.read(cx).sharing_state().unwrap().0, true)
+        assert!(s.cloud.read(cx).sharing_state().unwrap().0, "asked first")
     });
     view.update(cx, |s, cx| {
         s.cloud.update(cx, |c, cx| c.sharing_press("allow", cx))
@@ -327,7 +327,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             .update(cx, |c, cx| c.sharing_set(true, Execution::default(), cx))
     });
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.cloud.read(cx).sharing_state().unwrap().0, true)
+        assert!(s.cloud.read(cx).sharing_state().unwrap().0, "asked first")
     });
     view.update(cx, |s, cx| {
         s.cloud.update(cx, |c, cx| c.sharing_press("allow", cx))

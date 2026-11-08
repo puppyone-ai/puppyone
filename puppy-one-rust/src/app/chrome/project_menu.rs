@@ -257,7 +257,7 @@ impl WindowChrome {
             let _ = open_host.update(cx, |s, cx| {
                 s.show_popover(None, cx);
                 if !current {
-                    cx.emit(ChromeEvent::OpenItem(item.clone()));
+                    cx.emit(ChromeEvent::OpenItem(Box::new(item.clone())));
                 }
             });
         })

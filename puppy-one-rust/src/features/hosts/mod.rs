@@ -181,7 +181,7 @@ impl HostCatalog {
                 .iter()
                 .filter(|f| !local.contains(&f.id))
                 .collect();
-            folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            folders.sort_by_key(|f| f.name.to_lowercase());
             items.extend(folders.into_iter().map(|folder| {
                 Item {
                     id: format!("device-folder:{}", folder.id),
