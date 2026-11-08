@@ -18,6 +18,18 @@ afterEach(async () => {
 });
 
 describe("Electron Build Identity service", () => {
+  it("uses a packaged local label without renaming the keychain or data owner", async () => {
+    const appData = await createTemporaryDirectory();
+    const app = { isPackaged: true, getPath: () => appData, setName: vi.fn(), setPath: vi.fn(), setAboutPanelOptions: vi.fn() };
+    const buildInfo = resolveDesktopBuildIdentity({ baseVersion: "1.0.0", channel: "dev", commitSha });
+    const identity = configureDesktopApplicationIdentity({ app, buildInfo, packageMetadata: { puppyoneLocalDisplayName: "puppyone herb" } });
+    expect(identity.applicationName).toBe("puppyone herb");
+    expect(identity.applicationId).toBe("ai.puppyone.desktop.dev");
+    expect(identity.userDataPath).toBe(path.join(appData, "puppyone-development"));
+    expect(app.setName).toHaveBeenCalledWith("PuppyOne Development");
+    expect(app.setAboutPanelOptions).toHaveBeenCalledWith({ applicationName: "puppyone herb" });
+  });
+
   it("loads and verifies the identity embedded in a packaged application", async () => {
     const resourcesPath = await createTemporaryDirectory();
     const buildInfo = resolveDesktopBuildIdentity({

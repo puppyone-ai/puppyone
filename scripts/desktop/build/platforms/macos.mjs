@@ -38,7 +38,7 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
       notarize: true,
       ...(baseBuild.mac ?? {}),
       icon: resolveDesktopAppIcon(identity.release.channel).macos,
-      executableName: identity.applicationName,
+      executableName: identity.displayName ?? identity.applicationName,
       bundleShortVersion: identity.release.baseVersion,
       bundleVersion: identity.platformBuildNumber ?? identity.release.baseVersion,
       ...(identity.release.channel === "stable"
@@ -51,8 +51,8 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
           }),
       extendInfo: {
         ...(baseBuild.mac?.extendInfo ?? {}),
-        CFBundleName: identity.applicationName,
-        CFBundleDisplayName: identity.applicationName,
+        CFBundleName: identity.displayName ?? identity.applicationName,
+        CFBundleDisplayName: identity.displayName ?? identity.applicationName,
         CFBundleDocumentTypes: [...FILE_MODE_DOCUMENT_TYPES, {
           CFBundleTypeName: "puppyone Template", CFBundleTypeExtensions: ["puppyonetemplate"],
           CFBundleTypeRole: "Viewer", LSHandlerRank: "Owner",

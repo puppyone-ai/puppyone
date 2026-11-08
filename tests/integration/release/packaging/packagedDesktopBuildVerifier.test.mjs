@@ -33,6 +33,18 @@ afterEach(async () => {
 });
 
 describe("packaged Desktop Build Identity verification", () => {
+  it("verifies the local dev label while enforcing its original credential name", async () => {
+    const fixture = await createFixture({ channel: "dev", displayName: "puppyone herb" });
+    await expect(verifyPackagedDesktopBuild({ releaseDirectory: fixture.releaseDirectory, buildInfo: fixture.buildInfo }))
+      .resolves.toMatchObject({ applications: [fixture.applicationPath] });
+  });
+
+  it("rejects local aliases on published channels", async () => {
+    const fixture = await createFixture({ channel: "internal", displayName: "puppyone herb" });
+    await expect(verifyPackagedDesktopBuild({ releaseDirectory: fixture.releaseDirectory, buildInfo: fixture.buildInfo }))
+      .rejects.toThrow(/local.*dev/i);
+  });
+
   it("verifies app metadata, embedded identity, update feed, and artifact names", async () => {
     const fixture = await createFixture();
     await expect(verifyPackagedDesktopBuild({
@@ -134,7 +146,7 @@ describe("packaged Desktop Build Identity verification", () => {
   });
 });
 
-async function createFixture() {
+async function createFixture({ channel = "internal", displayName } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-packaged-identity-"));
   temporaryDirectories.push(root);
   const releaseDirectory = path.join(root, "release");
@@ -142,14 +154,14 @@ async function createFixture() {
     baseVersion: "1.4.0",
     buildNumber: 72,
     builtAt: "2026-07-26T10:00:00.000Z",
-    channel: "internal",
+    channel,
     commitSha: "a".repeat(40),
   });
   const policy = getDesktopBuildChannelPolicy(buildInfo.channel);
   const applicationPath = path.join(
     releaseDirectory,
     "mac-arm64",
-    `${policy.applicationName.toLocaleLowerCase("en-US")}.app`,
+    `${(displayName ?? policy.applicationName).toLocaleLowerCase("en-US")}.app`,
   );
   const resourcesDirectory = path.join(applicationPath, "Contents", "Resources");
   const sourceDirectory = path.join(root, "asar-source");
@@ -157,7 +169,7 @@ async function createFixture() {
   await fs.mkdir(sourceDirectory, { recursive: true });
   await fs.writeFile(
     path.join(sourceDirectory, "package.json"),
-    JSON.stringify({ name: "@puppyone/desktop", version: buildInfo.version }),
+    JSON.stringify({ name: "@puppyone/desktop", version: buildInfo.version, ...(displayName ? { productName: policy.applicationName, puppyoneLocalDisplayName: displayName } : {}) }),
   );
   await createPackage(sourceDirectory, path.join(resourcesDirectory, "app.asar"));
   await fs.writeFile(
@@ -172,10 +184,10 @@ async function createFixture() {
     path.join(applicationPath, "Contents", "Info.plist"),
     buildPlist({
       CFBundleIdentifier: policy.applicationId,
-      CFBundleName: policy.applicationName,
-      CFBundleDisplayName: policy.applicationName,
+      CFBundleName: displayName ?? policy.applicationName,
+      CFBundleDisplayName: displayName ?? policy.applicationName,
       CFBundleShortVersionString: buildInfo.baseVersion,
-      CFBundleVersion: buildInfo.platformBuildNumber,
+      CFBundleVersion: buildInfo.platformBuildNumber ?? buildInfo.baseVersion,
     }),
   );
   await fs.writeFile(

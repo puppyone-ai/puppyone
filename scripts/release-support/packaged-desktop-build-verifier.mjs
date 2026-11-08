@@ -1,3 +1,4 @@
+import { resolveLocalDisplayName } from "../../shared/desktop/local-display-name.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import asarPackage from "@electron/asar";
@@ -42,14 +43,6 @@ export async function verifyPackagedDesktopBuild({
   }
 
   for (const application of applications) {
-    const applicationBundleName = path.basename(application.path);
-    const expectedApplicationBundleName = `${policy.applicationName}.app`;
-    if (applicationBundleName.toLocaleLowerCase("en-US")
-      !== expectedApplicationBundleName.toLocaleLowerCase("en-US")) {
-      throw new Error(
-        `Packaged app ${applicationBundleName} must be named ${expectedApplicationBundleName}, ignoring case.`,
-      );
-    }
     const resourcesDirectory = path.join(application.path, "Contents", "Resources");
     const embeddedBuildInfo = assertDesktopBuildInfo(JSON.parse(
       await fs.readFile(path.join(resourcesDirectory, "build-info.json"), "utf8"),
@@ -61,6 +54,19 @@ export async function verifyPackagedDesktopBuild({
     const applicationPackage = JSON.parse(
       extractFile(path.join(resourcesDirectory, "app.asar"), "package.json").toString("utf8"),
     );
+    const displayName = resolveLocalDisplayName({ channel: identity.channel,
+      displayName: applicationPackage.puppyoneLocalDisplayName, fallback: policy.applicationName });
+    if (applicationPackage.puppyoneLocalDisplayName != null && applicationPackage.productName !== policy.applicationName) {
+      throw new Error("A local display name must retain the canonical Electron credential name.");
+    }
+    const applicationBundleName = path.basename(application.path);
+    const expectedApplicationBundleName = `${displayName}.app`;
+    if (applicationBundleName.toLocaleLowerCase("en-US")
+      !== expectedApplicationBundleName.toLocaleLowerCase("en-US")) {
+      throw new Error(
+        `Packaged app ${applicationBundleName} must be named ${expectedApplicationBundleName}, ignoring case.`,
+      );
+    }
     if (applicationPackage.version !== identity.version) {
       throw new Error(
         `${path.basename(application.path)} package version ${applicationPackage.version} must equal ${identity.version}.`,
@@ -74,8 +80,8 @@ export async function verifyPackagedDesktopBuild({
     );
     const expectedPlist = {
       CFBundleIdentifier: policy.applicationId,
-      CFBundleName: policy.applicationName,
-      CFBundleDisplayName: policy.applicationName,
+      CFBundleName: displayName,
+      CFBundleDisplayName: displayName,
       CFBundleShortVersionString: identity.baseVersion,
       CFBundleVersion: identity.platformBuildNumber ?? identity.baseVersion,
     };

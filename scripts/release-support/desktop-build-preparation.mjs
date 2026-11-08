@@ -30,6 +30,7 @@ export async function prepareDesktopBuild({
   buildInfoPath = DEFAULT_BUILD_INFO_PATH,
   builderConfigPath = DEFAULT_BUILDER_CONFIG_PATH,
   target = null,
+  displayName = null,
 } = {}) {
   const root = path.resolve(repositoryRoot ?? process.cwd());
   repairNodePtyPermissions(root);
@@ -59,6 +60,7 @@ export async function prepareDesktopBuild({
     buildInfo,
     buildInfoPath: relativeBuildInfoPath,
     target: targetDefinition,
+    displayName,
   });
 
   await writeJsonAtomic(path.join(root, relativeBuildInfoPath), buildInfo);
@@ -90,12 +92,14 @@ export function createDesktopElectronBuilderConfig({
   buildInfo,
   buildInfoPath = DEFAULT_BUILD_INFO_PATH,
   target,
+  displayName,
 }) {
   return createTargetDesktopElectronBuilderConfig({
     packageMetadata,
     buildInfo,
     buildInfoPath,
     target,
+    displayName,
   });
 }
 

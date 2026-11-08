@@ -29,6 +29,24 @@ afterEach(async () => {
 });
 
 describe("desktop build identity", () => {
+  it("packages a local display name while preserving the dev storage identity", () => {
+    const buildInfo = resolveDesktopBuildIdentity({ baseVersion: "1.0.0", channel: "dev", commitSha });
+    const config = createDesktopElectronBuilderConfig({ packageMetadata: {}, buildInfo, displayName: "puppyone herb" });
+    expect(config.productName).toBe("puppyone herb");
+    expect(config.appId).toBe("ai.puppyone.desktop.dev");
+    expect(config.mac.extendInfo.CFBundleName).toBe("puppyone herb");
+    expect(config.mac.extendInfo.CFBundleDisplayName).toBe("puppyone herb");
+    expect(config.extraMetadata.productName).toBe("PuppyOne Development");
+    expect(config.extraMetadata.puppyoneLocalDisplayName).toBe("puppyone herb");
+    expect(config.executableName).toBe("puppyone herb");
+    expect(config.mac.executableName).toBe("puppyone herb");
+    for (const channel of ["internal", "stable"]) {
+      const published = resolveDesktopBuildIdentity({ baseVersion: "1.0.0", channel, commitSha, buildNumber: 1 });
+      expect(() => createDesktopElectronBuilderConfig({ packageMetadata: {}, buildInfo: published, displayName: "puppyone herb" })).toThrow(/local.*dev/i);
+    }
+    expect(() => createDesktopElectronBuilderConfig({ packageMetadata: {}, buildInfo, displayName: "../bad" })).toThrow(/display name/i);
+  });
+
   it("resolves the three supported channels deterministically", () => {
     const common = {
       baseVersion: "1.4.0",

@@ -12,6 +12,7 @@ import { applyMacosBuilderConfig } from "./platforms/macos.mjs";
 import { applyWindowsBuilderConfig } from "./platforms/windows.mjs";
 import { resolveDesktopAppIcon } from "../../../shared/desktop/app-icon-contract.mjs";
 import { getDesktopReturnScheme } from "../../../shared/desktop/return-to-app-link.mjs";
+import { resolveLocalDisplayName } from "../../../shared/desktop/local-display-name.mjs";
 
 const DEFAULT_MAC_TARGET = createDesktopTarget({ platform: "macos", arch: "arm64" });
 const PLATFORM_CONFIG_KEYS = Object.freeze([
@@ -30,6 +31,7 @@ export function createDesktopElectronBuilderConfig({
   buildInfo,
   buildInfoPath = "generated/desktop-build-info.json",
   target = DEFAULT_MAC_TARGET,
+  displayName = null,
 }) {
   const legacyBuildInfo = assertDesktopBuildInfo(buildInfo);
   const release = toDesktopReleaseIdentity(legacyBuildInfo);
@@ -38,6 +40,10 @@ export function createDesktopElectronBuilderConfig({
     releaseIdentity: release,
     target: targetDefinition,
   });
+  const packageName = resolveLocalDisplayName({ channel: release.channel, displayName, fallback: application.applicationName });
+  if (displayName != null && targetDefinition.platform !== "macos") {
+    throw new Error("Local display names are currently supported only for macOS packages.");
+  }
   const baseBuild = structuredClone(packageMetadata?.build ?? {});
   const baseConfig = stripPlatformConfig(baseBuild);
   const appImageSource = resolveDesktopAppIcon(release.channel).source;
@@ -46,22 +52,28 @@ export function createDesktopElectronBuilderConfig({
     appImageSource,
     buildInfoPath,
   });
-  const identity = Object.freeze({ ...application, release });
+  const identity = Object.freeze({ ...application, displayName: packageName, release });
   const config = {
     ...baseConfig,
     appId: application.applicationId,
-    productName: application.applicationName,
-    executableName: application.applicationName,
+    productName: packageName,
+    executableName: packageName,
     artifactName: "puppyone-${version}-${arch}.${ext}",
     buildVersion: application.platformBuildNumber ?? release.baseVersion,
     protocols: [{
-      name: `Open ${application.applicationName}`,
+      name: `Open ${packageName}`,
       schemes: [getDesktopReturnScheme(release.channel)],
       role: "Viewer",
     }],
     extraMetadata: {
       ...(baseBuild.extraMetadata ?? {}),
       version: release.version,
+      // Electron reads productName before our entry module. Keep its keychain
+      // name stable even when macOS and our windows use a different label.
+      ...(displayName == null ? {} : {
+        productName: application.applicationName,
+        puppyoneLocalDisplayName: packageName,
+      }),
     },
     extraResources,
     publish: application.updateFeedUrl

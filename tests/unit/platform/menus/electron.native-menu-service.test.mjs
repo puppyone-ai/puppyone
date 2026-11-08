@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NATIVE_MENU_COMMAND_SYMBOLS, createDesktopNativeMenuService } from "../../../../electron/main/native-menu-service.mjs";
 
-function createHarness({ platform = "darwin", menuSymbol } = {}) {
+function createHarness({ platform = "darwin", menuSymbol, applicationName } = {}) {
   const Menu = {
     buildFromTemplate: vi.fn((template) => ({ template })),
     setApplicationMenu: vi.fn(),
@@ -27,6 +27,7 @@ function createHarness({ platform = "darwin", menuSymbol } = {}) {
     app,
     Menu,
     platform,
+    applicationName,
     t: (messageId) => labels[messageId] ?? messageId,
     onCheckForUpdates: actions.checkForUpdates,
     onNewWindow: actions.newWindow,
@@ -39,6 +40,28 @@ function createHarness({ platform = "darwin", menuSymbol } = {}) {
 }
 
 describe("DesktopNativeMenuService", () => {
+  it("uses the display name in the menu while retaining Electron's storage name", () => {
+    const { app, service } = createHarness({ applicationName: "puppyone herb" });
+    expect(service.createApplicationMenuTemplate()[0].label).toBe("puppyone herb");
+    expect(app.name).toBe("puppyone");
+  });
+
+  it("keeps native role actions and localized wording while replacing the stored app name", () => {
+    const { Menu, service } = createHarness({ applicationName: "puppyone herb" });
+    const items = [
+      { role: "about", label: "关于 puppyone" },
+      { role: "hide", label: "隐藏 puppyone" },
+      { role: "quit", label: "退出 puppyone", accelerator: "Command+Q" },
+    ];
+    Menu.buildFromTemplate.mockReturnValueOnce({ items });
+    service.refresh();
+    const nativeTemplate = Menu.buildFromTemplate.mock.calls[1][0];
+    const renamedRoles = nativeTemplate[0].submenu.filter(item => ["about", "hide", "quit"].includes(item.role));
+    expect(renamedRoles.map(item => item.label)).toEqual(["关于 puppyone herb", "隐藏 puppyone herb", "退出 puppyone herb"]);
+    expect(renamedRoles.map(item => item.role)).toEqual(["about", "hide", "quit"]);
+    expect(items[2].label).toBe("退出 puppyone");
+  });
+
   it("installs a native macOS File menu and shares New Window with the Dock", async () => {
     const { actions, app, Menu, service } = createHarness();
 

@@ -25,6 +25,7 @@ function runMenuAction(actionId, action, logger) {
 
 export function createDesktopNativeMenuService({
   app,
+  applicationName = app?.name,
   Menu,
   platform = process.platform,
   t,
@@ -81,7 +82,7 @@ export function createDesktopNativeMenuService({
   });
 
   const createAppMenu = () => ({
-    label: app.name,
+    label: applicationName,
     submenu: [
       // About and Check for Updates are one group: both are about this build.
       { role: "about" },
@@ -162,7 +163,18 @@ export function createDesktopNativeMenuService({
   const refresh = () => {
     if (platform !== "darwin") return { supported: false };
 
-    const applicationMenu = Menu.buildFromTemplate(createApplicationMenuTemplate());
+    const template = createApplicationMenuTemplate();
+    if (applicationName !== app.name) {
+      // Resolve Electron's localized role labels with the storage identity,
+      // then supply the display labels before inserting the final native menu.
+      const roles = ["about", "hide", "quit"];
+      const nativeLabels = Menu.buildFromTemplate(roles.map(role => ({ role }))).items;
+      for (const item of template[0].submenu) {
+        const nativeItem = nativeLabels.find(candidate => candidate.role === item.role);
+        if (nativeItem) item.label = nativeItem.label.replaceAll(app.name, applicationName);
+      }
+    }
+    const applicationMenu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(applicationMenu);
 
     if (app.dock && typeof app.dock.setMenu === "function") {

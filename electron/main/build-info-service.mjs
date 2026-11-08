@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { resolveDevelopmentProfile } from "./development-instance.mjs";
+import { resolveLocalDisplayName } from "../../shared/desktop/local-display-name.mjs";
 import {
   assertDesktopBuildInfo,
   getDesktopBuildChannelPolicy,
@@ -48,19 +49,26 @@ export function configureDesktopApplicationIdentity({
   platform = process.platform,
   projectRoot,
   environment = process.env,
+  packageMetadata = {},
 }) {
   const identity = assertDesktopBuildInfo(buildInfo);
   const policy = getDesktopBuildChannelPolicy(identity.channel);
   const profile = identity.channel === "dev" && !app.isPackaged
     ? resolveDevelopmentProfile({ projectRoot: projectRoot ?? app.getAppPath(), environment, platform })
     : null;
-  const applicationName = profile ? `${policy.applicationName} (${profile})` : policy.applicationName;
+  const storageName = profile ? `${policy.applicationName} (${profile})` : policy.applicationName;
+  const applicationName = resolveLocalDisplayName({
+    channel: identity.channel,
+    displayName: app.isPackaged ? packageMetadata.puppyoneLocalDisplayName : null,
+    fallback: storageName,
+  });
   const applicationId = profile ? `${policy.applicationId}.${profile}` : policy.applicationId;
   const userDataPath = path.join(app.getPath("appData"), profile
     ? `${policy.userDataName}-${profile}` : policy.userDataName);
 
   fs.mkdirSync(userDataPath, { recursive: true });
-  app.setName(applicationName);
+  app.setName(storageName);
+  if (applicationName !== storageName) app.setAboutPanelOptions({ applicationName });
   app.setPath("userData", userDataPath);
   // Explicitly configure Chromium before ready; it may have cached its default.
   app.setPath("sessionData", userDataPath);

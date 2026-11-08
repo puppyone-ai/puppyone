@@ -212,6 +212,7 @@ const desktopApplicationIdentity = configureDesktopApplicationIdentity({
   app,
   buildInfo: desktopBuildInfo,
   projectRoot,
+  packageMetadata,
 });
 const desktopPlatformHost = createDesktopPlatformHost({
   safeStorage,
@@ -363,6 +364,7 @@ const checkForUpdatesFromNativeMenu = createNativeUpdateMenuAction({
 });
 const nativeMenuService = createDesktopNativeMenuService({
   app,
+  applicationName: appName,
   Menu,
   t: (messageId, values) => localeService.t(messageId, values),
   onNewWindow: () => createWindow(),

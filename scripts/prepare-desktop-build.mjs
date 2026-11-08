@@ -22,6 +22,7 @@ try {
     sourceDirty: options.sourceDirty,
     expectedTag: options.expectedTag,
     target: options.target,
+    displayName: options.displayName,
     buildInfoPath: options.buildInfoPath ?? DEFAULT_BUILD_INFO_PATH,
     builderConfigPath: options.builderConfigPath ?? DEFAULT_BUILDER_CONFIG_PATH,
   });
@@ -85,6 +86,7 @@ function parseArguments(values) {
     else if (key === "built-at") options.builtAt = value;
     else if (key === "expected-tag") options.expectedTag = value;
     else if (key === "target") options.target = value;
+    else if (key === "display-name") options.displayName = value;
     else if (key === "build-info") options.buildInfoPath = value;
     else if (key === "builder-config") options.builderConfigPath = value;
     else if (key === "github-output") options.githubOutputPath = value;
