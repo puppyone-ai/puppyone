@@ -1,5 +1,7 @@
 //! Admitted workspace handle: stable resource identity, revocable provider lease
 //! and capability enforcement. Only `local` knows the capability filesystem.
+#[cfg(test)]
+mod acceptance;
 pub mod cloud;
 pub mod hosts;
 pub use po_contracts::workspace::contracts;

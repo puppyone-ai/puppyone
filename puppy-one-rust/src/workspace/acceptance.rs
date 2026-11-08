@@ -6,10 +6,10 @@
 //! Run explicitly:
 //!
 //! ```text
-//! cargo test -p po-workspace --features test-support -- cloud::acceptance --ignored --nocapture
+//! cargo test -p po-workspace --features test-support -- workspace::acceptance --ignored --nocapture
 //! ```
 #![cfg(test)]
-use super::{
+use super::cloud::{
     Target, agents,
     opening::{self, Phase},
     services::{BrokerTransport, Client},
@@ -111,10 +111,10 @@ fn the_cloud_flows_work_against_the_real_deployment() {
             }
         }
         // 7. History.
-        if let Some(request) = super::history::page_request(&first.id, None) {
+        if let Some(request) = super::cloud::history::page_request(&first.id, None) {
             match broker.request(&binding, &request) {
                 Ok(page) => {
-                    let history = super::history::parse_page(&page, &first.id, false);
+                    let history = super::cloud::history::parse_page(&page, &first.id, false);
                     step(&format!("7 History read: {}", history.is_ok()));
                 }
                 Err(error) => step(&format!("7 History refused: {error:?}")),

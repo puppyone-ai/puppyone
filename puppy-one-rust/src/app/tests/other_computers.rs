@@ -179,6 +179,8 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
     std::fs::create_dir(&folder).unwrap();
     let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let seen = asked.clone();
+    // The Cloud's view: the folder this computer registered, at its revision.
+    let registered = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
     let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
         let path = request.path.clone();
         seen.lock()
@@ -187,9 +189,21 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
         Ok(if path == "/hosts/devices" {
             serde_json::json!({"device_id": DEVICE})
         } else if path.ends_with("/folders") {
-            serde_json::json!({"folder_id": request.body.as_ref().unwrap()["folder_id"]})
+            let id = request.body.as_ref().unwrap()["folder_id"].clone();
+            *registered.lock().unwrap() = id.as_str().map(str::to_owned);
+            serde_json::json!({"folder_id": id})
         } else if path == "/hosts" {
-            serde_json::json!({"devices": []})
+            let folders: Vec<_> = registered
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|id| {
+                    serde_json::json!({"id": id, "name": "notes", "state": "active",
+                        "revision": 1, "capabilities": ["folder.read"]})
+                })
+                .collect();
+            serde_json::json!({"devices": [{"id": DEVICE, "name": "This Mac", "online": true,
+                "state": "active", "folders": folders}]})
         } else {
             serde_json::json!({})
         })
@@ -347,6 +361,8 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             .iter()
             .any(|a| a.starts_with("PATCH "))
     );
+    // Each change is for the folder as the Cloud has it: its revision.
+    assert!(asked.lock().unwrap().iter().any(|a| a == "GET /hosts"));
     // Stopping, after one more yes: no longer offered, no longer marked.
     view.update(cx, |s, cx| {
         s.cloud.update(cx, |c, cx| c.sharing_press("stop", cx))

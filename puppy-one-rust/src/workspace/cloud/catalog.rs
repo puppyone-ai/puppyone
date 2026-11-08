@@ -141,7 +141,7 @@ pub fn build(
                 modified: entry.modified,
                 cloud_organization: None,
                 host_folder: entry.host_folder.clone(),
-            remote: None,
+                remote: None,
             }
         })
         .collect();

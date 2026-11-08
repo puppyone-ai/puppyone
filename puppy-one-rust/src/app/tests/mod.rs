@@ -180,7 +180,9 @@ fn settle_cloud(
     what: &str,
     ready: &dyn Fn(&Shell, &App) -> bool,
 ) {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+    // A liveness wait, not a timing check: the whole suite in parallel can
+    // starve one window's workers for seconds.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         view.update_in(cx, |s, w, cx| s.receive(w, cx));
         cx.run_until_parked();

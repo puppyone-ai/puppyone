@@ -157,6 +157,9 @@ fn scrolling_over_the_file_windows_bar_scrolls_its_document(cx: &mut TestAppCont
         draw(cx);
     }
     view.read_with(cx, |_, cx| {
-        assert!(editor.read(cx).scroll_state(cx).0 > 0., "the document scrolled")
+        assert!(
+            editor.read(cx).scroll_state(cx).0 > 0.,
+            "the document scrolled"
+        )
     });
 }

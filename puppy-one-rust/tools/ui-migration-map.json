@@ -2033,7 +2033,7 @@
       ],
       "evidence": [
         "test:markdown_csv_and_html_pages_open_on_their_own",
-        "test:a_file_window_shows_one_file_and_asks_before_losing_edits",
+        "test:a_file_window_shows_one_file_and_saves_it_as_it_is_edited",
         "test:a_cloud_project_is_entered_at_once_and_escape_abandons_it",
         "test:a_newer_choice_replaces_a_project_still_opening"
       ],
@@ -2287,6 +2287,151 @@
       ],
       "evidence": [],
       "remaining": "Workspace and external references (URLs, Markdown and wiki links, workspace paths) resolve through the native reference index; the Markdown-specific link graph belongs to the advanced Markdown phase."
+    },
+    {
+      "name": "Other computers: access side and device folder provider",
+      "status": "ported",
+      "sources": [
+        "electron/main/hosts/remote-host-client.mjs",
+        "electron/main/hosts/remote-exec-client.mjs",
+        "electron/main/hosts/host-recents.mjs",
+        "electron/main/hosts/ssh/host-ssh-client.mjs",
+        "electron/main/hosts/ssh/openssh.mjs",
+        "shared/host-contract/types.ts",
+        "src/features/hosts/data/deviceDataPort.ts",
+        "src/features/hosts/data/useHostCatalog.ts",
+        "src/features/hosts/model/deviceFolderIdentity.ts",
+        "src/features/hosts/model/hostFolderSelection.ts",
+        "src/features/hosts/model/sharedFolders.ts",
+        "src/features/remote-workbench/useRemoteFolderWorkbench.ts",
+        "src/features/hosts/index.ts"
+      ],
+      "targets": [
+        "src/workspace/hosts/remote.rs",
+        "src/workspace/hosts/device.rs",
+        "src/workspace/hosts/lines.rs",
+        "src/workspace/hosts/ssh.rs",
+        "src/workspace/hosts/protocol.rs",
+        "src/cloud/auth/service.rs",
+        "src/features/hosts/mod.rs",
+        "src/features/hosts/recents.rs",
+        "src/app/project/mod.rs",
+        "src/editor/workbench/runtime.rs"
+      ],
+      "evidence": [
+        "test:a_folder_on_another_computer_opens_through_the_cloud_tunnel",
+        "test:a_remote_watch_reports_changes_and_rescans_after_an_outage",
+        "test:a_folder_on_another_computer_reads_saves_and_watches_like_a_workspace",
+        "test:a_host_tunnel_offers_the_token_as_a_subprotocol_and_carries_bytes",
+        "test:another_computers_folder_opens_here_and_runs_there",
+        "test:the_last_remote_folder_is_remembered_per_account_until_left"
+      ]
+    },
+    {
+      "name": "Other computers: PuppyOne Host",
+      "status": "partial",
+      "sources": [
+        "electron/host-service/autostart.mjs",
+        "electron/host-service/control.mjs",
+        "electron/host-service/electron-main.mjs",
+        "electron/host-service/git-worker.mjs",
+        "electron/host-service/launcher.mjs",
+        "electron/host-service/paths.mjs",
+        "electron/host-service/runtime.mjs",
+        "electron/host-service/sandbox.mjs",
+        "electron/host-service/sandboxed-git.mjs",
+        "electron/host-service/service.mjs",
+        "electron/host-service/ssh/host-ssh-server.mjs",
+        "electron/main/hosts/device-identity.mjs",
+        "electron/main/hosts/host-connector.mjs",
+        "electron/main/hosts/host-exec-process.mjs",
+        "electron/main/hosts/host-exec-service.mjs",
+        "electron/main/hosts/host-file-process.mjs",
+        "electron/main/hosts/host-file-service.mjs",
+        "electron/main/hosts/host-folder-registry.mjs",
+        "electron/main/hosts/host-git-service.mjs"
+      ],
+      "targets": [
+        "src/workspace/hosts/service.rs",
+        "src/workspace/hosts/identity.rs",
+        "src/workspace/hosts/registry.rs",
+        "src/workspace/hosts/connector.rs",
+        "src/workspace/hosts/control.rs",
+        "src/workspace/hosts/process.rs",
+        "src/workspace/hosts/files.rs",
+        "src/workspace/hosts/exec.rs",
+        "src/workspace/hosts/git.rs",
+        "src/workspace/hosts/ssh.rs",
+        "src/features/hosts/link.rs",
+        "src/main.rs",
+        "vendor/russh/PUPPYONE_PATCH.md"
+      ],
+      "evidence": [
+        "test:the_host_file_service_meets_the_protocols_conformance_cases",
+        "test:the_device_connection_serves_ssh_tunnels_for_shared_folders",
+        "test:this_computer_shares_a_folder_through_the_apps_person",
+        "test:the_app_drives_its_host_over_the_control_socket",
+        "test:a_device_registers_once_per_account_and_signs_with_its_key",
+        "test:a_shared_folder_keeps_its_id_and_its_consent_here",
+        "test:the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials",
+        "test:the_changes_panel_runs_named_git_operations_in_the_folder",
+        "test:the_login_entry_runs_this_program_as_the_host"
+      ],
+      "remaining": "System sleep and wake are not observed (the 30 s silence check reconnects after wake); the file service and terminals run in the host process rather than separate utility processes; only the macOS login entry (LaunchAgent) is written, not XDG autostart or a Windows login item; Git history operations (graph, commit_detail) are not offered to other computers."
+    },
+    {
+      "name": "Other computers: Homepage, sharing dialog and remote tools",
+      "status": "partial",
+      "sources": [
+        "src/features/hosts/ui/HomepageComputers.tsx",
+        "src/features/hosts/ui/HostFolderPlace.tsx",
+        "src/features/hosts/ui/HostFolderSharingDialog.tsx",
+        "src/features/hosts/ui/RemoteFolderList.tsx",
+        "src/features/hosts/ui/RemoteGitPanel.tsx",
+        "src/features/hosts/ui/RemoteTerminalPanel.tsx",
+        "src/features/hosts/ui/useHomepageFolderSharing.tsx",
+        "src/app/DeviceFolderHeader.tsx",
+        "src/app/DeviceFolderWorkbenchSurface.tsx",
+        "src/features/hosts/ui/host-sharing.css"
+      ],
+      "targets": [
+        "src/app/host_sharing.rs",
+        "src/features/hosts/tools.rs",
+        "src/app/home/groups.rs",
+        "src/app/home/projects/list.rs",
+        "src/app/project_place.rs",
+        "src/app/chrome/mod.rs",
+        "src/app/right_sidebar.rs",
+        "src/theme.rs"
+      ],
+      "evidence": [
+        "test:other_computers_folders_join_my_share_project",
+        "test:another_computers_folder_opens_here_and_runs_there",
+        "test:a_folder_here_opens_to_my_other_computers_after_i_allow_it"
+      ],
+      "remaining": "No reference-image comparison yet for the remote folder list, the sharing dialog or the remote tools; the native confirmations are product dialogs rather than system alerts."
+    },
+    {
+      "name": "CLI control: puppyone open",
+      "status": "ported",
+      "sources": [
+        "electron/main/cli-control/cli-control-requests.mjs",
+        "electron/main/cli-control/cli-control-server.mjs",
+        "electron/main/cli-control/endpoint.mjs",
+        "shared/cli-control-contract/protocol.mjs"
+      ],
+      "targets": [
+        "src/platform/cli_control.rs",
+        "contracts/cli-control-protocol.mjs",
+        "src/app/windows.rs",
+        "tools/package-workbench.py"
+      ],
+      "evidence": [
+        "test:the_protocol_is_the_pinned_contract",
+        "test:requests_are_checked_before_anything_opens",
+        "test:the_endpoint_falls_back_under_tmp_for_a_long_home",
+        "test:a_half_closed_request_is_answered"
+      ]
     }
   ],
   "retired_sources": {
