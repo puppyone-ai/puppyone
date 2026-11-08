@@ -52,18 +52,20 @@ describe("personal and organization destinations", () => {
     expect(target("team").textContent).toContain("Team project");
     expect(target("team").textContent).not.toContain("Draft");
   });
-  it("orders team, personal and local areas with an unfocusable rule after every heading", async () => {
+  it("orders team, personal and local areas, with nothing to focus in their headings", async () => {
     const host = await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
       cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
     const groups = [...host.querySelectorAll('[data-project-group]')];
     expect(groups.map((group) => group.getAttribute('data-project-group')))
       .toEqual(["team-shared", "personal-shared", "local-only"]);
     expect(groups.map((group) => group.querySelector('h2')?.textContent))
-      .toEqual(["Team Share Project", "My Share Project", "Only on this one builder"]);
+      .toEqual(["Team Share Project", "My Share Project", "On this computer"]);
+    // The rule between groups is the heading's own edge (see the Homepage visual contract),
+    // never an element of its own that assistive technology or the keyboard could reach.
     for (const group of groups) {
-      const rule = group.querySelector<HTMLElement>('.onboarding-project-group-head > .onboarding-project-group-divider');
-      expect(rule?.getAttribute('aria-hidden')).toBe('true');
-      expect(rule?.tabIndex).toBe(-1);
+      const head = group.querySelector<HTMLElement>(".onboarding-project-group-head")!;
+      expect(head.querySelector(".onboarding-project-group-divider, hr, [role=separator]")).toBeNull();
+      expect([...head.querySelectorAll<HTMLElement>("[tabindex]")].filter((element) => element.tabIndex >= 0)).toEqual([]);
     }
   });
   it("does not replace a new account's empty start page with unused space placeholders", async () => {
@@ -97,21 +99,53 @@ describe("personal and organization destinations", () => {
     await drag(target("team"), "drop");
     expect(publish).not.toHaveBeenCalled();
   });
-  it("offers the same confirmed flow through the accessible group menu", async () => {
-    await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
-      cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
-    await act(async () => target("personal").querySelector<HTMLButtonElement>("button")!.click());
-    const entry = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) => button.textContent?.includes("Draft"));
-    expect(entry).toBeTruthy();
-    expect(document.activeElement).toBe(entry);
-    await act(async () => entry!.click());
-    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "personal");
+  it("offers the same confirmed copy to a team from the project's own menu, for the keyboard", async () => {
+    await render({ onRenameProject: async () => {} });
+    const card = localButton("Draft").closest(".onboarding-project-row-wrap")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+    const team = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")].find((row) => row.textContent?.includes("Team"))!;
+    expect(team.textContent).toContain("Copy…");
+    await act(async () => team.click());
+    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "team");
   });
-  it("reveals an empty team destination during an explicit drag, with the same exact target", async () => {
+  it("offers no copy for a folder that already has one, only a way to open it", async () => {
+    const onOpenCloudProject = vi.fn();
+    await render({ onRenameProject: async () => {}, onOpenCloudProject });
+    const card = localButton("Existing").closest(".onboarding-project-row-wrap")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+    const team = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")].find((row) => row.textContent?.includes("Team"))!;
+    expect(team.getAttribute("aria-checked")).toBe("true");
+    expect(team.textContent).not.toContain("Copy…");
+    const open = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")].find((row) => row.textContent?.includes("A copy in the cloud"))!;
+    await act(async () => open.click());
+    expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("remote");
+    expect(publish).not.toHaveBeenCalled();
+  });
+  it("hangs a copy in the personal space under All my devices, and leaves Team unticked with nothing to copy", async () => {
+    const onOpenCloudProject = vi.fn();
+    await render({ onRenameProject: async () => {}, onOpenCloudProject, projectItems: [...items,
+      { id: "mine", label: "Journal", localPath: "/fixture/journal", linkedCloudProject: { id: "mine-cloud", name: "Journal" } },
+      { id: "mine-cloud", label: "Journal", localPath: "", cloudProjectId: "mine-cloud", cloudOrganizationId: "personal" }] });
+    const card = localButton("Journal").closest(".onboarding-project-row-wrap")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+    const rows = [...document.querySelectorAll<HTMLElement>(".project-audience-tier, .project-audience-detail")]
+      .map((row) => [row.textContent?.replace(/[⁨⁩]/g, ""), row.getAttribute("aria-checked")]);
+    expect(rows).toEqual([
+      ["Only this computer", "false"],
+      ["All my devices", "true"],
+      [expect.stringContaining("A copy in the cloud"), null],
+      ["Team", "false"],
+    ]);
+    const open = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")].find((row) => row.textContent?.includes("A copy in the cloud"))!;
+    await act(async () => open.click());
+    expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("mine-cloud");
+    expect(publish).not.toHaveBeenCalled();
+  });
+  it("keeps an empty team one can add to there to drop into, with the same exact target", async () => {
     await render({ projectItems: [local], cloudSpaces: [spaces[1]] });
-    expect(target("team")).toBeNull();
-    await drag(localButton("Draft"), "dragstart");
     expect(target("team").textContent).toContain("Team Share Project");
+    expect(target("team").textContent).toContain("Drag a project here to share it.");
+    await drag(localButton("Draft"), "dragstart");
     await drag(target("team"), "drop");
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "team");
   });

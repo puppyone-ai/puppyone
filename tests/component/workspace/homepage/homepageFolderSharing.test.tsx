@@ -125,18 +125,23 @@ describe("local folder drag into My Share Project", () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Linked");
     expect(publish).not.toHaveBeenCalled();
   });
-  it("reveals an empty personal area for a drag, without needing a hosted personal destination", async () => {
-    devices[0] = { ...devices[0], folders: [] };
-    await render(); expect(group("personal-shared")).toBeNull();
-    await shareDraft(); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
-  });
-  it("offers a keyboard-accessible equivalent even when the personal area is empty", async () => {
+  it("keeps an empty personal area there to drop into, without needing a hosted personal destination", async () => {
     devices[0] = { ...devices[0], folders: [] };
     await render();
-    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open on my other computers…"]')!.click());
-    const entry = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent === "Draft")!;
-    expect(document.activeElement).toBe(entry);
-    await act(async () => entry.click()); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
+    // Dragging a folder in is how it is shared, so the place to drop it is never hidden.
+    expect(group("personal-shared")?.textContent).toContain("Drag a project here to share it.");
+    await shareDraft(); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
+  });
+  it("offers the same sharing from the project's own menu, for the keyboard", async () => {
+    devices[0] = { ...devices[0], folders: [] };
+    await render();
+    const card = project("Draft").closest(".onboarding-project-row-wrap")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+    const devicesRow = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")]
+      .find((row) => row.textContent?.includes("All my devices"))!;
+    expect(devicesRow.getAttribute("aria-checked")).toBe("false");
+    expect(devicesRow.textContent).toContain("Turn on");
+    await act(async () => devicesRow.click()); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
   });
   it("discards the drag when the account generation changes", async () => {
     await render(); await drag(project("Draft"), "dragstart");

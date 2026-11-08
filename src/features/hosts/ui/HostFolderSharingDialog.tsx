@@ -89,7 +89,7 @@ export function HostFolderSharingDialog({ target, catalog, onClose }: {
   const stop = async () => {
     if (!folder || !device) return;
     const result = await change(async () => window.puppyoneDesktop?.removeHostFolder({ deviceId: device.id,
-      folderId: folder.id, expectedSession: catalog.expectedSession }), "hosts.catalog.removeFailure");
+      folderId: folder.id, expectedSession: catalog.expectedSession }), "hosts.catalog.stopFailure");
     if (result?.value && !("cancelled" in result.value)) {
       forgetSharedFolder(folder.id, target.rootPath);
       onClose();

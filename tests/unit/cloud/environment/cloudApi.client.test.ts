@@ -3,12 +3,14 @@
 // (window.puppyoneDesktop.requestCloudSessionApi). We mock that bridge on
 // globalThis.window (no jsdom needed — getDesktopCloudApiBaseUrl guards window
 // access in try/catch) and assert request shaping + the session/api-base guards.
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyCloudBillingPlanChange,
   applyCloudBillingSeatChange,
   cloudApiRequest,
   createCloudBillingCheckout,
+  createCloudProject,
   getCloudAutomationOauthAuthorizeUrl,
   getCloudAutomationOauthStatus,
   getCloudBillingCatalog,
@@ -32,6 +34,7 @@ import { getCloudHistory, normalizeCloudHistory } from "../../../../src/lib/clou
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 
 const API = "https://api.puppyone.ai/api/v1";
+const publishContract = JSON.parse(readFileSync(new URL("../../../fixtures/cloud/contracts/cloud-project-publish-v1.json", import.meta.url), "utf8"));
 const session = {
   expires_in: 3600,
   expires_at: 0,
@@ -294,6 +297,22 @@ describe("cloud API client delegation", () => {
     expect(openExternalUrl).toHaveBeenCalledWith("https://checkout.example/session");
     await expect(openCloudBillingExternalUrl("http://checkout.example/session"))
       .rejects.toThrow(/unsafe/i);
+  });
+
+  it("creates a Cloud project in the chosen space as the publish contract defines, once per operation", async () => {
+    const contract = publishContract.operations.create_empty_project;
+    const operation = "6f1c2a4e-8b0d-4c3e-9a51-2d7e8f90ab12";
+    bridge.mockResolvedValue({ id: "project-9", name: "Plans" });
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, operation, API);
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, operation, API);
+    const [first, retry] = bridge.mock.calls.map(([request]) => request);
+    expect(first).toEqual(expect.objectContaining({ path: contract.path, method: contract.method,
+      headers: expect.objectContaining({ [publishContract.idempotency.header]: operation }) }));
+    const body = JSON.parse(first.body);
+    expect(body).toEqual({ name: "Plans", org_id: "org-team" });
+    expect(Object.keys(body).every((field) => field in contract.request)).toBe(true);
+    // A retry is the same request: the Cloud keys the project on the operation, not on the call.
+    expect(retry).toEqual(first);
   });
 
   it("getCloudProject URL-encodes the project id in the path", async () => {

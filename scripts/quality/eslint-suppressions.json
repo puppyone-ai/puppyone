@@ -339,11 +339,6 @@
       "count": 3
     }
   },
-  "src/components/OnboardingProjectEntryDialog.tsx": {
-    "no-nested-ternary": {
-      "count": 2
-    }
-  },
   "src/components/ProjectShell.tsx": {
     "no-nested-ternary": {
       "count": 2

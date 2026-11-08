@@ -1,7 +1,6 @@
 /**
  * @vitest-environment happy-dom
  */
-import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,7 +44,8 @@ const shownLayout = (container: HTMLElement) =>
   container.querySelector(".onboarding-project-list")?.getAttribute("data-project-layout");
 const toolbarControls = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLButtonElement>(".onboarding-project-view .onboarding-view-menu-root .po-icon-button")];
-const layoutTrigger = (container: HTMLElement) => toolbarControls(container)[2]!;
+const sortTrigger = (container: HTMLElement) => toolbarControls(container)[0]!;
+const layoutTrigger = (container: HTMLElement) => toolbarControls(container)[1]!;
 const layoutOption = (container: HTMLElement, layout: string) =>
   container.querySelector<HTMLButtonElement>(`[data-project-layout-option="${layout}"]`)!;
 const pick = (container: HTMLElement, layout: string) => {
@@ -63,7 +63,6 @@ const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
   })[id])!;
 };
 
-const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
 const withCloudActions = (overrides: Partial<HomeWithEntryFlowProps> = {}): Partial<HomeWithEntryFlowProps> => ({
   projectItems: [local, linked, { ...cloud, cloudActions: { rename: true, delete: true } }],
   onRenameProject: vi.fn(async () => undefined),
@@ -86,17 +85,10 @@ const typeName = (name: string) => act(async () => {
 });
 const menuItem = (container: HTMLElement, name: string) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-view-menu .desktop-menu-item")]
   .find((candidate) => candidate.textContent === name);
-/** Turns places on or off in the filter's menu, and closes it again. */
-const togglePlaces = (container: HTMLElement, ...places: string[]) => {
-  act(() => viewTriggers(container)[0]!.click());
-  for (const place of places) act(() => menuItem(container, place)!.click());
-  act(() => viewTriggers(container)[0]!.click());
-};
 const chooseSort = (container: HTMLElement, option: string) => {
-  act(() => viewTriggers(container)[1]!.click());
+  act(() => sortTrigger(container).click());
   act(() => menuItem(container, option)!.click());
 };
-const chips = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-filter-chip")];
 
 const originalConfirm = window.confirm;
 
@@ -112,7 +104,7 @@ afterEach(() => {
 
 describe("Homepage project order", () => {
   const view = (items: ProjectHomeItem[], sort: "modified" | "name", locale = "en") =>
-    viewProjectHomeItems(items, { places: new Set(), sort, locale, untitled: "Untitled" }).map((item) => item.id);
+    viewProjectHomeItems(items, { sort, locale, untitled: "Untitled" }).map((item) => item.id);
   const item = (id: string, lastModifiedAt: string | null, label = id): ProjectHomeItem =>
     ({ id, label, localPath: `/p/${id}`, lastModifiedAt });
 
@@ -169,17 +161,16 @@ describe("Homepage project layouts", () => {
     expect(layoutTrigger(container).querySelector(".lucide-layout-grid")).not.toBeNull();
   });
 
-  it("heads the page with the view controls alone, with the product named in the Header", () => {
+  it("heads the page with the view controls and New, with the product named in the Header", () => {
     const { container } = renderHome();
     const view = container.querySelector(".onboarding-brand-lockup .onboarding-project-toolbar .onboarding-project-view")!;
     const roots = [...view.querySelectorAll(":scope > .onboarding-view-menu-root")];
-    expect(roots).toHaveLength(3);
-    expect(roots[0]?.contains(viewTriggers(container)[0]!)).toBe(true);
-    expect(roots[1]?.contains(viewTriggers(container)[1]!)).toBe(true);
-    expect(roots[2]?.contains(layoutTrigger(container))).toBe(true);
+    expect(roots).toHaveLength(2);
+    expect(roots[0]?.contains(sortTrigger(container))).toBe(true);
+    expect(roots[1]?.contains(layoutTrigger(container))).toBe(true);
     const head = [...container.querySelector(".onboarding-brand-lockup")!.children];
-    // New belongs to the group it starts a project in, not to the page's head.
-    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar"]);
+    // The order and the arrangement, then New: one way to start a project, at the page's head.
+    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar", "onboarding-entry-menu-root"]);
     expect(container.querySelector(".onboarding-home-primary .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".desktop-titlebar .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
@@ -196,170 +187,79 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-brand-lockup img")).not.toBeNull();
   });
 
-  it("keeps each group action's mark and arrow when it gives up its words", () => {
-    const css = readFileSync("src/styles/onboarding.css", "utf8");
-    const narrow = css.slice(css.indexOf("@media (max-width: 696px)"));
-    expect(narrow).toMatch(/\.onboarding-group-action > span \{\s*position: absolute;/);
+  it("puts New in words and the other ways to start behind an arrow, without an icon", () => {
     const { container } = renderHome();
+    const create = container.querySelector<HTMLButtonElement>(".onboarding-brand-lockup [data-onboarding-action='create']")!;
+    expect(create.textContent).toBe("New project");
+    expect(create.querySelector(".po-button__icon")).toBeNull();
+    expect(create.classList.contains("po-button--primary")).toBe(false);
     expect(container.querySelector("[data-onboarding-action='more'] .lucide-chevron-down")).not.toBeNull();
   });
 
-  it("hangs each toolbar menu centred under its control", () => {
-    const css = readFileSync("src/styles/onboarding.css", "utf8");
-    expect(css).toMatch(/\.onboarding-view-menu \{[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/);
-    expect(css).not.toMatch(/\.onboarding-view-menu \{[^}]*inset-inline-end/);
+  it("opens each toolbar menu from its own control, one at a time", () => {
     const { container } = renderHome();
-    act(() => viewTriggers(container)[0]!.click());
-    expect(container.querySelector(".onboarding-view-menu")?.classList.contains("is-multiple")).toBe(true);
-    act(() => viewTriggers(container)[0]!.click());
-    act(() => viewTriggers(container)[1]!.click());
-    expect(container.querySelector(".onboarding-view-menu")?.classList.contains("is-multiple")).toBe(false);
+    act(() => sortTrigger(container).click());
+    expect(sortTrigger(container).closest(".onboarding-view-menu-root")?.querySelector(".onboarding-view-menu")).not.toBeNull();
+    // A real press: the pointer goes down on the other control before it clicks.
+    act(() => {
+      layoutTrigger(container).dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      layoutTrigger(container).click();
+    });
+    expect(container.querySelectorAll(".onboarding-view-menu")).toHaveLength(1);
+    expect(layoutTrigger(container).closest(".onboarding-view-menu-root")?.querySelector(".onboarding-view-menu")).not.toBeNull();
   });
 
-  it("draws the toolbar as three icons, with their state left to the tooltip", () => {
+  it("draws the toolbar as two icons, with their state left to the tooltip", () => {
     const { container } = renderHome();
     expect(container.querySelector(".onboarding-project-toolbar .lucide-chevron-down")).toBeNull();
     const controls = toolbarControls(container);
-    expect(controls.map((control) => control.textContent)).toEqual(["", "", ""]);
+    expect(controls.map((control) => control.textContent)).toEqual(["", ""]);
     expect(controls.map((control) => control.getAttribute("data-tooltip"))).toEqual([
-      "Filter projects",
       "Sort projects: Last modified",
       "Project layout: Grid",
     ]);
+    // Groups already say who can open each project; nothing narrows the page.
+    expect(container.querySelector(".onboarding-filter-chip, .lucide-list-filter")).toBeNull();
   });
 
-  it("names each place with its product icon, in the menu and on its chip once chosen", () => {
+  it("closes the order on its one choice", () => {
     const { container } = renderHome();
-    act(() => viewTriggers(container)[0]!.click());
-    const icon = (name: string) => menuItem(container, name)?.querySelector("[data-product-icon]")?.getAttribute("data-product-icon");
-    expect(icon("This computer")).toBe("local");
-    expect(icon("Cloud projects")).toBe("cloud");
-    act(() => menuItem(container, "Cloud projects")!.click());
-    expect(chips(container)[0]?.querySelector("[data-product-icon='cloud']")).not.toBeNull();
-  });
-
-  it("offers every project first, ticked until a place is chosen, and nothing else", () => {
-    const { container } = renderHome();
-    act(() => viewTriggers(container)[0]!.click());
-    const rows = () => [...container.querySelectorAll<HTMLElement>(".onboarding-view-menu .desktop-menu-item")];
-    expect(rows().map((item) => item.textContent)).toEqual(["All projects", "This computer", "Cloud projects"]);
-    expect(container.querySelectorAll(".onboarding-view-menu .desktop-menu-section")).toHaveLength(1);
-    expect(menuItem(container, "All projects")?.getAttribute("aria-checked")).toBe("true");
-    expect(document.activeElement).toBe(menuItem(container, "All projects"));
-    act(() => menuItem(container, "Cloud projects")!.click());
-    expect(menuItem(container, "All projects")?.getAttribute("aria-checked")).toBe("false");
-    expect(menuItem(container, "Cloud projects")?.getAttribute("aria-checked")).toBe("true");
-  });
-
-  it("clears every filter from All projects, and stays open", () => {
-    const { container } = renderHome();
-    togglePlaces(container, "Cloud projects", "This computer");
-    expect(chips(container)).toHaveLength(2);
-    act(() => viewTriggers(container)[0]!.click());
-    act(() => menuItem(container, "All projects")!.click());
-    expect(chips(container)).toHaveLength(0);
-    expect(container.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(3);
-    expect(menuItem(container, "All projects")?.getAttribute("aria-checked")).toBe("true");
-  });
-
-  it("keeps offering every place to someone with one kind of project, and strands no one", () => {
-    const { container } = renderHome({ projectItems: [local, linked] });
-    act(() => viewTriggers(container)[0]!.click());
-    const item = (name: string) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-view-menu .desktop-menu-item")]
-      .find((candidate) => candidate.textContent === name);
-    expect(item("Cloud projects")?.disabled).toBe(true);
-    expect(item("This computer")?.disabled).toBe(false);
-  });
-
-  it("drops a filter whose place empties out, and shows every project again", () => {
-    const first = renderHome();
-    togglePlaces(first.container, "Cloud projects");
-    const props = { ...first.props, projectItems: [local, linked] };
-    act(() => renderWithTestLocalization(root!, React.createElement(HomeWithEntryFlow, props)));
-    expect(first.container.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
-    expect(chips(first.container)).toHaveLength(0);
-    expect(viewTriggers(first.container)[0]?.getAttribute("aria-label")).toBe("Filter projects");
-  });
-
-  it("filters by any number of places, showing every project when none is chosen", () => {
-    const { container } = renderHome();
-    const shown = () => [...container.querySelectorAll(".onboarding-project-row-wrap")].map((row) => row.getAttribute("data-project-location"));
-    // The Cloud's projects lead the page, then this computer's.
-    expect(shown()).toEqual(["cloud", "local", "local"]);
-    togglePlaces(container, "Cloud projects");
-    expect(shown()).toEqual(["cloud"]);
-    pick(container, "grid");
-    expect(shown()).toEqual(["cloud"]);
-    togglePlaces(container, "This computer");
-    expect(shown()).toEqual(["cloud", "local", "local"]);
-    togglePlaces(container, "Cloud projects");
-    expect(shown()).toEqual(["local", "local"]);
-    togglePlaces(container, "This computer");
-    expect(shown()).toEqual(["cloud", "local", "local"]);
-  });
-
-  it("leaves the filter open while choosing several, and closes the order on its one choice", () => {
-    const { container } = renderHome();
-    act(() => viewTriggers(container)[0]!.click());
-    const item = menuItem(container, "This computer")!;
-    expect(item.getAttribute("role")).toBe("menuitemcheckbox");
-    act(() => item.click());
-    expect(container.querySelector(".onboarding-view-menu")).not.toBeNull();
-    expect(menuItem(container, "This computer")?.getAttribute("aria-checked")).toBe("true");
-    act(() => viewTriggers(container)[0]!.click());
-    act(() => viewTriggers(container)[1]!.click());
+    act(() => sortTrigger(container).click());
     expect(menuItem(container, "Name")?.getAttribute("role")).toBe("menuitemradio");
     act(() => menuItem(container, "Name")!.click());
     expect(container.querySelector(".onboarding-view-menu")).toBeNull();
   });
 
-  it("names each filter in force on the toolbar, one press from being taken off", () => {
+  it("remembers the order across launches", () => {
     const { container } = renderHome();
-    expect(chips(container)).toHaveLength(0);
-    togglePlaces(container, "Cloud projects", "This computer");
-    const view = container.querySelector(".onboarding-project-view")!;
-    expect(view.firstElementChild).toBe(chips(container)[0]);
-    expect(view.lastElementChild?.contains(layoutTrigger(container))).toBe(true);
-    expect(chips(container).map((chip) => chip.textContent)).toEqual(["This computer", "Cloud projects"]);
-    expect(chips(container)[1]?.getAttribute("aria-label")).toContain("Remove filter");
-    expect(viewTriggers(container)[0]?.getAttribute("aria-label")).toBe("Filter projects: This computer, Cloud projects");
-    act(() => chips(container)[1]!.click());
-    expect(chips(container).map((chip) => chip.textContent)).toEqual(["This computer"]);
-    expect(container.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
-  });
-
-  it("forgets the filter on the next launch but remembers the order", () => {
-    const { container } = renderHome();
-    togglePlaces(container, "Cloud projects");
     chooseSort(container, "Name");
     expect(localStorage.getItem(HOMEPAGE_PROJECT_SORT_STORAGE_KEY)).toBe("name");
     act(() => { root?.unmount(); root = null; });
     initializeDesktopPreferences();
     const next = renderHome();
-    expect(chips(next.container)).toHaveLength(0);
-    expect(viewTriggers(next.container).map((trigger) => trigger.getAttribute("aria-label"))).toEqual(["Filter projects", "Sort projects: Name"]);
+    expect(sortTrigger(next.container).getAttribute("aria-label")).toBe("Sort projects: Name");
   });
 
   it("falls back to the latest modification for a stored order it does not know", () => {
     localStorage.setItem(HOMEPAGE_PROJECT_SORT_STORAGE_KEY, "shuffle");
     initializeDesktopPreferences();
     const { container } = renderHome();
-    expect(viewTriggers(container).at(-1)?.getAttribute("aria-label")).toBe("Sort projects: Last modified");
+    expect(sortTrigger(container).getAttribute("aria-label")).toBe("Sort projects: Last modified");
   });
 
   it("marks the current choice and starts the keyboard on it", () => {
     const { container } = renderHome();
     chooseSort(container, "Name");
-    act(() => viewTriggers(container)[1]!.click());
+    act(() => sortTrigger(container).click());
     const items = [...container.querySelectorAll<HTMLElement>(".onboarding-view-menu [role='menuitemradio']")];
     expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual(["false", "true"]);
     expect(document.activeElement).toBe(items[1]);
   });
 
-  it("keeps New one click away at the head of this computer's group, with the other entries behind the arrow", () => {
+  it("keeps New one click away at the head of the page, with the other entries behind the arrow", () => {
     const { container } = renderHome();
-    expect(container.querySelector(".onboarding-brand-lockup [data-onboarding-action]")).toBeNull();
-    const head = container.querySelector("[data-project-group='local-only'] .onboarding-project-group-head")!;
+    expect(container.querySelector(".onboarding-project-group-head [data-onboarding-action]")).toBeNull();
+    const head = container.querySelector(".onboarding-brand-lockup")!;
     expect(head.querySelector("[data-onboarding-action='create']")).not.toBeNull();
     expect(container.querySelector("[data-onboarding-action='open'], [data-onboarding-action='import']")).toBeNull();
     const more = head.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
@@ -384,7 +284,7 @@ describe("Homepage project layouts", () => {
     press("ArrowDown");
     expect(document.activeElement?.getAttribute("data-onboarding-action")).toBe("open");
     press("Escape");
-    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
+    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
     expect(document.activeElement).toBe(more);
   });
 
@@ -392,9 +292,9 @@ describe("Homepage project layouts", () => {
     const { container } = renderHome();
     const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
     act(() => more.click());
-    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).not.toBeNull();
+    expect(container.querySelector(".onboarding-entry-menu")).not.toBeNull();
     act(() => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
-    expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
+    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
   });
 
   it("names the switch and each layout for assistive technology", () => {
@@ -437,7 +337,7 @@ describe("Homepage project layouts", () => {
   it("leaves the layout alone while a project is opening", () => {
     const { container } = renderHome({ cloudOpening: true });
     expect(layoutTrigger(container).disabled).toBe(true);
-    expect(viewTriggers(container).every((trigger) => trigger.disabled)).toBe(true);
+    expect(sortTrigger(container).disabled).toBe(true);
   });
 
   it.each(LAYOUTS)("opens local and Cloud projects from the %s layout", async (layout) => {
@@ -457,15 +357,15 @@ describe("Homepage project layouts", () => {
 
     await openActions(container, "local");
     expect(menuLabels()).toEqual(["Copy path", "Rename…", "Unlink…"]);
-    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")?.textContent).toBe("~/project/notes");
-    expect(actionMenu()?.style.width).toBe("224px");
+    // Copy path is what the path is for; the menu does not print it as a title.
+    expect(actionMenu()?.textContent).not.toContain("~/project/notes");
+    expect(actionMenu()?.style.width).toBe("260px");
     await act(async () => actionItem("Unlink…")!.click());
     await act(async () => dialogButton(".destructive").click());
     expect(props.onRemoveProject).toHaveBeenCalledWith(local.localPath);
 
     await openActions(container, "cloud");
     expect(menuLabels()).toEqual(["Rename…", "Delete…"]);
-    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")).toBeNull();
     expect(actionMenu()?.style.width).toBe("184px");
     await act(async () => actionItem("Rename…")!.click());
     await typeName("renamed");
@@ -595,7 +495,7 @@ describe("Homepage project layouts", () => {
     expect(label("local")).not.toBe(label("cloud"));
   });
 
-  it("draws every project as the same unmarked folder, and says where it lives in words", () => {
+  it("draws every project as the same unmarked folder, with where it lives as a mark after its name", () => {
     const { container } = renderHome();
     pick(container, "grid");
     expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
@@ -604,9 +504,11 @@ describe("Homepage project layouts", () => {
     expect(drawn("cloud")).toBe(drawn("local"));
     expect(drawn("linked")).toBe(drawn("local"));
     expect(container.querySelector(".onboarding-project-folder > :not(.project-folder-glyph), .project-folder-cloud")).toBeNull();
-    const place = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-tile-place")?.textContent;
-    expect(place("cloud")).toBe("Cloud project");
-    expect(place("local")).toBe("This computer");
+    const mark = (id: "local" | "linked" | "cloud") => project(container, id)
+      .querySelector(".onboarding-project-tile-label .onboarding-project-place-mark [data-product-icon]")?.getAttribute("data-product-icon");
+    expect(mark("cloud")).toBe("cloud");
+    expect(mark("local")).toBe("local");
+    expect(container.querySelector(".onboarding-project-tile-place")).toBeNull();
   });
 
   it("draws the list's folders in the Grid's fill, Cloud projects too", () => {
@@ -629,19 +531,6 @@ describe("Homepage project layouts", () => {
     expect(Number(sheet.getAttribute("y"))).toBeGreaterThan(11);
     const paint = [...folder.children].map((node) => node.getAttribute("class"));
     expect(paint.indexOf("project-folder-sheet")).toBeLessThan(paint.indexOf("project-folder-front"));
-    const css = readFileSync("src/styles/onboarding.css", "utf8");
-    expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.project-folder-sheet \{\s*transition: none;/);
-  });
-
-  it("keeps every folder neutral and fill alone, and the groups free of colour", () => {
-    const css = readFileSync("src/styles/onboarding.css", "utf8");
-    const start = css.indexOf(".onboarding-project-folder {");
-    const end = css.indexOf(".onboarding-project-tile {");
-    expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
-    expect(css.slice(start, end)).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|stroke|url\(/i);
-    const groups = css.slice(css.indexOf(".onboarding-project-groups {"));
-    expect(groups).not.toMatch(/brand-blue|--po-accent|--po-success|#[0-9a-f]{3,8}\b/i);
   });
 
   it("names a project under its folder, and leaves the tooltip for what is not shown", () => {

@@ -1,6 +1,4 @@
 /** @vitest-environment happy-dom */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -151,9 +149,6 @@ describe("An Agent in the Header", () => {
     expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["2"]);
     expect([...stack()!.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")].map(mark => mark.dataset.reachBrand))
       .toEqual(["cursor", "gemini"]);
-    const styles = readFileSync(resolve(process.cwd(), "src/components/brand/agent-avatar.css"), "utf8");
-    const reduced = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
-    expect(reduced).toMatch(/\[data-reach-activity\],\s+[^{]*\[data-reach-activity\]::before\s*\{\s*animation: none;/);
   });
   it("waits for a resolved workspace before saying who is in it", async () => {
     await render(null as unknown as ProjectCloudContext);

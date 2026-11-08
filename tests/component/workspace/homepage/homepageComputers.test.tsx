@@ -29,7 +29,7 @@ const devices: HostCatalogDevice[] = [
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-async function render({ showOtherComputers = true, bridge = {} }: { showOtherComputers?: boolean; bridge?: Record<string, unknown> } = {}) {
+async function render({ bridge = {} }: { bridge?: Record<string, unknown> } = {}) {
   installDesktopBridge({
     listHostDevices: async () => ({ devices }),
     getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 0, running: [] }),
@@ -37,7 +37,7 @@ async function render({ showOtherComputers = true, bridge = {} }: { showOtherCom
     ...bridge,
   } as never);
   let sharing: ProjectListSharing | undefined;
-  const base: OnboardingGroupsBase = { label: "Projects", layout: "grid", showOtherComputers,
+  const base: OnboardingGroupsBase = { label: "Projects", layout: "grid",
     personalSharedTitle: "My shared projects",
     cloud: [{ id: "team-shared", title: "Team shared projects", children: <ul className="onboarding-project-list" /> }],
     local: { title: "Only on this computer", items: [
@@ -99,12 +99,6 @@ describe("the owner's other computers on the Homepage", () => {
     expect(personal(host).textContent).not.toContain("folder open to your other computers");
   });
 
-  it("leaves other computers out while the page is narrowed to some places", async () => {
-    const { host } = await render({ showOtherComputers: false });
-    expect(titles(host)).toEqual(["Team shared projects", "My shared projects", "Only on this computer"]);
-    expect(host.querySelector("[data-host-folder]")).toBeNull();
-  });
-
   it("retains recorded sharing through a failed catalog read instead of claiming local-only", async () => {
     const { host } = await render({ bridge: { listHostDevices: async () => { throw new Error("offline"); } } });
     expect(personal(host).textContent).toContain("ditherit");
@@ -129,13 +123,27 @@ describe("the owner's other computers on the Homepage", () => {
     expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
   });
 
-  it("removes another computer through the App, which asks first", async () => {
-    const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
-    const { host } = await render({ bridge: { revokeHostDevice } });
-    await act(async () => { personal(host).querySelector<HTMLButtonElement>('[aria-label="Manage computers"]')?.click(); });
-    const remove = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-      .find((item) => stripBidiIsolation(item.textContent).includes("Remove Office PC"));
-    await act(async () => { remove?.click(); });
-    expect(revokeHostDevice).toHaveBeenCalledWith({ deviceId: OFFICE, expectedSession: { userId: session.user_id, generation: "one" } });
+  it("stops sharing a folder after Main asks, and only then moves it back to this computer", async () => {
+    const removeHostFolder = vi.fn(async () => ({ removed: true }));
+    const { host, sharing } = await render({ bridge: { removeHostFolder } });
+    expect(personal(host).textContent).toContain("ditherit");
+    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: "f-1",
+      expectedSession: { userId: session.user_id, generation: "one" } });
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).toContain("ditherit");
+    await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
   });
+
+  it.each([
+    ["declined", async () => ({ cancelled: true as const }), null],
+    ["refused", async () => { throw new Error(); }, "Unable to stop sharing this folder."],
+  ])("keeps a folder shared when stopping is %s, and says so only when it failed", async (_case, removeHostFolder, said) => {
+    const { host, sharing } = await render({ bridge: { removeHostFolder } });
+    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(host.textContent?.includes("Unable to stop sharing this folder.")).toBe(Boolean(said));
+  });
+
 });

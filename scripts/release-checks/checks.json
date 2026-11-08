@@ -251,6 +251,30 @@
       }
     },
     {
+      "id": "homepage-interaction",
+      "name": "Homepage pointer, keyboard and focus through real Main",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-interaction"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "homepage-visual",
+      "name": "Homepage geometry, type and scrolling in both themes",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-visual"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 240,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",

@@ -21,8 +21,15 @@ const MINIMUM_HEIGHT = 520;
 const PROJECT_COLUMN = 640;
 const EMPTY_COLUMN = 440;
 const TITLE_INSET = 32;
+/** From the head to the first group's label. */
+const GROUP_LABEL_GAP = 12;
+/** The projects run to the window's edge; what is below shows there. */
+const PAGE_END_INSET = 0;
 const GRID_COLUMNS = 5;
-const PROJECT_TYPE = ["12px/400", "14px/400"];
+// A group's label and a row's details in the caption, New in the meta, names in the body.
+const PROJECT_TYPE = ["12px/400", "12px/500", "13px/600", "14px/400"];
+/** Under a folder a name is a caption, so the Grid has no body type. */
+const GRID_TYPE = ["12px/400", "12px/500", "13px/600"];
 const EMPTY_TYPE = ["14px/400", "19px/500"];
 
 const evaluate = (source) => window.webContents.executeJavaScript(source);
@@ -47,7 +54,7 @@ const typeLevels = `(() => {
     const style = getComputedStyle(walker.currentNode.parentElement);
     levels.add(style.fontSize + '/' + style.fontWeight);
   }
-  return [...levels].sort((a, b) => parseFloat(a) - parseFloat(b));
+  return [...levels].sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b));
 })()`;
 const shot = async (name) => writeFile(path.join(screenshots, `${name}.png`), (await window.capturePage()).toPNG());
 
@@ -74,10 +81,11 @@ async function open({ theme, state, width, height, count = 1, mixed = false, hel
   await evaluate(settle);
 }
 
+/** The groups scroll together, as one area; each group's projects are a list inside it. */
+const SCROLLPORT = ".onboarding-project-groups";
 const CONTROLS = ".onboarding-project-view .onboarding-view-menu-root .po-icon-button";
-const FILTER = `document.querySelectorAll('${CONTROLS}')[0]`;
-const SORT = `document.querySelectorAll('${CONTROLS}')[1]`;
-const LAYOUT = `document.querySelectorAll('${CONTROLS}')[2]`;
+const SORT = `document.querySelectorAll('${CONTROLS}')[0]`;
+const LAYOUT = `document.querySelectorAll('${CONTROLS}')[1]`;
 async function chooseLayout(layout) {
   if (await evaluate(`document.querySelector('.onboarding-project-list').dataset.projectLayout === '${layout}'`)) return;
   await evaluate(`${LAYOUT}.click()`);
@@ -169,7 +177,7 @@ async function validateFirstRun(theme, width, height) {
   await open({ theme, state: "empty", width, height });
   await until("[...document.querySelectorAll('.onboarding-entry-import img')].every(image => image.complete && image.naturalWidth > 0)");
   await validateChrome(context, theme, EMPTY_COLUMN, width);
-  assert.deepEqual(await evaluate(typeLevels), EMPTY_TYPE, `${context}: two levels of type`);
+  { const levels = await evaluate(typeLevels); assert.deepEqual(levels, EMPTY_TYPE, `${context}: two levels of type (${levels})`); }
   const page = await evaluate(`(() => { ${rects}
     const create = document.querySelector('[data-onboarding-action=create]');
     const openFolder = document.querySelector('[data-onboarding-action=open]');
@@ -256,12 +264,12 @@ async function validateProjectsArea(theme, width, height) {
   const context = `projects-area/${theme}/${width}x${height}`;
   await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
   const short = await evaluate(measure);
-  assert.equal(Math.round(short.area.bottom), short.height - 20, `${context}: a short history's area still runs to the page's end`);
+  assert.equal(Math.round(short.area.bottom), short.height - PAGE_END_INSET, `${context}: a short history's area still runs to the page's end`);
 
   await open({ theme, state: "projects", width, height, held: true });
   await until("!!document.querySelector('.onboarding-project-list-loading')");
   const wait = await evaluate(measure);
-  assert.equal(Math.round(wait.area.bottom), wait.height - 20, `${context}: the area runs to the page's end while it waits`);
+  assert.equal(Math.round(wait.area.bottom), wait.height - PAGE_END_INSET, `${context}: the area runs to the page's end while it waits`);
   const centre = (box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
   const [mark, area] = [centre(wait.mark), centre(wait.area)];
   assert.ok(Math.abs(mark.x - area.x) <= 1 && Math.abs(mark.y - area.y) <= 1, `${context}: the wait sits in the middle of the area, not under the head (${Math.round(mark.y)} vs ${Math.round(area.y)})`);
@@ -273,7 +281,7 @@ async function validateProjectsHead(theme, width, height) {
   const context = `projects/${theme}/${width}x${height}`;
   await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
   await validateChrome(context, theme, PROJECT_COLUMN, width);
-  assert.deepEqual(await evaluate(typeLevels), PROJECT_TYPE, `${context}: three levels of type`);
+  { const levels = await evaluate(typeLevels); assert.deepEqual(levels, PROJECT_TYPE, `${context}: the page's levels of type (${levels})`); }
   const page = await evaluate(`(() => { ${rects}
     const head = document.querySelector('.onboarding-brand-lockup');
     const surface = document.querySelector('.onboarding-home-primary');
@@ -347,66 +355,29 @@ async function validateToolbar(theme) {
   const view = `(() => { ${rects}
     const controls = [...document.querySelectorAll('${CONTROLS}')];
     return { controls:controls.map(rect), tips:controls.map(control => control.dataset.tooltip), words:controls.map(control => control.textContent),
-      chips:[...document.querySelectorAll('.onboarding-filter-chip')].map(chip => chip.textContent), chipRects:[...document.querySelectorAll('.onboarding-filter-chip')].map(rect),
       head:rect(document.querySelector('.onboarding-brand-lockup')), create:rect(document.querySelector('[data-onboarding-action=create]')),
       chevrons:document.querySelectorAll('.onboarding-project-toolbar .lucide-chevron-down').length, segments:document.querySelectorAll('.desktop-theme-segment').length,
       shown:[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => row.dataset.projectLocation),
-      names:[...document.querySelectorAll('.onboarding-project-tile-name')].map(name => name.textContent) };
+      groups:[...document.querySelectorAll('.onboarding-project-group')].map(group => [...group.querySelectorAll('.onboarding-project-tile-name')].map(name => name.textContent)) };
   })()`;
   const rest = await evaluate(view);
-  assert.deepEqual(rest.words, ["", "", ""], `${context}: three icons, without words`);
-  assert.deepEqual(rest.tips, ["Filter projects", "Sort projects: Last modified", "Project layout: Grid"], `${context}: the tooltips carry what the icons leave out`);
+  assert.deepEqual(rest.words, ["", ""], `${context}: two icons, without words`);
+  assert.deepEqual(rest.tips, ["Sort projects: Last modified", "Project layout: Grid"], `${context}: the tooltips carry what the icons leave out`);
   assert.equal(rest.chevrons, 0, `${context}: no dropdown arrows`);
   assert.equal(rest.segments, 0, `${context}: the layout is one icon, not a highlighted switch`);
-  assert.equal(rest.create.x - rest.controls[2].right, 8, `${context}: the icons sit just before New`);
-  assert.ok(rest.controls[0].right <= rest.controls[1].x && rest.controls[1].right <= rest.controls[2].x, `${context}: filter, then order, then layout`);
+  assert.equal(rest.create.x - rest.controls[1].right, 8, `${context}: the icons sit just before New`);
+  assert.ok(rest.controls[0].right <= rest.controls[1].x, `${context}: order, then layout`);
   assert.equal(rest.shown.length, 9, context);
   const item = (name) => `[...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')].find(node => node.textContent === ${JSON.stringify(name)})`;
-  await evaluate(`${FILTER}.click()`);
-  await until(`!!${item("Cloud projects")}`);
-  const filter = await evaluate(`(() => { const items = [...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')];
-    return { rows:items.map(node => [node.textContent, node.getAttribute('aria-checked'), node.disabled]), icons:items.map(node => node.querySelector('[data-product-icon]')?.getAttribute('data-product-icon') ?? null),
-      sections:document.querySelectorAll('.onboarding-view-menu .desktop-menu-section').length, overflow:(r => r.right > innerWidth || r.bottom > innerHeight)(document.querySelector('.onboarding-view-menu').getBoundingClientRect()) }; })()`);
-  assert.deepEqual(filter.rows, [
-    ["All projects", "true", false],
-    ["This computer", "false", false],
-    ["Cloud projects", "false", false],
-  ], `${context}: every project first, ticked until a place is chosen`);
-  assert.deepEqual(filter.icons, [null, "local", "cloud"], `${context}: each place has its product icon`);
-  assert.equal(filter.sections, 1, `${context}: one list of places`);
-  assert.equal(filter.overflow, false, `${context}: the menu stays onscreen`);
-  await evaluate(`${item("Cloud projects")}.click()`);
-  await until("document.querySelectorAll('.onboarding-filter-chip').length === 1");
-  assert.ok(await evaluate("!!document.querySelector('.onboarding-view-menu')"), `${context}: the filter stays open for a second choice`);
-  await evaluate(`${item("This computer")}.click()`);
-  await until("document.querySelectorAll('.onboarding-filter-chip').length === 2");
-  await shot(`toolbar-filter-${theme}`);
-  await evaluate(`${FILTER}.click()`);
-  await until("!document.querySelector('.onboarding-view-menu')");
-  const both = await evaluate(view);
-  assert.deepEqual(both.chips, ["This computer", "Cloud projects"], `${context}: each filter in force is named on the toolbar`);
-  assert.deepEqual(both.controls, rest.controls, `${context}: filters in force move nothing else`);
-  assert.equal(both.head.height, rest.head.height, `${context}: the head stays one line`);
-  assert.ok(both.chipRects.at(-1).right <= both.controls[0].x, `${context}: chips stay clear of the icons`);
-  assert.equal(both.shown.length, 9, `${context}: any of the chosen places`);
-  await evaluate("document.querySelector('.onboarding-filter-chip').click()");
-  await until("document.querySelectorAll('.onboarding-filter-chip').length === 1");
-  const cloud = await evaluate(view);
-  assert.ok(cloud.shown.length === 3 && cloud.shown.every(place => place === "cloud"), `${context}: one place left`);
-  await evaluate(`${FILTER}.click()`);
-  await until(`!!${item("All projects")}`);
-  await evaluate(`${item("All projects")}.click()`);
-  await until("document.querySelectorAll('.onboarding-filter-chip').length === 0");
-  assert.equal(await evaluate(`${item("All projects")}.getAttribute('aria-checked')`), "true", `${context}: All projects clears every filter`);
-  await evaluate(`${FILTER}.click()`);
-  await until("!document.querySelector('.onboarding-view-menu')");
   await evaluate(`${SORT}.click()`);
   await until(`!!${item("Name")}`);
   await evaluate(`${item("Name")}.click()`);
   await until("!document.querySelector('.onboarding-view-menu')");
   const named = await evaluate(view);
-  assert.equal(named.tips[1], "Sort projects: Name", `${context}: the tooltip names the order`);
-  assert.deepEqual(named.names, [...rest.names].sort((a, b) => a.localeCompare(b, "en", { numeric: true })), `${context}: ordered by name, as a person reads it`);
+  assert.equal(named.tips[0], "Sort projects: Name", `${context}: the tooltip names the order`);
+  // Each group keeps its own projects; the order applies within it.
+  assert.deepEqual(named.groups, rest.groups.map((names) => [...names].sort((a, b) => a.localeCompare(b, "en", { numeric: true }))),
+    `${context}: each group ordered by name, as a person reads it`);
   // The order is remembered, so leave the next page as it was found.
   await evaluate(`${SORT}.click()`);
   await until(`!!${item("Last modified")}`);
@@ -438,9 +409,9 @@ async function validatePointerFocus(theme) {
 async function validateMenuPlacement(theme) {
   for (const [width, height] of [[1180, 760], [MINIMUM_WIDTH, MINIMUM_HEIGHT]]) {
     await open({ theme, state: "projects", width, height, count: 9, mixed: true, layout: "grid" });
-    for (const name of ["filter", "sort", "layout"]) {
+    for (const name of ["sort", "layout"]) {
       const context = `menu/${name}/${theme}/${width}x${height}`;
-      const trigger = { filter: FILTER, sort: SORT, layout: LAYOUT }[name];
+      const trigger = { sort: SORT, layout: LAYOUT }[name];
       await evaluate(`${trigger}.click()`);
       await until("!!document.querySelector('.onboarding-view-menu')");
       const placement = await evaluate(`(() => { const t = ${trigger}.getBoundingClientRect(); const m = document.querySelector('.onboarding-view-menu').getBoundingClientRect();
@@ -466,20 +437,27 @@ async function validateGrid(theme) {
     await chooseLayout("grid");
     await evaluate(settle);
     assert.deepEqual(await evaluate(column), list, `${context}: switching layouts never moves the column`);
-    assert.deepEqual(await evaluate(typeLevels), PROJECT_TYPE, `${context}: three levels of type`);
-    const snapshot = await evaluate(`(() => { const element = document.querySelector('.onboarding-project-list');
+    { const levels = await evaluate(typeLevels); assert.deepEqual(levels, GRID_TYPE, `${context}: the page's levels of type (${levels})`); }
+    const snapshot = await evaluate(`(() => { const element = document.querySelector('${SCROLLPORT}');
       const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
       return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight, columns:new Set(folders.map(folder => folder.left)).size,
-        toFolder:document.querySelector('.project-folder-back').getBoundingClientRect().top - document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().bottom,
-        thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor, sheets:document.querySelector('.project-folder-glyph').querySelectorAll('.project-folder-sheet').length };
+        toLabel:document.querySelector('.onboarding-project-group-title').getBoundingClientRect().top - document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().bottom,
+        labelEdges:(r => [r.left, r.right])(document.querySelector('.onboarding-project-group-head').getBoundingClientRect()),
+        gridEdges:[document.querySelector('.onboarding-project-tile').getBoundingClientRect().left, document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().right],
+        lastColumn:Math.max(...[...document.querySelectorAll('.onboarding-project-tile')].map(t => t.getBoundingClientRect().right)),
+        overrun:[...document.querySelectorAll('.onboarding-project-tile')].filter(tile => { const name = tile.querySelector('.onboarding-project-tile-label').getBoundingClientRect(); const cell = tile.getBoundingClientRect(); return name.left < cell.left - 0.5 || name.right > cell.right + 0.5; }).map(tile => tile.textContent),
+        fade:getComputedStyle(element).maskImage, sheets:document.querySelector('.project-folder-glyph').querySelectorAll('.project-folder-sheet').length };
     })()`);
     assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
-    assert.ok(Math.abs(snapshot.toFolder - TITLE_INSET) < 1, `${context}: the head sits evenly between the Header and the folders (${snapshot.toFolder})`);
+    assert.equal(snapshot.toLabel, GROUP_LABEL_GAP, `${context}: the first group's label hangs just under the head (${snapshot.toLabel})`);
+    assert.deepEqual(snapshot.labelEdges, snapshot.gridEdges, `${context}: a group's label and rule start on the first folder's edge and run the column`);
+    if (count >= GRID_COLUMNS) assert.equal(snapshot.lastColumn, snapshot.gridEdges[1], `${context}: a full row ends on the column's edge`);
+    assert.deepEqual(snapshot.overrun, [], `${context}: no name runs past its folder's cell`);
     assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
     assert.equal(snapshot.sheets, 1, `${context}: each folder holds one sheet`);
     assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
     await validateProjectActions(context);
-    if (snapshot.overflows) assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: more projects below are always signalled`);
+    if (snapshot.overflows) assert.match(snapshot.fade, /gradient/, `${context}: more projects below fade into the window's edge`);
     await shot(`grid-${theme}-${width}x${height}-${count}`);
     console.log(`Passed ${context}`);
   }
@@ -525,33 +503,36 @@ async function validateScrollport(theme) {
     const context = `long-projects/${theme}/${width}x${height}`;
     await open({ theme, state: "projects", width, height, count: 40, layout: "list" });
     const snapshot = await evaluate(`(() => { ${rects}
-      const list = document.querySelector('.onboarding-project-list');
+      const list = document.querySelector('${SCROLLPORT}');
       return { viewport:{ width:innerWidth, height:innerHeight }, list:rect(list), brand:rect(document.querySelector('.onboarding-brand-lockup')),
         surface:rect(document.querySelector('.onboarding-home-primary')), scrollHeight:list.scrollHeight, clientHeight:list.clientHeight,
-        gutter:list.offsetWidth - list.clientWidth, thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
+        gutter:list.offsetWidth - list.clientWidth, thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor, fade:getComputedStyle(list).maskImage,
         thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
-        outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight, tag:list.tagName, stops:list.querySelectorAll('[data-project-open][tabindex="0"]').length };
+        sharedInset:(probe => { probe.dataset.poScrollbar = list.dataset.poScrollbar; document.body.append(probe); const inset = getComputedStyle(probe, '::-webkit-scrollbar-thumb').borderTopWidth; probe.remove(); return inset; })(document.createElement('div')),
+        outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight, tag:document.querySelector('.onboarding-project-list').tagName, stops:list.querySelectorAll('[data-project-open][tabindex="0"]').length };
     })()`);
     assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
     assert.equal(snapshot.brand.y, titleTop, `${context}: the title's position never moves`);
     assert.ok(snapshot.list.height >= minimumListHeight, `${context}: the list uses the available height (${snapshot.list.height}px)`);
-    assert.equal(height - snapshot.surface.bottom, 20, `${context}: the surface runs to the page's lower inset`);
-    assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the Project list scrolls`);
+    assert.equal(height - snapshot.surface.bottom, PAGE_END_INSET, `${context}: the surface runs to the window's edge`);
+    assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the projects scroll`);
     assert.equal(snapshot.gutter, 12, `${context}: the shared scrollbar lane`);
-    assert.equal(snapshot.thumbInset, "2px", `${context}: the shared scrollbar thumb, not a local one`);
+    assert.equal(snapshot.thumbInset, snapshot.sharedInset, `${context}: the shared scrollbar thumb, not a local one`);
     assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
-    assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: persistent thumb before any interaction`);
+    // At rest the bar would be the heaviest line on the page; the fade says there is more.
+    assert.equal(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: no thumb at rest`);
+    assert.match(snapshot.fade, /gradient/, `${context}: more projects below fade into the window's edge`);
     assert.equal(snapshot.tag, "UL", `${context}: the projects are a list`);
     assert.equal(snapshot.stops, 1, `${context}: the list is one stop for Tab`);
     await shot(`long-projects-${theme}-${width}x${height}`);
     await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
       x: Math.round(snapshot.list.x + 30), y: Math.round(snapshot.list.y + 20), deltaX: 0, deltaY: 250 });
-    await until("document.querySelector('.onboarding-project-list').scrollTop > 0");
+    await until(`document.querySelector('${SCROLLPORT}').scrollTop > 0`);
     await evaluate("document.querySelector('[data-project-open][tabindex=\"0\"]').focus()");
     press("End");
-    await until("(() => { const el = document.querySelector('.onboarding-project-list'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()");
+    await until(`(() => { const el = document.querySelector('${SCROLLPORT}'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()`);
     assert.equal(await evaluate("document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top"), snapshot.brand.y, `${context}: scrolling does not move the title`);
-    console.log(`Passed ${context}: ${snapshot.list.height}px list, visible thumb, wheel/End scrolling`);
+    console.log(`Passed ${context}: ${snapshot.list.height}px list, fading edge, wheel/End scrolling`);
   }
 }
 
@@ -566,21 +547,21 @@ async function validateScrollPolicy() {
     const transient = getComputedStyle(ordinary, '::-webkit-scrollbar-thumb').backgroundColor;
     ordinary.remove();
     document.documentElement.dataset.poScrollbarMode = 'system';
-    const systemWidth = getComputedStyle(document.querySelector('.onboarding-project-list'), '::-webkit-scrollbar').width;
+    const systemWidth = getComputedStyle(document.querySelector('${SCROLLPORT}'), '::-webkit-scrollbar').width;
     document.documentElement.dataset.poScrollbarMode = 'product';
     return { transient, systemWidth };
   })()`);
   assert.equal(policy.transient, "rgba(0, 0, 0, 0)", "Other default scroll owners remain transient");
   assert.notEqual(policy.systemWidth, "12px", "System scrollbar mode retains OS-owned geometry");
   await open({ theme: "dark", state: "projects", width: 1200, height: 900, count: 1, layout: "list" });
-  const short = await evaluate(`(() => { const list = document.querySelector('.onboarding-project-list'); return {
+  const short = await evaluate(`(() => { const list = document.querySelector('${SCROLLPORT}'); return {
     height:list.clientHeight, content:list.scrollHeight, width:document.querySelector('.onboarding-project-row').getBoundingClientRect().width,
     title:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top,
-    rowOffset:document.querySelector('.onboarding-project-row').getBoundingClientRect().top - list.getBoundingClientRect().top, listInset:parseFloat(getComputedStyle(list).paddingTop),
+    rowOffset:document.querySelector('.onboarding-project-group').getBoundingClientRect().top - list.getBoundingClientRect().top, listInset:parseFloat(getComputedStyle(list).paddingTop),
     surfaceBottom:document.querySelector('.onboarding-home-primary').getBoundingClientRect().bottom, page:innerHeight }; })()`);
   assert.equal(short.height, short.content, "A short list does not manufacture overflow");
   assert.equal(short.title, 40 + TITLE_INSET, "The title keeps its place however few projects there are");
   assert.equal(short.rowOffset, short.listInset, "A few projects sit at the top of their area");
-  assert.equal(Math.round(short.surfaceBottom), short.page - 20, "Their area still runs to the page's end");
+  assert.equal(Math.round(short.surfaceBottom), short.page - PAGE_END_INSET, "Their area still runs to the page's end");
   assert.equal(short.width, longRow, "Stable gutter keeps short and long row geometry identical");
 }
