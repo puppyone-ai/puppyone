@@ -199,10 +199,15 @@ function ImportSourceList({
   visibleSources: readonly ImportSourceDescriptor[];
 }) {
   const { t } = useLocalization();
+  // What can be imported now comes first; what is still coming follows it.
+  const orderedSources = [
+    ...visibleSources.filter(({ operational }) => operational),
+    ...visibleSources.filter(({ operational }) => !operational),
+  ];
   return (
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
       <ul className="onboarding-import-sources">
-        {visibleSources.map(({ id, label, mode, operational }, index) => (
+        {orderedSources.map(({ id, label, mode, operational }, index) => (
           <ImportSourceRow
             key={id}
             source={id}
@@ -282,18 +287,28 @@ function LocalFolderImportStep({
   const task = useImportTask({ onImportSource, onCancelImport, onImportProgress, onClose });
   const busy = task.submitting || destination.choosing || destination.resolvingDefault;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
-  const stepCount = IMPORT_SOURCE_REGISTRY.find((entry) => entry.id === source)?.stepCount ?? 0;
-  const steps = Array.from({ length: stepCount }, (_, index) => (
+  const descriptor = IMPORT_SOURCE_REGISTRY.find((entry) => entry.id === source);
+  const steps = Array.from({ length: descriptor?.stepCount ?? 0 }, (_, index) => (
     t(`onboarding.entry.import.${source}.step${index + 1}`)
   ));
 
   return (
     <>
       <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
-        <ol className="onboarding-import-steps">
-          {steps.map((step, index) => <li key={index}>{step}</li>)}
-        </ol>
-        <p className="onboarding-import-outcome">{t(`onboarding.entry.import.${source}.outcome`)}</p>
+        <div className="onboarding-import-source-summary">
+          <span className="onboarding-import-source-icon" aria-hidden="true">
+            <ImportSourceMark brand={source} decorative />
+          </span>
+          <span className="onboarding-import-source-summary-copy">
+            <strong>{descriptor?.label ?? source}</strong>
+            <span className="onboarding-import-outcome">{t(`onboarding.entry.import.${source}.outcome`)}</span>
+          </span>
+        </div>
+        {steps.length > 0 && (
+          <ol className="onboarding-import-steps">
+            {steps.map((step, index) => <li key={index}>{step}</li>)}
+          </ol>
+        )}
         <ImportLocationField
           location={destination.location}
           choosing={destination.choosing}

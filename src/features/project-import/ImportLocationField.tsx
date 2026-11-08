@@ -14,13 +14,15 @@ export function useImportLocation({
   const [choosing, setChoosing] = useState(false);
   const [resolvingDefault, setResolvingDefault] = useState(Boolean(onDefaultLocation));
   const [error, setError] = useState<string | null>(null);
-  const requestedDefault = useRef(false);
+  // One grant per dialog, even when React re-runs the effect: a second run
+  // reuses the request instead of skipping it and never settling.
+  const defaultRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
 
   useEffect(() => {
-    if (!onDefaultLocation || requestedDefault.current) return;
-    requestedDefault.current = true;
+    if (!onDefaultLocation) return;
+    defaultRequest.current ??= onDefaultLocation();
     let cancelled = false;
-    void onDefaultLocation().then((grant) => {
+    void defaultRequest.current.then((grant) => {
       if (!cancelled && grant) setLocation((current) => current ?? grant);
     }).catch(() => {
       // Main asks for a destination if the default could not be granted.
