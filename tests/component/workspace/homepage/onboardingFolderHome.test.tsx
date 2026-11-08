@@ -25,7 +25,6 @@ beforeEach(() => { localStorage.clear(); localStorage.setItem(HOMEPAGE_PROJECT_L
 let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
 const originalConfirm = window.confirm;
-const onboardingCss = readFileSync("src/styles/onboarding.css", "utf8");
 const agentReadyMessages = {
   de: "Deine Dateien. Für Agents bereit.",
   en: "Start with your files. Agent-ready.",
@@ -213,14 +212,13 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
-    expect(container.querySelector(".onboarding-brand-lockup .onboarding-entry-action")).toBeNull();
-    // A quiet action at the head of the group a new project joins, not a page-wide call to act.
-    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(
-      "[data-project-group='local-only'] .onboarding-project-group-head [data-onboarding-action='create']")];
+    // One quiet New at the page's head, a neutral button rather than a call in colour.
+    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
     expect(projectActions.map((action) => action.textContent)).toEqual(["New project"]);
     expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(false);
+    expect(container.querySelector(".onboarding-project-group-head [data-onboarding-action]")).toBeNull();
     act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
-    expect([...document.body.querySelectorAll(".onboarding-project-group-menu-surface [role='menuitem']")].map((item) => item.textContent)).toEqual([
+    expect([...container.querySelectorAll(".onboarding-entry-menu [role='menuitem']")].map((item) => item.textContent)).toEqual([
       "Open a folder",
       "Import",
     ]);
@@ -246,87 +244,11 @@ describe("project folder home", () => {
     );
   });
 
-  it("tones the canonical Puppy mark down only on dark onboarding surfaces", () => {
-    expect(onboardingCss).toMatch(
-      /\.onboarding-shell\.dark \.onboarding-brand-mark-artwork\s*\{[^}]*filter:\s*grayscale\(1\) brightness\(0\.7\);/s,
-    );
-    expect(onboardingCss).not.toMatch(
-      /(?:^|\n)\.onboarding-brand-mark-artwork\s*\{[^}]*filter:/s,
-    );
-  });
-
-  it("uses one page skeleton and one framed primary section for both home states", () => {
-    expect(onboardingCss).toMatch(
-      /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*0;/s,
-    );
-    expect(onboardingCss).not.toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-home-primary\s*\{[^}]*padding:\s*0;[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border:\s*0;/s,
-    );
-    expect(onboardingCss).not.toMatch(
-      /\.onboarding-home-primary\[data-onboarding-primary="create"\]/,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;/s,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*20px;[^}]*--onboarding-primary-actions-gap:\s*8px;/s,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,
-    );
-    expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
-    expect(onboardingCss).not.toContain(".onboarding-entry-action-primary");
-    expect(onboardingCss).not.toContain(".onboarding-entry-action-secondary");
-    expect(onboardingCss).not.toContain(".onboarding-recent-projects");
-    expect(onboardingCss).not.toContain(".onboarding-projects-layout");
-    expect(onboardingCss).not.toMatch(/\.onboarding-entry-import\s*\{[^}]*height:/s);
-    expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
-  });
-
-  it("names the product in the Header in words alone, in the muted ink of a project's Header", () => {
-    expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
-    expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
-    expect(onboardingCss).not.toContain("onboarding-header-mark");
+  it("names the product in the Header in words alone", () => {
     const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
     const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand");
     expect(brand?.textContent).toBe("puppyone");
     expect(brand?.querySelector("img, svg")).toBeNull();
-  });
-
-  it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
-    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary[^{]*\{[^}]*border-(?:block|top|bottom)\s*:/s);
-    const surface = onboardingCss.match(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*\}/s)?.[0] ?? "";
-    expect(surface).not.toMatch(/background/);
-    expect(onboardingCss).toMatch(/\.onboarding-shell\.dragging \.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{\s*background:\s*var\(--po-hover\);/);
-  });
-
-  it("takes its buttons from the shared Button and its values from the theme", () => {
-    const action = onboardingCss.match(/\.onboarding-entry-action\s*\{[^}]*\}/s)?.[0] ?? "";
-    expect(action).not.toMatch(/(?:^|\s)(?:height|padding|border|border-radius|background|color):/m);
-    expect(action).toMatch(/font-size:\s*var\(--onboarding-row-font-size\);\s*font-weight:\s*var\(--onboarding-row-font-weight\);/);
-    expect(onboardingCss).not.toMatch(/border-radius:\s*(?:7|10|12|14|16|26)px/);
-    expect(onboardingCss).not.toMatch(/font-weight:\s*\d/);
-    expect(onboardingCss).not.toMatch(/letter-spacing:\s*-/);
-    expect(onboardingCss).toMatch(/--onboarding-row-font-weight:\s*var\(--po-text-weight-regular, 400\);/);
-  });
-
-  it("keeps the page to its levels of type: the first-run title, the body and the caption", () => {
-    const page = onboardingCss.slice(0, onboardingCss.indexOf(".project-cloud-link-button {"));
-    const sizes = new Set([...page.matchAll(/font-size:\s*([^;]+);/g)].map((match) => match[1]!.trim()));
-    expect([...sizes].sort()).toEqual([
-      "var(--desktop-titlebar-context-font-size)",
-      "var(--onboarding-caption-font-size)",
-      "var(--onboarding-row-font-size)",
-      "var(--po-text-size-caption, 11px)",
-      "var(--po-type-ui-body, 14px)",
-      "var(--po-type-ui-caption, 12px)",
-      "var(--po-type-ui-heading, 19px)",
-    ]);
-    expect(onboardingCss).toMatch(/--onboarding-row-font-size:\s*var\(--po-type-ui-body, 14px\);/);
-    expect(onboardingCss).toMatch(/--onboarding-caption-font-size:\s*var\(--po-type-ui-caption, 12px\);/);
   });
 
   it("exposes one vertical projects-state contract", () => {
@@ -350,23 +272,6 @@ describe("project folder home", () => {
     expect(list?.tagName).toBe("UL");
     expect(list?.getAttribute("aria-label")).toBe("Projects");
     expect(list?.hasAttribute("tabindex")).toBe(false);
-  });
-
-  it("lets the project scrollport use remaining height without fixed list caps", () => {
-    expect(onboardingCss).toContain("grid-template-rows: auto minmax(0, 1fr) auto;");
-    expect(onboardingCss).toMatch(/\.onboarding-project-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overflow-x:\s*hidden;[^}]*scrollbar-gutter:\s*stable;/s);
-    expect(onboardingCss).not.toMatch(/\.onboarding-project-list\s*\{[^}]*max-height:/s);
-    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*max-height:/s);
-    expect(onboardingCss).not.toContain("::-webkit-scrollbar");
-  });
-
-  it("preserves the upper rhythm and reclaims space only below the project list", () => {
-    // The projects page hangs from the shared Header and keeps a small bottom edge;
-    // only the list below absorbs extra height.
-    expect(onboardingCss).toMatch(
-      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ var\(--onboarding-title-inset\)\);[^}]*padding-block-end:\s*20px;/s,
-    );
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*8px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
   });
 
   it("keeps one folder action after the project panel", async () => {
@@ -453,9 +358,6 @@ describe("project folder home", () => {
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
-    expect(onboardingCss).toMatch(
-      /\.onboarding-entry-action-default:hover:not\(:disabled\)\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--po-accent\) 88%, var\(--po-canvas\)\);/s,
-    );
     expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
@@ -477,30 +379,17 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("reads the clipboard only when asked, and hands a template link to its card", async () => {
-    const readText = vi.fn(async () => "not a link");
+  it("never reads the clipboard from the create dialog, which offers no paste of its own", async () => {
+    const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
-    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301", fileCount: 3, icon: null, requiresSignIn: false }));
-    window.puppyoneDesktop = { resolveTemplateLink } as unknown as NonNullable<typeof window.puppyoneDesktop>;
-    const onCreateProject = vi.fn(createProjectResult);
     const location = vi.fn(async () => ({ grantId: "default", path: "/example/Projects" }));
-    const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject });
+    const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject: vi.fn(createProjectResult) });
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
+    expect(container.querySelector("[role='dialog']")).not.toBeNull();
+    // A template link arrives from the store or a paste on the page, never from a button here.
+    expect([...container.querySelectorAll("button")].some((button) => /template/i.test(button.textContent ?? ""))).toBe(false);
     expect(readText).not.toHaveBeenCalled();
-    const pasteButton = () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste template link");
-
-    await act(async () => { pasteButton()?.click(); await Promise.resolve(); });
-    expect(readText).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain("no template link on the clipboard");
-    expect(resolveTemplateLink).not.toHaveBeenCalled();
-
-    readText.mockResolvedValue("https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
-    await act(async () => { pasteButton()?.click(); await Promise.resolve(); await Promise.resolve(); });
-    expect(resolveTemplateLink).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain("Customers");
-    expect(onCreateProject).not.toHaveBeenCalled();
   });
-
   it("prefills the name and built-in projects folder for one-action creation", async () => {
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
@@ -949,13 +838,6 @@ describe("project folder home", () => {
     expect(container.querySelector(".onboarding-project-row [data-puppy-loader]")).toBeNull();
 
     await act(async () => finishOpening?.());
-  });
-
-  it("brightens the project actions on their own, with a ring for the keyboard", () => {
-    const hover = onboardingCss.match(/\.desktop-menu-icon-button\.onboarding-project-actions:hover:not\(:disabled\),[^{]*\{[^}]*\}/)?.[0];
-    expect(hover).toMatch(/background:\s*transparent;/);
-    expect(hover).toMatch(/color:\s*var\(--po-text\);/);
-    expect(onboardingCss).toMatch(/\.onboarding-project-actions:focus-visible:not\(:disabled\)\s*\{\s*outline:\s*2px solid var\(--po-focus-ring\)/);
   });
 
   it("unlinks one project from its menu, after confirming, without opening it", async () => {

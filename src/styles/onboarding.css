@@ -691,14 +691,14 @@ span.homepage-cloud-feedback {
 
 /* The product's own neutral button, a shade deeper than its usual fill so that it is
    found at once beside the toolbar's icons without becoming the page's one colour. Its
-   type is every button's: the meta size at the buttons' weight. */
+   type is every button's meta size, at the theme's semibold weight. */
 .onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger) {
   height: var(--po-control-size-compact);
   min-height: var(--po-control-size-compact);
   background: color-mix(in srgb, var(--po-text) 10%, transparent);
   color: var(--po-text);
   font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 650;
+  font-weight: var(--po-text-weight-semibold, 600);
 }
 
 .onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger):hover:not(:disabled) {
@@ -1252,7 +1252,7 @@ span.homepage-cloud-feedback {
   position: absolute;
   z-index: -1;
   inset: 0 0 -6px;
-  border-radius: 10px;
+  border-radius: var(--po-card-radius);
   background: transparent;
   pointer-events: none;
   transition: background 140ms ease;
