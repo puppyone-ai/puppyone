@@ -53,6 +53,16 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<Value> {
         Err(Error::Unsupported)
     }
+    /// `openHostTunnelSocket`: the WebSocket of a folder's byte tunnel, the
+    /// access token offered as a subprotocol the server never echoes.
+    fn host_tunnel(
+        &self,
+        _session: &Session,
+        _url: &url::Url,
+        _fence: &Fence,
+    ) -> Result<super::HostTunnel> {
+        Err(Error::Unsupported)
+    }
     /// `openAgentStream`: one managed inference POST, streamed back.
     fn completion(
         &self,
@@ -390,6 +400,48 @@ impl Remote for Http {
             http = http.header("Idempotency-Key", key);
         }
         self.send_with_timeout(http, 12 * 1024 * 1024, fence, request.timeout())
+    }
+    fn host_tunnel(
+        &self,
+        session: &Session,
+        url: &url::Url,
+        fence: &Fence,
+    ) -> Result<super::HostTunnel> {
+        use tokio_tungstenite::tungstenite::{
+            Error as Socket, client::IntoClientRequest, http::HeaderValue,
+        };
+        let mut request = url
+            .as_str()
+            .into_client_request()
+            .map_err(|_| Error::Configuration)?;
+        let protocols =
+            HeaderValue::from_str(&format!("version.v1, version.bearer.{}", session.access.0))
+                .map_err(|_| Error::InvalidCredentials)?;
+        request
+            .headers_mut()
+            .insert("Sec-WebSocket-Protocol", protocols);
+        runtime().block_on(async {
+            fence.check()?;
+            let connected = tokio::time::timeout(
+                Duration::from_secs(20),
+                tokio_tungstenite::connect_async(request),
+            )
+            .await
+            .map_err(|_| Error::Unavailable)?;
+            fence.check()?;
+            match connected {
+                Ok((socket, _)) => Ok(socket),
+                Err(Socket::Http(response)) => {
+                    let body = response
+                        .body()
+                        .as_deref()
+                        .and_then(|b| serde_json::from_slice(b).ok())
+                        .unwrap_or(Value::Null);
+                    Err(response_error(response.status().as_u16(), &body))
+                }
+                Err(_) => Err(Error::Unavailable),
+            }
+        })
     }
     fn completion(
         &self,

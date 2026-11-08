@@ -507,13 +507,16 @@ impl Access {
         if let Some(open) = files.as_ref().filter(|f| f.is_open()) {
             return Ok(open.clone());
         }
-        let channel = self
+        let mut channel = self
             .handle
             .channel_open_session()
             .await
             .map_err(|_| HostError::new("network_unavailable"))?;
         channel
             .request_subsystem(true, FILES_SUBSYSTEM)
+            .await
+            .map_err(|_| HostError::new("folder_unavailable"))?;
+        confirmed(&mut channel)
             .await
             .map_err(|_| HostError::new("folder_unavailable"))?;
         let client = FilesClient::new(channel.into_stream());

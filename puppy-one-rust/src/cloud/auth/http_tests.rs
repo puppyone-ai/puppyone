@@ -663,3 +663,121 @@ fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
     }
     assert_eq!(*seen.lock().unwrap(), vec![key.to_string()]);
 }
+/// The tunnel offers the token only as a subprotocol, takes `version.v1`
+/// back, and carries bytes; a refused upgrade keeps its status.
+#[test]
+fn a_host_tunnel_offers_the_token_as_a_subprotocol_and_carries_bytes() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::{Message, handshake::server};
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let listener = runtime
+        .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+        .unwrap();
+    let address = listener.local_addr().unwrap();
+    let offered = Arc::new(Mutex::new(Vec::<String>::new()));
+    let seen = offered.clone();
+    runtime.spawn(async move {
+        loop {
+            let (stream, _) = listener.accept().await.unwrap();
+            let seen = seen.clone();
+            tokio::spawn(async move {
+                let callback = |request: &server::Request, mut response: server::Response| {
+                    let protocols = request
+                        .headers()
+                        .get("sec-websocket-protocol")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or_default()
+                        .to_owned();
+                    seen.lock().unwrap().push(protocols.clone());
+                    if !protocols.contains("version.bearer.synthetic-access") {
+                        let mut refused = server::ErrorResponse::new(Some("{}".into()));
+                        *refused.status_mut() = 403.try_into().unwrap();
+                        return Err(refused);
+                    }
+                    response
+                        .headers_mut()
+                        .insert("sec-websocket-protocol", "version.v1".parse().unwrap());
+                    Ok(response)
+                };
+                let Ok(mut socket) = tokio_tungstenite::accept_hdr_async(stream, callback).await
+                else {
+                    return;
+                };
+                while let Some(Ok(message)) = socket.next().await {
+                    if message.is_binary() {
+                        let _ = socket.send(message).await;
+                    }
+                }
+            });
+        }
+    });
+    let env = Environment::new(
+        &format!("http://localhost:{}/api/v1", address.port()),
+        "http://127.0.0.1:13000",
+    )
+    .unwrap();
+    let session = |token: &str| {
+        Session::from_reply(
+            env.clone(),
+            AuthReply {
+                user: Some(AuthUser {
+                    id: Some("u".into()),
+                    email: Some("u@example.test".into()),
+                }),
+                access_token: Secret(token.into()),
+                refresh_token: Some(Secret("synthetic-refresh".into())),
+                expires_in: Some(3600.),
+                user_id: None,
+                user_email: None,
+            },
+        )
+        .unwrap()
+    };
+    let url = url::Url::parse(&format!(
+        "ws://localhost:{}/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel",
+        address.port()
+    ))
+    .unwrap();
+    assert!(super::service::tunnel_address(&url));
+    let control = Control::new();
+    let mut socket = Http::new()
+        .unwrap()
+        .host_tunnel(&session("synthetic-access"), &url, &control.fence())
+        .unwrap();
+    runtime.block_on(async {
+        socket
+            .send(Message::Binary(b"SSH-2.0-x\r\n".to_vec().into()))
+            .await
+            .unwrap();
+        let echoed = socket.next().await.unwrap().unwrap();
+        assert_eq!(echoed.into_data().as_ref(), b"SSH-2.0-x\r\n");
+    });
+    assert_eq!(
+        offered.lock().unwrap()[0],
+        "version.v1, version.bearer.synthetic-access"
+    );
+    let refused = Http::new()
+        .unwrap()
+        .host_tunnel(&session("someone-else"), &url, &control.fence())
+        .err();
+    assert_eq!(refused, Some(Error::Http(403)));
+    // Only a folder's tunnel in the PuppyOne host family.
+    for address in [
+        "wss://api.example.com/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel",
+        "ws://api.puppyone.ai/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel",
+        "wss://api.puppyone.ai/api/v1/hosts/folders/../tunnel",
+        "wss://api.puppyone.ai/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel?x=1",
+        "https://api.puppyone.ai/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel",
+    ] {
+        assert!(
+            !super::service::tunnel_address(&url::Url::parse(address).unwrap()),
+            "{address}"
+        );
+    }
+    assert!(super::service::tunnel_address(
+        &url::Url::parse(
+            "wss://gateway.puppyone.ai/api/v1/hosts/folders/6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f/tunnel"
+        )
+        .unwrap()
+    ));
+}

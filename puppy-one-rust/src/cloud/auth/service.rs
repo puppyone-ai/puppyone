@@ -708,6 +708,39 @@ impl Broker {
             }
         }
     }
+    /// `openHostTunnelSocket`: the byte tunnel to a folder on the owner's
+    /// other computer; the SSH session inside it is end to end. A session
+    /// request first refreshes an expiring token and checks the account. The
+    /// address must be a folder's tunnel in the PuppyOne host family.
+    pub fn host_tunnel(
+        &self,
+        binding: &Binding,
+        url: &url::Url,
+        cancel: &super::Cancellation,
+    ) -> Result<super::HostTunnel> {
+        let hosts = ApiRequest {
+            idempotency_key: None,
+            method: reqwest::Method::GET,
+            path: "/hosts".into(),
+            query: vec![],
+            body: None,
+        };
+        self.request_scoped(binding, &hosts, cancel)?;
+        if !tunnel_address(url) {
+            return Err(Error::Configuration);
+        }
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
+        let session = self.session_for(binding, None)?;
+        let mut result = self.remote.host_tunnel(&session, url, &fence);
+        if matches!(result, Err(Error::InvalidCredentials)) {
+            let session = self.session_for(binding, Some(&session.access))?;
+            result = self.remote.host_tunnel(&session, url, &fence);
+        }
+        fence.check()?;
+        result
+    }
     /// `requestPublic`: a read of the paired Cloud that needs no account
     /// (the managed compute price list).
     pub fn public(&self, path: &str) -> Result<serde_json::Value> {
@@ -840,4 +873,33 @@ impl Broker {
         });
         rx
     }
+}
+
+/// `/api/v1/hosts/folders/{folder}/tunnel` over WSS (WS only for loopback
+/// development), with no credentials, query or fragment of its own.
+pub(super) fn tunnel_address(url: &url::Url) -> bool {
+    let secure = match url.scheme() {
+        "wss" => true,
+        "ws" => false,
+        _ => return false,
+    };
+    let origin = format!(
+        "{}://{}",
+        if secure { "https" } else { "http" },
+        &url[url::Position::BeforeHost..url::Position::AfterPort]
+    );
+    let folder = url
+        .path()
+        .strip_prefix("/api/v1/hosts/folders/")
+        .and_then(|rest| rest.strip_suffix("/tunnel"));
+    super::model::endpoint(&origin, true).is_ok()
+        && folder.is_some_and(|f| {
+            f.len() == 36
+                && f.bytes()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'-'))
+        })
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.query().is_none()
+        && url.fragment().is_none()
 }

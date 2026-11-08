@@ -1,9 +1,9 @@
 {
   "repository": "puppyone",
-  "head": "671143f2a30d352099eda35ad37f053450d4a8f9",
+  "head": "686d41c49ffd80734617e3b66061e615b5848e7b",
   "note": "Dirty reference; hashes identify actual inputs. Native implementation does not import existing credentials. Hosted acceptance is separate.",
   "inputs": {
-    "electron/cloud-auth-service.mjs": "3ccb6f272d7b5f638683d730d75f4696f6a208e04e44c6866700352df6feaa62",
+    "electron/cloud-auth-service.mjs": "2a6c09355a8303247c93951a85dc2feeb3ca0c03ca9582b1dda0cd0a853a4d11",
     "electron/main/auth/supabase-auth-client.mjs": "3fa411b15b181f942fcc813f239f4e01eb0e4c4ae997ef6a4482c6ade50d4698",
     "electron/main/auth/browser-session-receiver.mjs": "2dab835b7cf3b81312b18715f72435ed938296f5da8a89852c35c9ae9ee46d90",
     "electron/main/auth/loopback-callback-server.mjs": "dc97717d707267c9c35ea678359b0aa61dcd213f69d08c77b4f285f168cc1ff4",
@@ -13,5 +13,6 @@
     "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02"
   },
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
-  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift (565439f04): a browser handoff whose form carries this attempt's state but fails the origin or refresh-token check now fails the sign-in at once and closes the listener; a failed handoff releases the attempt; rejection reasons are logged without secrets. Ported natively as N-5."
+  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift (565439f04): a browser handoff whose form carries this attempt's state but fails the origin or refresh-token check now fails the sign-in at once and closes the listener; a failed handoff releases the attempt; rejection reasons are logged without secrets. Ported natively as N-5.",
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: openHostTunnelSocket (a session request to /hosts first, then the folder tunnel's WebSocket in the PuppyOne host family with the token offered only as the version.bearer subprotocol). Ported natively as Broker::host_tunnel."
 }

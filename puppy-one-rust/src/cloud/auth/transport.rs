@@ -73,6 +73,9 @@ pub enum ServiceCode {
     WorkbenchNotFound,
     OperationRejected,
 }
+/// A folder's byte tunnel (`openHostTunnelSocket`).
+pub type HostTunnel =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 pub(super) fn response_error(status: u16, value: &serde_json::Value) -> Error {
     grant_error(status, value, true)
 }

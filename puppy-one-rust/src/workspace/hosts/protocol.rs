@@ -102,7 +102,11 @@ pub enum Request {
         content_base64: String,
         /// `Some(None)` (JSON null) creates a new file without overwriting;
         /// a missing field (`None`) is refused (`revision_required`).
-        #[serde(default, deserialize_with = "present")]
+        #[serde(
+            default,
+            deserialize_with = "present",
+            skip_serializing_if = "Option::is_none"
+        )]
         expected_revision: Option<Option<String>>,
     },
     Mkdir {
