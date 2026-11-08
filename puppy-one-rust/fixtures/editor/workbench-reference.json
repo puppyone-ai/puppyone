@@ -1,10 +1,10 @@
 {
-  "commit": "671143f2a30d352099eda35ad37f053450d4a8f9",
-  "checkout": "../../puppyone-baseline-671143f2a",
+  "commit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "checkout": "../../puppyone-baseline-686d41c49",
   "note": "Actual dirty working-tree inputs, read-only reference. No claim that recorded HEAD alone reproduces these bytes.",
   "inputs": {
-    "src/styles/titlebar.css": "ad5ac01ef0a4ec31fe2db6e94684e7ea0c7e125705728c8c0d8a568a228b9c65",
-    "src/components/DesktopWindowChrome.tsx": "401ad8a066e93c8f7cbd095cdbad810e17b60a1b1b0aa0a33683fb91b316bc22",
+    "src/styles/titlebar.css": "6015d4e1cff18b5f883881f68293f5c21001b7423e917790b9bfdeb830b9fe2e",
+    "src/components/DesktopWindowChrome.tsx": "88e57610acb07993097e077685db7da8b20660a45ee8430151d3bb7fbaaf7271",
     "src/shared-ui/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
     "src/shared-ui/core/resourcePath.ts": "d25dc64fe07471bd736bb98f5798929d530b74222813e5fb9a8c587f2de7d118",
     "src/shared-ui/core/resourceUri.ts": "168b6997c30e39a348d7c8540fb2fdf88fe8e6b43aff491ff221121f99fe43e4",
@@ -45,14 +45,14 @@
     "src/features/editor-workbench/interactions/useInteractionTermination.ts": "b3e678ccc7a245ea00239da5a941676b096e06cc8715d19e46eda71357e73e68",
     "src/features/editor-workbench/interactions/useSplitResizeGesture.ts": "26a6cd75a691c2a4ec52f8c809cc33fae45b84e6ae768591d1eb153ec4e0a77b",
     "src/features/editor-workbench/layout/DesktopEditorSplitView.tsx": "781a6b98ff18851020012cc4e6d61986bfdc848b2d8cff91997d11dcdc8d1efd",
-    "src/components/EditorPaneActionsMenu.tsx": "b5d05847e2df2c277334b18d445fcf624ea8764d726386f4bd3d82d156daa1c2",
+    "src/components/EditorPaneActionsMenu.tsx": "37d12490e909c126b03a07888ab55f7a91ab3061243b51ed4fca5234e0dc0dc0",
     "src/features/editor-workbench/layout/EditorPaneChrome.tsx": "fc581e731ffcab4449df4fa9617345494d3cb384083dee090a546ec9c88fdb2a",
-    "src/features/editor-workbench/layout/EditorPaneShell.tsx": "6d999e6ad061bbed81d88220c9c36735c655e7dc47e36634167a51e5acfb76b3",
+    "src/features/editor-workbench/layout/EditorPaneShell.tsx": "3818f78474ae4d2801356688d64726f93219a919282b1d42f2de2dc4013eab83",
     "src/features/editor-workbench/layout/EditorSplitResizeHandle.tsx": "a9bbd345723d3eb712d01cd027afd9af009d80acf63bfef3b387018df142ccc7",
     "src/features/editor-workbench/layout/desktop-editor-split-view.css": "9ce251ced0d125828d5a12a8869783ebe217fe1cf32926c5ea94b953a6dba6db",
     "src/features/editor-workbench/layout/pane-host/EditorPaneHostSlot.tsx": "fdda0435c36c018feaa72bce52203c1cd52f8644a7b8266566527b4eacc67e78",
     "src/features/editor-workbench/layout/pane-host/usePersistentEditorPaneHosts.ts": "097c1df792d70a5675c9f88e00dda9d1df996939ffc62d388df879e0f2701c08",
-    "src/features/editor-workbench/layout/useEditorPaneChromeReveal.ts": "7a8dceb171d1a1c54bb70379a4e15d597939a843a60807219b665a9bfa667372",
+    "src/components/useEditorPaneChromeReveal.ts": "e60d0aef072b249f27985fd965256a5bfdfa6ee012ebca74c6beb5bce3802da2",
     "src/features/editor-workbench/persistence/editorWorkbenchPersistence.ts": "d62f2ddcdf56445dbdc5a882ddf457fc34bc5feff3bb6eca1f6ccacd726724ef",
     "src/features/editor-workbench/persistence/editorWorkbenchStorage.ts": "5b002ee15801e9a1bc7c05578f6b8f17549043bf409aad5e48c9edec5edfae5d",
     "src/features/editor-workbench/runtime/EditorPaneDocumentRuntime.tsx": "d312b68da216be0ed15f1b8c1167a71428b7d3f672946003dc8ede9e8dc2a276",
@@ -73,5 +73,6 @@
     "src/features/data-workspace/fileClipboard.ts"
   ],
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
-  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx drop the centered-project Header and add the place menu, Share and Agents cards (C-1, C-3, C-6, C-10); EditorPaneActionsMenu.tsx moves to src/components and gains the view-mode menu used by file windows (W-2); DocumentEditingSession.ts/activeDocumentSessions.ts let a closing window give up unsaved edits (W-2, W-14); EditorPaneShell/DesktopEditorSplitView add the entering pane that shows the opening mark until the first document arrives (W-3); DataWorkspace.tsx adds pinned files (O-1). editorPaneLayoutModel and editorGroupModel tests change only imports; the pane-layout oracle output is unchanged."
+  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx drop the centered-project Header and add the place menu, Share and Agents cards (C-1, C-3, C-6, C-10); EditorPaneActionsMenu.tsx moves to src/components and gains the view-mode menu used by file windows (W-2); DocumentEditingSession.ts/activeDocumentSessions.ts let a closing window give up unsaved edits (W-2, W-14); EditorPaneShell/DesktopEditorSplitView add the entering pane that shows the opening mark until the first document arrives (W-3); DataWorkspace.tsx adds pinned files (O-1). editorPaneLayoutModel and editorGroupModel tests change only imports; the pane-layout oracle output is unchanged.",
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx retire the Share card and the Cloud Header tint (6f896add1, 343998d0c) and restyle the Agents in the Header (00b7bad94, c104a863e, 34b2ace7c, 57df194bb, ba74bd20d) — RM-2, RM-4, CA-1; EditorPaneActionsMenu.tsx only names its key target (4dee95fdb, no behaviour); EditorPaneShell.tsx and useEditorPaneChromeReveal.ts (moved to src/components) show the file window's controls only near the top, a shade lighter (b012ce39e) — FM-3. The pane-layout oracle output is unchanged."
 }

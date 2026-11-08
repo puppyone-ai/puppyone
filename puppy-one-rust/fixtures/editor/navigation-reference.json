@@ -1,6 +1,6 @@
 {
-  "checkout": "../../puppyone-baseline-671143f2a",
-  "commit": "671143f2a30d352099eda35ad37f053450d4a8f9",
+  "checkout": "../../puppyone-baseline-686d41c49",
+  "commit": "686d41c49ffd80734617e3b66061e615b5848e7b",
   "locale": "en-SG",
   "icu": "78.2",
   "inputs": {
@@ -18,5 +18,6 @@
     "src/shared-ui/editor/markdown/shared/inlineTokenScan.ts": "df3ec4a198059bf7a56114e58e82acc34775eb57167293855d5543db39c291bf"
   },
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
-  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift (fe73bec8c): markdownLinkModel/markdownLinkReferences resolve reference-style links, inlineTokenScan recognises bare URLs, markdownHeadingIndex skips the new block syntax; ported natively as O-6."
+  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift (fe73bec8c): markdownLinkModel/markdownLinkReferences resolve reference-style links, inlineTokenScan recognises bare URLs, markdownHeadingIndex skips the new block syntax; ported natively as O-6.",
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49; every input is byte-identical to 671143f2a."
 }
