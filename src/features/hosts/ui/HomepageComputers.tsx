@@ -49,7 +49,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
           expectedSession: catalog.expectedSession });
         cancelled = Boolean(result && "cancelled" in result);
         return result;
-      }, "hosts.catalog.removeFailure").then((done) => { if (done && !cancelled) forgetSharedFolder(folderId, rootPath); });
+      }, "hosts.catalog.stopFailure").then((done) => { if (done && !cancelled) forgetSharedFolder(folderId, rootPath); });
     } : undefined,
   });
   const others = catalog.devices.filter((device) => device.id !== catalog.thisComputerId);

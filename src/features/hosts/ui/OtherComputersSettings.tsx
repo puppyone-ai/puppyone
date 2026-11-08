@@ -16,7 +16,7 @@ export function OtherComputersSettings({ session }: { session: DesktopCloudSessi
   const catalog = useHostCatalog(session);
   const others = catalog.devices.filter((device) => device.id !== catalog.thisComputerId);
   const remove = (deviceId: string) => void catalog.run(async () => window.puppyoneDesktop?.revokeHostDevice({
-    deviceId, expectedSession: catalog.expectedSession }), "hosts.catalog.removeFailure");
+    deviceId, expectedSession: catalog.expectedSession }), "hosts.settings.removeFailure");
 
   return (
     <section className="desktop-utility-view desktop-settings-view" data-settings-section="other-computers">

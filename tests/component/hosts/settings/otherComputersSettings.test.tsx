@@ -54,6 +54,12 @@ describe("other computers, in Settings", () => {
     expect(revokeHostDevice).toHaveBeenCalledExactlyOnceWith({ deviceId: OFFICE, expectedSession });
   });
 
+  it("says it could not remove the computer, not a folder, when Main gives no reason", async () => {
+    const host = await render({ revokeHostDevice: async () => { throw new Error(); } });
+    await act(async () => { host.querySelector<HTMLButtonElement>(`[data-remove-computer="${OFFICE}"]`)!.click(); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Unable to remove this computer.");
+  });
+
   it("removes this computer from the account, through the same request", async () => {
     const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
     const host = await render({ revokeHostDevice });

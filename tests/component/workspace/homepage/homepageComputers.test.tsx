@@ -123,4 +123,27 @@ describe("the owner's other computers on the Homepage", () => {
     expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
   });
 
+  it("stops sharing a folder after Main asks, and only then moves it back to this computer", async () => {
+    const removeHostFolder = vi.fn(async () => ({ removed: true }));
+    const { host, sharing } = await render({ bridge: { removeHostFolder } });
+    expect(personal(host).textContent).toContain("ditherit");
+    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: "f-1",
+      expectedSession: { userId: session.user_id, generation: "one" } });
+    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).toContain("ditherit");
+    await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
+  });
+
+  it.each([
+    ["declined", async () => ({ cancelled: true as const }), null],
+    ["refused", async () => { throw new Error(); }, "Unable to stop sharing this folder."],
+  ])("keeps a folder shared when stopping is %s, and says so only when it failed", async (_case, removeHostFolder, said) => {
+    const { host, sharing } = await render({ bridge: { removeHostFolder } });
+    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(personal(host).textContent).toContain("ditherit");
+    expect(host.textContent?.includes("Unable to stop sharing this folder.")).toBe(Boolean(said));
+  });
+
 });

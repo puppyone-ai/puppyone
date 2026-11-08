@@ -6,6 +6,7 @@ import type { HostCatalogDevice, HostFolderCapability } from "../../../../shared
 import { useHostCatalog } from "../../../../src/features/hosts/data/useHostCatalog";
 import { HostFolderSharingDialog, type HostFolderSharingTarget } from "../../../../src/features/hosts/ui/HostFolderSharingDialog";
 import { useHostFolderPlace } from "../../../../src/features/hosts";
+import { rememberSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
 import { ProjectAudienceRows } from "../../../../src/components/project-audience";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -171,5 +172,23 @@ describe("all my devices, in the folder's place menu", () => {
     await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
     expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: FOLDER, expectedSession });
     expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("unticks All my devices once stopping is done", async () => {
+    const removeHostFolder = vi.fn(async () => ({ removed: true }));
+    const host = await renderPlace(FOLDER, { removeHostFolder });
+    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
+    expect(devicesRow(host).getAttribute("aria-checked")).toBe("false");
+    expect(devicesRow(host).textContent).toContain("Turn on");
+    await act(async () => rememberSharedFolder("/Users/me/place", FOLDER));
+  });
+
+  it("opens the folder's sharing settings when stopping fails, to try again there", async () => {
+    const removeHostFolder = vi.fn(async () => { throw new Error("denied"); });
+    const host = await renderPlace(FOLDER, { removeHostFolder });
+    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
+    expect(button("Stop sharing")).not.toBeNull();
   });
 });
