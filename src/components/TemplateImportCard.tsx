@@ -253,9 +253,9 @@ export function TemplateImportCard(props: TemplateImportCardProps) {
         </header>
 
         <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
-          {copied && <p className="onboarding-entry-dialog-note">{t("onboarding.template.copiedNote")}</p>}
           {resolving && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.template.loading")}</p>}
           {template && <div className="onboarding-entry-template">
+            {copied && <p className="onboarding-entry-dialog-note">{t("onboarding.template.copiedNote")}</p>}
             <TemplateSummary template={template} />
             {copy.editing
               ? <TemplateDestinationFields copy={copy} canChooseLocation={Boolean(onChooseLocation)} />
