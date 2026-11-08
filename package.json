@@ -160,6 +160,8 @@
     "smoke:homepage-return-order": "electron tests/e2e/workspace/projects/homepage-return-order.smoke.mjs",
     "smoke:homepage-interaction": "electron tests/e2e/workspace/projects/homepage-interaction.smoke.mjs",
     "smoke:homepage-visual": "electron tests/integration/workspace/projects/onboarding-home.smoke.mjs",
+    "smoke:missing-project-folder": "electron tests/e2e/workspace/projects/missing-project-folder.smoke.mjs",
+    "smoke:copied-template": "electron tests/integration/workspace/projects/copied-template.smoke.mjs",
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "pretest:core:coverage": "npm run build:native-templates",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",

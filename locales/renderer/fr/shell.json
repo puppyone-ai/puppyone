@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "Le rouvrir à vos autres ordinateurs ?",
   "folderRelocate.wasShared": "« {name} » était ouvert à vos autres ordinateurs. Comme il a été déplacé, ils ne pourront y accéder qu’une fois rouvert depuis son nouvel emplacement.",
   "folderRelocate.notNow": "Plus tard",
-  "folderRelocate.shareAgain": "Activer"
+  "folderRelocate.shareAgain": "Activer",
+  "folderStatus.fileUnavailable": "Le dossier de ce fichier ne peut pas être ouvert pour le moment."
 }

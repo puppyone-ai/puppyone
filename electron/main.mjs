@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
 import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
 import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
@@ -51,7 +50,8 @@ import {
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
-import { parseTemplateLink, resolveTemplateStoreOrigin, templateLinkFromCopiedText, templateShareLink } from "../shared/desktop/template-link.mjs";
+import { resolveTemplateStoreOrigin } from "../shared/desktop/template-link.mjs";
+import { createTemplateIntentStore } from "./main/template-intent-store.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
 import { createHostServiceLauncher } from "./host-service/launcher.mjs";
@@ -217,12 +217,10 @@ const desktopPlatformHost = createDesktopPlatformHost({
 });
 const appName = desktopApplicationIdentity.applicationName;
 const templateStoreOrigin = resolveTemplateStoreOrigin({ isPackaged: app.isPackaged, override: process.env.PUPPYONE_TEMPLATE_STORE_ORIGIN });
-let pendingTemplateIntent = null;
-const templateLinkOptions = { origin: templateStoreOrigin, channel: desktopBuildInfo.channel };
+const templateIntents = createTemplateIntentStore({ origin: templateStoreOrigin, channel: desktopBuildInfo.channel });
 for (const argument of process.argv) {
-  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
-    try { pendingTemplateIntent = { id: randomUUID(), url: templateShareLink(parseTemplateLink(argument, templateLinkOptions), templateStoreOrigin), ownerId: null }; } catch { /* Invalid external intents are ignored. */ }
-  }
+  // Invalid external intents are ignored.
+  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) templateIntents.receive(argument);
 }
 
 // Resolve only core launch data before the single-instance boundary. A
@@ -932,14 +930,11 @@ function resolveAppIconPath() {
 }
 
 async function queueTemplateIntent(value) {
-  let parsed;
-  try { parsed = parseTemplateLink(value, templateLinkOptions); } catch { return false; }
-  const intent = { id: randomUUID(), url: templateShareLink(parsed, templateStoreOrigin), ownerId: null };
-  pendingTemplateIntent = intent;
+  const intent = templateIntents.receive(value);
+  if (!intent) return false;
   if (initialWindowReady) {
     const window = await createOrRevealWindow();
-    if (pendingTemplateIntent === intent && !window.isDestroyed()) {
-      intent.ownerId = window.webContents.id;
+    if (!window.isDestroyed() && templateIntents.assign(intent, window.webContents.id)) {
       window.webContents.send("template:import-requested");
     }
   }
@@ -1207,10 +1202,10 @@ app.whenReady().then(async () => {
   initialWindowReady = true;
   // Files that arrived while the first window was opening were queued behind it.
   await openPendingPaths();
-  if (pendingTemplateIntent) {
+  const launchTemplate = templateIntents.pending;
+  if (launchTemplate) {
     const window = await createOrRevealWindow();
-    if (pendingTemplateIntent && !window.isDestroyed()) {
-      pendingTemplateIntent.ownerId = window.webContents.id;
+    if (!window.isDestroyed() && templateIntents.assign(launchTemplate, window.webContents.id)) {
       window.webContents.send("template:import-requested");
     }
   }
@@ -1390,6 +1385,12 @@ function registerIpcHandlers() {
       relocateRecent: (from, to) => workspaceStateStore.relocateRecentWorkspacePath(from, to),
       // Registered below; only called once a person has confirmed a new place.
       retireSharesAtMissingRoot: (rootPath) => hostIpc.retireSharesAtMissingRoot(rootPath),
+      // The gone place's sessions can do nothing more; the same folder reopens at its new place.
+      closeSessionsAt: async (rootPath) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) await projectSessions.closeRoot(window.webContents.id, rootPath);
+        }
+      },
       home: app.getPath("home"),
     }),
     getDialogOwnerWindow,
@@ -1409,24 +1410,12 @@ function registerIpcHandlers() {
     t: (id, values) => localeService.t(id, values) });
   app.once("will-quit", () => hostIpc.dispose());
   trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
-  trustedIpcMain.handle("template:read-intent", (event) => {
-    if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
-    if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
-    pendingTemplateIntent.ownerId = event.sender.id;
-    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url, copied: pendingTemplateIntent.copied === true };
-  });
+  trustedIpcMain.handle("template:read-intent", (event) => templateIntents.read(event.sender.id,
+    (ownerId) => BrowserWindow.getAllWindows().some(window => window.webContents.id === ownerId)));
   // A first launch after installing from the store looks once for the link the
   // store page copied. A link that arrived from the store itself goes first.
-  trustedIpcMain.handle("template:claim-copied-link", (event) => {
-    if (pendingTemplateIntent) return false;
-    const url = templateLinkFromCopiedText(clipboard.readText(), templateLinkOptions);
-    if (!url) return false;
-    pendingTemplateIntent = { id: randomUUID(), url, ownerId: event.sender.id, copied: true };
-    return true;
-  });
-  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
-    if (pendingTemplateIntent?.id === id && pendingTemplateIntent.ownerId === event.sender.id) pendingTemplateIntent = null;
-  });
+  trustedIpcMain.handle("template:claim-copied-link", (event) => templateIntents.claimCopied(() => clipboard.readText(), event.sender.id));
+  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => templateIntents.acknowledge(id, event.sender.id));
   registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
   registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({

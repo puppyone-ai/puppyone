@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "要重新对你的其他电脑开放吗？",
   "folderRelocate.wasShared": "「{name}」原来对你的其他电脑开放。它换了位置，需要在新位置重新开放，其他电脑才能打开。",
   "folderRelocate.notNow": "以后再说",
-  "folderRelocate.shareAgain": "开启"
+  "folderRelocate.shareAgain": "开启",
+  "folderStatus.fileUnavailable": "这个文件所在的文件夹现在打不开。"
 }

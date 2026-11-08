@@ -2,7 +2,7 @@
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProjectFolderNotices, useFolderRelocation } from "../../../../src/features/app-shell/folder-availability";
+import { ProjectFolderNotices, UnavailableProjectDialog, useFolderAvailability, useFolderRelocation } from "../../../../src/features/app-shell/folder-availability";
 import type { FolderLocateResult, FolderRelocation, FolderStatus } from "../../../../src/types/electron";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
@@ -57,6 +57,40 @@ describe("a window folder that cannot be opened now", () => {
       removeLabel="project" busy={false} {...on} />);
     expect(readableText(getByRole(host, "status"))).toContain("“Plans” is on a disk that isn’t connected.");
     expect(buttons(host)).toEqual(["Retry"]);
+  });
+});
+
+describe("knowing which of a window's folders cannot be opened now", () => {
+  function Probe({ paths }: { paths: string[] }) {
+    const { unavailable } = useFolderAvailability(paths);
+    return <ul aria-label="unavailable">{[...unavailable.values()].map((status) =>
+      <li key={status.path}>{`${status.path} ${status.state}`}</li>)}</ul>;
+  }
+  const listed = () => queryAllByRole(document, "listitem").map(readableText);
+
+  it("keeps only folders that need saying, and asks again when the window comes back to the front", async () => {
+    let answer: FolderStatus[] = [{ path: "/a", state: "available" }, missing];
+    const getFolderStatus = vi.fn(async () => answer);
+    installDesktopBridge({ getFolderStatus } as never);
+    await mount(<Probe paths={["/a", GONE]} />);
+    await vi.waitFor(() => expect(listed()).toEqual([`${GONE} missing`]));
+    expect(getFolderStatus).toHaveBeenCalledWith(["/a", GONE]);
+
+    // The folder is put back while PuppyOne is in the background.
+    answer = [{ path: "/a", state: "available" }, { path: GONE, state: "available" }];
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    await vi.waitFor(() => expect(listed()).toEqual([]));
+  });
+
+  it("never lets an older answer that arrives late replace a newer one", async () => {
+    const answers: Array<(value: FolderStatus[]) => void> = [];
+    installDesktopBridge({ getFolderStatus: () => new Promise<FolderStatus[]>((resolve) => answers.push(resolve)) } as never);
+    await mount(<Probe paths={[GONE]} />);
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(answers).toHaveLength(2);
+    await act(async () => answers[1]!([{ path: GONE, state: "available" }]));
+    await act(async () => answers[0]!([missing]));
+    expect(listed()).toEqual([]);
   });
 });
 
@@ -130,5 +164,41 @@ describe("a project on the Homepage whose folder cannot be opened now", () => {
     expect(onOpenWorkspacePath).not.toHaveBeenCalled();
     // A project that is there opens as before.
     expect(readableText(getByRole(host, "button", { name: "Open Notes locally" }))).not.toContain("Can’t find");
+  });
+});
+
+describe("opening such a project from the Homepage", () => {
+  const handlers = () => ({ onUseFound: vi.fn(), onLocate: vi.fn(), onRemove: vi.fn(), onClose: vi.fn() });
+  async function open(status: FolderStatus, on = handlers()) {
+    await mount(<UnavailableProjectDialog status={status} busy={false} error={null} {...on} />);
+    const dialog = getByRole(document, "dialog");
+    // The choices at the foot of the dialog; its header keeps a close button of its own.
+    return { dialog, on, buttons: queryAllByRole(dialog.querySelector("footer")!, "button").map(accessibleName) };
+  }
+
+  it("asks to find a folder that is gone, or to take it off the list", async () => {
+    const { dialog, on, buttons } = await open(missing);
+    expect(accessibleName(dialog)).toBe("Can’t find “大使计划A”");
+    expect(readableText(dialog)).toContain("It was in ~/Documents/PuppyOne/大使计划");
+    expect(buttons).toEqual(["Remove from list", "Find it…"]);
+    await act(async () => getByRole(dialog, "button", { name: "Find it…" }).click());
+    expect(on.onLocate).toHaveBeenCalledExactlyOnceWith(GONE);
+    await act(async () => getByRole(dialog, "button", { name: "Remove from list" }).click());
+    expect(on.onRemove).toHaveBeenCalledExactlyOnceWith(GONE);
+  });
+
+  it("leads with the folder found renamed in place", async () => {
+    const found = { token: "t-3", path: `${GONE}-renamed`, name: "大使计划B", match: "same-folder" as const };
+    const { dialog, on, buttons } = await open({ ...missing, suggestion: found });
+    expect(buttons).toEqual(["Find it…", "Use “大使计划B”"]);
+    await act(async () => getByRole(dialog, "button", { name: "Use “大使计划B”" }).click());
+    expect(on.onUseFound).toHaveBeenCalledExactlyOnceWith(found);
+  });
+
+  it("only says so when its disk is away: nothing to find, and closing is the main way out", async () => {
+    const { dialog, on, buttons } = await open({ path: "/Volumes/Work/Plans", state: "disconnected" });
+    expect(accessibleName(dialog)).toBe("Can’t open “Plans”");
+    expect(buttons).toEqual(["Remove from list", "Close"]);
+    expect(on.onLocate).not.toHaveBeenCalled();
   });
 });

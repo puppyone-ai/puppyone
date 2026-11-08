@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nearestExistingAncestor, probeFolderAvailability } from "../../../../electron/main/folder-availability.mjs";
 import { createFolderRelocation } from "../../../../electron/main/folder-relocation.mjs";
+import { registerWorkspaceNavigationIpcHandlers } from "../../../../electron/main/ipc/workspace-navigation-ipc.mjs";
 
 let root;
 beforeEach(async () => { root = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), "puppyone-relocation-"))); });
@@ -46,6 +47,7 @@ describe("finding where a project's folder went", () => {
   function service({ recents, windowFolders = [], dialogPath = null } = {}) {
     const relocateRecent = vi.fn(async (from, to) => ({ path: to, wasShared: recents.find((item) => item.path === from)?.hostFolderId !== undefined }));
     const retireSharesAtMissingRoot = vi.fn(async () => ({ retired: 0 }));
+    const closeSessionsAt = vi.fn(async () => undefined);
     const showOpenDialog = vi.fn(async () => (dialogPath ? { canceled: false, filePaths: [dialogPath] } : { canceled: true, filePaths: [] }));
     let clock = 1_000;
     const relocation = createFolderRelocation({
@@ -55,10 +57,11 @@ describe("finding where a project's folder went", () => {
       showOpenDialog,
       relocateRecent,
       retireSharesAtMissingRoot,
+      closeSessionsAt,
       home: root,
       now: () => clock,
     });
-    return { relocation, relocateRecent, retireSharesAtMissingRoot, showOpenDialog, advance: (ms) => { clock += ms; } };
+    return { relocation, relocateRecent, retireSharesAtMissingRoot, closeSessionsAt, showOpenDialog, advance: (ms) => { clock += ms; } };
   }
 
   it("recognises the same folder renamed where it was, and uses it once confirmed", async () => {
@@ -67,13 +70,16 @@ describe("finding where a project's folder went", () => {
     const record = { path: before, name: "大使计划A", ...(await identityOf(before)) };
     const after = path.join(root, "大使计划B");
     await fs.promises.rename(before, after);
-    const { relocation, relocateRecent, retireSharesAtMissingRoot } = service({ recents: [record] });
+    const { relocation, relocateRecent, retireSharesAtMissingRoot, closeSessionsAt } = service({ recents: [record] });
 
     const [status] = await relocation.status({}, [before]);
     expect(status).toMatchObject({ path: before, state: "missing", suggestion: { path: after, name: "大使计划B", match: "same-folder" } });
 
     expect(await relocation.relocate(status.suggestion.token)).toEqual({ from: before, path: after, wasShared: false });
     expect(relocateRecent).toHaveBeenCalledExactlyOnceWith(before, after);
+    // What a window still held open at the gone place ends first, so the same folder reopens at its new one.
+    expect(closeSessionsAt).toHaveBeenCalledExactlyOnceWith(before);
+    expect(closeSessionsAt.mock.invocationCallOrder[0]).toBeLessThan(relocateRecent.mock.invocationCallOrder[0]);
     expect(retireSharesAtMissingRoot).toHaveBeenCalledExactlyOnceWith(before);
     // A confirmation is used once.
     await expect(relocation.relocate(status.suggestion.token)).rejects.toThrow("Choose the folder again.");
@@ -112,5 +118,31 @@ describe("finding where a project's folder went", () => {
     const { relocation } = service({ recents: [record] });
     const [status] = await relocation.status({}, [before]);
     expect(await relocation.relocate(status.suggestion.token)).toMatchObject({ path: after, wasShared: true });
+  });
+});
+
+describe("asking Main about a project's folder from the screen", () => {
+  it("routes each question to the relocation service for the asking window only", async () => {
+    const handlers = new Map();
+    const folderRelocation = {
+      status: vi.fn(async () => [{ path: "/gone", state: "missing" }]),
+      locate: vi.fn(async () => ({ status: "cancelled" })),
+      relocate: vi.fn(async () => ({ from: "/gone", path: "/here", wasShared: false })),
+    };
+    const ownerWindow = { id: "window" };
+    registerWorkspaceNavigationIpcHandlers({
+      ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+      workspaceStateStore: {},
+      folderRelocation,
+      getDialogOwnerWindow: (sender) => (sender.id === 7 ? ownerWindow : null),
+    });
+    const event = { sender: { id: 7 } };
+
+    expect(await handlers.get("workspace:folder-status")(event, { paths: ["/gone"] })).toEqual([{ path: "/gone", state: "missing" }]);
+    expect(folderRelocation.status).toHaveBeenCalledWith(event.sender, ["/gone"]);
+    await handlers.get("workspace:locate-folder")(event, { path: "/gone" });
+    expect(folderRelocation.locate).toHaveBeenCalledWith(event.sender, "/gone", ownerWindow);
+    await handlers.get("workspace:relocate-folder")(event, { token: "t-1" });
+    expect(folderRelocation.relocate).toHaveBeenCalledWith("t-1");
   });
 });

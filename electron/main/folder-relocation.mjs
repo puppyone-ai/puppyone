@@ -21,6 +21,8 @@ export function createFolderRelocation({
   showOpenDialog,
   relocateRecent,
   retireSharesAtMissingRoot = async () => ({ retired: 0 }),
+  /** Ends what any window still holds open at the gone place, so the folder reopens at the new one. */
+  closeSessionsAt = async () => undefined,
   home = "",
   fsModule = fs,
   platform = process.platform,
@@ -107,6 +109,7 @@ export function createFolderRelocation({
       if (!candidate || candidate.expiresAt < now()) throw new Error("Choose the folder again.");
       const { state } = await probeFolderAvailability(candidate.to, { fsModule, platform });
       if (state !== "available") throw new Error("That folder can no longer be opened.");
+      await closeSessionsAt(candidate.from);
       const relocated = await relocateRecent(candidate.from, candidate.to);
       const { retired } = await retireSharesAtMissingRoot(candidate.from);
       return { from: candidate.from, path: relocated.path, wasShared: Boolean(relocated.wasShared) || retired > 0 };

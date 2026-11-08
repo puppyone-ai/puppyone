@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "Open it to your other computers again?",
   "folderRelocate.wasShared": "“{name}” was open to your other computers. Since it moved, they can’t reach it until you open it from its new place.",
   "folderRelocate.notNow": "Not now",
-  "folderRelocate.shareAgain": "Turn on"
+  "folderRelocate.shareAgain": "Turn on",
+  "folderStatus.fileUnavailable": "This file’s folder can’t be opened right now."
 }

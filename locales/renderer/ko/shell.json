@@ -230,5 +230,6 @@
   "folderRelocate.sharedTitle": "다른 컴퓨터에 다시 공개할까요?",
   "folderRelocate.wasShared": "“{name}”은(는) 다른 컴퓨터에 공개되어 있었습니다. 위치가 바뀌어 새 위치에서 다시 공개하기 전까지는 다른 컴퓨터에서 열 수 없습니다.",
   "folderRelocate.notNow": "나중에",
-  "folderRelocate.shareAgain": "켜기"
+  "folderRelocate.shareAgain": "켜기",
+  "folderStatus.fileUnavailable": "이 파일이 있는 폴더를 지금 열 수 없습니다."
 }
