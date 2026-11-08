@@ -302,9 +302,9 @@ fn native_pkce_and_email_handoffs_use_the_real_http_adapter_once() {
 fn the_login_pages_rejected_handoff_fails_the_sign_in_at_once() {
     let server = Server::new(|origin| {
         Arc::new(move |_, path, _, _| match path {
-            "/api/v1/auth/config" => json(
-                serde_json::json!({"supabase_url":origin,"supabase_anon_key":"sb_publishable_fixture"}),
-            ),
+            // The deployments answer inside their `{code, data}` envelope.
+            "/api/v1/auth/config" => json(serde_json::json!({"code": 0, "message": "success",
+                "data": {"supabase_url":origin,"supabase_anon_key":"sb_publishable_fixture"}})),
             "/auth/v1/settings" => json(serde_json::json!({"external":{"email":true}})),
             _ => panic!("a rejected handoff must not exchange credentials"),
         })

@@ -180,7 +180,11 @@ impl Http {
             return Ok(c.clone());
         }
         let config_url = env.api_url("/auth/config", &[])?;
-        let value = self.send(self.client(&config_url).get(config_url), 64 * 1024, fence)?;
+        let mut value = self.send(self.client(&config_url).get(config_url), 64 * 1024, fence)?;
+        // `requestCloudApi`: the API answers inside its `{code, data}` envelope.
+        if value.get("data").is_some_and(serde_json::Value::is_object) {
+            value = value["data"].take();
+        }
         let url = endpoint(
             value["supabase_url"]
                 .as_str()
