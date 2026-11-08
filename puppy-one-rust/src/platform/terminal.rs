@@ -15,7 +15,8 @@ pub enum Event {
     Error(String),
     Exit(u32),
 }
-enum Command {
+/// What a session is asked: keystrokes, and a new size (rows, columns).
+pub enum Request {
     Input(Vec<u8>),
     Resize(u16, u16),
 }
@@ -40,7 +41,7 @@ impl Drop for ChildGuard {
     }
 }
 pub struct Terminal {
-    tx: SyncSender<Command>,
+    tx: SyncSender<Request>,
     pub events: Receiver<Event>,
     stop: Arc<AtomicBool>,
     pid: Arc<AtomicI32>,
@@ -59,6 +60,30 @@ impl Terminal {
             pid: Arc::new(AtomicI32::new(0)),
             foreground: Arc::new(AtomicI32::new(0)),
         }
+    }
+    /// A session whose process runs elsewhere (another computer's folder):
+    /// what it is asked arrives on the [`Bridge`], and what it says goes
+    /// back through it. Dropping the session stops the bridge.
+    pub fn bridged(wake: Wake) -> (Self, Bridge) {
+        let (tx, requests) = mpsc::sync_channel(64);
+        let (events, receiver) = mpsc::sync_channel(128);
+        let stop = Arc::new(AtomicBool::new(false));
+        let bridge = Bridge {
+            requests,
+            outlet: Outlet {
+                events,
+                wake,
+                stop: stop.clone(),
+            },
+        };
+        let terminal = Self {
+            tx,
+            events: receiver,
+            stop,
+            pid: Arc::new(AtomicI32::new(0)),
+            foreground: Arc::new(AtomicI32::new(0)),
+        };
+        (terminal, bridge)
     }
     /// Starts a PTY host under the process budget of `owner` (its window).
     /// A refused reservation reports capacity instead of starting a shell.
@@ -200,11 +225,11 @@ impl Terminal {
                         break;
                     }
                     match rx.recv_timeout(Duration::from_millis(25)) {
-                        Ok(Command::Input(bytes)) => {
+                        Ok(Request::Input(bytes)) => {
                             writer.write_all(&bytes)?;
                             writer.flush()?;
                         }
-                        Ok(Command::Resize(rows, cols)) => pair.master.resize(PtySize {
+                        Ok(Request::Resize(rows, cols)) => pair.master.resize(PtySize {
                             rows,
                             cols,
                             pixel_width: 0,
@@ -247,11 +272,38 @@ impl Terminal {
             return Err(crate::localization::t("native.terminal.pasteTooLarge").into());
         }
         self.tx
-            .try_send(Command::Input(bytes))
+            .try_send(Request::Input(bytes))
             .map_err(|e| e.to_string())
     }
     pub fn resize(&self, rows: u16, cols: u16) {
-        let _ = self.tx.try_send(Command::Resize(rows, cols));
+        let _ = self.tx.try_send(Request::Resize(rows, cols));
+    }
+}
+/// The far side of a [`Terminal::bridged`] session: what it is asked, and
+/// where its output goes.
+pub struct Bridge {
+    pub requests: Receiver<Request>,
+    pub outlet: Outlet,
+}
+pub struct Outlet {
+    events: SyncSender<Event>,
+    wake: Wake,
+    stop: Arc<AtomicBool>,
+}
+impl Outlet {
+    /// Hands `event` to the session; `false` once it is gone.
+    pub fn send(&self, event: Event) -> bool {
+        let sent = self.events.send(event).is_ok();
+        self.wake.notify();
+        sent && !self.stopped()
+    }
+    /// The view draws again (its state changed without output).
+    pub fn notify(&self) {
+        self.wake.notify();
+    }
+    /// The session was closed here.
+    pub fn stopped(&self) -> bool {
+        self.stop.load(Ordering::Relaxed)
     }
 }
 impl Drop for Terminal {

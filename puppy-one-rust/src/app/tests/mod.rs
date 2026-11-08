@@ -12,6 +12,7 @@ mod editing;
 mod explorer_pane;
 mod file_window;
 mod home_groups;
+mod other_computers;
 mod homepage;
 mod pane_layout;
 mod project_lifecycle;

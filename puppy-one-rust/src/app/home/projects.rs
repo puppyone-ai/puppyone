@@ -290,6 +290,7 @@ mod tests {
             modified,
             cloud_organization: None,
             host_folder: None,
+            remote: None,
         }
     }
 

@@ -968,6 +968,26 @@ impl Documents {
             ctx.notify();
         });
     }
+    /// A folder on another of the owner's computers
+    /// (`DeviceFolderWorkbenchSurface`): its root is listed once over the
+    /// folder's SSH connection before it replaces what this window shows.
+    pub fn open_device(
+        &mut self,
+        hosts: Arc<crate::workspace::hosts::remote::Hosts>,
+        opened: crate::workspace::hosts::device::Opened,
+        ctx: &Wake,
+    ) {
+        self.cancel_cloud();
+        self.phase = Phase::Working;
+        self.status = "Opening folder…".into();
+        let tx = self.tx.clone();
+        let ctx = ctx.clone();
+        crate::localization::spawn(move || {
+            let result = crate::workspace::hosts::device::open(hosts, opened);
+            let _ = tx.send(Completed::Root(result));
+            ctx.notify();
+        });
+    }
     /// A Cloud conflict is waiting for "Discard edits and reload".
     pub fn cloud_conflict(&self) -> bool {
         self.session.as_ref().is_some_and(|s| s.conflicted())

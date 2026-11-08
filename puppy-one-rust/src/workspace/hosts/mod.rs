@@ -4,7 +4,10 @@
 pub mod device;
 pub mod exec;
 pub mod files;
+pub mod git;
 pub mod lines;
 pub mod protocol;
 pub mod remote;
 pub mod ssh;
+#[cfg(any(test, feature = "test-support"))]
+pub mod testing;

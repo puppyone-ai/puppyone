@@ -94,6 +94,8 @@ pub(in crate::app) struct Inputs<'a> {
     pub shared_ids: Option<&'a HashSet<String>>,
     /// Opening a folder to my other computers is offered.
     pub local_share: bool,
+    /// The folders my other computers offer, each computer's by name.
+    pub remote: Vec<Item>,
 }
 
 /// The groups in page order, without the empty ones that do not stay.
@@ -118,8 +120,11 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
             .as_ref()
             .is_some_and(|id| inputs.shared_ids.is_none_or(|ids| ids.contains(id)))
     };
-    let (offered, local_only): (Vec<Item>, Vec<Item>) =
+    let (mut offered, local_only): (Vec<Item>, Vec<Item>) =
         local.iter().cloned().partition(|item| shared(item));
+    // `HomepageComputers`: my other computers' folders join the same
+    // personal audience, after what this computer offers.
+    offered.extend(inputs.remote);
     let personal_title = tr("onboarding.sharing.personal").to_owned();
     if !offered.is_empty() {
         match groups.iter_mut().find(|g| g.id == GroupId::PersonalShared) {
@@ -334,6 +339,7 @@ mod tests {
             modified: None,
             cloud_organization: None,
             host_folder: None,
+            remote: None,
         }
     }
     fn cloud(id: &str, org: Option<&str>) -> Item {
@@ -347,6 +353,7 @@ mod tests {
             modified: None,
             cloud_organization: org.map(Into::into),
             host_folder: None,
+            remote: None,
         }
     }
     fn space(id: &str, kind: Kind, create: bool) -> Space {
@@ -367,6 +374,7 @@ mod tests {
             chosen_team: None,
             shared_ids: None,
             local_share: false,
+            remote: vec![],
         }
     }
     fn ids(groups: &[Group]) -> Vec<&'static str> {
@@ -495,5 +503,48 @@ mod tests {
         input.dragging_path = Some("/x/notes");
         let shown = groups(input);
         assert_eq!(ids(&shown), ["local-only"]);
+    }
+
+    /// `HomepageComputers`: another computer's folders are in My Share
+    /// Project after its Cloud projects, never a group of their own.
+    #[test]
+    fn other_computers_folders_join_my_share_project() {
+        use crate::workspace::cloud::catalog::RemoteFolder;
+        let remote = Item {
+            id: "device-folder:f".into(),
+            label: "notes".into(),
+            remote: Some(RemoteFolder {
+                device: "d".into(),
+                host: "Studio Mac".into(),
+                folder: "f".into(),
+                writable: true,
+                capabilities: vec![],
+                online: true,
+                paused: false,
+            }),
+            ..cloud("unused", None)
+        };
+        let remote = Item {
+            cloud_project: None,
+            ..remote
+        };
+        let spaces = [space("me", Kind::Personal, true)];
+        let mut input = inputs(&spaces, vec![cloud("p", Some("me")), local("here")]);
+        input.remote = vec![remote.clone()];
+        let shown = groups(input);
+        assert_eq!(ids(&shown), ["personal-shared", "local-only"]);
+        let personal = &shown[0];
+        assert_eq!(
+            personal
+                .items
+                .iter()
+                .map(|i| i.id.as_str())
+                .collect::<Vec<_>>(),
+            ["cloud:p", "device-folder:f"]
+        );
+        // Alone, it still makes the group.
+        let mut input = inputs(&[], vec![]);
+        input.remote = vec![remote];
+        assert_eq!(ids(&groups(input)), ["personal-shared"]);
     }
 }

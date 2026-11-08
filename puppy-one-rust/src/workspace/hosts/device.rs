@@ -457,7 +457,7 @@ impl ResourceWatchPort for DeviceFolder {
 
 #[cfg(test)]
 mod tests {
-    use super::super::remote::tests::{ACCOUNT, DEVICE, FOLDER, fake};
+    use super::super::testing::{ACCOUNT, DEVICE, FOLDER, fake};
     use super::*;
     use std::time::Duration;
 

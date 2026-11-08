@@ -213,7 +213,15 @@ impl FileService {
             Request::Mkdir { path } => self.mkdir(folder, path),
             Request::Move { path, destination } => self.move_entry(folder, path, destination),
             Request::Remove { path } => self.remove(folder, path),
+            // Git is the host's Git service's, never the file service's.
+            Request::Git(_) => Err("folder_unavailable"),
         }
+    }
+    /// The folder's root, while it is shared with `capability`.
+    pub fn root(&self, folder: &str, capability: Capability) -> Result<PathBuf, &'static str> {
+        self.admit(folder, capability)?;
+        let grant = self.folders.resolve(folder).ok_or("folder_unavailable")?;
+        grant.root.canonicalize().map_err(|_| "root_changed")
     }
     pub fn list(&self, folder: &str, requested: &str) -> Outcome {
         let dir = self.admit(folder, Capability::Read)?;

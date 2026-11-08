@@ -55,6 +55,26 @@ pub struct Actions {
     pub rename: bool,
     pub delete: bool,
 }
+/// A folder on another of the owner's computers (`HostCatalogFolder` with
+/// its device): listed with that computer's name and what it allows; while
+/// the computer is offline or paused it stays listed and cannot be opened.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RemoteFolder {
+    pub device: String,
+    /// The other computer's name, for "On {host}".
+    pub host: String,
+    pub folder: String,
+    pub writable: bool,
+    /// What that computer allows in this folder, as last listed.
+    pub capabilities: Vec<String>,
+    pub online: bool,
+    pub paused: bool,
+}
+impl RemoteFolder {
+    pub fn available(&self) -> bool {
+        self.online && !self.paused
+    }
+}
 /// `ProjectHomeItem`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
@@ -74,6 +94,8 @@ pub struct Item {
     /// `hostFolderId`: the id a local folder was opened to the owner's other
     /// computers under, as recorded when it was shared.
     pub host_folder: Option<String>,
+    /// Present only on a folder of another computer's entry.
+    pub remote: Option<RemoteFolder>,
 }
 impl Item {
     pub fn location(&self) -> Location {
@@ -119,6 +141,7 @@ pub fn build(
                 modified: entry.modified,
                 cloud_organization: None,
                 host_folder: entry.host_folder.clone(),
+            remote: None,
             }
         })
         .collect();
@@ -136,6 +159,7 @@ pub fn build(
             modified: latest([project.updated, activity.get(&project.id).copied()]),
             cloud_organization: project.org.clone(),
             host_folder: None,
+            remote: None,
         });
     }
     items.sort_by(|a, b| {

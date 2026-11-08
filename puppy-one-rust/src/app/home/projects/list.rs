@@ -414,8 +414,11 @@ impl Homepage {
                 native: Default::default(),
             });
         let selector = format!("home-project:{}", item.id);
+        // `data-inactive`: an offline or paused computer's folder.
+        let inactive = item.remote.as_ref().is_some_and(|r| !r.available());
         div()
             .id(id)
+            .when(inactive, |d| d.opacity(0.5))
             .debug_selector(move || selector.clone())
             .track_focus(&focus)
             .on_key_down(keys)
@@ -433,7 +436,7 @@ impl Homepage {
                     cx.notify();
                 }),
             )
-            .when(!busy, |d| {
+            .when(!busy && !inactive, |d| {
                 d.cursor(theme::clickable_cursor())
                     .on_click(cx.listener(move |s, _, _, cx| s.open_item(&open, cx)))
             })
@@ -854,7 +857,7 @@ impl Homepage {
 /// `ProjectPlaceMark`: where a shared project lives, as one small mark after
 /// its name: the Cloud, or a computer.
 fn place_mark(item: &Item, t: Theme) -> Div {
-    let meaning = if item.local_path.is_some() {
+    let meaning = if item.local_path.is_some() || item.remote.is_some() {
         ProductIcon::Local
     } else {
         ProductIcon::Cloud

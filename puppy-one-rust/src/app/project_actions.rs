@@ -754,6 +754,7 @@ mod tests {
             modified: None,
             cloud_organization: None,
             host_folder: None,
+            remote: None,
         };
         assert_eq!(Target::of(&item), None);
         item.actions = Some(Actions {

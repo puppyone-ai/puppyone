@@ -87,6 +87,9 @@ pub(super) fn notice_key(root: &std::path::Path, notice: &Notice) -> String {
 pub(super) enum Place {
     Local,
     Cloud,
+    /// Another of the owner's computers (`place: "computer"`): its name is
+    /// the address, what it allows the detail.
+    Computer,
 }
 /// `ProjectPlaceAction`: from a Cloud project, the folder it was made from.
 /// It never moves one project between this computer and the Cloud.
@@ -112,6 +115,8 @@ pub(super) struct PlaceMenu {
     /// The open local folder's Cloud link: what it means, and whether this
     /// app can end it.
     pub link: Option<(Notice, bool)>,
+    /// Another computer's folder: what that computer allows in it.
+    pub detail: Option<String>,
 }
 /// `resolveProjectPlaceMenu`.
 pub(super) fn resolve(
@@ -127,12 +132,21 @@ pub(super) fn resolve(
             address,
             action: linked_folder.map(|(path, name)| Action::OpenLocalFolder { path, name }),
             link: None,
+            detail: None,
         },
         Place::Local => PlaceMenu {
             place,
             address,
             action: None,
             link: notice.map(|n| (n, disconnectable)),
+            detail: None,
+        },
+        Place::Computer => PlaceMenu {
+            place,
+            address,
+            action: None,
+            link: None,
+            detail: None,
         },
     }
 }
@@ -204,12 +218,12 @@ fn place_label(place: Place) -> &'static str {
     match place {
         Place::Cloud => tr("cloud.home.location.cloud"),
         Place::Local if cfg!(target_os = "macos") => tr("shell.workspaceSwitcher.location.thisMac"),
-        Place::Local => tr("shell.workspaceSwitcher.location.thisComputer"),
+        Place::Local | Place::Computer => tr("shell.workspaceSwitcher.location.thisComputer"),
     }
 }
 fn place_icon(place: Place) -> Icon {
     Icon::product(match place {
-        Place::Local => ProductIcon::Local,
+        Place::Local | Place::Computer => ProductIcon::Local,
         Place::Cloud => ProductIcon::Cloud,
     })
 }
@@ -230,6 +244,31 @@ impl WindowCloud {
     /// `items` is the shared project list, where a hosted Project finds the
     /// folder linked to it and its space.
     pub(super) fn place_menu(&self, items: &[Item], cx: &App) -> Option<PlaceMenu> {
+        // `DeviceFolderHeader`: the computer it lives on, and what that
+        // computer allows; nothing to do from here.
+        if let Some(remote) = &self.session().device {
+            let host = remote.host.clone();
+            return Some(PlaceMenu {
+                detail: Some(
+                    tr(if remote.writable {
+                        "hosts.catalog.editable"
+                    } else {
+                        "hosts.catalog.readOnly"
+                    })
+                    .to_owned(),
+                ),
+                ..resolve(
+                    Place::Computer,
+                    Some(Address {
+                        short: host.clone(),
+                        full: host,
+                    }),
+                    None,
+                    false,
+                    None,
+                )
+            });
+        }
         if !crate::features::flags::cloud_enabled(&self.preferences, cx) {
             return None;
         }
@@ -331,17 +370,24 @@ impl WindowCloud {
     pub(super) fn place_button(&self, menu: &PlaceMenu, cx: &App) -> Button {
         let t = cx.palette();
         let ty = theme::ty().header;
-        let label = place_label(menu.place);
+        let label = match (&menu.place, &menu.address) {
+            (Place::Computer, Some(address)) => tf(
+                "hosts.folder.onHost",
+                &[("host", address.full.as_str().into())],
+            ),
+            _ => place_label(menu.place).to_owned(),
+        };
         let text = menu
             .address
             .as_ref()
-            .map_or_else(|| label.to_owned(), |a| a.short.clone());
+            .map_or_else(|| label.clone(), |a| a.short.clone());
         let accessible = [
-            Some(label.to_owned()),
+            Some(label.clone()),
             menu.address
                 .as_ref()
                 .map(|a| a.full.clone())
-                .filter(|full| full != label),
+                .filter(|full| *full != label && menu.place != Place::Computer),
+            menu.detail.clone(),
             menu.link
                 .as_ref()
                 .map(|_| tr("cloud.placeMenu.link.linked").to_owned()),
@@ -393,7 +439,11 @@ impl WindowCloud {
         let t = cx.palette();
         let host = self.weak.clone();
         let history = self.hosted().is_some() && crate::features::cloud::account::has_account(cx);
-        let mut current = MenuItem::new(place_label(menu.place))
+        let label = match (&menu.place, &menu.address) {
+            (Place::Computer, Some(address)) => address.full.clone(),
+            _ => place_label(menu.place).to_owned(),
+        };
+        let mut current = MenuItem::new(label)
             .icon_sized({
                 let icon = place_icon(menu.place).with_size(px(15.)).stroke(1.75);
                 if menu.place == Place::Cloud {
@@ -404,7 +454,9 @@ impl WindowCloud {
             })
             .selected(true)
             .fact(true);
-        if let Some(address) = &menu.address {
+        if let Some(detail) = &menu.detail {
+            current = current.detail_below(detail.clone());
+        } else if let Some(address) = &menu.address {
             current = current.detail_below(address.full.clone());
         }
         let audience = self.local_audience(&menu, items, cx);

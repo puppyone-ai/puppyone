@@ -108,6 +108,13 @@ impl DocumentSession {
         self.files
             .open_at_edge(path, pane, direction, placement, &self.wake);
     }
+    pub fn open_device(
+        &mut self,
+        hosts: std::sync::Arc<crate::workspace::hosts::remote::Hosts>,
+        opened: crate::workspace::hosts::device::Opened,
+    ) {
+        self.files.open_device(hosts, opened, &self.wake);
+    }
     pub fn open_cloud(
         &mut self,
         broker: std::sync::Arc<crate::cloud::auth::Broker>,
@@ -154,6 +161,8 @@ pub(super) struct SessionView {
     pub cloud_project: Option<String>,
     /// The hosted Project on screen: a Cloud workspace with no local root.
     pub hosted: Option<String>,
+    /// The other computer's folder on screen.
+    pub device: Option<crate::workspace::cloud::catalog::RemoteFolder>,
     /// A project is on its way in and the window shows its preparation.
     pub opening: bool,
     /// A file window (File Mode): one file, no project.

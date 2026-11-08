@@ -66,6 +66,8 @@ pub struct Runtime {
     preparing: Option<Documents>,
     /// The local folder `preparing` opens, so its failure names it.
     preparing_root: Option<PathBuf>,
+    /// The other computer's folder `preparing` opens.
+    preparing_device: Option<String>,
     /// `ProjectNavigationFailure`: a local Project that could not open.
     pub root_failure: Option<(PathBuf, String)>,
     last_cloud_failure: Option<crate::workspace::cloud::opening::Failure>,
@@ -264,6 +266,29 @@ impl Runtime {
         self.generation += 1;
         wake.notify();
     }
+    /// Another computer's folder opens here; what shows stays until it is in.
+    pub fn open_device(
+        &mut self,
+        hosts: std::sync::Arc<crate::workspace::hosts::remote::Hosts>,
+        opened: crate::workspace::hosts::device::Opened,
+        wake: &Wake,
+    ) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        self.revoke_preparing();
+        self.preparing_device = Some(opened.folder.clone());
+        let mut preparing = Documents::default();
+        preparing.open_device(hosts, opened, wake);
+        self.preparing = Some(preparing);
+        self.generation += 1;
+        wake.notify();
+    }
+    /// The other computer's folder being opened.
+    pub fn preparing_device(&self) -> Option<&str> {
+        self.preparing_device.as_deref()
+    }
     /// A newer selection replaces the one being prepared: a Cloud opening in
     /// flight is cancelled, never left to finish unobserved.
     /// A local folder is being opened.
@@ -276,6 +301,7 @@ impl Runtime {
     }
     fn revoke_preparing(&mut self) {
         self.preparing_root = None;
+        self.preparing_device = None;
         if let Some(mut previous) = self.preparing.take() {
             previous.cancel_cloud();
         }
@@ -582,6 +608,7 @@ impl Runtime {
                     (None, None) => self.error = Some(error),
                 }
                 self.preparing = None;
+                self.preparing_device = None;
             } else if let Some(rows) = preparing.tree_update.take() {
                 let ws = preparing.workspace.clone().unwrap();
                 let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
@@ -627,6 +654,7 @@ impl Runtime {
                 }
                 self.preparing = None;
                 self.preparing_root = None;
+                self.preparing_device = None;
                 self.activate_workspace(key);
             }
         }

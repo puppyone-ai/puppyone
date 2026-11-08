@@ -26,6 +26,11 @@ impl Shell {
             ChromeEvent::OpenItem(item) => self.open_item(item, window, cx),
             ChromeEvent::OpenProject(path) => self.open_project(path.clone(), window, cx),
             ChromeEvent::RefreshCatalog => self.refresh_cloud_catalog(true, cx),
+            ChromeEvent::HostTool(tool) => {
+                let tool = *tool;
+                self.sidebar
+                    .update(cx, |s, cx| s.toggle_host_tool(tool, window, cx));
+            }
             ChromeEvent::OpenSettings(page) => self.open_settings(*page, window, cx),
             // The project rail takes room from the panes.
             ChromeEvent::RailChanged => {
@@ -109,6 +114,10 @@ impl Shell {
             home::HomeEvent::OpenCloud(project) => {
                 self.set_popover(None, cx);
                 self.open_cloud(project.clone(), cx);
+            }
+            home::HomeEvent::OpenDevice(remote, name) => {
+                self.set_popover(None, cx);
+                self.open_device(remote.clone(), name.clone(), cx);
             }
             home::HomeEvent::OpenCreated {
                 path,
@@ -360,6 +369,35 @@ impl Shell {
         {
             self.show_error(error, cx);
         }
+        cx.notify();
+    }
+    /// `useHostFolderRestore`, when its account and access side are known.
+    pub(in crate::app) fn restore_device(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .session
+            .project
+            .update(cx, |p, cx| p.restore_device(cx))
+        {
+            self.receive(window, cx);
+            cx.notify();
+        }
+    }
+    /// Another of my computers' folder, in this window.
+    pub(in crate::app) fn open_device(
+        &mut self,
+        remote: crate::workspace::cloud::catalog::RemoteFolder,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
+        if let Err(error) = self
+            .session
+            .project
+            .update(cx, |p, cx| p.open_device(remote, name, cx))
+        {
+            self.show_error(error, cx);
+        }
+        // What the folder allows can change on its computer at any time.
+        crate::features::hosts::global(cx).update(cx, |h, cx| h.ensure(true, true, true, cx));
         cx.notify();
     }
     /// Switch to a remembered project (`onSelectProject`).

@@ -125,6 +125,21 @@ impl Shell {
     }
     /// What the window's features read of the session, handed over when it
     /// changed.
+    /// The other computer's folder on screen hands its tools what that
+    /// computer allows now; leaving it closes them.
+    fn sync_host_tools(&mut self, view: &session::SessionView, cx: &mut Context<Self>) {
+        let target = view
+            .device
+            .as_ref()
+            .and_then(|remote| crate::features::hosts::read(cx)?.tools_target(remote));
+        let gone = target.is_none();
+        self.sidebar.update(cx, |s, cx| {
+            if gone {
+                s.leave_host_tools(cx);
+            }
+            s.host_tools.update(cx, |h, cx| h.set_target(target, cx));
+        });
+    }
     pub(in crate::app) fn sync_session_view(&mut self, cx: &mut Context<Self>) {
         let files = &self.files(cx);
         let home = self.home_visible(cx);
@@ -142,12 +157,14 @@ impl Shell {
             name: self.session.project.read(cx).record.name.clone(),
             cloud_project: self.session.project.read(cx).record.cloud.clone(),
             hosted: self.hosted_project(cx),
+            device: self.session.project.read(cx).device(cx),
             opening: self.opening(cx),
             file_mode: self.file_mode(),
             home_requested: self.session.project.read(cx).home,
             entries: self.session.project.read(cx).record.entries,
             fixture: self.session.project.read(cx).record.fixture,
         };
+        self.sync_host_tools(&view, cx);
         self.home
             .update(cx, |h, cx| h.set_session(view.clone(), cx));
         self.chrome

@@ -87,8 +87,13 @@ fn writer<W: AsyncWrite + Unpin + Send + 'static>(mut write: W) -> mpsc::Unbound
 }
 
 /// Serves the files protocol on `stream` for `folder` until it closes.
-pub async fn serve<S>(stream: S, files: Arc<FileService>, folder: String, allow: Allow)
-where
+pub async fn serve<S>(
+    stream: S,
+    files: Arc<FileService>,
+    git: Option<Arc<super::git::GitService>>,
+    folder: String,
+    allow: Allow,
+) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let (read, write) = tokio::io::split(stream);
@@ -137,8 +142,9 @@ where
                     continue;
                 };
                 inflight.fetch_add(1, Ordering::SeqCst);
-                let (files, folder, allow, send, inflight) = (
+                let (files, git, folder, allow, send, inflight) = (
                     files.clone(),
+                    git.clone(),
                     folder.clone(),
                     allow.clone(),
                     send.clone(),
@@ -149,6 +155,14 @@ where
                         // This computer's consent, read again for each request.
                         if !allow(Capability::Read) {
                             return Err("folder_unavailable");
+                        }
+                        if let Request::Git(operation) = &request {
+                            // Git runs code: it needs this computer's own
+                            // consent for the folder, and editing.
+                            let git = git
+                                .filter(|_| allow(Capability::Git) && allow(Capability::Write))
+                                .ok_or("folder_unavailable")?;
+                            return git.run(&files.root(&folder, Capability::Git)?, operation);
                         }
                         files.run(&folder, &request)
                     })
@@ -422,7 +436,7 @@ mod tests {
         std::fs::write(root.join("a.md"), "hello").unwrap();
         let files = Arc::new(FileService::new(Arc::new(One(root.clone()))));
         let (host, access) = tokio::io::duplex(64 * 1024);
-        let served = tokio::spawn(serve(host, files, "f".into(), Arc::new(|_| true)));
+        let served = tokio::spawn(serve(host, files, None, "f".into(), Arc::new(|_| true)));
         let client = FilesClient::new(access);
         let read = client
             .request(&Request::Read {

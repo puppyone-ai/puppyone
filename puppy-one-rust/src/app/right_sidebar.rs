@@ -34,6 +34,9 @@ pub(super) enum Surface {
     /// A hosted Project's History (`CloudWorkspaceHistorySidebar`). It and
     /// the Agent replace each other.
     CloudHistory,
+    /// What runs on the other computer for its folder: a terminal, an
+    /// Agent and its Changes (`desktop-host-tools`).
+    HostTools,
 }
 
 /// What a surface asks of the window.
@@ -75,6 +78,7 @@ pub(super) struct RightSidebar {
     pub workbench: Entity<Workbench>,
     pub source_control: Entity<SourceControl>,
     pub cloud_history: Entity<CloudHistory>,
+    pub host_tools: Entity<crate::features::hosts::HostTools>,
     preferences: Entity<PreferencesStore>,
     panes: Entity<PaneLayout>,
     surface: Surface,
@@ -94,6 +98,8 @@ impl RightSidebar {
         let workbench = cx.new(|cx| Workbench::new(window, cx));
         let source_control = cx.new(|cx| SourceControl::new(window, cx));
         let cloud_history = cx.new(CloudHistory::new);
+        let host_tools = cx.new(|cx| crate::features::hosts::HostTools::new(window, cx));
+        cx.observe(&host_tools, |_, _, cx| cx.notify()).detach();
         let store = preferences.clone();
         workbench.update(cx, |workbench, _| workbench.set_preference_store(store));
         cx.subscribe(&workbench, |_, _, event, cx| {
@@ -147,6 +153,7 @@ impl RightSidebar {
             workbench,
             source_control,
             cloud_history,
+            host_tools,
             preferences: preferences.clone(),
             panes,
             surface,
@@ -245,6 +252,34 @@ impl RightSidebar {
         cx.notify();
         open
     }
+    /// A tool of the other computer's folder: close it when it shows, else
+    /// show it (`DeviceFolderHeaderActions`).
+    pub fn toggle_host_tool(
+        &mut self,
+        tool: crate::features::hosts::Tool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.shows_host_tool(tool, cx) {
+            return self.set_open(false, cx);
+        }
+        let shown = self.host_tools.update(cx, |h, cx| h.show(tool, window, cx));
+        if shown {
+            self.surface = Surface::HostTools;
+            self.set_open(true, cx);
+        }
+        cx.notify();
+    }
+    pub fn shows_host_tool(&self, tool: crate::features::hosts::Tool, cx: &App) -> bool {
+        self.shows(Surface::HostTools, cx) && self.host_tools.read(cx).tool == Some(tool)
+    }
+    /// The other computer's folder left: its tools close with it.
+    pub fn leave_host_tools(&mut self, cx: &mut Context<Self>) {
+        if self.surface == Surface::HostTools {
+            self.set_open(false, cx);
+            self.surface = Surface::Agent;
+        }
+    }
     /// History closed itself (Close, Back): the sidebar closes on it and
     /// its reads go.
     pub fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
@@ -264,7 +299,7 @@ impl RightSidebar {
     /// Pulled out from the window edge, the sidebar opens on its surface; a
     /// hosted Project's History only opens from its Header entry.
     pub fn pulled_out(&mut self) {
-        if self.surface == Surface::CloudHistory {
+        if matches!(self.surface, Surface::CloudHistory | Surface::HostTools) {
             self.surface = Surface::Agent;
         }
     }
@@ -295,7 +330,7 @@ impl RightSidebar {
                 Some(RightSidebarSurface::History)
             }
             Surface::Git => Some(RightSidebarSurface::Changes),
-            Surface::CloudHistory => None,
+            Surface::CloudHistory | Surface::HostTools => None,
         }
     }
     /// Store the surface (`setRightSidebarSurface`).
@@ -337,6 +372,7 @@ impl Render for RightSidebar {
                 .into_any_element(),
             Surface::CloudHistory => self.cloud_history.clone().cached(fill()).into_any_element(),
             Surface::Agent => self.workbench.clone().cached(fill()).into_any_element(),
+            Surface::HostTools => self.host_tools.clone().into_any_element(),
         };
         div()
             .size_full()

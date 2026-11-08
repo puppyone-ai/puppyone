@@ -270,7 +270,10 @@ impl Shell {
                 if !self.home_visible(cx) {
                     self.home.update(cx, |h, _| h.hold_list());
                 }
-                self.session.project.update(cx, |p, _| p.home = true);
+                self.session.project.update(cx, |p, cx| {
+                    p.leave_device(cx);
+                    p.home = true;
+                });
             }
             // With no dialog open, Escape closes a menu.
             // Escape cancels a Cloud opening; whatever showed stays.

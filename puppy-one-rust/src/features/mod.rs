@@ -4,6 +4,7 @@ pub mod create_new;
 pub mod desktop_agent;
 pub mod feedback;
 pub mod flags;
+pub mod hosts;
 pub mod local_agents;
 pub mod model_connections;
 pub mod session_transport;

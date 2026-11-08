@@ -119,6 +119,8 @@ pub enum Request {
     Remove {
         path: String,
     },
+    /// A named Git operation (`folder.git`); never a command line.
+    Git(super::git::GitRequest),
 }
 /// A field that is there, even as null.
 fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
@@ -126,7 +128,11 @@ fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<Strin
 }
 impl Request {
     pub fn mutating(&self) -> bool {
-        !matches!(self, Self::List { .. } | Self::Read { .. })
+        match self {
+            Self::List { .. } | Self::Read { .. } => false,
+            Self::Git(git) => !git.reads(),
+            _ => true,
+        }
     }
 }
 

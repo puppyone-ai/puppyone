@@ -334,6 +334,17 @@ impl FolderSandbox {
             ],
         })
     }
+    /// `program` from the search path with `args`, wrapped for the folder at
+    /// `root` (the folder Git of [`super::git::SandboxedGit`]).
+    pub fn prepare_program(
+        &self,
+        program: &str,
+        args: Vec<String>,
+        root: &Path,
+    ) -> Result<Prepared, &'static str> {
+        let path = self.find(program).ok_or("launcher_unavailable")?;
+        self.wrap(&path, args, root, &[])
+    }
     /// A launcher on the search path, as a local terminal would find it.
     fn find(&self, name: &str) -> Option<PathBuf> {
         std::env::split_paths(&self.search_path)

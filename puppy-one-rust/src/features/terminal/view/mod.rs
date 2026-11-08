@@ -60,6 +60,22 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) -> Self {
         let agent = executable.is_some();
+        let owner = crate::features::agent_presence::owner(window);
+        Self::start(
+            move |wake| Terminal::spawn(root, executable, launcher, wake, owner),
+            agent,
+            window,
+            cx,
+        )
+    }
+    /// A session `begin` starts with the view's wake: a local PTY, or one
+    /// bridged to a process elsewhere (another computer's folder).
+    pub fn start(
+        begin: impl FnOnce(Wake) -> Terminal,
+        agent: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let (wake, rx) = Wake::channel();
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
@@ -120,13 +136,7 @@ impl TerminalView {
             }
         })
         .detach();
-        let terminal = Terminal::spawn(
-            root,
-            executable,
-            launcher,
-            wake,
-            crate::features::agent_presence::owner(window),
-        );
+        let terminal = begin(wake);
         let view = Self::assemble(terminal, agent, true, cx);
         cx.on_focus(&view.focus, window, |s, _, cx| {
             s.focused = true;
@@ -726,5 +736,15 @@ impl EntityInputHandler for TerminalView {
     }
 }
 
+/// Window tests read the screen and type into the session.
+#[cfg(test)]
+impl TerminalView {
+    pub fn screen_text(&self) -> String {
+        self.parser.screen().contents()
+    }
+    pub fn type_text(&self, text: &str) {
+        let _ = self.terminal.input(text.as_bytes().to_vec());
+    }
+}
 #[cfg(test)]
 mod tests;

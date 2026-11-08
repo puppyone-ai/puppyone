@@ -27,8 +27,8 @@ use super::{
 };
 use crate::features::settings::{PreferencesStore, observe_slice};
 use crate::theme;
-use crate::ui::components::ButtonVariant;
 use crate::ui::components::IconButton;
+use crate::ui::components::{Button, ButtonVariant};
 use crate::workspace::cloud::catalog::Item;
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
@@ -54,6 +54,8 @@ pub(super) enum ChromeEvent {
     OpenSettings(crate::features::settings::Page),
     /// The project rail came or went: the panes share another width.
     RailChanged,
+    /// A tool of the other computer's folder, shown or hidden.
+    HostTool(crate::features::hosts::Tool),
 }
 
 /// The window's other owners, read while the chrome draws.
@@ -280,6 +282,32 @@ impl WindowChrome {
             bar = bar.tabs(o.editor.read(cx).tabs(cx));
         }
         let sidebar = o.sidebar.read(cx);
+        // `DeviceFolderHeaderActions`: what that computer allows here, and
+        // nothing of this computer's own.
+        if session.device.is_some() {
+            use crate::features::hosts::Tool;
+            use gpui_kit::base::Selectable as _;
+            for tool in sidebar.host_tools.read(cx).tools() {
+                let icon = match tool {
+                    Tool::Terminal => "square-terminal",
+                    Tool::Agent => "agent-entry",
+                    Tool::Git => "version-control",
+                };
+                bar = bar.action(
+                    Button::new(("host-tool", tool as usize))
+                        .variant(ButtonVariant::Titlebar)
+                        .icon(icon)
+                        .accessibility_label(tool.label())
+                        .tooltip(tool.label())
+                        .selected(sidebar.shows_host_tool(tool, cx))
+                        .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                        .on_click(
+                            cx.listener(move |_, _, _, cx| cx.emit(ChromeEvent::HostTool(tool))),
+                        ),
+                );
+            }
+            return bar;
+        }
         let coachmarks = self.coachmarks.read(cx);
         if hosted {
             let cloud = o.cloud.read(cx);

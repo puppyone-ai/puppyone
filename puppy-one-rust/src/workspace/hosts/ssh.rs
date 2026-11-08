@@ -114,6 +114,8 @@ pub struct HostSsh {
     pub folders: Arc<dyn Folders>,
     pub files: Arc<FileService>,
     pub execution: Option<Arc<dyn super::exec::Execution>>,
+    /// The folders' Git, where this computer can run it.
+    pub git: Option<Arc<super::git::GitService>>,
     connections: Arc<Mutex<HashMap<u64, String>>>,
     next: Arc<std::sync::atomic::AtomicU64>,
 }
@@ -130,6 +132,7 @@ impl HostSsh {
             authorities,
             folders,
             execution,
+            git: None,
             connections: Arc::default(),
             next: Arc::default(),
         }
@@ -320,6 +323,7 @@ impl server::Handler for Connection {
         tokio::spawn(lines::serve(
             channel.into_stream(),
             host.files.clone(),
+            host.git.clone(),
             folder,
             allow,
         ));
@@ -570,6 +574,56 @@ impl Access {
             .handle
             .disconnect(russh::Disconnect::ByApplication, "", "")
             .await;
+    }
+}
+
+/// A terminal or an Agent running on the other computer, as its view
+/// reads and drives it.
+pub struct RemoteSession(Channel<russh::client::Msg>);
+/// What a [`RemoteSession`] says next.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Output {
+    Data(Vec<u8>),
+    Exit(u32),
+    Closed,
+}
+impl RemoteSession {
+    pub async fn next(&mut self) -> Output {
+        loop {
+            match self.0.wait().await {
+                Some(russh::ChannelMsg::Data { data })
+                | Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
+                    return Output::Data(data.to_vec());
+                }
+                Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
+                    return Output::Exit(exit_status);
+                }
+                Some(russh::ChannelMsg::Close) | None => return Output::Closed,
+                Some(_) => {}
+            }
+        }
+    }
+    pub async fn input(&self, bytes: &[u8]) {
+        let _ = self.0.data(bytes).await;
+    }
+    pub async fn resize(&self, cols: u16, rows: u16) {
+        let _ = self.0.window_change(cols.into(), rows.into(), 0, 0).await;
+    }
+    pub async fn close(&self) {
+        let _ = self.0.close().await;
+    }
+}
+impl Access {
+    /// [`Access::terminal`] as a session for a view.
+    pub async fn session(
+        &self,
+        launcher: &str,
+        cols: u16,
+        rows: u16,
+    ) -> Result<RemoteSession, HostError> {
+        self.terminal(launcher, cols.into(), rows.into())
+            .await
+            .map(RemoteSession)
     }
 }
 

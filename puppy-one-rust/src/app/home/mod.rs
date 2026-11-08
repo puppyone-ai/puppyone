@@ -84,6 +84,8 @@ pub(in crate::app) enum HomeEvent {
     OpenProject(PathBuf),
     /// Open this Cloud project here.
     OpenCloud(String),
+    /// Open another of my computers' folder here, by its name.
+    OpenDevice(crate::workspace::cloud::catalog::RemoteFolder, String),
     /// A project just made: open it here (or, when `new_window`, in a
     /// window of its own) on `open`.
     OpenCreated {
@@ -115,6 +117,8 @@ pub(in crate::app) struct Homepage {
     catalog: Entity<CloudCatalog>,
     /// The account's spaces, which decide each Cloud project's group.
     pub(in crate::app) spaces: Entity<CloudSpaces>,
+    /// The account's computers and the folders they offer.
+    pub(in crate::app) hosts: Entity<crate::features::hosts::HostCatalog>,
     actions: Entity<ProjectActions>,
     dialogs: WeakEntity<DialogLayer>,
     /// The dialog layer's focus, which the dialogs here keep.
@@ -207,10 +211,27 @@ impl Homepage {
         cx.observe(&catalog, |h, _, cx| h.refresh(cx)).detach();
         let spaces = crate::features::cloud::global_spaces(cx);
         cx.observe(&spaces, |h, _, cx| h.refresh(cx)).detach();
-        // Coming back to the window reads the spaces again while the page shows.
+        let hosts = crate::features::hosts::global(cx);
+        cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
+        // Coming back to the window reads the spaces and the computers
+        // again while the page shows.
         cx.observe_window_activation(window, |h, window, cx| {
             if window.is_window_active() && h.session.home {
                 h.read_spaces(true, cx);
+                h.read_hosts(true, cx);
+            }
+        })
+        .detach();
+        // Presence changes while the page is open: a quiet poll keeps
+        // "online" honest without a button.
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(crate::features::hosts::REFRESH)
+                    .await;
+                if this.update(cx, |h, cx| h.read_hosts(false, cx)).is_err() {
+                    break;
+                }
             }
         })
         .detach();
@@ -248,6 +269,7 @@ impl Homepage {
             preferences,
             catalog,
             spaces,
+            hosts,
             actions,
             dialogs: dialogs.downgrade(),
             dialog_focus: dialogs.read(cx).focus_handle().clone(),
@@ -297,6 +319,21 @@ impl Homepage {
     /// catch up, and the page draws again.
     fn refresh(&mut self, cx: &mut Context<Self>) {
         self.read_spaces(false, cx);
+        self.read_hosts(false, cx);
+        let (others, offered) = {
+            let hosts = self.hosts.read(cx);
+            let on = crate::features::flags::host_devices_enabled(&self.preferences, cx);
+            (
+                hosts
+                    .others()
+                    .filter(|_| on)
+                    .map(|d| d.name.clone())
+                    .collect::<Vec<_>>(),
+                hosts.offered_here().filter(|_| on && !hosts.error()),
+            )
+        };
+        self.other_computers = others;
+        self.shared_ids = offered;
         self.refresh_activity(cx);
         self.sync_project_view(cx);
         self.sync_first_run(cx);
@@ -317,6 +354,26 @@ impl Homepage {
     }
     fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
         cx.emit(HomeEvent::OpenCloud(project));
+    }
+    /// `useHostCatalog`: the account's computers, while Other computers is
+    /// on and the page shows.
+    pub(in crate::app) fn read_hosts(&mut self, retry: bool, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::host_devices_enabled(&self.preferences, cx);
+        let visible = self.session.home;
+        self.hosts
+            .update(cx, |h, cx| h.ensure(enabled, visible, retry, cx));
+    }
+    /// The folders my other computers offer, but those this computer shares.
+    fn remote_items(&self, cx: &App) -> Vec<Item> {
+        if !crate::features::flags::host_devices_enabled(&self.preferences, cx) {
+            return vec![];
+        }
+        let local: std::collections::HashSet<String> = self
+            .recent(cx)
+            .iter()
+            .filter_map(|p| p.host_folder.clone())
+            .collect();
+        self.hosts.read(cx).remote_items(&local)
     }
     fn command(&mut self, command: Command, cx: &mut Context<Self>) {
         cx.emit(HomeEvent::Command(command));
@@ -400,8 +457,24 @@ pub(in crate::app) fn item_name_or(item: &Item, untitled: &str) -> String {
 fn item_name(item: &Item) -> String {
     item_name_or(item, tr("onboarding.projects.untitled"))
 }
-/// `useProjectHomeItemCaption`: where an entry's project is.
+/// `useProjectHomeItemCaption`: where an entry's project is; another
+/// computer's folder says which computer and what it allows there, or why
+/// it cannot open now (`RemoteFolderList`).
 fn item_caption(item: &Item) -> String {
+    if let Some(remote) = &item.remote {
+        let host = crate::localization::bidi_isolate(&remote.host);
+        if !remote.online {
+            return crate::localization::tf("hosts.home.computerOffline", &[("host", host.into())]);
+        }
+        let access = if remote.paused {
+            tr("hosts.sharing.paused")
+        } else if remote.writable {
+            tr("hosts.catalog.editable")
+        } else {
+            tr("hosts.catalog.readOnly")
+        };
+        return format!("{host} · {access}");
+    }
     tr(if item.local_path.is_none() {
         "cloud.home.location.cloud"
     } else if cfg!(target_os = "macos") {
@@ -568,6 +641,7 @@ impl Homepage {
             chosen_team: self.chosen_team.as_deref(),
             shared_ids: self.shared_ids.as_ref(),
             local_share: self.local_share,
+            remote: self.remote_items(cx),
         })
     }
     /// `projectAudience` of `MinimalOnboarding`: who can open a local folder
@@ -1088,6 +1162,13 @@ impl Homepage {
     /// (`selectCloudProject`); a folder's Cloud project is its own entry.
     fn open_item(&mut self, item: &Item, cx: &mut Context<Self>) {
         self.error = None;
+        if let Some(remote) = &item.remote {
+            // An offline or paused computer's folder stays listed, closed.
+            if remote.available() {
+                cx.emit(HomeEvent::OpenDevice(remote.clone(), item_name(item)));
+            }
+            return cx.notify();
+        }
         match (&item.local_path, &item.cloud_project) {
             (Some(path), _) => self.open_project(PathBuf::from(path), cx),
             (None, Some(project)) => self.open_cloud(project.clone(), cx),

@@ -115,10 +115,14 @@ impl Shell {
         crate::features::cloud::account::observe(window, cx, |s, window, cx| {
             s.refresh_cloud_catalog(false, cx);
             s.guard_cloud_authority(window, cx);
+            s.restore_device(window, cx);
             s.session.docs.read(cx).wake().notify();
             cx.notify();
         })
         .detach();
+        let hosts = crate::features::hosts::global(cx);
+        cx.observe_in(&hosts, window, |s, _, window, cx| s.restore_device(window, cx))
+            .detach();
         // One preference owner for every window; per-window state stays here.
         let launch = windows::take_launch(cx);
         let preferences = windows::shared_preferences(fixture, cx);

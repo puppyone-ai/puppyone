@@ -239,7 +239,7 @@ async fn ready(socket: &mut Box<dyn Socket>) -> Result<(), HostError> {
         .map_err(|_| HostError::new("device_offline"))?
 }
 /// The tunnel's binary messages as a byte stream (`socketStream`).
-fn bytes(socket: Box<dyn Socket>) -> tokio::io::DuplexStream {
+pub(super) fn bytes(socket: Box<dyn Socket>) -> tokio::io::DuplexStream {
     let (near, far) = tokio::io::duplex(256 * 1024);
     let (mut sink, mut source) = socket.split();
     let (mut read, mut write) = tokio::io::split(far);
@@ -470,129 +470,9 @@ impl Hosts {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
-    use super::super::{
-        files::{Folders, Grant},
-        ssh::{Authorities, HostIdentity, HostSsh},
-    };
+mod tests {
+    use super::super::testing::{FOLDER, fake};
     use super::*;
-    use russh::keys::{
-        PrivateKey, PublicKey,
-        ssh_key::{self, certificate::CertType},
-    };
-
-    pub(in crate::workspace::hosts) const FOLDER: &str = "6f2c9f43-3c1b-4a8e-9c4e-1a2b3c4d5e6f";
-    pub(in crate::workspace::hosts) const DEVICE: &str = "0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f";
-    pub(in crate::workspace::hosts) const ACCOUNT: &str = "1e8a6c52-2222-4b3a-9c3f-6b5a4c3d2e1f";
-
-    struct Shared(std::path::PathBuf);
-    impl Folders for Shared {
-        fn resolve(&self, folder: &str) -> Option<Grant> {
-            (folder == FOLDER).then(|| Grant {
-                root: self.0.clone(),
-                active: true,
-                capabilities: vec![Capability::Read, Capability::Write],
-            })
-        }
-    }
-    struct Ca(PublicKey);
-    impl Authorities for Ca {
-        fn keys(&self, _: bool) -> Vec<PublicKey> {
-            vec![self.0.clone()]
-        }
-    }
-    /// The Cloud in memory: a catalog, certificates from its authority, and
-    /// tunnels that end at the host's SSH server.
-    pub(in crate::workspace::hosts) struct Fake {
-        ca: PrivateKey,
-        host: HostSsh,
-        host_key: String,
-        pub(in crate::workspace::hosts) online: Mutex<bool>,
-        refuse: Mutex<Option<&'static str>>,
-        tunnels: Mutex<Vec<String>>,
-    }
-    impl Cloud for Fake {
-        fn catalog(&self) -> Result<Value, HostError> {
-            Ok(json!({"devices": [{
-                "id": DEVICE, "name": "Studio Mac", "platform": "darwin", "state": "active",
-                "revision": 1, "online": *self.online.lock().unwrap(), "last_seen_at": null,
-                "folders": [{"id": FOLDER, "name": "notes", "state": "active", "revision": 3,
-                    "capabilities": ["folder.read", "folder.write", "folder.someday"]}]
-            }, {"id": "not-a-uuid", "name": "x", "folders": []}]}))
-        }
-        fn certificate(&self, device: &str, public_key: &str) -> Result<Value, HostError> {
-            assert_eq!(device, DEVICE);
-            let key = PublicKey::from_openssh(public_key).unwrap();
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            let mut builder = ssh_key::certificate::Builder::new(
-                [9u8; 16],
-                key.key_data().clone(),
-                now - 60,
-                now + 300,
-            )
-            .unwrap();
-            builder.cert_type(CertType::User).unwrap();
-            builder.key_id(format!("user:{ACCOUNT}")).unwrap();
-            builder.valid_principal(DEVICE).unwrap();
-            let certificate = builder.sign(&self.ca).unwrap().to_openssh().unwrap();
-            Ok(json!({"certificate": certificate, "host_key": self.host_key, "gateway_url": ""}))
-        }
-        fn origin(&self) -> url::Url {
-            url::Url::parse("https://api.puppyone.ai").unwrap()
-        }
-        fn tunnel(&self, url: &url::Url) -> Result<Box<dyn Socket>, HostError> {
-            self.tunnels.lock().unwrap().push(url.to_string());
-            let refuse = *self.refuse.lock().unwrap();
-            let host = self.host.clone();
-            let (near, far) = tokio::io::duplex(256 * 1024);
-            let client = runtime().block_on(async move {
-                tokio::spawn(async move {
-                    let mut server = tokio_tungstenite::accept_async(far).await.unwrap();
-                    let frame = match refuse {
-                        Some(code) => json!({"type": "error", "code": code}),
-                        None => json!({"type": "ready"}),
-                    };
-                    server
-                        .send(Message::Text(frame.to_string().into()))
-                        .await
-                        .unwrap();
-                    if refuse.is_some() {
-                        return;
-                    }
-                    host.serve(bytes(Box::new(server)), FOLDER.into()).await;
-                });
-                tokio_tungstenite::client_async("ws://localhost/", near)
-                    .await
-                    .unwrap()
-                    .0
-            });
-            Ok(Box::new(client))
-        }
-    }
-
-    pub(in crate::workspace::hosts) fn fake(root: std::path::PathBuf) -> Arc<Fake> {
-        let (ca, host_key) = (new_key(), new_key());
-        Arc::new(Fake {
-            host: HostSsh::new(
-                Arc::new(HostIdentity {
-                    account: ACCOUNT.into(),
-                    device: DEVICE.into(),
-                    key: host_key.clone(),
-                }),
-                Arc::new(Ca(ca.public_key().clone())),
-                Arc::new(Shared(root)),
-                None,
-            ),
-            ca,
-            host_key: public_line(&host_key),
-            online: Mutex::new(true),
-            refuse: Mutex::new(None),
-            tunnels: Mutex::default(),
-        })
-    }
 
     /// Opening a folder on another computer end to end, in memory: catalog,
     /// certificate, tunnel and SSH; one connection serves every request, and
@@ -609,9 +489,26 @@ pub(super) mod tests {
             assert_eq!(devices.len(), 1);
             assert_eq!(
                 devices[0].folders[0].capabilities,
-                [Capability::Read, Capability::Write]
+                [
+                    Capability::Read,
+                    Capability::Write,
+                    Capability::Shell,
+                    Capability::Git
+                ]
             );
             assert!(devices[0].folders[0].writable());
+            // Git rides the files channel as named operations.
+            let status = hosts
+                .request(
+                    FOLDER,
+                    &Request::Git(super::super::git::GitRequest {
+                        op: "status".into(),
+                        ..Default::default()
+                    }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(status["isRepo"], false);
             let read = hosts
                 .request(
                     FOLDER,
