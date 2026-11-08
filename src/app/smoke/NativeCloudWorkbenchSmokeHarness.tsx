@@ -354,10 +354,11 @@ export function NativeCloudWorkbenchSmokeHarness() {
         placeMenu={{ menu: location === "cloud"
           ? { place: "cloud", address: cloudProjectAddress(FIXTURE_ORGANIZATION), action: null }
           : resolveProjectPlaceMenu({ place: "local", address: localProjectAddress(localWorkspace.path),
-            unhosted: repositoryContext.status === "local-only", publishPending: publishLoading,
             notice: noticeState, disconnectable: true }),
-        handlers: { onPutInCloud: requestCloud, onOpenCloudProject: openCloudProject, onSignIn: requestCloud,
-          onRetryCloudLink: noop, onDisconnectCloudLink: () => setDisconnectingCloudLink(true), onOpenLocalFolder: noop,
+        audience: { team: noticeState?.kind === "linked"
+          ? { copy: { onOpen: openCloudProject } }
+          : { copy: null, onCopy: repositoryContext.status === "local-only" || publishLoading ? requestCloud : undefined } },
+        handlers: { onOpenLocalFolder: noop,
           ...(location === "cloud" && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } }} />;
   const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
     onOpenCloudProject={openCloudProject} onSignIn={requestCloud}

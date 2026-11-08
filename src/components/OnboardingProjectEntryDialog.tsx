@@ -1,4 +1,4 @@
-import { CloudIcon, Tooltip, FolderIcon, LocalIcon } from "@puppyone/shared-ui";
+import { CloudIcon, Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -16,15 +16,13 @@ const GETTING_STARTED = {
 
 /** Who can open the new project: the same three audiences as the Homepage's groups. */
 type Audience = "local" | "devices" | "team";
-/** Where its files are kept. Only all-my-devices offers a choice. */
-type Storage = "computer" | "cloud";
 
 /**
  * Project initialization dialog, the one way to start a project. It asks who can open
- * the project, then where it is stored, offering only what that audience allows: this
- * computer alone is always this computer, a team is always the Cloud, and all my
- * devices may be either a folder here shared with them or the Cloud. The name and the
- * built-in projects folder are prefilled, so the default path is a single Create action.
+ * the project, and where it is kept follows: this computer and all my devices keep a
+ * folder here, the latter opened to my other computers; a team's project is in the
+ * Cloud. The name and the built-in projects folder are prefilled, so the default path
+ * is a single Create action.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
@@ -62,21 +60,14 @@ export function OnboardingProjectEntryDialog({
   const fieldsDisabled = busy || created !== null;
   const title = t("onboarding.entry.create.title");
 
-  const spaces = onCreateCloudProject ? (cloudSpaces ?? []).filter((space) => space.canCreateProjects) : [];
-  const personal = spaces.find((space) => space.kind === "personal");
-  const teams = spaces.filter((space) => space.kind === "team");
-  const devicesStorage: Storage[] = [
-    ...(onShareWithMyDevices ? ["computer" as const] : []),
-    ...(personal ? ["cloud" as const] : []),
-  ];
-  const audiences: Audience[] = ["local", ...(devicesStorage.length ? ["devices" as const] : []), ...(teams.length ? ["team" as const] : [])];
+  const teams = onCreateCloudProject
+    ? (cloudSpaces ?? []).filter((space) => space.kind === "team" && space.canCreateProjects) : [];
+  const audiences: Audience[] = ["local", ...(onShareWithMyDevices ? ["devices" as const] : []), ...(teams.length ? ["team" as const] : [])];
   const [audience, setAudience] = useState<Audience>("local");
-  const [chosenStorage, setChosenStorage] = useState<Storage>("computer");
   const [teamId, setTeamId] = useState<string | null>(null);
   const team = teams.find((space) => space.id === teamId) ?? teams[0];
-  const storageOptions = storageFor(audience, devicesStorage);
-  const storage = storageOptions.includes(chosenStorage) ? chosenStorage : storageOptions[0];
-  const cloudSpace = audience === "team" ? team : personal;
+  const inCloud = audience === "team";
+  const cloudSpace = inCloud ? team : undefined;
 
   useEffect(() => {
     if (!onDefaultLocation) return;
@@ -111,10 +102,10 @@ export function OnboardingProjectEntryDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
-    if (!name || busy || (storage === "computer" && !location)) return;
+    if (!name || busy || (!inCloud && !location)) return;
     setError(null);
     setSubmitting(true);
-    if (storage === "cloud") {
+    if (inCloud) {
       await createInCloud(name);
       return;
     }
@@ -251,20 +242,7 @@ export function OnboardingProjectEntryDialog({
               <span className="onboarding-entry-create-label">
                 {t(audiences.length > 1 ? "onboarding.entry.create.storedLabel" : "onboarding.entry.create.locationLabel")}
               </span>
-              {storageOptions.length > 1 && (
-                <div className="onboarding-entry-segments" role="radiogroup" aria-label={t("onboarding.entry.create.storedLabel")}>
-                  {storageOptions.map((option) => (
-                    <label key={option} className="onboarding-entry-segment" data-checked={storage === option || undefined}>
-                      <input type="radio" name="onboarding-entry-storage" value={option} checked={storage === option}
-                        disabled={fieldsDisabled} onChange={() => { setChosenStorage(option); setError(null); }} />
-                      {option === "computer" ? <LocalIcon size={14} strokeWidth={1.85} aria-hidden="true" />
-                        : <CloudIcon size={14} strokeWidth={1.85} aria-hidden="true" />}
-                      <span>{t(`onboarding.entry.create.stored.${option}`)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {storage === "computer" ? (
+              {!inCloud ? (
                 <button
                   className="onboarding-entry-location-picker onboarding-entry-browse-button"
                   type="button"
@@ -282,7 +260,7 @@ export function OnboardingProjectEntryDialog({
                   </bdi>
                   <span className="onboarding-entry-location-action">{t(locationAction)}</span>
                 </button>
-              ) : storageOptions.length === 1 && (
+              ) : (
                 <div className="onboarding-entry-location-picker is-fixed" aria-live="polite">
                   <CloudIcon aria-hidden="true" />
                   <span className="onboarding-entry-location-path is-selected">{t("onboarding.entry.create.stored.cloud")}</span>
@@ -306,7 +284,7 @@ export function OnboardingProjectEntryDialog({
           <button
             className="desktop-dialog-button primary file"
             type="submit"
-            disabled={busy || !value.trim() || (storage === "computer" && !location) || (storage === "cloud" && !cloudSpace)}
+            disabled={busy || !value.trim() || (inCloud ? !cloudSpace : !location)}
           >
             {t(submitLabel)}
           </button>
@@ -314,10 +292,4 @@ export function OnboardingProjectEntryDialog({
       </form>
     </DesktopDialogRoot>
   );
-}
-
-function storageFor(audience: Audience, devices: readonly Storage[]): readonly Storage[] {
-  if (audience === "team") return ["cloud"];
-  if (audience === "devices") return devices;
-  return ["computer"];
 }

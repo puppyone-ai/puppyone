@@ -9,10 +9,7 @@ import { VersionControlIcon } from "../features/source-control";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
 
 const noop = () => {};
-const placeHandlers: ProjectPlaceMenuProps["handlers"] = {
-  onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onRetryCloudLink: noop,
-  onDisconnectCloudLink: noop, onOpenLocalFolder: noop,
-};
+const placeHandlers: ProjectPlaceMenuProps["handlers"] = { onOpenLocalFolder: noop };
 
 /** Same project navigation and named-place control as local and Cloud projects. */
 export function DeviceFolderHeader({ workspace, folder, hostName, writable, projectItems,

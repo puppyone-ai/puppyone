@@ -72,10 +72,8 @@ function hostedPlaceMenu({ projectId, organizationName, projectItems, sidebar, o
 }) {
   const linkedFolder = projectItems.find((item) => item.localPath && item.linkedCloudProject?.id === projectId);
   return { menu: resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress(organizationName),
-    unhosted: false, publishPending: false, notice: null,
-    disconnectable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
-  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onRetryCloudLink: noop, onDisconnectCloudLink: noop,
-    onOpenLocalFolder: (path: string) => onSelectProject(path),
+    linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
+  handlers: { onOpenLocalFolder: (path: string) => onSelectProject(path),
     ...(sidebar.historyAvailable ? { onOpenHistory: sidebar.openHistory } : {}) } };
 }
 

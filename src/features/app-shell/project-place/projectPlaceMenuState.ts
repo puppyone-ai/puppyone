@@ -2,21 +2,17 @@ import type { LocalFolderCloudNotice } from "../../cloud";
 import { compactDisplayPath, getWorkspacePathForDisplay } from "../../../lib/workspaceHomeModel";
 
 /**
- * What the Header's place menu offers. A local folder and its Cloud project are
- * two projects (puppy-issues ADR-001): the menu states where the open project
- * is, then either starts putting a folder in the Cloud, shows the folder's link
- * to its Cloud project, or opens the other project of a linked pair. It never
- * moves one project between this computer and the Cloud.
+ * What the Header's place menu offers beside who can open the project. A local
+ * folder and its Cloud copy are two projects (puppy-issues ADR-001); from the
+ * copy, the menu opens the folder it was made from. It never moves one project
+ * between this computer and the Cloud.
  */
-export type ProjectPlaceAction =
-  /** A folder without a Cloud project; the conversion entry. */
-  | { kind: "put-in-cloud"; continuing: boolean }
-  | { kind: "open-local-folder"; path: string; name: string };
+export type ProjectPlaceAction = { kind: "open-local-folder"; path: string; name: string };
 
 /**
- * A local folder's link to its Cloud project. The link is only the folder's Git
- * connection to that project, so the Header is where it is seen and where it
- * ends; ending it never touches the Cloud project.
+ * A local folder's link to its Cloud copy. The link is only the folder's Git
+ * connection to that project; the Header's mark says it exists, and who can open
+ * the project says what it is and how it ends.
  */
 export type ProjectPlaceCloudLink = Readonly<{
   notice: LocalFolderCloudNotice;
@@ -72,19 +68,15 @@ export function cloudProjectAddress(organizationName: string | null | undefined)
   return name ? { short: name, full: name } : null;
 }
 
-export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = true, unhosted, publishPending, notice, disconnectable, linkedFolder }: {
+export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = true, notice = null, disconnectable = false, linkedFolder }: {
   place: "local" | "cloud";
   address?: ProjectPlaceAddress | null;
   /** Other-computer folders have a place menu even when Cloud is off. */
   cloudEnabled?: boolean;
-  /** The open local folder has no Cloud association at all. */
-  unhosted: boolean;
-  /** A first publish is running or saved for the open local folder. */
-  publishPending: boolean;
   /** What the open local folder's Cloud link means, when it has one. */
-  notice: LocalFolderCloudNotice | null;
+  notice?: LocalFolderCloudNotice | null;
   /** This app can end the open local folder's Cloud link. */
-  disconnectable: boolean;
+  disconnectable?: boolean;
   /** For an open Cloud project: the local folder linked to it, if any. */
   linkedFolder?: Readonly<{ path: string; name: string }> | null;
 }): ProjectPlaceMenu {
@@ -92,8 +84,5 @@ export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = 
   if (place === "cloud") {
     return { place, address, action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
   }
-  // A running or saved first publish owns the folder's link until it ends.
-  if (publishPending) return { place, address, action: { kind: "put-in-cloud", continuing: true } };
-  if (unhosted) return { place, address, action: { kind: "put-in-cloud", continuing: false } };
   return { place, address, action: null, link: notice ? { notice, disconnectable } : null };
 }

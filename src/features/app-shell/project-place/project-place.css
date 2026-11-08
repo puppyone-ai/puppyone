@@ -161,4 +161,13 @@
     /* A long folder path breaks where it must rather than widening the menu. */
     overflow-wrap: anywhere;
   }
+
+  /* Where the project is, as a fact at the head of the menu: read, not chosen. */
+  .desktop-project-place-row[data-project-place-row="current"],
+  .desktop-project-place-row[data-project-place-row="current"]:hover {
+    background: transparent;
+    color: var(--po-text);
+    cursor: default;
+    opacity: 1;
+  }
 }

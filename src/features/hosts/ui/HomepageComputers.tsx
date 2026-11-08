@@ -39,6 +39,7 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   }
   const groups = onboardingBaseGroups({ ...base, local }, {
     sharedFolderIds,
+    otherComputers: catalog.devices.filter((device) => device.id !== catalog.thisComputerId).map((device) => device.name),
     onSharingSettings: ({ folderId, name, rootPath }) => setSharingTarget({ kind: "settings", folderId, name, rootPath }),
     // Main asks before the folder closes to the other computers; a refusal changes nothing.
     onStopSharing: mine ? ({ folderId, rootPath }) => {

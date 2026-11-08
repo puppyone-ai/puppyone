@@ -345,8 +345,8 @@
   stroke-width: 1.8;
 }
 
-/* Who can open the new project, and where all my devices' project is kept: plain
-   choices, a dot and words. No box or fill: those belong to the fields one types in. */
+/* Who can open the new project: plain choices, a dot and words. No box or fill:
+   those belong to the fields one types in. */
 .onboarding-entry-choice-field {
   margin: 0;
   padding: 0;
@@ -363,14 +363,7 @@
   gap: 6px;
 }
 
-.onboarding-entry-segments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-}
-
-.onboarding-entry-choice,
-.onboarding-entry-segment {
+.onboarding-entry-choice {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -383,14 +376,11 @@
 }
 
 .onboarding-entry-choice:hover,
-.onboarding-entry-segment:hover,
-.onboarding-entry-choice[data-checked],
-.onboarding-entry-segment[data-checked] {
+.onboarding-entry-choice[data-checked] {
   color: var(--po-text);
 }
 
-.onboarding-entry-choice > input,
-.onboarding-entry-segment > input {
+.onboarding-entry-choice > input {
   margin: 0;
   accent-color: var(--po-text);
 }
