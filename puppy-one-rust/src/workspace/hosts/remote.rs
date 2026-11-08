@@ -435,13 +435,14 @@ impl Hosts {
             };
             let code = match watching {
                 Ok((guard, mut events)) => {
-                    if missed {
-                        if !emit(FolderEvent::Change {
+                    // Changes made while this computer could not see the folder: rescan.
+                    if missed
+                        && !emit(FolderEvent::Change {
                             paths: vec![],
                             reset: true,
-                        }) {
-                            return;
-                        }
+                        })
+                    {
+                        return;
                     }
                     while let Some(Some((paths, reset))) = events.recv().await {
                         attempt = 0;

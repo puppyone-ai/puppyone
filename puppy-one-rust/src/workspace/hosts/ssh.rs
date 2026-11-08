@@ -106,6 +106,8 @@ pub trait Authorities: Send + Sync {
     fn keys(&self, refresh: bool) -> Vec<PublicKey>;
 }
 
+/// One connection's folder, and how to end it.
+type Open = (String, tokio::sync::watch::Sender<bool>);
 /// The host's SSH server.
 #[derive(Clone)]
 pub struct HostSsh {
@@ -116,7 +118,7 @@ pub struct HostSsh {
     pub execution: Option<Arc<dyn super::exec::Execution>>,
     /// The folders' Git, where this computer can run it.
     pub git: Option<Arc<super::git::GitService>>,
-    connections: Arc<Mutex<HashMap<u64, String>>>,
+    connections: Arc<Mutex<HashMap<u64, Open>>>,
     next: Arc<std::sync::atomic::AtomicU64>,
 }
 impl HostSsh {
@@ -144,7 +146,30 @@ impl HostSsh {
     }
     /// The folders being reached now, one entry per connection.
     pub fn connections(&self) -> Vec<String> {
-        self.connections.lock().unwrap().values().cloned().collect()
+        self.connections
+            .lock()
+            .unwrap()
+            .values()
+            .map(|(folder, _)| folder.clone())
+            .collect()
+    }
+    /// `enforce`: connections to a folder no longer shared here end now,
+    /// and with them everything they started.
+    pub fn enforce(&self, folder: &str) {
+        if self.allows(folder, None) {
+            return;
+        }
+        for (open, stop) in self.connections.lock().unwrap().values() {
+            if open == folder {
+                let _ = stop.send(true);
+            }
+        }
+    }
+    /// Every connection ends (sharing stopped, or "Stop all").
+    pub fn close_all(&self) {
+        for (_, stop) in self.connections.lock().unwrap().values() {
+            let _ = stop.send(true);
+        }
     }
     /// Serves one tunnel admitted for `folder` until it closes; `false`
     /// when it is refused at once.
@@ -159,7 +184,11 @@ impl HostSsh {
             return false;
         }
         let id = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.connections.lock().unwrap().insert(id, folder.clone());
+        let (stop, mut stopped) = tokio::sync::watch::channel(false);
+        self.connections
+            .lock()
+            .unwrap()
+            .insert(id, (folder.clone(), stop));
         let config = Arc::new(server::Config {
             server_id: russh::SshId::Standard("SSH-2.0-PuppyOne-Host".into()),
             methods: russh::MethodSet::from(&[russh::MethodKind::PublicKey][..]),
@@ -179,7 +208,11 @@ impl HostSsh {
         };
         let served = match server::run_stream(config, stream, handler).await {
             Ok(session) => {
-                let _ = session.await;
+                // Dropping the session ends its channels, and so what they run.
+                tokio::select! {
+                    _ = session => {}
+                    _ = stopped.changed() => {}
+                }
                 true
             }
             Err(_) => false,

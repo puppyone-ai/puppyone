@@ -424,10 +424,13 @@ pub async fn bridge(
         Some(pty) => spawn_pty(prepared, root, env, pty, sizes, inputs, output, done),
         None => spawn_plain(prepared, root, env, inputs, output, done),
     };
-    if let Err(code) = spawned {
-        fail(127, code).await;
-        return;
-    }
+    let pid = match spawned {
+        Ok(pid) => pid,
+        Err(code) => {
+            fail(127, code).await;
+            return;
+        }
+    };
     let mut stdin_open = true;
     loop {
         tokio::select! {
@@ -439,8 +442,10 @@ pub async fn bridge(
                     let _ = input.send(Vec::new());
                     stdin_open = false;
                 }
+                // The other computer went away: what it started here ends.
                 None | Some(ChannelMsg::Close) => {
-                    stdin_open = false;
+                    end_group(pid);
+                    return;
                 }
                 _ => {}
             },
@@ -470,6 +475,17 @@ pub async fn bridge(
     }
 }
 
+/// Ends a session's whole process group (`stopAll`).
+fn end_group(pid: i32) {
+    #[cfg(unix)]
+    if pid > 0 {
+        unsafe {
+            libc::kill(-pid, libc::SIGHUP);
+            libc::kill(-pid, libc::SIGKILL);
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_pty(
     prepared: Prepared,
@@ -480,7 +496,7 @@ fn spawn_pty(
     inputs: std::sync::mpsc::Receiver<Vec<u8>>,
     output: mpsc::UnboundedSender<(bool, Vec<u8>)>,
     done: mpsc::UnboundedSender<u32>,
-) -> Result<(), &'static str> {
+) -> Result<i32, &'static str> {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
     let size = |cols: u16, rows: u16| PtySize {
         rows,
@@ -511,6 +527,8 @@ fn spawn_pty(
         .spawn_command(command)
         .map_err(|_| "start_failed")?;
     drop(pair.slave);
+    // The pty's child leads its own session, so its group is its pid.
+    let pid = child.process_id().map_or(0, |p| p as i32);
     let mut reader = pair.master.try_clone_reader().map_err(|_| "start_failed")?;
     let mut writer = pair.master.take_writer().map_err(|_| "start_failed")?;
     std::thread::spawn(move || {
@@ -539,7 +557,7 @@ fn spawn_pty(
         let code = child.wait().map(|s| s.exit_code()).unwrap_or(1);
         let _ = done.send(code);
     });
-    Ok(())
+    Ok(pid)
 }
 
 fn spawn_plain(
@@ -549,8 +567,11 @@ fn spawn_plain(
     inputs: std::sync::mpsc::Receiver<Vec<u8>>,
     output: mpsc::UnboundedSender<(bool, Vec<u8>)>,
     done: mpsc::UnboundedSender<u32>,
-) -> Result<(), &'static str> {
-    let mut child = std::process::Command::new(&prepared.program)
+) -> Result<i32, &'static str> {
+    let mut command = std::process::Command::new(&prepared.program);
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    let mut child = command
         .args(&prepared.args)
         .current_dir(&root)
         .env_clear()
@@ -560,6 +581,7 @@ fn spawn_plain(
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|_| "start_failed")?;
+    let pid = child.id() as i32;
     let (mut stdin, stdout, stderr) = (
         child.stdin.take().ok_or("start_failed")?,
         child.stdout.take().ok_or("start_failed")?,
@@ -596,7 +618,7 @@ fn spawn_plain(
         let _ = err.join();
         let _ = done.send(code);
     });
-    Ok(())
+    Ok(pid)
 }
 
 #[cfg(test)]

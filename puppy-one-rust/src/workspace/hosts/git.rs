@@ -49,7 +49,13 @@ impl Git for SandboxedGit {
             .0
             .prepare_program("git", args.iter().map(|a| (*a).to_owned()).collect(), root)
             .map_err(str::to_owned)?;
-        run(&prepared.program, &prepared.args, &prepared.env, root, input)
+        run(
+            &prepared.program,
+            &prepared.args,
+            &prepared.env,
+            root,
+            input,
+        )
     }
 }
 /// Git as this user, for tests and a folder tier with no sandbox to keep.
@@ -80,10 +86,10 @@ fn run(
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| e.to_string())?;
-    if let Some(mut stdin) = child.stdin.take() {
-        if let Some(bytes) = input {
-            let _ = stdin.write_all(bytes);
-        }
+    if let Some(mut stdin) = child.stdin.take()
+        && let Some(bytes) = input
+    {
+        let _ = stdin.write_all(bytes);
     }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     if output.status.success() {
@@ -118,7 +124,11 @@ fn status(git: &dyn Git, root: &Path) -> Result<Value, &'static str> {
     }
     let prefix = git
         .git(root, &["rev-parse", "--show-prefix"], None)
-        .map(|out| String::from_utf8_lossy(&out).trim_end_matches('\n').to_owned())
+        .map(|out| {
+            String::from_utf8_lossy(&out)
+                .trim_end_matches('\n')
+                .to_owned()
+        })
         .map_err(|_| "file_operation_failed")?;
     let porcelain = git
         .git(
@@ -233,13 +243,19 @@ impl GitService {
             "unstage" => {
                 let paths = git_paths(&request.paths)?;
                 // An unborn branch has no HEAD to reset to.
-                if git.git(root, &["rev-parse", "--verify", "HEAD"], None).is_err() {
+                if git
+                    .git(root, &["rev-parse", "--verify", "HEAD"], None)
+                    .is_err()
+                {
                     return with_paths(&["rm", "--cached", "-r", "--ignore-unmatch"], &paths);
                 }
                 with_paths(&["reset", "-q", "HEAD"], &paths)
             }
             "unstage_all" => {
-                if git.git(root, &["rev-parse", "--verify", "HEAD"], None).is_err() {
+                if git
+                    .git(root, &["rev-parse", "--verify", "HEAD"], None)
+                    .is_err()
+                {
                     return done(git.git(root, &["rm", "--cached", "-r", "-q", "--", "."], None));
                 }
                 done(git.git(root, &["reset", "-q", "HEAD", "--", "."], None))
@@ -250,7 +266,11 @@ impl GitService {
                 if message.trim().is_empty() || message.chars().count() > 10_000 {
                     return Err("invalid_content");
                 }
-                done(git.git(root, &["commit", "-F", "-"], Some(message.trim().as_bytes())))
+                done(git.git(
+                    root,
+                    &["commit", "-F", "-"],
+                    Some(message.trim().as_bytes()),
+                ))
             }
             "pull" => done(git.git(root, &["pull", "--ff-only"], None)),
             "push" => done(git.git(root, &["push"], None)),
@@ -261,7 +281,9 @@ impl GitService {
                     args.push("--cached");
                 }
                 args.extend(["--", path.as_str()]);
-                let diff = git.git(root, &args, None).map_err(|_| "file_operation_failed")?;
+                let diff = git
+                    .git(root, &args, None)
+                    .map_err(|_| "file_operation_failed")?;
                 Ok(json!({"path": path, "diff": String::from_utf8_lossy(&diff)}))
             }
             // History is not offered to other computers yet.
@@ -299,7 +321,10 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap();
         let service = GitService::new(Arc::new(PlainGit));
-        assert_eq!(service.run(&root, &request("status")).unwrap()["isRepo"], false);
+        assert_eq!(
+            service.run(&root, &request("status")).unwrap()["isRepo"],
+            false
+        );
         git(&root, &["init", "-q", "-b", "main"]);
         git(&root, &["config", "user.email", "a@example.test"]);
         git(&root, &["config", "user.name", "A"]);
@@ -319,7 +344,10 @@ mod tests {
             .unwrap();
         let status = service.run(&root, &request("status")).unwrap();
         assert_eq!(status["stagedEntries"][0]["status"], "added");
-        assert_eq!(service.run(&root, &request("commit")), Err("invalid_content"));
+        assert_eq!(
+            service.run(&root, &request("commit")),
+            Err("invalid_content")
+        );
         service
             .run(
                 &root,
@@ -331,7 +359,11 @@ mod tests {
             .unwrap();
         let status = service.run(&root, &request("status")).unwrap();
         assert!(status["entries"].as_array().unwrap().is_empty());
-        assert!(status["headCommitId"].as_str().is_some_and(|h| h.len() >= 40));
+        assert!(
+            status["headCommitId"]
+                .as_str()
+                .is_some_and(|h| h.len() >= 40)
+        );
         for path in ["../x", ".git/config", "/etc/passwd"] {
             let refused = service.run(
                 &root,
@@ -342,7 +374,10 @@ mod tests {
             );
             assert_eq!(refused, Err("invalid_path"), "{path}");
         }
-        assert_eq!(service.run(&root, &request("rebase")), Err("file_operation_failed"));
+        assert_eq!(
+            service.run(&root, &request("rebase")),
+            Err("file_operation_failed")
+        );
         assert!(request("status").reads() && !request("commit").reads());
     }
 }

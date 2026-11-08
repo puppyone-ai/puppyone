@@ -76,6 +76,14 @@ fn main() {
         platform::agent_activity::hook::run();
         return;
     }
+    // PuppyOne Host: no windows, its own state and lock; it keeps sharing
+    // this computer's folders after the App quits.
+    if std::env::args().any(|a| a == workspace::hosts::process::HOST_ARGUMENT) {
+        std::process::exit(workspace::hosts::process::run(
+            &platform::data_dir(),
+            env!("CARGO_PKG_VERSION"),
+        ));
+    }
     // `requestSingleInstanceLock`: a later launch hands its command line to
     // the running app and exits (captures and the lab run on their own).
     #[cfg(unix)]
