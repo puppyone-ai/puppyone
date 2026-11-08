@@ -61,7 +61,22 @@ export function getByRole(scope: ParentNode, role: string, query: RoleQuery = {}
 
 /** The element's text in reading order, as a screen reader would read through it. */
 export function readableText(element: Element): string {
-  return normalize(textOf(element));
+  return normalize(readingOf(element));
+}
+
+/** Roles a screen reader announces by their name; anything else is read through. */
+const NAMED_BY_LABEL = new Set(["button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "checkbox", "radio",
+  "switch", "textbox", "combobox", "img", "option", "tab"]);
+
+function readingOf(element: Element): string {
+  const parts: string[] = [];
+  for (const node of element.childNodes) {
+    if (node.nodeType === node.TEXT_NODE) parts.push(node.textContent ?? "");
+    else if (node instanceof Element && !isHidden(node, element)) {
+      parts.push(" ", NAMED_BY_LABEL.has(roleOf(node) ?? "") ? accessibleName(node) : readingOf(node), " ");
+    }
+  }
+  return parts.join("");
 }
 
 /** Whether a checkbox, radio, switch or checkable menu item is on. */

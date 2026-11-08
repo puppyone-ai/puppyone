@@ -8,6 +8,7 @@ import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support
 import type { OnboardingGroupsBase } from "../../../../src/components/onboarding/OnboardingProjectGroups";
 import type { ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { renderWithTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, queryAllByRole, readableText } from "../../../support/react/queries";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,11 +39,15 @@ function renderHome(overrides: Partial<HomeWithEntryFlowProps> = {}) {
   return container;
 }
 
-/** Each group's title with the names listed under it, in page order. */
+/** The groups: regions named by their own heading, unlike the page around them. */
+const groupRegions = (container: HTMLElement) => queryAllByRole(container, "region")
+  .filter((region) => queryAllByRole(region, "heading").some((heading) => accessibleName(heading) === accessibleName(region)));
+
+/** Each group as announced: its name, and the projects listed under it, in page order. */
 function groups(container: HTMLElement) {
-  return [...container.querySelectorAll(".onboarding-project-group")].map((group) => ({
-    title: group.querySelector(".onboarding-project-group-title")?.textContent ?? "",
-    names: [...group.querySelectorAll(".onboarding-project-row-wrap")].map((row) => row.textContent ?? ""),
+  return groupRegions(container).map((group) => ({
+    title: accessibleName(group),
+    names: queryAllByRole(group, "listitem").map(readableText),
   }));
 }
 
@@ -59,16 +64,16 @@ describe("homepage audience grouping", () => {
 
   it("scrolls the page as one, so no group can cut off its own last row", () => {
     const container = renderHome();
-    const page = container.querySelectorAll(".onboarding-project-groups");
-    expect(page).toHaveLength(1);
-    expect(page[0].querySelectorAll(".onboarding-project-list")).toHaveLength(2);
+    const regions = groupRegions(container);
+    expect(regions.map((group) => queryAllByRole(group, "list"))).toHaveLength(2);
+    // Every group sits in the same container, which the Homepage smoke checks is the one that scrolls.
+    expect(new Set(regions.map((group) => group.parentElement)).size).toBe(1);
   });
 
   it("states the local-only audience even when it is the only group", () => {
     const container = renderHome({ projectItems: [local] });
-    expect(container.querySelector(".onboarding-project-groups")).not.toBeNull();
-    expect(container.querySelector(".onboarding-project-group-title")?.textContent).toBe("On this computer");
-    expect(container.querySelectorAll(".onboarding-project-list")).toHaveLength(1);
+    expect(groups(container).map((group) => group.title)).toEqual(["On this computer"]);
+    expect(queryAllByRole(getByRole(container, "region", { name: "On this computer" }), "list")).toHaveLength(1);
   });
 
   it("hands audience composition to the owner of the device catalog", () => {
@@ -76,10 +81,10 @@ describe("homepage audience grouping", () => {
     const container = renderHome({
       projectGroups: (base) => {
         handed = base;
-        return <div data-test-other-computers="">other computers</div>;
+        return <div>other computers</div>;
       },
     });
-    expect(container.querySelector("[data-test-other-computers]")).not.toBeNull();
+    expect(readableText(container)).toContain("other computers");
     expect(handed!.cloud[0]?.id).toBe("shared-unresolved");
     expect(handed!.local?.title).toBe("On this computer");
     expect(handed!.personalSharedTitle).toBe("My Share Project");
