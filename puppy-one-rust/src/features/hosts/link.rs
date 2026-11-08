@@ -47,6 +47,9 @@ pub struct HostStatus {
     pub sandbox: Option<String>,
     #[serde(default)]
     pub folders: Vec<SharedFolder>,
+    /// Terminals and Agents other computers run here now.
+    #[serde(default)]
+    pub running: Vec<Value>,
 }
 
 type Account = Arc<Mutex<Option<(Arc<Broker>, Binding)>>>;

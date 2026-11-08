@@ -392,19 +392,30 @@ impl Homepage {
         // `ThisComputerDetail`: paused sharing is resumed where it is seen.
         self.presence = link.read(cx).status.as_ref().filter(|_| on).and_then(|s| {
             let key = if s.state == "outdated" {
-                "hosts.sharing.outdated"
+                Some("hosts.sharing.outdated")
             } else if s.folders.is_empty() {
                 return None;
             } else if s.paused {
-                "hosts.sharing.paused"
+                Some("hosts.sharing.paused")
             } else if s.state == "connecting" {
-                "hosts.sharing.connecting"
+                Some("hosts.sharing.connecting")
             } else if s.state == "offline" {
-                "hosts.sharing.reconnecting"
+                Some("hosts.sharing.reconnecting")
             } else {
-                return None;
+                None
             };
-            Some((tr(key).to_owned(), s.paused && s.state != "outdated"))
+            let running = (!s.running.is_empty()).then(|| {
+                crate::localization::tf(
+                    "hosts.execution.running",
+                    &[("count", s.running.len().into())],
+                )
+            });
+            let text = [key.map(|k| tr(k).to_owned()), running]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" · ");
+            (!text.is_empty()).then(|| (text, s.paused && s.state != "outdated"))
         });
     }
     /// The folders my other computers offer, but those this computer shares.

@@ -412,7 +412,11 @@ impl HostService {
         } = connection;
         let mut status = json!({
             "state": state.as_str(), "deviceId": device, "activeRequests": 0, "watching": 0,
-            "tunnels": tunnels, "lastAccessAt": last_access, "running": [],
+            "tunnels": tunnels, "lastAccessAt": last_access,
+            "running": services
+                .as_ref()
+                .and_then(|s| s.ssh.lock().unwrap().as_ref().map(HostSsh::running))
+                .unwrap_or_default(),
             "paused": sharing.paused, "active": sharing.active, "deployment": sharing.deployment,
             "sandbox": self.sandbox.as_ref().and_then(|s| s.mechanism.as_ref()).map(|m| m.name()),
         });

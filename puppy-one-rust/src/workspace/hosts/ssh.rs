@@ -119,7 +119,21 @@ pub struct HostSsh {
     /// The folders' Git, where this computer can run it.
     pub git: Option<Arc<super::git::GitService>>,
     connections: Arc<Mutex<HashMap<u64, Open>>>,
+    /// Terminals and Agents other computers run here now (`running`).
+    running: Arc<Mutex<HashMap<u64, Running>>>,
     next: Arc<std::sync::atomic::AtomicU64>,
+}
+/// One terminal or Agent running here for another computer.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Running {
+    pub session: String,
+    pub folder_id: String,
+    /// "shell" or "agent".
+    pub kind: &'static str,
+    pub launcher: String,
+    pub tier: &'static str,
+    pub started_at: String,
 }
 impl HostSsh {
     pub fn new(
@@ -136,6 +150,7 @@ impl HostSsh {
             execution,
             git: None,
             connections: Arc::default(),
+            running: Arc::default(),
             next: Arc::default(),
         }
     }
@@ -164,6 +179,10 @@ impl HostSsh {
                 let _ = stop.send(true);
             }
         }
+    }
+    /// What runs here now for other computers.
+    pub fn running(&self) -> Vec<Running> {
+        self.running.lock().unwrap().values().cloned().collect()
     }
     /// Every connection ends (sharing stopped, or "Stop all").
     pub fn close_all(&self) {
@@ -267,8 +286,33 @@ impl Connection {
             tokio::sync::watch::channel(pty.as_ref().map_or((80, 24), |p| (p.cols, p.rows)));
         self.sizes.insert(id, size);
         let (folders, folder) = (self.host.folders.clone(), self.folder.clone());
+        let terminal = match &run {
+            super::exec::Run::Shell => Some(("shell", "shell".to_owned())),
+            super::exec::Run::Agent(launcher) => Some(("agent", launcher.clone())),
+            super::exec::Run::Command(_) => None,
+        };
+        let key = self
+            .host
+            .next
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if let Some((kind, launcher)) = terminal {
+            self.host.running.lock().unwrap().insert(
+                key,
+                Running {
+                    session: uuid::Uuid::new_v4().to_string(),
+                    folder_id: folder.clone(),
+                    kind,
+                    launcher,
+                    tier: "folder",
+                    started_at: chrono::Utc::now()
+                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                },
+            );
+        }
+        let running = self.host.running.clone();
         tokio::spawn(async move {
-            super::exec::bridge(execution, folders, folder, run, pty, env, sizes, channel).await
+            super::exec::bridge(execution, folders, folder, run, pty, env, sizes, channel).await;
+            running.lock().unwrap().remove(&key);
         });
         Ok(())
     }
@@ -903,6 +947,7 @@ mod tests {
             Some(Arc::new(Plain)),
         );
         let (a, b) = tokio::io::duplex(256 * 1024);
+        let watching = host.clone();
         tokio::spawn(async move { host.serve(a, FOLDER.into()).await });
         let window = (now() - 60, now() + 300);
         let access = Access::connect(
@@ -919,6 +964,7 @@ mod tests {
         assert_eq!(out.trim(), root.to_string_lossy());
         assert_eq!((err.as_str(), status), ("oops", Some(3)));
         let terminal = access.terminal("shell", 80, 24).await.unwrap();
+        assert_eq!(watching.running()[0].kind, "shell");
         terminal
             .data(&b"echo $((40 + 2)); exit 0\n"[..])
             .await
