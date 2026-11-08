@@ -87,6 +87,8 @@ describe("New project: who can open it", () => {
     await submit(host);
     const [first, retry] = onCreateCloudProject.mock.calls.map((call) => call[2]);
     expect(retry).toBe(first);
+    // The publish contract keys a creation on a canonical lowercase UUIDv4.
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     const input = host.querySelector<HTMLInputElement>('input[type="text"]')!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Plans 2");
