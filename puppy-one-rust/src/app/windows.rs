@@ -293,6 +293,11 @@ pub fn open_file(path: PathBuf, cx: &mut App) -> anyhow::Result<AnyWindowHandle>
     )
 }
 fn open_with(launch: Launch, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    open_window(launch, true, cx)
+}
+/// A new window; `activate` brings the app to the front (a background
+/// request from the command line leaves focus where it was).
+fn open_window(launch: Launch, activate: bool, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     let (w, h) = if launch.file.is_some() {
         super::file_mode::FILE_WINDOW_SIZE
     } else {
@@ -301,12 +306,130 @@ fn open_with(launch: Launch, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     cx.set_global(PendingLaunch(Some(launch)));
     // `center: true`: every new window is centred.
     let bounds = Bounds::centered(None, size(px(w), px(h)), cx);
-    let handle = cx.open_window(window_options(bounds, true), |window, cx| {
+    let handle = cx.open_window(window_options(bounds, activate), |window, cx| {
         let view = cx.new(|cx| Shell::new(window, cx));
         cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
     })?;
-    cx.activate(true);
+    if activate {
+        cx.activate(true);
+    }
     Ok(handle.into())
+}
+
+/// What a file window opens, as the command line is told (`hello`).
+pub use super::file_mode::{MAX_EDITOR_BYTES, file_mode_extensions};
+
+/// `openPathFromSystem` for `puppyone open` (`createSystemOpenRoute` with
+/// `enforceSizeLimit`): a folder opens its project window and a file its
+/// own window; either already open comes forward instead. A refusal names
+/// its protocol code.
+pub fn open_from_cli(
+    requested: &str,
+    activate: bool,
+    cx: &mut App,
+) -> Result<crate::platform::cli_control::Opened, (&'static str, String)> {
+    use crate::platform::cli_control::Opened;
+    let path = std::path::Path::new(requested);
+    let real = path.canonicalize().map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => {
+            ("PATH_NOT_FOUND", format!("{requested} does not exist."))
+        }
+        _ => (
+            "OPEN_FAILED",
+            format!("{requested} cannot be read: {error}"),
+        ),
+    })?;
+    let metadata = std::fs::metadata(&real).map_err(|error| {
+        (
+            "OPEN_FAILED",
+            format!("{requested} cannot be read: {error}"),
+        )
+    })?;
+    let show = |handle: AnyWindowHandle, cx: &mut App| {
+        if activate {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+        }
+    };
+    let failed = |_| ("OPEN_FAILED", format!("{requested} could not be opened."));
+    if metadata.is_dir() {
+        let existing = live(cx).into_iter().find(|(_, shell)| {
+            let shell = shell.read(cx);
+            shell.file.is_none() && shell.workspace_root(cx).as_deref() == Some(real.as_path())
+        });
+        if let Some((handle, _)) = existing {
+            show(handle, cx);
+            return Ok(Opened {
+                folder: true,
+                focused: true,
+            });
+        }
+        open_window(
+            Launch {
+                workspace: Some(real),
+                file: None,
+                open: None,
+                from_args: false,
+            },
+            activate,
+            cx,
+        )
+        .map_err(failed)?;
+        return Ok(Opened {
+            folder: true,
+            focused: false,
+        });
+    }
+    if !metadata.is_file() {
+        return Err((
+            "NOT_A_FILE_OR_FOLDER",
+            format!("{requested} is not a file or folder."),
+        ));
+    }
+    if !super::file_mode::is_file_mode_file(&real) {
+        return Err((
+            "UNSUPPORTED_TYPE",
+            format!("{requested} is not a Markdown, CSV or HTML file."),
+        ));
+    }
+    let existing = live(cx).into_iter().find(|(_, shell)| {
+        shell
+            .read(cx)
+            .file
+            .as_ref()
+            .is_some_and(|f| f.read(cx).target.path == real)
+    });
+    if let Some((handle, _)) = existing {
+        show(handle, cx);
+        return Ok(Opened {
+            folder: false,
+            focused: true,
+        });
+    }
+    // A window that can only say the file is too large is no use to a
+    // caller that can be told.
+    let max = super::file_mode::MAX_EDITOR_BYTES;
+    if metadata.len() > max {
+        return Err((
+            "FILE_TOO_LARGE",
+            format!("{requested} is larger than {max} bytes."),
+        ));
+    }
+    open_window(
+        Launch {
+            workspace: None,
+            file: Some(real),
+            open: None,
+            from_args: false,
+        },
+        activate,
+        cx,
+    )
+    .map_err(failed)?;
+    Ok(Opened {
+        folder: false,
+        focused: false,
+    })
 }
 /// The last active project, when it still exists.
 pub fn last_active_project(cx: &App) -> Option<PathBuf> {

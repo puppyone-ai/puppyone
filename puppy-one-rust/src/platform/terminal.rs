@@ -130,6 +130,14 @@ impl Terminal {
                 command.env("TERM", "xterm-256color");
                 command.env("COLORTERM", "truecolor");
                 command.env("PATH", super::environment::search_path());
+                // Which app hosts the terminal, so `puppyone open` reaches
+                // this one.
+                if let Some(endpoint) = super::cli_control::serving() {
+                    command.env("PUPPYONE_CLI_ENDPOINT", endpoint);
+                }
+                if let Some(bundle) = super::cli_control::bundle_path() {
+                    command.env("PUPPYONE_APP_PATH", bundle);
+                }
                 for (key, value) in &activity {
                     command.env(key, value);
                 }

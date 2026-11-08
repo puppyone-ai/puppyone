@@ -130,7 +130,6 @@ fn registry() -> &'static Registry {
 }
 
 /// Every registered format, in registry order (`FILE_FORMATS`).
-#[cfg(test)]
 pub fn all() -> &'static [FileFormat] {
     &registry().formats
 }

@@ -69,6 +69,17 @@ version = datetime.now().strftime('%Y%m%d.%H%M%S')
 app = root / (f'artifacts/{args.kit_preview_name}.app' if kit_root else 'artifacts/PuppyOne GPUI Workbench.app')
 
 
+def file_mode_extensions():
+    """`createFileModeExtensions` over the bundled format registry."""
+    registry = json.loads((root / 'assets/formats/file-formats.json').read_text())
+    extensions = {'.html', '.htm'}
+    for fmt in registry.get('formats', []):
+        if fmt.get('id') in ('markdown', 'csv'):
+            extensions |= {e.lower() for e in fmt.get('extensions', []) if e.startswith('.')}
+    covered = lambda e: any(o != e and e.endswith(o) for o in extensions)
+    return sorted(e for e in extensions if not covered(e))
+
+
 def package(path, name, identifier, environment=None):
     contents = path / 'Contents'
     executable = contents / 'MacOS/puppy-one-rust'
@@ -103,7 +114,18 @@ def package(path, name, identifier, environment=None):
             ('HTML', 'public.html'),
         ]
     ]
+    # `createFileModeExtensions`: one list decides File Mode, the CLI's
+    # declaration below and the protocol's `hello` (`file_mode_extensions`).
+    open_extensions = file_mode_extensions()
+    document_types[0]['CFBundleTypeExtensions'] = [e[1:] for e in open_extensions
+                                                     if e not in ('.csv', '.htm', '.html')]
+    document_types[1]['CFBundleTypeExtensions'] = ['csv']
+    document_types[2]['CFBundleTypeExtensions'] = ['html', 'htm']
     info = {'CFBundleDocumentTypes': document_types,
+            # `CLI_INFO_PLIST_KEYS`: what `puppyone open` reads before it
+            # starts the app; the data directory names the control socket.
+            'PuppyOneCliProtocol': 1, 'PuppyOneCliUserDataName': 'PuppyOne GPUI',
+            'PuppyOneOpenExtensions': open_extensions, 'PuppyOneOpenMaxBytes': 1024 * 1024,
             'CFBundleExecutable': 'puppy-one-rust', 'CFBundleIdentifier': identifier,
             'CFBundleName': name, 'CFBundlePackageType': 'APPL',
             'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': version,

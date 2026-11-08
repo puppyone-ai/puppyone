@@ -152,6 +152,35 @@ pub fn is_file_mode_file(path: &Path) -> bool {
     }
 }
 
+/// `createFileModeExtensions`: every extension a file window opens, from
+/// the file format registry. One list decides File Mode, the CLI's
+/// declaration in Info.plist and the protocol's `hello`.
+pub fn file_mode_extensions() -> Vec<String> {
+    let mut extensions: Vec<String> = vec![".html".into(), ".htm".into()];
+    for format in crate::formats::all() {
+        if matches!(format.id.as_str(), "markdown" | "csv") {
+            for extension in &format.extensions {
+                let extension = extension.to_lowercase();
+                if extension.starts_with('.') && !extensions.contains(&extension) {
+                    extensions.push(extension);
+                }
+            }
+        }
+    }
+    // `.agent.md` adds nothing once `.md` is listed.
+    let covered = |extension: &String, all: &[String]| {
+        all.iter()
+            .any(|other| other != extension && extension.ends_with(other.as_str()))
+    };
+    let mut kept: Vec<String> = extensions
+        .iter()
+        .filter(|e| !covered(e, &extensions))
+        .cloned()
+        .collect();
+    kept.sort();
+    kept
+}
+
 /// `.file-mode-window__action`: an icon command of the project titlebar's
 /// size (`--desktop-chrome-control-size` × `--desktop-titlebar-control-height`).
 fn title_action(id: &'static str, icon: Icon, label: String, width: f32) -> Button {
@@ -551,6 +580,36 @@ impl Render for FileWindow {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    /// The list the product publishes (qubits@686d41c49
+    /// `createFileModeExtensions` over `shared/fileFormats.json`).
+    #[test]
+    fn a_file_window_opens_the_products_extensions() {
+        assert_eq!(
+            file_mode_extensions(),
+            [
+                ".copilotmd",
+                ".csv",
+                ".htm",
+                ".html",
+                ".jmd",
+                ".litcoffee",
+                ".markdn",
+                ".markdown",
+                ".md",
+                ".mdown",
+                ".mdtext",
+                ".mdtxt",
+                ".mdwn",
+                ".mdx",
+                ".mkd",
+                ".mkdn",
+                ".ron",
+                ".ronn",
+                ".workbook",
+            ]
+        );
+    }
 
     #[test]
     fn markdown_csv_and_html_pages_open_on_their_own() {

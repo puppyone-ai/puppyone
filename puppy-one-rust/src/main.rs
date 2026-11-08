@@ -17,6 +17,58 @@ use po_editor::{documents, editor, web_host};
 use po_platform::{localization, platform};
 use po_ui::{assets, theme, typography, ui};
 use po_workspace::{cloud, workspace};
+/// `createCliControlServer` + `createCliControlRequests`: `puppyone open`
+/// over the per-user socket, answered by this app's windows. The first
+/// answer settles a launch by the command line: whether anything opened.
+#[cfg(unix)]
+fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
+    use platform::cli_control::{self, Incoming, Request};
+    let identity = platform::build_identity::current();
+    let info = cli_control::AppInfo {
+        name: app::windows::APP_NAME.into(),
+        version: identity.version.clone(),
+        channel: format!("{:?}", identity.channel).to_lowercase(),
+    };
+    let endpoint = cli_control::endpoint(&platform::data_dir(), unsafe { libc::getuid() });
+    let incoming = match cli_control::serve(&endpoint, info.clone()) {
+        Ok(incoming) => incoming,
+        Err(error) => {
+            eprintln!("Unable to accept command-line requests: {error}");
+            return;
+        }
+    };
+    cx.spawn(async move |cx| {
+        while let Ok(Incoming { request, reply }) = incoming.recv().await {
+            let answer = cx.update(|cx| match request {
+                Ok(Request::Hello) => cli_control::hello(
+                    &info,
+                    &app::windows::file_mode_extensions(),
+                    app::windows::MAX_EDITOR_BYTES,
+                ),
+                Ok(Request::Open { paths, activate }) => {
+                    let results = paths
+                        .iter()
+                        .map(|path| {
+                            cli_control::result(
+                                path,
+                                app::windows::open_from_cli(path, activate, cx),
+                            )
+                        })
+                        .collect();
+                    cli_control::opened(&info, results)
+                }
+                Err(answer) => answer,
+            });
+            let opened = answer["results"]
+                .as_array()
+                .is_some_and(|r| r.iter().any(|r| r["status"] != "rejected"));
+            let _ = reply.send(answer).await;
+            let _ = outcome.try_send(opened);
+        }
+    })
+    .detach();
+}
+
 fn main() {
     // An Agent CLI's Hook runs this executable as its bridge: forward the
     // event and exit before any UI or single-instance work starts.
@@ -210,6 +262,11 @@ fn main() {
             }
         })
         .detach();
+        // A launch by `puppyone open` waits for its request instead of
+        // restoring the last project, and quits when it opens nothing.
+        let launched_by_cli =
+            std::env::args_os().any(|arg| arg == platform::cli_control::LAUNCH_ARGUMENT);
+        let (cli_outcome_tx, cli_outcome) = async_channel::bounded::<bool>(1);
         #[cfg(unix)]
         if let Some(platform::single_instance::Instance::Primary(launches)) = instance {
             cx.spawn(async move |cx| {
@@ -218,6 +275,7 @@ fn main() {
                 }
             })
             .detach();
+            serve_cli(cli_outcome_tx, cx);
         }
         // One foreground serves every window: beat for the stall watcher.
         platform::watchdog::start();
@@ -231,6 +289,29 @@ fn main() {
             }
         })
         .detach();
+        if launched_by_cli && !launched {
+            launched = true;
+            cx.spawn(async move |cx| {
+                let wait = cx
+                    .background_executor()
+                    .timer(platform::cli_control::LAUNCH_WAIT);
+                let outcome =
+                    futures_util::future::select(Box::pin(cli_outcome.recv()), wait).await;
+                cx.update(|cx| match outcome {
+                    futures_util::future::Either::Left((Ok(true), _)) => {}
+                    futures_util::future::Either::Left((Ok(false), _))
+                        if app::windows::count(cx) == 0 =>
+                    {
+                        cx.quit()
+                    }
+                    _ if app::windows::count(cx) == 0 => {
+                        let _ = app::windows::open(app::windows::last_active_project(cx), cx);
+                    }
+                    _ => {}
+                });
+            })
+            .detach();
+        }
         if !launched {
             let mut options = app::windows::window_options(bounds, !background);
             if background {

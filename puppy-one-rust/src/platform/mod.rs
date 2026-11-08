@@ -2,6 +2,7 @@ pub mod accessibility;
 pub mod agent_activity;
 pub mod app_preview;
 pub mod build_identity;
+pub mod cli_control;
 pub mod database;
 pub mod desktop;
 pub mod diagnostics;
