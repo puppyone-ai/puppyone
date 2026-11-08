@@ -171,12 +171,15 @@ subject to Anthropic's applicable legal agreements. The package license notice i
 `licenses/claude-agent-sdk/LICENSE.md`; current terms are linked from
 https://code.claude.com/docs/en/legal-and-compliance.
 
-Anthropic's published authentication policy does not permit third-party
-products to route traffic through users' Free, Pro or Max Claude subscription
-credentials. PuppyOne therefore requires an Anthropic API key or a supported
-cloud-provider credential for this backend and does not copy Claude credential
-files. Claude Agent SDK usage may be subject to Anthropic's documented data
-collection, usage and retention policies.
+Claude Code owns native authentication and billing. PuppyOne consumes the SDK's
+account metadata and leaves credential selection, subscription limits and API
+or cloud billing to the user's unmodified Claude Code installation. PuppyOne
+does not copy Claude credential files or collect subscription tokens. Anthropic's
+current subscription billing guidance is published at
+https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan.
+That billing guidance does not replace Anthropic's applicable product and
+authentication terms linked above. Claude Agent SDK usage may be subject to
+Anthropic's documented data collection, usage and retention policies.
 
 ## Claudian frontend reference
 
