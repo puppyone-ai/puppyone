@@ -1,19 +1,19 @@
 {
-  "sourceCommit": "671143f2a30d352099eda35ad37f053450d4a8f9",
+  "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
   "entry": "tools/office-viewer-entry.tsx",
   "entryHash": "26b78596f25f5d20164ac26ec09f734020c9022248fd3ee7397a0c4158ac81ef",
   "outputs": {
-    "office-viewer.js": "ead6f493631ed5497082bbe04fb0e24231ee83ca04106a41ab6a69674602d8ab",
+    "office-viewer.js": "8d7f4b34c27b72911a4c04ba2b4901260161fe5141d474d45bbbccf481b8cc97",
     "office-validation.worker.js": "6468f088fc639db7e310b7a7d659b19d5079ff820ae2f03263de833373f4e6ba",
     "office-spreadsheet.worker.js": "590841773edcd640c2e74af3eebeddba38c81a36f3748a3f146e600a8fda2179",
     "office-text.worker.js": "2a10c81e4ca4c7875648f767ca87e3dc4fc646a76cb600efede3bcc4739c233c",
-    "office-viewer.css": "17ac88e8fbbaae696d21e8452f0640c1b3fa32439210b65753610d109d12994c"
+    "office-viewer.css": "d4ffa6bde6fcfd45c8e24c2193c2d3f1dee99381b8cc2ff7d936116f0315efdc"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
     "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",
     "shared/presetViewerManifest.json": "01bc9156314667db790c9f5a5136748c8432d50a053ccd48bd33031bd06cb479",
-    "src/components/DesktopTooltipLayer.tsx": "a9ffa25f979684977f9a261409f7c955b9cbd5a17d3f1049cf9436042079e554",
+    "src/components/DesktopTooltipLayer.tsx": "7dcda870cc79c1fae1f76e46dfb502c4a67c0f253d3fa274ca8a02f665262c73",
     "src/lib/localization/core/bidi.ts": "3188ceb523ef1bdbdd2af35b739652c69aacf273c7c6feeaa09651f85e3a5f4a",
     "src/lib/localization/core/catalog.ts": "4f7d2a54e4557acb0c5a43e1660ff066eeb8a9b3a1e1dd69050ac15700a5d595",
     "src/lib/localization/core/formatters.ts": "e5035262b4780bb1987b09d3a2261e5e83bb9a5b4f4e18e718b9a832b47b6990",
@@ -43,7 +43,7 @@
     "src/shared-ui/editor/security/officePackageValidationClient.ts": "0b2e432b91da4d47638656380713fb7183c84313f3865c26b11635b2d0cee40e",
     "src/shared-ui/editor/security/officePackageValidationTask.ts": "4ccf839fe06765f8e01e04b79a21837a748cb4a1d8bf32dbc3152b883e7f3048",
     "src/shared-ui/editor/security/zipCentralDirectoryPreflight.ts": "28a464fbe9c4121e1e851a3f99391e3303791494a1da91207297ffe755832eb5",
-    "src/shared-ui/editor/viewers/office/OfficeViewer.tsx": "8c73627d13554d8a7ae27d10317b0a4cf8ae581a05e8bdbf8447abb9bed3db11",
+    "src/shared-ui/editor/viewers/office/OfficeViewer.tsx": "62b16cedbc332dbdfb804a972e352f4f7578f9cd90d44f75135d595a2db4474a",
     "src/shared-ui/editor/viewers/office/officeFontCompatibility.ts": "50698c8f3a10093f293d82e84dd3b0b284d032267ad8955b39b6b8f0f1550cf8",
     "src/shared-ui/editor/viewers/office/officeResourceLoader.ts": "b6e2531e3b4f0a2464b23ec56cfe128efd4bb771899faf1d8ce39047900776a2",
     "src/shared-ui/editor/viewers/office/officeTextFallback.worker.ts": "253c808a5cf96da634f4e9bc59c69df8d009774145aabb73e247e70e87adb667",
@@ -69,7 +69,7 @@
     "src/shared-ui/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
     "src/shared-ui/styles/loading-placeholder.css": "5bcd91ef6774350439c70d427abc50c37af9f5cd769db124e37a4c00a4005c4f",
     "src/styles/fallback-theme.generated.css": "eb2953ed7b9daf748d89c95341b5b833d24eb1019d002608259f7ff1300d6236",
-    "src/styles/tokens.css": "6a833e24b3d5cfaca9c525163154c20ec8cda7d78eecaa896331c884a6f623ef",
+    "src/styles/tokens.css": "a7c2fc2d44992683d188226c7a52a762e9c5c8c02e04b394ae7da58cb34bffd4",
     "src/styles/tooltip.css": "1c6d2e0bbfbbfda10d923acb6f0c376f61bd7d18e9c2ccd8c5577e8406b0c97a",
     "src/styles/typography/foundations.css": "5a02ef0503ff34b6d20334f0048c0cb5e18f91381dde86a7ff812c27f89a1282",
     "src/styles/typography/locales.css": "93cefe03e2e8ace4cd22ffc9f6a8202a6588f9a71b9e94a802e5bc765354f2fd",

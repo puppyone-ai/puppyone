@@ -1,17 +1,17 @@
 {
-  "sourceCommit": "671143f2a30d352099eda35ad37f053450d4a8f9",
+  "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
   "entry": "tools/structured-viewer-entry.tsx",
   "entryHash": "e29d2769884f17dda483bc5f068173b92ff69093023d6a5b649fd49deb909661",
   "outputs": {
-    "structured-viewers.js": "48db23eda9d11b772323b7e023fc372b6695e567d1b8fa0d59eb18f97dff6d05",
-    "structured-viewers.css": "43d30d42db8c9e8ac8ec11cdc03a15796e21ba942f3095d53e888c59d86cdb52"
+    "structured-viewers.js": "c092b4d017b997955c0321a0f3fa816d63079ffe4add0297a047ed20f49aa1e0",
+    "structured-viewers.css": "233c02d00aaa814aedebe6bff73e8ae2a475b63eb6a919f6447c4d2359a58a7f"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
     "shared/fileFormats.json": "38d5453755412bbd4f4c0af78c8ed57af2bf3ce1a4ea07e0102be36e6f6cc17f",
     "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",
     "shared/presetViewerManifest.json": "01bc9156314667db790c9f5a5136748c8432d50a053ccd48bd33031bd06cb479",
-    "src/components/DesktopTooltipLayer.tsx": "a9ffa25f979684977f9a261409f7c955b9cbd5a17d3f1049cf9436042079e554",
+    "src/components/DesktopTooltipLayer.tsx": "7dcda870cc79c1fae1f76e46dfb502c4a67c0f253d3fa274ca8a02f665262c73",
     "src/lib/localization/core/bidi.ts": "3188ceb523ef1bdbdd2af35b739652c69aacf273c7c6feeaa09651f85e3a5f4a",
     "src/lib/localization/core/catalog.ts": "4f7d2a54e4557acb0c5a43e1660ff066eeb8a9b3a1e1dd69050ac15700a5d595",
     "src/lib/localization/core/formatters.ts": "e5035262b4780bb1987b09d3a2261e5e83bb9a5b4f4e18e718b9a832b47b6990",
@@ -83,7 +83,7 @@
     "src/shared-ui/styles/floating-notice.css": "2b4b2942af26b8a7dc59226011c3aa5205f7919e195f095eae7c2d3ecca20e5e",
     "src/shared-ui/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
     "src/styles/fallback-theme.generated.css": "eb2953ed7b9daf748d89c95341b5b833d24eb1019d002608259f7ff1300d6236",
-    "src/styles/tokens.css": "6a833e24b3d5cfaca9c525163154c20ec8cda7d78eecaa896331c884a6f623ef",
+    "src/styles/tokens.css": "a7c2fc2d44992683d188226c7a52a762e9c5c8c02e04b394ae7da58cb34bffd4",
     "src/styles/tooltip.css": "1c6d2e0bbfbbfda10d923acb6f0c376f61bd7d18e9c2ccd8c5577e8406b0c97a",
     "src/styles/typography/foundations.css": "5a02ef0503ff34b6d20334f0048c0cb5e18f91381dde86a7ff812c27f89a1282",
     "src/styles/typography/locales.css": "93cefe03e2e8ace4cd22ffc9f6a8202a6588f9a71b9e94a802e5bc765354f2fd",
