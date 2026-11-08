@@ -558,7 +558,19 @@ impl AgentChatTabPanel {
                         .child(div().flex_1().min_w_0().child(self.picker_query.clone())),
                 )
             })
-            .child(list)
+            .child(
+                div()
+                    .relative()
+                    .flex()
+                    .flex_col()
+                    .min_h_0()
+                    .flex_shrink(1.)
+                    .child(list)
+                    .child(crate::ui::scrollbar::vertical(
+                        "agent-panel-picker-scrollbar",
+                        &self.picker_scroll,
+                    )),
+            )
             .when(total > count, |d| {
                 d.child(
                     div()

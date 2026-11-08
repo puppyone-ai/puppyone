@@ -262,6 +262,10 @@ impl AgentChatTabPanel {
             )
             .when(show_details, |d| d.child(details))
             .child(footer)
+            .child(crate::ui::scrollbar::vertical(
+                "agent-interaction-dock-scrollbar",
+                &self.dock_scroll,
+            ))
             .into_any_element()
     }
 
@@ -505,6 +509,10 @@ impl AgentChatTabPanel {
                     })),
                 ),
         )
+        .child(crate::ui::scrollbar::vertical(
+            "agent-interaction-dock-scrollbar",
+            &self.dock_scroll,
+        ))
         .into_any_element()
     }
 }
