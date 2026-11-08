@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRemoteHostClient } from "../hosts/remote-host-client.mjs";
@@ -461,6 +462,24 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
   });
 
   return {
+    /**
+     * Withdraw what this computer shares from a folder that is gone from disk, after
+     * the person found where it went. Narrowing only, so no approval is asked; a
+     * folder still present is never touched. Sharing it from its new place is the
+     * ordinary, approved Turn on.
+     */
+    async retireSharesAtMissingRoot(rootPath) {
+      if (typeof rootPath !== "string" || !path.isAbsolute(rootPath)) return { retired: 0 };
+      if (await fs.promises.stat(rootPath).then(() => true, () => false)) return { retired: 0 };
+      const status = await hostStatus();
+      const active = status?.active;
+      const rows = (status?.folders ?? []).filter((row) => row.rootPath === rootPath);
+      if (!active?.deviceId || rows.length === 0) return { retired: 0 };
+      const running = await host({ start: false });
+      if (!running) return { retired: 0 };
+      for (const row of rows) await running.call("registryRemove", { deviceId: active.deviceId, folderId: row.folderId });
+      return { retired: rows.length };
+    },
     /** Desktop quitting leaves the host service sharing; only this App's ties end. */
     dispose() {
       unsubscribeAuth?.();

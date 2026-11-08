@@ -289,6 +289,37 @@ export function createWorkspaceStateStore({
     });
   }
 
+  /**
+   * Point a recent project at where its folder is now, after it was moved or renamed.
+   * The record keeps its identity, opening time, chosen name and sharing; a project the
+   * list already holds at the new place absorbs it, so one folder is never listed twice.
+   */
+  async function relocateRecentWorkspacePath(fromPath, toPath) {
+    if (typeof fromPath !== "string" || !fromPath.trim()) throw new Error("Workspace path is required.");
+    const previousPath = path.resolve(fromPath.trim());
+    const nextPath = await canonicalizeRequiredPath(toPath);
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      const recordIndex = state.recentWorkspaceRecords.findIndex((item) => item.path === previousPath);
+      if (recordIndex < 0) throw new Error("Workspace path is not in the main-process recent workspace list.");
+      const current = state.recentWorkspaceRecords[recordIndex];
+      // Sharing named the old place; it does not follow the folder without a new approval.
+      const { hostFolderId, ...kept } = current;
+      const relocated = { ...kept, path: nextPath, name: path.basename(nextPath) };
+      const recentWorkspaceRecords = state.recentWorkspaceRecords
+        .map((item, index) => (index === recordIndex ? relocated : item))
+        .filter((item, index) => index === recordIndex || item.path !== nextPath);
+      const activeWorkspacePaths = [...new Set(state.lastActiveWorkspacePaths
+        .map((item) => (item === previousPath ? nextPath : item)))];
+      await writeWorkspaceState(createPersistedState(
+        recentWorkspaceRecords,
+        activeWorkspacePaths,
+        state.lastActiveWorkbenchWorkspaceId,
+      ));
+      return { relocated: true, from: previousPath, path: nextPath, wasShared: Boolean(hostFolderId) };
+    });
+  }
+
   /** Mark (or unmark, with null) a recent folder as open on the owner's other computers. */
   async function setRecentWorkspaceHostFolder(folderPath, hostFolderId) {
     if (hostFolderId !== null && !HOST_FOLDER_ID.test(hostFolderId)) throw new Error("Invalid shared folder.");
@@ -446,6 +477,7 @@ export function createWorkspaceStateStore({
     requireRecentWorkspacePath,
     removeRecentWorkspacePath,
     renameRecentWorkspacePath,
+    relocateRecentWorkspacePath,
     setRecentWorkspaceHostFolder,
     forgetLastWorkspacePath,
   };

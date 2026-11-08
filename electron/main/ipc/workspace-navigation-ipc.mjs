@@ -20,6 +20,8 @@ export function registerWorkspaceNavigationIpcHandlers({
   selectWorkspaceForNewWindow,
   attachWorkspaceToCurrentWindow,
   detachWorkspaceFromCurrentWindow,
+  folderRelocation,
+  getDialogOwnerWindow,
 }) {
   ipcMain.handle("window:get-restoring-project", (event) => getRestoringProjectForWindow(event.sender));
 
@@ -134,6 +136,20 @@ export function registerWorkspaceNavigationIpcHandlers({
   ipcMain.handle("workspace:detach-current", async (event, folderPath) => {
     return detachWorkspaceFromCurrentWindow(event.sender, folderPath);
   });
+
+  // A project whose folder moved, was renamed or whose disk is away: what is known,
+  // finding where it went, and using that place from now on.
+  ipcMain.handle("workspace:folder-status", async (event, request) => (
+    folderRelocation.status(event.sender, request?.paths)
+  ));
+
+  ipcMain.handle("workspace:locate-folder", async (event, request) => (
+    folderRelocation.locate(event.sender, request?.path, getDialogOwnerWindow(event.sender))
+  ));
+
+  ipcMain.handle("workspace:relocate-folder", async (_event, request) => (
+    folderRelocation.relocate(request?.token)
+  ));
 
   ipcMain.handle("workspace:select-folder-new-window", async (event) => {
     return selectWorkspaceForNewWindow(event.sender);

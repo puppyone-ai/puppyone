@@ -726,6 +726,17 @@ export type WorkspaceOpenResult = {
   workspaces?: Workspace[];
 };
 
+/** Why a project's folder cannot be opened now, in terms a person can act on. */
+export type FolderAvailability = "available" | "missing" | "disconnected" | "denied" | "not-a-folder";
+/** "same-folder": the very folder, moved or renamed; "same-cloud-project": a copy linked to the same Cloud project. */
+export type FolderMatch = "same-folder" | "same-cloud-project" | "different";
+export type FolderCandidate = { token: string; path: string; name: string; match: FolderMatch };
+export type FolderStatus = { path: string; state: FolderAvailability; suggestion?: FolderCandidate };
+export type FolderLocateResult =
+  | { status: "cancelled" | "unchanged" }
+  | ({ status: "selected" } & FolderCandidate);
+export type FolderRelocation = { from: string; path: string; wasShared: boolean };
+
 export type WorkspaceAttachResult = {
   status: "attached-current" | "already-attached";
   workspaceId: string;
@@ -1284,6 +1295,12 @@ declare global {
       selectFolderToAttach: () => Promise<WorkspaceAttachResult | null>;
       attachFolder: (folderPath: string) => Promise<WorkspaceAttachResult>;
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
+      /** Whether each known project folder can be opened now; a renamed one comes with where it is. */
+      getFolderStatus: (paths: readonly string[]) => Promise<FolderStatus[]>;
+      /** The person points at where a project's folder is now, in the system dialog. */
+      locateFolder: (folderPath: string) => Promise<FolderLocateResult>;
+      /** Use a confirmed new place for the project from now on. */
+      relocateFolder: (token: string) => Promise<FolderRelocation>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
