@@ -7,30 +7,23 @@ import {
 import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader } from "../components";
 import { AccountAICredits } from "./AccountAICredits";
-import { PersonalPlan } from "./PersonalPlan";
-import { resolvePersonalOffer, resolvePlanHolding } from "./planPricing";
+import { CloudPlans } from "./CloudPlans";
 import { useAccountPlan } from "./useAccountPlan";
 
 /**
  * Plan.
  *
- * Account answers who you are. This page answers what you pay, what you get
- * for it and how much of the storage you have used. The product is priced per
- * person: one plan, Personal, which includes Storage and a Cloud Computer. See
- * `planPricing.ts` for what is sold and why the machine behind the Cloud
- * Computer is never described.
+ * Account answers who you are. This page answers what you are on, how much of
+ * it you have used this period, and what else you could be on: Free, Personal
+ * or Team, side by side, then the add-ons. See `planPricing.ts` for what is
+ * sold and `CloudPlans.tsx` for how the page reads.
  *
- * It is built from the same rows as every other Settings page on purpose: a
- * pricing card with its own type sizes and sentences read as an advert inside
- * Settings.
+ * It is built from the same rows as every other Settings page. The one thing
+ * of its own is the three-plan comparison, which is the only honest way to
+ * show a choice between three things.
  *
- * An earlier version priced cloud agents one at a time and led with a table of
- * projects saying how many agents each could run at once. With one plan per
- * person there is no per-project capacity left to explain, so the table is
- * gone and the plan card leads.
- *
- * Invoices and payment methods are not here. They are a browser surface, so
- * the card offers one link out and states no history of its own.
+ * Invoices, payment methods and cancellation stay in the payment provider's
+ * browser portal; the page offers one link out and keeps no history of its own.
  *
  * `payments` is read here as a render entry and handed down: see
  * `src/features/payments/README.md`.
@@ -63,8 +56,6 @@ export function SeatsSettingsView({
     onSessionChange: onCloudSessionChange,
     enabled: payments,
   });
-  const holding = resolvePlanHolding(snapshot.summary, snapshot.catalog);
-  const { offer } = resolvePersonalOffer(snapshot.catalog);
 
   // This surface exists only to ask for money. With the experiment off it must
   // not render a single price, even if something routes here by mistake.
@@ -76,22 +67,24 @@ export function SeatsSettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.seats.title")} />
 
-          <PersonalPlan
+          <CloudPlans
             session={session}
             apiBaseUrl={resolvedApiBaseUrl}
             organizationId={snapshot.organizationId}
             onSessionChange={onCloudSessionChange}
-            offer={offer}
-            holding={holding}
+            catalog={snapshot.catalog}
+            summary={snapshot.summary}
             usage={snapshot.usage}
             loading={snapshot.loading}
+            onRefresh={snapshot.refresh}
             localization={localization}
             onSignIn={onSignIn}
             signInDisabled={signInDisabled}
           />
 
-          {/* The model is the user's own, and saying so is the point: the plan
-              charges for the desk, never for the thinking done at it. */}
+          {/* The model is the user's own, and saying so is the point: plans
+              charge for the cloud and its agent time, never for the thinking
+              done by the model. The balance is an optional convenience. */}
           <AccountAICredits
             key={cloudSession?.user_id ?? "signed-out"}
             payments={payments}

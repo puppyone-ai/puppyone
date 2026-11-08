@@ -1,63 +1,202 @@
 import type { LocalizationContextValue } from "@puppyone/localization";
 import type {
+  DesktopBillingAddOn,
   DesktopBillingCatalog,
   DesktopBillingPlan,
   DesktopBillingSummary,
+  DesktopBillingUsage,
 } from "../../../lib/cloudApi";
 
 /**
- * Cloud pricing.
+ * Cloud pricing, as decided on 2026-11-08 (puppy-issues
+ * `document/puppypay/product.md`, "云端套餐").
  *
- * The product sells one thing: **Personal — one person, $19 a month**. It
- * includes exactly two things, and the page names exactly those two:
+ * Three plans, priced per person: Free, Personal ($10 a month) and Team ($20
+ * per person a month). Each plan includes the same three things, and the page
+ * names exactly those: cloud projects, storage and cloud agent hours. Team adds
+ * what a group needs to work together and keep its agents in check.
  *
- *  - **Storage**, a fixed allowance stated in GB.
- *  - **A Cloud Computer**, one computer of ours that keeps the person's agents
- *    working while their own computer is off.
+ * The headline is the price and what it is for; hours and storage are the
+ * allowance printed under it, never a unit price. A plan sold by the hour or by
+ * the gigabyte invites comparison with raw compute and storage, and loses.
  *
- * Agents on the user's own computer are free and stay free, so holding no plan
- * is a complete answer and never an error state.
+ * Rules this file keeps:
  *
- * This replaces the per-agent model (one cloud agent running at a time, $10 a
- * month each). Charging per person is the first step; extra storage and more
- * Cloud Computers can be sold as add-ons later without changing this shape.
- *
- * Still deliberately absent, since each one is tempting to show:
- *
- *  - **vCPU, memory, GPU, machine size.** Never quoted. The machine behind a
- *    Cloud Computer is ours to choose and ours to change, and a spec sheet
- *    freezes an implementation detail into a promise.
- *  - **Runtime units or hours.** RU is internal metering vocabulary and must
- *    never reach a user surface. A bill the user cannot predict is worse than
- *    a bill that is slightly too high.
- *  - **Storage priced per GB.** `document/product-philosophy.md` forbids the
- *    words 云盘 / 网盘 / Backup for the cloud copy, and a price per GB teaches
- *    the user it is a drive. Storage ships inside the plan instead.
+ *  - **Hours are agent time only.** A person opening or editing files in the
+ *    cloud never spends them, and the page says so beside the hours.
+ *  - **No machine specs, no runtime units.** RU and vCPU are internal; hours
+ *    are the only time unit a person sees.
+ *  - **No price per GB.** Storage ships inside the plan and grows in packs, so
+ *    the cloud copy never reads as a drive to fill (`product-philosophy.md`).
+ *  - **Amounts charged come from the catalog.** The local offers below are
+ *    indicative and only shown until the billing service answers.
  */
 
 const BYTES_PER_MB = 1000 ** 2;
 const BYTES_PER_GB = 1000 ** 3;
 const LOCAL_CURRENCY = "USD";
+const SECONDS_PER_HOUR = 3600;
+const DEFAULT_UNIT_SECONDS = 60;
+
+export const PLAN_ORDER = ["free", "personal", "team"] as const;
+export type PlanId = (typeof PLAN_ORDER)[number];
+
+/** What a team gets that one person does not need. Keys match catalog features. */
+export const TEAM_FEATURES = [
+  "team.member_roles",
+  "agent.access_rules",
+  "activity.log",
+  "billing.consolidated",
+] as const;
+
+export type PlanOffer = {
+  id: PlanId;
+  /** Per month; per person when `perPerson`. */
+  priceCents: number;
+  currency: string;
+  perPerson: boolean;
+  /** Fewest people the plan can be bought for. */
+  minimumSeats: number;
+  /** Cloud projects included; per person when `perPerson`. `null` means no cap. */
+  projects: number | null;
+  /** Storage included, in bytes; per person when `perPerson`. */
+  storageBytes: number | null;
+  /** Cloud agent hours a month; per person when `perPerson`. */
+  agentHours: number;
+  /** History kept, in days. */
+  historyDays: number | null;
+  teamFeatures: boolean;
+  purchasable: boolean;
+  /**
+   * The authoritative plan. Absent for indicative pricing, and a purchase can
+   * never start without it.
+   */
+  catalogPlan?: DesktopBillingPlan;
+};
+
+export type AddOnOffer = {
+  id: string;
+  kind: "hours" | "storage";
+  priceCents: number;
+  currency: string;
+  /** Agent hours each pack adds a month. */
+  hours: number;
+  /** Bytes each pack adds. */
+  storageBytes: number;
+  maxQuantity: number;
+  availableOn: readonly string[];
+  catalogAddOn?: DesktopBillingAddOn;
+};
+
+const LOCAL_PLANS: Record<PlanId, PlanOffer> = {
+  free: {
+    id: "free", priceCents: 0, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
+    projects: 1, storageBytes: 1 * BYTES_PER_GB, agentHours: 5, historyDays: 30,
+    teamFeatures: false, purchasable: false,
+  },
+  personal: {
+    id: "personal", priceCents: 1000, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
+    projects: 20, storageBytes: 10 * BYTES_PER_GB, agentHours: 40, historyDays: 30,
+    teamFeatures: false, purchasable: true,
+  },
+  team: {
+    id: "team", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 2,
+    projects: 20, storageBytes: 20 * BYTES_PER_GB, agentHours: 40, historyDays: 365,
+    teamFeatures: true, purchasable: true,
+  },
+};
+
+const LOCAL_ADD_ONS: AddOnOffer[] = [
+  {
+    id: "agent_hours_100", kind: "hours", priceCents: 500, currency: LOCAL_CURRENCY,
+    hours: 100, storageBytes: 0, maxQuantity: 20, availableOn: ["personal", "team"],
+  },
+  {
+    id: "storage_10gb", kind: "storage", priceCents: 500, currency: LOCAL_CURRENCY,
+    hours: 0, storageBytes: 10 * BYTES_PER_GB, maxQuantity: 50, availableOn: ["personal", "team"],
+  },
+];
+
+export type PlanCatalogView = {
+  plans: PlanOffer[];
+  addOns: AddOnOffer[];
+  /** False while the prices shown are indicative. */
+  authoritative: boolean;
+};
 
 /**
- * Personal, per month, in cents.
+ * The three plans and the add-ons, from the catalog when it is readable.
  *
- * Indicative until the billing service can answer. The amount actually charged
- * always comes from the billing catalog, so the catalog must carry the same
- * number for the page and the checkout to agree.
+ * A catalog that does not carry all three plans (an older billing service) is
+ * not this pricing, so the page keeps the indicative offers instead of mixing
+ * two price lists.
  */
-const LOCAL_PERSONAL_PRICE_CENTS = 1900;
+export function resolvePlanCatalog(catalog: DesktopBillingCatalog | null): PlanCatalogView {
+  if (!catalog) return { plans: PLAN_ORDER.map((id) => LOCAL_PLANS[id]), addOns: LOCAL_ADD_ONS, authoritative: false };
+  const unitSeconds = catalog.runtime.unit_seconds || DEFAULT_UNIT_SECONDS;
+  const plans = PLAN_ORDER.map((id) => {
+    const plan = catalog.plans.find((candidate) => candidate.id === id || candidate.aliases.includes(id));
+    return plan ? planFromCatalog(id, plan, unitSeconds) : null;
+  });
+  if (plans.some((plan) => plan === null)) {
+    return { plans: PLAN_ORDER.map((id) => LOCAL_PLANS[id]), addOns: LOCAL_ADD_ONS, authoritative: false };
+  }
+  return {
+    plans: plans as PlanOffer[],
+    addOns: (catalog.add_ons ?? []).map((addOn) => addOnFromCatalog(addOn, unitSeconds)),
+    authoritative: true,
+  };
+}
 
-/** Storage included with Personal, used only while the catalog is unreadable. */
-const LOCAL_PERSONAL_STORAGE_BYTES = 10 * BYTES_PER_GB;
+function planFromCatalog(id: PlanId, plan: DesktopBillingPlan, unitSeconds: number): PlanOffer {
+  const perPerson = plan.seats.minimum > 1 || plan.runtime.units_per_seat > 0;
+  const units = perPerson ? plan.runtime.units_per_seat : plan.runtime.fixed_units;
+  return {
+    id,
+    priceCents: plan.price_per_seat_cents ?? 0,
+    currency: plan.currency,
+    perPerson,
+    minimumSeats: Math.max(1, plan.seats.minimum),
+    projects: limitOf(plan, "projects.max"),
+    storageBytes: limitOf(plan, "storage.max_bytes"),
+    agentHours: unitsToHours(units, unitSeconds),
+    historyDays: limitOf(plan, "history.retention_days"),
+    teamFeatures: TEAM_FEATURES.some((feature) => plan.features[feature] === true),
+    purchasable: plan.purchasable,
+    catalogPlan: plan,
+  };
+}
 
-/** The id Personal is shown under while no catalog plan is readable. */
-const LOCAL_PERSONAL_ID = "personal";
+function addOnFromCatalog(addOn: DesktopBillingAddOn, unitSeconds: number): AddOnOffer {
+  const storageBytes = addOn.limit_increments["storage.max_bytes"] ?? 0;
+  return {
+    id: addOn.id,
+    kind: addOn.runtime_units > 0 ? "hours" : "storage",
+    priceCents: addOn.price_cents,
+    currency: addOn.currency,
+    hours: unitsToHours(addOn.runtime_units, unitSeconds),
+    storageBytes,
+    maxQuantity: addOn.max_quantity,
+    availableOn: addOn.available_on_plans,
+    catalogAddOn: addOn,
+  };
+}
+
+/** A per-person limit for one person, or a fixed limit as it stands. */
+function limitOf(plan: DesktopBillingPlan, key: string): number | null {
+  const perSeat = plan.per_seat_limits[key];
+  if (typeof perSeat === "number") return perSeat;
+  const fixed = plan.fixed_limits[key];
+  return typeof fixed === "number" ? fixed : null;
+}
+
+export function unitsToHours(units: number, unitSeconds: number = DEFAULT_UNIT_SECONDS): number {
+  return Math.round(((units * unitSeconds) / SECONDS_PER_HOUR) * 10) / 10;
+}
 
 /**
- * Statuses that mean the person is not holding a paid plan right now. Every
- * other status is a plan they hold, including one already scheduled to
- * cancel or one whose payment is late.
+ * Statuses that mean no paid plan is held right now. Every other status is a
+ * plan held, including one scheduled to cancel or one whose payment is late.
  */
 const NOT_HELD: ReadonlySet<DesktopBillingSummary["status"]> = new Set([
   "free",
@@ -65,81 +204,25 @@ const NOT_HELD: ReadonlySet<DesktopBillingSummary["status"]> = new Set([
   "revoked",
 ]);
 
-export type PersonalPlanOffer = {
-  id: string;
-  /** What Personal costs per month. `null` means talk to us. */
-  priceCents: number | null;
-  currency: string;
-  /** Storage included, in bytes. `null` when the plan does not say. */
-  storageBytes: number | null;
-  purchasable: boolean;
-  /**
-   * The authoritative plan Personal maps to. Absent for indicative pricing,
-   * and a purchase cannot start without it: an amount we charge must come
-   * from the billing authority, never from a number the client rendered.
-   */
-  catalogPlan?: DesktopBillingPlan;
-};
-
-/** Indicative offer, shown until the billing service can answer. */
-export function localPersonalOffer(): PersonalPlanOffer {
-  return {
-    id: LOCAL_PERSONAL_ID,
-    priceCents: LOCAL_PERSONAL_PRICE_CENTS,
-    currency: LOCAL_CURRENCY,
-    storageBytes: LOCAL_PERSONAL_STORAGE_BYTES,
-    purchasable: true,
-  };
-}
-
-/**
- * The authoritative offer, once a session can read the billing catalog.
- *
- * One plan is sold, so one plan is read: the cheapest public plan that costs
- * something. The free plan costs nothing and is not an offer, and anything
- * dearer is a plan this surface does not sell.
- */
-export function catalogPersonalOffer(catalog: DesktopBillingCatalog): PersonalPlanOffer | null {
-  const plan = catalog.plans
-    .filter((candidate) => candidate.public
-      && candidate.price_per_seat_cents !== null
-      && candidate.price_per_seat_cents > 0)
-    .sort((a, b) => (a.price_per_seat_cents ?? 0) - (b.price_per_seat_cents ?? 0))[0];
-  if (!plan) return null;
-  return {
-    id: plan.id,
-    priceCents: plan.price_per_seat_cents,
-    currency: plan.currency,
-    storageBytes: planStorageBytes(plan),
-    purchasable: plan.purchasable,
-    catalogPlan: plan,
-  };
-}
-
-export function resolvePersonalOffer(
-  catalog: DesktopBillingCatalog | null,
-): { offer: PersonalPlanOffer; authoritative: boolean } {
-  const authoritative = catalog ? catalogPersonalOffer(catalog) : null;
-  if (authoritative) return { offer: authoritative, authoritative: true };
-  return { offer: localPersonalOffer(), authoritative: false };
-}
-
 export type PlanHolding = {
-  /** Whether the person holds Personal right now. */
+  /** Whether a paid plan is held right now. */
   subscribed: boolean;
-  planId: string | null;
-  /** Monthly total in cents, or `null` while nothing authoritative is known. */
+  /** The plan in effect: "free" when nothing paid is held. */
+  planId: PlanId | string;
+  seats: number;
+  /** Monthly total in cents for the plan, or `null` while unknown. */
   monthlyCents: number | null;
   currency: string;
   status: DesktopBillingSummary["status"] | null;
+  renewsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  /** Add-on quantities held, by id. */
+  addOns: Record<string, number>;
 };
 
 /**
- * What this account currently holds.
- *
- * Holding nothing is the free state, and it is a complete answer: local agents
- * stay free forever, so a person can stay there permanently. The philosophy is
- * explicit that the local-only stage is a correct end state, not a funnel step.
+ * What this account holds. Holding nothing is Free, and Free is a complete
+ * answer: everything on this computer stays free for good.
  */
 export function resolvePlanHolding(
   summary: DesktopBillingSummary | null,
@@ -148,29 +231,82 @@ export function resolvePlanHolding(
   if (!summary || NOT_HELD.has(summary.status)) {
     return {
       subscribed: false,
-      planId: null,
+      planId: "free",
+      seats: 1,
       monthlyCents: 0,
       currency: LOCAL_CURRENCY,
       status: summary?.status ?? null,
+      renewsAt: null,
+      cancelAtPeriodEnd: false,
+      addOns: {},
     };
   }
-  const plan = catalog?.plans.find((candidate) => candidate.id === summary.plan_id) ?? null;
-  const unit = plan?.price_per_seat_cents ?? null;
+  const plan = catalog?.plans.find((candidate) => candidate.id === summary.plan_id
+    || candidate.aliases.includes(summary.plan_id)) ?? null;
   const seats = Math.max(1, summary.seat_quantity);
+  const unit = plan?.price_per_seat_cents ?? null;
+  const addOns: Record<string, number> = {};
+  for (const item of summary.add_ons ?? []) {
+    if (!item.cancel_at_period_end) addOns[item.add_on_id] = (addOns[item.add_on_id] ?? 0) + item.quantity;
+  }
   return {
     subscribed: true,
-    planId: summary.plan_id,
+    planId: canonicalPlanId(plan?.id ?? summary.plan_id),
+    seats,
     monthlyCents: unit === null ? null : unit * seats,
     currency: plan?.currency ?? LOCAL_CURRENCY,
     status: summary.status,
+    renewsAt: summary.current_period_end,
+    cancelAtPeriodEnd: summary.cancel_at_period_end,
+    addOns,
   };
 }
 
-/** Storage a plan grants one person, in bytes, or `null` if it does not say. */
-export function planStorageBytes(plan: DesktopBillingPlan): number | null {
-  const storage = plan.per_seat_limits["storage.max_bytes"]
-    ?? plan.fixed_limits["storage.max_bytes"];
-  return typeof storage === "number" ? storage : null;
+function canonicalPlanId(planId: string): PlanId | string {
+  if (planId === "plus") return "personal";
+  if (planId === "business" || planId === "pro") return "team";
+  return planId;
+}
+
+export type AllowanceReading = {
+  /** Agent hours used this period, or `null` without an authoritative reading. */
+  usedHours: number | null;
+  includedHours: number;
+  resetsAt: string | null;
+  usedBytes: number | null;
+  includedBytes: number | null;
+};
+
+/**
+ * This period's agent hours and storage against what the plan includes.
+ *
+ * A meter is only drawn against an authoritative reading; without one the
+ * page states what the plan includes and never a fabricated consumption.
+ */
+export function resolveAllowance(
+  usage: DesktopBillingUsage | null,
+  offer: PlanOffer,
+  holding: PlanHolding,
+  addOns: readonly AddOnOffer[],
+): AllowanceReading {
+  const extraHours = addOns.reduce((sum, addOn) => sum + addOn.hours * (holding.addOns[addOn.id] ?? 0), 0);
+  const extraBytes = addOns.reduce(
+    (sum, addOn) => sum + addOn.storageBytes * (holding.addOns[addOn.id] ?? 0),
+    0,
+  );
+  const seats = offer.perPerson ? holding.seats : 1;
+  const planHours = offer.agentHours * seats + extraHours;
+  const planBytes = offer.storageBytes === null ? null : offer.storageBytes * seats + extraBytes;
+  const allowance = usage?.runtime.allowance ?? null;
+  return {
+    usedHours: allowance ? unitsToHours(allowance.consumed_units, allowance.unit_seconds) : null,
+    includedHours: allowance && allowance.granted_units > 0
+      ? unitsToHours(allowance.granted_units, allowance.unit_seconds)
+      : planHours,
+    resetsAt: allowance?.resets_at ?? holding.renewsAt,
+    usedBytes: usage ? usage.storage.logical_bytes : null,
+    includedBytes: usage?.storage.limit_bytes ?? planBytes,
+  };
 }
 
 export function formatMoney(
@@ -204,4 +340,51 @@ export function formatStorage(bytes: number, localization: LocalizationContextVa
     });
   }
   return localization.t("settings.plan.amountGb", { amount: formatGigabytes(safe, localization) });
+}
+
+export function formatHours(hours: number, localization: LocalizationContextValue): string {
+  return localization.formatNumber(hours, { maximumFractionDigits: hours < 10 ? 1 : 0 });
+}
+
+/** "3.2 GB of 10 GB", or what the plan includes while usage is unknown. */
+export function describeStorageReading(
+  reading: AllowanceReading,
+  localization: LocalizationContextValue,
+): string {
+  const { usedBytes, includedBytes } = reading;
+  if (includedBytes === null) return usedBytes === null ? "—" : formatStorage(usedBytes, localization);
+  if (usedBytes === null) return formatStorage(includedBytes, localization);
+  return localization.t("settings.plan.storageUsedOf", {
+    used: formatStorage(usedBytes, localization),
+    total: formatStorage(includedBytes, localization),
+  });
+}
+
+/** "12 of 40 h", or the hours included while usage is unknown. */
+export function describeHoursReading(
+  reading: AllowanceReading,
+  localization: LocalizationContextValue,
+): string {
+  if (reading.usedHours === null) {
+    return localization.t("settings.plan.hoursIncluded", {
+      hours: formatHours(reading.includedHours, localization),
+    });
+  }
+  return localization.t("settings.plan.hoursUsedOf", {
+    used: formatHours(reading.usedHours, localization),
+    total: formatHours(reading.includedHours, localization),
+  });
+}
+
+/** The localized name of the plan held. */
+export function heldPlanName(holding: PlanHolding, localization: LocalizationContextValue): string {
+  if (!holding.subscribed) return localization.t("settings.plan.name.free");
+  return localization.t(holding.planId === "team" ? "settings.plan.name.team" : "settings.plan.name.personal");
+}
+
+/** Bar tone: calm, then a warning from 80%, then exhausted from 90%. */
+export function meterTone(percent: number): "" | " warning" | " exhausted" {
+  if (percent >= 90) return " exhausted";
+  if (percent >= 80) return " warning";
+  return "";
 }

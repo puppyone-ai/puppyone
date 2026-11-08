@@ -57,37 +57,37 @@ it("states the identity and nothing the page says again below it", async () => {
   expect(host.textContent).not.toMatch(/View plans|workspace/i);
 });
 
-it("draws a meter only against an authoritative reading", async () => {
+it("draws meters only against an authoritative reading", async () => {
   const usage = {
     runtime: {
-      org_id: "o1", available_units: 504, reserved_units: 0,
-      granted_units: 720, consumed_units: 216,
+      org_id: "o1", available_units: 84, reserved_units: 0,
+      granted_units: 300, consumed_units: 216,
       postpaid_available_units: 0, postpaid_consumed_units: 0, buckets: [],
+      allowance: {
+        granted_units: 300, consumed_units: 216, reserved_units: 0,
+        resets_at: "2026-12-01T00:00:00Z", unit_seconds: 60,
+      },
     },
     storage: {
-      logical_bytes: 6.2 * 1000 ** 3, limit_bytes: 20 * 1000 ** 3,
-      percent: 31, threshold_percent: 80, version: 1,
+      logical_bytes: 0.31 * 1000 ** 3, limit_bytes: 1000 ** 3,
+      percent: 31, threshold_percent: 0, version: 1,
     },
   } as DesktopBillingUsage;
   const host = await render(
-    <AccountUsageMeters usage={usage} catalog={null} planId="free" />,
+    <AccountUsageMeters usage={usage} catalog={null} summary={null} />,
   );
-  const bars = host.querySelectorAll('[role="progressbar"]');
-  // Storage is the only quantity quoted back to the user, so exactly one bar.
-  // `planPricing.ts` fixes the rule that runtime metering must never reach a
-  // user surface, and a bar that drains while the product is used would teach
-  // the reader to run fewer agents.
-  expect(bars).toHaveLength(1);
-  expect(bars[0].getAttribute("aria-valuenow")).toBe("31");
-  expect(host.textContent).toContain("6.2");
-  // 720 granted / 216 consumed units is 12 and 3.6 hours: neither may appear.
-  expect(host.textContent).not.toContain("3.6");
-  expect(host.textContent).not.toMatch(/\bhours?\b/i);
+  const bars = [...host.querySelectorAll('[role="progressbar"]')];
+  // Both are the plan's own promise: agent hours and storage. Hours are agent
+  // time only, so the bar never drains while a person works.
+  expect(bars.map((bar) => bar.getAttribute("aria-valuenow"))).toEqual(["72", "31"]);
+  expect(host.textContent).toContain("3.6 of 5 h");
+  // Runtime units are internal and never reach the page.
+  expect(host.textContent).not.toMatch(/\bunits?\b|216|300/);
 });
 
 it("never fabricates a filled bar when usage is unknown", async () => {
   const host = await render(
-    <AccountUsageMeters usage={null} catalog={null} planId="free" />,
+    <AccountUsageMeters usage={null} catalog={null} summary={null} />,
   );
   // A filled bar is a claim about the user's money. With no reading there is
   // nothing to claim, so nothing is drawn.

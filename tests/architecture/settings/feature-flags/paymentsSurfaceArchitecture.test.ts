@@ -11,9 +11,9 @@ describe("payments surfaces in Settings", () => {
     const account = readFileSync("src/features/settings/main/AccountSettingsView.tsx", "utf8");
     const plan = readFileSync("src/features/settings/main/SeatsSettingsView.tsx", "utf8");
     // No catalogue price may appear beside the state it would change.
-    expect(account).not.toContain("PersonalPlan");
-    expect(account).not.toContain("resolvePersonalOffer");
-    expect(plan).toContain("<PersonalPlan");
+    expect(account).not.toContain("CloudPlans");
+    expect(account).not.toContain("resolvePlanCatalog");
+    expect(plan).toContain("<CloudPlans");
     // Linking runs one way: the nav is on screen, so Plan needs no way back.
     expect(account).toContain("onOpenBilling");
     expect(plan).not.toContain("onOpenAccount");
@@ -28,7 +28,7 @@ describe("payments surfaces in Settings", () => {
       expect(source).toMatch(/if \(!payments\) return null;|const cloudPlan = payments && cloudEnabled;/);
     }
     // Nothing below them may render a price by reading the experiment itself.
-    const purchase = readFileSync("src/features/settings/main/PersonalPlan.tsx", "utf8");
+    const purchase = readFileSync("src/features/settings/main/CloudPlans.tsx", "utf8");
     expect(purchase).not.toContain("usePaymentsExperience");
   });
 });

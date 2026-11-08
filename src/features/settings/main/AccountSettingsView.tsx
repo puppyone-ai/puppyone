@@ -16,7 +16,7 @@ import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../
 import { AccountAICredits } from "./AccountAICredits";
 import { AccountIdentity } from "./AccountIdentity";
 import { AccountUsageMeters } from "./AccountUsageMeters";
-import { formatMoney, resolvePlanHolding, type PlanHolding } from "./planPricing";
+import { formatMoney, heldPlanName, resolvePlanHolding, type PlanHolding } from "./planPricing";
 import { useAccountPlan } from "./useAccountPlan";
 
 type AccountAuthOperation = "signin" | "signout";
@@ -233,7 +233,7 @@ export function AccountSettingsView({
                   <AccountUsageMeters
                     usage={snapshot.usage}
                     catalog={snapshot.catalog}
-                    planId={snapshot.summary?.plan_id ?? null}
+                    summary={snapshot.summary}
                   />
                 </SettingsSubsection>
               )}
@@ -266,9 +266,8 @@ function describeHolding(
   localization: LocalizationContextValue,
 ): string {
   const { t } = localization;
-  if (!holding.subscribed) return t("settings.plan.freePrice");
-  const name = t("settings.seats.planName");
-  if (holding.monthlyCents === null) return name;
+  const name = heldPlanName(holding, localization);
+  if (!holding.subscribed || holding.monthlyCents === null) return name;
   return `${name} · ${t("settings.plan.monthlyFor", {
     amount: formatMoney(holding.monthlyCents, holding.currency, localization),
   })}`;
