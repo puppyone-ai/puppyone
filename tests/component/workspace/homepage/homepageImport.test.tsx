@@ -123,7 +123,7 @@ describe("importing from the Homepage", () => {
       const button = container.querySelector<HTMLButtonElement>(`.onboarding-import-source[data-import-source='${source}']`);
       expect(button?.dataset.importMode).toBe("remote");
       expect(button?.disabled).toBe(true);
-      expect(button?.textContent).toContain("Direct import pending");
+      expect(button?.textContent).toContain("Coming soon");
       await act(async () => button?.click());
     }
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
@@ -187,7 +187,9 @@ describe("importing from the Homepage", () => {
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='obsidian']")?.click();
     });
-    expect([...container.querySelectorAll(".onboarding-import-steps > li")]).toHaveLength(2);
+    // A vault is already a folder: no export steps, just the source and what happens to it.
+    expect(container.querySelector(".onboarding-import-steps")).toBeNull();
+    expect(container.querySelector(".onboarding-import-source-summary [data-import-brand='obsidian']")).not.toBeNull();
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary")?.click();
       await Promise.resolve();
