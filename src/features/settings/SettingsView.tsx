@@ -14,7 +14,8 @@ import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
 import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
 import { usePaymentsExperience } from "../payments";
-import { useAccountAvailable } from "../flags";
+import { useAccountAvailable, useHostDevicesEnabled } from "../flags";
+import { OtherComputersSettings } from "../hosts";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
 import type { SettingsViewProps } from "./types";
 import { writeClipboardText } from "./utils";
@@ -71,12 +72,14 @@ export function SettingsView({
   // hands the answer down, so no payment surface reads the flag itself.
   const paymentsEnabled = usePaymentsExperience();
   const accountAvailable = useAccountAvailable();
+  const hostDevicesEnabled = useHostDevicesEnabled();
 
   if (!isSettingsSectionAvailable(activeSection, {
     cloudEnabled,
     accountAvailable,
     otherAppImportsEnabled,
     localWorkspaceAvailable: workspace !== null,
+    hostDevicesEnabled,
   })) {
     return (
       <GeneralSettingsView
@@ -126,7 +129,12 @@ export function SettingsView({
     );
   }
 
-  if (activeSection === "account") {
+  if (activeSection === "other-computers" && cloudSession) {
+    return <OtherComputersSettings session={cloudSession} />;
+  }
+
+  // The computers belong to the signed-in account; signed out, this is where to sign in.
+  if (activeSection === "account" || activeSection === "other-computers") {
     return (
       <AccountSettingsView
         cloudSession={cloudSession}

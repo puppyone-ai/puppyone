@@ -735,10 +735,11 @@ function AppContent() {
       cloudEnabled,
       accountAvailable,
       otherAppImportsEnabled: enableOtherAppImports,
+      hostDevicesEnabled,
     })) {
       setActiveSettingsSection(accountAvailable ? "account" : "general");
     }
-  }, [accountAvailable, activeSettingsSection, cloudEnabled, enableOtherAppImports]);
+  }, [accountAvailable, activeSettingsSection, cloudEnabled, enableOtherAppImports, hostDevicesEnabled]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {

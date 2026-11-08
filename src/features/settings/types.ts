@@ -3,7 +3,7 @@ import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
-export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "seats" | "cloud";
+export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "seats" | "cloud" | "other-computers";
 
 export type SettingsViewProps = {
   workspace: Workspace | null;

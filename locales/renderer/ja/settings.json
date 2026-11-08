@@ -469,6 +469,7 @@
   "sidebar.puppyone": "PuppyOne",
   "sidebar.account": "アカウント",
   "sidebar.seats": "プラン",
+  "sidebar.otherComputers": "ほかのコンピューター",
   "account.subscriptionTitle": "プラン",
   "account.signedOutDetail": "サインインすると PuppyOne Cloud を利用できます",
   "account.signedOutDetailCompute": "サインインすると PuppyOne の計算リソースを利用できます",

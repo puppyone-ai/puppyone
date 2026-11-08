@@ -16,6 +16,7 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+import { LocalIcon } from "@puppyone/shared-ui";
 import type { SettingsSection } from "../types";
 
 export type SettingsSidebarItem = {
@@ -27,6 +28,7 @@ export type SettingsSidebarItem = {
   requiresCloud?: boolean;
   requiresAccount?: boolean;
   requiresOtherAppImports?: boolean;
+  requiresHostDevices?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
@@ -45,6 +47,8 @@ export type SettingsVisibilityContext = {
   accountAvailable: boolean;
   otherAppImportsEnabled?: boolean;
   localWorkspaceAvailable?: boolean;
+  /** Sharing folders with the owner's other computers is on for this account. */
+  hostDevicesEnabled?: boolean;
 };
 
 /**
@@ -78,6 +82,9 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       // Plan links out to them instead of hosting a third entry here.
       { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresAccount: true },
       { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false, requiresCloud: true },
+      // The owner's computers belong to the account: every one signed in can open
+      // shared folders, and this is where one is taken out of that.
+      { id: "other-computers", labelId: "settings.sidebar.otherComputers", icon: LocalIcon, disabled: false, requiresHostDevices: true },
     ],
   },
   {
@@ -123,6 +130,7 @@ export function resolveSettingsSidebarGroups({
   accountAvailable,
   otherAppImportsEnabled = false,
   localWorkspaceAvailable = true,
+  hostDevicesEnabled = false,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
   return SETTINGS_SIDEBAR_GROUPS
     .filter((group) => (!group.requiresCloud || cloudEnabled)
@@ -135,6 +143,7 @@ export function resolveSettingsSidebarGroups({
         && (!item.requiresAccount || accountAvailable)
         && (!item.requiresLocalWorkspace || localWorkspaceAvailable)
         && (!item.requiresOtherAppImports || otherAppImportsEnabled)
+        && (!item.requiresHostDevices || hostDevicesEnabled)
       )),
     }))
     .filter((group) => group.items.length > 0);

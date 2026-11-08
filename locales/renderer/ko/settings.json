@@ -469,6 +469,7 @@
   "sidebar.puppyone": "PuppyOne",
   "sidebar.account": "계정",
   "sidebar.seats": "요금제",
+  "sidebar.otherComputers": "다른 컴퓨터",
   "account.subscriptionTitle": "플랜",
   "account.signedOutDetail": "로그인하면 PuppyOne Cloud를 사용할 수 있습니다",
   "account.signedOutDetailCompute": "로그인하면 PuppyOne 컴퓨팅을 사용할 수 있습니다",

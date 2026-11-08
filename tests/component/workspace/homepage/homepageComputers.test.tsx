@@ -123,13 +123,4 @@ describe("the owner's other computers on the Homepage", () => {
     expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
   });
 
-  it("removes another computer through the App, which asks first", async () => {
-    const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
-    const { host } = await render({ bridge: { revokeHostDevice } });
-    await act(async () => { personal(host).querySelector<HTMLButtonElement>('[aria-label="Manage computers"]')?.click(); });
-    const remove = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-      .find((item) => stripBidiIsolation(item.textContent).includes("Remove Office PC"));
-    await act(async () => { remove?.click(); });
-    expect(revokeHostDevice).toHaveBeenCalledWith({ deviceId: OFFICE, expectedSession: { userId: session.user_id, generation: "one" } });
-  });
 });

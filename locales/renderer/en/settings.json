@@ -506,6 +506,7 @@
   "sidebar.puppyone": "PuppyOne",
   "sidebar.account": "Account",
   "sidebar.seats": "Plan",
+  "sidebar.otherComputers": "Other computers",
   "account.subscriptionTitle": "Plan",
   "account.signedOutDetail": "Sign in to use PuppyOne Cloud",
   "account.signedOutDetailCompute": "Sign in to use PuppyOne compute",
