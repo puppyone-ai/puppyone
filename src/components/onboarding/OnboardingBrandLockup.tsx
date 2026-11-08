@@ -41,7 +41,7 @@ export function OnboardingBrandLockup({ state, resolvedTheme, toolbar, trailing 
           />
         </span>
         <div className="onboarding-brand-copy">
-          <span className="onboarding-brand-name">{t("onboarding.brand.agentReadyMessage")}</span>
+          <h1 className="onboarding-brand-name">{t("onboarding.brand.agentReadyMessage")}</h1>
         </div>
       </>)}
       {trailing}

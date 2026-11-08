@@ -70,7 +70,7 @@ function ThisComputerRows({ catalog, onRemove }: { catalog: HostCatalog; onRemov
     </div>}
     {deviceId && <SettingsValueRow label={t("hosts.settings.removeThis")} value={t("hosts.settings.removeThisDetail")}
       action={<button type="button" className="desktop-settings-row-action" data-remove-computer={deviceId}
-        onClick={() => onRemove(deviceId)}>{t("hosts.settings.remove")}</button>} />}
+        aria-label={t("hosts.settings.removeThis")} onClick={() => onRemove(deviceId)}>{t("hosts.settings.remove")}</button>} />}
   </>;
 }
 

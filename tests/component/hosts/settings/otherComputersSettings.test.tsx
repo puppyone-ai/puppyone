@@ -6,6 +6,7 @@ import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
 import { OtherComputersSettings } from "../../../../src/features/hosts";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, queryAllByRole, queryByRole, readableText } from "../../../support/react/queries";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const THIS = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -29,62 +30,62 @@ async function render(bridge: Record<string, unknown> = {}, devices = [device(TH
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(<OtherComputersSettings session={session as never} />)));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  // Loaded once the other computers are listed, or said to be none.
+  await vi.waitFor(() => expect(readableText(host)).not.toContain("Loading"));
   return host;
 }
-const row = (host: HTMLElement, label: string) => [...host.querySelectorAll<HTMLElement>(".desktop-settings-row")]
-  .find((candidate) => candidate.textContent?.includes(label));
-const startAtLogin = (host: HTMLElement) => host.querySelector<HTMLInputElement>('input[aria-label="Share after this computer restarts"]');
+const thisComputer = (host: HTMLElement) => getByRole(host, "region", { name: "This computer" });
+const others = (host: HTMLElement) => getByRole(host, "region", { name: "My other computers" });
+const removeButton = (host: HTMLElement, name: string) => getByRole(host, "button", { name });
+const startAtLogin = (host: HTMLElement) => queryByRole(host, "checkbox", { name: "Share after this computer restarts" }) as HTMLInputElement | null;
 
 describe("other computers, in Settings", () => {
   it("lists the owner's other computers with their presence, never this one among them", async () => {
     const host = await render();
-    const others = [...host.querySelectorAll("[data-remove-computer]")].map((button) => button.getAttribute("data-remove-computer"));
-    // One removal for this computer, one per other computer.
-    expect(others).toEqual([THIS, OFFICE]);
-    expect(row(host, "Office PC")?.textContent).toMatch(/Last online .*3 hours ago/);
+    // One removal for this computer, one per other computer, each saying which.
+    expect(queryAllByRole(host, "button", { name: /^Remove / }).map(accessibleName)).toEqual(["Remove this computer", "Remove Office PC"]);
+    expect(readableText(others(host))).toMatch(/Office PC Last online .*3 hours ago Remove Office PC/);
+    expect(readableText(others(host))).not.toContain("MacBook Pro");
   });
 
   it("removes another computer through the App, which asks first", async () => {
     const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
     const host = await render({ revokeHostDevice });
-    const remove = host.querySelector<HTMLButtonElement>(`[data-remove-computer="${OFFICE}"]`)!;
-    expect(remove.getAttribute("aria-label")).toContain("Office PC");
-    await act(async () => { remove.click(); });
+    await act(async () => { removeButton(host, "Remove Office PC").click(); });
     expect(revokeHostDevice).toHaveBeenCalledExactlyOnceWith({ deviceId: OFFICE, expectedSession });
   });
 
   it("says it could not remove the computer, not a folder, when Main gives no reason", async () => {
     const host = await render({ revokeHostDevice: async () => { throw new Error(); } });
-    await act(async () => { host.querySelector<HTMLButtonElement>(`[data-remove-computer="${OFFICE}"]`)!.click(); });
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Unable to remove this computer.");
+    await act(async () => { removeButton(host, "Remove Office PC").click(); });
+    await vi.waitFor(() => expect(readableText(getByRole(host, "alert"))).toBe("Unable to remove this computer."));
   });
 
   it("removes this computer from the account, through the same request", async () => {
     const revokeHostDevice = vi.fn(async () => ({ revoked: true }));
     const host = await render({ revokeHostDevice });
-    await act(async () => { host.querySelector<HTMLButtonElement>(`[data-remove-computer="${THIS}"]`)!.click(); });
+    await act(async () => { removeButton(host, "Remove this computer").click(); });
     expect(revokeHostDevice).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, expectedSession });
   });
 
   it("says when there are no other computers yet", async () => {
     const host = await render({}, [device(THIS, "MacBook Pro", true)]);
-    expect(host.querySelector("[data-other-computers-empty]")?.textContent).toContain("No other computers yet");
+    expect(readableText(others(host))).toContain("No other computers yet");
   });
 
   it("pauses this computer's sharing and resumes it from the same row", async () => {
     const setHostSharingPaused = vi.fn(async () => ({}));
     const host = await render({ setHostSharingPaused });
-    expect(row(host, "Sharing")?.textContent).toContain("On");
-    await act(async () => { host.querySelector<HTMLButtonElement>('[data-sharing-action="pause"]')!.click(); });
+    expect(readableText(thisComputer(host))).toContain("Sharing On Pause");
+    await act(async () => { getByRole(thisComputer(host), "button", { name: "Pause" }).click(); });
     expect(setHostSharingPaused).toHaveBeenCalledWith({ paused: true, expectedSession });
   });
 
   it("offers Resume while paused, where nothing else would", async () => {
     const host = await render({ getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: true,
       activeRequests: 0, watching: 0, running: [] }) });
-    expect(row(host, "Sharing")?.textContent).toContain("Paused");
-    expect(host.querySelector('[data-sharing-action="resume"]')?.textContent).toBe("Resume");
+    expect(readableText(thisComputer(host))).toContain("Sharing Paused Resume");
+    expect(getByRole(thisComputer(host), "button", { name: "Resume" })).toBeTruthy();
   });
 
   it("turns sharing after a restart on through the App", async () => {
@@ -104,6 +105,6 @@ describe("other computers, in Settings", () => {
   it("says so when the setting cannot be changed", async () => {
     const host = await render({ setHostAutostart: async () => { throw new Error("denied"); } });
     await act(async () => { startAtLogin(host)!.click(); });
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("Unable to change this setting.");
+    await vi.waitFor(() => expect(readableText(getByRole(host, "alert"))).toContain("Unable to change this setting."));
   });
 });

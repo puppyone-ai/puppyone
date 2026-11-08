@@ -12,6 +12,7 @@ import {
 } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
 import type { LocalFolderCloudNotice } from "../../../../src/features/cloud/project/localFolderCloudNoticeState";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { accessibleName, getByRole, isChecked, isDisabled, queryAllByRole, queryByRole } from "../../../support/react/queries";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,17 +42,16 @@ async function renderHeader(menu: ProjectPlaceMenu, audience?: ProjectAudience |
   await act(async () => root.render(withTestLocalization(
     <DesktopTitlebarContext {...projectProps} placeMenu={{ menu, handlers, audience }} />)));
 }
-const openMenu = () => act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!.click());
-const menuOpen = () => document.querySelector(".desktop-project-place-menu") !== null;
-const label = (element: Element) => element.querySelector(".desktop-menu-item-label")?.textContent ?? "";
-const action = (element: Element) => element.querySelector(".project-audience-action")?.textContent ?? null;
-/** Each audience as the menu says it: [name, ticked, the action at its end]. */
-const tiers = () => [...document.querySelectorAll(".project-audience-tier")]
-  .map((tier) => [label(tier), tier.getAttribute("aria-checked") === "true", action(tier)]);
-const details = () => [...document.querySelectorAll(".project-audience-detail")].map((detail) => [label(detail), action(detail)]);
-const tier = (name: string) => [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")].find((row) => label(row) === name)!;
-const detail = (text: string) => [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")]
-  .find((row) => label(row).includes(text))!;
+const placeButton = () => getByRole(container, "button", { name: /Where this project is$/ });
+const openMenu = () => act(() => placeButton().click());
+const menu = () => queryByRole(document, "dialog", { name: "Where this project is" });
+const audienceRegion = () => queryByRole(menu()!, "region", { name: "Who can open it" });
+/** Each audience as it is announced: [name with its action, ticked]. */
+const tiers = () => queryAllByRole(audienceRegion()!, "menuitemcheckbox").map((tier) => [accessibleName(tier), isChecked(tier)]);
+/** The lines under the audiences, as announced. */
+const details = () => queryAllByRole(audienceRegion()!, "menuitem").map(accessibleName);
+const tier = (name: RegExp) => getByRole(audienceRegion()!, "menuitemcheckbox", { name });
+const detail = (name: RegExp) => getByRole(audienceRegion()!, "menuitem", { name });
 
 describe("where the open project is (ADR-001)", () => {
   it("keeps a local folder's link only as its Cloud copy, and offers a Cloud project its folder", () => {
@@ -65,38 +65,37 @@ describe("where the open project is (ADR-001)", () => {
 
   it("states a local project by the folder that holds it, as a fact at the head of its menu", async () => {
     await renderHeader(local({ address: localProjectAddress("/Users/example/project/puppyone-qubits") }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
+    const button = placeButton();
     expect(button.textContent).toBe("~/project");
     expect(button.querySelector("bdi")?.getAttribute("dir")).toBe("ltr");
-    expect(button.getAttribute("aria-label")).toBe("This Mac, ~/project/puppyone-qubits, Where this project is");
+    expect(accessibleName(button)).toBe("This Mac, ~/project/puppyone-qubits, Where this project is");
     openMenu();
-    const current = document.querySelector<HTMLElement>('[data-project-place-row="current"]')!;
-    expect(label(current)).toBe("This Mac");
-    expect(current.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/project/puppyone-qubits");
-    expect(current.getAttribute("aria-disabled")).toBe("true");
-    // A fact, not a choice: no tick beside it.
-    expect(current.querySelector(".desktop-menu-item-trailing")).toBeNull();
+    const current = getByRole(menu()!, "button", { name: "This Mac ~/project/puppyone-qubits" });
+    expect(current.getAttribute("aria-current")).toBe("true");
+    expect(isDisabled(current)).toBe(true);
+    // A fact, not a choice: nothing to tick.
+    expect(current.hasAttribute("aria-checked")).toBe(false);
   });
 
   it("states a Cloud project by its space and opens its linked folder as another project", async () => {
     await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme"),
       linkedFolder: { path: "/tmp/one", name: "One" } }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
-    expect(button.textContent).toBe("Acme");
-    expect(button.getAttribute("aria-label")).toBe("Cloud project, Acme, Where this project is");
+    expect(placeButton().textContent).toBe("Acme");
+    expect(accessibleName(placeButton())).toBe("Cloud project, Acme, Where this project is");
     openMenu();
-    expect(document.querySelector(".project-audience")).toBeNull();
-    act(() => document.querySelector<HTMLButtonElement>('[data-project-place-row="open-local-folder"]')!.click());
+    expect(audienceRegion()).toBeNull();
+    act(() => getByRole(menu()!, "button", { name: /^Open folder on this Mac/ }).click());
     expect(handlers.onOpenLocalFolder).toHaveBeenCalledWith("/tmp/one");
   });
 
-  it("marks a folder that has a Cloud copy, and a copy that cannot be used", async () => {
+  it("says a folder has a Cloud copy, and says what is wrong with one that cannot be used", async () => {
     await renderHeader(local({ address: localProjectAddress("/tmp/one"), notice: linked }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
-    expect(button.dataset.cloudLink).toBe("linked");
-    expect(button.getAttribute("aria-label")).toBe("This Mac, /tmp/one, Linked to a Cloud project, Where this project is");
+    expect(accessibleName(placeButton())).toBe("This Mac, /tmp/one, Linked to a Cloud project, Where this project is");
     await renderHeader(local({ notice: { kind: "missing" } }));
-    expect(container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!.dataset.cloudLink).toBe("problem");
+    // Heard, not only seen: the mark's warning colour has words.
+    expect(accessibleName(placeButton())).toBe("This Mac, No longer in the Cloud, Where this project is");
+    await renderHeader(local({ notice: { kind: "other-environment", origin: "http://localhost:9090" } }));
+    expect(accessibleName(placeButton())).toBe("This Mac, In another environment: localhost:9090, Where this project is");
   });
 
   it("shortens a local project's place to its root and last folders, and knows no Cloud place without a name", () => {
@@ -119,18 +118,17 @@ describe("who can open a local project", () => {
     const audience = { devices: { on: false, onTurnOn: vi.fn() }, team: { copy: null, onCopy: vi.fn() } };
     await renderHeader(local(), audience);
     openMenu();
-    expect(document.querySelector(".project-audience-title")?.textContent).toBe("Who can open it");
     expect(tiers()).toEqual([
-      ["Only this computer", true, null],
-      ["All my devices", false, "Turn on"],
-      ["Team", false, "Copy…"],
+      ["Only this computer", true],
+      ["All my devices Turn on", false],
+      ["Team Copy…", false],
     ]);
     expect(details()).toEqual([]);
-    act(() => tier("Team").click());
+    act(() => tier(/^Team/).click());
     expect(audience.team.onCopy).toHaveBeenCalledOnce();
-    expect(menuOpen()).toBe(false);
+    expect(menu()).toBeNull();
     openMenu();
-    act(() => tier("All my devices").click());
+    act(() => tier(/^All my devices/).click());
     expect(audience.devices.onTurnOn).toHaveBeenCalledOnce();
   });
 
@@ -138,12 +136,12 @@ describe("who can open a local project", () => {
     const devices = { on: true, detail: "Studio Mac and 2 others", onStop: vi.fn(), onSettings: vi.fn() };
     await renderHeader(local(), { devices });
     openMenu();
-    expect(tiers()).toEqual([["Only this computer", false, null], ["All my devices", true, "Stop"]]);
-    expect(details()).toEqual([["Studio Mac and 2 others", ""]]);
-    act(() => detail("Studio Mac").click());
+    expect(tiers()).toEqual([["Only this computer", false], ["All my devices Stop", true]]);
+    expect(details()).toEqual(["Studio Mac and 2 others"]);
+    act(() => detail(/^Studio Mac/).click());
     expect(devices.onSettings).toHaveBeenCalledOnce();
     openMenu();
-    act(() => tier("All my devices").click());
+    act(() => tier(/^All my devices/).click());
     expect(devices.onStop).toHaveBeenCalledOnce();
   });
 
@@ -151,36 +149,36 @@ describe("who can open a local project", () => {
     const copy = { onOpen: vi.fn(), unsent: 2, onSend: vi.fn() };
     await renderHeader(local({ notice: linked }), { team: { copy } });
     openMenu();
-    expect(tiers()).toEqual([["Only this computer", false, null], ["Team", true, null]]);
-    expect(details()).toEqual([["A copy in the cloud", "Open"], ["2 changes not sent", "Send"]]);
+    expect(tiers()).toEqual([["Only this computer", false], ["Team", true]]);
+    expect(details()).toEqual(["A copy in the cloud Open", "2 changes not sent Send"]);
     // The team's row states the copy; it is not a control that undoes it.
-    expect(tier("Team").getAttribute("aria-disabled")).toBe("true");
-    act(() => detail("2 changes").click());
+    expect(isDisabled(tier(/^Team/))).toBe(true);
+    act(() => detail(/^2 changes/).click());
     expect(copy.onSend).toHaveBeenCalledOnce();
     openMenu();
-    act(() => detail("A copy in the cloud").click());
+    act(() => detail(/^A copy in the cloud/).click());
     expect(copy.onOpen).toHaveBeenCalledOnce();
 
     await renderHeader(local({ notice: linked }), { team: { copy: { onOpen: vi.fn(), unsent: 0 } } });
     openMenu();
-    expect(details()).toEqual([["A copy in the cloud", "Open"]]);
+    expect(details()).toEqual(["A copy in the cloud Open"]);
   });
 
   it("hangs a copy in my own space under my devices, not under a team", async () => {
     await renderHeader(local({ notice: linked }), { devicesCopy: { onOpen: vi.fn() } });
     openMenu();
-    expect(tiers()).toEqual([["Only this computer", false, null], ["All my devices", true, null]]);
-    expect(details()).toEqual([["A copy in the cloud", "Open"]]);
+    expect(tiers()).toEqual([["Only this computer", false], ["All my devices", true]]);
+    expect(details()).toEqual(["A copy in the cloud Open"]);
   });
 
   it("says why a copy cannot be used, with its remedy at the end of the line", async () => {
     const copy = { problem: "No longer in the Cloud", onResolve: vi.fn(), resolveLabel: "Disconnect…" };
     await renderHeader(local({ notice: { kind: "missing" } }), { team: { copy } });
     openMenu();
-    expect(details()).toEqual([["A copy in the cloud", null], ["No longer in the Cloud", "Disconnect…"]]);
-    expect(detail("No longer").dataset.tone).toBe("warning");
-    expect(detail("A copy in the cloud").getAttribute("aria-disabled")).toBe("true");
-    act(() => detail("No longer").click());
+    expect(details()).toEqual(["A copy in the cloud", "No longer in the Cloud Disconnect…"]);
+    expect(detail(/^No longer/).dataset.tone).toBe("warning");
+    expect(isDisabled(detail(/^A copy in the cloud/))).toBe(true);
+    act(() => detail(/^No longer/).click());
     expect(copy.onResolve).toHaveBeenCalledOnce();
   });
 
@@ -189,15 +187,19 @@ describe("who can open a local project", () => {
     initializeDesktopPreferences();
     await renderHeader(local(), { team: { copy: null, onCopy: vi.fn() } });
     openMenu();
-    expect(document.querySelector(".desktop-project-place-subrow, .desktop-titlebar-reach-button")).toBeNull();
     // Nothing invites a person to a local folder: a team is reached by a copy.
-    expect(document.querySelector(".desktop-project-place-menu")?.textContent).not.toMatch(/invite/i);
+    const controls = [...queryAllByRole(menu()!, "button"), ...queryAllByRole(menu()!, "menuitem"),
+      ...queryAllByRole(menu()!, "menuitemcheckbox")].map(accessibleName);
+    expect(controls).toEqual(["This Mac", "Only this computer", "Team Copy…"]);
+    expect(queryAllByRole(container, "button").map(accessibleName).filter((name) => /invite|share/i.test(name))).toEqual([]);
   });
 
   it("offers no audience and no switch of one project's place where neither is available", async () => {
     await renderHeader(local({ notice: { kind: "other-environment", origin: "http://api.puppyone.ai" } }), null);
     openMenu();
-    expect(document.querySelector(".project-audience")).toBeNull();
-    expect(document.querySelector(".desktop-titlebar-location-button, .desktop-project-location-controls")).toBeNull();
+    expect(audienceRegion()).toBeNull();
+    // One fact and nothing to switch: a folder and its Cloud project are two projects.
+    expect(queryAllByRole(menu()!, "button").map(accessibleName)).toEqual(["This Mac"]);
+    expect(queryAllByRole(container, "button").map(accessibleName).filter((name) => /local|cloud/i.test(name) && !/Where this project is$/.test(name))).toEqual([]);
   });
 });

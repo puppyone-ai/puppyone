@@ -40,6 +40,29 @@ export type ProjectPlaceMenu = Readonly<{
   link?: ProjectPlaceCloudLink | null;
 }>;
 
+/**
+ * What keeps a Cloud link from opening, as a message: said on the copy's line in the
+ * menu and in the place button's name, so both read the same. Null when it opens.
+ */
+export function cloudLinkProblemMessage(notice: LocalFolderCloudNotice): { id: string; values?: Record<string, string> } | null {
+  switch (notice.kind) {
+    case "linked": return null;
+    case "sign-in": return { id: "cloud.placeMenu.link.signIn" };
+    case "unreachable": return { id: "cloud.placeMenu.link.unreachable" };
+    case "other-environment": return notice.origin
+      ? { id: "cloud.placeMenu.link.otherEnvironment", values: { origin: hostOf(notice.origin) } }
+      : { id: "cloud.placeMenu.link.otherEnvironmentUnknown" };
+    case "missing": return { id: "cloud.placeMenu.link.missing" };
+    case "no-access": return { id: "cloud.placeMenu.link.noAccess" };
+    case "ambiguous": return { id: "cloud.placeMenu.link.ambiguous" };
+  }
+}
+
+/** `http://localhost:9090` reads as `localhost:9090`. */
+function hostOf(origin: string) {
+  try { return new URL(origin).host || origin; } catch { return origin; }
+}
+
 /** The link exists but cannot be used from this app as it is. */
 export function cloudLinkHasProblem(link: ProjectPlaceCloudLink | null | undefined): boolean {
   return Boolean(link && link.notice.kind !== "linked" && link.notice.kind !== "sign-in");
