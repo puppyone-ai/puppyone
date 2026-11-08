@@ -1,5 +1,5 @@
 {
-  "checkout": "../../puppyone-baseline-671143f2a",
-  "commit": "671143f2a30d352099eda35ad37f053450d4a8f9",
-  "scope": "Electron product reference: the qubits branch pinned at 671143f2a (2026-11-04). Tools refuse a checkout at any other commit; set PUPPYONE_PRODUCT_UNPINNED=1 only for exploratory runs whose results are never committed."
+  "checkout": "../../puppyone-baseline-686d41c49",
+  "commit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "scope": "Electron product reference: the qubits branch pinned at 686d41c49 (2026-11-08). Tools refuse a checkout at any other commit; set PUPPYONE_PRODUCT_UNPINNED=1 only for exploratory runs whose results are never committed."
 }
