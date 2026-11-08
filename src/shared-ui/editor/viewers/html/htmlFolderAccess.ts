@@ -46,18 +46,52 @@ function readGrants(storage: GrantStorage): GrantStore {
   } catch { return {}; }
 }
 
+const PAGE_STORAGE_PREFIX = "puppyone.editor.html-page-storage.v1:";
+const MAX_PAGE_STORAGE_CHARACTERS = 256 * 1024;
+
+/**
+ * A page that runs with its folder has no origin of its own, so its
+ * localStorage lives here, one record per page.
+ */
+export function readHtmlPageStorage(documentId: string, storage = getBrowserStorage()): Record<string, string> {
+  if (!storage) return {};
+  try { return readPageStorageEntries(JSON.parse(storage.getItem(PAGE_STORAGE_PREFIX + documentId) ?? "{}")) ?? {}; } catch { return {}; }
+}
+
+function writeHtmlPageStorage(documentId: string, entries: Record<string, string>, storage = getBrowserStorage()) {
+  try { storage?.setItem(PAGE_STORAGE_PREFIX + documentId, JSON.stringify(entries)); } catch { /* Storage is full or unavailable. */ }
+}
+
+function readPageStorageEntries(value: unknown): Record<string, string> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  let size = 0;
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== "string") return null;
+    size += key.length + item.length;
+  }
+  return size <= MAX_PAGE_STORAGE_CHARACTERS ? value as Record<string, string> : null;
+}
+
 function getBrowserStorage(): GrantStorage | null {
   try { return typeof window === "undefined" ? null : window.localStorage; } catch { return null; }
 }
 
 /**
  * Runs before the page's own scripts. It offers the subset of the File System
- * Access API a page needs to keep data in text files beside itself; every call
- * is a message the host checks. Nothing here is a security boundary.
+ * Access API a page needs to keep data in text files beside itself, and a
+ * localStorage the host keeps for this page. Every call is a message the host
+ * checks. Nothing here is a security boundary.
  */
-export function htmlFolderAccessScript(channel: string, folderName: string): string {
-  const literal = (value: string) => JSON.stringify(value).replace(/</g, "\\u003c");
+export function htmlFolderAccessScript(channel: string, folderName: string, storage: Record<string, string>): string {
+  const literal = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
   return `<script>(()=>{const channel=${literal(channel)},folderName=${literal(folderName)};
+const store=new Map(Object.entries(${literal(storage)}));let storeQueued=false;
+const storeChanged=()=>{if(storeQueued)return;storeQueued=true;queueMicrotask(()=>{storeQueued=false;
+parent.postMessage({type:'puppyone-page-storage',channel,entries:Object.fromEntries(store)},'*')})};
+const pageStorage={get length(){return store.size},key(i){return[...store.keys()][i]??null},
+getItem(k){k=String(k);return store.has(k)?store.get(k):null},setItem(k,v){store.set(String(k),String(v));storeChanged()},
+removeItem(k){store.delete(String(k));storeChanged()},clear(){store.clear();storeChanged()}};
+Object.defineProperty(window,'localStorage',{value:pageStorage,configurable:false,writable:false});
 let seq=0;const pending=new Map();
 addEventListener('message',e=>{const d=e.data;if(e.source!==parent||d?.channel!==channel||d.type!=='puppyone-folder-response')return;
 const p=pending.get(d.id);if(!p)return;pending.delete(d.id);if(d.ok)p[0](d.value);else p[1](new DOMException(String(d.message||'Request failed'),String(d.name||'NotAllowedError')))});
@@ -96,10 +130,11 @@ class FolderAccessError extends Error {
 }
 
 /** Answers the page's folder requests, one at a time, inside the allowed folder only. */
-export function useHtmlFolderAccessBridge({ frame, channel, session }: {
+export function useHtmlFolderAccessBridge({ frame, channel, session, storageKey }: {
   frame: RefObject<HTMLIFrameElement | null>;
   channel: string;
   session: HtmlFolderAccessSession | null;
+  storageKey: string;
 }) {
   useEffect(() => {
     if (!session) return;
@@ -151,6 +186,11 @@ export function useHtmlFolderAccessBridge({ frame, channel, session }: {
       const data: unknown = event.data;
       if (!source || event.source !== source || !data || typeof data !== "object") return;
       const request = data as Record<string, unknown>;
+      if (request.type === "puppyone-page-storage" && request.channel === channel) {
+        const entries = readPageStorageEntries(request.entries);
+        if (entries) writeHtmlPageStorage(storageKey, entries);
+        return;
+      }
       if (request.type !== "puppyone-folder-request" || request.channel !== channel || !Number.isSafeInteger(request.id)) return;
       const reply = (message: Record<string, unknown>) => {
         if (!disposed) source.postMessage({ type: "puppyone-folder-response", channel, id: request.id, ...message }, "*");
@@ -163,5 +203,5 @@ export function useHtmlFolderAccessBridge({ frame, channel, session }: {
     };
     window.addEventListener("message", receive);
     return () => { disposed = true; window.removeEventListener("message", receive); };
-  }, [frame, channel, session]);
+  }, [frame, channel, session, storageKey]);
 }

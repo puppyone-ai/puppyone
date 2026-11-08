@@ -7,7 +7,7 @@ import { useEditorPreviewServices } from "../../preview-services/EditorPreviewSe
 import { resolveFileFormat } from "../../../core/fileFormats";
 import { HTML_PAGE_SCROLLBAR_STYLE, htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
 import type { HtmlFolderAccessSession } from "../../preview-services/types";
-import { htmlFolderAccessScript, useHtmlFolderAccessBridge } from "./htmlFolderAccess";
+import { htmlFolderAccessScript, readHtmlPageStorage, useHtmlFolderAccessBridge } from "./htmlFolderAccess";
 import { useLocalization } from "@puppyone/localization/react";
 
 export function HtmlPreviewFrame({
@@ -48,8 +48,8 @@ export function HtmlPreviewFrame({
   const folderName = folderAccess?.folderName;
   const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl,
     offline ? OFFLINE_HTML_PREVIEW_POLICY : getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined,
-    offline && folderName !== undefined ? htmlFolderAccessScript(viewportChannel, folderName) : undefined) : null,
-    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel, offline, folderName]);
+    offline && folderName !== undefined ? htmlFolderAccessScript(viewportChannel, folderName, readHtmlPageStorage(path)) : undefined) : null,
+    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel, offline, folderName, path]);
   const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
   const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024
     && resolveFileFormat({ name: path }).defaultViewer === "html-artifact";
@@ -74,7 +74,7 @@ export function HtmlPreviewFrame({
     enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });
   const frameSource = resolveFrameSource({ fileUrl, hasContentSnapshot, projection,
     projectionUrl, waiting: waitingForProjection });
-  useHtmlFolderAccessBridge({ frame, channel: viewportChannel, session: offline ? folderAccess : null });
+  useHtmlFolderAccessBridge({ frame, channel: viewportChannel, session: offline ? folderAccess : null, storageKey: path });
 
   // Only a served projection carries the no-network header and the navigation lock.
   if (offline && (!useProjection || (resourceReady && !projectionUrl))) {
