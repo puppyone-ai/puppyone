@@ -137,6 +137,7 @@ impl Http {
             let operation = async {
                 let response = request.header("Cache-Control", "no-store").send().await.map_err(|_| Error::Unavailable)?;
                 let status = response.status().as_u16();
+                let request_id = response.headers().get("x-request-id").and_then(|v| v.to_str().ok()).map(str::to_owned);
                 if response.content_length().is_some_and(|n| n > limit as u64) { return Err(Error::InvalidResponse); }
                 let mut body = zeroize::Zeroizing::new(Vec::new());
                 let mut stream = response.bytes_stream();
@@ -148,7 +149,10 @@ impl Http {
                 fence.check()?;
                 let value: Value = if status == 204 { Value::Null } else { serde_json::from_slice(&body).unwrap_or(Value::Null) };
                 if !(200..300).contains(&status) {
-                    return Err(refused(status, &value));
+                    return Err(match refused(status, &value) {
+                        Error::Response(status, reason, _) => Error::Response(status, reason, crate::cloud::auth::model::Diagnostic::read(&value, request_id.as_deref())),
+                        other => other,
+                    });
                 }
                 if status != 204 && value.is_null() { return Err(Error::InvalidResponse); }
                 Ok(value)

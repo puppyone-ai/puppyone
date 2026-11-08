@@ -6,7 +6,7 @@
 //! a dependency hint; project authorization and runtime availability are
 //! independent facts. Only allowlisted reason codes and numeric statuses
 //! survive as diagnostics; server prose never becomes copy.
-use crate::cloud::auth::Error as AuthError;
+use crate::cloud::auth::{Error as AuthError, ServiceCode, model::RequestId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -22,13 +22,26 @@ pub enum Action {
     None,
 }
 /// A product message (`cloud.message.{code}`) with its action and the
-/// allowlisted diagnostics shown in collapsed Details.
+/// allowlisted diagnostics shown beside it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Described {
     pub code: &'static str,
     pub action: Action,
     pub status: Option<u16>,
     pub reason: Option<&'static str>,
+    /// The workspace moved while it was opening (replaced, paused, fenced,
+    /// or its authorization revision changed): opening it again is the
+    /// remedy, so the window does that once by itself before saying anything.
+    pub reopen: bool,
+}
+/// What a broker error says about a failed request: status, allowlisted
+/// reason, the server's retry decision and its request id.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Cause {
+    pub status: Option<u16>,
+    pub reason: Option<&'static str>,
+    pub retryable: Option<bool>,
+    pub request_id: Option<RequestId>,
 }
 
 /// Reason codes the client may show (`connectionReasons` + `openingReasons`).
@@ -48,6 +61,13 @@ pub const REASONS: &[&str] = &[
     "workbench_access_denied",
     "workbench_requires_recovery",
     "workbench_preparing",
+    "workbench_start_timeout",
+    "workbench_connection_timeout",
+    "workbench_disk_lost",
+    "workbench_unavailable",
+    "workbench_not_ready",
+    "workbench_operation_replaced",
+    "workbench_context_changed",
     // First publication (`mapCloudMutationError`, cleanup refusal).
     "initialization_not_abandonable",
     "organization_required",
@@ -57,6 +77,25 @@ pub const REASONS: &[&str] = &[
 /// The allowlisted spelling of `code`, if any.
 pub fn allowlisted(code: &str) -> Option<&'static str> {
     REASONS.iter().copied().find(|r| *r == code)
+}
+/// The codes a diagnostic may name: the allowlist and the workspace's own
+/// refusals.
+fn diagnostic_code(code: &str) -> Option<&'static str> {
+    allowlisted(code).or_else(|| {
+        [ServiceCode::GenerationChanged, ServiceCode::NotRunning]
+            .into_iter()
+            .filter_map(service_reason)
+            .find(|r| *r == code)
+    })
+}
+/// The workspace's own refusals the file provider tells apart
+/// (`ServiceCode`), as the opening reads them.
+fn service_reason(code: ServiceCode) -> Option<&'static str> {
+    match code {
+        ServiceCode::GenerationChanged => Some("workbench_generation_changed"),
+        ServiceCode::NotRunning => Some("workbench_not_running"),
+        _ => None,
+    }
 }
 
 fn connection_reason(code: &str) -> Option<&'static str> {
@@ -79,8 +118,20 @@ fn status_reason(status: u16) -> Option<&'static str> {
         _ => return None,
     })
 }
-fn opening_reason(code: &str) -> Option<(&'static str, Action)> {
-    Some(match code {
+/// `openingReasons`, by the user's next step: wait and retry, open it again
+/// (reopened once by itself), a new one, recovery, or the account.
+fn opening_reason(code: &str) -> Option<(&'static str, Action, bool)> {
+    let (code, action) = match code {
+        "workbench_generation_changed"
+        | "workbench_not_running"
+        | "workbench_not_ready"
+        | "workbench_operation_replaced"
+        | "workbench_context_changed" => return Some(("workspace-changed", Action::Retry, true)),
+        "workbench_start_timeout" | "workbench_connection_timeout" => {
+            ("workspace-start-timeout", Action::Retry)
+        }
+        "workbench_disk_lost" => ("workspace-disk-lost", Action::Retry),
+        "workbench_unavailable" => ("project-unavailable", Action::None),
         "workbench_plan_required" => ("workspace-plan-required", Action::Account),
         "repository_target_mismatch" => ("project-response-mismatch", Action::None),
         "workbench_provider_not_configured" | "workbench_provider_authentication" => {
@@ -91,7 +142,8 @@ fn opening_reason(code: &str) -> Option<(&'static str, Action)> {
         "workbench_requires_recovery" => ("workspace-recovery-required", Action::None),
         "workbench_preparing" => ("workspace-preparing", Action::Retry),
         _ => return None,
-    })
+    };
+    Some((code, action, false))
 }
 fn valid_status(status: Option<u16>) -> Option<u16> {
     status.filter(|s| (400..=599).contains(s))
@@ -128,12 +180,13 @@ pub fn describe(
     stage: Stage,
 ) -> Described {
     let status = valid_status(status);
-    let reason_code = reason.and_then(allowlisted);
+    let reason_code = reason.and_then(diagnostic_code);
     let make = |code, action| Described {
         code,
         action,
         status,
         reason: reason_code,
+        reopen: false,
     };
     match status {
         Some(401) => return make("project-sign-in-required", Action::Account),
@@ -150,8 +203,11 @@ pub fn describe(
         Some(402) => return make("workspace-plan-required", Action::Account),
         _ => {}
     }
-    if let Some((code, action)) = reason.and_then(opening_reason) {
-        return make(code, action);
+    if let Some((code, action, reopen)) = reason.and_then(opening_reason) {
+        return Described {
+            reopen,
+            ..make(code, action)
+        };
     }
     if stage == Stage::Workspace && matches!(status, Some(404 | 405 | 501)) {
         return make("workspace-service-unavailable", Action::None);
@@ -183,18 +239,28 @@ pub fn describe(
     )
 }
 
-/// The status, allowlisted reason and retryability a broker error carries.
-pub fn from_auth(error: &AuthError) -> (Option<u16>, Option<&'static str>, Option<bool>) {
+/// What a broker error carries for the classification.
+pub fn from_auth(error: &AuthError) -> Cause {
+    let cause = |status, reason, retryable| Cause {
+        status,
+        reason,
+        retryable,
+        request_id: None,
+    };
     match error {
-        AuthError::InvalidCredentials | AuthError::Expired => (Some(401), None, None),
-        AuthError::Http(status) | AuthError::Service(status, _) => (Some(*status), None, None),
-        AuthError::Response(status, reason) => (Some(*status), *reason, None),
-        AuthError::Unavailable => (None, Some("CLOUD_TRANSPORT_UNAVAILABLE"), None),
-        AuthError::SessionChanged | AuthError::Cancelled => (None, None, Some(false)),
+        AuthError::InvalidCredentials | AuthError::Expired => cause(Some(401), None, None),
+        AuthError::Http(status) => cause(Some(*status), None, None),
+        AuthError::Service(status, code) => cause(Some(*status), service_reason(*code), None),
+        AuthError::Response(status, reason, diagnostic) => Cause {
+            request_id: diagnostic.request_id,
+            ..cause(Some(*status), *reason, diagnostic.retryable)
+        },
+        AuthError::Unavailable => cause(None, Some("CLOUD_TRANSPORT_UNAVAILABLE"), None),
+        AuthError::SessionChanged | AuthError::Cancelled => cause(None, None, Some(false)),
         AuthError::Configuration | AuthError::Unsupported | AuthError::NoProviders => {
-            (None, None, Some(false))
+            cause(None, None, Some(false))
         }
-        _ => (None, None, None),
+        _ => Cause::default(),
     }
 }
 
@@ -292,6 +358,97 @@ mod tests {
                 "{reason}"
             );
         }
+    }
+
+    /// `cloudOpeningFailureClassification`: by the next step, and a moved
+    /// workspace is opened again.
+    #[test]
+    fn workspace_failures_say_what_to_do_next() {
+        for (reason, code, action, reopen) in [
+            (
+                "workbench_start_timeout",
+                "workspace-start-timeout",
+                Action::Retry,
+                false,
+            ),
+            (
+                "workbench_connection_timeout",
+                "workspace-start-timeout",
+                Action::Retry,
+                false,
+            ),
+            (
+                "workbench_disk_lost",
+                "workspace-disk-lost",
+                Action::Retry,
+                false,
+            ),
+            (
+                "workbench_unavailable",
+                "project-unavailable",
+                Action::None,
+                false,
+            ),
+            (
+                "workbench_generation_changed",
+                "workspace-changed",
+                Action::Retry,
+                true,
+            ),
+            (
+                "workbench_not_running",
+                "workspace-changed",
+                Action::Retry,
+                true,
+            ),
+            (
+                "workbench_not_ready",
+                "workspace-changed",
+                Action::Retry,
+                true,
+            ),
+            (
+                "workbench_operation_replaced",
+                "workspace-changed",
+                Action::Retry,
+                true,
+            ),
+            (
+                "workbench_context_changed",
+                "workspace-changed",
+                Action::Retry,
+                true,
+            ),
+        ] {
+            let x = describe(Some(409), Some(reason), None, Stage::Workspace);
+            assert_eq!(
+                (x.code, x.action, x.reopen),
+                (code, action, reopen),
+                "{reason}"
+            );
+            assert_eq!(x.reason, Some(reason), "{reason}");
+        }
+        // The provider's own refusals carry their codes.
+        let cause = from_auth(&AuthError::Service(409, ServiceCode::GenerationChanged));
+        assert_eq!(cause.reason, Some("workbench_generation_changed"));
+        let diagnostic = crate::cloud::auth::model::Diagnostic::read(
+            &serde_json::json!({"data": {"code": "workbench_disk_lost", "retryable": false}}),
+            Some("req-1:a.b"),
+        );
+        let cause = from_auth(&AuthError::Response(
+            503,
+            Some("workbench_disk_lost"),
+            diagnostic,
+        ));
+        assert_eq!(cause.retryable, Some(false));
+        assert_eq!(
+            cause.request_id.map(|r| r.as_str().to_owned()).as_deref(),
+            Some("req-1:a.b")
+        );
+        // A request id is a plain token or nothing.
+        assert!(RequestId::parse("bad id").is_none());
+        assert!(RequestId::parse(&"x".repeat(129)).is_none());
+        assert!(RequestId::parse(&"x".repeat(128)).is_some());
     }
 
     #[test]

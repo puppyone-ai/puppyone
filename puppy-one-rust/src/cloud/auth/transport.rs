@@ -116,7 +116,7 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
     .find_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
     .and_then(crate::workspace::cloud::failure::allowlisted);
     if status >= 500 || matches!(status, 408 | 429) || reason.is_some() {
-        return Error::Response(status, reason);
+        return Error::Response(status, reason, Default::default());
     }
     let code = value
         .pointer("/data/code")

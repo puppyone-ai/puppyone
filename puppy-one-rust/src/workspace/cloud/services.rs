@@ -24,7 +24,7 @@ pub enum Error {
 impl Error {
     fn from_auth(error: auth::Error) -> Self {
         match error {
-            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _) => {
+            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _, _) => {
                 Self::Status(s)
             }
             auth::Error::InvalidCredentials => Self::Status(401),

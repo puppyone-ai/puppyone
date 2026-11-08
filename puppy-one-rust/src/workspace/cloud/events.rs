@@ -181,7 +181,7 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
         // Transport loss, server errors and 429 reconnect; any other 4xx is
         // a decision (`status >= 400 && status < 500 && status !== 429`).
         let transient = failure == auth::Error::Unavailable
-            || matches!(failure, auth::Error::Response(status, _) | auth::Error::Http(status) if status >= 500 || status == 429);
+            || matches!(failure, auth::Error::Response(status, _, _) | auth::Error::Http(status) if status >= 500 || status == 429);
         if !transient || delay.is_none() {
             break map_error(failure);
         }

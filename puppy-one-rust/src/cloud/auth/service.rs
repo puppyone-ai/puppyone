@@ -645,7 +645,7 @@ impl Broker {
         }
         // A server error or timeout after a mutation was sent is ambiguous.
         let ambiguous_response =
-            matches!(result, Err(Error::Response(status, _)) if status >= 500 || status == 408);
+            matches!(result, Err(Error::Response(status, _, _)) if status >= 500 || status == 408);
         if !request.read_only()
             && (valid.is_err()
                 || ambiguous_response

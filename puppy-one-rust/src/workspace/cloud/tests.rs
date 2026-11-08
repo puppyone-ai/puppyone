@@ -213,24 +213,41 @@ fn explicit_opening_recovery_and_access_denial_never_wake() {
 
 #[test]
 fn explicit_opening_generation_replacement_and_deadline_fail_before_files() {
+    // Replaced while opening: opened again once by itself; replaced again,
+    // it is reported. A missed start deadline is reported at once.
     for expired in [false, true] {
         let f = Fixture::new();
-        let mut replaced = opening_row("running");
-        replaced["generation"] = json!(uuid::Uuid::new_v4().to_string());
-        f.state
-            .opening_status
-            .lock()
-            .unwrap()
-            .extend([opening_row("paused"), replaced]);
+        let replaced = || {
+            let mut row = opening_row("running");
+            row["generation"] = json!(uuid::Uuid::new_v4().to_string());
+            row
+        };
+        f.state.opening_status.lock().unwrap().extend([
+            opening_row("paused"),
+            replaced(),
+            opening_row("paused"),
+            replaced(),
+        ]);
         let mut pending = opening_row("starting");
         pending["operation"] = json!({"pending":true,"deadline":if expired {Some("2000-01-01T00:00:00Z")} else {None},"error":null,"retryable":true});
         *f.state.opening_reply.lock().unwrap() = Some(pending);
-        assert!(explicit_open(&f, &Cancellation::default(), |_| {}).is_err());
+        let failure = explicit_open(&f, &Cancellation::default(), |_| {})
+            .err()
+            .unwrap();
+        let attempts = if expired { 1 } else { 2 };
+        assert_eq!(
+            (failure.code, failure.reopen),
+            if expired {
+                ("workspace-start-timeout", false)
+            } else {
+                ("workspace-changed", true)
+            }
+        );
         assert_eq!(f.state.count("GET", "/files"), 0);
-        assert_eq!(f.state.count("POST", "/workbench"), 1);
+        assert_eq!(f.state.count("POST", "/workbench"), attempts);
         assert_eq!(
             f.state.count("GET", "/workbench"),
-            if expired { 1 } else { 2 }
+            2 * attempts - usize::from(expired)
         );
     }
 }

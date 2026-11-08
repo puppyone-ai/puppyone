@@ -103,6 +103,10 @@ impl Code {
     pub fn parse(value: &str) -> Option<Self> {
         CODES.iter().find(|(_, s)| *s == value).map(|(c, _)| *c)
     }
+    /// Every code, in `CLOUD_PUBLISH_ERROR_CODES` order.
+    pub fn all() -> impl Iterator<Item = Self> {
+        CODES.iter().map(|(c, _)| *c)
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublishError {

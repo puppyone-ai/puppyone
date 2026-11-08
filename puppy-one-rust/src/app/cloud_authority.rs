@@ -12,7 +12,7 @@ use super::{
     window_cloud::{CloudEvent, WindowCloud},
 };
 use crate::{
-    localization::t as tr,
+    localization::{t as tr, tf},
     theme,
     ui::{
         appearance::ActiveAppearance,
@@ -21,6 +21,7 @@ use crate::{
     workspace::cloud::opening::{Failure, Recovery},
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::h_flex;
 
 pub(super) fn account_key(cx: &App) -> Option<String> {
     crate::features::cloud::account::broker_and_binding(cx)
@@ -66,7 +67,8 @@ impl WindowCloud {
                     .line_height(px(18.))
                     .text_color(t.danger)
                     .child(message),
-            );
+            )
+            .children(self.cloud_failure_diagnostic(failure, cx));
         let action = failure.recovery != Recovery::None;
         let close = Button::new("cloud-open-close")
             .variant(if action {
@@ -103,6 +105,65 @@ impl WindowCloud {
             ),
             Recovery::None => dialog,
         }
+    }
+    /// `.desktop-dialog-diagnostic`: the server's code and request id, so
+    /// a report can be found in its log, with Copy details.
+    fn cloud_failure_diagnostic(&self, failure: &Failure, cx: &mut Context<Self>) -> Option<Div> {
+        let t = cx.palette();
+        let (code, request) = failure.diagnostic()?;
+        let text = [
+            code.map(|code| {
+                tf(
+                    "cloud.opening.diagnosticCode",
+                    &[("code", code.as_str().into())],
+                )
+            }),
+            request.map(|id| {
+                tf(
+                    "cloud.opening.diagnosticRequest",
+                    &[("requestId", id.as_str().into())],
+                )
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" · ");
+        let copied = self.recovery_copied;
+        let copy = text.clone();
+        Some(
+            h_flex()
+                .mt(px(8.))
+                .gap(px(8.))
+                .items_baseline()
+                .text_size(px(theme::ty().ui.meta))
+                .line_height(px(18.))
+                .text_color(t.muted)
+                .child(
+                    div()
+                        .id("cloud-open-diagnostic")
+                        .debug_selector(|| "cloud-open-diagnostic".into())
+                        .min_w_0()
+                        .child(text),
+                )
+                .child(
+                    div()
+                        .id("cloud-open-diagnostic-copy")
+                        .flex_none()
+                        .underline()
+                        .cursor(theme::clickable_cursor())
+                        .child(tr(if copied {
+                            "cloud.opening.diagnosticCopied"
+                        } else {
+                            "cloud.opening.copyDiagnostic"
+                        }))
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                            s.recovery_copied = true;
+                            cx.notify();
+                        })),
+                ),
+        )
     }
     pub(super) fn close_cloud_recovery(&mut self, cx: &mut Context<Self>) {
         self.recovery = None;

@@ -213,7 +213,11 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
             if request.path.starts_with("/billing") || request.path == "/organizations/" {
                 reads.fetch_add(1, Ordering::SeqCst);
                 if down.load(Ordering::SeqCst) {
-                    return Err(crate::cloud::auth::Error::Response(503, None));
+                    return Err(crate::cloud::auth::Error::Response(
+                        503,
+                        None,
+                        Default::default(),
+                    ));
                 }
             }
             Ok(match request.path.as_str() {

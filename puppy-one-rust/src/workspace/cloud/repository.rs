@@ -223,7 +223,11 @@ mod tests {
             Context::NotFound { project: p.into() }
         );
         assert_eq!(
-            state(Refusal::Auth(AuthError::Response(503, None))),
+            state(Refusal::Auth(AuthError::Response(
+                503,
+                None,
+                Default::default()
+            ))),
             Context::TemporarilyUnavailable
         );
         assert_eq!(

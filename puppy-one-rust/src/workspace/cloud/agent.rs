@@ -168,7 +168,7 @@ impl Error {
     }
     fn from_auth(error: auth::Error) -> Self {
         let status = match error {
-            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _) => {
+            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _, _) => {
                 Some(s)
             }
             auth::Error::InvalidCredentials => Some(401),

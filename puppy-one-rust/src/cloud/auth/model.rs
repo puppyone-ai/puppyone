@@ -23,11 +23,62 @@ pub enum Error {
     Http(u16),
     Service(u16, super::transport::ServiceCode),
     /// A server failure (5xx, 408, 429) or an allowlisted reason code
-    /// (`cloudOpeningFailure` reasons); never free-form server prose.
-    Response(u16, Option<&'static str>),
+    /// (`cloudOpeningFailure` reasons); never free-form server prose. The
+    /// diagnostic keeps the server's retry decision and request id.
+    Response(u16, Option<&'static str>, Diagnostic),
     OutcomeUnknown,
 }
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// What a refusal carries beyond its status and reason (`data.retryable`,
+/// `X-Request-Id`): whether the same request can later succeed, as the
+/// server decides, and how a report of it is found in the server's log.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub retryable: Option<bool>,
+    pub request_id: Option<RequestId>,
+}
+impl Diagnostic {
+    /// `getCloudApiRetryable` and `getCloudApiRequestId`.
+    pub fn read(body: &serde_json::Value, request_id: Option<&str>) -> Self {
+        Self {
+            retryable: body
+                .pointer("/data/retryable")
+                .or_else(|| body.pointer("/detail/retryable"))
+                .and_then(serde_json::Value::as_bool),
+            request_id: request_id.and_then(RequestId::parse),
+        }
+    }
+}
+/// A request id accepted only as a plain token (`[A-Za-z0-9._:-]{1,128}`),
+/// kept inline so that an error stays `Copy`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct RequestId {
+    len: u8,
+    bytes: [u8; 128],
+}
+impl RequestId {
+    pub fn parse(value: &str) -> Option<Self> {
+        let plain = |b: &u8| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b':' | b'-');
+        if value.is_empty() || value.len() > 128 || !value.bytes().all(|b| plain(&b)) {
+            return None;
+        }
+        let mut bytes = [0; 128];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        Some(Self {
+            len: value.len() as u8,
+            bytes,
+        })
+    }
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.len as usize]).unwrap_or_default()
+    }
+}
+impl std::fmt::Debug for RequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("RequestId").field(&self.as_str()).finish()
+    }
+}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -43,7 +94,7 @@ impl std::fmt::Display for Error {
             Self::NoProviders => "No sign-in method is enabled for this service.",
             Self::RemoteLogoutUnavailable => "Signed out on this device. Remote session revocation could not be confirmed.",
             Self::Http(_) | Self::Service(_, _) => "The service rejected this request.",
-            Self::Response(_, _) => "The Cloud service could not complete this request.",
+            Self::Response(..) => "The Cloud service could not complete this request.",
             Self::OutcomeUnknown => "The operation may have completed. Verify its outcome before trying again.",
         })
     }

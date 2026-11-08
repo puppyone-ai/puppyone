@@ -3,21 +3,23 @@
   "sources": {
     "desktop": {
       "repository": "puppyone",
-      "head": "671143f2a30d352099eda35ad37f053450d4a8f9",
-      "checkout": "../../puppyone-baseline-671143f2a",
+      "head": "686d41c49ffd80734617e3b66061e615b5848e7b",
+      "checkout": "../../puppyone-baseline-686d41c49",
       "inputs": {
-        "src/features/cloud/files/cloudWorkspaceClient.ts": "4f9bdf64d36d49bee81ef7e3b6f1e17dc178fdc360e2fff49fc90ab172471f9b",
+        "src/features/cloud/files/cloudWorkspaceClient.ts": "d3259c01d7c2269560894d46c8515dac45c24b31b994a42cdbe71ae2b51e9538",
         "src/features/cloud/files/cloudDataPort.ts": "171b55e43ea6b9df7d9e3f7cd4a3e5a537f39167ca19084cf8f22e38ae4d8176",
         "electron/main/cloud-workspace-file.mjs": "1dc664e506ccc58966388628697f6ca0bb87c6fc08586ae7e1f6e05a38f4a1ff",
         "electron/main/cloud-workspace-events.mjs": "8ce3c36c3c8e5e4741d4149063977218f3e480651a31ff03913e00faae296b63",
-        "src/features/cloud/project/context/projectCloudContext.ts": "dcfa66fc106dca9a767271d166968a86488f31b2e88e3499c4a8043f71390a12",
+        "src/features/cloud/project/context/projectCloudContext.ts": "7020e38486b3c9803d44ae581e49735b809bdcd8b36e9f5f1e20f6d1e1bd8da4",
         "src/features/cloud/files/cloudWorkspaceOpening.ts": "05b036e8c79c3eb38153a2838a6b77a4d34e5661cc439c8c86c2889a73e3d57d",
-        "src/features/cloud/cloudOpeningFailure.ts": "1bea1d344e4725ae3b99f524228f0ef04a31e6d7c7ffa40761a870d55e5ecb5c",
+        "src/features/cloud/cloudOpeningFailure.ts": "bfca28ba13373cc1ce613dc519b3b2ef034a44e6bfa5aac0e09b4cb98e5a44e4",
         "shared/repositoryContract.js": "871c7849497345fc9510005906f1e4a7e7857fbf095161d2d76ad7d25a7a6952",
-        "src/features/cloud/files/contracts.ts": "f2a816bbf2348dc55fae2e1e671d0eaaea8f2e63854a36a57403d48cf90596a0"
+        "src/features/cloud/files/contracts.ts": "f2a816bbf2348dc55fae2e1e671d0eaaea8f2e63854a36a57403d48cf90596a0",
+        "tests/fixtures/cloud/contracts/cloud-git-acceptance-v1.json": "49f66fd7df22c8a7d266afb2d27a87296b638f232b4cb44581a5aae9fe02cf54"
       },
       "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
-      "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift: cloudWorkspaceClient.ts/cloudWorkspaceOpening.ts follow operation.phase while waiting (c8bbc26bc, ported natively as N-7); projectCloudContext.ts drops getProjectCloudLocationState with the Local/Cloud switch (f4e4c79c6, ADR-001 two projects; removed natively as C-2); cloud-workspace-file.mjs import path only (7cbdf8389)."
+      "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift: cloudWorkspaceClient.ts/cloudWorkspaceOpening.ts follow operation.phase while waiting (c8bbc26bc, ported natively as N-7); projectCloudContext.ts drops getProjectCloudLocationState with the Local/Cloud switch (f4e4c79c6, ADR-001 two projects; removed natively as C-2); cloud-workspace-file.mjs import path only (7cbdf8389).",
+      "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: cloudOpeningFailure.ts classifies workspace failures by the next step, reopens a moved workspace once and keeps the code and request id (7902421c0, ported natively as CF-1/CF-2); cloudWorkspaceClient.ts gives its own replaced/not-running refusals those codes (7902421c0); projectCloudContext.ts drops the services Hub section helpers (6f896add1, removed natively). Added the cloud-git-acceptance-v1.json contract, pinned byte for byte at contracts/ (a67557765, CF-3)."
     },
     "cloud": {
       "repository": "puppyone-cloud",

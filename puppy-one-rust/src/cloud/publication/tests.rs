@@ -17,7 +17,7 @@
 //! | Desktop restarts | `a_restart_reconciles_the_pending_operation_and_derives_its_actions` |
 //! | User signs out after link | `app::tests::cloud_opening::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
 //! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
-//! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_project_is_replaced_only_after_a_second_404` |
+//! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice` |
 use super::fixtures::*;
 use super::{
     git::{Cli, GitOps, Remote},
@@ -297,7 +297,7 @@ fn repository() -> tempfile::TempDir {
 }
 
 #[test]
-fn the_cli_reads_remotes_sources_and_refuses_merge_tips_and_lfs_pointers() {
+fn the_cli_reads_remotes_sources_and_refuses_lfs_pointers() {
     let temp = repository();
     let cli = Cli { helper: None };
     let root = temp.path();
@@ -547,5 +547,229 @@ fn a_restart_reconciles_the_pending_operation_and_derives_its_actions() {
     );
     assert!(retry.ok, "{:?}", retry.error);
     assert_eq!(fake.with(|s| s.cloud_main.clone()).as_deref(), Some(COMMIT));
+    assert_eq!(fake.with(|s| s.creates), 1);
+}
+
+/// `cloud-git-acceptance-v1.json` is the copy Cloud and the product pin,
+/// byte for byte; its refusal codes are the ones recognized here.
+#[test]
+fn the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized() {
+    use sha2::Digest;
+    let digest = sha2::Sha256::digest(git::ACCEPTANCE_CONTRACT.as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(
+        hex,
+        "49f66fd7df22c8a7d266afb2d27a87296b638f232b4cb44581a5aae9fe02cf54"
+    );
+    let contract: serde_json::Value = serde_json::from_str(git::ACCEPTANCE_CONTRACT).unwrap();
+    let codes: Vec<&str> = contract["refusals"]["codes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_str().unwrap())
+        .collect();
+    assert_eq!(codes, git::LIMIT_CODES);
+    assert_eq!(contract["commit_graph"]["merge_commits"], "accepted");
+    assert_eq!(contract["content"]["git_lfs"], "unsupported");
+    for code in git::LIMIT_CODES {
+        let reason = format!("remote: error: refused (puppyone-refusal={code})");
+        assert_eq!(git::refusal_code(&reason), Some(code));
+        assert!(git::push_limit_failure(&reason), "{code}");
+    }
+    // A code this release does not know falls back to the words.
+    assert!(!git::push_limit_failure(
+        "refused (puppyone-refusal=git_future_limit)"
+    ));
+    for words in [
+        "Git temporary disk budget exceeded",
+        "Git pack metadata budget exceeded",
+        "Git object count budget exceeded",
+        "Git output budget exceeded",
+        "published object count budget exceeded",
+        "completed Git pack exceeds the storage processing budget",
+        "incoming pack expansion budget exceeded",
+        "Git pack exceeds the 2147483648-byte limit",
+        "error: RPC failed; HTTP 413 curl 22",
+    ] {
+        assert!(git::push_limit_failure(words), "{words}");
+    }
+    assert!(git::pack_limit_failure(
+        "The requested URL returned error: 413"
+    ));
+    assert!(!git::pack_limit_failure("Git output budget exceeded"));
+    assert!(!git::push_limit_failure(
+        "fatal: the remote end hung up unexpectedly"
+    ));
+}
+
+/// `electron.cloud-publish-repository-shapes`: Desktop must not refuse what
+/// the native Version Engine accepts. Every shape but Git LFS passes the
+/// preflight, and stock Git carries its history to a bare repository.
+#[test]
+fn every_repository_shape_but_lfs_passes_the_preflight() {
+    fn git(root: &Path, args: &[&str]) -> String {
+        let out = std::process::Command::new("/usr/bin/git")
+            .args(args)
+            .current_dir(root)
+            .env("GIT_AUTHOR_DATE", "2026-11-08T00:00:00Z")
+            .env("GIT_COMMITTER_DATE", "2026-11-08T00:00:00Z")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_owned()
+    }
+    fn commit(root: &Path, name: &str, body: &str) {
+        std::fs::write(root.join(name), body).unwrap();
+        git(root, &["add", name]);
+        git(root, &["commit", "-qm", name]);
+    }
+    fn merge_tip(root: &Path) {
+        commit(root, "README.md", "base\n");
+        git(root, &["checkout", "-qb", "feature"]);
+        commit(root, "feature.md", "feature\n");
+        git(root, &["checkout", "-q", "main"]);
+        commit(root, "main.md", "main\n");
+        git(
+            root,
+            &[
+                "merge",
+                "-q",
+                "--no-ff",
+                "feature",
+                "-m",
+                "Merge pull request #1",
+            ],
+        );
+    }
+    let shapes: [(&str, fn(&Path), usize); 7] = [
+        (
+            "linear",
+            |r| {
+                commit(r, "README.md", "first\n");
+                commit(r, "notes.md", "second\n");
+            },
+            1,
+        ),
+        ("merge tip", merge_tip, 2),
+        (
+            "merge in history",
+            |r| {
+                merge_tip(r);
+                commit(r, "after.md", "after\n");
+            },
+            1,
+        ),
+        (
+            "octopus merge tip",
+            |r| {
+                commit(r, "README.md", "base\n");
+                for name in ["one", "two", "three"] {
+                    git(r, &["checkout", "-qb", name]);
+                    commit(r, &format!("{name}.md"), name);
+                    git(r, &["checkout", "-q", "main"]);
+                }
+                git(r, &["merge", "-q", "one", "two", "three", "-m", "octopus"]);
+            },
+            3,
+        ),
+        (
+            "unrelated histories",
+            |r| {
+                commit(r, "README.md", "main\n");
+                git(r, &["checkout", "-q", "--orphan", "other"]);
+                git(r, &["rm", "-rfq", "."]);
+                commit(r, "other.md", "other\n");
+                git(r, &["checkout", "-q", "main"]);
+                git(
+                    r,
+                    &[
+                        "merge",
+                        "-q",
+                        "--allow-unrelated-histories",
+                        "other",
+                        "-m",
+                        "join",
+                    ],
+                );
+            },
+            2,
+        ),
+        (
+            "empty snapshot",
+            |r| {
+                git(r, &["commit", "-q", "--allow-empty", "-m", "empty"]);
+            },
+            0,
+        ),
+        (
+            "LFS look-alike",
+            |r| {
+                commit(
+                    r,
+                    "notes.txt",
+                    "version https://git-lfs.github.com/spec/v1\nnot a pointer\n",
+                );
+            },
+            0,
+        ),
+    ];
+    let cli = Cli { helper: None };
+    for (name, shape, parents) in shapes {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        git(root, &["init", "-q", "-b", "main"]);
+        git(root, &["config", "user.email", "t@example.com"]);
+        git(root, &["config", "user.name", "T"]);
+        shape(root);
+        let tip = cli.source_commit(root, "main").unwrap();
+        assert!(cli.preflight(root, &tip).is_ok(), "{name}");
+        let bare = tempfile::tempdir().unwrap();
+        git(bare.path(), &["init", "-q", "--bare"]);
+        git(root, &["push", "-q", bare.path().to_str().unwrap(), "main"]);
+        assert_eq!(
+            git(bare.path(), &["rev-parse", "refs/heads/main"]),
+            tip,
+            "{name}"
+        );
+        let line = git(bare.path(), &["rev-list", "--parents", "-n", "1", "main"]);
+        assert_eq!(line.split_whitespace().count() - 1, parents, "{name}");
+    }
+}
+
+/// A merge-tip refusal an earlier release journaled is a send to retry,
+/// into the same Cloud project.
+#[test]
+fn a_merge_tip_send_an_earlier_release_refused_is_retried_into_the_same_project() {
+    let (temp, fake) = Fake::new();
+    fake.with(|s| s.push_failures.push_back(Code::PushFailed));
+    let (c, _) = coordinator(&fake);
+    assert!(!c.start(&request(temp.path()), &mut |_| {}).ok);
+    let journal = Journal::in_git_dir(&fake.git_dir);
+    let mut record = journal.read().unwrap().unwrap();
+    let expect = journal::Expect::of(&record);
+    record.revision += 1;
+    record.last_error = Some(journal::StoredError {
+        code: "MERGE_TIP_UNSUPPORTED".into(),
+        retryable: false,
+        occurred_at: record.updated_at.clone(),
+    });
+    journal.write(&record, expect).unwrap();
+    let state = c.state(&request(temp.path()));
+    let derived = state.state.expect("the operation is pending");
+    let recorded = state.record.and_then(|r| r.last_error).map(|e| e.code);
+    assert_eq!(recorded.as_deref(), Some("MERGE_TIP_UNSUPPORTED"));
+    assert!(derived.actions.contains(&publish::Action::RetryPush));
+    let retry = c.start(
+        &Request {
+            action: Action::RetryPush,
+            ..request(temp.path())
+        },
+        &mut |_| {},
+    );
+    assert!(retry.ok, "{:?}", retry.error);
     assert_eq!(fake.with(|s| s.creates), 1);
 }

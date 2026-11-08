@@ -18,7 +18,7 @@ pub fn recoverable(error: &AuthError) -> bool {
     match error {
         AuthError::SessionChanged | AuthError::Cancelled => false,
         AuthError::Unavailable => true,
-        AuthError::Response(status, _) | AuthError::Http(status) => {
+        AuthError::Response(status, _, _) | AuthError::Http(status) => {
             matches!(status, 408 | 500 | 502 | 503 | 504)
         }
         _ => false,
@@ -113,13 +113,16 @@ mod tests {
     fn only_transport_and_transient_server_failures_recover() {
         assert!(recoverable(&AuthError::Unavailable));
         for status in [408, 500, 502, 503, 504] {
-            assert!(recoverable(&AuthError::Response(status, None)), "{status}");
+            assert!(
+                recoverable(&AuthError::Response(status, None, Default::default())),
+                "{status}"
+            );
         }
         for error in [
             AuthError::Http(401),
             AuthError::Http(403),
             AuthError::Http(404),
-            AuthError::Response(429, None),
+            AuthError::Response(429, None, Default::default()),
             AuthError::SessionChanged,
             AuthError::Cancelled,
         ] {
@@ -136,7 +139,10 @@ mod tests {
         let first = c.finish(Err(&AuthError::Unavailable), 0.0);
         assert_eq!(first, Next::RetryAfter(Duration::from_millis(750)));
         c.start(start + Duration::from_millis(750));
-        let second = c.finish(Err(&AuthError::Response(503, None)), 0.999);
+        let second = c.finish(
+            Err(&AuthError::Response(503, None, Default::default())),
+            0.999,
+        );
         assert!(
             matches!(second, Next::RetryAfter(d) if d >= Duration::from_millis(2_990) && d < Duration::from_secs(3))
         );

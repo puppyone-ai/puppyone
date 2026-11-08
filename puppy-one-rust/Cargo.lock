@@ -6206,6 +6206,7 @@ dependencies = [
  "notify",
  "po-contracts",
  "po-platform",
+ "regex",
  "security-framework",
  "serde",
  "serde_json",

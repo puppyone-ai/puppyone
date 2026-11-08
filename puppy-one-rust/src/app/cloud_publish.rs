@@ -76,9 +76,15 @@ pub(super) fn failure_copy(code: Code) -> &'static str {
         Code::RemoteConfigFailed => "cloud.message.project-publish-remote-failed",
         Code::PushFailed => "cloud.message.project-publish-push-failed",
         Code::PushLimitExceeded => "cloud.message.project-publish-size-limit",
+        Code::LfsUnsupported => "cloud.message.project-publish-lfs-unsupported",
+        // No longer produced: Cloud accepts merge commits. A journal that
+        // recorded it before then is retried like any send that did not finish.
+        Code::MergeTipUnsupported => "cloud.message.project-publish-push-failed",
+        Code::LocalFinalizeFailed => "cloud.message.project-publish-finalize-failed",
         Code::CompensationFailed => "cloud.message.project-publish-compensation-failed",
         Code::JournalCorrupt | Code::JournalIoFailed => "cloud.initialize.localRecoveryFailed",
-        _ => "cloud.message.project-publish-failed",
+        // Only a failure nobody could classify reads as the general message.
+        Code::Unknown => "cloud.message.project-publish-failed",
     }
 }
 
@@ -850,5 +856,36 @@ impl WindowCloud {
                 );
         }
         self.publish_dialog(dialog, cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `cloudPublishFailureCopy`: a refusal the user cannot read is one
+    /// they cannot act on. Every named code has its own words, only UNKNOWN
+    /// reads as the general message, and each exists in every locale.
+    #[test]
+    fn every_first_push_failure_has_its_own_message_in_every_locale() {
+        const GENERAL: &str = "cloud.message.project-publish-failed";
+        for code in Code::all() {
+            let message = failure_copy(code);
+            assert_eq!(message == GENERAL, code == Code::Unknown, "{code:?}");
+        }
+        let locales: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/locales.json"
+        )))
+        .unwrap();
+        let catalogs = locales["catalogs"].as_object().unwrap();
+        assert!(catalogs.len() >= 8);
+        for (locale, catalog) in catalogs {
+            for code in Code::all() {
+                let key = failure_copy(code);
+                assert!(catalog[key].is_string(), "{locale}: {key}");
+            }
+        }
     }
 }

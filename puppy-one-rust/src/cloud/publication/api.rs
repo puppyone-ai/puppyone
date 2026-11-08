@@ -40,7 +40,7 @@ pub struct Organization {
 /// `mapCloudMutationError`.
 pub fn mutation_error(default: Code, message: &str, error: &AuthError) -> PublishError {
     let status = match error {
-        AuthError::Http(s) | AuthError::Response(s, _) | AuthError::Service(s, _) => Some(*s),
+        AuthError::Http(s) | AuthError::Response(s, _, _) | AuthError::Service(s, _) => Some(*s),
         AuthError::InvalidCredentials => Some(401),
         _ => None,
     };
@@ -62,7 +62,7 @@ pub fn mutation_error(default: Code, message: &str, error: &AuthError) -> Publis
             "The Cloud Project no longer exists or is unavailable.",
             false,
         ),
-        (AuthError::Response(_, Some("organization_required")), _) => PublishError::new(
+        (AuthError::Response(_, Some("organization_required"), _), _) => PublishError::new(
             Code::OrganizationRequired,
             "Select a PuppyOne organization before publishing.",
             false,
@@ -75,6 +75,7 @@ pub fn mutation_error(default: Code, message: &str, error: &AuthError) -> Publis
                     | "schema_migration_required"
                     | "service_upgrade_required",
                 ),
+                _,
             ),
             _,
         ) => PublishError::new(
@@ -288,7 +289,7 @@ impl CloudOps for Http {
         ) {
             Ok(_) => Ok(()),
             Err(
-                AuthError::Http(404) | AuthError::Response(404, _) | AuthError::Service(404, _),
+                AuthError::Http(404) | AuthError::Response(404, _, _) | AuthError::Service(404, _),
             ) => Ok(()),
             Err(e) => Err(mutation_error(
                 Code::CleanupFailed,
@@ -308,9 +309,9 @@ impl CloudOps for Http {
             Ok(_) => Ok(true),
             // Deletion is idempotent: a missing Project is already abandoned.
             Err(
-                AuthError::Http(404) | AuthError::Response(404, _) | AuthError::Service(404, _),
+                AuthError::Http(404) | AuthError::Response(404, _, _) | AuthError::Service(404, _),
             ) => Ok(true),
-            Err(AuthError::Response(_, Some("initialization_not_abandonable"))) => Ok(false),
+            Err(AuthError::Response(_, Some("initialization_not_abandonable"), _)) => Ok(false),
             Err(e) => Err(mutation_error(
                 Code::CleanupFailed,
                 "Unable to delete the empty Cloud Project. Finish cleanup to retry.",

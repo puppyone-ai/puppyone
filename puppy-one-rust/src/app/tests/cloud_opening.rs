@@ -331,7 +331,11 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         if request.path.ends_with("/repository-context")
             && counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0
         {
-            return Err(crate::cloud::auth::Error::Response(503, None));
+            return Err(crate::cloud::auth::Error::Response(
+                503,
+                None,
+                Default::default(),
+            ));
         }
         cloud_project_responder()(request)
     });
@@ -791,32 +795,32 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
         ),
         (
             "/workbench",
-            Error::Response(504, None),
+            Error::Response(504, None, Default::default()),
             "connection-timeout",
             Recovery::Retry,
         ),
         (
             "/workbench",
-            Error::Response(408, None),
+            Error::Response(408, None, Default::default()),
             "connection-timeout",
             Recovery::Retry,
         ),
         // A generic 5xx names the service only at the project stage.
         (
             "/workbench",
-            Error::Response(503, None),
+            Error::Response(503, None, Default::default()),
             "workspace-open-failed",
             Recovery::Retry,
         ),
         (
             "/repository-context",
-            Error::Response(503, None),
+            Error::Response(503, None, Default::default()),
             "service-unavailable",
             Recovery::Retry,
         ),
         (
             "/workbench",
-            Error::Response(429, None),
+            Error::Response(429, None, Default::default()),
             "service-busy",
             Recovery::Retry,
         ),
@@ -858,20 +862,31 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
         ),
         (
             "/repository-context",
-            Error::Response(503, Some("project_authorization_unavailable")),
+            Error::Response(
+                503,
+                Some("project_authorization_unavailable"),
+                Default::default(),
+            ),
             "access-check-unavailable",
             Recovery::Retry,
         ),
         (
             "/workbench",
-            Error::Response(503, Some("database_schema_outdated")),
+            Error::Response(503, Some("database_schema_outdated"), Default::default()),
             "service-updating",
+            Recovery::Retry,
+        ),
+        // Replaced while opening, twice: reopened once, then reported.
+        (
+            "/workbench",
+            Error::Service(409, ServiceCode::GenerationChanged),
+            "workspace-changed",
             Recovery::Retry,
         ),
         (
             "/workbench",
-            Error::Service(409, ServiceCode::GenerationChanged),
-            "workspace-open-failed",
+            Error::Response(503, Some("workbench_disk_lost"), Default::default()),
+            "workspace-disk-lost",
             Recovery::Retry,
         ),
     ];
@@ -910,4 +925,93 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
     }
     let expected: Vec<_> = cases.iter().map(|(_, _, c, r)| (*c, *r)).collect();
     assert_eq!(seen, expected);
+}
+
+/// `useAccountCloudWorkspace`: a workspace that moved while it was opening
+/// is opened again once by itself, and the user hears nothing.
+#[gpui::test]
+fn a_workspace_replaced_while_opening_is_opened_again_once(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let replaced = std::sync::Arc::new(AtomicUsize::new(0));
+    let counted = replaced.clone();
+    let base = cloud_project_responder();
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/workbench") && counted.fetch_add(1, Ordering::SeqCst) == 0 {
+            return Err(crate::cloud::auth::Error::Service(
+                409,
+                crate::cloud::auth::ServiceCode::NotRunning,
+            ));
+        }
+        base(request)
+    });
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the hosted Project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("CloudRecovery", cx)));
+    assert!(replaced.load(Ordering::SeqCst) >= 2);
+}
+
+/// `ProjectNavigationFailure`: the server's code and request id beside the
+/// message, with Copy details; and one local log line naming no project.
+#[gpui::test]
+fn a_failed_opening_names_its_code_and_request_for_a_report(cx: &mut TestAppContext) {
+    use crate::cloud::auth::{Error, model::Diagnostic};
+    let diagnostic = Diagnostic::read(
+        &serde_json::json!({"data": {"code": "workbench_disk_lost", "retryable": true}}),
+        Some("req-7f3a"),
+    );
+    let base = cloud_project_responder();
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/workbench") {
+            return Err(Error::Response(
+                503,
+                Some("workbench_disk_lost"),
+                diagnostic,
+            ));
+        }
+        base(request)
+    });
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the recovery", &|s, cx| {
+        s.has_dialog("CloudRecovery", cx)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-open-diagnostic").is_some());
+    let failure = view.read_with(cx, |s, cx| s.cloud.read(cx).recovery.clone().unwrap().1);
+    assert_eq!(failure.code, "workspace-disk-lost");
+    assert_eq!(
+        failure.diagnostic(),
+        Some((Some("workbench_disk_lost".into()), Some("req-7f3a".into())))
+    );
+    let lines = crate::platform::diagnostics::recorded("[cloud-opening] request failed");
+    let line = lines
+        .iter()
+        .find(|l| l["fields"]["request_id"] == "req-7f3a")
+        .expect("the opening's log line");
+    assert_eq!(line["fields"]["stage"], "status");
+    assert_eq!(line["fields"]["code"], "workbench_disk_lost");
+    assert!(!line.to_string().contains("project-a"));
 }

@@ -32,6 +32,12 @@ pub struct Failure {
     pub code: &'static str,
     pub recovery: Recovery,
     pub status: Option<u16>,
+    /// The server's allowlisted code, shown beside the message.
+    pub reason: Option<&'static str>,
+    /// The id the server's log knows the failed request by.
+    pub request_id: Option<crate::cloud::auth::model::RequestId>,
+    /// The workspace moved while opening; opened again once by itself.
+    pub reopen: bool,
 }
 impl Failure {
     pub fn new(code: &'static str, recovery: Recovery) -> Self {
@@ -39,7 +45,21 @@ impl Failure {
             code,
             recovery,
             status: None,
+            reason: None,
+            request_id: None,
+            reopen: false,
         }
+    }
+    /// `formatCloudDiagnostic`: the server's code (or HTTP status) and the
+    /// request id, for a report; none when there is nothing beyond the
+    /// message.
+    pub fn diagnostic(&self) -> Option<(Option<String>, Option<String>)> {
+        let code = self
+            .reason
+            .map(str::to_owned)
+            .or_else(|| self.status.map(|s| format!("HTTP {s}")));
+        let request = self.request_id.map(|r| r.as_str().to_owned());
+        (code.is_some() || request.is_some()).then_some((code, request))
     }
     /// `describeCloudOpeningFailure(cause, "workspace")`.
     fn auth(error: AuthError) -> Self {
@@ -57,22 +77,25 @@ impl Failure {
     /// `describeCloudOpeningFailure` of the opening's own failure, at the
     /// workspace stage.
     fn described(status: Option<u16>, reason: Option<&str>, retryable: Option<bool>) -> Self {
-        use super::failure::{Action, Stage, describe};
-        let described = describe(status, reason, retryable, Stage::Workspace);
-        Self {
-            code: described.code,
-            recovery: match described.action {
-                Action::Retry => Recovery::Retry,
-                Action::Account => Recovery::Account,
-                Action::None => Recovery::None,
-            },
-            status: described.status,
-        }
+        let cause = super::failure::Cause {
+            status,
+            reason: reason.and_then(super::failure::allowlisted),
+            retryable,
+            request_id: None,
+        };
+        Self::of(cause, reason, super::failure::Stage::Workspace)
     }
     fn staged(error: AuthError, stage: super::failure::Stage) -> Self {
-        use super::failure::{Action, describe, from_auth};
-        let (status, reason, retryable) = from_auth(&error);
-        let described = describe(status, reason, retryable, stage);
+        let cause = super::failure::from_auth(&error);
+        Self::of(cause, cause.reason, stage)
+    }
+    fn of(
+        cause: super::failure::Cause,
+        reason: Option<&str>,
+        stage: super::failure::Stage,
+    ) -> Self {
+        use super::failure::{Action, describe};
+        let described = describe(cause.status, reason, cause.retryable, stage);
         Self {
             code: described.code,
             recovery: match described.action {
@@ -81,6 +104,9 @@ impl Failure {
                 Action::None => Recovery::None,
             },
             status: described.status,
+            reason: described.reason,
+            request_id: cause.request_id,
+            reopen: described.reopen,
         }
     }
     fn provider(error: Error) -> Self {
@@ -110,12 +136,18 @@ fn request(
     method: Method,
     wait: bool,
 ) -> Result<serde_json::Value, Failure> {
+    let started = Instant::now();
+    let stage = if method == Method::GET {
+        "status"
+    } else {
+        "open"
+    };
     broker
         .request_scoped(
             binding,
             &ApiRequest {
                 idempotency_key: None,
-                method,
+                method: method.clone(),
                 path: format!("/projects/{project}/workbench"),
                 query: if wait {
                     vec![("wait_seconds".into(), "20".into())]
@@ -126,7 +158,32 @@ fn request(
             },
             cancel,
         )
-        .map_err(Failure::auth)
+        .map_err(|error| {
+            record_failure(stage, &method, &error, started);
+            Failure::auth(error)
+        })
+}
+/// One local line per failed opening request (`recordOpeningFailure`), so
+/// a report can be matched to the server's log by request id. It names no
+/// project, path, file or credential and is never sent anywhere; cancelled
+/// requests are not recorded.
+fn record_failure(stage: &str, method: &Method, error: &AuthError, started: Instant) {
+    if matches!(error, AuthError::Cancelled | AuthError::SessionChanged) {
+        return;
+    }
+    let cause = super::failure::from_auth(error);
+    crate::platform::diagnostics::warn(
+        "[cloud-opening] request failed",
+        serde_json::json!({
+            "stage": stage,
+            "method": method.as_str(),
+            "status": cause.status,
+            "code": cause.reason,
+            "retryable": cause.retryable,
+            "request_id": cause.request_id.map(|r| r.as_str().to_owned()),
+            "duration_ms": started.elapsed().as_millis() as u64,
+        }),
+    );
 }
 fn decode(value: serde_json::Value, project: &str) -> Result<model::Runtime, Failure> {
     let row: model::Runtime = serde_json::from_value(value)
@@ -182,6 +239,8 @@ fn deadline(row: &model::Runtime) -> Result<Instant, Failure> {
 
 /// Run on a worker. The UI passes a distinct, cancellable navigation intent;
 /// it must still validate that intent before consuming the one-use handoff.
+/// A workspace that moved while it was opening is opened again once before
+/// the user hears about it; a second move is reported, never looped.
 pub fn prepare(
     broker: Arc<Broker>,
     binding: Binding,
@@ -198,6 +257,28 @@ pub fn prepare(
             report(phase);
         }
     };
+    match attempt(
+        broker.clone(),
+        binding.clone(),
+        target.clone(),
+        cancel,
+        force,
+        &mut progress,
+    ) {
+        Err(failure) if failure.reopen && cancel.check().is_ok() => {
+            attempt(broker, binding, target, cancel, force, &mut progress)
+        }
+        result => result,
+    }
+}
+fn attempt(
+    broker: Arc<Broker>,
+    binding: Binding,
+    target: Target,
+    cancel: &Cancellation,
+    force: bool,
+    progress: &mut impl FnMut(Phase),
+) -> Result<Prepared, Failure> {
     progress(Phase::Checking);
     let scope = cancel.child();
     let context =
@@ -242,7 +323,12 @@ pub fn prepare(
                 let mut next = request(&broker, &binding, &scope, project, Method::GET, true)?;
                 let next = decode(next["workspace"].take(), project)?;
                 if row.id != next.id || row.generation != next.generation {
-                    return Err(Failure::new("project-response-mismatch", Recovery::None));
+                    // Replaced while it was opening: open it again.
+                    return Err(Failure::described(
+                        Some(409),
+                        Some("workbench_generation_changed"),
+                        None,
+                    ));
                 }
                 row = next;
                 if !state(&row)? {

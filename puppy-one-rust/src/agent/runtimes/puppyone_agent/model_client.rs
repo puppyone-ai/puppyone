@@ -93,7 +93,7 @@ async fn complete_managed(
         if let Err(error) = result {
             let _ = tx.send(Err(match error {
                 crate::cloud::auth::Error::Http(402)
-                | crate::cloud::auth::Error::Response(402, _) => {
+                | crate::cloud::auth::Error::Response(402, _, _) => {
                     crate::localization::t("agent.compute.paymentUnavailable").to_owned()
                 }
                 crate::cloud::auth::Error::Cancelled => "Turn stopped".to_owned(),

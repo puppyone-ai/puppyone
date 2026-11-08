@@ -85,6 +85,8 @@ pub(super) struct WindowCloud {
     /// A Cloud opening that failed: the Project and why, while its
     /// recovery shows.
     pub recovery: Option<(String, Failure)>,
+    /// Copy details was pressed on the failure that shows.
+    pub(super) recovery_copied: bool,
 }
 impl EventEmitter<CloudEvent> for WindowCloud {}
 
@@ -149,6 +151,7 @@ impl WindowCloud {
             source_control,
             pending_publish: None,
             recovery: None,
+            recovery_copied: false,
         }
     }
     /// What the window shows changed.
@@ -384,6 +387,7 @@ impl WindowCloud {
     /// `ProjectNavigationFailure` for a Cloud opening of `project`.
     pub fn show_recovery(&mut self, project: String, failure: Failure, cx: &mut Context<Self>) {
         self.recovery = Some((project, failure));
+        self.recovery_copied = false;
         self.open_dialog(DialogKey::CloudRecovery, cx);
     }
 

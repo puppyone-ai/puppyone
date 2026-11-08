@@ -328,13 +328,60 @@ fn complete(record: &Record) -> Result<(&str, &CredentialConfig, &str), PublishE
         )),
     }
 }
-/// `isPushLimitFailure`: the receiver refused the size (413 / pack limit).
-pub fn push_limit_failure(stderr: &str) -> bool {
-    let text = stderr.to_lowercase();
-    text.contains("413")
-        || text.contains("request entity too large")
-        || text.contains("pack exceeds maximum allowed size")
-        || text.contains("push_limit_exceeded")
+/// `contracts/cloud-git-acceptance-v1.json`, byte for byte as Cloud and the
+/// product pin it: what a first push may contain and how Cloud says no.
+pub const ACCEPTANCE_CONTRACT: &str =
+    include_str!("../../../contracts/cloud-git-acceptance-v1.json");
+/// `CLOUD_GIT_LIMIT_CODES`: Cloud appends `(puppyone-refusal=<code>)` to the
+/// reason of a push a fixed budget refused; the same content can never
+/// pass, so it is a size refusal, not a retry.
+pub const LIMIT_CODES: [&str; 9] = [
+    "git_graph_limit",
+    "git_object_count_limit",
+    "git_pack_too_large",
+    "git_processing_disk_limit",
+    "git_processing_metadata_limit",
+    "git_processing_output_limit",
+    "git_published_object_count_limit",
+    "git_single_object_limit",
+    "git_stored_pack_too_large",
+];
+/// `pushRefusalCode`: the contract code Cloud named for this refusal.
+pub fn refusal_code(diagnostic: &str) -> Option<&str> {
+    static CODE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"\(puppyone-refusal=([a-z][a-z0-9_]{0,79})\)").unwrap()
+    });
+    CODE.captures(diagnostic)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+}
+/// `isPushPackLimitFailure`: the single-push size, in any server's words.
+pub fn pack_limit_failure(diagnostic: &str) -> bool {
+    static PACK: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r"(?i)Git pack exceeds the \d+-byte limit|pack exceeds maximum allowed size|HTTP (?:code )?413\b|returned error: 413\b|Git request body (?:is|exceeds)",
+        )
+        .unwrap()
+    });
+    PACK.is_match(diagnostic)
+}
+/// `isPushLimitFailure`: a contract code first; a code this release does
+/// not know, or a server before the codes, falls back to the words — the
+/// native Version Engine's first, then the `incoming … budget` forms.
+pub fn push_limit_failure(diagnostic: &str) -> bool {
+    static PROCESSING: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(concat!(
+            r"(?i)Git (?:pack )?(?:single-object|graph|object count|temporary disk|output|metadata) budget exceeded",
+            r"|published object count budget exceeded",
+            r"|completed Git pack exceeds the storage processing budget",
+            r"|incoming (?:pack (?:expansion|byte)|expanded pack) budget exceeded",
+        ))
+        .unwrap()
+    });
+    if refusal_code(diagnostic).is_some_and(|code| LIMIT_CODES.contains(&code)) {
+        return true;
+    }
+    pack_limit_failure(diagnostic) || PROCESSING.is_match(diagnostic)
 }
 /// `isUncertainPushFailure`: transport loss after the request may have
 /// arrived.
@@ -473,25 +520,21 @@ impl GitOps for Cli {
             Err(missing())
         }
     }
-    /// `assertVersionEnginePreflight`: no merge tip, no Git LFS pointers, and
-    /// the pack within the single-push limit.
+    /// `assertVersionEnginePreflight`: content the Cloud repository cannot
+    /// represent, checked before any Cloud mutation so that a refusal never
+    /// leaves an empty Project behind. The native Version Engine accepts
+    /// any commit graph, merge tips included; only Git LFS pointers stay
+    /// unsupported, and the pack must fit the single-push limit.
     fn preflight(&self, root: &Path, commit: &str) -> Result<(), PublishError> {
-        let parents = local(root, &["rev-list", "--parents", "-n", "1", commit]).map_err(|_| {
+        local(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")]).map_err(|_| {
             PublishError::new(
                 Code::CommitRequired,
                 "Unable to inspect the expected Git commit.",
                 false,
             )
         })?;
-        if parents.split_whitespace().count() > 2 {
-            return Err(PublishError::new(
-                Code::MergeTipUnsupported,
-                "The current merge commit cannot be the initial Puppyone Cloud tip. Publish a linearized tip.",
-                false,
-            ));
-        }
         let pattern = format!("^{}$", regex_escape(LFS_PREAMBLE));
-        if let Ok(matches) = local(
+        let matches = match local(
             root,
             &[
                 "grep",
@@ -504,6 +547,18 @@ impl GitOps for Cli {
                 "--",
             ],
         ) {
+            Ok(matches) => Some(matches),
+            // `git grep` exits 1, silently, when nothing matches.
+            Err(stderr) if stderr.is_empty() => None,
+            Err(_) => {
+                return Err(PublishError::new(
+                    Code::LfsUnsupported,
+                    "Unable to complete the Git LFS preflight.",
+                    false,
+                ));
+            }
+        };
+        if let Some(matches) = matches {
             for entry in matches.split('\0').filter(|e| !e.is_empty()) {
                 let path = entry.strip_prefix(&format!("{commit}:")).unwrap_or(entry);
                 let spec = format!("{commit}:{path}");
@@ -515,10 +570,7 @@ impl GitOps for Cli {
                     continue;
                 }
                 let body = local(root, &["cat-file", "blob", &spec]).unwrap_or_default();
-                if body.starts_with(&format!("{LFS_PREAMBLE}\n"))
-                    && body.contains("\noid sha256:")
-                    && body.contains("\nsize ")
-                {
+                if lfs_pointer(&body) {
                     return Err(PublishError::new(
                         Code::LfsUnsupported,
                         "Git LFS pointer files are not supported by the Puppyone Cloud repository engine.",
@@ -664,10 +716,15 @@ impl GitOps for Cli {
                         false,
                     ));
                 }
+                // An explicit refusal wins over the disconnect Git may append.
                 if push_limit_failure(&stderr) {
                     return Err(PublishError::new(
                         Code::PushLimitExceeded,
-                        "Cloud refused an upload larger than its single-push limit (2 GB).",
+                        if pack_limit_failure(&stderr) {
+                            "This upload exceeds the allowed size. A single Cloud push can be at most 2 GiB. Reduce the upload size before trying again."
+                        } else {
+                            "This upload exceeds a Cloud processing limit. Reduce its size before trying again."
+                        },
                         true,
                     ));
                 }
@@ -777,6 +834,21 @@ impl GitOps for Cli {
         }
         Ok(())
     }
+}
+/// A Git LFS pointer, not a file that merely starts like one: the
+/// preamble, a SHA-256 oid and a size.
+fn lfs_pointer(body: &str) -> bool {
+    static FIELDS: std::sync::LazyLock<(regex::Regex, regex::Regex)> =
+        std::sync::LazyLock::new(|| {
+            (
+                regex::Regex::new(r"(?i)\noid sha256:[0-9a-f]{64}\n").unwrap(),
+                regex::Regex::new(r"\nsize \d+(?:\n|$)").unwrap(),
+            )
+        });
+    let body = format!("\n{body}");
+    body.starts_with(&format!("\n{LFS_PREAMBLE}\n"))
+        && FIELDS.0.is_match(&body)
+        && FIELDS.1.is_match(&body)
 }
 fn regex_escape(text: &str) -> String {
     text.chars()

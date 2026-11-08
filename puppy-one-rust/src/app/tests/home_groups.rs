@@ -142,7 +142,11 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
                 request.idempotency_key.clone(),
             ));
             if seen.len() == 1 {
-                return Err(crate::cloud::auth::Error::Response(503, None));
+                return Err(crate::cloud::auth::Error::Response(
+                    503,
+                    None,
+                    Default::default(),
+                ));
             }
             return Ok(serde_json::json!({"code": 0, "data":
                 {"id": "p-new", "name": "Plans", "org_id": "team-1"}}));
