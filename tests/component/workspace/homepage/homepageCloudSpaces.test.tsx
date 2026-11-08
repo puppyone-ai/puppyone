@@ -121,6 +121,26 @@ describe("personal and organization destinations", () => {
     expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("remote");
     expect(publish).not.toHaveBeenCalled();
   });
+  it("hangs a copy in the personal space under All my devices, and leaves Team unticked with nothing to copy", async () => {
+    const onOpenCloudProject = vi.fn();
+    await render({ onRenameProject: async () => {}, onOpenCloudProject, projectItems: [...items,
+      { id: "mine", label: "Journal", localPath: "/fixture/journal", linkedCloudProject: { id: "mine-cloud", name: "Journal" } },
+      { id: "mine-cloud", label: "Journal", localPath: "", cloudProjectId: "mine-cloud", cloudOrganizationId: "personal" }] });
+    const card = localButton("Journal").closest(".onboarding-project-row-wrap")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+    const rows = [...document.querySelectorAll<HTMLElement>(".project-audience-tier, .project-audience-detail")]
+      .map((row) => [row.textContent?.replace(/[⁨⁩]/g, ""), row.getAttribute("aria-checked")]);
+    expect(rows).toEqual([
+      ["Only this computer", "false"],
+      ["All my devices", "true"],
+      [expect.stringContaining("A copy in the cloud"), null],
+      ["Team", "false"],
+    ]);
+    const open = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")].find((row) => row.textContent?.includes("A copy in the cloud"))!;
+    await act(async () => open.click());
+    expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("mine-cloud");
+    expect(publish).not.toHaveBeenCalled();
+  });
   it("keeps an empty team one can add to there to drop into, with the same exact target", async () => {
     await render({ projectItems: [local], cloudSpaces: [spaces[1]] });
     expect(target("team").textContent).toContain("Team Share Project");
