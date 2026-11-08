@@ -9,6 +9,7 @@ import {
   applyCloudBillingSeatChange,
   cloudApiRequest,
   createCloudBillingCheckout,
+  createCloudProject,
   getCloudAutomationOauthAuthorizeUrl,
   getCloudAutomationOauthStatus,
   getCloudBillingCatalog,
@@ -294,6 +295,18 @@ describe("cloud API client delegation", () => {
     expect(openExternalUrl).toHaveBeenCalledWith("https://checkout.example/session");
     await expect(openCloudBillingExternalUrl("http://checkout.example/session"))
       .rejects.toThrow(/unsafe/i);
+  });
+
+  it("creates a Cloud project in the chosen space, once however often the same attempt is sent", async () => {
+    bridge.mockResolvedValue({ id: "project-9", name: "Plans" });
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, "operation-1", API);
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, "operation-1", API);
+    const [first, retry] = bridge.mock.calls.map(([request]) => request);
+    expect(first).toEqual(expect.objectContaining({ path: "/projects/", method: "POST",
+      headers: expect.objectContaining({ "Idempotency-Key": "operation-1" }) }));
+    expect(JSON.parse(first.body)).toEqual({ name: "Plans", org_id: "org-team" });
+    // A retry is the same request: the Cloud keys the project on the operation, not on the call.
+    expect(retry).toEqual(first);
   });
 
   it("getCloudProject URL-encodes the project id in the path", async () => {
