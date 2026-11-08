@@ -44,7 +44,6 @@ describe("project initialization ownership", () => {
     const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
     const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
     const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
-    const importDialog = source("src/components/OnboardingImportDialog.tsx");
     const importRegistry = source("src/features/project-import/importSourceRegistry.ts");
     const experimentalSettings = source("src/features/settings/main/ExperimentalSettingsView.tsx");
     const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
@@ -54,7 +53,8 @@ describe("project initialization ownership", () => {
     expect(launcher).toContain("<ImportSourcePreview");
     expect(flow).toContain("resolveVisibleImportSources");
     expect(flow).toContain("resolveImportPreviewBrands");
-    expect(importDialog).toContain("visibleSources.map");
+    // That the dialog shows only these sources is rendered and checked in
+    // tests/component/workspace/homepage/homepageImport ("hides experimental sources by default").
     expect(importRegistry).toContain("settings.enableOtherAppImports");
     expect(experimentalSettings).toContain('settingKey: "enableOtherAppImports"');
     expect(launcherStyles).toMatch(
