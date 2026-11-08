@@ -4,7 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, isChecked, queryAllByRole, queryByRole, roleOf } from "../../../support/react/queries";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
+import { EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS } from "../../../../src/components/onboarding/emptyStateIntro";
 import type { CloudSpace, ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,7 +30,19 @@ async function render(overrides: Partial<HomeWithEntryFlowProps> = {}) {
     onOpenDroppedWorkspace={async () => {}} {...overrides} />)));
   return host;
 }
-const target = (id: string) => document.querySelector<HTMLElement>(`[data-project-group="${id === "personal" ? "personal" : "team"}-shared"]`)!;
+const GROUPS = { team: "Team Share Project", personal: "My Share Project", local: "On this computer" } as const;
+/** A group as it is announced: a region named by its heading. */
+const group = (name: keyof typeof GROUPS) => queryByRole(document, "region", { name: GROUPS[name] });
+const target = (id: string) => group(id === "personal" ? "personal" : "team")!;
+const groupNames = () => queryAllByRole(document, "region").map(accessibleName).filter((name) => Object.values(GROUPS).includes(name as never));
+/** Opens a project's ⋯ menu and returns who can open it, as announced. */
+async function audienceOf(project: string) {
+  await act(async () => getByRole(document, "button", { name: `Project actions for ${project}` }).click());
+  return getByRole(document, "region", { name: "Who can open it" });
+}
+const rowsOf = (audience: HTMLElement) => [...audience.querySelectorAll("[role]")]
+  .filter((row) => ["menuitemcheckbox", "menuitem"].includes(roleOf(row)!))
+  .map((row) => [accessibleName(row), roleOf(row) === "menuitemcheckbox" ? isChecked(row) : null]);
 async function chooseTeam(id: string) {
   const select = document.querySelector<HTMLSelectElement>('[aria-label="Choose team"]')!;
   await act(async () => { select.value = id; select.dispatchEvent(new Event("change", { bubbles: true })); });
@@ -39,15 +53,13 @@ async function drag(element: Element, type: string, data = { effectAllowed: "", 
   await act(async () => element.dispatchEvent(event));
   return data;
 }
-const localButton = (name: string) => [...document.querySelectorAll<HTMLButtonElement>("button[draggable=true]")]
-  .find((button) => button.textContent?.includes(name))!;
+const localButton = (name: string) => getByRole(document, "button", { name: `Open ${name} locally` });
 
 describe("personal and organization destinations", () => {
   it("uses audience headings and omits an unused empty personal area", async () => {
     await render();
-    expect([...document.querySelectorAll("[data-project-group]")].map((group) => group.getAttribute("data-project-group")))
-      .toEqual(["team-shared", "local-only"]);
-    expect(target("personal")).toBeNull();
+    expect(groupNames()).toEqual(["Team Share Project", "On this computer"]);
+    expect(group("personal")).toBeNull();
     expect(target("team").textContent).toContain("Team Share Project");
     expect(target("team").textContent).toContain("Team project");
     expect(target("team").textContent).not.toContain("Draft");
@@ -55,24 +67,24 @@ describe("personal and organization destinations", () => {
   it("orders team, personal and local areas, with nothing to focus in their headings", async () => {
     const host = await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
       cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
-    const groups = [...host.querySelectorAll('[data-project-group]')];
-    expect(groups.map((group) => group.getAttribute('data-project-group')))
-      .toEqual(["team-shared", "personal-shared", "local-only"]);
-    expect(groups.map((group) => group.querySelector('h2')?.textContent))
-      .toEqual(["Team Share Project", "My Share Project", "On this computer"]);
+    expect(groupNames()).toEqual(["Team Share Project", "My Share Project", "On this computer"]);
     // The rule between groups is the heading's own edge (see the Homepage visual contract),
     // never an element of its own that assistive technology or the keyboard could reach.
-    for (const group of groups) {
-      const head = group.querySelector<HTMLElement>(".onboarding-project-group-head")!;
-      expect(head.querySelector(".onboarding-project-group-divider, hr, [role=separator]")).toBeNull();
-      expect([...head.querySelectorAll<HTMLElement>("[tabindex]")].filter((element) => element.tabIndex >= 0)).toEqual([]);
+    for (const name of ["team", "personal", "local"] as const) {
+      const heading = getByRole(group(name)!, "heading", { name: GROUPS[name] });
+      expect(heading.tabIndex).toBeLessThan(0);
+      expect(queryAllByRole(host, "separator")).toEqual([]);
+      expect(host.querySelectorAll("hr")).toHaveLength(0);
     }
   });
   it("does not replace a new account's empty start page with unused space placeholders", async () => {
-    const host = await render({ projectItems: [] });
-    expect(host.querySelector('[data-onboarding-state="empty"]')).not.toBeNull();
-    expect(document.querySelector('[data-project-group="personal-shared"]')).toBeNull();
-    expect(document.querySelector('[data-project-group="team-shared"]')).toBeNull();
+    vi.useFakeTimers();
+    await render({ projectItems: [] });
+    // The first run's page is announced once its intro has played.
+    await act(async () => { vi.advanceTimersByTime(EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS); });
+    vi.useRealTimers();
+    expect(getByRole(document, "heading", { name: "Start with your files. Agent-ready." })).toBeTruthy();
+    expect(groupNames()).toEqual([]);
   });
   it("a trusted local drag chooses the exact destination, without publishing or removing files", async () => {
     await render();
@@ -101,23 +113,16 @@ describe("personal and organization destinations", () => {
   });
   it("offers the same confirmed copy to a team from the project's own menu, for the keyboard", async () => {
     await render({ onRenameProject: async () => {} });
-    const card = localButton("Draft").closest(".onboarding-project-row-wrap")!;
-    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
-    const team = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")].find((row) => row.textContent?.includes("Team"))!;
-    expect(team.textContent).toContain("Copy…");
-    await act(async () => team.click());
+    const audience = await audienceOf("Draft");
+    await act(async () => getByRole(audience, "menuitemcheckbox", { name: "Team Copy…", checked: false }).click());
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "team");
   });
   it("offers no copy for a folder that already has one, only a way to open it", async () => {
     const onOpenCloudProject = vi.fn();
     await render({ onRenameProject: async () => {}, onOpenCloudProject });
-    const card = localButton("Existing").closest(".onboarding-project-row-wrap")!;
-    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
-    const team = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")].find((row) => row.textContent?.includes("Team"))!;
-    expect(team.getAttribute("aria-checked")).toBe("true");
-    expect(team.textContent).not.toContain("Copy…");
-    const open = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")].find((row) => row.textContent?.includes("A copy in the cloud"))!;
-    await act(async () => open.click());
+    const audience = await audienceOf("Existing");
+    expect(rowsOf(audience)).toEqual([["Only this computer", false], ["Team", true], ["A copy in the cloud Open", null]]);
+    await act(async () => getByRole(audience, "menuitem", { name: "A copy in the cloud Open" }).click());
     expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("remote");
     expect(publish).not.toHaveBeenCalled();
   });
@@ -126,18 +131,14 @@ describe("personal and organization destinations", () => {
     await render({ onRenameProject: async () => {}, onOpenCloudProject, projectItems: [...items,
       { id: "mine", label: "Journal", localPath: "/fixture/journal", linkedCloudProject: { id: "mine-cloud", name: "Journal" } },
       { id: "mine-cloud", label: "Journal", localPath: "", cloudProjectId: "mine-cloud", cloudOrganizationId: "personal" }] });
-    const card = localButton("Journal").closest(".onboarding-project-row-wrap")!;
-    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
-    const rows = [...document.querySelectorAll<HTMLElement>(".project-audience-tier, .project-audience-detail")]
-      .map((row) => [row.textContent?.replace(/[⁨⁩]/g, ""), row.getAttribute("aria-checked")]);
-    expect(rows).toEqual([
-      ["Only this computer", "false"],
-      ["All my devices", "true"],
-      [expect.stringContaining("A copy in the cloud"), null],
-      ["Team", "false"],
+    const audience = await audienceOf("Journal");
+    expect(rowsOf(audience)).toEqual([
+      ["Only this computer", false],
+      ["All my devices", true],
+      ["A copy in the cloud Open", null],
+      ["Team", false],
     ]);
-    const open = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-detail")].find((row) => row.textContent?.includes("A copy in the cloud"))!;
-    await act(async () => open.click());
+    await act(async () => getByRole(audience, "menuitem", { name: "A copy in the cloud Open" }).click());
     expect(onOpenCloudProject).toHaveBeenCalledExactlyOnceWith("mine-cloud");
     expect(publish).not.toHaveBeenCalled();
   });
@@ -164,8 +165,8 @@ describe("personal and organization destinations", () => {
     expect(target("personal").textContent).toContain("ditherit");
     expect(target("personal").textContent).toContain("Personal notes");
     expect(target("personal").textContent).not.toContain("Drop a project here");
-    expect(document.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
-    expect([...document.querySelectorAll('button[draggable=true]')].filter((button) => button.textContent?.includes("ditherit"))).toHaveLength(1);
+    expect(group("local")?.textContent).not.toContain("ditherit");
+    expect(queryAllByRole(document, "button", { name: /^Open ditherit/ })).toHaveLength(1);
   });
   it("changes teams inside one area and keeps publication bound to the selected team", async () => {
     await render({ cloudSpaces: [...spaces, { id: "second", name: "Second team", kind: "team", canCreateProjects: true }] });
@@ -174,6 +175,6 @@ describe("personal and organization destinations", () => {
     await drag(localButton("Draft"), "dragstart");
     await drag(target("team"), "drop");
     expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "second");
-    expect(document.querySelectorAll('[data-project-group="team-shared"]')).toHaveLength(1);
+    expect(groupNames().filter((name) => name === "Team Share Project")).toHaveLength(1);
   });
 });
