@@ -5,9 +5,9 @@ import { createNativeProcessOwner } from "./native-process-owner.mjs";
 
 /** One replaceable execution process, never a shared pool or an inline fallback. */
 export function createUtilityHost({ utilityProcess, modulePath, identity, budget, initialize,
-  handle, onEvent = () => {}, onExit = () => {}, logger = console }) {
+  handle, onEvent = () => {}, onExit = () => {}, logger = console, platform = process.platform }) {
   const generation = randomUUID();
-  const nativeProcesses = createNativeProcessOwner();
+  const nativeProcesses = createNativeProcessOwner({ platform });
   const lease = budget.reserve({ ...identity, key: `utility:${identity.key}` });
   let child;
   try {
@@ -120,7 +120,10 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
         try { child.postMessage({ type: "terminate", generation }); } catch { forceExit(); }
       }
       const elapsedMs = Math.max(0, performance.now() - startedAt);
-      const graceMs = Math.max(0, Math.min(2000, budget.policy.closeTimeoutMs / 2) - elapsedMs);
+      // Windows taskkill has a 3 s deadline; allow its completion/exit report
+      // before destroying the utility that still owns that confirmation.
+      const nativeGraceMs = platform === "win32" ? 4000 : 2000;
+      const graceMs = Math.max(0, Math.min(nativeGraceMs, budget.policy.closeTimeoutMs / 2) - elapsedMs);
       const escalation = setTimeout(forceExit, graceMs);
       let deadline;
       const cleanup = exited ? nativeProcesses.close().then(() => { lease.release(); resolveExit(exitInfo); return exitInfo; }) : exit;

@@ -29,17 +29,16 @@ export function normalizeRelativePath(value) {
 export function isSameOrInsidePath(parentPath, candidatePath) {
   const parent = path.resolve(parentPath);
   const candidate = path.resolve(candidatePath);
-  if (candidate === parent) return true;
-
   const relativePath = path.relative(parent, candidate);
-  return Boolean(relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+  return relativePath === "" || (relativePath !== ".."
+    && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath));
 }
 
 export function resolveWorkspacePath(rootPath, relativePath) {
   const root = path.resolve(rootPath);
   const normalizedRelative = normalizeRelativePath(relativePath);
   const resolved = normalizedRelative ? path.resolve(root, normalizedRelative) : root;
-  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
+  if (!isSameOrInsidePath(root, resolved)) {
     throw new Error("Folder path is outside the selected workspace.");
   }
   return resolved;

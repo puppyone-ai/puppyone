@@ -44,6 +44,7 @@ export function createClaudeSpawn({ spawn = nodeSpawn, fsModule = fs, onStderr =
     } });
     const child = handle.child;
     const lease = new EventEmitter();
+    lease.processHandle = handle;
     lease.signal = options.signal;
     let killTimer;
     lease.stop = () => {
@@ -59,7 +60,9 @@ export function createClaudeSpawn({ spawn = nodeSpawn, fsModule = fs, onStderr =
       lease.exitInfo = { code, signal, error };
       clearTimeout(killTimer);
       options.signal?.removeEventListener?.("abort", lease.stop);
-      processes.delete(lease);
+      if (handle.termination) {
+        void handle.termination.then(ok => { if (ok) processes.delete(lease); });
+      } else processes.delete(lease);
       lease.emit("exit", lease.exitInfo);
     };
     child.once("close", (code, signal) => finish(code, signal));

@@ -14,6 +14,30 @@ function environmentOutput(args, entries, { noise = "PATH=/wrong\n", code = 0 } 
 }
 
 describe("platform command environment", () => {
+  it("terminates a timed-out Windows batch probe as a tree", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = Object.assign(new EventEmitter(), {
+        pid: 581, stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(),
+      });
+      let finishTree;
+      const run = vi.fn(() => new Promise(resolve => { finishTree = resolve; }));
+      const pending = runBoundedProcessProbe("C:\\tools\\agent.cmd", ["--version"], {
+        platform: "win32", spawn: () => child, timeoutMs: 10, run,
+      }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(11);
+      expect((await pending).message).toContain("timed out");
+      expect(run).toHaveBeenCalledWith(expect.stringMatching(/taskkill\.exe$/), ["/PID", "581", "/T", "/F"],
+        expect.objectContaining({ timeout: 3000 }));
+      expect(child.kill).not.toHaveBeenCalled();
+      expect(child.stdout.destroyed).toBe(false);
+      expect(child.stderr.destroyed).toBe(false);
+      finishTree();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(child.stdout.destroyed).toBe(true);
+      expect(child.stderr.destroyed).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
   it("preserves Unicode installation paths split across stdout chunks", async () => {
     const child = new EventEmitter();
     child.stdout = new PassThrough();

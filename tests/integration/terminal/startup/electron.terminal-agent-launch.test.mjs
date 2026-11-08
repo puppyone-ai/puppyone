@@ -8,6 +8,7 @@ import {
 } from "../../../../electron/main/terminal-agent/terminal-agent-launch-resolver.mjs";
 import { createTerminalService } from "../../../../electron/main/terminal-service.mjs";
 import {
+  createTerminalShellHost,
   isTerminalAgentDisplayReady,
   serializeTerminalAgentCommand,
 } from "../../../../electron/main/terminal-shell-host.mjs";
@@ -293,6 +294,30 @@ describe("Terminal Agent launch boundary", () => {
 });
 
 describe("Terminal Agent command serialization", () => {
+  it("disables cmd delayed expansion even without a hydrated Agent environment", () => {
+    const host = createTerminalShellHost({ platform: "win32", environment: { ComSpec: "C:\\Windows\\System32\\cmd.exe" },
+      agentLaunch: { executablePath: "C:\\CLI !tools!\\agent.exe" } });
+    expect(host.args).toEqual(["/d", "/v:off"]);
+  });
+
+  it("preserves a trailing directory separator in native cmd arguments", () => {
+    expect(serializeTerminalAgentCommand({ executablePath: "C:\\tools\\agent.exe", args: ["C:\\work space\\"] },
+      { platform: "win32", shellFile: "cmd.exe" })).toBe('"C:\\tools\\agent.exe" "C:\\work space\\\\"\r');
+  });
+  it.each(["%PROFILE%", 'quoted" & echo changed', "first\rsecond", "first\nsecond", "first\0second"])(
+    "refuses cmd expansion or control characters in native executable arguments: %j", (argument) => {
+      expect(() => serializeTerminalAgentCommand({ executablePath: "C:\\tools\\agent.exe", args: [argument] },
+        { platform: "win32", shellFile: "C:\\Windows\\System32\\cmd.exe" })).toThrow("cannot preserve");
+    });
+
+  it("does not expand a native executable path through cmd, while preserving PowerShell literals", () => {
+    const launch = { executablePath: "C:\\%custom%\\agent.exe", args: ["%PROFILE%"] };
+    expect(() => serializeTerminalAgentCommand(launch,
+      { platform: "win32", shellFile: "C:\\Windows\\System32\\cmd.exe" })).toThrow("cannot preserve");
+    expect(serializeTerminalAgentCommand(launch, { platform: "win32", shellFile: "pwsh.exe" }))
+      .toBe("& 'C:\\%custom%\\agent.exe' '%PROFILE%'\r");
+  });
+
   it("preserves a Windows npm launcher path and refuses percent expansion", () => {
     expect(serializeTerminalAgentCommand({ executablePath: "C:\\CLI tools\\codex.cmd", args: [] },
       { platform: "win32", shellFile: "C:\\Windows\\System32\\cmd.exe" }))

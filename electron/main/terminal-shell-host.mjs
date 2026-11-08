@@ -29,6 +29,8 @@ export function createTerminalShellHost({
     ? serializeTerminalAgentCommand(agentLaunch, { platform, shellFile: file })
     : null;
 
+  if (agentLaunch && platform === "win32" && shellName.toLowerCase() === "cmd.exe") args = ["/d", "/v:off"];
+
   if (agentLaunch && commandEnvironment) {
     // The platform already initialized this environment. Sourcing rc files
     // again can reorder PATH or switch the active version manager.
@@ -56,7 +58,7 @@ export function createTerminalShellHost({
     file,
     args,
     displayShell: agentLaunch?.displayName ?? shellName,
-    loginShell: !commandEnvironment && args.length > 0,
+    loginShell: platform !== "win32" && !commandEnvironment && args.length > 0,
     commandEnvironment,
     pathEntries: agentLaunch?.pathEntries ?? [],
     environment: agentLaunch && shellName === "zsh" ? { DISABLE_AUTO_UPDATE: "true" } : {},
@@ -97,9 +99,12 @@ function quotePowerShellArgument(value) {
 }
 
 // The executable and prefixes come from the trusted main-process registry,
-// never from renderer text. CRT-compatible quoting preserves spaces, quotes,
-// and trailing backslashes when cmd.exe launches a native executable.
+// never from renderer text. cmd expansion/quote breaks must be refused before
+// CRT-compatible quoting preserves spaces and trailing backslashes.
 function quoteWindowsCommandArgument(value) {
+  if (typeof value !== "string" || /["%\r\n\0]/u.test(value)) {
+    throw new Error("This Windows command processor cannot preserve the requested argument. Use PowerShell.");
+  }
   const text = String(value);
   let quoted = '"';
   let backslashes = 0;
