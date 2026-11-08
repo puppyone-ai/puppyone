@@ -896,6 +896,23 @@ span.homepage-cloud-feedback {
   color: inherit;
 }
 
+/* A project whose folder cannot be opened now: its folder fades, and a caption under
+   its name says why, in the page's own caption type and muted ink. */
+.onboarding-project-row-wrap[data-unavailable="true"] :is(.onboarding-project-folder, .onboarding-project-icon) {
+  opacity: 0.4;
+}
+
+.onboarding-project-status {
+  color: var(--po-text-muted);
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 16px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-status {
+  /* The tile's 8px gap already separates rows; the caption belongs to the name. */
+  margin-block-start: -6px;
+}
+
 /* A tile has no room for the link's label; its tooltip still says what it opens. */
 .onboarding-project-tile ~ .onboarding-project-cloud-link {
   width: 24px;

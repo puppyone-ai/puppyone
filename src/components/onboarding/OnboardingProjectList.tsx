@@ -45,6 +45,10 @@ type OnboardingProjectListProps = ProjectChanges & {
   openingPath: string | null;
   draggingPath: string | null;
   onOpen: (path: string) => void;
+  /** Local projects whose folder cannot be opened now, with the few words that say why. */
+  unavailable?: ReadonlyMap<string, string>;
+  /** Asks what to do about such a project, instead of opening it. */
+  onOpenUnavailable?: (path: string) => void;
   onDragStart: (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => void;
   onDragEnd: () => void;
 };
@@ -58,6 +62,8 @@ export function OnboardingProjectList({
   openingPath,
   draggingPath,
   onOpen,
+  unavailable,
+  onOpenUnavailable,
   onDragStart,
   onDragEnd,
   sharing,
@@ -96,31 +102,41 @@ export function OnboardingProjectList({
         const sharedId = item.localPath && item.hostFolderId && sharing?.sharedFolderIds.has(item.hostFolderId)
           ? item.hostFolderId : null;
         const tabIndex = item.id === navigation.stopId ? 0 : -1;
+        const unavailableCaption = location === "local" && item.localPath ? unavailable?.get(item.localPath) ?? null : null;
+        let rowDetail = <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>;
+        if (location === "cloud") rowDetail = <ProjectHomeItemCaption item={item} />;
+        else if (unavailableCaption) rowDetail = <span className="onboarding-project-status">{unavailableCaption}</span>;
         const open = {
           "data-project-open": true,
           tabIndex,
           disabled: busy,
           "aria-busy": openingPath === item.localPath || undefined,
           "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
-          draggable: !busy && Boolean(item.localPath),
-          onClick: () => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath),
+          "aria-description": unavailableCaption ?? undefined,
+          draggable: !busy && Boolean(item.localPath) && !unavailableCaption,
+          onClick: () => {
+            if (location === "cloud" && item.cloudProjectId) onOpenCloudProject?.(item.cloudProjectId);
+            else if (unavailableCaption && onOpenUnavailable) onOpenUnavailable(item.localPath);
+            else onOpen(item.localPath);
+          },
           onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => onDragStart(event, item),
           onDragEnd,
         };
         return (
           <li key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
             data-menu-open={surface === "menu" ? "true" : undefined}
+            data-unavailable={unavailableCaption ? "true" : undefined}
             data-project-location={location}
             data-cloud-project-id={item.cloudProjectId}
             data-linked-cloud-project-id={linked?.id}
             onFocus={() => navigation.setFocusedId(item.id)}>
-            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)} {...open} /> : <DesktopMenuItem
+            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)}
+              status={unavailableCaption} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
               icon={<span className="onboarding-project-icon" aria-hidden="true"><ProjectFolderGlyph /></span>}
               label={<><bdi>{name}</bdi><ProjectPlaceMark cloud={location === "cloud"} /></>}
-              detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
-                : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
+              detail={rowDetail}
               trailing={modified}
               {...open}
             />}
@@ -199,11 +215,13 @@ export function ProjectPlaceMark({ cloud }: { cloud: boolean }) {
  * folder. The tooltip adds where it lives and when it last changed, and the name
  * itself only when the line has cut it.
  */
-function ProjectTile({ item, name, modified, shared, ...button }: {
+function ProjectTile({ item, name, modified, shared, status, ...button }: {
   item: ProjectHomeItem;
   name: string;
   modified: string | null;
   shared: boolean;
+  /** Why its folder cannot be opened now, said under its name. */
+  status?: string | null;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const { t } = useLocalization();
   const caption = useProjectHomeItemCaption(item);
@@ -222,6 +240,7 @@ function ProjectTile({ item, name, modified, shared, ...button }: {
           <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
           <ProjectPlaceMark cloud={projectHomeItemLocation(item) === "cloud"} />
         </span>
+        {status && <span className="onboarding-project-status">{status}</span>}
       </button>
     </Tooltip>
   );
