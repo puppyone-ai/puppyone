@@ -5,7 +5,6 @@
 //! ratio), so they need no measure of their own; what the pointer does over
 //! them is read against the bounds each pane and split was painted at.
 use super::{
-    Command,
     editor_area::{EditorArea, EditorEvent},
     explorer,
 };
@@ -119,10 +118,8 @@ impl EditorArea {
         }
     }
     /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
-    /// Retry everywhere; hosted documents and file windows also show
-    /// Saving… and Saved (`showSaveStatus`), and a file window's unsaved
-    /// edits offer Save (`saveMode === "manual"`). Clean documents show
-    /// nothing.
+    /// Retry everywhere; hosted documents also show Saving… and Saved
+    /// (`showSaveStatus`). Clean documents show nothing.
     pub(super) fn save_chip(&self, slot: u64, cx: &App) -> Option<AnyElement> {
         use crate::documents::SaveStatus;
         let files = self.docs.read(cx).slot(slot)?;
@@ -130,7 +127,7 @@ impl EditorArea {
             .workspace
             .as_ref()
             .is_some_and(|ws| ws.local_root().is_none());
-        let show_status = hosted || files.file_window;
+        let show_status = hosted;
         let status = files.save_status();
         let t = cx.palette();
         // `.editor-save-chip`, fading in over 180ms (`editor-save-fade-in`).
@@ -147,8 +144,6 @@ impl EditorArea {
         };
         let glyph =
             |name: &'static str, color: Rgba| Icon::new(name).with_size(px(14.)).color(color);
-        // `dirty` outranks `saved`: typing after a save asks to save again.
-        let unsaved = files.file_window && files.dirty && status != SaveStatus::Saving;
         let (key, body) = match status {
             SaveStatus::Failed => (
                 "failed",
@@ -162,19 +157,6 @@ impl EditorArea {
                         s.docs.update(cx, |d, _| d.retry_slot_save(slot));
                         cx.notify();
                     }))
-                    .into_any_element(),
-            ),
-            _ if unsaved => (
-                "action",
-                chip("editor-save-action")
-                    .bg(t.warning)
-                    .text_color(t.text_inverse)
-                    .hover(|d| d.bg(theme::mix(t.warning, t.text, 0.88)))
-                    .child(glyph("editor-save", t.text_inverse))
-                    .child(crate::localization::t("editor.save.action"))
-                    .on_click(
-                        self.listener(|_, _, _, cx| cx.emit(EditorEvent::Command(Command::Save))),
-                    )
                     .into_any_element(),
             ),
             SaveStatus::Saving if show_status => (

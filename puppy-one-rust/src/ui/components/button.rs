@@ -62,8 +62,8 @@ pub enum ButtonVariant {
     Pattern,
     /// `.po-button.po-button--primary` (`.desktop-header-coachmark-button`).
     PatternPrimary,
-    /// `.file-mode-window__action`: the icon keeps the title's muted ink in
-    /// every state; only the fill says hover or open.
+    /// `.file-mode-window__action`: the title's muted ink a shade lighter at
+    /// rest, the full ink touched; the fill says hover or open.
     TitlebarInk,
 }
 impl ButtonVariant {
@@ -269,10 +269,16 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             hover_bg: t.hover,
             hover_fg: t.muted,
         },
+        // A shade lighter than the name at rest, as a project pane's handle
+        // is; touched, the name's ink.
         ButtonVariant::TitlebarInk => Paint {
             border: None,
             bg: if selected || open { t.selected } else { clear },
-            fg: t.muted,
+            fg: if selected || open {
+                t.muted
+            } else {
+                theme::alpha(t.muted, 0.68)
+            },
             hover_bg: if selected || open {
                 t.selected
             } else {

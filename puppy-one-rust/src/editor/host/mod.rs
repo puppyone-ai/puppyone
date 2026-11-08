@@ -55,6 +55,9 @@ pub struct DocumentEditor {
     /// The document only reads (a file window's legacy text): the surface
     /// takes no edits, while view switches still work.
     pub read_only: bool,
+    /// Chrome floating over the document's top (a file window's title bar);
+    /// every surface it shows keeps that room at rest.
+    chrome_inset: f32,
     pub pane_drag: Option<crate::editor::workbench::pane::PaneDrag>,
     session: Option<Session>,
     surface: Option<Box<dyn ViewerSurface>>,
@@ -92,6 +95,7 @@ impl DocumentEditor {
         Self {
             workbench: false,
             file_mode: false,
+            chrome_inset: 0.,
             read_only: false,
             pane_drag: None,
             session: None,
@@ -212,6 +216,7 @@ impl DocumentEditor {
             }),
             cx,
         );
+        surface.set_chrome_inset(self.chrome_inset, cx);
         // A new surface: its find adapter and menu start fresh.
         self.chrome.open = false;
         if let Some(bar) = &self.find {
@@ -412,6 +417,23 @@ impl DocumentEditor {
 
     /// Block input while modal UI, a busy document operation or another
     /// provider owns the document; follow the app appearance.
+    /// See `chrome_inset`.
+    pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
+        if self.chrome_inset != top {
+            self.chrome_inset = top;
+            if let Some(surface) = &self.surface {
+                surface.set_chrome_inset(top, cx);
+            }
+            cx.notify();
+        }
+    }
+    /// How far the shown document is scrolled, and whether its top edge is
+    /// a pinned header row.
+    pub fn scroll_state(&self, cx: &App) -> (f32, bool) {
+        self.surface
+            .as_ref()
+            .map_or((0., false), |s| s.scroll_state(cx))
+    }
     pub fn gate(&mut self, blocked: bool, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.blocked = blocked;
         self.dark = dark;

@@ -110,6 +110,12 @@ impl ViewerSurface for TextSurface {
     fn undo(&self, redo: bool, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.undo(redo, cx));
     }
+    fn set_chrome_inset(&self, top: f32, cx: &mut App) {
+        self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
+    }
+    fn scroll_state(&self, cx: &App) -> (f32, bool) {
+        (self.editor.read(cx).scroll_top(), false)
+    }
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| {
             let mut changed = e.read_only() != read_only || e.dark != dark;

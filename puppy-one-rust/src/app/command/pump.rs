@@ -99,13 +99,13 @@ impl Shell {
         window.remove_window();
     }
     /// The file's folder is the window's root; only the file shows, and it
-    /// saves when asked. A file that is gone or too large is never read
+    /// saves as it is edited. A file that is gone or too large is never read
     /// (nor one `hold` keeps loading).
     pub(in crate::app) fn bind_file(
         &mut self,
         file: file_mode::FileTarget,
         hold: bool,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.session.docs.update(cx, |d, _| d.file_window = true);
@@ -121,11 +121,6 @@ impl Shell {
         }
         let (docs, editor) = (self.session.docs.clone(), self.editor.clone());
         let file = cx.new(|cx| file_mode::FileWindow::new(file, docs, editor, cx));
-        cx.subscribe_in(&file, window, |s, _, event, w, cx| {
-            let file_mode::FileEvent::Command(command) = event;
-            s.command(*command, w, cx)
-        })
-        .detach();
         self.file = Some(file);
     }
     /// What the window's features read of the session, handed over when it

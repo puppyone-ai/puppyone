@@ -34,10 +34,6 @@ pub enum Command {
     /// Anyway".
     KeepWindowOpen,
     CloseAnyway,
-    /// A file window's unsaved edits on close: Save, Don't Save, Cancel.
-    SaveFileAndClose,
-    DiscardFileChanges,
-    CancelFileClose,
     OpenFolder,
     /// `openProjectLauncher`: the Project entry launcher.
     CreateNew,

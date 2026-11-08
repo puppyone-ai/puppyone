@@ -75,6 +75,12 @@ impl ViewerSurface for CsvSurface {
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.undo(redo, window, cx));
     }
+    fn set_chrome_inset(&self, top: f32, cx: &mut App) {
+        self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
+    }
+    fn scroll_state(&self, cx: &App) -> (f32, bool) {
+        self.editor.read(cx).scroll_state(cx)
+    }
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| {
             e.set_read_only(read_only, cx);

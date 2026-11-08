@@ -2,8 +2,18 @@
 //! CSV or HTML file in a window of its own, opened from Finder or a second
 //! launch. No project, Explorer, Agent, Git or Terminal: a title bar with the
 //! file's name centred and the editor's own view switch and settings at its
-//! end, over the document. Saves are explicit (⌘S or the Save chip); closing
-//! with unsaved edits asks to save, discard or stay.
+//! end, floating over the document with no fill. Edits are saved as they
+//! are made, as in a project window: no save step, no unsaved mark, no
+//! question on close; closing flushes what was just typed, and a write that
+//! fails keeps the window open (the project window's close coordinator).
+//!
+//! The document fills the window from its top edge and keeps the bar's row
+//! as room above its content at rest (`--po-editor-chrome-inset-block-start`);
+//! scrolled, content passes beneath the bar and fades out across its row,
+//! and the name fades while reading further down. The controls show only
+//! while the pointer is in the top third of the window or a menu is open.
+//! An HTML page is a native web view, which nothing can float over, so it
+//! starts below the bar.
 //!
 //! The document area follows `FileModeApp`: `PageLoading` until the file is
 //! found, `FileUnavailable` when it is gone or over the editor's 1 MB limit,
@@ -13,7 +23,7 @@
 //! panes: the title bar and the document area over the window's documents
 //! runtime and editor area. Its answers to the close question go back to
 //! the window ([`FileEvent`]).
-use super::{Command, editor_area::EditorArea, session::DocumentSession};
+use super::{editor_area::EditorArea, session::DocumentSession};
 use crate::{
     editor::workbench::pane::{Action, ItemKind},
     geometry::Rect,
@@ -38,6 +48,8 @@ pub const FILE_WINDOW_SIZE: (f32, f32) = (860., 760.);
 const SAFE_START: f32 = 80.;
 /// `.file-mode-window__controls { gap: 3px }`.
 const CONTROLS_GAP: f32 = 3.;
+/// `PANE_HANDLE_REVEAL_RATIO`: chrome appears in the top third.
+const PANE_HANDLE_REVEAL_RATIO: f32 = 1. / 3.;
 /// `EditorViewModeMenu` `MENU_MAX_HEIGHT`.
 const VIEW_MENU_MAX_HEIGHT: f32 = 320.;
 /// `MAX_EDITOR_BYTES`: a file window opens nothing larger.
@@ -88,21 +100,16 @@ impl FileTarget {
 }
 
 /// A file window's own state: the bound file, the title bar menu that is
-/// open, and whether the close question is on screen.
+/// open, and whether the pointer is near the top.
 pub struct FileWindow {
     pub target: FileTarget,
     pub(super) menu: Option<FileMenu>,
-    pub(super) asking: bool,
+    /// `useEditorPaneChromeReveal`: the pointer is in the top third.
+    pub(super) revealed: bool,
     docs: Entity<DocumentSession>,
     editor: Entity<EditorArea>,
     weak: WeakEntity<Self>,
 }
-/// What the file window asks of the window.
-pub(super) enum FileEvent {
-    /// The close question's answer.
-    Command(Command),
-}
-impl EventEmitter<FileEvent> for FileWindow {}
 impl FileWindow {
     pub(super) fn new(
         target: FileTarget,
@@ -114,7 +121,7 @@ impl FileWindow {
         Self {
             target,
             menu: None,
-            asking: false,
+            revealed: false,
             docs,
             editor,
             weak: cx.weak_entity(),
@@ -309,9 +316,10 @@ impl FileWindow {
         Some(row.into_any_element())
     }
     /// `.file-mode-window__titlebar`: the project titlebar's geometry and
-    /// divider on the document's colour, the name in the middle of the
-    /// window clear of the traffic lights and the file's controls.
-    fn file_titlebar(&self, w: f32, cx: &mut Context<Self>) -> AnyElement {
+    /// type, but no bar of its own — no fill or divider — over the
+    /// document; the name in the middle of the window clear of the traffic
+    /// lights and the file's controls. Pressing it still moves the window.
+    fn file_titlebar(&self, w: f32, scrolled: bool, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let ty = theme::ty().header;
         // `opened?.target.name`: nothing until the file is found.
@@ -327,6 +335,16 @@ impl FileWindow {
             0.
         };
         let side = start.max(room);
+        // While reading further down, the name steps back until the pointer
+        // nears the top; the controls show only then, or with a menu open.
+        let revealed = self.revealed || self.menu.is_some();
+        let controls = self.file_controls(cx).map(|controls| {
+            div()
+                .id("file-mode-controls")
+                .debug_selector(|| "file-mode-controls".into())
+                .opacity(if revealed { 1. } else { 0. })
+                .child(controls)
+        });
         div()
             .id("file-mode-titlebar")
             .absolute()
@@ -337,7 +355,6 @@ impl FileWindow {
             .px(px(6.))
             .flex()
             .items_center()
-            .bg(t.canvas)
             .text_color(t.muted)
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
@@ -351,10 +368,13 @@ impl FileWindow {
             .child(div().flex_1().min_w(px(side)))
             .child(
                 div()
+                    .id("file-mode-name")
+                    .debug_selector(|| "file-mode-name".into())
                     .min_w_0()
                     .px(px(6.))
                     .truncate()
                     .text_center()
+                    .opacity(if scrolled && !revealed { 0. } else { 1. })
                     .child(name),
             )
             .child(
@@ -362,23 +382,13 @@ impl FileWindow {
                     .flex_1()
                     .min_w(px(side))
                     .justify_end()
-                    .children(self.file_controls(cx)),
-            )
-            // The divider, kept off the window frame's edge pixels.
-            .child(
-                div()
-                    .absolute()
-                    .left(px(1.))
-                    .right(px(1.))
-                    .bottom_0()
-                    .h(px(1.))
-                    .bg(t.shell_divider),
+                    .children(controls),
             )
             .into_any_element()
     }
     /// `.file-mode-window__document`: the document (under the encoding
     /// notice when it only reads), or what stands in for it.
-    fn file_document(&self, r: Rect, cx: &mut Context<Self>) -> Div {
+    fn file_document(&self, r: Rect, page: bool, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         let area = div()
             .absolute()
@@ -433,9 +443,12 @@ impl FileWindow {
             }
             Shown::Document => {
                 let ty = theme::ty().header;
+                // A notice sits where the document would start, below the
+                // title bar's row (a page already starts there).
                 let notice = self.editor.read(cx).read_only(cx).then(|| {
                     div()
                         .flex_none()
+                        .when(!page, |d| d.mt(px(metric::CHROME_HEIGHT)))
                         .py(px(NOTICE_PADDING.0))
                         .px(px(NOTICE_PADDING.1))
                         .text_color(t.muted)
@@ -457,41 +470,22 @@ impl FileWindow {
             }
         }
     }
-    /// `askToSaveFile`: unsaved edits when a file window closes, in a
-    /// native warning (Save is the default, Cancel takes Escape). One
-    /// question at a time; its answer runs as a command.
-    pub(super) fn ask_to_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.asking {
-            return;
+}
+
+impl FileWindow {
+    /// Whether the document is an HTML page (a native web view).
+    fn page(&self, cx: &App) -> bool {
+        self.file_editor(cx)
+            .is_some_and(|e| e.read(cx).viewer_id() == Some("html"))
+    }
+    /// `useEditorPaneChromeReveal`: the pointer moved to `y` of a window
+    /// `height` tall, or left it.
+    pub(super) fn point(&mut self, y: Option<f32>, height: f32, cx: &mut Context<Self>) {
+        let revealed = y.is_some_and(|y| y < height * PANE_HANDLE_REVEAL_RATIO);
+        if self.revealed != revealed {
+            self.revealed = revealed;
+            cx.notify();
         }
-        self.asking = true;
-        let message = tf(
-            "native.fileClose.message",
-            &[("name", self.target.name.clone().into())],
-        );
-        let answer = window.prompt(
-            PromptLevel::Warning,
-            &message,
-            Some(tr("native.fileClose.detail")),
-            &[
-                PromptButton::new(tr("native.fileClose.save")),
-                PromptButton::new(tr("native.fileClose.discard")),
-                PromptButton::cancel(tr("native.fileClose.cancel")),
-            ],
-            cx,
-        );
-        cx.spawn_in(window, async move |this, cx| {
-            let command = match answer.await {
-                Ok(0) => Command::SaveFileAndClose,
-                Ok(1) => Command::DiscardFileChanges,
-                _ => Command::CancelFileClose,
-            };
-            let _ = this.update(cx, |s, cx| {
-                s.asking = false;
-                cx.emit(FileEvent::Command(command));
-            });
-        })
-        .detach();
     }
 }
 
@@ -499,15 +493,57 @@ impl Render for FileWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
-        // `.file-mode-window`: the title bar over the document alone.
-        let editor = Rect::new(0., theme::HEADER, w, h - theme::HEADER);
+        let t = cx.palette();
+        let page = self.page(cx);
+        let notice = self.editor.read(cx).read_only(cx);
+        // `.file-mode-window`: one surface from the window's top edge; the
+        // editor keeps the bar's row as room above its content.
+        let inset = if page || notice {
+            0.
+        } else {
+            metric::CHROME_HEIGHT
+        };
+        let editor = self.file_editor(cx);
+        if let Some(editor) = &editor {
+            editor.update(cx, |e, cx| e.set_chrome_inset(inset, cx));
+        }
+        let (scroll, pinned) = editor.map_or((0., false), |e| e.read(cx).scroll_state(cx));
+        let scrolled = scroll > 0.;
+        let top = if page { metric::CHROME_HEIGHT } else { 0. };
+        let area = Rect::new(0., top, w, h - top);
+        // Content scrolled up to the window's edge fades across the bar's
+        // row instead of meeting a line; never a pinned header row, which is
+        // already the edge, nor a page with its own background.
+        let fade = (scrolled && !pinned && !page).then(|| {
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(w))
+                .h(px(metric::CHROME_HEIGHT))
+                .bg(linear_gradient(
+                    180.,
+                    linear_color_stop(t.canvas, 0.),
+                    linear_color_stop(theme::alpha(t.canvas, 0.), 1.),
+                ))
+        });
         div()
+            .id("file-mode-window")
             .absolute()
             .top_0()
             .left_0()
             .size_full()
-            .child(self.file_document(editor, cx))
-            .child(self.file_titlebar(w, cx))
+            .on_mouse_move(cx.listener(move |s, e: &MouseMoveEvent, _, cx| {
+                s.point(Some(f32::from(e.position.y)), h, cx)
+            }))
+            .on_hover(cx.listener(move |s, hovered: &bool, _, cx| {
+                if !*hovered {
+                    s.point(None, h, cx)
+                }
+            }))
+            .child(self.file_document(area, page, cx))
+            .children(fade)
+            .child(self.file_titlebar(w, scrolled, cx))
     }
 }
 

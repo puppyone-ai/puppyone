@@ -110,6 +110,16 @@ pub trait ViewerSurface {
         _cx: &mut App,
     ) {
     }
+    /// `--po-editor-chrome-inset-block-start`: the host's chrome floats over
+    /// the top `top` points (a file window's title bar). The resting start
+    /// padding grows by it, so nothing sits under the chrome until the
+    /// content scrolls on beneath it.
+    fn set_chrome_inset(&self, _top: f32, _cx: &mut App) {}
+    /// How far the document's own scroller is from its top, and whether
+    /// its top edge is a pinned header row, which never fades.
+    fn scroll_state(&self, _cx: &App) -> (f32, bool) {
+        (0., false)
+    }
     /// A menu or shell command (`source`, `bold`, `italic`, `undo`, `redo`).
     fn command(&self, _name: &str, _window: &mut Window, _cx: &mut App) {}
     /// Where keyboard focus goes when the document is focused.

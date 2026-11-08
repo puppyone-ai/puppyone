@@ -98,6 +98,10 @@ pub struct EditorView {
     pub dark: bool,
     /// Bumped when theme/scale change so decorations rebuild.
     pub appearance: u64,
+    /// `--po-editor-chrome-inset-block-start`: room for chrome floating over
+    /// the top (a file window's title bar), added to the resting start
+    /// padding so content only passes under it when scrolled.
+    chrome_inset: f32,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -160,6 +164,7 @@ impl EditorView {
             read_only: false,
             dark: true,
             appearance: 0,
+            chrome_inset: 0.,
         }
     }
     pub fn text(&self) -> &str {
@@ -304,6 +309,18 @@ impl EditorView {
         }
     }
 
+    /// See `chrome_inset`.
+    pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
+        if self.chrome_inset != top {
+            self.chrome_inset = top;
+            self.appearance += 1;
+            cx.notify();
+        }
+    }
+    /// How far the document is scrolled from its top.
+    pub fn scroll_top(&self) -> f32 {
+        self.scroll_y
+    }
     /// Rebuild decorations when any input they depend on changed.
     pub(super) fn sync_decorations(&mut self, focused: bool) {
         if focused != self.focused_before {
@@ -328,7 +345,9 @@ impl EditorView {
                 pointer_selecting: self.drag.is_some(),
                 dark: self.dark,
             };
-            self.decorations = Rc::new(self.extension.decorate(&input));
+            let mut decorations = self.extension.decorate(&input);
+            decorations.surface.content.top += self.chrome_inset;
+            self.decorations = Rc::new(decorations);
             self.deco_key = Some(key);
         }
     }

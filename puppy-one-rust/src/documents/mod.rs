@@ -227,10 +227,10 @@ pub struct Documents {
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
-    /// A file window's document (`FileModeApp`): edits wait for ⌘S or the
-    /// close (`editorSaveMode="manual"`); nothing watches the file, it is
-    /// read again when the window comes back; text that is not UTF-8 is
-    /// decoded for reading (`decodesLegacyText`) and never written.
+    /// A file window's document (`FileModeApp`): edits are saved as they
+    /// are made (`editorSaveMode="auto"`), as in a project window, and the
+    /// one file is watched so an Agent's edits show; text that is not UTF-8
+    /// is decoded for reading (`decodesLegacyText`) and never written.
     pub file_window: bool,
     serial: u64,
     session: Option<DocumentEditingSession>,
@@ -354,7 +354,6 @@ impl Documents {
         if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
             && ws.capabilities().watch
             && !self.allow_quit
-            && !self.file_window
         {
             let wake = ctx.clone();
             match ws.watch(doc, Arc::new(move || wake.notify())) {
@@ -1265,7 +1264,6 @@ impl Documents {
         }
         if matches!(self.phase, Phase::Idle) {
             if self.autosave_request.is_none()
-                && !self.file_window
                 && let Some(s) = &mut self.session
                 && s.needs_snapshot
             {

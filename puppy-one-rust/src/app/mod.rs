@@ -577,7 +577,8 @@ impl Shell {
             (
                 target.name.clone(),
                 target.path.clone(),
-                self.files(cx).dirty,
+                // Saved as it is edited: never an unsaved mark.
+                false,
             )
         });
         let root = self.workspace_root(cx);

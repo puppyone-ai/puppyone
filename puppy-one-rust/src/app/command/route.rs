@@ -114,31 +114,6 @@ impl Shell {
             self.editor.update(cx, |e, cx| e.end_resize(false, cx));
         }
         match command {
-            // `askToSaveFile`: a file window with unsaved edits asks first.
-            Command::Quit if self.file_mode() && self.files(cx).dirty => {
-                if let Some(file) = self.file.clone() {
-                    file.update(cx, |f, cx| f.ask_to_save(window, cx));
-                }
-                return;
-            }
-            Command::SaveFileAndClose => {
-                self.session.docs.update(cx, |d, _| d.begin(Intent::Quit));
-                self.receive(window, cx);
-                cx.notify();
-                return;
-            }
-            Command::DiscardFileChanges => {
-                self.session.docs.update(cx, |d, _| d.abandon_unsaved());
-                self.receive(window, cx);
-                cx.notify();
-                return;
-            }
-            Command::CancelFileClose => {
-                windows::cancel_quit(cx);
-                self.frame.focus.focus(window, cx);
-                cx.notify();
-                return;
-            }
             Command::Quit if self.sidebar.read(cx).workbench.read(cx).has_running(cx) => {
                 self.open_modal(Modal::ConfirmQuit, cx);
                 self.frame.focus.focus(window, cx);

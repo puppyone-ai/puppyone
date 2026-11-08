@@ -2,10 +2,12 @@
 use super::*;
 use core::prelude::v1::test;
 
-/// W-2: a file window shows its one file under a title bar of its own, with
-/// no project around it, and asks before closing over unsaved edits.
+/// W-2, qubits `822dbe7b2`, `68ab98d83`, `b012ce39e`: a file window shows
+/// its one file under a title bar that floats over it, with no project
+/// around it. Edits are saved as they are made, an outside change shows,
+/// and closing asks nothing.
 #[gpui::test]
-fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppContext) {
+fn a_file_window_shows_one_file_and_saves_it_as_it_is_edited(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("notes.md"), "# Notes\n").unwrap();
@@ -32,15 +34,10 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
         // Not remembered as a project, never shared or put in the Cloud.
         assert!(s.prefs.store.read(cx).state.recent_projects.is_empty());
         assert!(s.cloud.read(cx).local_folder_notice(cx).is_none());
-        // Nothing watches the file.
-        assert!(!s.files(cx).watching());
+        // The one file is watched, so an Agent's edits show.
+        assert!(s.files(cx).watching());
     });
-    // It is read again when the window comes back.
     std::fs::write(root.join("notes.md"), "# Notes, changed\n").unwrap();
-    view.update_in(cx, |s, w, cx| {
-        s.session.docs.update(cx, |d, _| d.revalidate());
-        s.receive(w, cx);
-    });
     settle_cloud(&view, cx, "the reread", &|s, cx| {
         s.files(cx)
             .document
@@ -84,17 +81,46 @@ fn a_file_window_shows_one_file_and_asks_before_losing_edits(cx: &mut TestAppCon
             Some(PathBuf::from("notes.md"))
         )
     });
-    // Unsaved edits: the native Save, Don't Save or Cancel, asked once.
-    view.update(cx, |s, cx| s.session.docs.update(cx, |d, _| d.dirty = true));
-    command(&view, cx, Command::CloseEditorOrWindow);
-    command(&view, cx, Command::Quit);
-    assert!(cx.has_pending_prompt());
-    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
-    cx.simulate_prompt_answer("Cancel");
-    cx.run_until_parked();
-    view.read_with(cx, |s, cx| {
-        assert!(!s.files(cx).allow_quit);
-        assert!(!s.file.as_ref().unwrap().read(cx).asking);
+    // The document fills the window from its top edge, keeping the bar's
+    // row as room above its content; the controls show only near the top.
+    draw(cx);
+    let editor = view.read_with(cx, |s, cx| {
+        s.file.as_ref().unwrap().read(cx).file_editor(cx).unwrap()
     });
+    view.read_with(cx, |s, cx| {
+        let file = s.file.as_ref().unwrap();
+        assert!(!file.read(cx).revealed);
+        assert_eq!(editor.read(cx).scroll_state(cx), (0., false));
+    });
+    view.update(cx, |s, cx| {
+        let file = s.file.clone().unwrap();
+        file.update(cx, |f, cx| f.point(Some(40.), 760., cx));
+        assert!(file.read(cx).revealed);
+        file.update(cx, |f, cx| f.point(Some(400.), 760., cx));
+        assert!(!file.read(cx).revealed);
+    });
+    // Typing saves: no save step, no unsaved mark, no question on close.
+    editor.update_in(cx, |e, w, cx| e.lab_type("Hello ", w, cx));
+    settle_cloud(&view, cx, "the autosave", &|s, cx| {
+        !s.files(cx).busy()
+            && !s.files(cx).saving()
+            && !s.files(cx).dirty
+            && std::fs::read_to_string(root.join("notes.md"))
+                .is_ok_and(|text| text.contains("Hello "))
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.session.title.as_ref().map(|t| t.2), Some(false))
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.command(Command::Quit, w, cx);
+        s.receive(w, cx);
+    });
+    cx.run_until_parked();
     assert!(!cx.has_pending_prompt());
+    if !cx.read(|app| app.windows().is_empty()) {
+        view.read_with(cx, |s, cx| {
+            assert!(s.dialogs.read(cx).is_empty());
+            assert!(s.files(cx).allow_quit);
+        });
+    }
 }

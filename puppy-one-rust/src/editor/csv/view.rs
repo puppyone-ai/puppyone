@@ -98,6 +98,10 @@ pub struct CsvEditor {
     /// toggle and the shortcut are off unless a host turns them on.
     pub source_view: bool,
     source: Option<(Entity<EditorView>, Subscription)>,
+    /// `--po-editor-chrome-inset-block-start`: room above the frame for
+    /// chrome floating over it (a file window's title bar); the pinned
+    /// header stops below it.
+    chrome_inset: f32,
     focus: FocusHandle,
     port: Viewport,
     /// The cell being edited.
@@ -156,6 +160,7 @@ impl CsvEditor {
             live: true,
             source_view: false,
             source: None,
+            chrome_inset: 0.,
             focus: cx.focus_handle(),
             port: Viewport::default(),
             cell: None,
@@ -305,7 +310,10 @@ impl CsvEditor {
         }
     }
     fn table_origin(&self) -> (f32, f32) {
-        (self.theme.inset.left, self.theme.inset.top)
+        (
+            self.theme.inset.left,
+            self.theme.inset.top + self.chrome_inset,
+        )
     }
     /// Rows / columns drawn, an expansion preview included.
     fn total_rows(&self) -> usize {
@@ -332,7 +340,7 @@ impl CsvEditor {
             + (column - n) as f32 * ADDED_COLUMN_WIDTH
     }
     fn row_y(&self, row: usize) -> f32 {
-        self.theme.inset.top + 1. + row as f32 * self.theme.table.row_min_height
+        self.theme.inset.top + self.chrome_inset + 1. + row as f32 * self.theme.table.row_min_height
     }
     fn table_size(&self) -> (f32, f32) {
         let w = 2.
@@ -347,7 +355,7 @@ impl CsvEditor {
         let t = &self.theme;
         (
             t.inset.left + w + t.inset.right + t.table.action_gutter,
-            t.inset.top + h + t.inset.bottom + t.table.action_gutter,
+            t.inset.top + self.chrome_inset + h + t.inset.bottom + t.table.action_gutter,
         )
     }
     /// The sticky header record's top (`inset-block-start: 0` within the
@@ -356,7 +364,7 @@ impl CsvEditor {
         let (_, ty) = self.table_origin();
         let (_, th) = self.table_size();
         self.row_y(0)
-            .max(self.port.scroll.y)
+            .max(self.port.scroll.y + self.chrome_inset)
             .min(ty + th - 1. - self.theme.table.row_min_height)
     }
     /// The sticky record gutter's left edge.
@@ -617,8 +625,8 @@ impl CsvEditor {
         if y + h > scroll.y + vh {
             scroll.y = y + h - vh;
         }
-        if y - sticky_top < scroll.y {
-            scroll.y = y - sticky_top;
+        if y - sticky_top - self.chrome_inset < scroll.y {
+            scroll.y = y - sticky_top - self.chrome_inset;
         }
         if x + w > scroll.x + vw {
             scroll.x = x + w - vw;
@@ -705,6 +713,24 @@ impl CsvEditor {
         }
     }
 
+    /// See `chrome_inset`.
+    pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
+        if self.chrome_inset != top {
+            self.chrome_inset = top;
+            if let Some((source, _)) = &self.source {
+                source.update(cx, |e, cx| e.set_chrome_inset(top, cx));
+            }
+            cx.notify();
+        }
+    }
+    /// How far the table (or the source) is scrolled, and whether its top
+    /// edge is the pinned header row.
+    pub fn scroll_state(&self, cx: &App) -> (f32, bool) {
+        match (&self.source, self.live) {
+            (Some((source, _)), false) => (source.read(cx).scroll_top(), false),
+            _ => (self.port.scroll.y, self.header_rows() > 0),
+        }
+    }
     fn source_editor(
         &self,
         text: &str,
@@ -716,7 +742,7 @@ impl CsvEditor {
             background: self.theme.surface,
             ..self.surface()
         };
-        let read_only = self.read_only;
+        let (read_only, chrome_inset) = (self.read_only, self.chrome_inset);
         let editor = cx.new(|cx| {
             let mut e = EditorView::new(
                 text,
@@ -730,6 +756,7 @@ impl CsvEditor {
                 cx,
             );
             e.set_read_only(read_only, cx);
+            e.set_chrome_inset(chrome_inset, cx);
             e
         });
         let sub = cx.subscribe(&editor, |_, _, _: &EditorEvent, cx| {
@@ -1399,6 +1426,22 @@ impl Render for CsvEditor {
             }))
             .child(measure)
             .child(body)
+            // A pinned header stops below the floating chrome, with nothing
+            // showing above it.
+            .when(
+                self.live && self.chrome_inset > 0. && self.port.scroll.y > 0.,
+                |d| {
+                    d.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .w_full()
+                            .h(px(self.chrome_inset))
+                            .bg(self.theme.surface),
+                    )
+                },
+            )
             .children(self.expand_status())
             .children(toggle)
             .children(self.menu.as_ref().map(|m| {
