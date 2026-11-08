@@ -118,6 +118,35 @@ fn failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root(cx: &mu
         assert!(e.operation_error.is_some());
     });
 }
+/// A subscription the workspace refuses is reported, with its Retry, rather
+/// than leaving the tree silently unwatched.
+#[gpui::test]
+fn a_refused_directory_subscription_is_reported(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("gone");
+    std::fs::create_dir(&root).unwrap();
+    let ws = Workspace::open(&root).unwrap();
+    std::fs::remove_dir(&root).unwrap();
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    let explorer = cx.new(|cx| ExplorerSession::new(false, preferences, cx));
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    cx.update(|cx| {
+        cx.subscribe(&explorer, move |_, event: &SessionEvent, _| {
+            seen.borrow_mut().push(format!("{event:?}"))
+        })
+        .detach()
+    });
+    explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), Vec::new(), cx));
+    cx.run_until_parked();
+    explorer.read_with(cx, |e, _| assert!(e.watch.is_none()));
+    assert!(
+        events.borrow().iter().any(|e| e.starts_with("WatchFailed")),
+        "{:?}",
+        events.borrow()
+    );
+}
 #[gpui::test]
 fn external_changes_reread_loaded_folders_through_the_directory_subscription(
     cx: &mut TestAppContext,

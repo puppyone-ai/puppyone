@@ -309,8 +309,17 @@ impl ExplorerSession {
         let notify: crate::workspace::ports::Notify = Arc::new(move || {
             let _ = tx.try_send(());
         });
-        let Ok(subscription) = workspace.watch_root(notify) else {
-            return;
+        let subscription = match workspace.watch_root(notify) {
+            Ok(subscription) => subscription,
+            // A refused subscription (the workspace's stream already ended)
+            // is a failed one, with its Retry; a provider that does not
+            // watch has nothing to report.
+            Err(error) => {
+                if error.kind != crate::workspace::ErrorKind::Unsupported {
+                    cx.emit(SessionEvent::WatchFailed(error.to_string()));
+                }
+                return;
+            }
         };
         let task = cx.spawn(async move |this, cx| {
             while rx.recv().await.is_ok() {
@@ -375,6 +384,14 @@ impl ExplorerSession {
                 for (path, listing) in listings {
                     match listing {
                         Ok(nodes) => s.tree.refresh_children(&path, nodes),
+                        // A lease that ended (its change stream failed) is
+                        // the workspace notice's to report, with its Retry.
+                        Err(error)
+                            if path.as_os_str().is_empty()
+                                && error.kind == crate::workspace::ErrorKind::StaleLease =>
+                        {
+                            cx.emit(SessionEvent::WatchFailed(error.to_string()))
+                        }
                         Err(error) if path.as_os_str().is_empty() => {
                             cx.emit(SessionEvent::Error(error.to_string()))
                         }
