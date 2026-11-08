@@ -67,6 +67,10 @@ export type MinimalOnboardingProps = {
   onRetryCloudSpaces?: () => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
   onShareLocalFolder?: (path: string) => Promise<void>;
+  /** Local projects whose folder cannot be opened now, with the few words that say why. */
+  unavailableProjects?: ReadonlyMap<string, string>;
+  /** Asks what to do about such a project instead of opening it. */
+  onOpenUnavailableProject?: (path: string) => void;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -110,6 +114,8 @@ export function MinimalOnboarding({
   onRetryCloudSpaces,
   onPublishToSpace,
   onShareLocalFolder,
+  unavailableProjects,
+  onOpenUnavailableProject,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
@@ -269,6 +275,8 @@ export function MinimalOnboarding({
       openingPath={openingPath}
       draggingPath={draggingPath}
       onOpen={(path) => void openPath(path)}
+      unavailable={unavailableProjects}
+      onOpenUnavailable={onOpenUnavailableProject}
       onRename={onRenameProject}
       onRemove={onRemoveProject}
       onRenameCloudProject={onRenameCloudProject}

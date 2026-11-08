@@ -42,7 +42,9 @@ export function createWindowWorkspaceCompositionService({
       return createResult("attached-current", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
     }); },
     detach(window, folderPath) { return transactions.run(window, async () => {
-      const canonicalPath = await canonicalizeWorkspacePath(folderPath);
+      // A folder that has gone from disk can no longer be resolved, yet must still be
+      // removable: match it by the path the window holds for it.
+      const canonicalPath = await canonicalizeWorkspacePath(folderPath).catch(() => folderPath);
       const state = getWindowState(window);
       const detachedFolder = state.folders.find((folder) => folder.path === canonicalPath);
       if (!detachedFolder) {

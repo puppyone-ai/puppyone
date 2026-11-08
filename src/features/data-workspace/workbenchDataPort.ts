@@ -46,16 +46,30 @@ export function createWorkbenchDataService(
   options: Readonly<{
     createProvider?: (folder: WorkspaceFolder) => DataPort;
     copyBetweenRoots?: typeof copyWorkspaceEntryBetweenRoots;
+    /** Folders known to be gone or out of reach now: shown empty, never read. */
+    unavailableFolderPaths?: ReadonlySet<string>;
+    /** A folder failed to read; whoever shows the window checks why. */
+    onFolderReadFailed?: (folder: WorkspaceFolder) => void;
   }> = {},
 ): WorkbenchDataService {
   if (workbench.folders.length === 0) {
     throw new TypeError("A Workbench data service requires at least one Workspace Folder.");
   }
 
-  const providers = new Map(workbench.folders.map((folder) => [
-    folder.id,
-    options.createProvider?.(folder) ?? createLocalDataPort(folder.workspace.path),
-  ]));
+  const providers = new Map(workbench.folders.map((folder) => {
+    const provider = options.createProvider?.(folder) ?? createLocalDataPort(folder.workspace.path);
+    return [folder.id, options.unavailableFolderPaths?.has(folder.workspace.path)
+      ? { ...provider, listChildren: async () => [], resolveNode: async () => null }
+      : provider];
+  }));
+  const readChildren = async (folder: WorkspaceFolder, folderPath: string | null) => {
+    try {
+      return await requireProvider(folder).listChildren(folderPath);
+    } catch (error) {
+      options.onFolderReadFailed?.(folder);
+      throw error;
+    }
+  };
   const fileUrlOwners = new Map<string, DataPort>();
   const copyBetweenRoots = options.copyBetweenRoots ?? copyWorkspaceEntryBetweenRoots;
   const resolveResource = (path: string | null): ResolvedWorkbenchDataResource => {
@@ -125,7 +139,8 @@ export function createWorkbenchDataService(
     createdPaths: result.createdPaths.map((path) => toResourcePath(folder, path)),
   });
   const createRootNode = async (folder: WorkspaceFolder): Promise<DataNode> => {
-    const children = await requireProvider(folder).listChildren(null);
+    // One folder that cannot be read leaves the window's other folders listed.
+    const children = await readChildren(folder, null).catch(() => [] as DataNode[]);
     return {
       id: folder.uri,
       name: folder.name,
@@ -145,13 +160,13 @@ export function createWorkbenchDataService(
       if (folderPath === null) {
         if (workbench.folders.length === 1) {
           const folder = workbench.folders[0]!;
-          const children = await requireProvider(folder).listChildren(null);
+          const children = await readChildren(folder, null);
           return children.map((node) => mapNode(folder, node));
         }
         return Promise.all(workbench.folders.map(createRootNode));
       }
       const target = resolveResource(folderPath);
-      const children = await requireProvider(target.folder).listChildren(target.providerPath);
+      const children = await readChildren(target.folder, target.providerPath);
       return children.map((node) => mapNode(target.folder, node));
     },
     resolveNode: async (path) => {

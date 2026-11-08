@@ -97,6 +97,8 @@ type DesktopWorkspaceContentProps = {
   workspaceSurfaceError?: string | null;
   /** What this local folder's Cloud project means; the folder is never blocked. */
   cloudProjectNotice?: ReactNode;
+  /** This window's folders that cannot be opened now, said in the notice stack. */
+  folderNotices?: ReactNode;
   workspaceKey: string;
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceAtomicRefreshToken: number;
@@ -156,6 +158,7 @@ export function DesktopWorkspaceContent({
   resolveWorkspaceResource,
   workspaceSurfaceError = null,
   cloudProjectNotice,
+  folderNotices,
   workspaceKey,
   workspaceRefreshToken,
   workspaceAtomicRefreshToken,
@@ -234,6 +237,7 @@ export function DesktopWorkspaceContent({
     workspaceAtomicRefreshToken,
     workspaceSurfaceError,
     cloudProjectNotice,
+    folderNotices,
     sidebarCreateMenuOpen,
     navigation: {
       activeView: resolvedActiveView,

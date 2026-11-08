@@ -142,6 +142,7 @@ import { createSenderWorkspaceAuthorization } from "./main/workspace-authorizati
 import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
+import { createFolderRelocation } from "./main/folder-relocation.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
 import { createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
 import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
@@ -1376,6 +1377,22 @@ function registerIpcHandlers() {
     selectWorkspaceForNewWindow,
     attachWorkspaceToCurrentWindow,
     detachWorkspaceFromCurrentWindow,
+    folderRelocation: createFolderRelocation({
+      listRecentWorkspaces: async () => (await workspaceStateStore.getRecentWorkspacesResult()).items
+        .map((item) => item.workspace),
+      windowFolderPaths: (sender) => {
+        const window = BrowserWindow.fromWebContents(sender);
+        return window && !window.isDestroyed() ? getOrCreateWindowState(window).folderPaths : [];
+      },
+      resolveIdentity: resolveLocalWorkspaceIdentity,
+      showOpenDialog: (window, options) => (window && !window.isDestroyed()
+        ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options)),
+      relocateRecent: (from, to) => workspaceStateStore.relocateRecentWorkspacePath(from, to),
+      // Registered below; only called once a person has confirmed a new place.
+      retireSharesAtMissingRoot: (rootPath) => hostIpc.retireSharesAtMissingRoot(rootPath),
+      home: app.getPath("home"),
+    }),
+    getDialogOwnerWindow,
   });
   // Failed Cloud Computer openings go to the app log file so a report can be
   // matched to the server log by request id.

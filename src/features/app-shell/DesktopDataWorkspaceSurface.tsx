@@ -116,6 +116,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspaceSurfaceError: string | null;
   /** What this local folder's Cloud project means; never shown for Cloud resources. */
   cloudProjectNotice?: ReactNode;
+  folderNotices?: ReactNode;
   /** Offers Retry on the workspace notice when its source can reconnect. */
   onRetryWorkspaceSurface?: () => void;
   sidebarCreateMenuOpen: boolean;
@@ -156,6 +157,7 @@ export function DesktopDataWorkspaceSurface({
   workspaceSurfaceError,
   onRetryWorkspaceSurface,
   cloudProjectNotice,
+  folderNotices,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
   const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
@@ -230,6 +232,7 @@ export function DesktopDataWorkspaceSurface({
         : undefined}
     >
       <FloatingNoticeStack ref={setWorkspaceNoticeStack} className="desktop-workspace-notice-stack">
+        {localResources && folderNotices}
         {localResources && cloudProjectNotice}
         {visibleWorkspaceSurfaceError && (
           <FloatingNotice

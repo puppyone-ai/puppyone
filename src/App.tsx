@@ -24,7 +24,7 @@ import {
   type WorkspaceContentChange,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { useLocalization } from "@puppyone/localization";
+import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import type { DesktopView } from "./components/ProjectShell";
 import {
   isSettingsSectionAvailable,
@@ -33,6 +33,7 @@ import {
 } from "./features/settings";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { HomepageComputers, useHomepageFolderSharing, useHostFolderPlace } from "./features/hosts";
+import { FolderDialog, ProjectFolderNotices, canLocate, folderNameOf, folderStatusCaption, folderStatusMessage, useFolderAvailability, useFolderRelocation } from "./features/app-shell/folder-availability";
 import { DeviceFolderWorkbenchSurface } from "./app/DeviceFolderWorkbenchSurface";
 import { ProjectWindow } from "./app/ProjectWindow";
 import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
@@ -374,6 +375,16 @@ function AppContent() {
     enabled: cloudEnabled, session: activeCloudSession, restoring: cloudSessionRestoring, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
   });
+  // On the Homepage, a project whose folder moved, was renamed or whose disk is away
+  // says so under its name, and asks what to do instead of failing to open.
+  const homepageLocalPaths = useMemo(
+    () => (workspace ? [] : projectCatalog.items.flatMap((item) => (item.localPath ? [item.localPath] : []))),
+    [workspace, projectCatalog.items],
+  );
+  const homepageFolderAvailability = useFolderAvailability(homepageLocalPaths, !workspace);
+  const unavailableHomeProjects = useMemo(() => new Map([...homepageFolderAvailability.unavailable]
+    .map(([folderPath, status]) => [folderPath, folderStatusCaption(t, status)])), [homepageFolderAvailability.unavailable, t]);
+  const [unavailableHomeProjectPath, setUnavailableHomeProjectPath] = useState<string | null>(null);
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolvedAppearance,
     typography,
@@ -421,9 +432,21 @@ function AppContent() {
     entries: [],
   });
   const [workspaceAtomicRefreshToken, setWorkspaceAtomicRefreshToken] = useState(0);
-  const workbenchDataService = useMemo(
-    () => (workbenchWorkspace ? createWorkbenchDataService(workbenchWorkspace) : null),
+  // A folder of this window that moved, was renamed or whose disk is away is shown empty
+  // and said in a notice, while the window's other folders keep working.
+  const windowFolderPaths = useMemo(
+    () => workbenchWorkspace?.folders.map((folder) => folder.workspace.path) ?? [],
     [workbenchWorkspace],
+  );
+  const windowFolderAvailability = useFolderAvailability(windowFolderPaths, Boolean(workbenchWorkspace));
+  const unavailableFolderKey = [...windowFolderAvailability.unavailable.keys()].join("\n");
+  const refreshWindowFolderAvailability = windowFolderAvailability.refresh;
+  const workbenchDataService = useMemo(
+    () => (workbenchWorkspace ? createWorkbenchDataService(workbenchWorkspace, {
+      unavailableFolderPaths: new Set(unavailableFolderKey ? unavailableFolderKey.split("\n") : []),
+      onFolderReadFailed: () => { void refreshWindowFolderAvailability(); },
+    }) : null),
+    [workbenchWorkspace, unavailableFolderKey, refreshWindowFolderAvailability],
   );
   const dataPort = useMemo(
     () => (workbenchDataService
@@ -1490,6 +1513,37 @@ function AppContent() {
       onRetry={revalidateRepositoryContext}
       onDismiss={() => setDismissedCloudNoticeKey(cloudProjectNoticeKey)} />
     : undefined;
+  const folderRelocation = useFolderRelocation({
+    onRelocated: async ({ from, path: relocatedPath }) => {
+      setUnavailableHomeProjectPath(null);
+      void refreshRecentWorkspaceList();
+      void homepageFolderAvailability.refresh();
+      if (!windowFolderPaths.includes(from)) return;
+      if (windowFolderPaths.length > 1) {
+        await removeProject(from);
+        await addExistingProject(relocatedPath);
+      } else {
+        await selectProject(relocatedPath);
+      }
+      void refreshWindowFolderAvailability();
+    },
+    onShareAgain: homepageFolderSharing.request
+      ? (folderPath) => { void homepageFolderSharing.request!(folderPath); }
+      : undefined,
+  });
+  const unavailableWindowFolders = [...windowFolderAvailability.unavailable.values()];
+  const folderNotices = unavailableWindowFolders.length > 0
+    ? <ProjectFolderNotices statuses={unavailableWindowFolders}
+      removeLabel={windowFolderPaths.length > 1 ? "project" : "list"}
+      busy={folderRelocation.busy}
+      onUseFound={(candidate) => { void folderRelocation.apply(candidate); }}
+      onLocate={(folderPath) => { void folderRelocation.locate(folderPath); }}
+      onRemove={(folderPath) => {
+        if (windowFolderPaths.length > 1) { void removeProject(folderPath); return; }
+        void removeWorkspaceFromRecents(folderPath).finally(() => { void goToHomepage(); });
+      }}
+      onRetry={() => { void refreshWindowFolderAvailability(); }} />
+    : undefined;
   // Ending the link removes only the folder's Git connection; the folder is
   // then an ordinary local project that can be put in the Cloud again.
   const cloudLinkDisconnectDialog = workspace && disconnectingCloudLinkPath === workspace.path && cloudLinkDisconnectable
@@ -1685,8 +1739,41 @@ function AppContent() {
       <FirstRunSignInScreen appearance={surfaceAppearance} apiBaseUrl={desktopCloudApiBaseUrl}
         onContinueLocally={firstRunSignIn.complete} />,
     );
-    return themeRuntime(
+    const unavailableHomeProject = unavailableHomeProjectPath
+      ? homepageFolderAvailability.unavailable.get(unavailableHomeProjectPath) ?? null : null;
+    const removeUnavailableHomeProject = (folderPath: string) => {
+      setUnavailableHomeProjectPath(null);
+      void removeWorkspaceFromRecents(folderPath);
+    };
+    let unavailableHomeProjectDialog = null;
+    if (unavailableHomeProject) {
+      const name = folderNameOf(unavailableHomeProject.path);
+      const close = () => setUnavailableHomeProjectPath(null);
+      const found = unavailableHomeProject.suggestion;
+      let primary = { label: t("common.action.close"), onClick: close };
+      let secondary = { label: t("shell.folderStatus.removeFromList"), onClick: () => removeUnavailableHomeProject(unavailableHomeProject.path) };
+      if (found) {
+        primary = { label: t("shell.folderStatus.useFound", { name: bidiIsolate(found.name) }), onClick: () => { void folderRelocation.apply(found); } };
+        secondary = { label: t("shell.folderStatus.locate"), onClick: () => { void folderRelocation.locate(unavailableHomeProject.path); } };
+      } else if (canLocate(unavailableHomeProject)) {
+        primary = { label: t("shell.folderStatus.locate"), onClick: () => { void folderRelocation.locate(unavailableHomeProject.path); } };
+      }
+      unavailableHomeProjectDialog = (
+        <FolderDialog title={t(unavailableHomeProject.state === "disconnected" || unavailableHomeProject.state === "denied"
+          ? "shell.folderStatus.cantOpenTitle" : "shell.folderStatus.cantFindTitle", { name: bidiIsolate(name) })}
+          body={folderStatusMessage(t, unavailableHomeProject, name)} error={folderRelocation.error}
+          busy={folderRelocation.busy} onClose={close} secondary={secondary} primary={primary} />
+      );
+    }
+    return themeRuntime(<>
+      {unavailableHomeProjectDialog}
+      {folderRelocation.dialog}
       <MinimalOnboarding key={cloudSpaces.authority ?? "local"}
+        unavailableProjects={unavailableHomeProjects}
+        onOpenUnavailableProject={(folderPath) => {
+          setUnavailableHomeProjectPath(folderPath);
+          void homepageFolderAvailability.refresh();
+        }}
         projectEntryController={projectEntryFlow}
         canCreateProject
         canImport
@@ -1715,8 +1802,8 @@ function AppContent() {
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
-      />,
-    );
+      />
+    </>);
   }
 
   const gitChangesView = (
@@ -1861,6 +1948,7 @@ function AppContent() {
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       {hostFolderPlace.dialog}
       {homepageFolderSharing.dialog}
+      {folderRelocation.dialog}
       <DesktopTitlebarActions {...chromeActionProps} />
     </>
   );
@@ -2039,6 +2127,7 @@ function AppContent() {
             resolveWorkspaceResource={resolveWorkspaceResource}
             workspaceSurfaceError={restoreWorkspaceError ?? documentNavigationError ?? workspaceSurfaceError}
             cloudProjectNotice={cloudProjectNotice}
+            folderNotices={folderNotices}
             workspaceKey={workspaceKey}
             workspaceRefreshToken={workspaceRefreshToken}
             workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
