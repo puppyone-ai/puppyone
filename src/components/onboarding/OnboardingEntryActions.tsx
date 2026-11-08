@@ -55,11 +55,14 @@ export function OnboardingCreateProjectAction({
   busy,
   canCreateProject,
   prominent = false,
+  withIcon = true,
   onCreateProject,
 }: Pick<OnboardingEntryActionsProps, "busy"> & {
   canCreateProject: boolean;
   onCreateProject: () => void;
   prominent?: boolean;
+  /** The head of a page of projects names the action in words alone. */
+  withIcon?: boolean;
 }) {
   const { t } = useLocalization();
 
@@ -69,7 +72,7 @@ export function OnboardingCreateProjectAction({
       data-onboarding-action="create"
       tone={prominent ? "primary" : "neutral"}
       disabled={busy || !canCreateProject}
-      leadingIcon={<FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" />}
+      leadingIcon={withIcon ? <FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" /> : undefined}
       onClick={onCreateProject}
     >
       {t("onboarding.action.createLocalProject")}

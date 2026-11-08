@@ -62,8 +62,10 @@
   --onboarding-caption-font-size: var(--po-type-ui-caption, 12px);
   --onboarding-group-label-font-size: 11px;
   --onboarding-row-line-height: 18px;
-  /* A Grid cell and the folder centred in it; their difference is the groups' inset. */
-  --onboarding-tile-width: 128px;
+  /* A Grid cell, the gutter between cells, and the folder centred in a cell. A name
+     may use its whole cell, so the gutter is what keeps two long names apart. */
+  --onboarding-tile-width: 120px;
+  --onboarding-tile-gap: 10px;
   --onboarding-folder-width: 72px;
   display: grid;
   width: min(680px, 100%);
@@ -118,11 +120,6 @@
   justify-self: center;
   justify-items: stretch;
   gap: 0;
-}
-
-/* On the Grid the toolbar ends where the groups' rules and last folders do. */
-.onboarding-homepage:has(.onboarding-project-group .onboarding-project-list[data-project-layout="grid"]) .onboarding-brand-lockup {
-  padding-inline-end: calc((var(--onboarding-tile-width) - var(--onboarding-folder-width)) / 2);
 }
 
 .onboarding-brand-lockup {
@@ -686,9 +683,26 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-entry-menu-root .onboarding-entry-menu-trigger {
-  width: var(--po-control-size);
+  width: var(--po-control-size-compact);
   padding: 0;
   border-radius: 0 var(--desktop-control-radius) var(--desktop-control-radius) 0;
+}
+
+/* The toolbar's weight, a shade deeper than its icons: found at once, never shouting. */
+.onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger) {
+  height: var(--po-control-size-compact);
+  background: color-mix(in srgb, var(--po-text) 10%, transparent);
+  color: var(--po-text);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--po-text-weight-medium, 500);
+}
+
+.onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-text) 15%, transparent);
+}
+
+.onboarding-entry-menu-root :is(.onboarding-entry-action, .onboarding-entry-menu-trigger):disabled {
+  color: var(--po-text-disabled);
 }
 
 /* The Homepage's menus, placed under the buttons that open them. */
@@ -897,16 +911,15 @@ span.homepage-cloud-feedback {
   gap: 2px;
 }
 
+/* A tile is its folder and its name, edge to edge: no side padding, so a name may use
+   the whole cell. Reaching for it changes the folder, never a box around the cell, so
+   the cells' edges stay unseen and the rules are the only edges on the page. */
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
   align-content: start;
   justify-items: center;
   gap: 8px;
-  padding: 12px 4px 8px;
+  padding: 12px 0 8px;
   text-align: center;
-}
-
-.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
-  background: var(--po-hover);
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
@@ -1091,9 +1104,10 @@ span.homepage-cloud-feedback {
 }
 
 /* One rectangle holds a group: its rule, its label and its projects share the same
-   left and right edges. In a list those are the rows' own inset; on the Grid they are
-   the folders' edges, so the group itself is the grid, the head spans its columns,
-   and however many columns fit, the rule ends where the last column's folder does. */
+   left and right edges. In a list those are the rows' own inset. On the Grid they are
+   the cells' outer edges, which the names may reach and never pass: the group itself
+   is the grid, the head spans its columns, and five cells and their gutters fill the
+   column, so the rules end where the toolbar does. */
 .onboarding-project-group {
   --onboarding-group-inset: 8px;
   position: relative;
@@ -1106,8 +1120,9 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
-  --onboarding-group-inset: calc((var(--onboarding-tile-width) - var(--onboarding-folder-width)) / 2);
+  --onboarding-group-inset: 0px;
   grid-template-columns: repeat(auto-fill, var(--onboarding-tile-width));
+  column-gap: var(--onboarding-tile-gap);
 }
 
 /* A single visual grid per audience, even when its entries come from different
@@ -1151,6 +1166,8 @@ span.homepage-cloud-feedback {
   gap: 8px;
   margin-inline: var(--onboarding-group-inset);
   padding-block: 0 4px;
+  /* A label belongs to the projects under it: it sits nearer them than the rule above. */
+  margin-block-end: -4px;
   color: var(--onboarding-group-ink);
   font-family: var(--po-font-sans);
   font-size: var(--onboarding-group-label-font-size);
@@ -1158,7 +1175,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-group + .onboarding-project-group .onboarding-project-group-head {
-  padding-block-start: 12px;
+  padding-block-start: 20px;
   border-block-start: 1px solid var(--po-divider);
 }
 
