@@ -572,7 +572,7 @@
   "plan.hoursUsedOf": "{total}시간 중 {used}시간 사용",
   "plan.storageLabel": "저장 공간",
   "plan.storageUsedOf": "{total} 중 {used} 사용",
-  "plan.chooseTitle": "플랜",
+  "plan.chooseTitle": "전체 플랜",
   "plan.pricePerPerson": "1인당 {amount} / 월",
   "plan.pricePerMonth": "{amount} / 월",
   "plan.tagline.free": "클라우드 프로젝트와 Agent를 먼저 써 보기",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "요청했습니다. 결제 서비스가 확인하면 적용됩니다.",
   "plan.addOnFailed": "추가 옵션을 변경하지 못했습니다.",
   "plan.decrease": "줄이기: {label}",
-  "plan.increase": "늘리기: {label}"
+  "plan.increase": "늘리기: {label}",
+  "plan.historyYears": "{count, plural, other {#년}} 기록 보관"
 }

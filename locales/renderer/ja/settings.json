@@ -564,15 +564,15 @@
   "plan.name.personal": "Personal",
   "plan.name.team": "Team",
   "plan.currentLabel": "現在のプラン",
-  "plan.endsOn": "{date} に終了",
-  "plan.renewsOn": "{date} に更新",
-  "plan.resetsOn": "{date} にリセット",
+  "plan.endsOn": "{date}に終了",
+  "plan.renewsOn": "{date}に更新",
+  "plan.resetsOn": "{date}にリセット",
   "plan.hoursLabel": "クラウド Agent 時間",
   "plan.hoursIncluded": "今月 {hours} 時間",
   "plan.hoursUsedOf": "{used} / {total} 時間 使用",
   "plan.storageLabel": "ストレージ",
   "plan.storageUsedOf": "{used} / {total} 使用",
-  "plan.chooseTitle": "プラン",
+  "plan.chooseTitle": "すべてのプラン",
   "plan.pricePerPerson": "{amount} / 人 / 月",
   "plan.pricePerMonth": "{amount} / 月",
   "plan.tagline.free": "クラウド上のプロジェクトと Agent をまず試す",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "リクエストしました。決済サービスの確認後に適用されます。",
   "plan.addOnFailed": "追加オプションを変更できませんでした。",
   "plan.decrease": "減らす：{label}",
-  "plan.increase": "増やす：{label}"
+  "plan.increase": "増やす：{label}",
+  "plan.historyYears": "{count, plural, other {# 年}}分の履歴"
 }

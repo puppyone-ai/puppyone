@@ -564,15 +564,15 @@
   "plan.name.personal": "个人版",
   "plan.name.team": "团队版",
   "plan.currentLabel": "当前套餐",
-  "plan.endsOn": "{date} 结束",
-  "plan.renewsOn": "{date} 续费",
-  "plan.resetsOn": "{date} 重置",
+  "plan.endsOn": "{date}结束",
+  "plan.renewsOn": "{date}续费",
+  "plan.resetsOn": "{date}重置",
   "plan.hoursLabel": "云端 Agent 时长",
   "plan.hoursIncluded": "本月 {hours} 小时",
   "plan.hoursUsedOf": "已用 {used} / {total} 小时",
   "plan.storageLabel": "存储",
   "plan.storageUsedOf": "已用 {used} / {total}",
-  "plan.chooseTitle": "套餐",
+  "plan.chooseTitle": "所有套餐",
   "plan.pricePerPerson": "{amount} / 人 / 月",
   "plan.pricePerMonth": "{amount} / 月",
   "plan.tagline.free": "带一个云上项目和 Agent 先试一试",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "已提交，付款服务确认后生效。",
   "plan.addOnFailed": "附加项变更失败。",
   "plan.decrease": "减少：{label}",
-  "plan.increase": "增加：{label}"
+  "plan.increase": "增加：{label}",
+  "plan.historyYears": "保留 {count, plural, other {# 年}}历史"
 }

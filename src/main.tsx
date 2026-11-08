@@ -146,6 +146,10 @@ const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
     const { WorkspaceMenuVisualSmokeHarness } = await import("./features/app-shell/WorkspaceMenuVisualSmokeHarness");
     return <WorkspaceMenuVisualSmokeHarness />;
   }],
+  ["#cloud-plans-visual-smoke", async () => {
+    const { CloudPlansVisualSmokeHarness } = await import("./app/smoke/CloudPlansVisualSmokeHarness");
+    return <CloudPlansVisualSmokeHarness />;
+  }],
   ["#homepage-computers-visual-smoke", async () => {
     const { HomepageComputersVisualSmokeHarness } = await import("./app/smoke/HomepageComputersVisualSmokeHarness");
     return <HomepageComputersVisualSmokeHarness />;

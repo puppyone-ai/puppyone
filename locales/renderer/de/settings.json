@@ -572,7 +572,7 @@
   "plan.hoursUsedOf": "{used} von {total} Std.",
   "plan.storageLabel": "Speicher",
   "plan.storageUsedOf": "{used} von {total}",
-  "plan.chooseTitle": "Pläne",
+  "plan.chooseTitle": "Alle Pläne",
   "plan.pricePerPerson": "{amount} pro Person / Monat",
   "plan.pricePerMonth": "{amount} / Monat",
   "plan.tagline.free": "Ein Projekt online mit einem Agent ausprobieren",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "Angefordert. Gilt, sobald der Zahlungsdienst bestätigt.",
   "plan.addOnFailed": "Das Zusatzpaket konnte nicht geändert werden.",
   "plan.decrease": "Weniger: {label}",
-  "plan.increase": "Mehr: {label}"
+  "plan.increase": "Mehr: {label}",
+  "plan.historyYears": "{count, plural, one {# Jahr} other {# Jahre}} Verlauf"
 }
