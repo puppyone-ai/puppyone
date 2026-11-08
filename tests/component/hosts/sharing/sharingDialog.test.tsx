@@ -1,15 +1,17 @@
 /** @vitest-environment happy-dom */
-import { act, useState } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostCatalogDevice, HostFolderCapability } from "../../../../shared/host-contract/types";
 import { useHostCatalog } from "../../../../src/features/hosts/data/useHostCatalog";
 import { HostFolderSharingDialog, type HostFolderSharingTarget } from "../../../../src/features/hosts/ui/HostFolderSharingDialog";
 import { useHostFolderPlace } from "../../../../src/features/hosts";
-import { rememberSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
+import { clearSharedFolderAssignments } from "../../../../src/features/hosts/model/sharedFolders";
 import { ProjectAudienceRows } from "../../../../src/components/project-audience";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, isChecked, queryAllByRole, queryByRole } from "../../../support/react/queries";
+import { settleBridge } from "../../../support/react/settle";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const THIS = "11111111-1111-4111-8111-111111111111";
@@ -17,7 +19,7 @@ const FOLDER = "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1";
 const session = { user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", session_generation: "one" };
 const expectedSession = { userId: session.user_id, generation: "one" };
 let root: Root | null = null;
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); clearSharedFolderAssignments(); });
 
 function catalogWith(capabilities: HostFolderCapability[]): HostCatalogDevice[] {
   return [{ id: THIS, name: "Mac", platform: "darwin", state: "active", revision: 1, online: true, last_seen_at: null,
@@ -42,15 +44,13 @@ async function render(target: HostFolderSharingTarget, bridge: Record<string, un
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(<Dialog target={target} onClose={onClose} />)));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await settleBridge();
   return { onClose };
 }
 
-const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("button")]
-  .find((item) => item.textContent === label) ?? null;
-const radio = (label: string) => [...document.querySelectorAll("label.host-sharing-option")]
-  .find((item) => item.textContent?.startsWith(label))?.querySelector("input") ?? null;
-const toggle = (label: string) => document.querySelector<HTMLInputElement>(`.host-sharing-switches input[aria-label="${label}"]`);
+const button = (name: string) => queryByRole(document, "button", { name }) as HTMLButtonElement | null;
+const radio = (label: string) => queryByRole(document, "radio", { name: new RegExp(`^${label}`) }) as HTMLInputElement | null;
+const toggle = (name: string) => queryByRole(document, "checkbox", { name }) as HTMLInputElement | null;
 
 describe("opening a folder on the owner's other computers", () => {
   it("shares view-only unless editing is chosen, and closes once the App has shared it", async () => {
@@ -114,20 +114,19 @@ describe("all my devices, in the folder's place menu", () => {
   const studio: HostCatalogDevice = { id: "22222222-2222-4222-8222-222222222222", name: "Studio Mac", platform: "darwin",
     state: "active", revision: 1, online: true, last_seen_at: null, folders: [] };
   const office: HostCatalogDevice = { ...studio, id: "33333333-3333-4333-8333-333333333333", name: "Office PC" };
+  const dismissed = vi.fn();
   function Place({ recorded }: { recorded: string | null }) {
-    const [dismissed, setDismissed] = useState(0);
     // Its own folder: this App remembers what it shared and stopped sharing above.
     const place = useHostFolderPlace({ enabled: true, session: session as never, rootPath: "/Users/me/place",
       recordedFolderId: recorded, name: "notes" });
     return <>
-      <div data-dismissed={dismissed}>
-        <ProjectAudienceRows audience={{ devices: place.devices }} onDismiss={() => setDismissed((count) => count + 1)} />
-      </div>
+      <ProjectAudienceRows audience={{ devices: place.devices }} onDismiss={dismissed} />
       {place.dialog}
     </>;
   }
 
   async function renderPlace(recorded: string | null, bridge: Record<string, unknown> = {}) {
+    dismissed.mockClear();
     installDesktopBridge({
       listHostDevices: async () => ({ devices: [...catalogWith(["folder.read", "folder.write"]), studio, office] }),
       getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 0,
@@ -139,56 +138,54 @@ describe("all my devices, in the folder's place menu", () => {
     document.body.append(host);
     root = createRoot(host);
     await act(async () => root?.render(withTestLocalization(<Place recorded={recorded} />)));
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    await settleBridge();
     return host;
   }
-  const devicesRow = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>(".project-audience-tier")]
-    .find((row) => row.textContent?.includes("All my devices"))!;
+  const audience = (host: HTMLElement) => getByRole(host, "region", { name: "Who can open it" });
+  const devicesRow = (host: HTMLElement) => getByRole(audience(host), "menuitemcheckbox", { name: /^All my devices/ });
 
   it("turns a folder that is not shared yet on through the sharing dialog", async () => {
     const host = await renderPlace(null);
     const row = devicesRow(host);
-    expect(row.getAttribute("aria-checked")).toBe("false");
-    expect(row.textContent).toContain("Turn on");
+    expect(isChecked(row)).toBe(false);
+    expect(accessibleName(row)).toBe("All my devices Turn on");
     await act(async () => { row.click(); });
-    expect(host.querySelector("[data-dismissed]")?.getAttribute("data-dismissed")).toBe("1");
+    expect(dismissed).toHaveBeenCalledOnce();
+    expect(getByRole(document, "dialog")).toBeTruthy();
     expect(button("Make available")).not.toBeNull();
   });
 
   it("names the other computers that can open a shared folder, and changes how in the same dialog", async () => {
     const host = await renderPlace(FOLDER);
-    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
-    const who = host.querySelector<HTMLButtonElement>(".project-audience-detail")!;
-    expect(who.textContent).toBe("Studio Mac and 1 other");
-    await act(async () => { who.click(); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(button("Stop sharing")).not.toBeNull();
+    expect(isChecked(devicesRow(host))).toBe(true);
+    await vi.waitFor(() => expect(queryAllByRole(audience(host), "menuitem").map(accessibleName)).toEqual(["Studio Mac and 1 other"]));
+    await act(async () => { getByRole(audience(host), "menuitem", { name: "Studio Mac and 1 other" }).click(); });
+    await vi.waitFor(() => expect(button("Stop sharing")).not.toBeNull());
   });
 
   it("stops sharing from its own row after Main asks, and changes nothing when that is declined", async () => {
     const removeHostFolder = vi.fn(async () => ({ cancelled: true as const }));
     const host = await renderPlace(FOLDER, { removeHostFolder });
-    expect(devicesRow(host).textContent).toContain("Stop");
-    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
-    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: FOLDER, expectedSession });
-    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
+    expect(accessibleName(devicesRow(host))).toBe("All my devices Stop");
+    await act(async () => { devicesRow(host).click(); });
+    await vi.waitFor(() => expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: FOLDER, expectedSession }));
+    await settleBridge();
+    expect(isChecked(devicesRow(host))).toBe(true);
   });
 
   it("unticks All my devices once stopping is done", async () => {
     const removeHostFolder = vi.fn(async () => ({ removed: true }));
     const host = await renderPlace(FOLDER, { removeHostFolder });
-    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
-    expect(devicesRow(host).getAttribute("aria-checked")).toBe("false");
-    expect(devicesRow(host).textContent).toContain("Turn on");
-    await act(async () => rememberSharedFolder("/Users/me/place", FOLDER));
+    await act(async () => { devicesRow(host).click(); });
+    await vi.waitFor(() => expect(isChecked(devicesRow(host))).toBe(false));
+    expect(accessibleName(devicesRow(host))).toBe("All my devices Turn on");
   });
 
   it("opens the folder's sharing settings when stopping fails, to try again there", async () => {
     const removeHostFolder = vi.fn(async () => { throw new Error("denied"); });
     const host = await renderPlace(FOLDER, { removeHostFolder });
-    await act(async () => { devicesRow(host).click(); await Promise.resolve(); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(devicesRow(host).getAttribute("aria-checked")).toBe("true");
-    expect(button("Stop sharing")).not.toBeNull();
+    await act(async () => { devicesRow(host).click(); });
+    await vi.waitFor(() => expect(button("Stop sharing")).not.toBeNull());
+    expect(isChecked(devicesRow(host))).toBe(true);
   });
 });

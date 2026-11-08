@@ -59,6 +59,11 @@ export function getByRole(scope: ParentNode, role: string, query: RoleQuery = {}
   return found;
 }
 
+/** The element's text in reading order, as a screen reader would read through it. */
+export function readableText(element: Element): string {
+  return normalize(textOf(element));
+}
+
 /** Whether a checkbox, radio, switch or checkable menu item is on. */
 export function isChecked(element: Element): boolean {
   if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) return element.checked;

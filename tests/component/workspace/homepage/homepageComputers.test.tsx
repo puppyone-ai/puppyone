@@ -6,9 +6,10 @@ import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
 import type { OnboardingGroupsBase } from "../../../../src/components/onboarding/OnboardingProjectGroups";
 import type { ProjectListSharing } from "../../../../src/components/onboarding/OnboardingProjectList";
 import { HomepageComputers } from "../../../../src/features/hosts";
-import { forgetSharedFolder, rememberSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
+import { clearSharedFolderAssignments, forgetSharedFolder, rememberSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
-import { stripBidiIsolation, withTestLocalization } from "../../../support/react/localization";
+import { withTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, isDisabled, queryAllByRole, queryByRole } from "../../../support/react/queries";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const API = "https://api.puppyone.ai/api/v1";
@@ -27,9 +28,14 @@ const devices: HostCatalogDevice[] = [
     last_seen_at: new Date(Date.now() - 3 * 3_600_000).toISOString(), folders: [folder("o-1", "contracts")] },
 ];
 let root: Root | null = null;
-afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); clearSharedFolderAssignments(); });
 
-async function render({ bridge = {} }: { bridge?: Record<string, unknown> } = {}) {
+/**
+ * Mounts the groups and waits until the catalog has answered: by default, until the
+ * other computers' folders are listed.
+ */
+async function render({ bridge = {}, until = (host: HTMLElement) => Boolean(deviceList(host, "Studio Mac")) }:
+  { bridge?: Record<string, unknown>; until?: (host: HTMLElement) => boolean } = {}) {
   installDesktopBridge({
     listHostDevices: async () => ({ devices }),
     getHostStatus: async () => ({ state: "online", deviceId: THIS, paused: false, activeRequests: 0, watching: 0, running: [] }),
@@ -52,14 +58,19 @@ async function render({ bridge = {} }: { bridge?: Record<string, unknown> } = {}
   root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(
     <HomepageComputers session={session as never} apiBase={API} base={base} onOpen={onOpen} />)));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await vi.waitFor(() => expect(until(host)).toBe(true));
   return { host, onOpen, sharing: () => sharing };
 }
 
-const titles = (host: HTMLElement) => [...host.querySelectorAll(".onboarding-project-group-title")]
-  .map((title) => stripBidiIsolation(title.textContent));
-const personal = (host: HTMLElement) => host.querySelector<HTMLElement>('[data-project-group="personal-shared"]')!;
-const deviceList = (host: HTMLElement, name: string) => host.querySelector<HTMLElement>(`ul[aria-label="On ⁨${name}⁩"]`)!;
+/** The groups as announced: regions named by their headings. */
+const titles = (host: HTMLElement) => queryAllByRole(host, "region").map(accessibleName);
+const region = (host: HTMLElement, name: string) => queryByRole(host, "region", { name });
+const personal = (host: HTMLElement) => region(host, "My shared projects")!;
+const localOnly = (host: HTMLElement) => region(host, "Only on this computer")!;
+const deviceList = (host: HTMLElement, name: string) => queryByRole(host, "list", { name: `On ${name}` });
+/** A remote folder's button, by the name it is announced with. */
+const folderButtons = (list: HTMLElement) => queryAllByRole(list, "button").map((button) =>
+  [accessibleName(button), isDisabled(button)]);
 
 describe("the owner's other computers on the Homepage", () => {
   it("shows three audiences, with shared local and remote folders together rather than device headings", async () => {
@@ -68,18 +79,17 @@ describe("the owner's other computers on the Homepage", () => {
     expect(personal(host).textContent).toContain("ditherit");
     expect(personal(host).textContent).toContain("paused");
     expect(personal(host).textContent).toContain("contracts");
-    const localOnly = host.querySelector('[data-project-group="local-only"]');
-    expect(localOnly?.textContent).toContain("private");
-    expect(localOnly?.textContent).not.toContain("ditherit");
-    expect(host.querySelector('[data-project-group^="computer:"]')).toBeNull();
+    expect(localOnly(host).textContent).toContain("private");
+    expect(localOnly(host).textContent).not.toContain("ditherit");
   });
 
   it("lists a computer's open folders by name, and opens one there", async () => {
     const { host, onOpen } = await render();
-    const studio = deviceList(host, "Studio Mac");
-    expect([...studio.querySelectorAll(".onboarding-project-tile-name")].map((name) => name.textContent)).toEqual(["design", "gone", "zines"]);
-    expect(studio.querySelector<HTMLButtonElement>("[data-host-folder='s-3'] button")?.disabled).toBe(true);
-    await act(async () => { studio.querySelector<HTMLButtonElement>("[data-host-folder='s-1'] button")?.click(); });
+    const studio = deviceList(host, "Studio Mac")!;
+    // A paused folder stays in view, but cannot be opened.
+    expect(folderButtons(studio)).toEqual([
+      ["Open design on Studio Mac", false], ["Open gone on Studio Mac", true], ["Open zines on Studio Mac", false]]);
+    await act(async () => { getByRole(studio, "button", { name: "Open design on Studio Mac" }).click(); });
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
       ref: { deployment: API, accountId: session.user_id, deviceId: STUDIO, folderId: "s-1" },
       name: "design", hostName: "Studio Mac", writable: true,
@@ -88,9 +98,7 @@ describe("the owner's other computers on the Homepage", () => {
 
   it("keeps an offline computer's folders in view without letting them open", async () => {
     const { host } = await render();
-    const office = deviceList(host, "Office PC");
-    expect(office.querySelector("[data-host-folder='o-1']")?.getAttribute("data-inactive")).toBe("true");
-    expect(office.querySelector<HTMLButtonElement>("[data-host-folder='o-1'] button")?.disabled).toBe(true);
+    expect(folderButtons(deviceList(host, "Office PC")!)).toEqual([["Open contracts on Office PC", true]]);
   });
 
   it("tells this computer's list which of its folders are open to the others", async () => {
@@ -100,50 +108,28 @@ describe("the owner's other computers on the Homepage", () => {
   });
 
   it("retains recorded sharing through a failed catalog read instead of claiming local-only", async () => {
-    const { host } = await render({ bridge: { listHostDevices: async () => { throw new Error("offline"); } } });
+    const { host } = await render({ bridge: { listHostDevices: async () => { throw new Error("offline"); } },
+      until: (mounted) => queryAllByRole(mounted, "status").length > 0 });
     expect(personal(host).textContent).toContain("ditherit");
-    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
-    expect(host.querySelector('[role="status"]')).not.toBeNull();
+    expect(localOnly(host).textContent).not.toContain("ditherit");
   });
 
   it("keeps known sharing and avoids duplicate remote cards when this computer's status is unavailable", async () => {
     const { host } = await render({ bridge: { getHostStatus: async () => { throw new Error("host unavailable"); } } });
     expect(personal(host).textContent).toContain("ditherit");
-    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
-    expect(host.querySelector('[data-host-folder="f-1"]')).toBeNull();
+    expect(localOnly(host).textContent).not.toContain("ditherit");
+    // This computer's own folder is not listed again as if it were on another computer.
+    expect(queryAllByRole(personal(host), "button", { name: /^Open notes on / })).toEqual([]);
   });
 
   it("moves the card only after an explicit stop-sharing confirmation and updates again on sharing", async () => {
     const { host } = await render();
     await act(async () => forgetSharedFolder("f-1", "/fixture/ditherit"));
     expect(personal(host).textContent).not.toContain("ditherit");
-    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).toContain("ditherit");
+    expect(localOnly(host).textContent).toContain("ditherit");
     await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
     expect(personal(host).textContent).toContain("ditherit");
-    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).not.toContain("ditherit");
-  });
-
-  it("stops sharing a folder after Main asks, and only then moves it back to this computer", async () => {
-    const removeHostFolder = vi.fn(async () => ({ removed: true }));
-    const { host, sharing } = await render({ bridge: { removeHostFolder } });
-    expect(personal(host).textContent).toContain("ditherit");
-    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: THIS, folderId: "f-1",
-      expectedSession: { userId: session.user_id, generation: "one" } });
-    expect(host.querySelector('[data-project-group="local-only"]')?.textContent).toContain("ditherit");
-    await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
-  });
-
-  it.each([
-    ["declined", async () => ({ cancelled: true as const }), null],
-    ["refused", async () => { throw new Error(); }, "Unable to stop sharing this folder."],
-  ])("keeps a folder shared when stopping is %s, and says so only when it failed", async (_case, removeHostFolder, said) => {
-    const { host, sharing } = await render({ bridge: { removeHostFolder } });
-    await act(async () => { sharing()!.onStopSharing!({ folderId: "f-1", rootPath: "/fixture/ditherit" }); });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(personal(host).textContent).toContain("ditherit");
-    expect(host.textContent?.includes("Unable to stop sharing this folder.")).toBe(Boolean(said));
+    expect(localOnly(host).textContent).not.toContain("ditherit");
   });
 
 });

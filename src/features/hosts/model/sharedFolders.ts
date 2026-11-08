@@ -24,6 +24,11 @@ export function forgetSharedFolder(folderId: string, rootPath?: string) {
   publish(next);
 }
 
+/** Forgets every confirmation made in this window, as a newly opened window starts. */
+export function clearSharedFolderAssignments() {
+  publish(new Map());
+}
+
 /** In-window share/stop confirmations, also consumed by Homepage audience grouping. */
 export function useSharedFolderAssignments() {
   return useSyncExternalStore((listener) => {

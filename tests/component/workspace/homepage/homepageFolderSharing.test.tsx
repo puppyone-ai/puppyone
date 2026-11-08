@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HostCatalogDevice } from "../../../../shared/host-contract/types";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { HomepageComputers, useHomepageFolderSharing } from "../../../../src/features/hosts";
-import { forgetSharedFolder } from "../../../../src/features/hosts/model/sharedFolders";
+import { clearSharedFolderAssignments } from "../../../../src/features/hosts/model/sharedFolders";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessibleName, getByRole, isChecked, queryAllByRole, queryByRole } from "../../../support/react/queries";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -46,10 +47,16 @@ function Harness({ account = session }: { account?: DesktopCloudSession }) {
 async function render(account = session) {
   await act(async () => root.render(withTestLocalization(<Harness account={account} />)));
 }
-const group = (id: string) => document.querySelector<HTMLElement>(`[data-project-group="${id}"]`);
-const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
-const project = (name: string) => [...document.querySelectorAll<HTMLButtonElement>("button[draggable=true]")]
-  .find((b) => (b.querySelector(".onboarding-project-tile-name") ?? b).textContent === name)!;
+const GROUPS: Record<string, string> = { "personal-shared": "My Share Project", "local-only": "On this computer" };
+/** A group as it is announced: a region named by its heading. */
+const group = (id: string) => queryByRole(document, "region", { name: GROUPS[id] });
+const button = (name: string) => getByRole(document, "button", { name });
+const project = (name: string) => getByRole(document, "button", { name: `Open ${name} locally` });
+/** Opens a project's ⋯ menu and returns its All my devices row. */
+async function devicesRowOf(name: string) {
+  await act(async () => button(`Project actions for ${name}`).click());
+  return getByRole(getByRole(document, "region", { name: "Who can open it" }), "menuitemcheckbox", { name: /^All my devices/ });
+}
 async function drag(element: Element, type: string) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", { value: { effectAllowed: "", dropEffect: "", setData() {},
@@ -75,9 +82,15 @@ beforeEach(() => {
     onHostStatus: () => () => {} } as never);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
+/** The same bridge, with Main's answer to stopping a share. */
+function installStop(removeHostFolder: (...args: never[]) => Promise<unknown>) {
+  installDesktopBridge({ listHostDevices: async () => ({ devices }), registerHostFolder: register, removeHostFolder,
+    getHostStatus: async () => ({ state: "online", deviceId: DEVICE, paused: false, running: [], folders: [] }),
+    onHostStatus: () => () => {} } as never);
+}
 afterEach(async () => {
   await act(async () => root.unmount()); document.body.replaceChildren();
-  forgetSharedFolder("new-draft", DRAFT); forgetSharedFolder("new-linked", LINKED);
+  clearSharedFolderAssignments();
 });
 
 describe("local folder drag into My Share Project", () => {
@@ -92,7 +105,7 @@ describe("local folder drag into My Share Project", () => {
     expect(returned).toHaveBeenCalledOnce();
     expect(group("personal-shared")?.textContent).toContain("Draft");
     expect(group("local-only")?.textContent).not.toContain("Draft");
-    expect([...document.querySelectorAll('[data-project-open]')].filter((b) => (b.querySelector(".onboarding-project-tile-name") ?? b).textContent === "Draft")).toHaveLength(1);
+    expect(queryAllByRole(document, "button", { name: "Open Draft locally" })).toHaveLength(1);
     expect(publish).not.toHaveBeenCalled();
   });
   it("returns an unshared folder unchanged when the dialog is cancelled", async () => {
@@ -135,13 +148,44 @@ describe("local folder drag into My Share Project", () => {
   it("offers the same sharing from the project's own menu, for the keyboard", async () => {
     devices[0] = { ...devices[0], folders: [] };
     await render();
-    const card = project("Draft").closest(".onboarding-project-row-wrap")!;
-    await act(async () => card.querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
-    const devicesRow = [...document.querySelectorAll<HTMLButtonElement>(".project-audience-tier")]
-      .find((row) => row.textContent?.includes("All my devices"))!;
-    expect(devicesRow.getAttribute("aria-checked")).toBe("false");
-    expect(devicesRow.textContent).toContain("Turn on");
+    const devicesRow = await devicesRowOf("Draft");
+    expect(accessibleName(devicesRow)).toBe("All my devices Turn on");
+    expect(isChecked(devicesRow)).toBe(false);
     await act(async () => devicesRow.click()); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
+  });
+  it("stops sharing from the project's own menu after Main asks, and only then moves it back to this computer", async () => {
+    const removeHostFolder = vi.fn(async () => {
+      devices[0] = { ...devices[0], folders: [] };
+      return { removed: true };
+    });
+    installStop(removeHostFolder);
+    await render();
+    await vi.waitFor(() => expect(group("personal-shared")?.textContent).toContain("Shared"));
+    const devicesRow = await devicesRowOf("Shared");
+    expect(accessibleName(devicesRow)).toBe("All my devices Stop");
+    expect(isChecked(devicesRow)).toBe(true);
+    await act(async () => devicesRow.click());
+    await vi.waitFor(() => expect(group("local-only")?.textContent).toContain("Shared"));
+    expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: DEVICE, folderId: "shared",
+      expectedSession: { userId: "owner", generation: "one" } });
+    expect(group("personal-shared")?.textContent).not.toContain("Shared");
+    expect(publish).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["declined", async () => ({ cancelled: true as const }), false],
+    ["refused", async () => { throw new Error(); }, true],
+  ])("keeps a folder shared when stopping is %s, and says so only when it failed", async (_case, removeHostFolder, failed) => {
+    const remove = vi.fn(removeHostFolder);
+    installStop(remove);
+    await render();
+    await vi.waitFor(() => expect(group("personal-shared")?.textContent).toContain("Shared"));
+    const devicesRow = await devicesRowOf("Shared");
+    await act(async () => devicesRow.click());
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce());
+    const said = () => queryAllByRole(document, "status").some((status) => status.textContent?.includes("Unable to stop sharing this folder."));
+    await vi.waitFor(() => expect(said()).toBe(failed));
+    expect(group("personal-shared")?.textContent).toContain("Shared");
+    expect(group("local-only")?.textContent).not.toContain("Shared");
   });
   it("discards the drag when the account generation changes", async () => {
     await render(); await drag(project("Draft"), "dragstart");
