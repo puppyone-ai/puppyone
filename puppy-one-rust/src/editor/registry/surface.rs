@@ -144,7 +144,7 @@ pub trait ViewerSurface {
         None
     }
     /// Tests and captures reach the text editor behind a text surface.
-    #[cfg(any(test, feature = "dev-capture"))]
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     fn editor_view(&self) -> Option<gpui::Entity<crate::editor::view::EditorView>> {
         None
     }

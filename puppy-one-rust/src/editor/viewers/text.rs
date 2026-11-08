@@ -182,7 +182,7 @@ impl ViewerSurface for TextSurface {
             self.toggle_live(cx);
         }
     }
-    #[cfg(any(test, feature = "dev-capture"))]
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     fn editor_view(&self) -> Option<Entity<EditorView>> {
         Some(self.editor.clone())
     }

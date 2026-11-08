@@ -463,9 +463,9 @@ impl DocumentEditor {
         self.focus_document(window, cx);
     }
 
-    /// Captures type `text` at the end of the first line, as the input
-    /// method would deliver it.
-    #[cfg(feature = "dev-capture")]
+    /// Captures and window tests type `text` at the end of the first line,
+    /// as the input method would deliver it.
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
     pub fn lab_type(&self, text: &str, window: &mut Window, cx: &mut App) {
         use gpui::EntityInputHandler as _;
         let Some(view) = self.surface.as_ref().and_then(|s| s.editor_view()) else {
