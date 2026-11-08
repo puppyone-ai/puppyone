@@ -211,6 +211,24 @@ src/editor/
   host/        文档宿主协议（open / snapshot / saved / history）、窗格菜单与查找
 ```
 
+## 其他电脑（PuppyOne Host，qubits@686d41c49）
+
+默认关闭：构建开关 `PUPPYONE_HOST_DEVICES_ENABLED`，或 Settings › Experimental › Other computers（账号可用时显示）。打开后：
+
+- **访问端**（`src/workspace/hosts/{remote,device,ssh,lines,protocol}.rs`，`src/features/hosts/`）：首页 My Share Project 按电脑列出其他电脑共享的文件夹，离线 / 暂停的保留但不能打开；打开后与本地、Cloud 项目共用工作台，Header 写电脑名与权限。每个文件夹一条 SSH 连接，跑在 Cloud 字节隧道（`/api/v1/hosts/folders/{id}/tunnel`，token 只作 WebSocket 子协议，由 Broker 持有）里；每次连接新生成 Ed25519 密钥并申请 5 分钟证书，按 Cloud 登记的设备公钥校验主机。文件协议 v1（`contracts/host-file-protocol-v1.json`，逐字节固定）跑在 `puppyone-files` 子系统上；读取对断线有限重试，写入只发一次、结果不明就报告。对方允许时，右侧栏可在那台电脑上开终端、Agent 和 Changes（Git 以命名操作走文件通道）。窗口会恢复本账号上次打开的远程文件夹。
+- **主机端**（`src/workspace/hosts/{service,identity,registry,connector,control,process,files,exec,git}.rs`）：Rust 原生 Host，同一二进制以 `--puppyone-host` 运行，无窗口，状态在 `<数据目录>/host-service/`，App 退出后继续共享，可写入 macOS LaunchAgent（`ai.puppyone.gpui.host`）开机启动（默认关）。设备私钥在登录钥匙串（`PuppyOne Host Device Key`），磁盘只存公钥与 ID；文件夹 ID → 本地路径只留在本机，Cloud 收不到路径。出站设备连接用设备签名申请 challenge，心跳 10 s、静默 30 s 重连、退避至 15 s；收到 4004 先在本地拒绝再删钥，4005 停止并提示更新。SSH 服务端只接受 Cloud 签发、本设备、本账号、当前有效的证书，只开放 `puppyone-files`、pty + shell、`puppyone-agent`、exec。运行只有文件夹沙箱一档（Seatbelt / bubblewrap）：只能写文件夹、临时目录、工具缓存与该 Agent 自己的状态，读不到 SSH / GPG 密钥、钥匙串、云 CLI 与浏览器凭据和本应用数据；没有沙箱的电脑一律不执行，文件仍可打开编辑。App 与 Host 之间是 0700 目录里 0600 令牌的 Unix socket，Host 只向 App 要"谁登录了"和 hosts 自有路由，个人 token 不进 Host。
+- **隐私**（与 TS `PRIVACY.md` 的 Experimental device folders 一节一致，`7ced258fc` `a9600db1f` `791126548`）：文件内容、变更通知、终端与 Agent 的输入输出、Git 结果都在两台电脑之间端到端加密，网关只转发读不到的字节；Cloud 保存设备与文件夹 ID、显示名（电脑名、文件夹名）、权限和连接元数据（上次在线、运行的版本、每次启动更换的随机 ID），按连接记录打开了哪台电脑的哪个文件夹、何时、如何结束，不含文件名、路径或内容，保留 30 天。共享端的 Host 只在自己的数据目录里保存文件夹位置、设备密钥（系统凭据存储）和"暂停"选择；PuppyOne 登录留在 App，Host 收不到。打开端按 ID 与显示名记住最近打开的远程文件夹。
+- **互通**：Rust 与 TS 的 Host / 访问端两个方向互通。TS 客户端（ssh2）把证书签名的算法名写成证书类型，为此 `vendor/russh` 打了一处补丁，见 `vendor/russh/PUPPYONE_PATCH.md`。
+
+验收（真实 qubits 部署，测试账号，结束时删除注册的设备）：
+
+```bash
+cargo test -p po-workspace --features test-support -- hosts::acceptance::two_computers --ignored --nocapture
+cargo test -p po-workspace --features test-support -- workspace::acceptance --ignored --nocapture
+```
+
+未做：系统睡眠 / 唤醒通知（靠 30 s 静默检测重连）、文件服务与终端放进独立的 utility 进程、Linux XDG / Windows 登录项、把 Git History（graph / commit_detail）开放给其他电脑。
+
 ## Native Git and Agent workbench
 
 - `src/features/source_control/`：Changes 分组、虚拟文件列表、Diff、最近 100 条提交历史、暂存/取消暂存、提交、Fetch/Pull/Push。Git CLI 后台执行，使用 literal pathspec、NUL 状态解析、超时和 workspace epoch；只在已打开的仓库根目录执行。状态在窗口激活时每 3 秒刷新，也支持手动刷新。Discard、Pull、Push 有明确的操作确认。

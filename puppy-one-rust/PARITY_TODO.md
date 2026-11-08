@@ -3,6 +3,8 @@
 参考实现：`../../puppyone-baseline-686d41c49`（qubits@`686d41c49`，2026-11-08，`product-source.json` 固定；11-04 的基准是 `671143f2a`）。本清单跟踪原生产品迁移；本轮要求的五个 1:1 复刻领域统一列于 §0.3，后文保留各模块的详细验收项。
 状态：`[ ]` 未开始 · `[~]` 部分完成（写明缺什么）· `[x]` 完成并有测试/截图证据。
 
+**qubits@686d41c49 对齐（2026-11-08）**：首页三类受众、Cloud 空间与团队发布、"谁能打开"、新建对话框、退役 Share 与服务对话框、Cloud 打开失败分类与推送合同码、Cloud Agents、单文件窗口、`puppyone open`、其他电脑（访问端与 Rust 原生 Host）。各组合同、提交、测试与真实 Cloud 收据、未覆盖项见 puppy-issues [Rust Alignment with qubits 686d41c49](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/qubits-alignment.md#verification)；迁移映射登记在 `tools/ui-migration-map.json`。
+
 ## 0. 工作方法
 
 ### 0.1 TS → Rust 映射规则
