@@ -84,10 +84,12 @@
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
   /* The shared Header owns account controls; only the project list scrolls. The head
-     sits evenly between the Header and the folders, whose cells carry their own inset. */
+     sits evenly between the Header and the folders, whose cells carry their own inset.
+     The list runs to the window's edge, so what is below shows there, cut by the
+     window as in Finder, and says without a scrollbar that there is more. */
   --onboarding-title-inset: 32px;
   padding-block-start: calc(var(--desktop-chrome-height) + var(--onboarding-title-inset));
-  padding-block-end: 20px;
+  padding-block-end: 0;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
@@ -1085,14 +1087,15 @@ span.homepage-cloud-feedback {
   min-height: 0;
   align-content: start;
   gap: 20px;
-  padding-block: 4px 24px;
+  /* Scrolled to its end, the last row still stands clear of the window's edge. */
+  padding-block: 4px 40px;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   /* A focused project scrolls clear of the next group's head as well as the fades. */
   scroll-padding-block: 36px 16px;
-  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 16px), transparent);
 }
 
 .onboarding-project-groups .onboarding-project-list {
