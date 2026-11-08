@@ -124,3 +124,39 @@ fn a_file_window_shows_one_file_and_saves_it_as_it_is_edited(cx: &mut TestAppCon
         });
     }
 }
+
+/// FM-6: a scroll over the floating title bar scrolls the document under it.
+#[gpui::test]
+fn scrolling_over_the_file_windows_bar_scrolls_its_document(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let long: String = (0..300).map(|i| format!("Line {i}\n\n")).collect();
+    std::fs::write(root.join("long.md"), long).unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        let file = file_mode::FileTarget::of(root.join("long.md")).unwrap();
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.bind_file(file, false, w, cx);
+    });
+    settle_cloud(&view, cx, "the file", &|s, cx| {
+        s.files(cx).opened().is_some() && !s.files(cx).busy()
+    });
+    draw(cx);
+    let editor = view.read_with(cx, |s, cx| {
+        s.file.as_ref().unwrap().read(cx).file_editor(cx).unwrap()
+    });
+    for _ in 0..3 {
+        cx.simulate_event(ScrollWheelEvent {
+            position: point(px(300.), px(12.)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-120.))),
+            modifiers: Modifiers::default(),
+            touch_phase: TouchPhase::Moved,
+        });
+        draw(cx);
+    }
+    view.read_with(cx, |_, cx| {
+        assert!(editor.read(cx).scroll_state(cx).0 > 0., "the document scrolled")
+    });
+}
