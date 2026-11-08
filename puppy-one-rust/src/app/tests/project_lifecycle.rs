@@ -101,7 +101,6 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     });
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -110,6 +109,7 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         s.home
             .read(cx)
@@ -148,11 +148,17 @@ fn a_newer_choice_replaces_a_project_still_opening(cx: &mut TestAppContext) {
         std::fs::write(dir.join("a.md"), "# A\n").unwrap();
     }
     let (view, cx) = setup(cx);
+    // A small folder's worker may finish before it is looked at; either
+    // way, the latest choice is the one under way.
+    let chosen = |s: &Shell, cx: &App, dir: &std::path::Path| {
+        s.files(cx).preparing_root() == Some(dir) || s.workspace_root(cx).as_deref() == Some(dir)
+    };
     view.update_in(cx, |s, w, cx| {
         s.open_project(first.clone(), w, cx);
-        assert_eq!(s.files(cx).preparing_root(), Some(first.as_path()));
+        assert!(chosen(s, cx, &first));
         s.open_project(second.clone(), w, cx);
-        assert_eq!(s.files(cx).preparing_root(), Some(second.as_path()));
+        assert!(chosen(s, cx, &second));
+        assert_ne!(s.files(cx).preparing_root(), Some(first.as_path()));
     });
     settle_cloud(&view, cx, "the second project", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(second.as_path())

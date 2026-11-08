@@ -30,7 +30,6 @@ fn home_with_spaces<'a>(
     let (view, cx) = setup(cx);
     let (broker, browser) =
         crate::cloud::auth::responding_account_fixture(with_spaces(cloud_project_responder()));
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -40,6 +39,7 @@ fn home_with_spaces<'a>(
             p.state.remember_project(folder, 1);
         });
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });
@@ -165,7 +165,6 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
             }
         }
     }));
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -175,6 +174,7 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
             p.state.remember_project(&folder, 1);
         });
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });

@@ -41,12 +41,12 @@ fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext)
         base(request)
     }));
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.prefs
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });

@@ -1662,8 +1662,9 @@ mod tests {
                 .as_ref()
                 .is_some_and(|snap| snap.changes.iter().any(|c| c.path == path))
         };
+        // A liveness bound only: a fully loaded suite runs many Git processes.
         let settle = |cx: &mut VisualTestContext, done: &dyn Fn(&SourceControl) -> bool| {
-            let deadline = Instant::now() + Duration::from_secs(5);
+            let deadline = Instant::now() + Duration::from_secs(30);
             loop {
                 cx.run_until_parked();
                 cx.executor().advance_clock(Duration::from_millis(50));

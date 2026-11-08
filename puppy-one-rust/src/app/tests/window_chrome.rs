@@ -67,13 +67,13 @@ fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext)
     let (view, cx) = setup(cx);
     // The place menu shows only with an account service and Cloud on.
     let (broker, browser) = crate::cloud::auth::account_fixture();
-    cx.update(|_, cx| {
-        crate::features::cloud::account::install_fixture(broker, browser, cx);
-    });
     view.update(cx, |s, cx| {
         s.prefs
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     draw(cx);
     command(&view, cx, Command::LocationMenu);

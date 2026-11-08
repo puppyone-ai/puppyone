@@ -146,12 +146,12 @@ fn linked_checkout(
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     let kept = broker.clone();
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.prefs
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });

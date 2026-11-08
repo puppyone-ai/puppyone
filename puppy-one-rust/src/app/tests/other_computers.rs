@@ -18,7 +18,6 @@ fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let (broker, browser) =
         crate::cloud::auth::responding_account_fixture(cloud_project_responder());
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -28,6 +27,7 @@ fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
             p.state.experimental.host_devices = true;
         });
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });
@@ -211,7 +211,6 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     crate::cloud::auth::relogin(&broker, USER);
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -222,6 +221,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             p.state.remember_project(&folder, 1);
         });
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });

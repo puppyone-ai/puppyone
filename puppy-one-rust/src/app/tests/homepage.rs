@@ -49,9 +49,6 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
     });
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
-    cx.update(|_, cx| {
-        crate::features::cloud::account::install_fixture(broker, browser, cx);
-    });
     view.update(cx, |s, cx| {
         s.prefs.store.update(cx, |p, _| {
             p.state.experimental.cloud_workspace = true;
@@ -61,6 +58,9 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
         s.refresh_cloud_catalog(true, cx);
         // The Header project menu hydrates the same list as the Homepage.
         s.set_popover(Some(Popover::Project), cx);
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
     });
     let locations = |s: &Shell, cx: &App| {
         s.home
@@ -231,13 +231,13 @@ fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
     });
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.prefs
             .store
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
         s.refresh_cloud_catalog(true, cx);
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "the catalog", &|s, cx| {
         s.home
             .read(cx)
@@ -330,7 +330,9 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     }
     let account =
         cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
-    cx.run_until_parked();
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        crate::features::cloud::account::status(cx) == Some(crate::cloud::auth::Status::SignedOut)
+    });
     view.update(cx, |s, cx| {
         s.prefs.store.update(cx, |p, cx| {
             p.loaded = true;
@@ -695,7 +697,6 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
     });
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.prefs
             .store
@@ -707,6 +708,7 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
             .clone()
             .update(cx, |c, _| c.cache_dir = Some(cache));
     });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
     settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud::account::has_account(cx)
     });
