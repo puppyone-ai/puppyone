@@ -22,6 +22,8 @@ export function projectNameFromTemplate(name: string): string {
 
 type TemplateImportCardProps = {
   url: string;
+  /** Found in the clipboard on a first launch, so the card says where it came from. */
+  copied?: boolean;
   /** A Project is open here, and getting a copy must not take its place. */
   openInNewWindow: boolean;
   onClose: () => void;
@@ -207,7 +209,7 @@ function submitLabelKey(submitting: boolean, created: boolean) {
  * change them. Nothing is created until the user confirms.
  */
 export function TemplateImportCard(props: TemplateImportCardProps) {
-  const { url, onClose, onChooseLocation } = props;
+  const { url, copied = false, onClose, onChooseLocation } = props;
   const { t, locale } = useLocalization();
   const { template, resolving, needsSignIn, error: resolveError, retry, auth, source } = useProjectTemplateImport(url, locale);
   const copy = useTemplateCopy({ ...props, source: needsSignIn ? null : source });
@@ -253,6 +255,7 @@ export function TemplateImportCard(props: TemplateImportCardProps) {
         <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
           {resolving && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.template.loading")}</p>}
           {template && <div className="onboarding-entry-template">
+            {copied && <p className="onboarding-entry-dialog-note">{t("onboarding.template.copiedNote")}</p>}
             <TemplateSummary template={template} />
             {copy.editing
               ? <TemplateDestinationFields copy={copy} canChooseLocation={Boolean(onChooseLocation)} />

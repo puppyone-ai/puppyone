@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
   "template.getCopy": "Kopie holen",
   "template.loading": "Wird geladen…",
+  "template.copiedNote": "Aus dem Vorlagenlink, den du kopiert hast.",
   "template.signIn": "Anmelden, um die Vorlage zu verwenden",
   "template.signingIn": "Anmeldung läuft…",
   "projects.groups.cloud": "Cloud"

@@ -27,8 +27,10 @@ export type ProjectEntryFlowController = Readonly<{
   step: ProjectEntryFlowStep;
   openLauncher: () => void;
   openCreate: () => void;
-  openTemplate: (url: string) => void;
+  /** `copied` says the link came from the clipboard rather than the store. */
+  openTemplate: (url: string, options?: { copied?: boolean }) => void;
   templateUrl: string | null;
+  templateCopied: boolean;
   openImport: () => void;
   close: () => void;
 }>;
@@ -41,11 +43,16 @@ export type ProjectEntryFlowController = Readonly<{
 export function useProjectEntryFlow(): ProjectEntryFlowController {
   const [step, setStep] = useState<ProjectEntryFlowStep>(null);
   const [templateUrl, setTemplateUrl] = useState<string | null>(null);
-  const openTemplate = useCallback((url: string) => { setTemplateUrl(url); setStep("template"); }, []);
+  const [templateCopied, setTemplateCopied] = useState(false);
+  const openTemplate = useCallback((url: string, options?: { copied?: boolean }) => {
+    setTemplateUrl(url);
+    setTemplateCopied(options?.copied === true);
+    setStep("template");
+  }, []);
   const openLauncher = useCallback(() => setStep("launcher"), []);
   const openCreate = useCallback(() => setStep("create"), []);
   const openImport = useCallback(() => setStep("import"), []);
-  const close = useCallback(() => { setTemplateUrl(null); setStep(null); }, []);
+  const close = useCallback(() => { setTemplateUrl(null); setTemplateCopied(false); setStep(null); }, []);
 
   return useMemo(() => ({
     step,
@@ -53,9 +60,10 @@ export function useProjectEntryFlow(): ProjectEntryFlowController {
     openCreate,
     openTemplate,
     templateUrl,
+    templateCopied,
     openImport,
     close,
-  }), [close, openCreate, openImport, openLauncher, openTemplate, step, templateUrl]);
+  }), [close, openCreate, openImport, openLauncher, openTemplate, step, templateCopied, templateUrl]);
 }
 
 export type ProjectEntryFlowProps = Readonly<{
@@ -79,7 +87,27 @@ export type ProjectEntryFlowProps = Readonly<{
   onImportProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   /** A Project is open in this window; a template must not take its place. */
   projectIsOpen?: boolean;
+  /**
+   * A first launch with no projects yet. Someone who came from the store page
+   * installed with its link copied, so it is offered once without a paste.
+   */
+  offerCopiedTemplate?: boolean;
 }>;
+
+const COPIED_TEMPLATE_CHECKED_KEY = "puppyone.desktop.copiedTemplateChecked.v1";
+
+/** The clipboard is looked at once per profile, and never when that cannot be remembered. */
+async function claimCopiedTemplateOnce(bridge: NonNullable<Window["puppyoneDesktop"]>) {
+  try {
+    if (window.localStorage.getItem(COPIED_TEMPLATE_CHECKED_KEY) === "true") return;
+    window.localStorage.setItem(COPIED_TEMPLATE_CHECKED_KEY, "true");
+  } catch {
+    return;
+  }
+  await bridge.claimCopiedTemplateLink?.().catch((error: unknown) => {
+    console.warn("Unable to look for a copied template link:", error);
+  });
+}
 
 /** Text being edited keeps its paste, whatever the text happens to be. */
 function isEditingText(target: EventTarget | null) {
@@ -102,6 +130,7 @@ export function ProjectEntryFlow({
   onCancelImport,
   onImportProgress,
   projectIsOpen = false,
+  offerCopiedTemplate = false,
 }: ProjectEntryFlowProps) {
   const { t } = useLocalization();
   const [templateLinkFailed, setTemplateLinkFailed] = useState(false);
@@ -115,9 +144,10 @@ export function ProjectEntryFlow({
     let active = true;
     const consume = async () => {
       try {
+        if (offerCopiedTemplate) await claimCopiedTemplateOnce(bridge);
         const intent = await bridge.readTemplateImportIntent();
         if (!active || !intent) return;
-        controller.openTemplate(intent.url);
+        controller.openTemplate(intent.url, { copied: intent.copied === true });
         // The card is up by now. A link left unacknowledged only comes round again.
         await bridge.acknowledgeTemplateImportIntent(intent.id).catch((error: unknown) => {
           console.warn("Unable to acknowledge the template link:", error);
@@ -130,9 +160,10 @@ export function ProjectEntryFlow({
     const stop = bridge.onTemplateImportRequested(() => { void consume(); });
     void consume();
     return () => { active = false; stop(); };
-  }, [controller, onCreateProject, templateLinkAttempt]);
-  // Pasting is the user's own action, so its text is read only then, and only a
-  // template link is acted on. Anything else keeps its usual paste.
+  }, [controller, offerCopiedTemplate, onCreateProject, templateLinkAttempt]);
+  // Apart from the one look on a first launch above, the clipboard is read only
+  // when someone pastes, and only a template link is acted on. Anything else
+  // keeps its usual paste.
   useEffect(() => {
     if (controller.step !== null || !onCreateProject) return undefined;
     const onPaste = (event: ClipboardEvent) => {
@@ -185,6 +216,7 @@ export function ProjectEntryFlow({
       <TemplateImportCard
         key={controller.templateUrl}
         url={controller.templateUrl}
+        copied={controller.templateCopied}
         openInNewWindow={projectIsOpen}
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}

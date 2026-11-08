@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, other {# 个文件}}",
   "template.getCopy": "取一份副本",
   "template.loading": "加载中…",
+  "template.copiedNote": "来自你复制的模板链接。",
   "template.signIn": "登录后使用模板",
   "template.signingIn": "登录中…",
   "projects.groups.cloud": "云端"

@@ -27,7 +27,7 @@ describe("project folder home", () => {
     const readTemplateImportIntent = vi.fn().mockResolvedValue(null);
     window.puppyoneDesktop = { readTemplateImportIntent } as unknown as NonNullable<typeof window.puppyoneDesktop>;
     const openCreate = vi.fn();
-    const projectEntryController = { step: null, templateUrl: null, openCreate,
+    const projectEntryController = { step: null, templateUrl: null, templateCopied: false, openCreate,
       openLauncher: vi.fn(), openImport: vi.fn(), openTemplate: vi.fn(), close: vi.fn() };
     const container = renderHome({ projectEntryController,
       onChooseProjectLocation: vi.fn(async () => null), onCreateProject: vi.fn(createProjectResult) });

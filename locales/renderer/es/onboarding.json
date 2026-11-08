@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, one {# archivo} other {# archivos}}",
   "template.getCopy": "Obtener una copia",
   "template.loading": "Cargando…",
+  "template.copiedNote": "Del enlace de plantilla que copiaste.",
   "template.signIn": "Iniciar sesión para usar esta plantilla",
   "template.signingIn": "Iniciando sesión…",
   "projects.groups.cloud": "Nube"

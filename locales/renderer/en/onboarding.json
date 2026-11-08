@@ -132,6 +132,7 @@
   "template.fileCount": "{count, plural, one {# file} other {# files}}",
   "template.getCopy": "Get a copy",
   "template.loading": "Loading…",
+  "template.copiedNote": "From the template link you copied.",
   "template.signIn": "Sign in to use this template",
   "template.signingIn": "Signing in…",
   "projects.groups.cloud": "Cloud"
