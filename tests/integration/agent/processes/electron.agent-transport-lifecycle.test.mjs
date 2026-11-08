@@ -21,6 +21,21 @@ function client(Type, child, options = {}) {
 }
 
 describe.each([JsonlRpcConnection, PiRpcClient])("native pipe lifecycle (%s)", (Type) => {
+  it("keeps stdin open until asynchronous tree termination is confirmed", async () => {
+    const child = childProcess();
+    child.kill = vi.fn(() => true);
+    const connection = client(Type, child);
+    let finishTree;
+    connection.processHandle.termination = new Promise(resolve => { finishTree = resolve; });
+    connection.dispose();
+    expect(child.stdin.writableEnded).toBe(false);
+    finishTree(true);
+    await Promise.resolve();
+    expect(child.stdin.writableEnded).toBe(true);
+    child.emit("close", 0, null);
+    await connection.waitForExit();
+  });
+
   it("cancels before dispatch without writing and treats cancellation after dispatch as unknown delivery", async () => {
     const child = childProcess();
     const connection = client(Type, child);

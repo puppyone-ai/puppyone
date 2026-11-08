@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import { spawn as nodeSpawn } from "node:child_process";
 import path from "node:path";
 import { redactSecretText } from "../agent-events.mjs";
-import { createManagedAgentProcess, terminateManagedAgentProcess, waitForManagedAgentExit } from "./managed-agent-process.mjs";
+import { createManagedAgentProcess, terminateManagedAgentProcess, waitForManagedAgentExit, afterManagedAgentTermination } from "./managed-agent-process.mjs";
 
 export const JSONL_RPC_MAX_LINE_BYTES = 1024 * 1024;
 const DEFAULT_MAX_STDERR_BYTES = 64 * 1024;
@@ -154,16 +154,11 @@ export class JsonlRpcConnection extends EventEmitter {
     this.exitExpected = Boolean(expected);
     this.closeReason = redactSecretText(reason);
     this.#rejectPending(new Error(reason));
-    try {
-      this.child.stdin?.end?.();
-    } catch {
-      // Provider stdin may already be closed.
-    }
-    try {
-      terminateManagedAgentProcess(this.processHandle, "SIGTERM");
-    } catch {
-      // Provider may already have exited.
-    }
+    // Start tree termination before EOF can make a Windows launcher exit.
+    terminateManagedAgentProcess(this.processHandle, "SIGTERM");
+    afterManagedAgentTermination(this.processHandle, () => {
+      try { this.child.stdin?.end?.(); } catch { /* Provider stdin may already be closed. */ }
+    });
     if (!this.exitInfo && this.forceKillTimeoutMs > 0) {
       this.forceKillTimer = setTimeout(() => {
         this.forceKillTimer = null;
@@ -292,14 +287,13 @@ export class JsonlRpcConnection extends EventEmitter {
       clearTimeout(this.forceKillTimer);
       this.forceKillTimer = null;
     }
+    const expectedError = this.exitExpected ? null : this.closeReason;
     this.exitInfo = {
       code: Number.isInteger(code) ? code : null,
       signal: signal ? String(signal) : null,
       error: error
         ? redactSecretText(error.message || String(error))
-        : this.exitExpected
-          ? null
-          : this.closeReason,
+        : expectedError,
       diagnostics: this.getDiagnostics(),
     };
     this.closed = true;

@@ -7,6 +7,7 @@ import { redactSecretText } from "../../agent-events.mjs";
 import {
   createManagedAgentProcess,
   terminateManagedAgentProcess,
+  afterManagedAgentTermination,
   waitForManagedAgentExit,
 } from "../../transports/managed-agent-process.mjs";
 
@@ -143,12 +144,11 @@ export class PiRpcClient extends EventEmitter {
     this.exitExpected = Boolean(expected);
     this.closeReason = redactSecretText(this.redactSensitive(reason));
     this.#rejectPending(new Error(this.closeReason));
-    try {
-      this.child.stdin?.end?.();
-    } catch {
-      // The native process may already have closed stdin.
-    }
+    // Start tree termination before EOF can make a Windows launcher exit.
     terminateManagedAgentProcess(this.processHandle, "SIGTERM");
+    afterManagedAgentTermination(this.processHandle, () => {
+      try { this.child.stdin?.end?.(); } catch { /* The native process may already have closed stdin. */ }
+    });
     if (!this.exitInfo && this.forceKillTimeoutMs > 0) {
       this.forceKillTimer = setTimeout(() => {
         this.forceKillTimer = null;
@@ -237,12 +237,13 @@ export class PiRpcClient extends EventEmitter {
     if (this.exitInfo) return;
     if (this.forceKillTimer) clearTimeout(this.forceKillTimer);
     this.forceKillTimer = null;
+    const expectedError = this.exitExpected ? null : this.closeReason;
     this.exitInfo = {
       code: Number.isInteger(code) ? code : null,
       signal: signal ? String(signal) : null,
       error: error
         ? redactSecretText(error.message || String(error))
-        : this.exitExpected ? null : this.closeReason,
+        : expectedError,
       diagnostics: this.getDiagnostics(),
     };
     this.closed = true;

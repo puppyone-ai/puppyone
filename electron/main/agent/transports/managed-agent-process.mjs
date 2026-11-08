@@ -1,5 +1,8 @@
-import { reportNativeProcess } from "../../../native-process-ownership.mjs";
+import { createNativeProcessHandle } from "../../platform/common/native-process-handle.mjs";
 import { resolveProcessInvocation } from "../../platform/windows/process-invocation.mjs";
+
+export { terminateNativeProcess as terminateManagedAgentProcess,
+  afterNativeProcessTermination as afterManagedAgentTermination } from "../../platform/common/native-process-handle.mjs";
 
 /** Launches one native Agent as an isolated POSIX process group when available. */
 export function createManagedAgentProcess({
@@ -17,38 +20,12 @@ export function createManagedAgentProcess({
     detached: grouped,
     ...invocation.options,
   });
-  reportNativeProcess(child, { grouped });
-  return { child, grouped };
-}
-
-/** Terminates the harness and descendants; falls back to the direct child handle. */
-export function terminateManagedAgentProcess(
-  processHandle,
-  signal = "SIGTERM",
-  { platform = process.platform, processKill = process.kill } = {},
-) {
-  const child = processHandle?.child;
-  if (!child) return false;
-  if (platform !== "win32" && processHandle.grouped && Number.isSafeInteger(child.pid) && child.pid > 0) {
-    try {
-      processKill(-child.pid, signal);
-      return true;
-    } catch {
-      // The leader may have exited while a direct child handle is still usable.
-    }
-  }
-  try {
-    child.kill(signal);
-    return true;
-  } catch {
-    return false;
-  }
+  return createNativeProcessHandle(child, { grouped, platform });
 }
 
 /** Disposal is complete only after the operating system reports process exit. */
-export function waitForManagedAgentExit(connection, { timeoutMs = 3500 } = {}) {
-  if (connection.exitInfo) return Promise.resolve(connection.exitInfo);
-  return new Promise((resolve, reject) => {
+export async function waitForManagedAgentExit(connection, { timeoutMs = 3500 } = {}) {
+  const info = connection.exitInfo ?? await new Promise((resolve, reject) => {
     const done = (info) => { clearTimeout(timer); resolve(info); };
     const timer = setTimeout(() => {
       connection.removeListener("exit", done);
@@ -57,4 +34,8 @@ export function waitForManagedAgentExit(connection, { timeoutMs = 3500 } = {}) {
     timer.unref?.();
     connection.once("exit", done);
   });
+  if (connection.processHandle?.termination && !await connection.processHandle.termination) {
+    throw new Error("Native Agent process tree exit could not be confirmed.");
+  }
+  return info;
 }

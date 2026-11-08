@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { reportNativeProcess } from "../../../native-process-ownership.mjs";
+import { createNativeProcessHandle, terminateNativeProcess, afterNativeProcessTermination } from "./native-process-handle.mjs";
 import { resolveProcessInvocation } from "../windows/process-invocation.mjs";
 
 export function runBoundedProcessProbe(executablePath, args, {
@@ -14,10 +14,12 @@ export function runBoundedProcessProbe(executablePath, args, {
   label = "Desktop process probe",
   platform = process.platform,
   isolatedProcessGroup = false,
+  run,
 } = {}) {
   validateLaunch(executablePath, args);
   return new Promise((resolve, reject) => {
     let child;
+    let processHandle;
     let settled = false;
     let stdout = "";
     let stderr = "";
@@ -37,19 +39,14 @@ export function runBoundedProcessProbe(executablePath, args, {
       callback();
     };
     const kill = () => {
-      if (isolatedProcessGroup && platform !== "win32" && Number.isSafeInteger(child?.pid) && child.pid > 0) {
-        try { process.kill(-child.pid, "SIGKILL"); return; } catch { /* Child may have exited. */ }
-      }
-      try {
-        child?.kill?.("SIGKILL");
-      } catch {
-        // The child may have exited between the guard and kill.
-      }
+      terminateNativeProcess(processHandle, "SIGKILL", { platform, run });
     };
     const fail = (message) => {
       kill();
-      child?.stdout?.destroy?.();
-      child?.stderr?.destroy?.();
+      afterNativeProcessTermination(processHandle, () => {
+        child?.stdout?.destroy?.();
+        child?.stderr?.destroy?.();
+      });
       finish(() => reject(new Error(message)));
     };
     const abort = () => fail(`${label} was cancelled.`);
@@ -87,7 +84,7 @@ export function runBoundedProcessProbe(executablePath, args, {
       reject(new Error(`${label} could not start.`));
       return;
     }
-    reportNativeProcess(child, { grouped: isolatedProcessGroup && platform !== "win32" });
+    processHandle = createNativeProcessHandle(child, { grouped: isolatedProcessGroup && platform !== "win32", platform });
     child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk, stdoutDecoder); });
     child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk, stderrDecoder); });
     child.once?.("error", () => finish(() => reject(new Error(`${label} could not start.`))));

@@ -4,7 +4,27 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createUtilityHost } from "../../../../electron/main/item-hosts/utility-host.mjs";
 import { createItemHostBudget } from "../../../../electron/main/item-hosts/resource-budget.mjs";
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+it("allows Windows tree cleanup to finish before escalating utility shutdown", async () => {
+  vi.useFakeTimers();
+  const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+  const child = Object.assign(new EventEmitter(), { pid: 62531, kill: vi.fn() });
+  child.postMessage = vi.fn(message => {
+    if (message.type === "request") Promise.resolve().then(() => child.emit("message", { ...message, type: "result", value: {} }));
+    if (message.type === "terminate") setTimeout(() => child.emit("exit", 0), 3200);
+  });
+  const budget = createItemHostBudget();
+  const host = createUtilityHost({ platform: "win32", utilityProcess: { fork: () => child }, modulePath: "/fixture",
+    identity: { key: "fixture", kind: "agent", ownerId: 1, projectId: "fixture" }, budget, initialize: {}, logger: {} });
+  await host.ready;
+  const closing = host.close();
+  await vi.advanceTimersByTimeAsync(2500);
+  expect(kill).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(750);
+  await closing;
+  expect(budget.snapshot()).toEqual([]);
+});
 it("keeps a silent utility alive through a clock jump and missed heartbeats, while retaining explicit termination", async () => {
   vi.useFakeTimers();
   const child = new EventEmitter();

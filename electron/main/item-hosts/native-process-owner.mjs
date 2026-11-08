@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { hostError } from "../../../shared/item-host-contract/rpc.mjs";
+import { terminateWindowsProcessTree } from "../platform/common/native-process-handle.mjs";
 
 const execute = promisify(execFile);
 
@@ -17,8 +18,10 @@ export function createNativeProcessOwner({ platform = process.platform, kill = p
     if (pending.has(entry.pid)) return pending.get(entry.pid);
     const closing = (async () => {
       if (platform === "win32") {
-        await run("taskkill", ["/PID", String(entry.pid), "/T", "/F"], { timeout: 3000, maxBuffer: 8192, windowsHide: true })
-          .catch((error) => { if (alive(entry)) throw error; });
+        // A missing leader alone cannot prove that its descendants exited.
+        await terminateWindowsProcessTree(entry.pid, { run }).catch(error => {
+          if (processes.get(entry.pid) === entry) throw error;
+        });
       } else {
         try { kill(target(entry), "SIGTERM"); } catch (error) { if (error.code !== "ESRCH") throw error; }
       }
