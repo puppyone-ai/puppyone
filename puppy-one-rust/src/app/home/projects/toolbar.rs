@@ -1,5 +1,5 @@
 //! `OnboardingProjectToolbar`, `OnboardingProjectLayoutSwitch` and
-//! `OnboardingEntryMenu`: filter, sort, layout and New project.
+//! `OnboardingEntryMenu`: sort, layout and New project.
 use super::*;
 
 impl Homepage {
@@ -25,7 +25,6 @@ impl Homepage {
             .selected(open)
             .when(active, |b| b.color(t.text))
             .disabled(disabled);
-        let multiple = menu == HomeMenu::Filter;
         PopoverMenu::new(("home-view-menu-popover", menu as usize))
             .anchor(Anchor::TopCenter)
             .offset(px(metric::MENU_PADDING))
@@ -40,158 +39,18 @@ impl Homepage {
                 });
             })
             .trigger(trigger)
-            .menu(move |surface, _, _| {
-                let surface = surface.min_w(px(VIEW_MENU_MIN_WIDTH));
-                build(if multiple {
-                    surface.w(px(MULTIPLE_MENU_WIDTH))
-                } else {
-                    surface
-                })
-            })
+            .menu(move |surface, _, _| build(surface.min_w(px(VIEW_MENU_MIN_WIDTH))))
     }
-    /// `OnboardingProjectToolbar` + the layout switch: chips for the places
-    /// in force, then Filter, Sort and Layout, aligned to the end.
+    /// `OnboardingProjectToolbar` + the layout switch: Sort and Layout,
+    /// aligned to the end. Nothing narrows the projects: the groups already
+    /// say who can open each one and the marks where it lives.
     pub(in crate::app::home) fn project_toolbar(
         &self,
         disabled: bool,
         cx: &mut Context<Self>,
     ) -> Div {
-        let t = cx.palette();
         let prefs = &self.preferences.read(cx).state;
         let (sort, layout) = (prefs.homepage_project_sort, prefs.homepage_project_layout);
-        let present: BTreeSet<Place> = self.project_items(cx).iter().map(place_of).collect();
-        let chosen: Vec<Place> = [Place::Local, Place::Cloud]
-            .into_iter()
-            .filter(|p| self.places.contains(p))
-            .collect();
-        let place_label = |place: Place| -> String {
-            match place {
-                Place::Local => tr(if cfg!(target_os = "macos") {
-                    "shell.workspaceSwitcher.location.thisMac"
-                } else {
-                    "shell.workspaceSwitcher.location.thisComputer"
-                })
-                .into(),
-                Place::Cloud => tr("onboarding.projects.filter.cloud").into(),
-            }
-        };
-        let place_icon = |place: Place| {
-            Icon::product(match place {
-                Place::Local => ProductIcon::Local,
-                Place::Cloud => ProductIcon::Cloud,
-            })
-            .small()
-            .stroke(1.85)
-        };
-        let host = self.weak.clone();
-        let chips = chosen.iter().map(|place| {
-            let place = *place;
-            let host = host.clone();
-            // `.onboarding-filter-chip`.
-            div()
-                .id(("home-filter-chip", place as usize))
-                .flex()
-                .flex_shrink(1.)
-                .min_w_0()
-                .h(px(theme::control() - 4.))
-                .items_center()
-                .gap(px(4.))
-                .pl(px(8.))
-                .pr(px(6.))
-                .rounded(px(metric::CONTROL_RADIUS))
-                .bg(t.control)
-                .text_color(t.text)
-                .text_size(px(theme::ty().ui.caption))
-                .when(!disabled, |d| {
-                    d.cursor(theme::clickable_cursor())
-                        .hover(move |s| s.bg(t.control_hover))
-                        .on_click(move |_, _, cx| {
-                            let _ = host.update(cx, |s, cx| {
-                                s.places.remove(&place);
-                                cx.notify();
-                            });
-                        })
-                })
-                .child(place_icon(place))
-                .child(div().min_w_0().truncate().child(place_label(place)))
-                .child(Icon::new("x").with_size(px(12.)).stroke(1.85))
-        });
-        let filter_label = tr("onboarding.projects.filter.label");
-        let filter_trigger = if chosen.is_empty() {
-            filter_label.to_owned()
-        } else {
-            format!(
-                "{filter_label}: {}",
-                chosen
-                    .iter()
-                    .map(|p| place_label(*p))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        };
-        let filter = {
-            let host = host.clone();
-            let chosen_set = self.places.clone();
-            let entries: Vec<(Place, String, bool, bool)> = [Place::Local, Place::Cloud]
-                .into_iter()
-                .map(|p| {
-                    (
-                        p,
-                        place_label(p),
-                        chosen_set.contains(&p),
-                        present.contains(&p),
-                    )
-                })
-                .collect();
-            let all_checked = chosen_set.is_empty();
-            self.view_menu(
-                HomeMenu::Filter,
-                Icon::new("list-filter").small(),
-                filter_trigger,
-                !chosen.is_empty(),
-                disabled,
-                move |menu| {
-                    let all = {
-                        let host = host.clone();
-                        checked_item(
-                            MenuItem::new(tr("onboarding.projects.filter.all"))
-                                .icon_sized(Icon::new("list-filter").small()),
-                            all_checked,
-                        )
-                        .stay_open()
-                        .on_click(move |_, cx| {
-                            let _ = host.update(cx, |s, cx| {
-                                s.places.clear();
-                                cx.notify();
-                            });
-                        })
-                    };
-                    let mut menu = menu.item(all);
-                    for (place, label, checked, available) in entries {
-                        let host = host.clone();
-                        menu = menu.item(
-                            checked_item(
-                                MenuItem::new(label)
-                                    .icon_sized(place_icon(place))
-                                    .disabled(!available),
-                                checked,
-                            )
-                            .stay_open()
-                            .on_click(move |_, cx| {
-                                let _ = host.update(cx, |s, cx| {
-                                    if !s.places.remove(&place) {
-                                        s.places.insert(place);
-                                    }
-                                    cx.notify();
-                                });
-                            }),
-                        );
-                    }
-                    menu
-                },
-                cx,
-            )
-        };
         let sort_label = tr("onboarding.projects.sort.label");
         let sort_name = |s: HomepageSort| {
             tr(match s {
@@ -274,8 +133,6 @@ impl Homepage {
                     .min_w_0()
                     .items_center()
                     .gap(px(4.))
-                    .children(chips)
-                    .child(filter)
                     .child(sort_menu)
                     .child(layout_menu),
             )

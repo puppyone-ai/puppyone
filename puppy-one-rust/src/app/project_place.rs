@@ -88,58 +88,117 @@ pub(super) enum Place {
     Local,
     Cloud,
 }
-/// `ProjectPlaceAction`.
+/// `ProjectPlaceAction`: from a Cloud project, the folder it was made from.
+/// It never moves one project between this computer and the Cloud.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Action {
-    /// A folder without a Cloud project; the conversion entry.
-    PutInCloud {
-        continuing: bool,
-    },
-    OpenCloudProject {
-        project: String,
-        name: Option<String>,
-    },
-    SignIn,
-    OpenLocalFolder {
-        path: PathBuf,
-        name: String,
-    },
+    OpenLocalFolder { path: PathBuf, name: String },
 }
+/// `ProjectPlaceAddress`: where exactly the open project is. The icon says
+/// which kind of place, so the words say where: a local project's folder
+/// from the home folder, or the organization that holds a Cloud project.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Address {
+    pub short: String,
+    pub full: String,
+}
+/// `ProjectPlaceMenu`.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct PlaceMenu {
     pub place: Place,
+    /// Absent while it is unknown; the Header then names the kind of place.
+    pub address: Option<Address>,
     pub action: Option<Action>,
+    /// The open local folder's Cloud link: what it means, and whether this
+    /// app can end it.
+    pub link: Option<(Notice, bool)>,
 }
 /// `resolveProjectPlaceMenu`.
 pub(super) fn resolve(
     place: Place,
-    unhosted: bool,
-    publish_pending: bool,
-    notice: Option<&Notice>,
+    address: Option<Address>,
+    notice: Option<Notice>,
+    disconnectable: bool,
     linked_folder: Option<(PathBuf, String)>,
 ) -> PlaceMenu {
-    let action = if place == Place::Cloud {
-        linked_folder.map(|(path, name)| Action::OpenLocalFolder { path, name })
-    } else if publish_pending {
-        Some(Action::PutInCloud { continuing: true })
-    } else if unhosted {
-        Some(Action::PutInCloud { continuing: false })
+    match place {
+        Place::Cloud => PlaceMenu {
+            place,
+            address,
+            action: linked_folder.map(|(path, name)| Action::OpenLocalFolder { path, name }),
+            link: None,
+        },
+        Place::Local => PlaceMenu {
+            place,
+            address,
+            action: None,
+            link: notice.map(|n| (n, disconnectable)),
+        },
+    }
+}
+/// `cloudLinkHasProblem`: the link exists but cannot be used from here.
+pub(super) fn link_has_problem(link: Option<&(Notice, bool)>) -> bool {
+    link.is_some_and(|(n, _)| !matches!(n, Notice::Linked { .. } | Notice::SignIn))
+}
+/// `compactDisplayPath`: a display path short enough for one line: its
+/// root and its last `tail` folders, with the ones between elided.
+pub(super) fn compact_display_path(path: &str, tail: usize) -> String {
+    let separator = if path.contains('\\') && !path.contains('/') {
+        '\\'
     } else {
-        match notice {
-            Some(Notice::Linked {
-                project,
-                name,
-                openable: true,
-            }) => Some(Action::OpenCloudProject {
-                project: project.clone(),
-                name: name.clone(),
-            }),
-            Some(Notice::SignIn) => Some(Action::SignIn),
-            // The folder's notice explains the rest; nothing that cannot work.
-            _ => None,
-        }
+        '/'
     };
-    PlaceMenu { place, action }
+    let parts: Vec<&str> = path.split(separator).collect();
+    if parts.len() <= tail + 2 {
+        return path.to_owned();
+    }
+    let mut kept = vec![parts[0], "…"];
+    kept.extend(&parts[parts.len() - tail..]);
+    kept.join(&separator.to_string())
+}
+/// `localProjectAddress`: the folder that holds a local project, from the
+/// home folder, shortened.
+pub(super) fn local_address(path: &std::path::Path) -> Option<Address> {
+    let full = super::home::path_for_display(path);
+    let trimmed = full.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let parent = match trimmed.rfind('/') {
+        Some(0) if trimmed.len() > 1 => "/".to_owned(),
+        Some(cut) if cut > 0 => trimmed[..cut].to_owned(),
+        _ => trimmed.to_owned(),
+    };
+    Some(Address {
+        short: compact_display_path(&parent, 2),
+        full: trimmed.to_owned(),
+    })
+}
+/// `cloudProjectAddress`: the organization that holds a Cloud project.
+pub(super) fn cloud_address(organization: Option<&str>) -> Option<Address> {
+    let name = organization?.trim();
+    (!name.is_empty()).then(|| Address {
+        short: name.to_owned(),
+        full: name.to_owned(),
+    })
+}
+/// The audience's view of a folder's link (`useLocalProjectAudience`).
+fn audience_link(notice: &Notice) -> super::audience::Link {
+    use super::audience::Link;
+    match notice {
+        Notice::Linked {
+            project, openable, ..
+        } => Link::Linked {
+            project: project.clone(),
+            openable: *openable,
+        },
+        Notice::SignIn => Link::SignIn,
+        Notice::OtherEnvironment { origin } => Link::OtherEnvironment(origin.clone()),
+        Notice::Missing => Link::Missing,
+        Notice::NoAccess => Link::NoAccess,
+        Notice::Ambiguous => Link::Ambiguous,
+        Notice::Unreachable { .. } => Link::Unreachable,
+    }
 }
 fn place_label(place: Place) -> &'static str {
     match place {
@@ -169,7 +228,7 @@ impl WindowCloud {
     }
     /// The Header place menu's state (`placeMenu`), absent without Cloud.
     /// `items` is the shared project list, where a hosted Project finds the
-    /// folder linked to it.
+    /// folder linked to it and its space.
     pub(super) fn place_menu(&self, items: &[Item], cx: &App) -> Option<PlaceMenu> {
         if !crate::features::flags::cloud_enabled(&self.preferences, cx) {
             return None;
@@ -186,97 +245,187 @@ impl WindowCloud {
                 .find(|i| i.linked.as_ref().is_some_and(|l| &l.id == project))
                 .and_then(|i| Some((PathBuf::from(i.local_path.clone()?), i.label.clone())))
         });
-        let unhosted = matches!(self.repository.read(cx).context, Association::LocalOnly);
-        let publish_pending = self.publish.read(cx).header_status().is_some()
-            && self.publish.read(cx).published.is_none();
+        let address = match &hosted {
+            Some(project) => {
+                let org = items
+                    .iter()
+                    .find(|i| i.cloud_project.as_deref() == Some(project.as_str()))
+                    .and_then(|i| i.cloud_organization.clone());
+                let name = org.and_then(|org| {
+                    crate::features::cloud::global_spaces_read(cx)
+                        .and_then(|s| s.space(&org).map(|space| space.name.clone()))
+                });
+                cloud_address(name.as_deref())
+            }
+            None => self.root().and_then(|root| local_address(&root)),
+        };
         Some(resolve(
             place,
-            unhosted,
-            publish_pending,
-            self.local_folder_notice(cx).as_ref(),
+            address,
+            self.local_folder_notice(cx),
+            self.disconnectable(cx),
             linked_folder,
         ))
     }
-    /// `.desktop-titlebar-place-button`: the place's mark and name.
-    pub(super) fn place_button(&self, menu: &PlaceMenu) -> Button {
+    /// `useLocalProjectAudience`: who can open the open local folder.
+    pub(super) fn local_audience(
+        &self,
+        menu: &PlaceMenu,
+        items: &[Item],
+        cx: &App,
+    ) -> Option<super::audience::ProjectAudience> {
+        if menu.place != Place::Local {
+            return None;
+        }
+        let root = self.root()?;
+        let spaces = crate::features::cloud::global_spaces_read(cx);
+        let linked_project = match &menu.link {
+            Some((Notice::Linked { project, .. }, _)) => Some(project.clone()),
+            _ => None,
+        };
+        let linked_space_personal = linked_project
+            .and_then(|project| {
+                items
+                    .iter()
+                    .find(|i| i.cloud_project.as_deref() == Some(project.as_str()))
+                    .and_then(|i| i.cloud_organization.clone())
+            })
+            .and_then(|org| spaces.and_then(|s| s.space(&org).map(|s| s.kind)))
+            == Some(crate::workspace::cloud::spaces::Kind::Personal);
+        let copy_team = spaces
+            .and_then(|s| {
+                s.spaces().iter().find(|s| {
+                    s.kind == crate::workspace::cloud::spaces::Kind::Team && s.can_create_projects
+                })
+            })
+            .map(|team| (root.clone(), team.id.clone()));
+        let unhosted = matches!(self.repository.read(cx).context, Association::LocalOnly);
+        let publish_pending = self.publish.read(cx).header_status().is_some()
+            && self.publish.read(cx).published.is_none();
+        super::audience::local(
+            true,
+            self.devices_audience(&root, cx),
+            menu.link
+                .as_ref()
+                .map(|(notice, disconnectable)| (audience_link(notice), *disconnectable)),
+            unhosted,
+            publish_pending,
+            linked_space_personal,
+            copy_team,
+            self.unsent(cx),
+        )
+    }
+    /// The open folder's other computers (`useHostFolderPlace`); the hosts
+    /// fill this in.
+    pub(super) fn devices_audience(
+        &self,
+        _root: &std::path::Path,
+        _cx: &App,
+    ) -> Option<super::audience::Devices> {
+        None
+    }
+    /// `.desktop-titlebar-place-button`: the place's mark, then its address
+    /// (or the kind of place while the address is unknown), and a small
+    /// cloud after a folder's address when the folder has a copy in the
+    /// Cloud.
+    pub(super) fn place_button(&self, menu: &PlaceMenu, cx: &App) -> Button {
+        let t = cx.palette();
         let ty = theme::ty().header;
         let label = place_label(menu.place);
-        Button::new("project-place")
+        let text = menu
+            .address
+            .as_ref()
+            .map_or_else(|| label.to_owned(), |a| a.short.clone());
+        let accessible = [
+            Some(label.to_owned()),
+            menu.address
+                .as_ref()
+                .map(|a| a.full.clone())
+                .filter(|full| full != label),
+            menu.link
+                .as_ref()
+                .map(|_| tr("cloud.placeMenu.link.linked").to_owned()),
+            Some(tr("cloud.placeMenu.label").to_owned()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(", ");
+        let icon = place_icon(menu.place).with_size(px(16.)).stroke(1.75);
+        let icon = if menu.place == Place::Cloud {
+            icon.color(t.brand_blue)
+        } else {
+            icon
+        };
+        let mut button = Button::new("project-place")
             .variant(ButtonVariant::Titlebar)
-            .icon(place_icon(menu.place).with_size(px(16.)).stroke(1.75))
-            .label(label)
-            .accessibility_label(format!("{label}, {}", tr("cloud.placeMenu.label")))
+            .icon(icon)
+            .label(text)
+            .accessibility_label(accessible)
             .px(px(6.))
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::MEDIUM);
+        if menu.link.is_some() {
+            let color = if link_has_problem(menu.link.as_ref()) {
+                t.warning
+            } else {
+                t.brand_blue
+            };
+            button = button.trailing(
+                Icon::product(ProductIcon::Cloud)
+                    .with_size(px(13.))
+                    .stroke(1.9)
+                    .color(color),
+            );
+        }
+        button
     }
-    /// `ProjectPlaceRows`: the current place as a fact, then the Cloud
-    /// action, then History.
+    /// `ProjectPlaceRows`: where the project is, as a fact; then who can
+    /// open a local project, in the Homepage's three audiences; a Cloud
+    /// project offers the folder linked to it; History follows.
     pub(super) fn place_rows(
         &self,
         menu: PlaceMenu,
+        items: &[Item],
         cx: &App,
     ) -> impl FnOnce(crate::ui::components::Menu) -> crate::ui::components::Menu + 'static {
         let t = cx.palette();
         let host = self.weak.clone();
         let history = self.hosted().is_some() && crate::features::cloud::account::has_account(cx);
-        let current = MenuItem::new(place_label(menu.place))
-            .icon_sized(place_icon(menu.place).with_size(px(15.)).stroke(1.75))
+        let mut current = MenuItem::new(place_label(menu.place))
+            .icon_sized({
+                let icon = place_icon(menu.place).with_size(px(15.)).stroke(1.75);
+                if menu.place == Place::Cloud {
+                    icon.color(t.brand_blue)
+                } else {
+                    icon
+                }
+            })
             .selected(true)
-            .trailing(Icon::new("check").small());
+            .fact(true);
+        if let Some(address) = &menu.address {
+            current = current.detail_below(address.full.clone());
+        }
+        let audience = self.local_audience(&menu, items, cx);
         let action = menu.action.clone().map(|action| {
-            let (place, icon, label, detail) = match &action {
-                Action::PutInCloud { continuing } => (
-                    Place::Cloud,
-                    Icon::product(ProductIcon::CloudUpload),
-                    tr(if *continuing {
-                        "cloud.placeMenu.continuePutInCloud"
-                    } else {
-                        "cloud.placeMenu.putInCloud"
-                    }),
-                    None,
-                ),
-                Action::OpenCloudProject { name, .. } => (
-                    Place::Cloud,
-                    Icon::product(ProductIcon::Cloud),
-                    tr("cloud.localFolderNotice.openProject"),
-                    name.clone(),
-                ),
-                Action::SignIn => (
-                    Place::Cloud,
-                    Icon::product(ProductIcon::Cloud),
-                    tr("cloud.auth.signIn"),
-                    None,
-                ),
-                Action::OpenLocalFolder { name, .. } => (
-                    Place::Local,
-                    Icon::product(ProductIcon::Local),
-                    tr(if cfg!(target_os = "macos") {
-                        "cloud.placeMenu.openFolder.mac"
-                    } else {
-                        "cloud.placeMenu.openFolder.computer"
-                    }),
-                    Some(name.clone()),
-                ),
-            };
-            // The action that reaches the Cloud carries the product blue.
-            let icon = icon.with_size(px(15.)).stroke(1.75);
-            let icon = if place == Place::Cloud {
-                icon.color(t.brand_blue)
-            } else {
-                icon
-            };
+            let Action::OpenLocalFolder { name, .. } = &action;
             let host = host.clone();
-            let mut row = MenuItem::new(label)
-                .icon_sized(icon)
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.run_place_action(action.clone(), w, cx));
-                });
-            if let Some(detail) = detail {
-                row = row.detail_below(detail);
-            }
-            row
+            let name = name.clone();
+            MenuItem::new(tr(if cfg!(target_os = "macos") {
+                "cloud.placeMenu.openFolder.mac"
+            } else {
+                "cloud.placeMenu.openFolder.computer"
+            }))
+            .icon_sized(
+                Icon::product(ProductIcon::Local)
+                    .with_size(px(15.))
+                    .stroke(1.75),
+            )
+            .detail_below(crate::localization::bidi_isolate(&name))
+            .on_click(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.run_place_action(action.clone(), w, cx));
+            })
         });
         let history = history.then(|| {
             let host = host.clone();
@@ -288,10 +437,19 @@ impl WindowCloud {
                     });
                 })
         });
+        let run = {
+            let host = host.clone();
+            move |action: super::audience::AudienceAction, w: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| s.run_audience_action(action, w, cx));
+            }
+        };
         move |surface| {
-            let mut surface = surface.list(2., [current]);
+            let mut surface = surface.item(current);
+            if let Some(audience) = audience {
+                surface = super::audience::rows(surface.separator(), &audience, run, t);
+            }
             if let Some(action) = action {
-                surface = surface.separator().list(2., std::iter::once(action));
+                surface = surface.separator().item(action);
             }
             if let Some(history) = history {
                 surface = surface.separator().item(history);
@@ -303,15 +461,35 @@ impl WindowCloud {
     pub(super) fn run_place_action(
         &mut self,
         action: Action,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.show_popover(None, cx);
         match action {
-            Action::PutInCloud { .. } => self.put_in_cloud(window, cx),
-            Action::OpenCloudProject { project, .. } => cx.emit(CloudEvent::OpenCloud(project)),
-            Action::SignIn => self.sign_in_for_cloud(window, cx),
             Action::OpenLocalFolder { path, .. } => cx.emit(CloudEvent::OpenProject(path)),
+        }
+        cx.notify();
+    }
+    /// What a row of "Who can open it" asks for.
+    pub(super) fn run_audience_action(
+        &mut self,
+        action: super::audience::AudienceAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use super::audience::AudienceAction as A;
+        self.show_popover(None, cx);
+        match action {
+            A::CopyToTeam { path, space } => self.request_publish(path, space, cx),
+            A::OpenCloud(project) => cx.emit(CloudEvent::OpenCloud(project)),
+            A::SignIn => self.sign_in_for_cloud(window, cx),
+            A::Retry => self.repository.update(cx, |r, cx| r.retry(cx)),
+            A::Disconnect => self.open_disconnect(window, cx),
+            A::Send => self.source_control.update(cx, |s, cx| s.push(cx)),
+            A::TurnOnDevices { path } => cx.emit(CloudEvent::ShareDevices(path)),
+            A::StopDevices { .. } | A::DeviceSettings { .. } => {
+                cx.emit(CloudEvent::Devices(action))
+            }
         }
         cx.notify();
     }
@@ -332,6 +510,11 @@ impl WindowCloud {
             return;
         }
         self.show_popover(None, cx);
+        // The page's own choice of organization, unless a run already
+        // carries its space.
+        if self.publish.read(cx).header_status().is_none() {
+            self.publish.update(cx, |p, cx| p.set_target(None, cx));
+        }
         if !self.dialog_open(DialogKey::CloudPublish, cx) {
             self.open_dialog(DialogKey::CloudPublish, cx);
             // The activation page asks for the owning organization.
@@ -468,6 +651,27 @@ impl WindowCloud {
         let t = cx.palette();
         let name = self.project_display_name(cx);
         let host = self.weak.clone();
+        // What a confirmed publication to a chosen space includes and who
+        // sees it (`CloudGitPrerequisite` details).
+        let publish = self.publish.read(cx);
+        let destination = publish.destination().flatten().map(|org| {
+            tf(
+                "cloud.initialize.destinationNote",
+                &[("name", crate::localization::bidi_isolate(&org.name).into())],
+            )
+        });
+        let details: Vec<String> = destination
+            .into_iter()
+            .chain([
+                tr(if publish.has_head {
+                    "cloud.initialize.committedScopeNote"
+                } else {
+                    "cloud.initialize.initialScopeNote"
+                })
+                .to_owned(),
+                tr("cloud.initialize.spaceVisibilityNote").to_owned(),
+            ])
+            .collect();
         Dialog::new("cloud-publish-confirmation")
             .width(400.)
             .title(tr("cloud.initialize.title"))
@@ -497,6 +701,14 @@ impl WindowCloud {
                         )
                     }),
             )
+            .children(details.into_iter().map(|detail| {
+                div()
+                    .pt(px(8.))
+                    .text_size(px(theme::ty().ui.body))
+                    .line_height(relative(1.5))
+                    .text_color(t.muted)
+                    .child(detail)
+            }))
             .footer(
                 Button::new("cloud-publish-confirm-cancel")
                     .variant(ButtonVariant::Secondary)
@@ -690,42 +902,12 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
-    fn the_place_menu_offers_the_one_action_that_applies() {
-        let local = |unhosted, pending, notice: Option<Notice>| {
-            resolve(Place::Local, unhosted, pending, notice.as_ref(), None).action
-        };
-        assert_eq!(
-            local(true, false, None),
-            Some(Action::PutInCloud { continuing: false })
-        );
-        assert_eq!(
-            local(false, true, None),
-            Some(Action::PutInCloud { continuing: true })
-        );
-        let linked = Notice::Linked {
-            project: "p".into(),
-            name: Some("P".into()),
-            openable: true,
-        };
-        assert_eq!(
-            local(false, false, Some(linked)),
-            Some(Action::OpenCloudProject {
-                project: "p".into(),
-                name: Some("P".into())
-            })
-        );
-        assert_eq!(
-            local(false, false, Some(Notice::SignIn)),
-            Some(Action::SignIn)
-        );
-        // A vanished project is ended from its notice, never replaced.
-        assert_eq!(local(false, false, Some(Notice::Missing)), None);
-        assert_eq!(local(false, false, Some(Notice::NoAccess)), None);
+    fn a_cloud_project_offers_its_folder_and_a_folder_states_its_link() {
         let cloud = resolve(
             Place::Cloud,
-            false,
-            false,
+            cloud_address(Some("Design")),
             None,
+            false,
             Some(("/x/a".into(), "A".into())),
         );
         assert_eq!(
@@ -735,7 +917,31 @@ mod tests {
                 name: "A".into()
             })
         );
-        assert_eq!(resolve(Place::Cloud, false, false, None, None).action, None);
+        assert_eq!(cloud.address.unwrap().short, "Design");
+        assert_eq!(resolve(Place::Cloud, None, None, false, None).action, None);
+        let local = resolve(Place::Local, None, Some(Notice::Missing), true, None);
+        assert_eq!(local.action, None);
+        assert!(link_has_problem(local.link.as_ref()));
+        assert!(!link_has_problem(Some(&(Notice::SignIn, false))));
+    }
+
+    #[test]
+    fn a_local_address_is_the_folder_that_holds_it_shortened() {
+        let home = std::env::var("HOME").unwrap_or_default();
+        if home.starts_with("/Users/") {
+            let address =
+                local_address(&std::path::Path::new(&home).join("Documents/Clients/Acme")).unwrap();
+            assert_eq!(address.short, "~/Documents/Clients");
+            assert_eq!(address.full, "~/Documents/Clients/Acme");
+        }
+        assert_eq!(compact_display_path("~/a/b/c/d", 2), "~/…/c/d");
+        assert_eq!(compact_display_path("~/a/b", 2), "~/a/b");
+        assert_eq!(compact_display_path("/x/y/z/w", 2), "/…/z/w");
+        assert_eq!(
+            local_address(std::path::Path::new("/x")).unwrap().short,
+            "/"
+        );
+        assert!(cloud_address(Some("  ")).is_none());
     }
 
     #[test]

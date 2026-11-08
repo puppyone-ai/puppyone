@@ -32,6 +32,9 @@ pub trait CloudOps: Send + Sync {
 pub struct Organization {
     pub id: String,
     pub name: String,
+    /// Whether this account may create projects there (absent on older
+    /// servers).
+    pub can_create_projects: Option<bool>,
 }
 
 /// `mapCloudMutationError`.
@@ -334,6 +337,7 @@ impl CloudOps for Http {
                         Some(Organization {
                             id: o["id"].as_str()?.to_owned(),
                             name: o["name"].as_str().unwrap_or("Organization").to_owned(),
+                            can_create_projects: o["can_create_projects"].as_bool(),
                         })
                     })
                     .collect()

@@ -8,6 +8,7 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
 mod appearance;
+mod audience;
 mod chrome;
 mod dev;
 pub use chrome::Popover;
@@ -213,17 +214,8 @@ impl Shell {
                 cx,
             )
         });
-        // A folder's new name names the window that shows it.
         cx.subscribe_in(&project_actions, window, |s, _, event, w, cx| {
-            if let project_actions::ActionsEvent::Renamed { path, name } = event
-                && s.workspace_root(cx).as_deref() == Some(path.as_path())
-            {
-                let name = name.clone();
-                s.session.project.update(cx, |p, _| p.record.name = name);
-                s.sync_session_view(cx);
-                s.sync_window_title(w, cx);
-            }
-            cx.notify();
+            s.project_actions_event(event, w, cx)
         })
         .detach();
         // The introduction's primary action opens what it introduces.

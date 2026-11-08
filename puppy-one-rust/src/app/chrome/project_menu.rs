@@ -71,7 +71,7 @@ impl WindowChrome {
             .gap(px(2.))
             .child(self.header_popover(Popover::Project, project, cx))
             .when_some(place, |d, menu| {
-                d.child(self.header_popover(Popover::Place, cloud.place_button(&menu), cx))
+                d.child(self.header_popover(Popover::Place, cloud.place_button(&menu, cx), cx))
                     .children(cloud.publish_header_mark(cx))
             })
     }
@@ -126,7 +126,7 @@ impl WindowChrome {
                     let items = self.owners.home.read(cx).project_items(cx);
                     let cloud = self.owners.cloud.read(cx);
                     if let Some(place) = cloud.place_menu(&items, cx) {
-                        let fill = cloud.place_rows(place, cx);
+                        let fill = cloud.place_rows(place, &items, cx);
                         menu = menu.menu(move |surface, _, _| {
                             fill(
                                 surface
@@ -209,12 +209,7 @@ impl WindowChrome {
         let open_host = self.weak.clone();
         let name = super::super::home::item_name_or(&item, tr("onboarding.projects.untitled"));
         let mut row = MenuItem::new(name.clone())
-            .icon_element(super::super::home::folder::list_icon(
-                item.location(),
-                false,
-                false,
-                t,
-            ))
+            .icon_element(super::super::home::folder::list_icon(item.location(), t))
             .selected(current)
             .trailing(
                 div()

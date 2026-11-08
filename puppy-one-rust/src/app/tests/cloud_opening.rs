@@ -8,19 +8,34 @@ use core::prelude::v1::test;
 /// place (no second window); the Cloud project's menu offers the folder.
 #[gpui::test]
 fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppContext) {
-    use super::project_place::{Action, Place};
+    use super::audience::AudienceAction;
+    use super::project_place::Place;
     let (view, cx, Linked { root, _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
+            && s.home
+                .read(cx)
+                .project_items(cx)
+                .iter()
+                .any(|i| i.cloud_project.as_deref() == Some("project-a"))
     });
     let windows = cx.update(|_, cx| cx.windows().len());
     let local_key = view.read_with(cx, |s, cx| s.files(cx).workspace_key().unwrap().to_owned());
     let menu = view.read_with(cx, |s, cx| s.place_menu_now(cx).unwrap());
     assert_eq!(menu.place, Place::Local);
-    let Some(action @ Action::OpenCloudProject { .. }) = menu.action else {
-        panic!("no Open Cloud project: {menu:?}")
-    };
+    // Who can open it: the Cloud copy hangs under its audience, with Open.
+    let audience = view.read_with(cx, |s, cx| {
+        let items = s.home.read(cx).project_items(cx);
+        s.cloud.read(cx).local_audience(&menu, &items, cx).unwrap()
+    });
+    let action = audience
+        .team
+        .and_then(|t| t.copy)
+        .or(audience.devices_copy)
+        .and_then(|c| c.open)
+        .expect("Open the Cloud copy");
+    assert_eq!(action, AudienceAction::OpenCloud("project-a".into()));
     // ⌘-less: the Header command opens the same menu.
     command(&view, cx, Command::LocationMenu);
     view.read_with(cx, |s, cx| {
@@ -28,7 +43,7 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     });
     view.update_in(cx, |s, w, cx| {
         s.cloud
-            .update(cx, |c, cx| c.run_place_action(action, w, cx))
+            .update(cx, |c, cx| c.run_audience_action(action, w, cx))
     });
     view.read_with(cx, |s, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
@@ -386,7 +401,6 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
 
 #[gpui::test]
 fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut TestAppContext) {
-    use super::project_place::Action;
     use crate::cloud::publication::fixtures::{Fake, coordinator};
     let (temp, fake) = Fake::new();
     let root = temp.path().canonicalize().unwrap();
@@ -428,15 +442,9 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
     settle_cloud(&view, cx, "the local project", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
-    // No Cloud remote: the place menu's one action is Put in the Cloud.
-    settle_cloud(&view, cx, "the place menu", &|s, cx| {
-        s.place_menu_now(cx).and_then(|m| m.action)
-            == Some(Action::PutInCloud { continuing: false })
-    });
+    // No Cloud remote: the folder's activation entry opens its publication.
     view.update_in(cx, |s, w, cx| {
-        s.cloud.update(cx, |c, cx| {
-            c.run_place_action(Action::PutInCloud { continuing: false }, w, cx)
-        })
+        s.cloud.update(cx, |c, cx| c.put_in_cloud(w, cx))
     });
     settle_cloud(&view, cx, "the organization", &|s, cx| {
         s.has_dialog("CloudPublish", cx)

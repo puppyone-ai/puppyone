@@ -1,9 +1,10 @@
 //! `ProjectFolderGlyph` and `HomeProjectIcon` (`components/onboarding`):
 //! the website's folder in its monochrome form, drawn in fill alone from the
-//! theme's `--po-project-folder-*` tones. A back with its tall tab, one
-//! sheet waiting behind a lighter front, and on a Cloud project the
-//! product's cloud outlined on the front. The layers are the product's paths
-//! (`assets/home/folder-*.svg`), tinted and stacked.
+//! theme's `--po-project-folder-*` tones. A back with its tall tab and one
+//! sheet waiting behind a lighter front. Every project is this same folder,
+//! wherever it lives: the Homepage says where in words and marks. The
+//! layers are the product's paths (`assets/home/folder-*.svg`), tinted and
+//! stacked.
 use crate::{
     theme::{self, Theme},
     ui::components::{Icon, ProductIcon},
@@ -67,7 +68,7 @@ fn layer(path: &'static str, w: f32, h: f32, color: Rgba) -> Svg {
 
 /// `ProjectFolder` (the Grid's 72 × 57 folder). `rise` is how far the sheet
 /// has risen, 0 at rest and 1 when reached for; `lit` tints the folder.
-pub(super) fn grid_folder(location: Location, rise: f32, lit: bool, t: Theme) -> Div {
+pub(super) fn grid_folder(rise: f32, lit: bool, t: Theme) -> Div {
     let (w, h) = (72., 57.);
     let scale = w / GRID.0;
     let tones = if lit {
@@ -86,57 +87,22 @@ pub(super) fn grid_folder(location: Location, rise: f32, lit: bool, t: Theme) ->
         .child(sheet("home/folder-sheet.svg", tones.sheet))
         .child(sheet("home/folder-sheet-ink.svg", tones.ink))
         .child(layer("home/folder-front.svg", w, h, tones.front))
-        .when(location == Location::CloudOnly, |d| {
-            // `.project-folder-cloud`: the blue leans towards the ink.
-            d.child(layer(
-                "home/folder-cloud.svg",
-                w,
-                h,
-                theme::mix(t.brand_blue, t.text, 0.84),
-            ))
-        })
-        .when(location == Location::Linked, |d| {
-            // The 16px solid blue cloud, outlined in the page, off the front.
-            d.child(
-                div()
-                    .absolute()
-                    .right(px(-4.))
-                    .bottom(px(-4.))
-                    .size(px(16.))
-                    .child(layer("home/cloud-fill.svg", 16., 16., t.brand_blue))
-                    .child(
-                        Icon::product(ProductIcon::Cloud)
-                            .with_size(px(16.))
-                            .stroke(2.)
-                            .color(t.canvas),
-                    ),
-            )
-        })
 }
 
-/// `HomeProjectIcon` in a 14px slot. `filled` draws a folder in the
-/// Homepage's fill (19 × 15, overhanging the slot); otherwise the laptop
-/// mark of a local folder. A Cloud project stays its outline cloud.
-pub(in crate::app) fn list_icon(
-    location: Location,
-    filled: bool,
-    lit: bool,
-    t: Theme,
-) -> AnyElement {
-    let base = div().relative().size(px(14.)).flex_none();
-    let glyph = match location {
-        Location::CloudOnly => Icon::product(ProductIcon::Cloud)
-            .with_size(px(14.))
-            .stroke(1.85)
-            .color(t.brand_blue)
-            .into_any_element(),
-        _ if filled => {
-            let (w, h) = (19., 15.);
-            let tones = if lit {
-                self::lit(tones(t), t)
-            } else {
-                tones(t)
-            };
+/// `.onboarding-project-icon` in a list row: the folder in the Homepage's
+/// fill (19 × 15, overhanging its 14px slot).
+pub(in crate::app) fn list_folder(lit: bool, t: Theme) -> AnyElement {
+    let (w, h) = (19., 15.);
+    let tones = if lit {
+        self::lit(tones(t), t)
+    } else {
+        tones(t)
+    };
+    div()
+        .relative()
+        .size(px(14.))
+        .flex_none()
+        .child(
             // `margin: -0.5px -2.5px` around the 14px slot.
             div()
                 .absolute()
@@ -145,15 +111,29 @@ pub(in crate::app) fn list_icon(
                 .w(px(w))
                 .h(px(h))
                 .child(layer("home/folder-back.svg", w, h, tones.back))
-                .child(layer("home/folder-front.svg", w, h, tones.front))
-                .into_any_element()
-        }
-        _ => Icon::product(ProductIcon::Local)
+                .child(layer("home/folder-front.svg", w, h, tones.front)),
+        )
+        .into_any_element()
+}
+
+/// `HomeProjectIcon` in a 14px slot (the Header's project menu and the
+/// project rail): the laptop mark of a local folder, with a small cloud on
+/// a folder that has its own Cloud project; a Cloud project is its cloud.
+pub(in crate::app) fn list_icon(location: Location, t: Theme) -> AnyElement {
+    let glyph = match location {
+        Location::CloudOnly => Icon::product(ProductIcon::Cloud)
             .with_size(px(14.))
             .stroke(1.85)
-            .into_any_element(),
+            .color(t.brand_blue),
+        _ => Icon::product(ProductIcon::Local)
+            .with_size(px(14.))
+            .stroke(1.85),
     };
-    base.child(glyph)
+    div()
+        .relative()
+        .size(px(14.))
+        .flex_none()
+        .child(glyph)
         .when(location == Location::Linked, |d| {
             d.child(
                 div().absolute().right(px(-4.)).bottom(px(-3.)).child(

@@ -1,9 +1,10 @@
 //! `ProjectRowActions` and `ProjectMenuHeader`: what can be done to one
 //! project entry, and the dialogs behind it. A folder and its Cloud project
 //! are two projects (ADR-001), so each menu speaks for its own entry: a
-//! folder's menu leads with where it is and Copy path, then Rename and
-//! Unlink (the files stay); a Cloud project offers Rename and Delete, and
-//! only what this account may do.
+//! folder's menu leads with Copy path (the raw path is not printed), then
+//! Rename, who can open it ([`super::audience`]) and Unlink (the files
+//! stay); a Cloud project offers Rename and Delete, and only what this
+//! account may do.
 //!
 //! [`ProjectActions`] is one entity per window: the Homepage's rows, the
 //! project rail and the Header's project menu open it beside their entry.
@@ -29,8 +30,9 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, v_flex};
 use std::path::PathBuf;
 
-/// `PROJECT_ACTION_MENU_WIDTH`: the local menu carries the folder's path.
-const MENU_WIDTH_LOCAL: f32 = 224.;
+/// `PROJECT_ACTION_MENU_WIDTH`: the local menu has room for its folder's
+/// commands and who can open it.
+const MENU_WIDTH_LOCAL: f32 = 260.;
 const MENU_WIDTH_CLOUD: f32 = 184.;
 /// `PROJECT_NAME_MAX_LENGTH`.
 const NAME_MAX_LOCAL: usize = 120;
@@ -110,6 +112,9 @@ pub(in crate::app) struct ActionsMenu {
     pub copied: Option<bool>,
     /// The Homepage entry it opened from (that entry stays lit).
     pub item: Option<String>,
+    /// Who can open the project, and the way to change it, as the Header's
+    /// place menu says.
+    pub audience: Option<super::audience::ProjectAudience>,
 }
 
 /// What the window does about a change made here.
@@ -118,6 +123,8 @@ pub(in crate::app) enum ActionsEvent {
     Opened,
     /// A folder took a new shown name.
     Renamed { path: PathBuf, name: String },
+    /// A row of "Who can open it" asks for this.
+    Audience(super::audience::AudienceAction),
 }
 
 pub(in crate::app) struct ProjectActions {
@@ -207,9 +214,21 @@ impl ProjectActions {
             position,
             copied: None,
             item,
+            audience: None,
         });
         cx.emit(ActionsEvent::Opened);
         cx.notify();
+    }
+    /// Who can open the project the open menu is for.
+    pub(in crate::app) fn set_audience(
+        &mut self,
+        audience: Option<super::audience::ProjectAudience>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(menu) = &mut self.menu {
+            menu.audience = audience.filter(|a| a.any());
+            cx.notify();
+        }
     }
     pub(in crate::app) fn close(&mut self, cx: &mut Context<Self>) {
         if self.menu.take().is_some() {
@@ -263,19 +282,8 @@ impl ProjectActions {
             Target::Cloud { rename, delete, .. } => (*rename, false, *delete),
         };
         if let Target::Local { path, .. } = &target {
-            // `ProjectMenuHeader`: one quiet line of where it is, then Copy path.
-            let shown = super::home::path_for_display(path);
-            menu = menu.child_element(
-                div()
-                    .flex_shrink_0()
-                    .pt(px(5.))
-                    .px(px(9.))
-                    .pb(px(3.))
-                    .truncate()
-                    .text_size(px(theme::ty().left.meta))
-                    .text_color(t.muted)
-                    .child(shown),
-            );
+            // `ProjectMenuHeader`: Copy path, first; the path itself is not
+            // printed.
             let copied = open.copied;
             let full = path.to_string_lossy().into_owned();
             let host = host.clone();
@@ -323,7 +331,22 @@ impl ProjectActions {
                     }),
             );
         }
-        if can_rename && (can_unlink || can_delete) {
+        let audience = open.audience.clone();
+        if let Some(audience) = &audience {
+            let host = host.clone();
+            menu = super::audience::rows(
+                menu.separator(),
+                audience,
+                move |action, _, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.close(cx);
+                        cx.emit(ActionsEvent::Audience(action));
+                    });
+                },
+                t,
+            );
+        }
+        if (can_rename || audience.is_some()) && (can_unlink || can_delete) {
             menu = menu.separator();
         }
         if can_unlink || can_delete {
@@ -729,6 +752,8 @@ mod tests {
             linked: None,
             actions: Some(Actions::default()),
             modified: None,
+            cloud_organization: None,
+            host_folder: None,
         };
         assert_eq!(Target::of(&item), None);
         item.actions = Some(Actions {

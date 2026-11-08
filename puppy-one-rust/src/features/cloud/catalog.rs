@@ -70,6 +70,7 @@ mod cache {
                     Some(CloudEntry {
                         id: p["id"].as_str()?.to_owned(),
                         name: p["name"].as_str()?.to_owned(),
+                        org: p["org_id"].as_str().map(str::to_owned),
                         updated: p["updated"].as_i64(),
                         can_rename: p["can_rename"].as_bool().unwrap_or(false),
                         can_delete: p["can_delete"].as_bool().unwrap_or(false),
@@ -92,7 +93,7 @@ mod cache {
         let projects: Vec<Value> = entries
             .iter()
             .map(|e| {
-                json!({"id": e.id, "name": e.name, "updated": e.updated,
+                json!({"id": e.id, "name": e.name, "org_id": e.org, "updated": e.updated,
                     "can_rename": e.can_rename, "can_delete": e.can_delete})
             })
             .collect();
@@ -154,6 +155,7 @@ pub fn parse_projects(value: &serde_json::Value) -> Vec<CloudEntry> {
                     Some(CloudEntry {
                         id: p["id"].as_str()?.to_owned(),
                         name: p["name"].as_str().unwrap_or("Project").to_owned(),
+                        org: p["org_id"].as_str().map(str::to_owned),
                         updated: parse_time(&p["updated_at"]),
                         can_rename: allows("project.settings.manage"),
                         can_delete: allows("project.delete"),

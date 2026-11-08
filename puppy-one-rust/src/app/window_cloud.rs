@@ -35,6 +35,10 @@ pub(super) enum CloudEvent {
     OpenSettings(Page),
     /// A Header card opened or closed.
     Popover(Option<Popover>),
+    /// Open this folder to my other computers (the hosts own it).
+    ShareDevices(PathBuf),
+    /// A folder's other-computer sharing: stop it or open its settings.
+    Devices(super::audience::AudienceAction),
     Error(String),
 }
 
@@ -71,7 +75,13 @@ pub(super) struct WindowCloud {
     /// read on a worker for the folder it names.
     pub(super) cloud_remote: Option<(PathBuf, String)>,
     /// The window's Git status: commits here the Cloud copy has not had.
-    source_control: Entity<SourceControl>,
+    pub(super) source_control: Entity<SourceControl>,
+    /// `useCloudSpacePublishIntent`: a publication to a space asked for
+    /// before its folder was open (path, space, the spaces' authority). It
+    /// is consumed only once that exact folder opened under the same
+    /// authority; anything else drops it, so it can never fire on a later
+    /// visit to the folder.
+    pending_publish: Option<(PathBuf, String, String)>,
     /// A Cloud opening that failed: the Project and why, while its
     /// recovery shows.
     pub recovery: Option<(String, Failure)>,
@@ -137,6 +147,7 @@ impl WindowCloud {
             disconnect: None,
             cloud_remote: None,
             source_control,
+            pending_publish: None,
             recovery: None,
         }
     }
@@ -144,8 +155,67 @@ impl WindowCloud {
     pub fn set_session(&mut self, session: SessionView, cx: &mut Context<Self>) {
         if self.session != session {
             self.session = session;
+            self.settle_pending_publish(cx);
             self.refresh(cx);
         }
+    }
+    /// The spaces' authority now (account, deployment, generation).
+    fn spaces_authority(&self, cx: &App) -> Option<String> {
+        crate::features::cloud::global_spaces_read(cx)
+            .and_then(|s| s.authority().map(str::to_owned))
+    }
+    /// A drop on a team's group, or Copy to a team from a folder's menu:
+    /// open that exact folder, then its publication to `space`.
+    pub fn request_publish(&mut self, path: PathBuf, space: String, cx: &mut Context<Self>) {
+        let Some(authority) = self.spaces_authority(cx) else {
+            return;
+        };
+        if self.root().as_ref() == Some(&path) {
+            self.pending_publish = None;
+            self.publish_to(space, cx);
+            return;
+        }
+        self.pending_publish = Some((path.clone(), space, authority));
+        cx.emit(CloudEvent::OpenProject(path));
+    }
+    /// A drop on My Share Project: open that exact folder to my other
+    /// computers, after the owner's confirmation (the other computers'
+    /// sharing, `useHomepageFolderSharing`).
+    pub fn request_device_sharing(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        cx.emit(CloudEvent::ShareDevices(path));
+    }
+    /// The intent meets the folder it named, or is dropped.
+    fn settle_pending_publish(&mut self, cx: &mut Context<Self>) {
+        let Some((path, space, authority)) = self.pending_publish.clone() else {
+            return;
+        };
+        let root = self.root();
+        if root.as_ref() == Some(&path) {
+            self.pending_publish = None;
+            if self.spaces_authority(cx).as_ref() == Some(&authority) {
+                self.publish_to(space, cx);
+            }
+        } else if root.is_some() && !self.session.opening && !self.session.busy {
+            // Another folder opened instead: the intent is not carried over.
+            self.pending_publish = None;
+        }
+    }
+    /// The first publication of the open folder to `space`, confirmed on
+    /// its page; a run already under way keeps its own space.
+    fn publish_to(&mut self, space: String, cx: &mut Context<Self>) {
+        // The publication follows the folder first, so that following it
+        // later does not drop the space.
+        self.sync_cloud_publish(cx);
+        let pending = self.publish.read(cx).header_status().is_some();
+        if !pending {
+            self.publish
+                .update(cx, |p, cx| p.set_target(Some(space), cx));
+        }
+        self.show_popover(None, cx);
+        if !self.dialog_open(DialogKey::CloudPublish, cx) {
+            self.open_dialog(DialogKey::CloudPublish, cx);
+        }
+        self.refresh(cx);
     }
     /// The Header card the window shows changed.
     pub fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {

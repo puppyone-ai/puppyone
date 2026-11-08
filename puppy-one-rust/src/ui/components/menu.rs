@@ -149,6 +149,14 @@ pub struct MenuItem {
     stay_open: bool,
     /// The detail stacks under the name (a second line).
     stacked: bool,
+    /// A row that states a fact: no hover and no dimming, though it does
+    /// nothing (`aria-disabled` with `opacity: 1`).
+    fact: bool,
+    /// A line under a row (`.project-audience-detail`): the smaller type,
+    /// starting where the row's words start.
+    line: bool,
+    /// The row's own ink at rest, as a warning line has.
+    color: Option<Rgba>,
     on_click: Option<Handler>,
 }
 impl MenuItem {
@@ -169,8 +177,26 @@ impl MenuItem {
             open_submenu: false,
             stay_open: false,
             stacked: false,
+            fact: false,
+            line: false,
+            color: None,
             on_click: None,
         }
+    }
+    /// States a fact rather than offering an action; it is not dimmed.
+    pub fn fact(mut self, fact: bool) -> Self {
+        self.fact = fact;
+        self
+    }
+    /// A quiet line under the row before it, in the menu's smaller type.
+    pub fn line(mut self) -> Self {
+        self.line = true;
+        self
+    }
+    /// The row's ink at rest (a warning line, a quiet choice).
+    pub fn color(mut self, color: Rgba) -> Self {
+        self.color = Some(color);
+        self
     }
     /// A second line under the name (`:has(.desktop-menu-item-detail)`
     /// rows of the place menu).
@@ -459,14 +485,20 @@ fn row(
     dismiss: Option<Handler>,
 ) -> AnyElement {
     let group = SharedString::from(format!("menu-row-{element_id}"));
-    let disabled = item.disabled;
+    let fact = item.fact || (item.on_click.is_none() && item.line);
+    let disabled = item.disabled || fact;
     let danger = item.danger;
     let lit = item.selected;
-    let resting = if danger {
+    let line = item.line;
+    let resting = if let Some(color) = item.color {
+        color
+    } else if line {
+        t.subtle
+    } else if danger {
         t.danger
     } else if lit {
         t.text
-    } else if disabled {
+    } else if disabled && !fact {
         t.text_disabled
     } else {
         t.muted
@@ -497,19 +529,23 @@ fn row(
         .w_full()
         .min_w_0()
         .flex_shrink_0()
-        .when(!stacked, |d| d.h(px(s.item_height)))
+        .when(!stacked && !line, |d| d.h(px(s.item_height)))
+        .when(line, |d| d.min_h(px(26.)))
         .when(stacked, |d| {
             d.min_h(px(s.item_height)).items_start().py(px(6.))
         })
-        .gap(px(s.item_gap))
+        .gap(px(if line { 6. } else { s.item_gap }))
         .px(px(s.item_padding))
+        .when(line, |d| {
+            d.pl(px(s.item_padding + metric::MENU_ICON_SLOT + s.item_gap))
+        })
         .rounded(px(s.item_radius))
-        .text_size(px(s.font))
+        .text_size(px(if line { s.meta } else { s.font }))
         .line_height(px(s.line_height))
         .font_weight(FontWeight::NORMAL)
         .text_color(resting)
         .when(lit, |d| d.bg(t.hover))
-        .when(disabled && !lit, |d| d.opacity(0.58))
+        .when(disabled && !lit && !fact, |d| d.opacity(0.58))
         .when(!disabled, |d| {
             d.cursor(theme::clickable_cursor())
                 .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
@@ -528,7 +564,7 @@ fn row(
                 .or(item.glyph)
                 .map(|icon| {
                     div()
-                        .size(px(metric::MENU_ICON_SLOT))
+                        .size(px(if line { 14. } else { metric::MENU_ICON_SLOT }))
                         .flex_shrink_0()
                         .flex()
                         .items_center()

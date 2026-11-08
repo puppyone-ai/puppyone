@@ -69,6 +69,13 @@ pub struct CloudPublish {
     root: Option<PathBuf>,
     pub organizations: Organizations,
     pub selected: Option<String>,
+    /// `publishOrganizationId`: a space chosen before the page opened (a
+    /// drop on a team's group, Copy to a team). It is the destination and
+    /// is never swapped for another or a default.
+    pub target: Option<String>,
+    /// The checkout has a commit (`hasHeadCommit`): its history is sent;
+    /// otherwise an initial commit is made from the folder.
+    pub has_head: bool,
     /// The visible step while a run is in flight.
     pub running: Option<Stage>,
     /// The saved operation and the last result, when one is pending.
@@ -87,6 +94,8 @@ impl Default for CloudPublish {
             root: None,
             organizations: Organizations::Idle,
             selected: None,
+            target: None,
+            has_head: true,
             running: None,
             outcome: None,
             reading: false,
@@ -117,9 +126,11 @@ impl CloudPublish {
         self.outcome = None;
         self.organizations = Organizations::Idle;
         self.selected = None;
+        self.target = None;
         self.confirming_discard = false;
-        if self.root.is_some() {
+        if let Some(root) = self.root.clone() {
             self.read_state(cx);
+            self.read_head(root, cx);
         }
         cx.notify();
     }
@@ -213,9 +224,16 @@ impl CloudPublish {
                 }
                 match result {
                     Ok(list) => {
-                        if list.len() == 1 {
-                            s.selected = Some(list[0].id.clone());
-                        }
+                        s.selected = match &s.target {
+                            // The chosen space, when this account may still
+                            // create projects in it; never another.
+                            Some(target) => list
+                                .iter()
+                                .find(|o| &o.id == target && o.can_create_projects == Some(true))
+                                .map(|o| o.id.clone()),
+                            None if list.len() == 1 => Some(list[0].id.clone()),
+                            None => s.selected.clone(),
+                        };
                         s.organizations = Organizations::Ready(list);
                     }
                     Err(_) => s.organizations = Organizations::Failed,
@@ -226,8 +244,67 @@ impl CloudPublish {
         .detach();
     }
     pub fn select(&mut self, organization: String, cx: &mut Context<Self>) {
-        self.selected = Some(organization);
+        if self.target.is_none() {
+            self.selected = Some(organization);
+            cx.notify();
+        }
+    }
+    /// A destination chosen before the page opened; `None` returns to the
+    /// page's own choice. A durable operation keeps its original space.
+    pub fn set_target(&mut self, target: Option<String>, cx: &mut Context<Self>) {
+        if self.target == target {
+            return;
+        }
+        self.target = target;
+        self.selected = None;
+        if let Organizations::Ready(list) = &self.organizations {
+            self.selected = match &self.target {
+                Some(target) => list
+                    .iter()
+                    .find(|o| &o.id == target && o.can_create_projects == Some(true))
+                    .map(|o| o.id.clone()),
+                None if list.len() == 1 => Some(list[0].id.clone()),
+                None => None,
+            };
+        }
         cx.notify();
+    }
+    /// The destination a target names, once the organizations are known:
+    /// `Some(None)` when it cannot be used.
+    pub fn destination(&self) -> Option<Option<api::Organization>> {
+        let target = self.target.as_ref()?;
+        match &self.organizations {
+            Organizations::Ready(list) => Some(
+                list.iter()
+                    .find(|o| &o.id == target && o.can_create_projects == Some(true))
+                    .cloned(),
+            ),
+            Organizations::Failed => Some(None),
+            _ => None,
+        }
+    }
+    /// Whether the checkout has a commit, read off the main thread.
+    fn read_head(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        let epoch = self.epoch;
+        let task = cx.background_executor().spawn(async move {
+            std::process::Command::new("git")
+                .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+                .current_dir(&root)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        });
+        cx.spawn(async move |this, cx| {
+            let has_head = task.await;
+            let _ = this.update(cx, |s, cx| {
+                if s.epoch == epoch && s.has_head != has_head {
+                    s.has_head = has_head;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
     /// Upload to Cloud / Retry: start or continue from the checkpoint.
     pub fn start(&mut self, action: Action, cx: &mut Context<Self>) {

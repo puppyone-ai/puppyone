@@ -17,6 +17,7 @@ pub mod publish;
 pub mod recovery;
 pub mod repository;
 pub mod services;
+pub mod spaces;
 #[cfg(test)]
 mod tests;
 use super::{Workspace, contracts::*, ports::*};

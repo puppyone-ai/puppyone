@@ -487,6 +487,10 @@ impl SourceControl {
         self.task(|root, cancel| ResultValue::Status(git::status(&root, cancel)));
         cx.notify();
     }
+    /// `handlePushGit`: send the commits here to the upstream.
+    pub fn push(&mut self, cx: &mut Context<Self>) {
+        self.operation(Operation::Push, cx);
+    }
     fn operation(&mut self, op: Operation, cx: &mut Context<Self>) {
         if self.busy {
             if !self.mutating {

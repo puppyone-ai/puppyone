@@ -1,7 +1,8 @@
-//! The Homepage's projects: `OnboardingProjectToolbar` (filter and sort),
+//! The Homepage's projects: `OnboardingProjectToolbar` (sort),
 //! `OnboardingProjectLayoutSwitch`, `OnboardingEntryMenu`,
-//! `OnboardingProjectList` (the List and the Grid), `LinkedCloudProjectButton`
-//! and `useProjectListNavigation`.
+//! `OnboardingProjectGroups` (the audiences), `OnboardingProjectList` (the
+//! List and the Grid), `LinkedCloudProjectButton` and
+//! `useProjectListNavigation`.
 //!
 //! A project is lit while the pointer is on it, a key has focused it, or its
 //! menu is open: its row fills, its folder leans to the ink and lifts its
@@ -10,28 +11,23 @@
 use super::*;
 use crate::features::settings::{HomepageLayout, HomepageSort};
 use gpui_kit::base::Selectable as _;
-use std::collections::BTreeSet;
 mod list;
 mod toolbar;
 
-/// `PROJECT_HOME_PLACES`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(in crate::app) enum Place {
-    Local,
-    Cloud,
-}
-/// A local project dragged out of the Homepage: its absolute path.
+/// A local project dragged on the Homepage: its absolute path. It stays a
+/// drag inside the page (so a group can take it) until the pointer leaves
+/// the window, where the system takes over and carries the path as text.
 #[derive(Clone)]
 pub(in crate::app) struct ProjectDrag {
     pub path: String,
     label: SharedString,
-    /// The system draws the drag (it can leave the window).
-    native: bool,
+    /// The system draws the drag now (it left the window).
+    native: std::rc::Rc<std::cell::Cell<bool>>,
 }
 impl Render for ProjectDrag {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
-        if self.native {
+        if self.native.get() {
             return div();
         }
         div()
@@ -48,31 +44,27 @@ impl Render for ProjectDrag {
     }
 }
 
-pub(super) fn place_of(item: &Item) -> Place {
-    if item.local_path.is_some() {
-        Place::Local
-    } else {
-        Place::Cloud
-    }
-}
 /// The Homepage's own menus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app) enum HomeMenu {
-    Filter,
     Sort,
+    /// The team group's selector.
+    Team,
     Layout,
     Entry,
 }
 
-/// The Grid's cells: `repeat(auto-fill, minmax(112px, 1fr))`, 2px apart.
-const CELL_MIN: f32 = 112.;
+/// `--onboarding-tile-width` and `--onboarding-folder-width`: a group is a
+/// grid of these cells, and the folder is centred in each.
+pub(super) const TILE_WIDTH: f32 = 128.;
+pub(super) const FOLDER_WIDTH: f32 = 72.;
+/// Grid rows are 2px apart.
 const CELL_GAP: f32 = 2.;
 /// `--po-scrollbar-size`: the list's lane hangs outside the column.
 const SCROLLBAR_SIZE: f32 = 12.;
 /// The sheet's `transition: transform 220ms ease-out`.
 const SHEET_MS: f32 = 220.;
-/// `.onboarding-view-menu.is-multiple` and its smallest width.
-const MULTIPLE_MENU_WIDTH: f32 = 216.;
+/// `.onboarding-view-menu`'s smallest width.
 const VIEW_MENU_MIN_WIDTH: f32 = 104.;
 /// `.onboarding-entry-menu`.
 const ENTRY_MENU_WIDTH: f32 = 232.;
@@ -85,16 +77,9 @@ fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
         item
     }
 }
-/// `viewProjectHomeItems`: narrowed to the chosen places (none chosen is
-/// every place), then by name (`Intl.Collator(numeric, base)`) or by
+/// `viewProjectHomeItems`: by name (`Intl.Collator(numeric, base)`) or by
 /// modification, newest first, unknown last, equals in catalog order.
-pub(super) fn view_items(
-    mut items: Vec<Item>,
-    places: &BTreeSet<Place>,
-    sort: HomepageSort,
-    untitled: &str,
-) -> Vec<Item> {
-    items.retain(|item| places.is_empty() || places.contains(&place_of(item)));
+pub(super) fn view_items(mut items: Vec<Item>, sort: HomepageSort, untitled: &str) -> Vec<Item> {
     match sort {
         HomepageSort::Name => items.sort_by(|a, b| {
             collate(
@@ -191,9 +176,10 @@ pub(super) fn key_target(
         _ => None,
     }
 }
-/// `columnsIn`: how many cells fit across the list's width.
+/// `repeat(auto-fill, var(--onboarding-tile-width))`: how many cells fit
+/// across a group.
 pub(super) fn grid_columns(width: f32) -> usize {
-    (((width + CELL_GAP) / (CELL_MIN + CELL_GAP)).floor() as usize).max(1)
+    ((width / TILE_WIDTH).floor() as usize).max(1)
 }
 
 impl Homepage {
@@ -205,9 +191,6 @@ impl Homepage {
         }
         let mut items = self.project_items(cx);
         settle_dates(&mut self.shown_dates, &mut items);
-        // A place can empty out from under its filter (signing out).
-        let present: BTreeSet<Place> = items.iter().map(place_of).collect();
-        self.places.retain(|p| present.contains(p));
     }
     /// The projects the page shows, in the order it shows them.
     pub(in crate::app) fn visible_projects(&self, cx: &App) -> Vec<Item> {
@@ -221,14 +204,9 @@ impl Homepage {
             }
         }
         let sort = self.preferences.read(cx).state.homepage_project_sort;
-        view_items(
-            items,
-            &self.places,
-            sort,
-            tr("onboarding.projects.untitled"),
-        )
+        view_items(items, sort, tr("onboarding.projects.untitled"))
     }
-    /// The roving stop: the project last focused, else the first.
+    /// A list's roving stop: the project last focused in it, else its first.
     fn project_stop(&self, items: &[Item]) -> Option<String> {
         self.stop
             .as_ref()
@@ -286,12 +264,6 @@ impl Homepage {
         current
     }
 
-    /// Opens the project at `index` of the visible list.
-    pub(super) fn open_home_item_at(&mut self, index: usize, cx: &mut Context<Self>) {
-        if let Some(item) = self.visible_projects(cx).get(index).cloned() {
-            self.open_item(&item, cx);
-        }
-    }
     /// `.onboarding-project-row-wrap.is-dragging`.
     fn dragging_item(&self, item: &Item, cx: &App) -> bool {
         item.local_path.is_some()
@@ -314,39 +286,24 @@ mod tests {
             linked: None,
             actions: None,
             modified,
+            cloud_organization: None,
+            host_folder: None,
         }
     }
 
     #[test]
-    fn the_view_narrows_to_places_and_orders_like_the_product() {
+    fn the_view_orders_like_the_product() {
         let items = vec![
             item("b", true, Some(10)),
             item("a10", false, None),
             item("a2", true, Some(30)),
         ];
-        let all = view_items(
-            items.clone(),
-            &BTreeSet::new(),
-            HomepageSort::Modified,
-            "Untitled",
-        );
+        let all = view_items(items.clone(), HomepageSort::Modified, "Untitled");
         let ids: Vec<_> = all.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, ["a2", "b", "a10"], "unknown dates last");
-        let named = view_items(
-            items.clone(),
-            &BTreeSet::new(),
-            HomepageSort::Name,
-            "Untitled",
-        );
+        let named = view_items(items, HomepageSort::Name, "Untitled");
         let ids: Vec<_> = named.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, ["a2", "a10", "b"], "numeric collation");
-        let cloud = view_items(
-            items,
-            &[Place::Cloud].into(),
-            HomepageSort::Modified,
-            "Untitled",
-        );
-        assert_eq!(cloud.len(), 1);
         assert_eq!(collate("Équipe", "equipe"), std::cmp::Ordering::Equal);
     }
 
@@ -379,6 +336,7 @@ mod tests {
         assert_eq!(key_target("right", 2, 7, 3, true), Some(1), "RTL");
         assert_eq!(key_target("end", 0, 7, 3, false), Some(7));
         assert_eq!(grid_columns(640.), 5);
+        assert_eq!(grid_columns(639.), 4);
         assert_eq!(grid_columns(100.), 1);
     }
 }

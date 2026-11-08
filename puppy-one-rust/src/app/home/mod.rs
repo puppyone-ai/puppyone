@@ -3,10 +3,11 @@
 //! `styles/onboarding.css`. Shown with no open project and from the project
 //! menu's Home item.
 //!
-//! With projects, the page is their area: a quiet head (filter, sort and
-//! layout, then New project with the other ways to start behind its arrow)
-//! and the projects, as the Grid or the List ([`projects`]), from the head to
-//! the page's end. First run greets with the Puppy and the ways to start.
+//! With projects, the page is their area: a quiet head (sort and layout,
+//! then New project with the other ways to start behind its arrow) and the
+//! projects by who can open them ([`groups`]), each group as the Grid or the
+//! List ([`projects`]), from the head to the page's end. First run greets
+//! with the Puppy and the ways to start.
 //!
 //! - [`create_project`]: the "Create a project" dialog
 //! - [`folder`]: the project folder and its marks
@@ -16,7 +17,7 @@ use super::{
     project_actions::ProjectActions,
     session::SessionView,
 };
-use crate::features::cloud::CloudCatalog;
+use crate::features::cloud::{CloudCatalog, CloudSpaces, SpacesStatus};
 use crate::features::settings::{PreferencesStore, RecentProject};
 use crate::geometry::Rect;
 use crate::localization::TimeUnit;
@@ -54,6 +55,7 @@ use std::{
 mod create_project;
 mod first_run;
 pub(in crate::app) mod folder;
+pub(in crate::app) mod groups;
 mod import_repository;
 mod intro;
 pub(in crate::app) mod project_entry;
@@ -61,7 +63,7 @@ mod projects;
 mod template_import;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
-pub(in crate::app) use projects::{HomeMenu, Place};
+pub(in crate::app) use projects::HomeMenu;
 pub(super) use template_import::TemplateImport;
 
 /// `--onboarding-column-width`: room for five folders across with
@@ -72,6 +74,9 @@ const COLUMN_EMPTY: f32 = 440.;
 const PAGE_WIDTH: f32 = 680.;
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
 const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
+/// `SPACES_WAIT_MS`: how long a first visit waits for the spaces that group
+/// its Cloud projects.
+const SPACES_WAIT: Duration = Duration::from_millis(3000);
 
 /// What the Homepage asks of the window.
 pub(in crate::app) enum HomeEvent {
@@ -86,6 +91,17 @@ pub(in crate::app) enum HomeEvent {
         open: Option<PathBuf>,
         new_window: bool,
     },
+    /// A folder dropped on a team's group: its confirmed first publication
+    /// to that space.
+    PublishToSpace {
+        path: PathBuf,
+        space: String,
+    },
+    /// A folder dropped on My Share Project: open it to my other computers,
+    /// after the owner's confirmation.
+    ShareFolder {
+        path: PathBuf,
+    },
     Command(Command),
 }
 
@@ -97,6 +113,8 @@ pub(in crate::app) struct Homepage {
     session: SessionView,
     preferences: Entity<PreferencesStore>,
     catalog: Entity<CloudCatalog>,
+    /// The account's spaces, which decide each Cloud project's group.
+    pub(in crate::app) spaces: Entity<CloudSpaces>,
     actions: Entity<ProjectActions>,
     dialogs: WeakEntity<DialogLayer>,
     /// The dialog layer's focus, which the dialogs here keep.
@@ -124,8 +142,19 @@ pub(in crate::app) struct Homepage {
     released_for: Option<Option<String>>,
     /// `useHomepageListHold`: after Home only the list waits.
     pub list_held_since: Option<Instant>,
-    /// The places the filter shows; it lasts only as long as the page.
-    pub places: std::collections::BTreeSet<Place>,
+    /// The team the team group shows, when several could.
+    pub chosen_team: Option<String>,
+    /// The group a dragged project is over.
+    pub drop_over: Option<groups::GroupId>,
+    /// Since when a first visit waits for the spaces.
+    pub(in crate::app::home) spaces_wait: Option<Instant>,
+    /// This computer's shared folder ids, once its sharing state is read
+    /// (`None`: every recorded offer counts).
+    pub(in crate::app) shared_ids: Option<std::collections::HashSet<String>>,
+    /// Opening a folder to my other computers is offered here.
+    pub(in crate::app) local_share: bool,
+    /// The owner's other computers, by name (`OtherComputersLabel`).
+    pub(in crate::app) other_computers: Vec<String>,
     /// `settleShownDates`: each project's date as first shown this visit.
     shown_dates: HashMap<String, i64>,
     /// The toolbar or entry menu that is open.
@@ -176,6 +205,15 @@ impl Homepage {
         // The list, the first run and the intro follow what they read.
         cx.observe(&preferences, |h, _, cx| h.refresh(cx)).detach();
         cx.observe(&catalog, |h, _, cx| h.refresh(cx)).detach();
+        let spaces = crate::features::cloud::global_spaces(cx);
+        cx.observe(&spaces, |h, _, cx| h.refresh(cx)).detach();
+        // Coming back to the window reads the spaces again while the page shows.
+        cx.observe_window_activation(window, |h, window, cx| {
+            if window.is_window_active() && h.session.home {
+                h.read_spaces(true, cx);
+            }
+        })
+        .detach();
         cx.observe(&actions, |_, _, cx| cx.notify()).detach();
         crate::features::cloud::account::observe(window, cx, |h, _, cx| h.refresh(cx)).detach();
         // Dev builds replay the intro (Alt+Shift+L, `KeyL`).
@@ -209,6 +247,7 @@ impl Homepage {
             session: SessionView::default(),
             preferences,
             catalog,
+            spaces,
             actions,
             dialogs: dialogs.downgrade(),
             dialog_focus: dialogs.read(cx).focus_handle().clone(),
@@ -223,7 +262,12 @@ impl Homepage {
             first_paint: None,
             released_for: None,
             list_held_since: None,
-            places: Default::default(),
+            chosen_team: None,
+            drop_over: None,
+            spaces_wait: None,
+            shared_ids: None,
+            local_share: false,
+            other_computers: vec![],
             shown_dates: HashMap::new(),
             menu: None,
             stop: None,
@@ -252,6 +296,7 @@ impl Homepage {
     /// What the page reads changed: the list, the first run and the intro
     /// catch up, and the page draws again.
     fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.read_spaces(false, cx);
         self.refresh_activity(cx);
         self.sync_project_view(cx);
         self.sync_first_run(cx);
@@ -426,8 +471,8 @@ impl Homepage {
     fn refresh_activity(&mut self, cx: &mut Context<Self>) {
         let shown = self.session.listing;
         let appeared = shown && !self.shown;
-        if !self.session.home && !self.places.is_empty() {
-            self.places.clear();
+        if !self.session.home {
+            self.chosen_team = None;
         }
         if appeared && self.session.home {
             self.shown_dates.clear();
@@ -476,6 +521,129 @@ impl Homepage {
         self.list_held_since = Some(Instant::now());
         // A re-read even of an unchanged list, as the product refreshes it.
         self.read_for = None;
+    }
+    /// `useCloudSpaces`: the spaces of the signed-in account, while Cloud is
+    /// on and the page shows.
+    fn read_spaces(&mut self, retry: bool, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let visible = self.session.home;
+        self.spaces
+            .update(cx, |s, cx| s.ensure(enabled, visible, retry, cx));
+    }
+    /// The groups wait as one while a first visit's spaces are on their way,
+    /// up to three seconds, rather than grouping a Cloud project once
+    /// provisionally and then moving it.
+    fn groups_held(&mut self, items: &[Item], window: &mut Window, cx: &App) -> bool {
+        let awaiting = self.spaces.read(cx).status() == SpacesStatus::Loading
+            && items.iter().any(|item| item.local_path.is_none());
+        if !awaiting {
+            self.spaces_wait = None;
+            return false;
+        }
+        let since = *self.spaces_wait.get_or_insert_with(Instant::now);
+        let held = since.elapsed() < SPACES_WAIT;
+        if held {
+            window.request_animation_frame();
+        }
+        held
+    }
+    /// The audience groups for the visible projects.
+    pub(in crate::app) fn project_groups_now(
+        &self,
+        items: Vec<Item>,
+        cx: &App,
+    ) -> Vec<groups::Group> {
+        let spaces = self.spaces.read(cx);
+        let cloud = crate::features::flags::cloud_enabled(&self.preferences, cx)
+            && crate::features::cloud::account::has_account(cx);
+        groups::groups(groups::Inputs {
+            spaces: if cloud { spaces.spaces() } else { &[] },
+            items,
+            dragging_path: self
+                .dragging_path
+                .as_deref()
+                .filter(|_| cx.has_active_drag()),
+            busy: self.session.busy,
+            can_publish: cloud,
+            chosen_team: self.chosen_team.as_deref(),
+            shared_ids: self.shared_ids.as_ref(),
+            local_share: self.local_share,
+        })
+    }
+    /// `projectAudience` of `MinimalOnboarding`: who can open a local folder
+    /// listed here, and how its menu changes that — opened to my devices
+    /// directly, or copied to a team's Cloud space.
+    pub(in crate::app) fn audience_of_id(
+        &self,
+        id: &str,
+        cx: &App,
+    ) -> Option<super::audience::ProjectAudience> {
+        use super::audience::{AudienceAction as A, CloudCopy, Devices, ProjectAudience, Team};
+        use crate::workspace::cloud::spaces::Kind;
+        let items = self.visible_projects(cx);
+        let item = items.iter().find(|i| i.id == id)?;
+        let path = PathBuf::from(item.local_path.clone()?);
+        let cloud = crate::features::flags::cloud_enabled(&self.preferences, cx)
+            && crate::features::cloud::account::has_account(cx);
+        let spaces = self.spaces.read(cx);
+        let spaces = if cloud { spaces.spaces() } else { &[] };
+        let shared = item
+            .host_folder
+            .as_ref()
+            .is_some_and(|f| self.shared_ids.as_ref().is_none_or(|ids| ids.contains(f)));
+        let linked = item.linked.clone();
+        let copy = linked.as_ref().map(|l| CloudCopy {
+            open: Some(A::OpenCloud(l.id.clone())),
+            ..Default::default()
+        });
+        let space_of = |project: &str| {
+            items
+                .iter()
+                .find(|i| i.cloud_project.as_deref() == Some(project))
+                .and_then(|i| i.cloud_organization.clone())
+                .and_then(|org| spaces.iter().find(|s| s.id == org))
+        };
+        let personal_copy = linked
+            .as_ref()
+            .and_then(|l| space_of(&l.id))
+            .is_some_and(|s| s.kind == Kind::Personal);
+        let first_team = spaces
+            .iter()
+            .find(|s| s.kind == Kind::Team && s.can_create_projects);
+        let devices = (self.local_share || (shared && item.host_folder.is_some())).then(|| {
+            let folder = item.host_folder.clone().unwrap_or_default();
+            Devices {
+                on: shared,
+                detail: shared
+                    .then(|| super::audience::other_computers(&self.other_computers, false)),
+                turn_on: (self.local_share && !shared)
+                    .then(|| A::TurnOnDevices { path: path.clone() }),
+                stop: shared.then(|| A::StopDevices {
+                    folder: folder.clone(),
+                    path: path.clone(),
+                }),
+                settings: shared.then(|| A::DeviceSettings {
+                    folder: folder.clone(),
+                    name: item.label.clone(),
+                    path: path.clone(),
+                }),
+            }
+        });
+        let team = (first_team.is_some() || (copy.is_some() && !personal_copy)).then(|| Team {
+            copy: if personal_copy { None } else { copy.clone() },
+            on_copy: first_team
+                .filter(|_| linked.is_none() && cloud)
+                .map(|team| A::CopyToTeam {
+                    path: path.clone(),
+                    space: team.id.clone(),
+                }),
+        });
+        Some(ProjectAudience {
+            devices,
+            devices_copy: if personal_copy { copy } else { None },
+            team,
+        })
+        .filter(|a| a.any())
     }
     /// The account the first Homepage waits for (`None`: signed out or no
     /// Cloud).
@@ -560,6 +728,7 @@ impl Homepage {
                         locator::is_trusted_git_origin(&l.origin, api, hosted_git_origin.as_deref())
                     })
                 }),
+                host_folder: p.host_folder.clone(),
             })
             .collect();
         catalog::build(&local, cloud, activity)
@@ -715,6 +884,13 @@ impl Homepage {
             .map(|timeline| intro::current(timeline, w, h).content);
         let page = if has_projects {
             let items = self.visible_projects(cx);
+            let held = self.groups_held(&items, window, cx);
+            let groups = if held {
+                vec![]
+            } else {
+                self.project_groups_now(items, cx)
+            };
+            let held = held || self.list_held();
             // `.onboarding-brand-lockup` with its toolbar and the entry menu.
             let head = h_flex()
                 .flex_none()
@@ -725,7 +901,30 @@ impl Homepage {
                 .text_color(t.muted)
                 .child(self.project_toolbar(busy, cx))
                 .child(self.entry_menu(busy, w <= 696., cx));
-            let list = self.project_list(items, column, w <= 520., busy, window, cx);
+            let note = (self.spaces.read(cx).status() == SpacesStatus::Error).then(|| {
+                // `.onboarding-project-groups-note`: the spaces could not be
+                // read; the projects stay where they are.
+                h_flex()
+                    .gap(px(4.))
+                    .px(px(8.))
+                    .pt(px(2.))
+                    .pb(px(6.))
+                    .text_size(px(theme::ty().ui.caption))
+                    .line_height(px(18.))
+                    .text_color(t.subtle)
+                    .child(tr("onboarding.spaces.unavailable"))
+                    .child(
+                        div()
+                            .id("home-spaces-retry")
+                            .cursor(theme::clickable_cursor())
+                            .underline()
+                            .hover(move |s| s.text_color(t.text))
+                            .on_click(cx.listener(|s, _, _, cx| s.read_spaces(true, cx)))
+                            .child(tr("onboarding.spaces.retry")),
+                    )
+                    .into_any_element()
+            });
+            let list = self.project_groups(groups, note, held, column, w <= 520., busy, window, cx);
             // `.onboarding-home-primary[data-onboarding-primary="projects"]`:
             // the projects sit on the page; a fill appears only for a drop.
             let primary = div()
@@ -833,6 +1032,19 @@ impl Homepage {
             .when(!has_projects, |d| d.justify_center().py(px(48.)))
             .px(px(pad))
             .child(page)
+            // A project dragged past the window's edge leaves as text.
+            .on_drag_move::<projects::ProjectDrag>(cx.listener(
+                |s, event: &DragMoveEvent<projects::ProjectDrag>, window, cx| {
+                    let size = window.viewport_size();
+                    let at = event.event.position;
+                    let outside =
+                        at.x < px(0.) || at.y < px(0.) || at.x > size.width || at.y > size.height;
+                    if outside {
+                        let drag = event.drag(cx).clone();
+                        s.drag_left_window(&drag, window, cx);
+                    }
+                },
+            ))
             // `useWorkspaceFolderDrop`: a folder dropped anywhere opens.
             .on_drag_move::<ExternalPaths>(cx.listener(|s, _, _, cx| {
                 if !s.dragging {
@@ -1036,6 +1248,7 @@ mod tests {
             path: PathBuf::from(path),
             name: name.into(),
             opened_at: 0,
+            host_folder: None,
         };
         assert_eq!(project_name(&project("Notes", "/a/notes")), "Notes");
         assert_eq!(project_name(&project("", "/a/notes")), "notes");

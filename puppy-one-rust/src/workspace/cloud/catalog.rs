@@ -18,12 +18,16 @@ pub struct LocalEntry {
     pub modified: Option<i64>,
     /// Hydration finished and its locator is trusted for the configured API.
     pub trusted_locator: Option<super::locator::Locator>,
+    /// The id this folder was opened to the owner's other computers under.
+    pub host_folder: Option<String>,
 }
 /// One authorized Cloud Project from `GET /projects/`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CloudEntry {
     pub id: String,
     pub name: String,
+    /// The space that holds it (`org_id`), when the catalog states it.
+    pub org: Option<String>,
     pub updated: Option<i64>,
     /// `projectAllows(project, "project.settings.manage")`.
     pub can_rename: bool,
@@ -65,6 +69,11 @@ pub struct Item {
     /// A Cloud project's permitted changes.
     pub actions: Option<Actions>,
     pub modified: Option<i64>,
+    /// `cloudOrganizationId`: the space a Cloud project's entry belongs to.
+    pub cloud_organization: Option<String>,
+    /// `hostFolderId`: the id a local folder was opened to the owner's other
+    /// computers under, as recorded when it was shared.
+    pub host_folder: Option<String>,
 }
 impl Item {
     pub fn location(&self) -> Location {
@@ -108,6 +117,8 @@ pub fn build(
                 linked,
                 actions: None,
                 modified: entry.modified,
+                cloud_organization: None,
+                host_folder: entry.host_folder.clone(),
             }
         })
         .collect();
@@ -123,6 +134,8 @@ pub fn build(
                 delete: project.can_delete,
             }),
             modified: latest([project.updated, activity.get(&project.id).copied()]),
+            cloud_organization: project.org.clone(),
+            host_folder: None,
         });
     }
     items.sort_by(|a, b| {
@@ -175,6 +188,7 @@ mod tests {
             name: path.rsplit('/').next().unwrap().into(),
             modified,
             trusted_locator: l,
+            host_folder: None,
         }
     }
     fn cloud(id: &str, name: &str, updated: Option<i64>) -> CloudEntry {

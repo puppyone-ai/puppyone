@@ -231,6 +231,10 @@ pub struct RecentProject {
     pub name: String,
     /// Seconds since the Unix epoch.
     pub opened_at: u64,
+    /// `hostFolderId` (workspace registry v8): the id this folder was opened
+    /// to the owner's other computers under, as recorded when it was shared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_folder: Option<String>,
 }
 /// `HOMEPAGE_PROJECT_LAYOUTS`: how the Homepage arranges its projects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -499,6 +503,12 @@ impl Preferences {
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| path.display().to_string())
             });
+        // Sharing is the folder's, so it outlives a reopening.
+        let host_folder = self
+            .recent_projects
+            .iter()
+            .find(|p| p.path == path)
+            .and_then(|p| p.host_folder.clone());
         self.recent_projects.retain(|p| p.path != path);
         self.recent_projects.insert(
             0,
@@ -506,6 +516,7 @@ impl Preferences {
                 path: path.to_owned(),
                 name,
                 opened_at: now,
+                host_folder,
             },
         );
     }

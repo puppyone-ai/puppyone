@@ -1,6 +1,6 @@
 //! Cloud as the window offers it: the signed-in account, the Projects
-//! catalog, the first publication, a hosted Project's Agents, a checkout's
-//! association and PuppyOne compute. The Cloud client
+//! catalog and the spaces they live in, the first publication, a hosted
+//! Project's Agents, a checkout's association and PuppyOne compute. The Cloud client
 //! underneath (sign-in broker, publication journal) is [`crate::cloud`].
 //!
 //! [`account`] is the account's public face (sign-in, status, the broker
@@ -12,6 +12,7 @@ mod clients;
 mod managed_compute;
 mod publish;
 mod repository;
+mod spaces;
 
 #[cfg(feature = "dev-capture")]
 pub use agents::lab_client as lab_agents_client;
@@ -23,3 +24,6 @@ pub use managed_compute::{Reason as ComputeReason, global as global_compute, mon
 pub use publish::install_factory;
 pub use publish::{CloudPublish, HeaderStatus, Organizations};
 pub use repository::RepositoryCloud;
+pub use spaces::{
+    CloudSpaces, Status as SpacesStatus, global as global_spaces, read as global_spaces_read,
+};

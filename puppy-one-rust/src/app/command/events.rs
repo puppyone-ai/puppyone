@@ -51,6 +51,9 @@ impl Shell {
             CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
             CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
             CloudEvent::Error(error) => self.show_error(error.clone(), cx),
+            // The owner's other computers come with the hosts; until this
+            // window has them there is nothing to open the folder to.
+            CloudEvent::ShareDevices(_) | CloudEvent::Devices(_) => {}
         }
         self.receive(window, cx);
         cx.notify();
@@ -129,7 +132,41 @@ impl Shell {
                     .project
                     .update(cx, |p, cx| p.open_created(path, open, cx));
             }
+            home::HomeEvent::PublishToSpace { path, space } => {
+                let (path, space) = (path.clone(), space.clone());
+                self.cloud
+                    .update(cx, |c, cx| c.request_publish(path, space, cx));
+            }
+            home::HomeEvent::ShareFolder { path } => {
+                let path = path.clone();
+                self.cloud
+                    .update(cx, |c, cx| c.request_device_sharing(path, cx));
+            }
             home::HomeEvent::Command(command) => return self.command(*command, window, cx),
+        }
+        self.receive(window, cx);
+        cx.notify();
+    }
+    /// A row of a Homepage project's "Who can open it": copy it to a team
+    /// (opening it first), open its Cloud copy, or open it to my devices.
+    pub(in crate::app) fn home_audience_action(
+        &mut self,
+        action: audience::AudienceAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use audience::AudienceAction as A;
+        match action {
+            A::CopyToTeam { path, space } => self
+                .cloud
+                .update(cx, |c, cx| c.request_publish(path, space, cx)),
+            A::OpenCloud(project) => {
+                self.set_popover(None, cx);
+                self.open_cloud(project, cx);
+            }
+            other => self
+                .cloud
+                .update(cx, |c, cx| c.run_audience_action(other, window, cx)),
         }
         self.receive(window, cx);
         cx.notify();
@@ -294,6 +331,28 @@ impl Shell {
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
         }
         self.receive(window, cx);
+        cx.notify();
+    }
+    /// A project's menu acted: who can open it, or a folder's new name,
+    /// which names the window that shows it.
+    pub(in crate::app) fn project_actions_event(
+        &mut self,
+        event: &super::super::project_actions::ActionsEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use super::super::project_actions::ActionsEvent;
+        if let ActionsEvent::Audience(action) = event {
+            self.home_audience_action(action.clone(), window, cx);
+        }
+        if let ActionsEvent::Renamed { path, name } = event
+            && self.workspace_root(cx).as_deref() == Some(path.as_path())
+        {
+            let name = name.clone();
+            self.session.project.update(cx, |p, _| p.record.name = name);
+            self.sync_session_view(cx);
+            self.sync_window_title(window, cx);
+        }
         cx.notify();
     }
     pub(in crate::app) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {

@@ -314,6 +314,8 @@ impl WindowCloud {
         let organizations = publish.organizations.clone();
         let selected = publish.selected.clone();
         let error = publish.outcome.as_ref().and_then(|o| o.error.clone());
+        let destination = publish.destination();
+        let targeted = publish.target.is_some();
         let ready = selected.is_some();
         let mut body = self
             .activation_frame(
@@ -342,8 +344,28 @@ impl WindowCloud {
                         tr("cloud.activation.project.historyDetail"),
                     )),
             );
-        // `CloudGitPrerequisite`: the organization that will own the Project.
+        // `CloudGitPrerequisite`: the organization that will own the Project;
+        // a space chosen before the page opened is stated, never chosen again.
+        match &destination {
+            Some(Some(org)) => {
+                body = body.child(
+                    div()
+                        .pt(px(8.))
+                        .text_size(px(m.ui.meta))
+                        .text_color(t.muted)
+                        .child(tf(
+                            "cloud.initialize.destinationNote",
+                            &[("name", crate::localization::bidi_isolate(&org.name).into())],
+                        )),
+                );
+            }
+            Some(None) => {
+                body = body.child(self.publish_alert(tr("onboarding.spaces.unavailable"), cx));
+            }
+            None => {}
+        }
         match &organizations {
+            _ if targeted => {}
             Organizations::Ready(list) if list.len() > 1 => {
                 body = body.child(
                     v_flex()
