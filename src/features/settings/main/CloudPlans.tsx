@@ -15,10 +15,11 @@ import { SettingsSubsection, SettingsValueRow } from "../components";
 import {
   describeHoursReading,
   describeStorageReading,
+  formatCurrency,
   formatHours,
   formatMoney,
-  meterTone,
   formatStorage,
+  meterTone,
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
@@ -277,7 +278,7 @@ function ConnectedPlans({
 }
 
 /** The plan held, and this period's agent hours and storage against it. */
-function CurrentPlan({
+export function CurrentPlan({
   offer,
   holding,
   usage,
@@ -296,9 +297,11 @@ function CurrentPlan({
   const reading = resolveAllowance(usage, offer, holding, addOns);
   const name = t(`settings.plan.name.${offer.id}`);
   const parts = [name];
-  if (holding.subscribed && holding.monthlyCents !== null) {
+  if (holding.subscribed) {
+    // Until the catalog answers, the plan's own price stands in for the total.
+    const monthly = holding.monthlyCents ?? offer.priceCents * (offer.perPerson ? holding.seats : 1);
     parts.push(t("settings.plan.monthlyFor", {
-      amount: formatMoney(holding.monthlyCents, holding.currency, localization),
+      amount: formatMoney(monthly, holding.currency, localization),
     }));
   }
   if (holding.subscribed && offer.perPerson) {
@@ -408,11 +411,9 @@ export function PlanComparison({
               <div className="desktop-plan-card-head">
                 <strong>{t(`settings.plan.name.${plan.id}`)}</strong>
                 <span className="desktop-plan-card-price">
-                  {plan.priceCents === 0
-                    ? t("settings.plan.freePrice")
-                    : t(plan.perPerson ? "settings.plan.pricePerPerson" : "settings.plan.pricePerMonth", {
-                      amount: formatMoney(plan.priceCents, plan.currency, localization),
-                    })}
+                  {t(plan.perPerson ? "settings.plan.pricePerPerson" : "settings.plan.pricePerMonth", {
+                    amount: formatCurrency(plan.priceCents, plan.currency, localization),
+                  })}
                 </span>
                 <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
               </div>
@@ -428,7 +429,9 @@ export function PlanComparison({
                   plan.perPerson ? "settings.plan.projectsPerPerson" : "settings.plan.projects",
                   { count: plan.projects },
                 )}</li>
-                <li>{t("settings.plan.historyDays", { count: plan.historyDays ?? 365 })}</li>
+                <li>{(plan.historyDays ?? 365) >= 365
+                  ? t("settings.plan.historyYears", { count: Math.round((plan.historyDays ?? 365) / 365) })
+                  : t("settings.plan.historyDays", { count: plan.historyDays ?? 30 })}</li>
                 {plan.teamFeatures && TEAM_FEATURES.map((feature) => (
                   <li key={feature} className="desktop-plan-card-feature">
                     <Check size={12} aria-hidden="true" />
@@ -445,7 +448,7 @@ export function PlanComparison({
   );
 }
 
-function PlanFinePrint({ localization }: { localization: LocalizationContextValue }) {
+export function PlanFinePrint({ localization }: { localization: LocalizationContextValue }) {
   return <p className="desktop-plan-note">{localization.t("settings.plan.finePrint")}</p>;
 }
 
@@ -456,7 +459,7 @@ function CurrentBadge({ localization }: { localization: LocalizationContextValue
 type AddOnDraft = { id: string; quantity: number };
 
 /** Extra hours and storage, as monthly packs on top of a paid plan. */
-function AddOns({
+export function AddOns({
   session,
   apiBaseUrl,
   organizationId,

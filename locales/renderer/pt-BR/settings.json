@@ -572,7 +572,7 @@
   "plan.hoursUsedOf": "{used} de {total} h",
   "plan.storageLabel": "Armazenamento",
   "plan.storageUsedOf": "{used} de {total}",
-  "plan.chooseTitle": "Planos",
+  "plan.chooseTitle": "Todos os planos",
   "plan.pricePerPerson": "{amount} por pessoa / mês",
   "plan.pricePerMonth": "{amount} / mês",
   "plan.tagline.free": "Experimente um projeto online com um agente",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "Solicitado. Vale assim que o serviço de pagamento confirmar.",
   "plan.addOnFailed": "Não foi possível alterar o complemento.",
   "plan.decrease": "Menos: {label}",
-  "plan.increase": "Mais: {label}"
+  "plan.increase": "Mais: {label}",
+  "plan.historyYears": "{count, plural, one {# ano} other {# anos}} de histórico"
 }

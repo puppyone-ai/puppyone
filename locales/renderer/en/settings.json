@@ -572,7 +572,7 @@
   "plan.hoursUsedOf": "{used} of {total} h",
   "plan.storageLabel": "Storage",
   "plan.storageUsedOf": "{used} of {total}",
-  "plan.chooseTitle": "Plans",
+  "plan.chooseTitle": "All plans",
   "plan.pricePerPerson": "{amount} per person / month",
   "plan.pricePerMonth": "{amount} / month",
   "plan.tagline.free": "Try a project online with an agent",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "Requested. It applies once the payment service confirms it.",
   "plan.addOnFailed": "The add-on could not be changed.",
   "plan.decrease": "Fewer: {label}",
-  "plan.increase": "More: {label}"
+  "plan.increase": "More: {label}",
+  "plan.historyYears": "{count, plural, one {# year} other {# years}} of history"
 }

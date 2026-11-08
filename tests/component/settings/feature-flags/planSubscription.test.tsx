@@ -266,7 +266,7 @@ it("compares the three plans side by side, each with one price", async () => {
   const cards = [...host.querySelectorAll(".desktop-plan-card")];
   expect(cards.map((card) => card.querySelector("strong")?.textContent)).toEqual(["Free", "Personal", "Team"]);
   expect(cards.map((card) => card.querySelector(".desktop-plan-card-price")?.textContent)).toEqual([
-    "Free",
+    "$0 / month",
     "$10 / month",
     "$20 per person / month",
   ]);

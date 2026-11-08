@@ -572,7 +572,7 @@
   "plan.hoursUsedOf": "{used} sur {total} h",
   "plan.storageLabel": "Stockage",
   "plan.storageUsedOf": "{used} sur {total}",
-  "plan.chooseTitle": "Formules",
+  "plan.chooseTitle": "Toutes les formules",
   "plan.pricePerPerson": "{amount} par personne / mois",
   "plan.pricePerMonth": "{amount} / mois",
   "plan.tagline.free": "Essayez un projet en ligne avec un agent",
@@ -607,5 +607,6 @@
   "plan.addOnPending": "Demande envoyée. Elle s’applique une fois confirmée par le service de paiement.",
   "plan.addOnFailed": "Impossible de modifier l’option.",
   "plan.decrease": "Moins : {label}",
-  "plan.increase": "Plus : {label}"
+  "plan.increase": "Plus : {label}",
+  "plan.historyYears": "{count, plural, one {# an} other {# ans}} d’historique"
 }

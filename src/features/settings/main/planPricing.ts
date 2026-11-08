@@ -324,6 +324,20 @@ export function formatMoney(
   });
 }
 
+/** A price as currency, $0 included: a plan card compares numbers, not words. */
+export function formatCurrency(
+  cents: number,
+  currency: string,
+  localization: LocalizationContextValue,
+): string {
+  return localization.formatNumber(cents / 100, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  });
+}
+
 export function formatGigabytes(bytes: number, localization: LocalizationContextValue): string {
   return localization.formatNumber(Math.round((bytes / BYTES_PER_GB) * 10) / 10);
 }
