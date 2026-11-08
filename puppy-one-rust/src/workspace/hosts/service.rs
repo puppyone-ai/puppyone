@@ -35,6 +35,14 @@ pub trait Person: Send + Sync {
     /// One host route (`isHostServiceRoute`), as that person.
     fn api(&self, method: &str, route: &str, body: Option<Value>) -> Result<Value, String>;
 }
+/// `process.platform`, as the Cloud names it.
+pub fn platform() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "darwin",
+        "windows" => "win32",
+        _ => "linux",
+    }
+}
 /// `HOST_ROUTE`: the only routes the host may ask the App to call.
 pub fn is_host_route(route: &str) -> bool {
     let Some(rest) = route.strip_prefix("/hosts/devices") else {
@@ -323,6 +331,11 @@ impl HostService {
         let Ok(key) = services.identity.key(&owner) else {
             return;
         };
+        // The first certificate need not wait for the authority's keys.
+        let authorities = services.authorities.clone();
+        runtime().spawn(async move {
+            authorities.fetch().await;
+        });
         *services.owner.lock().unwrap() = Some(owner.clone());
         let mut ssh = HostSsh::new(
             Arc::new(HostIdentity {

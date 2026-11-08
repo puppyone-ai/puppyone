@@ -344,7 +344,7 @@ impl HostLink {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         let computer = hostname();
-        let platform = std::env::consts::OS.replace("macos", "darwin");
+        let platform = crate::workspace::hosts::service::platform();
         self.call(
             "identityRegister",
             json!({"name": computer, "platform": platform}),
@@ -447,23 +447,43 @@ impl HostLink {
         );
         let body = json!({"name": folder.name, "writable": writable,
             "terminal": execution.terminal, "git": execution.git, "agent": execution.agent});
+        let (device, id) = (owner.device_id.clone(), folder.folder_id.clone());
         let cloud = move || -> Result<(), String> {
             let (broker, binding) =
                 account.ok_or("Sign in before changing what this computer shares.")?;
+            let request = |method: reqwest::Method, path: String, body: Option<Value>| ApiRequest {
+                idempotency_key: None,
+                method,
+                path,
+                query: vec![],
+                body,
+            };
+            let failed = |e: crate::cloud::auth::Error| format!("{e:?}");
+            // The change is for the folder as the Cloud has it now.
+            let catalog = broker
+                .request_scoped(
+                    &binding,
+                    &request(reqwest::Method::GET, "/hosts".into(), None),
+                    &Cancellation::default(),
+                )
+                .map_err(failed)?;
+            let revision = crate::workspace::hosts::remote::parse_catalog(&catalog)
+                .map_err(|e| e.code)?
+                .into_iter()
+                .find(|d| d.id == device)
+                .and_then(|d| d.folders.into_iter().find(|f| f.id == id))
+                .map(|f| f.revision)
+                .ok_or("This folder is no longer available from that computer.")?;
+            let mut body = body;
+            body["expected_revision"] = revision.into();
             broker
                 .request_scoped(
                     &binding,
-                    &ApiRequest {
-                        idempotency_key: None,
-                        method: reqwest::Method::PATCH,
-                        path: route,
-                        query: vec![],
-                        body: Some(body),
-                    },
+                    &request(reqwest::Method::PATCH, route, Some(body)),
                     &Cancellation::default(),
                 )
                 .map(|_| ())
-                .map_err(|e| format!("{e:?}"))
+                .map_err(failed)
         };
         let apply = move |s: &mut Self,
                           cx: &mut Context<Self>,
