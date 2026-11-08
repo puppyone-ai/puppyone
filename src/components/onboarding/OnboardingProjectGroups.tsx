@@ -95,7 +95,9 @@ export function OnboardingProjectGroups({ groups, label, note }: {
   // A project is being dragged: the groups that take it become places to drop it.
   const dragging = groups.some((group) => group.dropTarget);
   return (
-    <div className="onboarding-project-groups" data-po-scrollbar="menu" data-po-scrollbar-visibility="always"
+    // The thumb shows while the page scrolls or is pointed at, as the product's default:
+    // a bar standing beside the folders at rest would be the heaviest line on the page.
+    <div className="onboarding-project-groups" data-po-scrollbar="menu"
       data-project-dragging={dragging || undefined} aria-label={label}>
       {ordered.map((group) => <ProjectGroup key={group.id} group={group} />)}
       {note}
@@ -128,7 +130,7 @@ function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
       <header className="onboarding-project-group-head">
         <h2 id={titleId} className="onboarding-project-group-title"><bdi>{group.title}</bdi></h2>
         {group.detail !== undefined && <span className="onboarding-project-group-detail">{group.detail}</span>}
-        <span className="onboarding-project-group-divider" aria-hidden="true" />
+        <span className="onboarding-project-group-spacer" aria-hidden="true" />
         {group.dropTarget?.enabled && group.dropTarget.hint
           ? <span className="onboarding-project-group-drop-hint" role="status">{group.dropTarget.hint}</span>
           : group.actions !== undefined && <span className="onboarding-project-group-actions">{group.actions}</span>}
