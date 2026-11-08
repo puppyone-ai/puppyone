@@ -121,3 +121,105 @@ fn a_folder_dropped_on_a_team_opens_its_publication_to_that_team(cx: &mut TestAp
         );
     });
 }
+
+/// `OnboardingProjectEntryDialog`: a team's project is an empty Cloud
+/// project in that team's space, made once however often Create is retried,
+/// and opened at once.
+#[gpui::test]
+fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
+    use super::home::create_project::Audience;
+    use std::sync::{Arc, Mutex};
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let posts: Arc<Mutex<Vec<(serde_json::Value, Option<String>)>>> = Default::default();
+    let seen = posts.clone();
+    let creating: crate::cloud::auth::Responder = Arc::new(move |request| {
+        if request.method == reqwest::Method::POST && request.path == "/projects/" {
+            let mut seen = seen.lock().unwrap();
+            seen.push((
+                request.body.clone().unwrap(),
+                request.idempotency_key.clone(),
+            ));
+            if seen.len() == 1 {
+                return Err(crate::cloud::auth::Error::Response(503, None));
+            }
+            return Ok(serde_json::json!({"code": 0, "data":
+                {"id": "p-new", "name": "Plans", "org_id": "team-1"}}));
+        }
+        cloud_project_responder()(request)
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(Arc::new({
+        let spaces = with_spaces(cloud_project_responder());
+        move |request| {
+            if request.method == reqwest::Method::POST {
+                creating(request)
+            } else {
+                spaces(request)
+            }
+        }
+    }));
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.remember_project(&folder, 1);
+        });
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the spaces", &|s, cx| {
+        s.home.read(cx).spaces.read(cx).status() == crate::features::cloud::SpacesStatus::Ready
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_create_project(w, cx);
+            // One team: Team names no team; Only this computer and Team.
+            assert_eq!(
+                h.create_audiences(cx),
+                vec![Audience::Local, Audience::Team]
+            );
+            h.create
+                .as_ref()
+                .unwrap()
+                .destination
+                .name
+                .update(cx, |input, cx| input.set_text("Plans".to_owned(), cx));
+            h.choose_create_audience(Audience::Team, None, cx);
+        })
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("create-project-stored-cloud").is_some());
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
+    });
+    settle_cloud(&view, cx, "the failed creation", &|s, cx| {
+        s.home
+            .read(cx)
+            .create
+            .as_ref()
+            .is_some_and(|c| !c.submitting && c.error.is_some())
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
+    });
+    settle_cloud(&view, cx, "the Cloud project", &|s, cx| {
+        s.home.read(cx).create.is_none()
+            && s.session.project.read(cx).record.cloud.as_deref() == Some("p-new")
+    });
+    let posts = posts.lock().unwrap();
+    assert_eq!(posts.len(), 2);
+    assert_eq!(
+        posts[0].0,
+        serde_json::json!({"name": "Plans", "org_id": "team-1"})
+    );
+    // The retry is the same operation.
+    assert!(posts[0].1.is_some());
+    assert_eq!(posts[0].1, posts[1].1);
+}

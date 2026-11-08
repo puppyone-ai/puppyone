@@ -1,9 +1,11 @@
 //! "Create a project" (`OnboardingProjectEntryDialog`): a name, prefilled,
-//! and a location, prefilled with the built-in `Documents/PuppyOne` folder,
-//! so the default path is a single Create. A new project starts with the
-//! built-in Getting started guide in the app's language, which opens first
-//! (`project-catalog.mjs`). "Paste template link" hands a template store
-//! link on the clipboard to its own card (`template_import`).
+//! who can open it, and where it is kept, which follows: this computer and
+//! all my devices keep a folder here (prefilled with the built-in
+//! `Documents/PuppyOne` folder), the latter opened to my other computers; a
+//! team's project is an empty Cloud project in that team's space. The
+//! default path is a single Create. A new folder starts with the built-in
+//! Getting started guide in the app's language, which opens first
+//! (`project-catalog.mjs`).
 use super::*;
 use crate::{
     platform::templates::{self, builtin},
@@ -28,6 +30,81 @@ pub(in crate::app) struct Destination {
 pub(in crate::app) struct CreateProject {
     pub(in crate::app) destination: Destination,
     pub(in crate::app) error: Option<String>,
+    pub(in crate::app) audience: Audience,
+    /// The team chosen among several; the first one otherwise.
+    pub(in crate::app) team: Option<String>,
+    /// `cloudOperationRef`: `(space and name, operation)`; a retry of the
+    /// same project repeats its operation, so the Cloud makes it once.
+    pub(in crate::app) cloud_operation: Option<(String, String)>,
+    pub(in crate::app) submitting: bool,
+}
+
+/// Who can open the new project: the Homepage's three audiences.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::app) enum Audience {
+    Local,
+    Devices,
+    Team,
+}
+impl Audience {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Local => "onboarding.entry.create.audience.local",
+            Self::Devices => "onboarding.entry.create.audience.devices",
+            Self::Team => "onboarding.entry.create.audience.team",
+        }
+    }
+    fn key(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Devices => "devices",
+            Self::Team => "team",
+        }
+    }
+}
+/// The audiences offered: this computer always; my devices when this
+/// window can open the folder to them; a team when one can take projects.
+pub(in crate::app) fn audiences(devices: bool, teams: usize) -> Vec<Audience> {
+    let mut list = vec![Audience::Local];
+    if devices {
+        list.push(Audience::Devices);
+    }
+    if teams > 0 {
+        list.push(Audience::Team);
+    }
+    list
+}
+/// The team spaces a project can start in, `(id, name)`.
+pub(in crate::app) fn creatable_teams(
+    spaces: &[crate::workspace::cloud::spaces::Space],
+) -> Vec<(String, String)> {
+    spaces
+        .iter()
+        .filter(|s| s.kind == crate::workspace::cloud::spaces::Kind::Team && s.can_create_projects)
+        .map(|s| (s.id.clone(), s.name.clone()))
+        .collect()
+}
+/// The creation's operation: the same for the same space and name, a new
+/// one otherwise.
+fn operation(current: &mut Option<(String, String)>, space: &str, name: &str) -> String {
+    let attempt = format!("{space}\n{name}");
+    if current.as_ref().map(|(a, _)| a) != Some(&attempt) {
+        *current = Some((attempt, uuid::Uuid::new_v4().to_string()));
+    }
+    current
+        .as_ref()
+        .map(|(_, id)| id.clone())
+        .unwrap_or_default()
+}
+/// What the server's answer means to the person creating it.
+fn create_error(error: &crate::workspace::cloud::services::Error) -> String {
+    use crate::workspace::cloud::services::Error;
+    match error {
+        Error::Status(401) => tr("cloud.auth.signInRequired").into(),
+        Error::Status(403) => tr("cloud.initialize.permissionDenied").into(),
+        Error::Unavailable => tr("cloud.message.connection-unreachable").into(),
+        _ => tr("cloud.catalog.createFailed").into(),
+    }
 }
 
 /// `requireProjectName`.
@@ -99,6 +176,10 @@ impl Homepage {
                 choosing: false,
             },
             error: None,
+            audience: Audience::Local,
+            team: None,
+            cloud_operation: None,
+            submitting: false,
         });
         self.open_dialog(DialogKey::CreateProject, cx);
         cx.notify();
@@ -131,6 +212,9 @@ impl Homepage {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.create.as_ref().is_some_and(|c| c.submitting) {
+            return;
+        }
         self.create = None;
         if self.close_dialog(DialogKey::CreateProject, cx) {
             self.window_focus.focus(window, cx);
@@ -183,24 +267,119 @@ impl Homepage {
         .detach();
         cx.notify();
     }
-    pub(in crate::app) fn submit_create_project(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+    /// The teams this account can start a project in.
+    pub(in crate::app) fn creatable_teams(&self, cx: &App) -> Vec<(String, String)> {
+        if !crate::features::cloud::account::has_account(cx) {
+            return vec![];
+        }
+        creatable_teams(self.spaces.read(cx).spaces())
+    }
+    /// The audiences the dialog offers now.
+    pub(in crate::app) fn create_audiences(&self, cx: &App) -> Vec<Audience> {
+        audiences(self.local_share, self.creatable_teams(cx).len())
+    }
+    pub(in crate::app) fn choose_create_audience(
+        &mut self,
+        audience: Audience,
+        team: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(create) = self.create.as_mut().filter(|c| !c.submitting) {
+            create.audience = audience;
+            if team.is_some() {
+                create.team = team;
+            }
+            create.error = None;
+            self.menu = None;
+            cx.notify();
+        }
+    }
+    /// The team the dialog would create in, when it is one of the teams.
+    fn create_team(&self, cx: &App) -> Option<(String, String)> {
+        let create = self.create.as_ref()?;
+        let teams = self.creatable_teams(cx);
+        create
+            .team
+            .as_ref()
+            .and_then(|id| teams.iter().find(|(t, _)| t == id).cloned())
+            .or_else(|| teams.into_iter().next())
+    }
+    pub(in crate::app) fn submit_create_project(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let team = self.create_team(cx);
         let Some(create) = self.create.as_mut() else {
             return;
         };
-        let Some(location) = create.destination.location.clone() else {
-            return;
-        };
-        if create.destination.choosing {
+        if create.destination.choosing || create.submitting {
             return;
         }
         let value = create.destination.name.read(cx).text().to_owned();
+        if create.audience == Audience::Team {
+            let name = match validate_name(&value) {
+                Ok(name) => name.to_owned(),
+                Err(error) => {
+                    create.error = Some(error);
+                    cx.notify();
+                    return;
+                }
+            };
+            let Some((space, _)) = team else {
+                return;
+            };
+            let Some(client) = crate::features::cloud::services_client(cx) else {
+                create.error = Some(tr("cloud.auth.signInRequired").into());
+                cx.notify();
+                return;
+            };
+            let id = operation(&mut create.cloud_operation, &space, &name);
+            create.submitting = true;
+            create.error = None;
+            let task = cx
+                .background_executor()
+                .spawn(async move { client.create_project(&name, &space, &id) });
+            cx.spawn_in(window, async move |this, cx| {
+                let result = task.await;
+                let _ = this.update_in(cx, |s, w, cx| {
+                    let Some(create) = s.create.as_mut() else {
+                        return;
+                    };
+                    create.submitting = false;
+                    match result {
+                        // An empty Cloud project, opened at once like any other.
+                        Ok(project) => {
+                            s.create = None;
+                            s.close_dialog(DialogKey::CreateProject, cx);
+                            s.catalog.update(cx, |c, cx| c.ensure(true, true, cx));
+                            s.window_focus.focus(w, cx);
+                            cx.emit(HomeEvent::OpenCloud(project.id));
+                        }
+                        Err(error) => create.error = Some(create_error(&error)),
+                    }
+                    cx.notify();
+                });
+            })
+            .detach();
+            cx.notify();
+            return;
+        }
+        let Some(location) = create.destination.location.clone() else {
+            return;
+        };
+        let devices = create.audience == Audience::Devices;
         let created = validate_name(&value)
             .and_then(|name| create_folder(&location, name, &crate::localization::current_code()));
         match created {
             Ok((path, open)) => {
                 self.create = None;
                 self.close_dialog(DialogKey::CreateProject, cx);
-                self.open_created_project(path, open.map(PathBuf::from), false, cx);
+                self.open_created_project(path.clone(), open.map(PathBuf::from), false, cx);
+                // Offered from this window, as the folder it now shows.
+                if devices {
+                    cx.emit(HomeEvent::ShareFolder { path });
+                }
             }
             Err(error) => {
                 create.error = Some(error);
@@ -223,24 +402,6 @@ impl Homepage {
             new_window,
         });
     }
-    /// "Paste template link": the clipboard is read only now, when asked,
-    /// and only a template link is acted on.
-    pub(in crate::app) fn paste_template_link(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let text = cx
-            .read_from_clipboard()
-            .and_then(|item| item.text())
-            .unwrap_or_default();
-        if templates::link::looks_like(&text) {
-            self.open_template_link(text.trim().to_owned(), window, cx);
-        } else if let Some(create) = self.create.as_mut() {
-            create.error = Some(tr("onboarding.template.noLink").into());
-            cx.notify();
-        }
-    }
     /// `.onboarding-entry-create-fields`: the name, and the folder it goes in.
     pub(in crate::app) fn destination_fields(
         &self,
@@ -248,93 +409,245 @@ impl Homepage {
         locked: bool,
         cx: &mut Context<Self>,
     ) -> Div {
+        v_flex()
+            .gap(px(18.))
+            .child(self.name_field(destination, locked, cx))
+            .child(self.location_field(
+                destination,
+                locked,
+                "onboarding.entry.create.locationLabel",
+                cx,
+            ))
+    }
+    /// `.onboarding-entry-create-label`.
+    fn field_label(&self, text: &'static str, cx: &App) -> Div {
+        let t = cx.palette();
+        div()
+            .text_size(px(theme::ty().ui.body))
+            .line_height(px(18.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(t.text)
+            .child(tr(text))
+    }
+    /// `.onboarding-entry-create-input` / `.onboarding-entry-location-picker`.
+    fn field_box(&self, locked: bool, cx: &App) -> Div {
+        let t = cx.palette();
+        h_flex()
+            .w_full()
+            .h(px(theme::control()))
+            .border_1()
+            .border_color(t.border_strong)
+            .rounded(px(8.))
+            .bg(t.input)
+            .text_size(px(theme::ty().ui.body))
+            .when(locked, |d| d.opacity(0.58))
+    }
+    fn name_field(&self, destination: &Destination, locked: bool, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
+        v_flex()
+            .gap(px(8.))
+            .child(self.field_label("onboarding.entry.create.nameLabel", cx))
+            .child(
+                self.field_box(locked, cx).px(px(8.)).child(
+                    div()
+                        .w_full()
+                        .text_color(t.text)
+                        .child(destination.name.clone()),
+                ),
+            )
+    }
+    fn location_field(
+        &self,
+        destination: &Destination,
+        locked: bool,
+        label: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         let ty = theme::ty();
-        let label = |text: &'static str| {
-            div()
-                .text_size(px(ty.ui.body))
-                .line_height(px(18.))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(t.text)
-                .child(tr(text))
-        };
-        // `.onboarding-entry-create-input` / `.onboarding-entry-location-picker`.
-        let field = || {
-            h_flex()
-                .w_full()
-                .h(px(theme::control()))
-                .border_1()
-                .border_color(t.border_strong)
-                .rounded(px(8.))
-                .bg(t.input)
-                .text_size(px(ty.ui.body))
-                .when(locked, |d| d.opacity(0.58))
-        };
         let location = destination
             .location
             .as_ref()
             .map(|path| path.display().to_string());
         v_flex()
-            .gap(px(18.))
+            .gap(px(8.))
+            .child(self.field_label(label, cx))
             .child(
-                v_flex()
-                    .gap(px(8.))
-                    .child(label("onboarding.entry.create.nameLabel"))
+                self.field_box(locked, cx)
+                    .id("create-project-location")
+                    .px(px(11.))
+                    .gap(px(10.))
+                    .when(!destination.choosing && !locked, |d| {
+                        d.cursor(theme::clickable_cursor())
+                            .on_click(cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)))
+                    })
                     .child(
-                        field().px(px(8.)).child(
-                            div()
-                                .w_full()
-                                .text_color(t.text)
-                                .child(destination.name.clone()),
-                        ),
+                        Icon::product(crate::ui::components::ProductIcon::Folder)
+                            .with_size(px(17.))
+                            .stroke(1.8)
+                            .color(t.muted),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_color(if location.is_some() { t.text } else { t.subtle })
+                            .child(location.unwrap_or_else(|| {
+                                tr("onboarding.entry.create.locationPlaceholder").into()
+                            })),
+                    )
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .text_size(px(ty.ui.meta))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.muted)
+                            .child(tr(if destination.choosing {
+                                "onboarding.entry.create.browsing"
+                            } else if destination.location.is_some() {
+                                "onboarding.entry.create.change"
+                            } else {
+                                "onboarding.entry.create.browse"
+                            })),
                     ),
             )
+    }
+    /// `.onboarding-entry-location-picker.is-fixed`: a place that follows
+    /// from the audience, shown, not chosen.
+    fn cloud_location(&self, cx: &App) -> Div {
+        let t = cx.palette();
+        v_flex()
+            .gap(px(8.))
+            .child(self.field_label("onboarding.entry.create.storedLabel", cx))
             .child(
-                v_flex()
+                h_flex()
+                    .id("create-project-stored-cloud")
+                    .debug_selector(|| "create-project-stored-cloud".into())
                     .gap(px(8.))
-                    .child(label("onboarding.entry.create.locationLabel"))
+                    .text_size(px(theme::ty().ui.body))
+                    .text_color(t.text)
                     .child(
-                        field()
-                            .id("create-project-location")
-                            .px(px(11.))
-                            .gap(px(10.))
-                            .when(!destination.choosing && !locked, |d| {
-                                d.cursor(theme::clickable_cursor()).on_click(
-                                    cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)),
-                                )
+                        Icon::product(crate::ui::components::ProductIcon::Cloud)
+                            .with_size(px(17.))
+                            .stroke(1.8)
+                            .color(t.muted),
+                    )
+                    .child(tr("onboarding.entry.create.stored.cloud")),
+            )
+    }
+    /// `.onboarding-entry-choice-field`: plain choices, a dot and words.
+    fn audience_choices(&self, create: &CreateProject, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
+        let ty = theme::ty();
+        let teams = self.creatable_teams(cx);
+        let team = self.create_team(cx);
+        let locked = create.submitting;
+        let label = self.field_label("onboarding.entry.create.audienceLabel", cx);
+        let choices: Vec<_> = self
+            .create_audiences(cx)
+            .into_iter()
+            .map(|option| {
+                let checked = create.audience == option;
+                // A native radio in the text's own colour.
+                let dot = div()
+                    .size(px(14.))
+                    .flex_shrink_0()
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .map(|d| {
+                        if checked {
+                            d.bg(t.text)
+                                .child(div().size(px(6.)).rounded_full().bg(t.text_inverse))
+                        } else {
+                            d.border_1().border_color(t.border_strong).bg(t.input)
+                        }
+                    });
+                let selector = (option == Audience::Team && teams.len() > 1)
+                    .then(|| self.create_team_selector(teams.clone(), team.clone(), locked, cx));
+                h_flex()
+                    .id(SharedString::from(format!(
+                        "create-audience-{}",
+                        option.key()
+                    )))
+                    .debug_selector(move || format!("create-audience:{}", option.key()))
+                    .min_w_0()
+                    .gap(px(8.))
+                    .text_size(px(ty.ui.body))
+                    .line_height(px(20.))
+                    .text_color(if checked { t.text } else { t.muted })
+                    .when(!locked, |d| {
+                        d.cursor(theme::clickable_cursor())
+                            .hover(|d| d.text_color(t.text))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                s.choose_create_audience(option, None, cx)
+                            }))
+                    })
+                    .child(dot)
+                    .child(div().flex_none().child(tr(option.label())))
+                    .children(selector)
+            })
+            .collect();
+        v_flex()
+            .gap(px(8.))
+            .child(label)
+            .child(v_flex().gap(px(6.)).children(choices))
+    }
+    /// `.onboarding-entry-team-select`: which team, when there are several.
+    fn create_team_selector(
+        &self,
+        teams: Vec<(String, String)>,
+        chosen: Option<(String, String)>,
+        locked: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let open = self.menu == Some(HomeMenu::CreateTeam) && !locked;
+        let (chosen, name) = chosen.unwrap_or_default();
+        let host = self.weak.clone();
+        let trigger = Button::new("create-team-selector")
+            .variant(ButtonVariant::Ghost)
+            .label(name)
+            .trailing(Icon::new("chevron-down").with_size(px(11.)).stroke(1.85))
+            .accessibility_label(tr("onboarding.sharing.selectTeam"))
+            .disabled(locked)
+            .h(px(22.))
+            .px(px(4.))
+            .max_w(px(180.))
+            .text_size(px(theme::ty().ui.meta))
+            .text_color(t.subtle);
+        PopoverMenu::new("create-team-selector-menu")
+            .anchor(Anchor::TopLeft)
+            .offset(px(theme::metric::MENU_PADDING))
+            .open(open)
+            .on_open_change(move |opened, _, cx| {
+                let _ = host.update(cx, |s, cx| {
+                    let is = s.menu == Some(HomeMenu::CreateTeam);
+                    if *opened != is {
+                        s.menu = opened.then_some(HomeMenu::CreateTeam);
+                        cx.notify();
+                    }
+                });
+            })
+            .trigger(trigger)
+            .menu({
+                let host = self.weak.clone();
+                move |surface, _, _| {
+                    surface.items(teams.iter().map(|(id, name)| {
+                        let host = host.clone();
+                        let id = id.clone();
+                        super::projects::checked_item(MenuItem::new(name.clone()), id == chosen)
+                            .on_click(move |_, cx| {
+                                let _ = host.update(cx, |s, cx| {
+                                    s.choose_create_audience(Audience::Team, Some(id.clone()), cx)
+                                });
                             })
-                            .child(
-                                Icon::product(crate::ui::components::ProductIcon::Folder)
-                                    .with_size(px(17.))
-                                    .stroke(1.8)
-                                    .color(t.muted),
-                            )
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_color(if location.is_some() { t.text } else { t.subtle })
-                                    .child(location.unwrap_or_else(|| {
-                                        tr("onboarding.entry.create.locationPlaceholder").into()
-                                    })),
-                            )
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .text_size(px(ty.ui.meta))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(t.muted)
-                                    .child(tr(if destination.choosing {
-                                        "onboarding.entry.create.browsing"
-                                    } else if destination.location.is_some() {
-                                        "onboarding.entry.create.change"
-                                    } else {
-                                        "onboarding.entry.create.browse"
-                                    })),
-                            ),
-                    ),
-            )
+                    }))
+                }
+            })
+            .into_any_element()
     }
     pub(in crate::app) fn create_project_dialog(
         &self,
@@ -345,7 +658,29 @@ impl Homepage {
         let ty = theme::ty();
         let host = self.weak.clone();
         let destination = &create.destination;
-        let can_create = destination.location.is_some() && !destination.choosing;
+        let several = self.create_audiences(cx).len() > 1;
+        let in_cloud = create.audience == Audience::Team;
+        let busy = destination.choosing || create.submitting;
+        let can_create = !busy
+            && if in_cloud {
+                self.create_team(cx).is_some()
+            } else {
+                destination.location.is_some()
+            };
+        let location = if in_cloud {
+            self.cloud_location(cx)
+        } else {
+            self.location_field(
+                destination,
+                create.submitting,
+                if several {
+                    "onboarding.entry.create.storedLabel"
+                } else {
+                    "onboarding.entry.create.locationLabel"
+                },
+                cx,
+            )
+        };
         Dialog::new("create-project")
             .width(400.)
             .inset(24.)
@@ -357,7 +692,13 @@ impl Homepage {
             })
             .child(
                 v_flex()
-                    .child(self.destination_fields(destination, false, cx))
+                    .child(
+                        v_flex()
+                            .gap(px(18.))
+                            .child(self.name_field(destination, create.submitting, cx))
+                            .when(several, |d| d.child(self.audience_choices(create, cx)))
+                            .child(location),
+                    )
                     .children(create.error.clone().map(|error| {
                         div()
                             .mt(px(8.))
@@ -367,26 +708,21 @@ impl Homepage {
                             .child(error)
                     })),
             )
-            // `.onboarding-entry-paste-template`: apart, at the start.
-            .footer(
-                div().mr_auto().child(
-                    Button::new("create-project-paste-template")
-                        .variant(ButtonVariant::Secondary)
-                        .label(tr("onboarding.template.paste"))
-                        .disabled(destination.choosing)
-                        .on_click(cx.listener(|s, _, w, cx| s.paste_template_link(w, cx))),
-                ),
-            )
             .footer(
                 Button::new("create-project-cancel")
                     .variant(ButtonVariant::Secondary)
                     .label(tr("common.action.cancel"))
+                    .disabled(busy)
                     .on_click(cx.listener(|s, _, w, cx| s.close_create_project(w, cx))),
             )
             .footer(
                 Button::new("create-project-submit")
                     .variant(ButtonVariant::Solid)
-                    .label(tr("onboarding.entry.create.submit"))
+                    .label(tr(if create.submitting {
+                        "onboarding.entry.create.submitting"
+                    } else {
+                        "onboarding.entry.create.submit"
+                    }))
                     .disabled(!can_create)
                     .on_click(cx.listener(|s, _, w, cx| s.submit_create_project(w, cx))),
             )
@@ -432,6 +768,35 @@ mod tests {
         }
         assert!(validate_name(&"x".repeat(121)).is_err());
         assert!(validate_name("COM0").is_ok());
+    }
+
+    /// `OnboardingProjectEntryDialog`: who can open it decides what is
+    /// offered; a retry of the same project repeats its operation.
+    #[test]
+    fn the_audience_decides_where_a_new_project_is_kept() {
+        use crate::workspace::cloud::spaces::{Kind, Space};
+        assert_eq!(audiences(false, 0), vec![Audience::Local]);
+        assert_eq!(
+            audiences(true, 2),
+            vec![Audience::Local, Audience::Devices, Audience::Team]
+        );
+        let space = |id: &str, kind, can| Space {
+            id: id.into(),
+            name: id.into(),
+            kind,
+            can_create_projects: can,
+        };
+        let teams = creatable_teams(&[
+            space("me", Kind::Personal, true),
+            space("a", Kind::Team, true),
+            space("b", Kind::Team, false),
+        ]);
+        assert_eq!(teams, vec![("a".to_owned(), "a".to_owned())]);
+        let mut current = None;
+        let first = operation(&mut current, "a", "Notes");
+        assert_eq!(operation(&mut current, "a", "Notes"), first);
+        assert_ne!(operation(&mut current, "a", "Notes 2"), first);
+        assert_ne!(operation(&mut current, "b", "Notes"), first);
     }
 
     /// A new project starts with Getting started, in the app's language,

@@ -52,7 +52,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-mod create_project;
+pub(in crate::app) mod create_project;
 mod first_run;
 pub(in crate::app) mod folder;
 pub(in crate::app) mod groups;

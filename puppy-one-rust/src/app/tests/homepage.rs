@@ -408,8 +408,7 @@ fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppCon
         assert!(s.top_dialog(cx).as_deref() == Some("ImportRepository"))
     });
 }
-/// H-20: a new project starts with Getting started, which opens first;
-/// "Paste template link" refuses anything but a template link.
+/// H-20: a new project starts with Getting started, which opens first.
 #[gpui::test]
 fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
@@ -428,18 +427,6 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
                 .name
                 .update(cx, |input, cx| input.set_text("Notes".to_owned(), cx));
         });
-    });
-    cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string("just words".into())));
-    view.update_in(cx, |s, w, cx| {
-        s.home.update(cx, |h, cx| h.paste_template_link(w, cx))
-    });
-    view.update(cx, |s, cx| {
-        let home = s.home.read(cx);
-        let create = home.create.as_ref().unwrap();
-        assert_eq!(
-            create.error.as_deref(),
-            Some(crate::localization::t("onboarding.template.noLink"))
-        );
     });
     view.update_in(cx, |s, w, cx| {
         s.home.update(cx, |h, cx| h.submit_create_project(w, cx))

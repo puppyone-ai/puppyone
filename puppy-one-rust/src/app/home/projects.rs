@@ -52,6 +52,8 @@ pub(in crate::app) enum HomeMenu {
     Team,
     Layout,
     Entry,
+    /// The create dialog's team selector.
+    CreateTeam,
 }
 
 /// `--onboarding-tile-width` and `--onboarding-folder-width`: a group is a
@@ -70,7 +72,7 @@ const VIEW_MENU_MIN_WIDTH: f32 = 104.;
 const ENTRY_MENU_WIDTH: f32 = 232.;
 
 /// A choice with its tick (`menuitemradio` / `menuitemcheckbox`).
-fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
+pub(super) fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
     if checked {
         item.trailing(Icon::new("check").small().stroke(1.85))
     } else {
