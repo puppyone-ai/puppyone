@@ -1,30 +1,28 @@
 //! The window's Cloud (`useCloudWorkspace*`, `useWorkspaceAgents`,
-//! `useProjectCloudContext`, the share and publish flows): the account's
-//! catalog, the open checkout's association and first publication, who is
-//! in a hosted Project, the Share card, the Cloud services dialog and the
-//! notices the person put away.
+//! `useProjectCloudContext`, the publish flow): the account's catalog, the
+//! open checkout's association and first publication, who is in a hosted
+//! Project, ending a folder's Cloud link and the notices the person put
+//! away.
 //!
 //! [`WindowCloud`] is an entity. What the window shows reaches it as a
 //! [`SessionView`] (and which Header card is open); it keeps the Cloud
 //! entities current when those change, and asks the window for what is
 //! the window's ([`CloudEvent`]). Its Header parts and notice are drawn
-//! from a read (`cloud.read(cx).share_control(..)`), its dialogs on the
+//! from a read (`cloud.read(cx).agents_control(..)`), its dialogs on the
 //! dialog layer.
 use super::{
     Command, Popover,
     cloud_agents_ui::AgentsAnchor,
     dialogs::{DialogKey, DialogLayer},
-    project_place::ReplaceCloud,
+    project_place::Disconnect,
     session::SessionView,
-    share_panel::SharePanel,
 };
 use crate::features::cloud::CloudAgents;
 use crate::features::cloud::CloudCatalog;
 use crate::features::cloud::CloudPublish;
 use crate::features::cloud::RepositoryCloud;
-use crate::features::cloud::ServicesSection as Section;
-use crate::features::cloud::{CloudServices, ResumePublication, ServicesClose};
 use crate::features::settings::{Page, PreferencesStore};
+use crate::features::source_control::SourceControl;
 use crate::workspace::cloud::opening::Failure;
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
@@ -62,20 +60,18 @@ pub(super) struct WindowCloud {
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     pub agents: Entity<CloudAgents>,
     pub agents_anchor: AgentsAnchor,
-    /// `CloudDialog`: the linked Project's Cloud services.
-    pub services: Entity<CloudServices>,
     /// Captures: the Header shows the Cloud tools over a local folder.
     #[cfg(feature = "dev-capture")]
     pub capture_hosted: bool,
-    /// The Share card's links, captured when it opened.
-    pub share_panel: SharePanel,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
     pub dismissed_notice: Option<String>,
-    /// The `puppyone` remote as reviewed when replacing a vanished
-    /// Project's connection was chosen.
-    pub replace_url: Option<String>,
-    /// `MissingCloudProjectReplacement`, while it is open.
-    pub replace: Option<ReplaceCloud>,
+    /// `CloudLinkDisconnectDialog`, while it is open.
+    pub disconnect: Option<Disconnect>,
+    /// The open folder's one `puppyone` remote (`canDisconnectCloudLink`),
+    /// read on a worker for the folder it names.
+    pub(super) cloud_remote: Option<(PathBuf, String)>,
+    /// The window's Git status: commits here the Cloud copy has not had.
+    source_control: Entity<SourceControl>,
     /// A Cloud opening that failed: the Project and why, while its
     /// recovery shows.
     pub recovery: Option<(String, Failure)>,
@@ -86,6 +82,7 @@ impl WindowCloud {
     pub fn new(
         preferences: Entity<PreferencesStore>,
         catalog: Entity<CloudCatalog>,
+        source_control: Entity<SourceControl>,
         dialogs: &Entity<DialogLayer>,
         window_focus: FocusHandle,
         window: &mut Window,
@@ -100,7 +97,6 @@ impl WindowCloud {
                 s.publish_reported = published;
                 s.repository.update(cx, |r, cx| r.retry(cx));
             }
-            s.report_publication(cx);
             cx.notify()
         })
         .detach();
@@ -108,17 +104,8 @@ impl WindowCloud {
         cx.observe(&repository, |s, _, cx| s.refresh(cx)).detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
-        let services = cx.new(|cx| CloudServices::new(window, cx));
-        cx.subscribe(&services, |s, _, _: &ServicesClose, cx| {
-            s.close_dialog(DialogKey::CloudServices, cx);
-            cx.notify();
-        })
-        .detach();
-        cx.subscribe(&services, |s, _, _: &ResumePublication, cx| {
-            s.resume_publication(cx)
-        })
-        .detach();
         cx.observe(&catalog, |_, _, cx| cx.notify()).detach();
+        cx.observe(&source_control, |_, _, cx| cx.notify()).detach();
         // Cloud turned on or off, Share, the account: everything follows.
         cx.observe(&preferences, |s, _, cx| s.refresh(cx)).detach();
         crate::features::cloud::account::observe(window, cx, |s, _, cx| s.refresh(cx)).detach();
@@ -144,13 +131,12 @@ impl WindowCloud {
             repository,
             agents,
             agents_anchor: Default::default(),
-            services,
             #[cfg(feature = "dev-capture")]
             capture_hosted: false,
-            share_panel: Default::default(),
             dismissed_notice: None,
-            replace_url: None,
-            replace: None,
+            disconnect: None,
+            cloud_remote: None,
+            source_control,
             recovery: None,
         }
     }
@@ -178,6 +164,7 @@ impl WindowCloud {
     /// the account and the preferences.
     pub(super) fn refresh(&mut self, cx: &mut Context<Self>) {
         self.sync_repository_cloud(cx);
+        self.sync_cloud_remote(cx);
         self.sync_cloud_publish(cx);
         self.sync_cloud_agents(cx);
         cx.notify();
@@ -193,6 +180,49 @@ impl WindowCloud {
     }
     pub(super) fn session(&self) -> &SessionView {
         &self.session
+    }
+    /// Commits here that the open folder's upstream has not had
+    /// (`gitTitlebarStatus.outgoing`).
+    pub(super) fn unsent(&self, cx: &App) -> u32 {
+        self.source_control
+            .read(cx)
+            .snapshot
+            .as_ref()
+            .map_or(0, |s| s.ahead)
+    }
+    /// Reads the open folder's `puppyone` remote again when the folder or
+    /// its association changed; a late answer for another folder is dropped.
+    fn sync_cloud_remote(&mut self, cx: &mut Context<Self>) {
+        let Some(root) = self
+            .root()
+            .filter(|_| self.local_folder_notice(cx).is_some())
+        else {
+            self.cloud_remote = None;
+            return;
+        };
+        let task = cx.background_executor().spawn({
+            let root = root.clone();
+            async move {
+                use crate::cloud::publication::git::{Cli, GitOps as _, Remote};
+                match (Cli { helper: None }).remote(&root) {
+                    Ok(Remote::Exact(url)) => Some(url),
+                    _ => None,
+                }
+            }
+        });
+        cx.spawn(async move |this, cx| {
+            let url = task.await;
+            let _ = this.update(cx, |s, cx| {
+                if s.root().as_ref() == Some(&root) {
+                    let next = url.map(|url| (root, url));
+                    if s.cloud_remote != next {
+                        s.cloud_remote = next;
+                        cx.notify();
+                    }
+                }
+            });
+        })
+        .detach();
     }
     /// A handler for a part drawn from a read (the Header, the notices).
     pub(super) fn listener<E: ?Sized>(
@@ -246,15 +276,14 @@ impl WindowCloud {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         match key {
-            DialogKey::CloudServices => Some(self.services.clone().into_any_element()),
             DialogKey::CloudPublish => Some(self.cloud_publish_dialog(cx).into_any_element()),
             DialogKey::ConfirmPublish => {
                 Some(self.publish_confirmation_dialog(cx).into_any_element())
             }
-            DialogKey::ReplaceCloud => self
-                .replace
+            DialogKey::CloudDisconnect => self
+                .disconnect
                 .as_ref()
-                .map(|r| self.replace_cloud_dialog(r, cx).into_any_element()),
+                .map(|d| self.disconnect_dialog(d, cx).into_any_element()),
             DialogKey::CloudRecovery => self.recovery.as_ref().map(|(project, failure)| {
                 self.cloud_open_recovery_dialog(project, failure, cx)
                     .into_any_element()
@@ -267,14 +296,13 @@ impl WindowCloud {
     /// Escape on one of the Cloud's dialogs, each with its own cancel.
     fn dismiss_dialog(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
         match key {
-            DialogKey::CloudServices => self.services.update(cx, |s, cx| s.close(cx)),
             DialogKey::CloudPublish | DialogKey::ConfirmPublish => {
                 self.close_dialog(key, cx);
             }
-            // A replacement on its way cannot be dismissed.
-            DialogKey::ReplaceCloud => {
-                if !self.replace.as_ref().is_some_and(|r| r.busy) {
-                    self.close_replace_cloud(cx);
+            // Ending a link on its way cannot be dismissed.
+            DialogKey::CloudDisconnect => {
+                if !self.disconnect.as_ref().is_some_and(|d| d.busy) {
+                    self.close_disconnect(cx);
                 }
             }
             DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
@@ -289,43 +317,7 @@ impl WindowCloud {
         self.open_dialog(DialogKey::CloudRecovery, cx);
     }
 
-    // ---------------------------------------------------------------- share
-    /// `openShareWizard`: the open Project's Share section, starting from
-    /// `path` (empty is the whole Project). A hosted Project is its own;
-    /// a checkout's is the one it resolved to.
-    pub fn open_share(&mut self, path: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.show_popover(None, cx);
-        let project = self.hosted().or_else(|| {
-            let cloud = self.repository.read(cx);
-            cloud.context.project().map(str::to_owned)
-        });
-        match project {
-            Some(project) => {
-                let share = crate::features::flags::share_enabled(&self.preferences, cx);
-                self.services.update(cx, |s, cx| {
-                    s.share = share;
-                    s.open(project, Section::Share, cx);
-                    s.start_from(path, cx);
-                });
-                self.report_publication(cx);
-                self.open_dialog(DialogKey::CloudServices, cx);
-                self.dialog_focus.focus(window, cx);
-            }
-            // No Cloud Project yet: the value page and its publisher.
-            None => self.put_in_cloud(window, cx),
-        }
-    }
-    /// "Share with…": `providerPath`, the folder relative to the Project.
-    pub fn share_folder(&mut self, path: &Path, window: &mut Window, cx: &mut Context<Self>) {
-        if !crate::features::flags::share_enabled(&self.preferences, cx) {
-            return;
-        }
-        let path: Vec<_> = path
-            .components()
-            .map(|part| part.as_os_str().to_string_lossy())
-            .collect();
-        self.open_share(path.join("/"), window, cx);
-    }
+    // ----------------------------------------------------------------- links
     /// `cloudWorkspaceShareResource`: the selected folder, else the active
     /// document, else the authorized root.
     pub fn copy_link(&mut self, path: &Path, folder: bool, cx: &mut Context<Self>) {

@@ -83,45 +83,8 @@ pub(super) fn failure_copy(code: Code) -> &'static str {
 }
 
 impl WindowCloud {
-    /// The Share wizard waits on the first publication of its Project.
-    pub(super) fn report_publication(&mut self, cx: &mut Context<Self>) {
-        let Some(project) = self.services.read(cx).project().map(str::to_owned) else {
-            return;
-        };
-        let publish = self.publish.read(cx);
-        let publication = publish.publication(&project);
-        let failure = publish
-            .outcome
-            .as_ref()
-            .and_then(|o| o.error.as_ref())
-            .map(|e| tr(failure_copy(e.code)).to_owned());
-        self.services
-            .update(cx, |s, cx| s.sync_publication(publication, failure, cx));
-    }
-    /// `publish.start` from the wizard: the run outlives its dialog as any
-    /// other does, and the Header states it.
-    pub(super) fn resume_publication(&mut self, cx: &mut Context<Self>) {
-        let started = self.publish.update(cx, |p, cx| {
-            let action = p.push_action();
-            p.start(action, cx);
-            p.running.is_some()
-        });
-        if !started {
-            self.services.update(cx, |s, cx| s.publication_refused(cx));
-        }
-    }
     pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
-        // The services dialog ends with its account or with Cloud.
-        if self.dialog_open(DialogKey::CloudServices, cx)
-            && (!enabled || !crate::features::cloud::account::has_account(cx))
-        {
-            self.services.update(cx, |s, cx| s.close(cx));
-        }
-        let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
-            && crate::features::cloud::account::has_account(cx);
-        self.services
-            .update(cx, |s, cx| s.sync_sharing(sharing, cx));
         let root = self.root();
         // The activation page asks for the owning organization only while it
         // shows for a folder without a Cloud project.
@@ -865,87 +828,5 @@ impl WindowCloud {
                 );
         }
         self.publish_dialog(dialog, cx)
-    }
-    /// Review the `puppyone` remote as it is now, off the main thread.
-    pub(super) fn begin_replace(&mut self, cx: &mut Context<Self>) {
-        let Some(root) = self.root() else {
-            return;
-        };
-        self.replace_url = None;
-        let task = cx.background_executor().spawn(async move {
-            use crate::cloud::publication::git::{Cli, GitOps as _, Remote};
-            match (Cli { helper: None }).remote(&root) {
-                Ok(Remote::Exact(url)) => Some(url),
-                _ => None,
-            }
-        });
-        cx.spawn(async move |this, cx| {
-            let url = task.await;
-            let _ = this.update(cx, |s, cx| {
-                if url.is_none()
-                    && let Some(replace) = s.replace.as_mut()
-                {
-                    replace.failed = true;
-                }
-                s.replace_url = url;
-                cx.notify();
-            });
-        })
-        .detach();
-        cx.notify();
-    }
-    /// The exact target is authorized once more with the same session; only
-    /// a second 404 with the reviewed remote unchanged detaches it, and the
-    /// first publication follows (`onDone("replaced")`).
-    pub(super) fn confirm_replace(&mut self, project: String, cx: &mut Context<Self>) {
-        let (Some(root), Some((broker, binding)), Some(url)) = (
-            self.root(),
-            crate::features::cloud::account::broker_and_binding(cx),
-            self.replace_url.clone(),
-        ) else {
-            return;
-        };
-        if let Some(replace) = self.replace.as_mut() {
-            replace.busy = true;
-            replace.failed = false;
-        }
-        cx.notify();
-        let task = cx.background_executor().spawn(async move {
-            use crate::workspace::cloud::repository::{self, Context as Association};
-            let cancel = crate::cloud::auth::Cancellation::default();
-            match repository::authorize(&broker, &binding, &project, &cancel) {
-                // Reachable again: keep the link (`reconnected`).
-                Ok(_) => Ok(false),
-                Err((Association::NotFound { .. }, _)) => {
-                    crate::cloud::publication::git::detach(&root, &url)
-                        .map(|_| true)
-                        .map_err(|_| ())
-                }
-                Err(_) => Err(()),
-            }
-        });
-        cx.spawn(async move |this, cx| {
-            let result = task.await;
-            let _ = this.update(cx, |s, cx| {
-                match result {
-                    Ok(replaced) => {
-                        s.replace = None;
-                        s.close_dialog(DialogKey::ReplaceCloud, cx);
-                        s.repository.update(cx, |r, cx| r.retry(cx));
-                        if replaced && !s.dialog_open(DialogKey::CloudPublish, cx) {
-                            s.open_dialog(DialogKey::CloudPublish, cx);
-                        }
-                    }
-                    Err(()) => {
-                        if let Some(replace) = s.replace.as_mut() {
-                            replace.busy = false;
-                            replace.failed = true;
-                        }
-                    }
-                }
-                cx.notify();
-            });
-        })
-        .detach();
     }
 }

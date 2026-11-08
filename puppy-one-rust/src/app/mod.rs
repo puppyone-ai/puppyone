@@ -29,7 +29,6 @@ mod project_actions;
 mod project_place;
 mod right_sidebar;
 mod session;
-mod share_panel;
 mod sidebar;
 mod window_cloud;
 pub mod windows;
@@ -164,16 +163,6 @@ impl Shell {
         });
         let project =
             cx.new(|_| project::ProjectLifecycle::new(docs.clone(), preferences.clone(), fixture));
-        let cloud = cx.new(|cx| {
-            window_cloud::WindowCloud::new(
-                preferences.clone(),
-                catalog,
-                &dialogs,
-                focus.clone(),
-                window,
-                cx,
-            )
-        });
         let sidebar = cx.new(|cx| {
             right_sidebar::RightSidebar::new(
                 if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
@@ -183,6 +172,17 @@ impl Shell {
                 },
                 preferences.clone(),
                 panes.clone(),
+                window,
+                cx,
+            )
+        });
+        let cloud = cx.new(|cx| {
+            window_cloud::WindowCloud::new(
+                preferences.clone(),
+                catalog,
+                sidebar.read(cx).source_control.clone(),
+                &dialogs,
+                focus.clone(),
                 window,
                 cx,
             )

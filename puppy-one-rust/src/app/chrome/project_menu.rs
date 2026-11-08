@@ -86,7 +86,6 @@ impl WindowChrome {
         let id = match popover {
             Popover::Project => "project-menu",
             Popover::Place => "place-menu",
-            Popover::Share => "share-panel",
             Popover::Agents => "agents-panel",
         };
         let host = self.weak.clone();
@@ -139,9 +138,8 @@ impl WindowChrome {
                         });
                     }
                 }
-                // The Share and Agents cards have their own controls
-                // (`share_control`, `agents_control`).
-                Popover::Share | Popover::Agents => {}
+                // The Agents have their own control (`agents_control`).
+                Popover::Agents => {}
             }
         }
         menu

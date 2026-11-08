@@ -347,7 +347,7 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
         cloud_workspace: on("enableCloudWorkspace"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
         project_reach: on("enableProjectReach"),
-        share_onboarding: not_off("enableShareOnboarding"),
+        host_devices: on("enableHostDevices"),
         workbench_tabs_in_header: on("enableWorkbenchTabsInHeader"),
         git_auto_commit: false,
         markdown_block_drag: on("enableMarkdownBlockDrag"),
@@ -494,7 +494,6 @@ mod tests {
         assert!(p.pointer_cursors);
         assert!(p.experimental.cloud_workspace && p.experimental.other_app_imports);
         assert!(!p.experimental.payments);
-        assert!(p.experimental.share_onboarding, "on unless switched off");
         assert!(!p.experimental.git_auto_commit, "main-owned consent");
         assert!(p.project_switcher_rail);
         assert!(p.files.show_hidden_files);

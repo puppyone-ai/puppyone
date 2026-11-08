@@ -38,7 +38,6 @@ impl Shell {
                     | Command::ToggleExplorer
                     | Command::ToggleRightSidebar
                     | Command::Changes
-                    | Command::CloudServices
                     | Command::CloudHistory
                     | Command::OpenFolder
                     | Command::CreateNew
@@ -374,9 +373,6 @@ impl Shell {
                 self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
                 self.session.docs.update(cx, |d, _| d.error = None);
             }
-            Command::CloudServices => self
-                .cloud
-                .update(cx, |c, cx| c.open_share(String::new(), window, cx)),
             Command::CloudHistory => {
                 let Some(project) = self.hosted_project(cx) else {
                     return;

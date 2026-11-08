@@ -61,14 +61,12 @@ pub(super) enum DialogKey {
     RenameProject,
     /// `ProjectRowConfirmDialog`: unlink a folder or delete a Cloud project.
     ConfirmProject,
-    /// `CloudDialog`: the linked Project's Cloud services.
-    CloudServices,
     /// Putting the open folder in the Cloud (the first publication).
     CloudPublish,
     /// `CloudPublishConfirmationDialog` before the first publication.
     ConfirmPublish,
-    /// `MissingCloudProjectReplacement`.
-    ReplaceCloud,
+    /// `CloudLinkDisconnectDialog`: end the open folder's Cloud link.
+    CloudDisconnect,
     /// `CloudWorkspaceRecovery` for a Cloud opening that failed.
     CloudRecovery,
     /// `CloudWorkspaceAgentsDialog`: Manage agents.

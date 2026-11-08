@@ -39,8 +39,6 @@ pub enum Popover {
     Project,
     /// `ProjectPlaceMenu`: where the open project is.
     Place,
-    /// `CloudWorkspaceShareDialog`: the Share card under its button.
-    Share,
     /// `CloudWorkspaceAgentsPanel`: the Agents card under their marks.
     Agents,
 }
@@ -209,10 +207,10 @@ impl WindowChrome {
     /// - The Homepage names the product (once there are projects) and holds
     ///   the account (`HomepageCloudStatus`).
     /// - A local folder: the Explorer's expand button while it is closed,
-    ///   the project and its place, then the app status, Share, Changes and
-    ///   the Agent entry, each group set off by a rule.
-    /// - A Cloud project (`CloudWorkspaceHeaderTools`): Share, a rule and
-    ///   the Agent entry, on the Cloud's own Header tint.
+    ///   the project and its place, then the app status, Changes and the
+    ///   Agent entry, each group set off by a rule.
+    /// - A Cloud project (`CloudWorkspaceHeaderTools`): its Agents, a rule
+    ///   and the Agent entry, on the theme's own Header.
     fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
         use crate::localization::t as tr;
         let o = &self.owners;
@@ -263,7 +261,7 @@ impl WindowChrome {
             )
         };
         let project = !self.rail && (session.workspace || session.fixture || opening);
-        let mut bar = header::TitleBar::new().cloud(hosted);
+        let mut bar = header::TitleBar::new();
         if !o.panes.read(cx).explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
@@ -288,22 +286,9 @@ impl WindowChrome {
         if hosted {
             let cloud = o.cloud.read(cx);
             if let Some(agents) = cloud.agents_control(cx) {
-                bar = bar.action(agents);
+                bar = bar.action(agents).divider(cx);
             }
-            bar = bar.action(cloud.share_control(cx)).divider(cx);
         } else {
-            // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
-            let share =
-                session.root.is_some() && crate::features::flags::share_enabled(&o.preferences, cx);
-            if share {
-                bar = bar
-                    .action(header::share_entry().on_click(
-                        cx.listener(|s, _, _, cx| s.command(Command::CloudServices, cx)),
-                    ));
-                if changes || agent {
-                    bar = bar.divider(cx);
-                }
-            }
             if changes {
                 use gpui_kit::base::Selectable as _;
                 let status = header::GitTitlebarStatus::of(sidebar.source_control.read(cx));

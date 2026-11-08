@@ -243,7 +243,6 @@ impl Explorer {
                     MenuAt::Pointer(p) => MenuAt::Pointer(*p),
                     _ => MenuAt::Row(primary.clone(), RowTrigger::Create),
                 };
-                let share = crate::features::flags::share_enabled(&self.preferences, cx);
                 // `showPin`: one file of a project.
                 let session = self.session.read(cx);
                 let pinned = (paths.len() == 1 && session.pinnable(primary)).then(|| {
@@ -251,7 +250,7 @@ impl Explorer {
                         .pins(cx)
                         .is_pinned(&primary.to_string_lossy().replace('\\', "/"))
                 });
-                self.node_menu(paths.clone(), primary.clone(), create_at, share, pinned, cx)
+                self.node_menu(paths.clone(), primary.clone(), create_at, pinned, cx)
             }
         }
     }
@@ -356,7 +355,6 @@ impl Explorer {
         paths: Vec<PathBuf>,
         primary: PathBuf,
         create_at: MenuAt,
-        share: bool,
         pinned: Option<bool>,
         cx: &App,
     ) -> MenuFill {
@@ -503,18 +501,6 @@ impl Explorer {
                         if let Err(e) = crate::platform::desktop::open(&path) {
                             cx.emit(ExplorerEvent::Error(e))
                         }
-                    }))),
-            ));
-        }
-        // `showShare`: one folder of a local project. The Cloud project's
-        // Explorer has no Share (`DesktopCloudFileWorkspace` passes none).
-        if share && single && folder && !hosted {
-            let path = primary.clone();
-            rows.push(Some(
-                MenuItem::new(tr("workspace.node.shareWith"))
-                    .icon("share-2")
-                    .on_click(act(Box::new(move |_, _, cx| {
-                        cx.emit(ExplorerEvent::Share { path: path.clone() })
                     }))),
             ));
         }

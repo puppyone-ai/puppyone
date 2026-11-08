@@ -65,8 +65,6 @@ pub enum Command {
     ClearError,
     RetryFileOperation,
     Changes,
-    /// Local Header → Share: the Cloud services dialog (`openCloudDialogAt`).
-    CloudServices,
     /// Cloud Header → History (`CloudWorkspaceHeaderTools`).
     CloudHistory,
     /// The Cloud conflict notice's "Discard edits and reload".

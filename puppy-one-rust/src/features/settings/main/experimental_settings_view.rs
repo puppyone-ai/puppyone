@@ -46,6 +46,8 @@ fn groups(account_available: bool) -> Vec<(&'static str, Vec<Setting>)> {
         true
     )];
     if account_available {
+        // `useHostDevicesEnabled`: the owner's other computers.
+        cloud.push(setting!("hostDevices", experimental.host_devices, true));
         cloud.push(setting!("payments", experimental.payments, true));
     }
     cloud.push(setting!("flowFiles", experimental.puppy_flow_files, true));
@@ -61,7 +63,6 @@ fn groups(account_available: bool) -> Vec<(&'static str, Vec<Setting>)> {
                     "sidebar",
                     "header"
                 ),
-                setting!("shareOnboarding", experimental.share_onboarding, true),
                 setting!(
                     "projectSwitcherRail",
                     project_switcher_rail,

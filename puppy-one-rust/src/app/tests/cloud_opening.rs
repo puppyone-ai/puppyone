@@ -474,7 +474,7 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
 }
 
 #[gpui::test]
-fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestAppContext) {
+fn a_vanished_cloud_projects_link_is_ended_from_its_notice(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("a.md"), "# A\n").unwrap();
@@ -545,33 +545,34 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
             crate::workspace::cloud::repository::Context::NotFound { .. }
         )
     });
-    // Signed in with exactly the reviewed remote: Put in the Cloud again.
+    // Nothing is offered to replace it; the link can be ended instead.
     view.read_with(cx, |s, cx| {
-        assert_eq!(
-            s.place_menu_now(cx).and_then(|m| m.action),
-            Some(super::project_place::Action::PutInCloudAgain)
-        )
-    });
-    view.update_in(cx, |s, w, cx| {
-        s.cloud
-            .update(cx, |c, cx| c.replace_cloud_connection(w, cx))
+        assert_eq!(s.place_menu_now(cx).and_then(|m| m.action), None)
     });
     settle(&view, cx, "the reviewed remote", &|s, cx| {
-        s.cloud.read(cx).replace_url.as_deref() == Some(url) && s.has_dialog("ReplaceCloud", cx)
+        s.cloud.read(cx).disconnectable(cx)
     });
-    let before = authorizations.load(std::sync::atomic::Ordering::SeqCst);
+    view.update_in(cx, |s, w, cx| {
+        s.cloud.update(cx, |c, cx| c.open_disconnect(w, cx))
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("CloudDisconnect", cx));
+        assert_eq!(
+            s.cloud.read(cx).disconnect.as_ref().map(|d| d.url.as_str()),
+            Some(url)
+        );
+    });
     view.update(cx, |s, cx| {
-        s.cloud
-            .update(cx, |c, cx| c.confirm_replace("project-a".into(), cx))
+        s.cloud.update(cx, |c, cx| c.confirm_disconnect(cx))
     });
     settle(&view, cx, "the local detach", &|s, cx| {
         matches!(
             s.cloud.read(cx).repository.read(cx).context,
             crate::workspace::cloud::repository::Context::LocalOnly
-        )
+        ) && !s.has_dialog("CloudDisconnect", cx)
     });
-    // Authorized once more before anything local changed.
-    assert!(authorizations.load(std::sync::atomic::Ordering::SeqCst) > before);
+    // Only the folder's Git connection went; the files stay.
+    assert!(root.join("a.md").exists());
     let remotes = std::process::Command::new("git")
         .args(["remote"])
         .current_dir(&root)

@@ -7,18 +7,6 @@ impl Shell {
     /// The Header card or menu that is open: one at a time.
     pub(in crate::app) fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
         if self.chrome.read(cx).popover != popover {
-            // Share opens on a snapshot of what is open.
-            if popover == Some(Popover::Share) {
-                let resource = match self.explorer.session.read(cx).selected_folder() {
-                    Some(folder) => Some((folder.to_string_lossy().into_owned(), true)),
-                    None => self
-                        .files(cx)
-                        .opened()
-                        .map(|(_, relative)| (relative.to_string_lossy().into_owned(), false)),
-                };
-                self.cloud
-                    .update(cx, |c, cx| c.snapshot_share_panel(resource, cx));
-            }
             self.chrome.update(cx, |c, cx| c.set_popover(popover, cx));
             self.sync_session_view(cx);
             cx.notify();
@@ -98,7 +86,7 @@ impl Shell {
         else {
             return;
         };
-        if self.chrome.read(cx).popover == Some(Popover::Share) {
+        if self.chrome.read(cx).popover == Some(Popover::Agents) {
             self.set_popover(None, cx);
         }
         if hosted {
@@ -490,9 +478,6 @@ impl Shell {
             ExplorerEvent::CopyLink { path, folder } => self
                 .cloud
                 .update(cx, |c, cx| c.copy_link(path, *folder, cx)),
-            ExplorerEvent::Share { path } => self
-                .cloud
-                .update(cx, |c, cx| c.share_folder(path, window, cx)),
         }
         self.receive(window, cx);
         cx.notify();

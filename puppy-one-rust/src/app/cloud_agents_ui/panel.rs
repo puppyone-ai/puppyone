@@ -30,9 +30,8 @@ impl WindowCloud {
                 .text_color(t.text)
                 .child(text)
         };
-        let mut card =
-            share_panel::card("cloud-agents-panel", t, PANEL_WIDTH, PANEL_INSET, px(560.))
-                .gap(px(PANEL_GAP));
+        let mut card = super::card("cloud-agents-panel", t, PANEL_WIDTH, PANEL_INSET, px(560.))
+            .gap(px(PANEL_GAP));
         let anchor = self.agents_anchor.clone();
         let host = self.weak.clone();
         card = card.on_mouse_down_out(move |event, _, cx| {

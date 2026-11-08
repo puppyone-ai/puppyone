@@ -56,7 +56,7 @@ enum Seat {
 /// work right now; at rest it is grey. Asking to join is a dashed edge.
 fn agent_mark(name: &str, active: bool, waiting: bool, seat: Seat, t: Theme) -> Div {
     let ground = match seat {
-        Seat::Header => theme::cloud_header(&t),
+        Seat::Header => t.header,
         Seat::List(ground) => ground,
     };
     let quiet = !active && !waiting;
@@ -401,4 +401,44 @@ mod tests {
             vec![("r", true), ("b", false), ("a", false)]
         );
     }
+}
+
+/// A card under the Header on the project menu's own surface, `inset` from
+/// its edge.
+pub(super) fn card(
+    id: &'static str,
+    t: Theme,
+    width: f32,
+    inset: f32,
+    max_height: Pixels,
+) -> Stateful<Div> {
+    v_flex()
+        .id(id)
+        .debug_selector(move || id.into())
+        .occlude()
+        .w(px(width))
+        .max_h(max_height)
+        .overflow_y_scroll()
+        .p(px(inset))
+        .rounded(px(crate::theme::metric::MENU_RADIUS))
+        .border_1()
+        .border_color(t.shell_divider)
+        .bg(t.header)
+        .text_color(t.text)
+        .shadow(vec![
+            BoxShadow {
+                color: theme::alpha(t.shadow, 0.45).into(),
+                offset: point(px(0.), px(2.)),
+                blur_radius: px(4.),
+                spread_radius: px(0.),
+                inset: false,
+            },
+            BoxShadow {
+                color: theme::alpha(t.shadow, 0.70).into(),
+                offset: point(px(0.), px(12.)),
+                blur_radius: px(28.),
+                spread_radius: px(-8.),
+                inset: false,
+            },
+        ])
 }

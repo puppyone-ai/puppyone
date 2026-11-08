@@ -232,6 +232,19 @@ for retired in ["src/ui/primitives.rs", "src/ui/menu.rs", "src/ui/exact_text.rs"
                 "src/features/settings/components.rs", "src/geometry/menu_position.rs"]:
     if (root / retired).exists():
         errors.append(f"{retired}: retired presentation helper remains; use ui::components")
+# Surfaces the product retired (qubits `6f896add1`, `acf8b23df`): the Cloud
+# services dialog and its pages, Share with people, Project Reach and the
+# missing-project replacement. They stay retired.
+for retired in ["src/features/cloud/services", "src/app/share_panel.rs",
+                "src/workspace/cloud/share.rs", "src/workspace/cloud/access_points.rs",
+                "src/workspace/cloud/permissions.rs"]:
+    if (root / retired).exists():
+        errors.append(f"{retired}: retired Cloud surface returned")
+for path in (root / 'src').rglob('*.rs'):
+    source = path.read_text()
+    for token in ("share_onboarding", "ReplaceCloud", "CloudServices", "cloud_header("):
+        if token in source:
+            errors.append(f"{path.relative_to(root)}: names the retired {token}")
 # Style system: `theme.rs` is the only colour source (projected from the
 # product theme packs and tokens.css) and `editor/tokens.rs` the editor's
 # (it parses and composites the product's computed editor tokens);

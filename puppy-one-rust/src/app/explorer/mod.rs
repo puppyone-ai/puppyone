@@ -79,7 +79,6 @@ struct PaintedPreferences {
     create_new: crate::features::create_new::MenuSettings,
     puppy_flow_files: bool,
     cloud_workspace: bool,
-    share_onboarding: bool,
     agent_file_activity_indicators: bool,
     explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
 }
@@ -94,7 +93,6 @@ impl PaintedPreferences {
             create_new: p.create_new.clone(),
             puppy_flow_files: p.experimental.puppy_flow_files,
             cloud_workspace: p.experimental.cloud_workspace,
-            share_onboarding: p.experimental.share_onboarding,
             agent_file_activity_indicators: p.agent_file_activity_indicators,
             explorer_pins: p.explorer_pins.clone(),
         }
@@ -112,8 +110,6 @@ pub(in crate::app) enum ExplorerEvent {
     Rename { path: PathBuf, change_type: bool },
     /// Cloud Explorer "Copy Link": the hosted resource URL of `path`.
     CopyLink { path: PathBuf, folder: bool },
-    /// "Share with…" on a folder: the share starts from `path`.
-    Share { path: PathBuf },
     /// A notice.
     Error(String),
 }

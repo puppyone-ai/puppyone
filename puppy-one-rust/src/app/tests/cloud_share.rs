@@ -1,40 +1,7 @@
-//! The window's Cloud services: Share, the Agents, the plan page, the
-//! hosted workbench.
+//! The window's Cloud services: the Agents, the plan page, the hosted
+//! workbench.
 use super::*;
 use core::prelude::v1::test;
-
-/// C-4: Share is a card under its button, not a dialog; Escape closes it.
-#[gpui::test]
-fn the_share_card_hangs_under_its_button_and_escape_closes_it(cx: &mut TestAppContext) {
-    let (view, cx) = setup(cx);
-    let (broker, browser) =
-        crate::cloud::auth::responding_account_fixture(with_catalog(cloud_project_responder()));
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
-    view.update(cx, |s, cx| {
-        s.prefs
-            .store
-            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
-    });
-    settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud::account::has_account(cx)
-    });
-    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
-    settle_cloud(&view, cx, "the hosted Project", &|s, cx| {
-        s.hosted_project(cx).as_deref() == Some("project-a")
-    });
-    view.update(cx, |s, cx| s.set_popover(Some(Popover::Share), cx));
-    draw(cx);
-    // The fixture's project id is not one the website can address, so the
-    // card says the project cannot be shared yet (the links themselves are
-    // `share_panel::tests`).
-    let card = cx.debug_bounds("cloud-workspace-share").unwrap();
-    assert!((f32::from(card.size.width) - 380.).abs() < 0.5);
-    view.read_with(cx, |s, cx| {
-        assert!(s.cloud.read(cx).share_panel.targets.is_empty())
-    });
-    command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, cx| assert!(s.chrome.read(cx).popover.is_none()));
-}
 
 /// C-3, N-6: the Agents in a hosted workspace stand beside Share, someone
 /// asking to join first. Any mark opens their card and the same mark closes
@@ -187,213 +154,6 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     });
 }
 
-/// C-12: the local Header's Share opens the linked Project's services, and
-/// signing out ends them.
-#[gpui::test]
-fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut TestAppContext) {
-    let (view, cx, Linked { _temp, .. }) =
-        linked_checkout(cx, with_catalog(cloud_project_responder()));
-    settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
-    });
-    command(&view, cx, Command::CloudServices);
-    view.read_with(cx, |s, cx| {
-        assert!(s.has_dialog("CloudServices", cx));
-    });
-    // Escape answers it, like the product's dialog root.
-    command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
-    command(&view, cx, Command::CloudServices);
-    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
-    settle_cloud(&view, cx, "the closed dialog", &|s, cx| {
-        !s.has_dialog("CloudServices", cx)
-    });
-}
-
-/// C-14.3: "Share with…" on one folder opens the linked Project's Share
-/// section from that folder. A file, several rows, or onboarding off offer
-/// nothing, and nothing opens.
-#[gpui::test]
-fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
-    use explorer::MenuAt;
-    let (view, cx, Linked { _temp, .. }) =
-        linked_checkout(cx, with_catalog(cloud_project_responder()));
-    settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
-    });
-    let explorer = explorer_of(&view, cx);
-    settle_cloud(&view, cx, "the rows", &|s, cx| {
-        let rows = &s.explorer.session.read(cx).tree().rows;
-        rows.iter().any(|r| r.folder) && rows.iter().any(|r| !r.folder)
-    });
-    let share = crate::localization::t("workspace.node.shareWith").to_owned();
-    let (folder, file, path) = session_of(&view, cx).read_with(cx, |e, _| {
-        let rows = &e.tree().rows;
-        let folder = rows.iter().position(|r| r.folder).unwrap();
-        (
-            folder,
-            rows.iter().position(|r| !r.folder).unwrap(),
-            rows[folder].path.clone(),
-        )
-    });
-    assert_eq!(path, PathBuf::from("docs"));
-    let at = MenuAt::Pointer(point(px(100.), px(100.)));
-    let offers = |index: usize, cx: &mut VisualTestContext| {
-        let at = at.clone();
-        explorer.update(cx, |e, cx| {
-            e.open_node_menu(index, at, cx);
-            let labels = e.open_menu_labels(cx);
-            e.dismiss_menu(cx);
-            labels
-        })
-    };
-    assert!(offers(folder, cx).contains(&share));
-    assert!(!offers(file, cx).contains(&share));
-
-    let off = |view: &Entity<Shell>, on: bool, cx: &mut VisualTestContext| {
-        view.update(cx, |s, cx| {
-            s.prefs
-                .store
-                .update(cx, |p, _| p.state.experimental.share_onboarding = on)
-        })
-    };
-    off(&view, false, cx);
-    assert!(!offers(folder, cx).contains(&share));
-    let shared = path.clone();
-    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path: shared }));
-    draw(cx);
-    view.read_with(cx, |s, cx| {
-        assert!(!s.has_dialog("CloudServices", cx));
-    });
-    off(&view, true, cx);
-
-    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path }));
-    draw(cx);
-    view.read_with(cx, |s, cx| {
-        assert!(s.has_dialog("CloudServices", cx));
-        assert_eq!(s.cloud.read(cx).services.read(cx).share_start(), "docs");
-    });
-}
-
-/// C-12.3, end to end with the real coordinator and journal: the first push
-/// stopped, so Share resumes it, and the server sees the request for access
-/// only once the journal is gone.
-#[gpui::test]
-fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAppContext) {
-    use crate::cloud::publication::{
-        Action, Code, Coordinator,
-        fixtures::{Fake, coordinator},
-        journal::Journal,
-    };
-    use crate::features::cloud::Publication;
-    use std::sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
-    };
-    let (_repository, fake) = Fake::new();
-    fake.fail_next_push(Code::PushFailed);
-    let issued = Arc::new(AtomicUsize::new(0));
-    let finished_first = Arc::new(AtomicBool::new(false));
-    let responder: crate::cloud::auth::Responder = {
-        let (issued, finished_first) = (issued.clone(), finished_first.clone());
-        let git_dir = fake.git_dir.clone();
-        let base = cloud_project_responder();
-        Arc::new(move |request| {
-            if request.path == "/mcp-endpoints" && request.method == reqwest::Method::POST {
-                issued.fetch_add(1, SeqCst);
-                let journal = Journal::in_git_dir(&git_dir).read().unwrap();
-                finished_first.store(journal.is_none(), SeqCst);
-                return Ok(serde_json::json!({"code": 0, "data": {"id": "e1",
-                    "project_id": "project-a", "name": "Claude", "api_key": "pwk_once",
-                    "status": "active", "path": "", "accesses": []}}));
-            }
-            base(request)
-        })
-    };
-    let (view, cx, Linked { _temp, .. }) = linked_checkout(cx, with_catalog(responder));
-    settle_cloud(&view, cx, "the association", &|s, cx| {
-        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
-    });
-    // One vault across both runs, as the Keychain is.
-    let vault = coordinator(&fake).1;
-    cx.update(|_, cx| {
-        crate::features::cloud::install_factory(
-            Arc::new(move |_, _| Coordinator {
-                git: fake.clone(),
-                cloud: fake.clone(),
-                vault: vault.clone(),
-            }),
-            cx,
-        )
-    });
-    view.update(cx, |s, cx| {
-        s.cloud.read(cx).publish.clone().update(cx, |p, cx| {
-            p.selected = Some("org-1".into());
-            p.start(Action::Initialize, cx)
-        })
-    });
-    settle_cloud(&view, cx, "the stopped push", &|s, cx| {
-        s.cloud.read(cx).publish.read(cx).publication("project-a") == Publication::Pending
-    });
-
-    command(&view, cx, Command::CloudServices);
-    let services = view.read_with(cx, |s, cx| s.cloud.read(cx).services.clone());
-    services.update(cx, |s, cx| s.share_now(cx));
-    settle_cloud(&view, cx, "the share", &|s, cx| {
-        s.cloud.read(cx).services.read(cx).share_ready()
-    });
-    assert_eq!(issued.load(SeqCst), 1);
-    assert!(
-        finished_first.load(SeqCst),
-        "access was issued before the push finished"
-    );
-    view.read_with(cx, |s, cx| {
-        assert_eq!(
-            s.cloud.read(cx).publish.read(cx).published.as_deref(),
-            Some("project-a")
-        );
-    });
-}
-
-#[gpui::test]
-fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
-    let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().canonicalize().unwrap();
-    assert!(
-        std::process::Command::new("git")
-            .args(["init", "-q"])
-            .current_dir(&root)
-            .status()
-            .unwrap()
-            .success()
-    );
-    let (view, cx) = setup(cx);
-    let (broker, browser) =
-        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
-    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
-    view.update(cx, |s, cx| {
-        s.prefs
-            .store
-            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
-    });
-    settle_cloud(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud::account::has_account(cx)
-    });
-    view.update(cx, |s, cx| {
-        s.session
-            .docs
-            .update(cx, |d, _| d.begin(Intent::OpenFolder(root.clone())))
-    });
-    settle_cloud(&view, cx, "the local project", &|s, cx| {
-        s.workspace_root(cx).as_deref() == Some(root.as_path())
-    });
-    command(&view, cx, Command::CloudServices);
-    view.read_with(cx, |s, cx| {
-        assert!(!s.has_dialog("CloudServices", cx));
-        assert!(s.has_dialog("CloudPublish", cx));
-    });
-}
-
 /// `useAccountPlan`: "Never show one organization's money under another's
 /// name." The server answering for the wrong organization shows nothing.
 #[gpui::test]
@@ -525,4 +285,40 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
+}
+
+/// qubits `6f896add1`: Share is retired. A folder of a linked checkout
+/// offers no "Share with…", and no Header tool shares the project.
+#[gpui::test]
+fn a_linked_folder_offers_no_share(cx: &mut TestAppContext) {
+    use explorer::MenuAt;
+    let (view, cx, Linked { _temp, .. }) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
+    });
+    let explorer = explorer_of(&view, cx);
+    settle_cloud(&view, cx, "the rows", &|s, cx| {
+        s.explorer
+            .session
+            .read(cx)
+            .tree()
+            .rows
+            .iter()
+            .any(|r| r.folder)
+    });
+    let folder = session_of(&view, cx).read_with(cx, |e, _| {
+        e.tree().rows.iter().position(|r| r.folder).unwrap()
+    });
+    let share = crate::localization::t("workspace.node.shareWith").to_owned();
+    let labels = explorer.update(cx, |e, cx| {
+        e.open_node_menu(folder, MenuAt::Pointer(point(px(100.), px(100.))), cx);
+        let labels = e.open_menu_labels(cx);
+        e.dismiss_menu(cx);
+        labels
+    });
+    assert!(!labels.is_empty());
+    assert!(!labels.contains(&share));
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-share").is_none());
 }

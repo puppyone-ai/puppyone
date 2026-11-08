@@ -7,7 +7,7 @@
 //!   window controls, the empty space that moves the window, and the
 //!   trailing actions
 //! - [`ChangesButton`]: the Changes entry, showing [`GitTitlebarStatus`]
-//! - [`agent_entry`], [`share_entry`], [`brand_name`]: the Agent and Share
+//! - [`agent_entry`], [`brand_name`]: the Agent
 //!   entries, and the Homepage's product name
 use crate::{
     features::source_control::SourceControl,
@@ -31,16 +31,10 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
-    cloud: bool,
 }
 impl TitleBar {
     pub fn new() -> Self {
         Self::default()
-    }
-    /// The Cloud Computer is on screen (`--po-cloud-header-bg`).
-    pub fn cloud(mut self, cloud: bool) -> Self {
-        self.cloud = cloud;
-        self
     }
     pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
         self.tabs = Some(tabs.into_any_element());
@@ -93,11 +87,7 @@ impl RenderOnce for TitleBar {
             .size_full()
             .flex()
             .items_center()
-            .bg(if self.cloud {
-                theme::cloud_header(&t)
-            } else {
-                t.header
-            })
+            .bg(t.header)
             .border_b_1()
             .border_color(t.shell_divider)
             .child(
@@ -302,18 +292,6 @@ pub(super) fn agent_entry(open: bool) -> Button {
         .accessibility_label(label)
         .tooltip(label)
         .selected(open)
-        .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
-}
-
-/// `.desktop-titlebar-share`: the 15px forward arrow (1.8 stroke) alone,
-/// named by its tooltip.
-pub(super) fn share_entry() -> Button {
-    use gpui_kit::component::Sizable as _;
-    Button::new("cloud-share")
-        .variant(ButtonVariant::Titlebar)
-        .icon(Icon::new("forward").with_size(px(15.)).stroke(1.8))
-        .accessibility_label(tr("shell.titlebar.share"))
-        .tooltip(tr("shell.titlebar.share"))
         .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 

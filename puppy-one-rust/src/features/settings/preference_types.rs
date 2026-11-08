@@ -129,7 +129,8 @@ impl SetupSuggestions {
 pub struct Experimental {
     pub project_reach: bool,
     pub workbench_tabs_in_header: bool,
-    pub share_onboarding: bool,
+    /// `enableHostDevices`: the owner's other computers (`VITE_HOST_DEVICES_ENABLED`).
+    pub host_devices: bool,
     pub multi_root_workspaces: bool,
     pub always_show_onboarding_coachmarks: bool,
     pub editor_tabs_in_header: bool,
@@ -147,7 +148,7 @@ impl Default for Experimental {
         Self {
             project_reach: false,
             workbench_tabs_in_header: false,
-            share_onboarding: true,
+            host_devices: crate::features::flags::HOST_DEVICES_BUILD,
             multi_root_workspaces: false,
             always_show_onboarding_coachmarks: false,
             editor_tabs_in_header: false,
@@ -581,7 +582,6 @@ mod tests {
         let p = Preferences::from_stored(serde_json::json!({"version":1,"dark":false})).unwrap();
         assert_eq!(p.theme_mode, ThemeMode::Light);
         assert_eq!(p.files.exclude_patterns.len(), 6);
-        assert!(p.experimental.share_onboarding);
         let fresh = Preferences::from_stored(serde_json::json!({})).unwrap();
         assert_eq!(fresh.theme_mode, ThemeMode::System);
         assert!(fresh.show_file_icons);

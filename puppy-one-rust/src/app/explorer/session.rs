@@ -183,18 +183,6 @@ impl ExplorerSession {
     pub fn is_folder(&self, path: &Path) -> bool {
         self.tree.is_folder(path)
     }
-    /// The selected folder (Share's folder target), if a folder is selected.
-    pub fn selected_folder(&self) -> Option<PathBuf> {
-        let selected = &self.tree.selected;
-        if selected.as_os_str().is_empty() {
-            return None;
-        }
-        self.tree
-            .rows
-            .iter()
-            .find(|r| &r.path == selected && r.folder)
-            .map(|r| r.path.clone())
-    }
     /// Metadata uses every hydrated node, including collapsed descendants.
     /// Retained editors resolve against their owner, never the active project.
     pub fn reference_context(

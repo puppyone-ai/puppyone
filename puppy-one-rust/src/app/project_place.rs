@@ -6,8 +6,9 @@
 //! ADR-001). The Header's place menu states where the open project is and
 //! offers the one action that applies: put a folder in the Cloud, or open
 //! the other project of a linked pair. It never moves one project between
-//! this computer and the Cloud. Inviting a person and connecting an agent
-//! sit under putting it in the Cloud; a Cloud project's History follows.
+//! this computer and the Cloud. A Cloud project's History follows. A
+//! folder's link that cannot be used from here can be ended
+//! (`CloudLinkDisconnectDialog`).
 use super::window_cloud::{CloudEvent, WindowCloud};
 use super::*;
 use crate::workspace::cloud::catalog::Item;
@@ -99,7 +100,6 @@ pub(super) enum Action {
         name: Option<String>,
     },
     SignIn,
-    PutInCloudAgain,
     OpenLocalFolder {
         path: PathBuf,
         name: String,
@@ -116,7 +116,6 @@ pub(super) fn resolve(
     unhosted: bool,
     publish_pending: bool,
     notice: Option<&Notice>,
-    missing_replaceable: bool,
     linked_folder: Option<(PathBuf, String)>,
 ) -> PlaceMenu {
     let action = if place == Place::Cloud {
@@ -136,20 +135,11 @@ pub(super) fn resolve(
                 name: name.clone(),
             }),
             Some(Notice::SignIn) => Some(Action::SignIn),
-            Some(Notice::Missing) if missing_replaceable => Some(Action::PutInCloudAgain),
             // The folder's notice explains the rest; nothing that cannot work.
             _ => None,
         }
     };
     PlaceMenu { place, action }
-}
-/// `sharesThroughCloud`: inviting and connecting reach this folder's Cloud
-/// project, new or existing.
-fn shares_through_cloud(action: &Action) -> bool {
-    matches!(
-        action,
-        Action::PutInCloud { .. } | Action::OpenCloudProject { .. }
-    )
 }
 fn place_label(place: Place) -> &'static str {
     match place {
@@ -176,16 +166,6 @@ impl WindowCloud {
             return None;
         }
         notice_of(&self.repository.read(cx).context)
-    }
-    /// `canReplaceMissingCloudProject`: signed in, the Project is gone, and
-    /// the checkout has exactly the reviewed `puppyone` remote.
-    fn missing_replaceable(&self, cx: &App) -> bool {
-        crate::features::cloud::account::has_account(cx)
-            && matches!(
-                self.repository.read(cx).context,
-                Association::NotFound { .. }
-            )
-            && self.root().is_some()
     }
     /// The Header place menu's state (`placeMenu`), absent without Cloud.
     /// `items` is the shared project list, where a hosted Project finds the
@@ -214,7 +194,6 @@ impl WindowCloud {
             unhosted,
             publish_pending,
             self.local_folder_notice(cx).as_ref(),
-            self.missing_replaceable(cx),
             linked_folder,
         ))
     }
@@ -233,7 +212,7 @@ impl WindowCloud {
             .font_weight(FontWeight::MEDIUM)
     }
     /// `ProjectPlaceRows`: the current place as a fact, then the Cloud
-    /// action with inviting and connecting under it, then History.
+    /// action, then History.
     pub(super) fn place_rows(
         &self,
         menu: PlaceMenu,
@@ -241,8 +220,6 @@ impl WindowCloud {
     ) -> impl FnOnce(crate::ui::components::Menu) -> crate::ui::components::Menu + 'static {
         let t = cx.palette();
         let host = self.weak.clone();
-        let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
-            && menu.action.as_ref().is_some_and(shares_through_cloud);
         let history = self.hosted().is_some() && crate::features::cloud::account::has_account(cx);
         let current = MenuItem::new(place_label(menu.place))
             .icon_sized(place_icon(menu.place).with_size(px(15.)).stroke(1.75))
@@ -270,12 +247,6 @@ impl WindowCloud {
                     Place::Cloud,
                     Icon::product(ProductIcon::Cloud),
                     tr("cloud.auth.signIn"),
-                    None,
-                ),
-                Action::PutInCloudAgain => (
-                    Place::Cloud,
-                    Icon::product(ProductIcon::CloudUpload),
-                    tr("cloud.localFolderNotice.putInCloud"),
                     None,
                 ),
                 Action::OpenLocalFolder { name, .. } => (
@@ -307,22 +278,6 @@ impl WindowCloud {
             }
             row
         });
-        let invite = sharing.then(|| {
-            let host = host.clone();
-            MenuItem::new(tr("shell.projectReach.invitePerson"))
-                .icon_sized(Icon::new("user-plus").small().stroke(1.8))
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.open_share(String::new(), w, cx));
-                })
-        });
-        let connect = sharing.then(|| {
-            let host = host.clone();
-            MenuItem::new(tr("shell.projectReach.connectAgent"))
-                .icon_sized(Icon::new("plug").small().stroke(1.8))
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.open_share(String::new(), w, cx));
-                })
-        });
         let history = history.then(|| {
             let host = host.clone();
             MenuItem::new(tr("source-control.history.title"))
@@ -336,9 +291,7 @@ impl WindowCloud {
         move |surface| {
             let mut surface = surface.list(2., [current]);
             if let Some(action) = action {
-                surface = surface
-                    .separator()
-                    .list(2., std::iter::once(action).chain(invite).chain(connect));
+                surface = surface.separator().list(2., std::iter::once(action));
             }
             if let Some(history) = history {
                 surface = surface.separator().item(history);
@@ -358,7 +311,6 @@ impl WindowCloud {
             Action::PutInCloud { .. } => self.put_in_cloud(window, cx),
             Action::OpenCloudProject { project, .. } => cx.emit(CloudEvent::OpenCloud(project)),
             Action::SignIn => self.sign_in_for_cloud(window, cx),
-            Action::PutInCloudAgain => self.replace_cloud_connection(window, cx),
             Action::OpenLocalFolder { path, .. } => cx.emit(CloudEvent::OpenProject(path)),
         }
         cx.notify();
@@ -388,24 +340,6 @@ impl WindowCloud {
         self.dialog_focus.focus(window, cx);
         cx.notify();
     }
-    pub(super) fn close_replace_cloud(&mut self, cx: &mut Context<Self>) {
-        self.replace = None;
-        self.close_dialog(DialogKey::ReplaceCloud, cx);
-    }
-    /// `setReplacingMissingCloudProject(true)`.
-    pub(super) fn replace_cloud_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Association::NotFound { project } = self.repository.read(cx).context.clone() else {
-            return;
-        };
-        self.replace = Some(ReplaceCloud {
-            project,
-            busy: false,
-            failed: false,
-        });
-        self.open_dialog(DialogKey::ReplaceCloud, cx);
-        self.dialog_focus.focus(window, cx);
-        self.begin_replace(cx);
-    }
     /// `LocalFolderCloudNotice`: the folder stays usable; this only says
     /// what its Cloud project means and offers the one action that helps.
     pub(super) fn local_folder_notice_view(&self, cx: &App) -> Option<FloatingNotice> {
@@ -425,7 +359,13 @@ impl WindowCloud {
                     let _ = host.update(cx, |s, cx| run(s, w, cx));
                 })
             };
-        let replaceable = self.missing_replaceable(cx);
+        let disconnect = self.disconnectable(cx).then(|| {
+            action(
+                "local-folder-notice-disconnect",
+                tr("cloud.localFolderNotice.disconnect"),
+                |s, w, cx| s.open_disconnect(w, cx),
+            )
+        });
         let (tone, message, action) = match &notice {
             Notice::Linked {
                 project,
@@ -472,28 +412,17 @@ impl WindowCloud {
                     ),
                     None => tr("cloud.localFolderNotice.otherEnvironmentUnknown").to_owned(),
                 },
-                None,
+                disconnect,
             ),
             Notice::Missing => (
                 NoticeTone::Warning,
-                tr(if replaceable {
-                    "cloud.localFolderNotice.missing"
-                } else {
-                    "cloud.localFolderNotice.missingNoAction"
-                })
-                .to_owned(),
-                replaceable.then(|| {
-                    action(
-                        "local-folder-notice-put",
-                        tr("cloud.localFolderNotice.putInCloud"),
-                        |s, w, cx| s.replace_cloud_connection(w, cx),
-                    )
-                }),
+                tr("cloud.localFolderNotice.missing").to_owned(),
+                disconnect,
             ),
             Notice::NoAccess => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.noAccess").to_owned(),
-                None,
+                disconnect,
             ),
             Notice::Ambiguous => (
                 NoticeTone::Warning,
@@ -591,31 +520,112 @@ impl WindowCloud {
                     })),
             )
     }
-    /// `MissingCloudProjectReplacement`: retire the folder's link to the
-    /// Cloud project that no longer exists, then continue to the first
-    /// publication. If the project is reachable again, the link stays.
-    pub(super) fn replace_cloud_dialog(
-        &self,
-        replace: &ReplaceCloud,
-        cx: &mut Context<Self>,
-    ) -> Dialog {
+    /// `canDisconnectCloudLink`: the folder's link can be ended from here —
+    /// exactly one `puppyone` remote — whatever state it is in, except while
+    /// a first publication owns it.
+    pub(super) fn disconnectable(&self, cx: &App) -> bool {
+        self.local_folder_notice(cx).is_some()
+            && self
+                .cloud_remote
+                .as_ref()
+                .is_some_and(|(root, _)| Some(root) == self.root().as_ref())
+            && self.publish.read(cx).header_status().is_none()
+    }
+    /// Opens `CloudLinkDisconnectDialog` on the remote as it was reviewed.
+    pub(super) fn open_disconnect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((_, url)) = self.cloud_remote.clone() else {
+            return;
+        };
+        if !self.disconnectable(cx) {
+            return;
+        }
+        let project_name = match self.local_folder_notice(cx) {
+            Some(Notice::Linked { name, .. }) => name,
+            _ => None,
+        };
+        self.show_popover(None, cx);
+        self.disconnect = Some(Disconnect {
+            project_name,
+            unsent: self.unsent(cx),
+            url,
+            busy: false,
+            failed: false,
+        });
+        self.open_dialog(DialogKey::CloudDisconnect, cx);
+        self.dialog_focus.focus(window, cx);
+        cx.notify();
+    }
+    pub(super) fn close_disconnect(&mut self, cx: &mut Context<Self>) {
+        self.disconnect = None;
+        self.close_dialog(DialogKey::CloudDisconnect, cx);
+    }
+    /// Native Detach: only the folder's Git connection goes, and only if the
+    /// remote is still the one reviewed. The Cloud project and the files
+    /// stay; the folder is then an ordinary local project.
+    pub(super) fn confirm_disconnect(&mut self, cx: &mut Context<Self>) {
+        let (Some(root), Some(url)) =
+            (self.root(), self.disconnect.as_ref().map(|d| d.url.clone()))
+        else {
+            return;
+        };
+        if let Some(d) = self.disconnect.as_mut() {
+            if d.busy {
+                return;
+            }
+            d.busy = true;
+            d.failed = false;
+        }
+        cx.notify();
+        let task = cx
+            .background_executor()
+            .spawn(async move { crate::cloud::publication::git::detach(&root, &url) });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |s, cx| {
+                match result {
+                    Ok(()) => {
+                        s.close_disconnect(cx);
+                        s.cloud_remote = None;
+                        s.repository.update(cx, |r, cx| r.retry(cx));
+                    }
+                    Err(_) => {
+                        if let Some(d) = s.disconnect.as_mut() {
+                            d.busy = false;
+                            d.failed = true;
+                        }
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    /// `CloudLinkDisconnectDialog`: what ending the link does, Cancel first.
+    pub(super) fn disconnect_dialog(&self, d: &Disconnect, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
         let host = self.weak.clone();
-        let busy = replace.busy;
-        let project = replace.project.clone();
-        Dialog::new("cloud-replace")
-            .width(400.)
-            .title(tr("cloud.activation.project.replaceTitle"))
-            .leading(
-                Icon::product(ProductIcon::CloudUpload)
-                    .with_size(px(17.))
-                    .stroke(1.8),
-                t.brand_blue,
-            )
+        let busy = d.busy;
+        let mut text = match &d.project_name {
+            Some(name) => tf(
+                "cloud.disconnect.description",
+                &[("project", crate::localization::bidi_isolate(name).into())],
+            ),
+            None => tr("cloud.disconnect.descriptionUnnamed").to_owned(),
+        };
+        if d.unsent > 0 {
+            text.push(' ');
+            text.push_str(&tf(
+                "cloud.disconnect.unsent",
+                &[("count", d.unsent.into())],
+            ));
+        }
+        Dialog::new("cloud-disconnect")
+            .width(420.)
+            .title(tr("cloud.disconnect.title"))
             .on_close(move |_, cx| {
                 let _ = host.update(cx, |s, cx| {
                     if !busy {
-                        s.close_replace_cloud(cx);
+                        s.close_disconnect(cx);
                         cx.notify();
                     }
                 });
@@ -625,44 +635,51 @@ impl WindowCloud {
                     .text_size(px(theme::ty().ui.body))
                     .line_height(relative(1.5))
                     .text_color(t.muted)
-                    .child(tr("cloud.activation.project.replaceDescription")),
+                    .child(text),
             )
-            .when(replace.failed, |d| {
-                d.child(
+            .when(d.failed, |dialog| {
+                dialog.child(
                     div()
                         .pt(px(8.))
                         .text_size(px(theme::ty().ui.meta))
                         .text_color(t.danger)
-                        .child(tr("cloud.activation.project.replaceFailed")),
+                        .child(tr("cloud.disconnect.failed")),
                 )
             })
             .footer(
-                Button::new("cloud-replace-cancel")
+                // Cancel holds the focus: ending a link is not one Enter away.
+                Button::new("cloud-disconnect-cancel")
                     .variant(ButtonVariant::Secondary)
-                    .label(tr("cloud.common.cancel"))
+                    .label(tr("common.action.cancel"))
                     .disabled(busy)
+                    .track_focus(&self.dialog_focus.clone())
                     .on_click(cx.listener(|s, _, _, cx| {
-                        s.close_replace_cloud(cx);
+                        s.close_disconnect(cx);
                         cx.notify();
                     })),
             )
             .footer(
-                Button::new("cloud-replace-confirm")
-                    .variant(ButtonVariant::Solid)
-                    .label(tr("cloud.activation.project.replaceConfirm"))
-                    .disabled(busy || self.replace_url.is_none())
-                    .track_focus(&self.dialog_focus.clone())
-                    .on_click(
-                        cx.listener(move |s, _, _, cx| s.confirm_replace(project.clone(), cx)),
-                    ),
+                Button::new("cloud-disconnect-confirm")
+                    .variant(ButtonVariant::SolidDanger)
+                    .label(tr(if busy {
+                        "cloud.disconnect.progress"
+                    } else {
+                        "cloud.disconnect.confirm"
+                    }))
+                    .disabled(busy)
+                    .on_click(cx.listener(|s, _, _, cx| s.confirm_disconnect(cx))),
             )
     }
 }
 
-/// The replacement in progress.
+/// Ending a folder's Cloud link, as reviewed when the dialog opened.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ReplaceCloud {
-    pub project: String,
+pub(super) struct Disconnect {
+    pub project_name: Option<String>,
+    /// Commits here that the Cloud project has not had.
+    pub unsent: u32,
+    /// The `puppyone` remote's URL, compared again under the lock.
+    pub url: String,
     pub busy: bool,
     pub failed: bool,
 }
@@ -674,23 +691,15 @@ mod tests {
 
     #[test]
     fn the_place_menu_offers_the_one_action_that_applies() {
-        let local = |unhosted, pending, notice: Option<Notice>, replaceable| {
-            resolve(
-                Place::Local,
-                unhosted,
-                pending,
-                notice.as_ref(),
-                replaceable,
-                None,
-            )
-            .action
+        let local = |unhosted, pending, notice: Option<Notice>| {
+            resolve(Place::Local, unhosted, pending, notice.as_ref(), None).action
         };
         assert_eq!(
-            local(true, false, None, false),
+            local(true, false, None),
             Some(Action::PutInCloud { continuing: false })
         );
         assert_eq!(
-            local(false, true, None, false),
+            local(false, true, None),
             Some(Action::PutInCloud { continuing: true })
         );
         let linked = Notice::Linked {
@@ -699,28 +708,24 @@ mod tests {
             openable: true,
         };
         assert_eq!(
-            local(false, false, Some(linked), false),
+            local(false, false, Some(linked)),
             Some(Action::OpenCloudProject {
                 project: "p".into(),
                 name: Some("P".into())
             })
         );
         assert_eq!(
-            local(false, false, Some(Notice::SignIn), false),
+            local(false, false, Some(Notice::SignIn)),
             Some(Action::SignIn)
         );
-        assert_eq!(local(false, false, Some(Notice::Missing), false), None);
-        assert_eq!(
-            local(false, false, Some(Notice::Missing), true),
-            Some(Action::PutInCloudAgain)
-        );
-        assert_eq!(local(false, false, Some(Notice::NoAccess), false), None);
+        // A vanished project is ended from its notice, never replaced.
+        assert_eq!(local(false, false, Some(Notice::Missing)), None);
+        assert_eq!(local(false, false, Some(Notice::NoAccess)), None);
         let cloud = resolve(
             Place::Cloud,
             false,
             false,
             None,
-            false,
             Some(("/x/a".into(), "A".into())),
         );
         assert_eq!(
@@ -730,10 +735,7 @@ mod tests {
                 name: "A".into()
             })
         );
-        assert_eq!(
-            resolve(Place::Cloud, false, false, None, false, None).action,
-            None
-        );
+        assert_eq!(resolve(Place::Cloud, false, false, None, None).action, None);
     }
 
     #[test]
