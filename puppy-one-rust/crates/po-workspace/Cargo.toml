@@ -23,11 +23,14 @@ getrandom = "0.3"
 httparse = "1"
 notify = { version = "=8.2.0", default-features = false, features = ["macos_fsevent"] }
 regex = "1.13.1"
+russh = { version = "0.65.1", default-features = false, features = ["ring"] }
+portable-pty = "0.9"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 tempfile = "3"
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
 url = "2.5"
 uuid = { version = "1", features = ["v4"] }
