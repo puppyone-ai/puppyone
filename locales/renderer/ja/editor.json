@@ -555,5 +555,11 @@
   "shortcuts.cancel": "キャンセル",
   "shortcuts.tableSizeHint": "最大 50 行、20 列、合計 500 セル。",
   "selectionToolbar.label": "テキストの書式設定",
-  "selectionToolbar.highlight": "ハイライト"
+  "selectionToolbar.highlight": "ハイライト",
+  "selectionToolbar.colors.yellow": "黄色",
+  "selectionToolbar.colors.green": "緑",
+  "selectionToolbar.colors.blue": "青",
+  "selectionToolbar.colors.pink": "ピンク",
+  "selectionToolbar.colors.purple": "紫",
+  "selectionToolbar.colors.none": "ハイライトを解除"
 }

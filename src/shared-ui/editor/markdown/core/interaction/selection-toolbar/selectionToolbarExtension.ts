@@ -20,7 +20,7 @@ export const markdownSelectionToolbar = ViewPlugin.fromClass(class {
   private destroyed = false;
 
   constructor(private readonly view: EditorView) {
-    this.controls = createSelectionToolbarDom(view);
+    this.controls = createSelectionToolbarDom(view, () => this.refresh());
     view.dom.append(this.controls.dom);
     const doc = view.dom.ownerDocument, win = doc.defaultView!;
     const listen = (target: EventTarget, event: string, callback: (event: Event) => void, capture = false) => {
@@ -55,10 +55,12 @@ export const markdownSelectionToolbar = ViewPlugin.fromClass(class {
   private keydown(event: KeyboardEvent) {
     if (this.controls.dom.hidden) return;
     if (event.key === "Escape") {
-      event.preventDefault(); event.stopPropagation(); this.dismissed = true;
+      event.preventDefault(); event.stopPropagation();
+      if (this.controls.closeMenu(true)) return;
+      this.dismissed = true;
       this.view.focus(); this.refresh();
     } else if (event.altKey && event.key === "F10") {
-      event.preventDefault(); this.controls.dom.querySelector<HTMLElement>("select")?.focus();
+      event.preventDefault(); this.controls.dom.querySelector<HTMLElement>("[data-toolbar-menu=block]")?.focus();
     }
   }
 
@@ -72,11 +74,13 @@ export const markdownSelectionToolbar = ViewPlugin.fromClass(class {
     // Scroll/resize only measure geometry; they never rescan the selected text.
     if (changed) {
       this.cachedState = state; this.cachedTree = tree; this.eligible = canFormatSelection(state);
+      if (previous && (previous.doc !== state.doc || !previous.selection.eq(state.selection)
+        || previous.facet(markdownLocalizationFacet) !== state.facet(markdownLocalizationFacet))) this.controls.closeMenu();
       if (this.eligible) this.controls.update();
     }
     const focused = view.hasFocus || dom.contains(view.dom.ownerDocument.activeElement);
     const show = focused && !this.inactive && !this.dragging && !this.dismissed && !this.composing && !view.composing && this.eligible;
-    if (!show) { dom.hidden = true; return; }
+    if (!show) { dom.hidden = true; this.controls.closeMenu(); return; }
     if (dom.hidden) dom.style.visibility = "hidden";
     dom.hidden = false;
     view.requestMeasure({ key: this,
@@ -86,18 +90,26 @@ export const markdownSelectionToolbar = ViewPlugin.fromClass(class {
         const pane = { left: Math.max(0, editor.left), right: Math.min(win.innerWidth, editor.right),
           top: Math.max(0, editor.top), bottom: Math.min(win.innerHeight, editor.bottom) };
         const anchor = this.selectionAnchor(pane);
-        const width = Math.min(dom.scrollWidth, Math.max(0, pane.right - pane.left - 12));
+        const row = dom.querySelector<HTMLElement>(".cm-md-selection-toolbar__row")!;
+        const width = Math.min(row.scrollWidth + 12, Math.max(0, pane.right - pane.left - 12));
         const height = dom.offsetHeight;
         if (!anchor || pane.bottom - pane.top < height + 12 || width <= 0) return null;
-        return { ...placeSelectionToolbar(anchor, pane, width, height), editor, width };
+        return { ...placeSelectionToolbar(anchor, pane, width, height), editor, pane, width, height };
       },
       write: position => {
         if (this.destroyed || dom.hidden) return;
         if (!position) { dom.hidden = true; return; }
         dom.style.left = `${position.left - position.editor.left}px`;
         dom.style.top = `${position.top - position.editor.top}px`;
+        dom.style.width = `${position.width}px`;
         dom.style.maxWidth = `${position.width}px`;
         dom.style.visibility = "visible";
+        const panel = dom.querySelector<HTMLElement>('[role="menu"]')!;
+        const below = position.pane.bottom - position.top - position.height - 12;
+        const above = position.top - position.pane.top - 12;
+        const placement = below >= 360 || below >= above ? "below" : "above";
+        panel.dataset.placement = placement;
+        panel.style.setProperty("--selection-menu-max-height", `${Math.max(32, placement === "below" ? below : above)}px`);
       },
     });
   }

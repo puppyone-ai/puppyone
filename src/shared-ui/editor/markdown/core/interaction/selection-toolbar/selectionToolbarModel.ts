@@ -7,8 +7,8 @@ import { getMarkdownFrontMatterEndLine } from "../../syntax/markdownFrontMatter"
 import { getSelectedLineNumbers } from "../../commands/markdownBlockCommands";
 import { runMarkdownCommand } from "../../commands/markdownCommandRegistry";
 
-export const INLINE_ACTIONS = ["strong", "emphasis", "underline", "strike", "inlineCode", "highlight", "link", "clearFormat"] as const;
-export const BLOCK_ACTIONS = ["paragraph", "heading1", "heading2", "heading3", "heading4", "heading5", "heading6", "bulletList", "orderedList", "taskList", "quote"] as const;
+export const INLINE_ACTIONS = ["strong", "emphasis", "underline", "strike", "inlineCode", "highlight", "link"] as const;
+export const BLOCK_ACTIONS = ["paragraph", "heading1", "heading2", "heading3", "heading4", "heading5", "heading6", "quote", "bulletList", "orderedList", "taskList"] as const;
 export type SelectionBlockType = typeof BLOCK_ACTIONS[number];
 const BLOCKED = /^(?:FencedCode|CodeBlock|HTMLBlock|CommentBlock|ProcessingInstructionBlock|BlockMath|Table)$/;
 

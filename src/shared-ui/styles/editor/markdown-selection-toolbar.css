@@ -3,7 +3,8 @@
   position: absolute;
   z-index: 40;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 2px;
   box-sizing: border-box;
   width: max-content;
@@ -17,7 +18,7 @@
   font-size: var(--po-type-ui-caption, 12px);
   line-height: 1;
   user-select: none;
-  overflow-x: auto;
+  overflow: visible;
   overscroll-behavior: contain;
   scrollbar-width: none;
 }
@@ -52,3 +53,33 @@
 .cm-md-selection-toolbar__divider { flex: 0 0 1px; height: 18px; margin-inline: 4px; background: var(--po-divider, #e1e3e6); }
 
 .cm-md-selection-toolbar button:disabled { opacity: .35; cursor: default; }
+
+.cm-md-selection-toolbar__row { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.cm-md-selection-toolbar .cm-md-selection-toolbar__block { width: auto; min-width: 120px; gap: 12px; justify-content: space-between; }
+.cm-md-selection-toolbar__menu {
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 210px;
+  max-width: 100%;
+  max-height: var(--selection-menu-max-height, 360px);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--po-divider, #e1e3e6);
+  border-radius: 8px;
+  background: var(--po-menu-bg, var(--po-panel, #fff));
+  box-shadow: 0 5px 20px #0002, 0 1px 4px #0001;
+}
+.cm-md-selection-toolbar__menu[data-placement="above"] { top: auto; bottom: calc(100% + 6px); }
+.cm-md-selection-toolbar__menu[data-menu="highlight"] { inset-inline-start: auto; inset-inline-end: 0; }
+.cm-md-selection-toolbar__menu[hidden] { display: none; }
+.cm-md-selection-toolbar__menu button { justify-content: flex-start; gap: 10px; min-width: 0; height: auto; min-height: 32px; padding: 7px 8px; text-align: start; line-height: 1.3; }
+.cm-md-selection-toolbar__caption { flex: 1; }
+.cm-md-selection-toolbar__menu button[aria-checked="true"] { font-weight: 600; }
+.cm-md-selection-toolbar__check { visibility: hidden; }
+.cm-md-selection-toolbar__menu button[aria-checked="true"] .cm-md-selection-toolbar__check { visibility: visible; }
+.cm-md-selection-toolbar__swatch { width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid #0003; border-radius: 50%; }

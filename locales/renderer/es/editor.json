@@ -555,5 +555,11 @@
   "shortcuts.cancel": "Cancelar",
   "shortcuts.tableSizeHint": "Hasta 50 filas, 20 columnas y 500 celdas.",
   "selectionToolbar.label": "Formato de texto",
-  "selectionToolbar.highlight": "Resaltar"
+  "selectionToolbar.highlight": "Resaltar",
+  "selectionToolbar.colors.yellow": "Amarillo",
+  "selectionToolbar.colors.green": "Verde",
+  "selectionToolbar.colors.blue": "Azul",
+  "selectionToolbar.colors.pink": "Rosa",
+  "selectionToolbar.colors.purple": "Morado",
+  "selectionToolbar.colors.none": "Quitar resaltado"
 }

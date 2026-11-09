@@ -150,7 +150,8 @@
   font-size: var(--po-md-inline-code-font-size);
 }
 
-.markdown-codemirror-editor .cm-md-syntax-highlight {
+.markdown-codemirror-editor .cm-md-syntax-highlight,
+.markdown-codemirror-editor mark.cm-md-inline-html:not([style]) {
   background: color-mix(in srgb, var(--po-accent, #e6c54a) 32%, transparent);
   border-radius: 2px;
 }

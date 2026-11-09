@@ -291,6 +291,7 @@ export function getInlineFormatCoverage(
 }
 
 function matchesInlineFormatKind(element: MarkdownElement, kind: MarkdownInlineFormatKind): boolean {
+  if (kind === "highlight") return (element.kind === "highlight" && isSelectableInlineFormat(element)) || isCompleteHtmlTag(element, "mark");
   if (kind === "underline") return isCompleteHtmlTag(element, "u");
   if (kind === "strong") return (element.kind === "strong" && isSelectableInlineFormat(element)) || isCompleteHtmlTag(element, "strong");
   if (kind === "emphasis") return (element.kind === "emphasis" && isSelectableInlineFormat(element)) || isCompleteHtmlTag(element, "em");

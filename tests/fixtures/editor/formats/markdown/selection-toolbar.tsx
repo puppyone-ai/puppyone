@@ -14,6 +14,8 @@ import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../.
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../../src/localization/catalog-loaders/en";
 
+import chineseCatalog from "../../../../../src/localization/catalog-loaders/zh-Hans";
+
 const query = new URLSearchParams(location.search);
 const themeMode = query.get("theme") === "dark" ? "dark" : "light";
 const initial = "# Select text to format\n\n选中这段文字，试试浮动工具栏。\n\nDifferent teams bring AI into the real world.\n\n- A bullet list item\n- Another item\n\n**Already bold** and normal text.\n\n" + "A paragraph for scrolling.\n\n".repeat(35);
@@ -26,7 +28,7 @@ function Harness() {
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, lightThemePreset: "neutral", darkThemePreset: "default",
     pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
-  return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
+  return <TestLocalizationProvider locale={query.get("locale") === "zh-Hans" ? "zh-Hans" : "en"} messages={query.get("locale") === "zh-Hans" ? chineseCatalog : englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} className={themeMode === "dark" ? "dark" : ""} style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", height: "100vh" }}>
       <button id="outside" style={{ position: "absolute", left: 0, top: 0 }}>Outside</button>
       <section id="markdown" style={{ position: "absolute", left: 80, top: 50, right: 30, bottom: 30 }}>
@@ -38,6 +40,7 @@ function Harness() {
 createRoot(document.getElementById("root")!).render(<Harness />);
 const view = () => EditorView.findFromDOM(document.querySelector<HTMLElement>("#markdown .cm-editor")!)!;
 const toolbar = () => view().dom.querySelector<HTMLElement>(".cm-md-selection-toolbar")!;
+const measured = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 const fixture = {
   async ready() {
     for (let attempt = 0; attempt < 500; attempt++) {
@@ -63,9 +66,11 @@ const fixture = {
       text: v.state.doc.toString(), selected: v.state.sliceDoc(v.state.selection.main.from, v.state.selection.main.to),
       active: [...t.querySelectorAll('[aria-pressed="true"]')].map(button => (button as HTMLElement).dataset.markdownCommand) };
   },
-  button(id: string) { const r = toolbar().querySelector<HTMLElement>(`[data-markdown-command="${id}"]`)!.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; },
+  async button(id: string) { await measured(); const r = toolbar().querySelector<HTMLElement>(`[data-markdown-command="${id}"]`)!.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; },
   collapse() { const v = view(); v.dispatch({ selection: EditorSelection.cursor(v.state.selection.main.head) }); },
-  block(type: string) { const select = toolbar().querySelector("select")!; select.value = type; select.dispatchEvent(new Event("change", { bubbles: true })); },
+  async control(selector: string) { await measured(); const r = toolbar().querySelector<HTMLElement>(selector)!.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; },
+  menu() { const panel = toolbar().querySelector<HTMLElement>('[role="menu"]')!; return { visible: !panel.hidden, labels: [...panel.querySelectorAll("button")].map(button => button.getAttribute("aria-label")), label: toolbar().getAttribute("aria-label") }; },
+  mark() { const mark = view().dom.querySelector("mark"); return mark ? { background: getComputedStyle(mark).backgroundColor, color: getComputedStyle(mark).color } : null; },
   undo() { undo(view()); },
   scroll(top: number) { view().scrollDOM.scrollTop = top; },
   outside() { document.getElementById("outside")!.focus(); },

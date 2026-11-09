@@ -555,5 +555,11 @@
   "shortcuts.cancel": "Cancel",
   "shortcuts.tableSizeHint": "Up to 50 rows, 20 columns, and 500 cells.",
   "selectionToolbar.label": "Text formatting",
-  "selectionToolbar.highlight": "Highlight"
+  "selectionToolbar.highlight": "Highlight",
+  "selectionToolbar.colors.yellow": "Yellow",
+  "selectionToolbar.colors.green": "Green",
+  "selectionToolbar.colors.blue": "Blue",
+  "selectionToolbar.colors.pink": "Pink",
+  "selectionToolbar.colors.purple": "Purple",
+  "selectionToolbar.colors.none": "Remove highlight"
 }

@@ -555,5 +555,11 @@
   "shortcuts.cancel": "取消",
   "shortcuts.tableSizeHint": "最多 50 行、20 列，共 500 个单元格。",
   "selectionToolbar.label": "文字格式",
-  "selectionToolbar.highlight": "高亮"
+  "selectionToolbar.highlight": "高亮",
+  "selectionToolbar.colors.yellow": "黄色",
+  "selectionToolbar.colors.green": "绿色",
+  "selectionToolbar.colors.blue": "蓝色",
+  "selectionToolbar.colors.pink": "粉色",
+  "selectionToolbar.colors.purple": "紫色",
+  "selectionToolbar.colors.none": "取消高亮"
 }
