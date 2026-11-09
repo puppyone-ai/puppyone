@@ -232,10 +232,8 @@ export function MinimalOnboarding({
   const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
   const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
   // A folder's menu says who can open it and changes that as dragging it would:
-  // opened to my devices directly, or copied to a team's Cloud space.
-  const writableTeams = cloudSpaces.filter((space) => space.kind === "team" && space.canCreateProjects);
-  const spaceOfCloudProject = new Map(cloudItems.flatMap(({ cloudProjectId, cloudOrganizationId }) => cloudProjectId
-    ? [[cloudProjectId, cloudSpaces.find((space) => space.id === cloudOrganizationId)] as const] : []));
+  // opened to my devices directly, or copied to the current Cloud Space.
+  const writableSpaces = cloudSpaces.filter((space) => space.canCreateProjects);
   const projectAudience = (sharing: ProjectListSharing | undefined) => (item: ProjectHomeItem): ProjectAudience | null => {
     const path = item.localPath;
     if (!path) return null;
@@ -244,8 +242,7 @@ export function MinimalOnboarding({
     const linked = item.linkedCloudProject;
     const copy: CloudCopy | null = linked
       ? { onOpen: onOpenCloudProject && (() => onOpenCloudProject(linked.id)) } : null;
-    const personalCopy = Boolean(linked && spaceOfCloudProject.get(linked.id)?.kind === "personal");
-    const firstTeam = writableTeams[0];
+    const firstSpace = writableSpaces[0];
     return {
       devices: onShareLocalFolder || (shared && folderId) ? {
         on: shared,
@@ -255,11 +252,11 @@ export function MinimalOnboarding({
         onSettings: shared && folderId && sharing
           ? () => sharing.onSharingSettings({ folderId, name: item.label, rootPath: path }) : undefined,
       } : undefined,
-      devicesCopy: personalCopy ? copy : null,
-      team: firstTeam || (copy && !personalCopy) ? {
-        copy: personalCopy ? null : copy,
-        onCopy: !linked && firstTeam && onPublishToSpace
-          ? () => void runOpening(path, () => onPublishToSpace(path, firstTeam.id)) : undefined,
+      devicesCopy: null,
+      team: firstSpace || copy ? {
+        copy,
+        onCopy: !linked && firstSpace && onPublishToSpace
+          ? () => void runOpening(path, () => onPublishToSpace(path, firstSpace.id)) : undefined,
       } : undefined,
     };
   };

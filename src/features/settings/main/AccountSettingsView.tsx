@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocalization, type LocalizationContextValue } from "@puppyone/localization";
+import { useLocalization } from "@puppyone/localization";
 import {
   getDesktopCloudApiBaseUrl,
   isCloudSessionForApiBase,
@@ -15,8 +15,6 @@ import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../components";
 import { AccountAICredits } from "./AccountAICredits";
 import { AccountIdentity } from "./AccountIdentity";
-import { formatMoney, heldPlanName, resolvePlanHolding, type PlanHolding } from "./planPricing";
-import { useAccountPlan } from "./useAccountPlan";
 
 type AccountAuthOperation = "signin" | "signout";
 
@@ -60,7 +58,6 @@ export function AccountSettingsView({
   cloudSessionRestoring,
   cloudApiBaseUrl,
   onCloudSessionChange,
-  onOpenBilling,
   cloudEnabled,
 }: {
   cloudSession: DesktopCloudSession | null;
@@ -89,14 +86,6 @@ export function AccountSettingsView({
   const desktopOAuthAvailable = supportsDesktopCloudOAuth();
   const busy = Boolean(operation) || cloudSessionRestoring;
 
-  const cloudPlan = payments && cloudEnabled;
-  const snapshot = useAccountPlan({
-    session: sessionMatchesService ? cloudSession : null,
-    apiBaseUrl: resolvedApiBaseUrl,
-    onSessionChange: onCloudSessionChange,
-    enabled: cloudPlan,
-  });
-  const holding = resolvePlanHolding(snapshot.summary, snapshot.catalog);
 
   // Only say something about the session when it is not simply working. The
   // steady signed-in state needs no commentary; the email is the proof.
@@ -207,27 +196,6 @@ export function AccountSettingsView({
             </SettingsSubsection>
           )}
 
-          {cloudPlan && sessionMatchesService && (
-            <>
-              <SettingsSubsection leading>
-                {/* What you run and what it costs, in one line. The only way to
-                    change it is offered here, once, beside the number it would
-                    change — and this page states no catalogue price at all. */}
-                <SettingsValueRow
-                  label={t("settings.account.plan")}
-                  value={describeHolding(holding, localization)}
-                  action={onOpenBilling ? (
-                    <button type="button" className="desktop-settings-action" onClick={onOpenBilling}>
-                      {t(holding.subscribed ? "settings.account.openBilling" : "settings.account.upgrade")}
-                    </button>
-                  ) : undefined}
-                />
-              </SettingsSubsection>
-              {/* Hours and storage are read on Plan, beside what changes them;
-                  showing them here too made two pages answer one question. */}
-            </>
-          )}
-
           {sessionMatchesService && (
             <AccountAICredits
               key={cloudSession?.user_id ?? "signed-out"}
@@ -247,17 +215,4 @@ export function AccountSettingsView({
       </div>
     </section>
   );
-}
-
-/** What you hold and what it costs, in one line: a plan name is not an invoice. */
-function describeHolding(
-  holding: PlanHolding,
-  localization: LocalizationContextValue,
-): string {
-  const { t } = localization;
-  const name = heldPlanName(holding, localization);
-  if (!holding.subscribed || holding.monthlyCents === null) return name;
-  return `${name} · ${t("settings.plan.monthlyFor", {
-    amount: formatMoney(holding.monthlyCents, holding.currency, localization),
-  })}`;
 }

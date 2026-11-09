@@ -11,7 +11,6 @@ import {
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
-  plansForSpace,
 } from "../../../../src/features/settings/main/planPricing";
 import {
   CloudPlans,
@@ -49,7 +48,7 @@ const TEAM = {
   "team.member_roles": true, "agent.access_rules": true, "activity.log": true, "billing.consolidated": true,
 };
 /** The 2026-11-09.1 catalog as the billing service publishes it. */
-const CATALOG = {
+const LEGACY_CATALOG = {
   schema_version: "1.1", catalog_version: "2026-11-09.1", effective_at: "2026-11-09T00:00:00Z", currency: "USD",
   plans: [
     {
@@ -91,6 +90,15 @@ const CATALOG = {
   },
 } as unknown as DesktopBillingCatalog;
 
+const CATALOG: DesktopBillingCatalog = { ...LEGACY_CATALOG, catalog_version: "2026-11-09.2", plans: [
+  ...LEGACY_CATALOG.plans,
+  { ...LEGACY_CATALOG.plans[1]!, id: "team_v2", aliases: [], name: "Team",
+    seats: { minimum: 1, maximum: null }, features: { ...REQUIRED, "team.member_roles": true, "billing.consolidated": true },
+    runtime: { fixed_units: 0, units_per_seat: 2400 }, fixed_limits: { "history.retention_days": 30 },
+    per_seat_limits: { "projects.max": 20, "storage.max_bytes": 10 * GB } },
+  { ...LEGACY_CATALOG.plans[2]!, id: "enterprise_v2", aliases: [], name: "Enterprise", seats: { minimum: 1, maximum: null } },
+] };
+
 const summaryOf = (values: Partial<DesktopBillingSummary>) => ({
   org_id: "o1", plan_id: "personal", status: "active", seat_quantity: 1, current_period_end: null,
   cancel_at_period_end: false, ...values,
@@ -107,10 +115,9 @@ const usageOf = (usedUnits: number, grantedUnits: number, usedBytes: number, lim
   storage: { logical_bytes: usedBytes, limit_bytes: limitBytes },
 }) as unknown as DesktopBillingUsage;
 
-function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "personal" }: {
+function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
   onSignIn?: () => void;
   signedIn?: boolean;
-  spaceKind?: "personal" | "team";
 }) {
   const localization = useLocalization();
   return (
@@ -126,7 +133,6 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "
       onRefresh={() => undefined}
       localization={localization}
       onSignIn={onSignIn}
-      spaceKind={spaceKind}
       canManageBilling={null}
     />
   );
@@ -175,8 +181,8 @@ it("offers three plans with one price each and the same allowances", () => {
   expect(authoritative).toBe(false);
   expect(plans.map((plan) => [plan.id, plan.priceCents, plan.perPerson])).toEqual([
     ["free", 0, false],
-    ["personal", 2000, false],
-    ["team", 4000, true],
+    ["team", 2000, true],
+    ["enterprise", 4000, true],
   ]);
   expect(plans.map((plan) => plan.agentHours)).toEqual([5, 40, 40]);
   expect(plans.map((plan) => plan.storageBytes)).toEqual([GB, 10 * GB, 20 * GB]);
@@ -192,7 +198,7 @@ it("reads plans and add-ons from the catalog, in hours and bytes", () => {
   const { plans, addOns, authoritative } = resolvePlanCatalog(CATALOG);
   expect(authoritative).toBe(true);
   const team = plans.find((plan) => plan.id === "team")!;
-  expect([team.perPerson, team.minimumSeats, team.agentHours, team.storageBytes]).toEqual([true, 2, 40, 20 * GB]);
+  expect([team.perPerson, team.minimumSeats, team.agentHours, team.storageBytes]).toEqual([true, 1, 40, 10 * GB]);
   expect(team.teamFeatures).toBe(true);
   expect(plans.find((plan) => plan.id === "free")!.agentHours).toBe(5);
   expect(addOns.map((addOn) => [addOn.id, addOn.kind, addOn.hours, addOn.storageBytes])).toEqual([
@@ -202,7 +208,7 @@ it("reads plans and add-ons from the catalog, in hours and bytes", () => {
 });
 
 it("keeps indicative prices when the catalog is an older price list", () => {
-  const legacy = { ...CATALOG, plans: CATALOG.plans.filter((plan) => plan.id !== "team") } as DesktopBillingCatalog;
+  const legacy = { ...CATALOG, plans: CATALOG.plans.filter((plan) => plan.id !== "enterprise_v2") } as DesktopBillingCatalog;
   expect(resolvePlanCatalog(legacy).authoritative).toBe(false);
 });
 
@@ -215,7 +221,7 @@ it("treats holding nothing as Free, a complete answer", () => {
 
 it("bills a team per person and names a legacy plan by its new name", () => {
   const team = resolvePlanHolding(summaryOf({ plan_id: "business", seat_quantity: 5 }), CATALOG);
-  expect([team.planId, team.seats, team.monthlyCents]).toEqual(["team", 5, 20000]);
+  expect([team.planId, team.seats, team.monthlyCents]).toEqual(["enterprise", 5, 20000]);
   const held = resolvePlanHolding(summaryOf({
     add_ons: [
       { add_on_id: "agent_hours_100", quantity: 2, status: "active", cancel_at_period_end: false, current_period_end: null },
@@ -230,57 +236,56 @@ it("pools a team's hours and storage, and adds the packs held", () => {
   const { plans, addOns } = resolvePlanCatalog(CATALOG);
   const team = plans.find((plan) => plan.id === "team")!;
   const holding = resolvePlanHolding(summaryOf({
-    plan_id: "team",
+    plan_id: "team_v2",
     seat_quantity: 3,
     add_ons: [{ add_on_id: "agent_hours_100", quantity: 1, status: "active", cancel_at_period_end: false, current_period_end: null }],
   }), CATALOG);
   const reading = resolveAllowance(null, team, holding, addOns);
-  expect([reading.usedHours, reading.includedHours, reading.includedBytes]).toEqual([null, 220, 60 * GB]);
+  expect([reading.usedHours, reading.includedHours, reading.includedBytes]).toEqual([null, 220, 30 * GB]);
 });
 
 it("reads used hours only from the billing service, never invents them", () => {
   const { plans, addOns } = resolvePlanCatalog(CATALOG);
-  const personal = plans.find((plan) => plan.id === "personal")!;
+  const personal = plans.find((plan) => plan.id === "team")!;
   const holding = resolvePlanHolding(summaryOf({}), CATALOG);
   const reading = resolveAllowance(usageOf(12 * 60, 40 * 60, 3.2 * GB, 10 * GB), personal, holding, addOns);
   expect([reading.usedHours, reading.includedHours, reading.usedBytes, reading.includedBytes])
     .toEqual([12, 40, 3.2 * GB, 10 * GB]);
 });
 
-it("offers each space only the plans it can hold, as spec sheets", async () => {
+it("offers the same seat-based plans for every space, as spec sheets", async () => {
   const personal = await render(<SignedOut />);
   const cards = [...personal.querySelectorAll(".desktop-plan-card")];
   // Each plan is a spec sheet: an index and a name, one price, the same rows.
   expect(cards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Personal"]);
+    .toEqual(["01 / Free", "02 / Team", "03 / Enterprise"]);
   expect(cards.map((card) => [
     card.querySelector(".desktop-plan-card-amount")?.textContent,
     card.querySelector(".desktop-plan-card-per")?.textContent,
-  ])).toEqual([["$0", "/ month"], ["$20", "/ month"]]);
+  ])).toEqual([["$0", "/ month"], ["$20", "/ person / month"], ["$40", "/ person / month"]]);
   const specs = (card: Element | undefined) => [...(card?.querySelectorAll(".desktop-plan-spec-row") ?? [])]
     .map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
   expect(specs(cards[1])).toEqual([
-    ["Agent hours", "40 h / month"], ["Storage", "10 GB"], ["Projects online", "20"], ["History", "30 days"],
+    ["Agent hours", "40 h / person / month"], ["Storage", "10 GB / person"], ["Projects online", "20 / person"],
   ]);
   // The machine behind the hours is never described.
   expect(personal.textContent).not.toMatch(/vCPU|GPU|RAM|\bcores?\b|\bVM\b|virtual machine|instance|\bunits?\b/i);
 
-  const team = await render(<SignedOut spaceKind="team" />);
+  const team = await render(<SignedOut />);
   const teamCards = [...team.querySelectorAll(".desktop-plan-card")];
   expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Team"]);
+    .toEqual(["01 / Free", "02 / Team", "03 / Enterprise"]);
   expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
   expect(teamCards[1]?.textContent).toContain("Member roles");
   // Not sold until Cloud enforces them.
   expect(teamCards[1]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
 });
 
-it("keeps Personal and Team to the spaces they are for, even from an older catalog", () => {
+it("offers both tiers regardless of historical space kind", () => {
   const { plans } = resolvePlanCatalog(CATALOG);
-  expect(plansForSpace(plans, "personal").map((plan) => plan.id)).toEqual(["free", "personal"]);
-  expect(plansForSpace(plans, "team").map((plan) => plan.id)).toEqual(["free", "team"]);
+  expect(plans.map((plan) => plan.id)).toEqual(["free", "team", "enterprise"]);
   const local = resolvePlanCatalog(null).plans;
-  expect(plansForSpace(local, "team").map((plan) => plan.id)).toEqual(["free", "team"]);
+  expect(local.map((plan) => plan.id)).toEqual(["free", "team", "enterprise"]);
 });
 
 it("says beside the hours that people working in the cloud never spend them", async () => {
@@ -294,7 +299,7 @@ it("routes a signed-out reader to sign-in from every plan", async () => {
   const host = await render(<SignedOut onSignIn={signIn} />);
   const buttons = [...host.querySelectorAll<HTMLButtonElement>(".desktop-plan-card button")];
   expect(buttons.map((button) => button.textContent)).toEqual([
-    "Sign in to choose", "Sign in to choose",
+    "Sign in to choose", "Sign in to choose", "Sign in to choose",
   ]);
   await act(async () => buttons[1]?.click());
   expect(signIn).toHaveBeenCalledOnce();
@@ -324,7 +329,7 @@ it("carries no way back, because the nav it came from is still on screen", async
  * keep everything paid for until then, and refund nothing.
  */
 const SCHEDULED_TEAM = summaryOf({
-  plan_id: "team",
+  plan_id: "team_v2",
   seat_quantity: 3,
   current_period_end: "2026-12-08T12:00:00Z",
   pending_plan_id: null,
@@ -339,7 +344,7 @@ it("reads a scheduled seat decrease and a scheduled downgrade from the summary",
   const downgrade = resolvePlanHolding(summaryOf({
     ...SCHEDULED_TEAM, pending_plan_id: "plus", pending_seat_quantity: 1,
   }), CATALOG);
-  expect(downgrade.scheduled?.planId).toBe("personal");
+  expect(downgrade.scheduled?.planId).toBe("team");
   // A change still waiting on the payment service is not a schedule.
   expect(resolvePlanHolding(summaryOf({ status: "change_pending", pending_plan_id: "team" }), CATALOG)
     .scheduled).toBeNull();
@@ -371,11 +376,11 @@ it("says what changes at renewal and offers to keep the current plan", async () 
 
   const downgrade = await render(
     <ScheduledCard
-      summary={summaryOf({ ...SCHEDULED_TEAM, pending_plan_id: "personal", pending_seat_quantity: 1 })}
+      summary={summaryOf({ ...SCHEDULED_TEAM, plan_id: "enterprise_v2", pending_plan_id: "team_v2", pending_seat_quantity: 1 })}
       onKeep={() => undefined}
     />,
   );
-  expect(downgrade.textContent).toMatch(/Personal from Dec 8/);
+  expect(downgrade.textContent).toMatch(/Team from Dec 8/);
 });
 
 function QuoteTiming({ quote, summary }: { quote: DesktopBillingQuote; summary: DesktopBillingSummary }) {
@@ -385,7 +390,7 @@ function QuoteTiming({ quote, summary }: { quote: DesktopBillingQuote; summary: 
 }
 
 const quoteOf = (values: Partial<DesktopBillingQuote>) => ({
-  quote_id: "q1", org_id: "o1", kind: "plan", current_plan_id: "team", target_plan_id: "team",
+  quote_id: "q1", org_id: "o1", kind: "plan", current_plan_id: "team_v2", target_plan_id: "team_v2",
   current_seats: 3, target_seats: 3, currency: "USD", current_amount_cents: 6000, target_amount_cents: 6000,
   delta_amount_cents: 0, application_mode: "plan_change", effective: "now", requires_confirmation: true,
   catalog_version: "2026-11-08.1", expires_at: "2026-11-09T00:00:00Z", details: {}, ...values,
@@ -395,7 +400,7 @@ it("tells a downgrade apart from a payment before it is confirmed", async () => 
   const later = await render(
     <QuoteTiming
       quote={quoteOf({ target_seats: 2, target_amount_cents: 4000, effective: "next_period" })}
-      summary={summaryOf({ plan_id: "team", seat_quantity: 3, current_period_end: "2026-12-08T12:00:00Z" })}
+      summary={summaryOf({ plan_id: "team_v2", seat_quantity: 3, current_period_end: "2026-12-08T12:00:00Z" })}
     />,
   );
   const note = later.querySelector("p")!;
@@ -408,7 +413,7 @@ it("tells a downgrade apart from a payment before it is confirmed", async () => 
   const pay = await render(
     <QuoteTiming
       quote={quoteOf({ target_seats: 4, target_amount_cents: 8000 })}
-      summary={summaryOf({ plan_id: "team", seat_quantity: 3 })}
+      summary={summaryOf({ plan_id: "team_v2", seat_quantity: 3 })}
     />,
   );
   expect([pay.querySelector("p")!.dataset.confirm, pay.querySelector("p")!.dataset.browser])

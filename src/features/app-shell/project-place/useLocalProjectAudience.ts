@@ -16,7 +16,6 @@ export function useLocalProjectAudience({
   disconnectable,
   unhosted,
   publishPending,
-  linkedSpaceKind,
   canCopyToTeam,
   unsent,
   handlers,
@@ -31,7 +30,6 @@ export function useLocalProjectAudience({
   /** A copy is being made and can be returned to. */
   publishPending: boolean;
   /** Whose space holds the copy; an unknown space is treated as a team's. */
-  linkedSpaceKind?: "personal" | "team";
   /** A team this account can add projects to. */
   canCopyToTeam: boolean;
   /** Commits here that the copy has not had yet. */
@@ -47,12 +45,11 @@ export function useLocalProjectAudience({
 }): ProjectAudience | null {
   const { t } = useLocalization();
   const copy = cloudEnabled && notice ? cloudCopy(notice) : null;
-  const personal = Boolean(copy && linkedSpaceKind === "personal");
   const copyable = cloudEnabled && (publishPending || (unhosted && canCopyToTeam));
-  const team = copyable || (copy && !personal)
-    ? { copy: personal ? null : copy, onCopy: copyable ? handlers.onCopyToTeam : undefined } : undefined;
-  if (!devices && !team && !personal) return null;
-  return { devices, devicesCopy: personal ? copy : null, team };
+  const team = copyable || copy
+    ? { copy, onCopy: copyable ? handlers.onCopyToTeam : undefined } : undefined;
+  if (!devices && !team) return null;
+  return { devices, devicesCopy: null, team };
 
   function cloudCopy(link: LocalFolderCloudNotice): CloudCopy {
     const disconnect = disconnectable

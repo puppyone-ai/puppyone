@@ -65,11 +65,11 @@ describe("who can open the local folder in this window", () => {
     expect(closed?.team?.copy?.onOpen).toBeUndefined();
   });
 
-  it("hangs a copy in my own space under my devices", async () => {
-    const audience = await audienceOf(base({ unhosted: false, linkedSpaceKind: "personal",
+  it("keeps hosted copies separate from device sharing", async () => {
+    const audience = await audienceOf(base({ unhosted: false,
       notice: { kind: "linked", projectId: "p1", projectName: "Vault", openable: true } }));
-    expect(audience?.devicesCopy).toBeTruthy();
-    expect(audience?.team).toBeUndefined();
+    expect(audience?.devicesCopy).toBeNull();
+    expect(audience?.team?.copy).toBeTruthy();
   });
 
   it.each([

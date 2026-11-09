@@ -89,6 +89,9 @@ export type DesktopCloudOrganization = {
   id: string;
   /** Absent on older deployments: never infer personal identity from a name. */
   kind?: "personal" | "team";
+  is_default?: boolean;
+  role?: string | null;
+  can_manage_space?: boolean;
   can_create_projects?: boolean;
   name: string;
   slug: string;
@@ -825,7 +828,7 @@ export function ensurePersonalCloudSpace(
   session: DesktopCloudSession,
   apiBaseUrl: string,
 ): Promise<DesktopCloudOrganization> {
-  return cloudApiRequest<DesktopCloudOrganization>("/auth/personal-space", session, undefined, { method: "POST" }, apiBaseUrl);
+  return cloudApiRequest<DesktopCloudOrganization>("/auth/default-space", session, undefined, { method: "POST" }, apiBaseUrl);
 }
 
 export function listCloudOrganizationMembers(
@@ -835,6 +838,36 @@ export function listCloudOrganizationMembers(
   apiBaseUrl?: string | null,
 ): Promise<DesktopCloudOrgMember[]> {
   return cloudApiRequest<DesktopCloudOrgMember[]>(`/organizations/${encodeURIComponent(orgId)}/members`, session, onSessionChange, {}, apiBaseUrl);
+}
+
+export function updateCloudSpace(session: DesktopCloudSession, orgId: string, name: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<DesktopCloudOrganization> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}`, session, onSessionChange,
+    { method: "PUT", body: JSON.stringify({ name }) }, apiBaseUrl);
+}
+
+export function inviteCloudSpaceMember(session: DesktopCloudSession, orgId: string, email: string, role: "member" | "viewer",
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<{ invite_url?: string | null; email_sent?: boolean }> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/invite`, session, onSessionChange,
+    { method: "POST", body: JSON.stringify({ email, role }) }, apiBaseUrl);
+}
+
+export function updateCloudSpaceMemberRole(session: DesktopCloudSession, orgId: string, userId: string, role: "member" | "viewer",
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/role`, session, onSessionChange,
+    { method: "PUT", body: JSON.stringify({ role }) }, apiBaseUrl);
+}
+
+export function removeCloudSpaceMember(session: DesktopCloudSession, orgId: string, userId: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`, session, onSessionChange,
+    { method: "DELETE" }, apiBaseUrl);
+}
+
+export function transferCloudSpaceOwnership(session: DesktopCloudSession, orgId: string, userId: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/ownership/transfer`, session, onSessionChange,
+    { method: "POST", body: JSON.stringify({ user_id: userId }) }, apiBaseUrl);
 }
 
 export function getCloudOrganizationEntitlements(

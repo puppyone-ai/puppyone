@@ -1,0 +1,23 @@
+.desktop-space-switcher {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.desktop-space-switcher select {
+  max-width: 180px;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.desktop-space-member-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}

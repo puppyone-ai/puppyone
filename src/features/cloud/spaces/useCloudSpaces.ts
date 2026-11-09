@@ -26,17 +26,17 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
         if (!valid()) return;
         // A POST is deliberate provisioning, not a mutating GET. Never guess the
         // identity of old rows. Old servers cannot offer authoritative drop targets.
-        if (!organizations.some((org) => org.kind === "personal")) {
+        if (!organizations.some((org) => org.is_default === true)) {
           const personal = await ensurePersonalCloudSpace(captured, apiBaseUrl);
           if (!valid()) return;
           organizations = [...organizations.filter((org) => org.id !== personal.id), personal];
         }
-        if (organizations.some((org) => !["personal", "team"].includes(org.kind ?? "")
-          || typeof org.can_create_projects !== "boolean")) throw new Error("Space discovery unavailable");
+        if (organizations.some((org) => typeof org.can_create_projects !== "boolean")) throw new Error("Space discovery unavailable");
         const spaces = organizations.map((org): CloudSpace => ({ id: org.id, name: org.name,
           kind: org.kind === "personal" ? "personal" : "team", canCreateProjects: org.can_create_projects === true,
+          isDefault: org.is_default === true, role: org.role, canManageSpace: org.can_manage_space === true,
           planId: typeof org.billing_plan_id === "string" ? org.billing_plan_id : null }));
-        spaces.sort((a, b) => Number(b.kind === "personal") - Number(a.kind === "personal") || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+        spaces.sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
         if (!valid()) return;
         if (accountScope) writeCachedSpaces(accountScope, spaces);
         setState({ authority, spaces, status: "ready" });
@@ -58,7 +58,8 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
   // Until this account answers, the spaces it last saw stand in, as its catalog does.
   const cached = useMemo(() => (accountScope ? readCachedSpaces(accountScope) : undefined), [accountScope]);
   // A failed read says nothing about the spaces, so the last ones keep the groups put.
-  const spaces = own?.spaces.length ? own.spaces : cached ?? NO_SPACES;
+  let spaces = cached ?? NO_SPACES;
+  if (own && (own.status === "ready" || own.spaces.length > 0)) spaces = own.spaces;
   const status = own?.status ?? (cached ? "ready" as const : "loading" as const);
   return { spaces, authority,
     status: !authority ? "signed-out" as const : status,

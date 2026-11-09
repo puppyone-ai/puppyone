@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { CloudSpace, ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import type { OnboardingProjectGroup } from "./OnboardingProjectGroups";
@@ -13,12 +13,7 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   onPublish?: (path: string, spaceId: string) => Promise<void>; onDragEnd: () => void;
 }): OnboardingProjectGroup[] {
   const { t } = useLocalization();
-  const [chosenTeam, setChosenTeam] = useState<string | null>(null);
   const source = localItems.find((item) => item.localPath === draggingPath && !item.linkedCloudProject);
-  const personal = spaces.find((space) => space.kind === "personal");
-  const teams = spaces.filter((space) => space.kind === "team");
-  const team = teams.find((space) => space.id === chosenTeam)
-    ?? teams.find((space) => cloudItems.some((item) => item.cloudOrganizationId === space.id)) ?? teams[0];
   const groups: OnboardingProjectGroup[] = [];
 
   function destination(space: CloudSpace, id: string, title: string): OnboardingProjectGroup {
@@ -26,15 +21,12 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     const writable = space.canCreateProjects && !busy && Boolean(onPublish);
     return {
       id, title, alwaysShowHeading: true, empty: projects.length === 0,
-      // A team one can add projects to stays, empty or not, to drag one into. An empty
-      // personal space takes no drop here: only device sharing, which keeps its own area.
-      keepEmpty: space.kind === "team" && Boolean(space.canCreateProjects || (source && onPublish)),
-      // A personal-area drop means sharing from this computer, not uploading.
-      // Homepage's device composition supplies that action; never fall back here.
-      dropTarget: draggingPath ? { enabled: space.kind === "team" && writable && Boolean(source),
+      // Every writable Space uses the same explicit publication flow.
+      keepEmpty: Boolean(space.canCreateProjects || (source && onPublish)),
+      dropTarget: draggingPath ? { enabled: writable && Boolean(source),
         hint: t("onboarding.drop.team"), onDrop: () => {
         onDragEnd();
-        if (space.kind === "team" && writable && source) void onPublish?.(source.localPath, space.id);
+        if (writable && source) void onPublish?.(source.localPath, space.id);
       } } : undefined,
       children: projects.length ? renderProjects(projects) : <p className="onboarding-cloud-space-empty">
         {t(space.canCreateProjects ? "onboarding.spaces.empty" : "onboarding.spaces.readOnly")}
@@ -47,22 +39,8 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   const planBadge = (space: CloudSpace) => space.planId
     ? <span className="onboarding-space-plan">{t(`onboarding.spaces.plan.${planKey(space.planId)}`)}</span>
     : undefined;
-  if (personal) groups.push({ ...destination(personal, "personal-shared", t("onboarding.spaces.mine")),
-    detail: planBadge(personal) });
-  if (team) {
-    const group = destination(team, "team-shared", teams.length > 1 ? t("onboarding.sharing.team") : team.name);
-    groups.push({ ...group,
-      keepEmpty: group.keepEmpty || cloudItems.some((item) => teams.some((space) => space.id === item.cloudOrganizationId)),
-      // One team is its own heading; several need choosing between.
-      detail: teams.length > 1 ? <>
-        <select className="onboarding-team-selector"
-          aria-label={t("onboarding.sharing.selectTeam")} value={team.id} disabled={busy}
-          onChange={(event) => { onDragEnd(); setChosenTeam(event.target.value); }}>
-          {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-        </select>
-        {planBadge(team)}
-      </> : planBadge(team),
-    });
+  for (const space of spaces) {
+    groups.push({ ...destination(space, `space:${space.id}`, space.name), detail: planBadge(space) });
   }
   // Unresolved ownership is not evidence of a personal or team audience. Keep
   // existing content reachable while discovery is unavailable, without guessing.
@@ -72,9 +50,9 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   return groups;
 }
 
-function planKey(planId: string): "free" | "personal" | "team" | "enterprise" {
-  if (planId === "plus" || planId === "personal") return "personal";
-  if (planId === "business" || planId === "pro" || planId === "team") return "team";
+function planKey(planId: string): "free" | "team" | "enterprise" {
+  if (planId === "plus" || planId === "personal" || planId === "team_v2") return "team";
+  if (planId === "business" || planId === "pro" || planId === "team" || planId === "enterprise_v2") return "enterprise";
   if (planId === "enterprise") return "enterprise";
   return "free";
 }

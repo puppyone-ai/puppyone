@@ -44,7 +44,7 @@ function rename(host: HTMLElement, name: string) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
-const AUDIENCES = { local: "Only this computer", devices: "All my devices", team: "Team" } as const;
+const AUDIENCES = { local: "Only this computer", devices: "All my devices", team: "Space" } as const;
 /** The audiences offered, as announced. */
 const audiences = (host: HTMLElement) => queryAllByRole(host, "radio").map(accessibleName)
   .map((name) => Object.values(AUDIENCES).find((audience) => name.startsWith(audience)));
@@ -59,13 +59,13 @@ describe("New project: who can open it", () => {
     expect(readableText(dialog(host))).toContain("Location");
   });
 
-  it("offers a team only where the account may start projects, and never the personal space", async () => {
+  it("offers every writable space regardless of its old kind", async () => {
     const host = await render({ cloudSpaces: [PERSONAL, READERS, DESIGN], onCreateCloudProject: vi.fn(), onShareWithMyDevices: vi.fn() });
-    expect(audiences(host)).toEqual(["Only this computer", "All my devices", "Team"]);
+    expect(audiences(host)).toEqual(["Only this computer", "All my devices", "Space"]);
     expect(isChecked(audience(host, "local"))).toBe(true);
-    // With one team to choose there is nothing to pick between.
-    expect(queryByRole(host, "combobox")).toBeNull();
-    const none = await render({ cloudSpaces: [PERSONAL, READERS], onCreateCloudProject: vi.fn() });
+    // Historical kinds do not exclude a writable destination.
+    expect(queryAllByRole(host, "option").map(accessibleName)).toEqual(["Personal", "Design"]);
+    const none = await render({ cloudSpaces: [READERS], onCreateCloudProject: vi.fn() });
     expect(audiences(none)).toEqual([]);
   });
 
@@ -78,7 +78,7 @@ describe("New project: who can open it", () => {
     // Where it is kept follows: a team's project is in the Cloud, with no folder to pick.
     expect(readableText(dialog(host))).toContain("Stored on Cloud");
     expect(queryByRole(host, "button", { name: "Location" })).toBeNull();
-    const select = getByRole(host, "combobox", { name: "Choose team" }) as HTMLSelectElement;
+    const select = getByRole(host, "combobox", { name: "Choose space" }) as HTMLSelectElement;
     expect(queryAllByRole(select, "option").map(accessibleName)).toEqual(["Design", "Research"]);
     act(() => { select.value = "research"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await submit(host);

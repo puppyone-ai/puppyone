@@ -44,6 +44,9 @@ export function SettingsView({
   gitStatusError,
   subThemeCatalog,
   cloudEnabled,
+  currentSpaceId,
+  currentSpaceName,
+  onSpaceChange,
   cloudSession,
   cloudSessionRestoring,
   cloudApiBaseUrl,
@@ -150,6 +153,9 @@ export function SettingsView({
   if (activeSection === "seats") {
     return (
       <SeatsSettingsView
+        organizationId={currentSpaceId}
+        spaceName={currentSpaceName}
+        onSpaceChange={onSpaceChange}
         cloudSession={cloudSession}
         cloudApiBaseUrl={cloudApiBaseUrl}
         onCloudSessionChange={onCloudSessionChange}

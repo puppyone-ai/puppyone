@@ -435,8 +435,8 @@ const desktopAppFeatureComposition = desktopAppFeatureCompositionStart >= 0
   ? featureCompositionAppSource.slice(desktopAppFeatureCompositionStart, desktopAppFeatureCompositionEnd)
   : "";
 if (
-  !desktopAppFeatureComposition.includes("createWorkbenchDataService(workbenchWorkspace)")
-  || !desktopAppFeatureComposition.includes("[workbenchWorkspace]")
+  !/createWorkbenchDataService\(workbenchWorkspace(?:\)|,\s*\{)/.test(desktopAppFeatureComposition)
+  || !/\[[^\]]*\bworkbenchWorkspace\b[^\]]*\]/.test(desktopAppFeatureComposition)
   || multiRootFeatureGatePattern.test(desktopAppFeatureComposition)
 ) {
   errors.push(`${relative(featureCompositionAppPath)} lets the multi-Folder experiment replace or disable the Workbench data kernel`);

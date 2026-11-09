@@ -7,7 +7,7 @@ import { ensurePersonalCloudSpace, listCloudOrganizations, type DesktopCloudSess
 vi.mock("../../../../src/lib/cloudApi", () => ({ ensurePersonalCloudSpace: vi.fn(), listCloudOrganizations: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const session = { user_id: "a", session_generation: "1", status: "authenticated" } as DesktopCloudSession;
-const personal = { id: "personal", name: "Alex", kind: "personal", can_create_projects: true };
+const personal = { is_default: true, id: "personal", name: "Alex", kind: "personal", can_create_projects: true };
 const team = { id: "team", name: "Company", kind: "team", can_create_projects: true };
 let root: Root;
 let state: ReturnType<typeof useCloudSpaces>;
@@ -18,7 +18,7 @@ function Harness({ user = session }: { user?: DesktopCloudSession | null }) {
 // Each case starts with no spaces seen before: the cache stands in only across launches.
 beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); root = createRoot(document.createElement("div")); });
 afterEach(async () => { await act(async () => root.unmount()); });
-it("ensures a separate personal space, then sorts personal before organizations", async () => {
+it("resolves the account default, then sorts it before other spaces", async () => {
   vi.mocked(listCloudOrganizations).mockResolvedValue([team] as never);
   vi.mocked(ensurePersonalCloudSpace).mockResolvedValue(personal as never);
   await act(async () => root.render(<Harness />));
@@ -26,7 +26,7 @@ it("ensures a separate personal space, then sorts personal before organizations"
   expect(state.spaces.map((space) => space.id)).toEqual(["personal", "team"]);
   expect(ensurePersonalCloudSpace).toHaveBeenCalledOnce();
 });
-it("does not repeat provisioning when the binding already exists", async () => {
+it("does not repeat provisioning when an accessible default already exists", async () => {
   vi.mocked(listCloudOrganizations).mockResolvedValue([team, personal] as never);
   await act(async () => root.render(<Harness />));
   expect(ensurePersonalCloudSpace).not.toHaveBeenCalled();
@@ -80,4 +80,11 @@ it("never stands in one account's spaces for another's", async () => {
   expect(state.status).toBe("loading");
   expect(state.spaces).toEqual([]);
   await act(async () => answer([] as never));
+});
+
+it("a multi-person Space can be the default without creating a separate personal silo", async () => {
+  vi.mocked(listCloudOrganizations).mockResolvedValue([{ ...personal, is_default: false }, { ...team, is_default: true }] as never);
+  await act(async () => root.render(<Harness />));
+  expect(state.spaces.map((space) => space.id)).toEqual(["team", "personal"]);
+  expect(ensurePersonalCloudSpace).not.toHaveBeenCalled();
 });

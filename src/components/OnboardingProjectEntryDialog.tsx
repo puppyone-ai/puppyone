@@ -61,7 +61,7 @@ export function OnboardingProjectEntryDialog({
   const title = t("onboarding.entry.create.title");
 
   const teams = onCreateCloudProject
-    ? (cloudSpaces ?? []).filter((space) => space.kind === "team" && space.canCreateProjects) : [];
+    ? (cloudSpaces ?? []).filter((space) => space.canCreateProjects) : [];
   const audiences: Audience[] = ["local", ...(onShareWithMyDevices ? ["devices" as const] : []), ...(teams.length ? ["team" as const] : [])];
   const [audience, setAudience] = useState<Audience>("local");
   const [teamId, setTeamId] = useState<string | null>(null);

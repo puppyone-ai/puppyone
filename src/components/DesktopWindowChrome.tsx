@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
+import { WindowNavigationSlot } from "./WindowNavigation";
 
 type DesktopWindowChromeProps = {
   /** Header presentation location; shell content separately owns the committed provider. */
@@ -54,6 +55,7 @@ export function DesktopWindowChrome({
               <strong className="desktop-titlebar-brand-name">{t("shell.brand.name")}</strong>
               <span className="desktop-titlebar-brand-separator">—</span>
             </div>
+            <WindowNavigationSlot />
             {context}
           </div>
           <div

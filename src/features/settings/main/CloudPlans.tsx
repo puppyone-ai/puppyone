@@ -22,13 +22,11 @@ import {
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
-  plansForSpace,
   TEAM_FEATURES,
   type AddOnOffer,
   type PlanHolding,
   type PlanId,
   type PlanOffer,
-  type SpaceKind,
 } from "./planPricing";
 
 type PlanPageProps = {
@@ -44,15 +42,8 @@ type PlanPageProps = {
   localization: LocalizationContextValue;
   onSignIn: () => void;
   signInDisabled?: boolean;
-  /**
-   * The kind of space this page is for. Plans belong to spaces: a personal
-   * space holds Free or Personal, a team holds Free or Team.
-   */
-  spaceKind: SpaceKind;
   /** Whether this person may change the plan; only a space's owner can. */
   canManageBilling: boolean | null;
-  /** Starts a team when someone in their personal space wants to work with others. */
-  onCreateTeam?: () => void;
 };
 
 /**
@@ -70,7 +61,8 @@ type PlanPageProps = {
 export function CloudPlans(props: PlanPageProps) {
   const { session, organizationId } = props;
   if (session !== null && organizationId !== null) {
-    return <ConnectedPlans {...props} session={session} organizationId={organizationId} />;
+    return <ConnectedPlans key={`${session.user_id}:${session.session_generation}:${session.api_base_url}:${props.apiBaseUrl}:${organizationId}`}
+      {...props} session={session} organizationId={organizationId} />;
   }
   const view = resolvePlanCatalog(props.catalog);
   const holding = resolvePlanHolding(null, null);
@@ -78,7 +70,7 @@ export function CloudPlans(props: PlanPageProps) {
   return (
     <>
       <PlanComparison
-        plans={plansForSpace(view.plans, props.spaceKind)}
+        plans={view.plans}
         holding={holding}
         signedIn={false}
         localization={props.localization}
@@ -109,9 +101,7 @@ function ConnectedPlans({
   loading,
   onRefresh,
   localization,
-  spaceKind,
   canManageBilling,
-  onCreateTeam,
 }: PlanPageProps & { session: DesktopCloudSession; organizationId: string }) {
   const { t } = localization;
   const controller = useCloudBillingController({
@@ -123,18 +113,17 @@ function ConnectedPlans({
   const holding = resolvePlanHolding(effectiveSummary, billing.catalog ?? catalog);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
   // Only the space's owner can buy or change; others see the plan as it is.
-  const owner = canManageBilling !== false;
+  const owner = canManageBilling === true;
   const sellable = view.authoritative && !billingUnavailable(billing.error) && owner;
   const busy = billing.action !== null || loading;
-  const spacePlans = plansForSpace(view.plans, spaceKind);
 
   const team = view.plans.find((plan) => plan.id === "team");
-  const teamMinimum = team?.minimumSeats ?? 2;
+  const teamMinimum = team?.minimumSeats ?? 1;
   const seatTarget = Math.max(teamMinimum, billing.seatQuantity);
   // The seat stepper writes the controller's quantity as it moves, so the quote
   // always reads the number on screen.
   const setSeats = controller.setSeatQuantity;
-  const onTeam = holding.subscribed && holding.planId === "team";
+  const onTeam = holding.subscribed;
   // Start the stepper from what is held, and again whenever that changes, but
   // never overwrite a number the person is still choosing.
   const seededFor = useRef<string | null>(null);
@@ -154,12 +143,11 @@ function ConnectedPlans({
 
   const choose = (plan: PlanOffer) => {
     if (!plan.catalogPlan) return;
-    if (plan.id === "team" && onTeam) {
+    if (plan.catalogPlan.id === effectiveSummary?.plan_id && onTeam) {
       void controller.quoteSeats();
       return;
     }
-    if (plan.id !== "team") setSeats(1);
-    void controller.quotePlan(plan.catalogPlan);
+    void controller.quotePlan(plan.catalogPlan, holding.subscribed ? holding.seats : seatTarget);
   };
 
   const renderAction = (plan: PlanOffer): ReactNode => {
@@ -179,11 +167,12 @@ function ConnectedPlans({
         </button>
       );
     }
-    if (plan.id === "team") {
-      const changed = !onTeam || seatTarget !== holding.seats;
+    if (plan.perPerson) {
+      const changed = !isCurrent || plan.catalogPlan?.id !== effectiveSummary?.plan_id || seatTarget !== holding.seats;
+      const canChooseSeats = !holding.subscribed || plan.catalogPlan?.id === effectiveSummary?.plan_id;
       return (
         <div className="desktop-plan-card-team-action">
-          <QuantityStepper
+          {canChooseSeats ? <QuantityStepper
             label={t("settings.plan.peopleLabel")}
             value={seatTarget}
             minimum={onTeam ? 1 : teamMinimum}
@@ -192,15 +181,15 @@ function ConnectedPlans({
             onChange={setSeats}
             localization={localization}
             unit={t("settings.plan.peopleUnit", { count: seatTarget })}
-          />
-          {onTeam && !changed ? <CurrentBadge localization={localization} /> : (
+          /> : <span>{t("settings.plan.peopleUnit", { count: holding.seats })}</span>}
+          {isCurrent && !changed ? <CurrentBadge localization={localization} /> : (
             <button
               type="button"
               className="desktop-settings-action primary"
               disabled={busy || !sellable || !plan.catalogPlan}
               onClick={() => choose(plan)}
             >
-              {t(teamActionLabel(onTeam, sellable))}
+              {t(teamActionLabel(isCurrent, sellable))}
             </button>
           )}
         </div>
@@ -281,7 +270,7 @@ function ConnectedPlans({
 
       {!owner && <p className="desktop-plan-note desktop-plan-managed">{t("settings.plan.space.managedByOwner")}</p>}
       <PlanComparison
-        plans={spacePlans}
+        plans={view.plans}
         holding={holding}
         signedIn
         localization={localization}
@@ -289,23 +278,15 @@ function ConnectedPlans({
           ? <CurrentBadge localization={localization} />
           : null}
       />
-      {spaceKind === "personal" && onCreateTeam && (
-        <p className="desktop-plan-note desktop-plan-team-prompt">
-          <span>{t("settings.plan.space.teamPrompt")}</span>
-          <button type="button" className="desktop-settings-action" onClick={onCreateTeam}>
-            {t("settings.plan.space.createTeam")}
-          </button>
-        </p>
-      )}
       <PlanFinePrint localization={localization} />
 
-      {owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(holding.planId)) && (
+      {owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(effectiveSummary?.plan_id ?? "")) && (
         <AddOns
           session={session}
           apiBaseUrl={apiBaseUrl}
           organizationId={organizationId}
           onSessionChange={onSessionChange}
-          addOns={view.addOns.filter((addOn) => addOn.availableOn.includes(holding.planId))}
+          addOns={view.addOns.filter((addOn) => addOn.availableOn.includes(effectiveSummary?.plan_id ?? ""))}
           holding={holding}
           sellable={sellable}
           localization={localization}
@@ -324,7 +305,7 @@ function describeScheduledChange(holding: PlanHolding, localization: Localizatio
     return t("settings.plan.scheduledSeats", { count: scheduled.seats, date });
   }
   return t("settings.plan.scheduledPlan", {
-    plan: t(`settings.plan.name.${planKey(String(scheduled.planId))}`),
+    plan: t(`settings.plan.name.${scheduled.planId}`),
     date,
   });
 }
@@ -511,47 +492,11 @@ function Gauge({
   );
 }
 
-/**
- * Plans, hours and storage belong to one organization. Someone in a team sees
- * their personal space first and can switch to each team they belong to.
- */
-export function OrganizationSwitch({
-  organizations,
-  selectedId,
-  onSelect,
-  localization,
-}: {
-  organizations: readonly { id: string; name: string; personal: boolean }[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  localization: LocalizationContextValue;
-}) {
-  const { t } = localization;
-  if (organizations.length < 2) return null;
-  return (
-    <div className="desktop-plan-orgs" role="radiogroup" aria-label={t("settings.plan.org.label")}>
-      <span className="desktop-plan-mono-label">{t("settings.plan.org.label")}</span>
-      {organizations.map((organization) => (
-        <button
-          key={organization.id}
-          type="button"
-          role="radio"
-          aria-checked={organization.id === selectedId}
-          className={`desktop-plan-org${organization.id === selectedId ? " selected" : ""}`}
-          onClick={() => onSelect(organization.id)}
-        >
-          {organization.personal ? t("settings.plan.org.personal") : organization.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // What each plan is for, in the situations people recognise, so a plan is
 // chosen for a reason rather than by its numbers alone.
 const PLAN_FIT: Readonly<Record<string, readonly string[]>> = {
   free: ["settings.plan.fit.free"],
-  personal: ["settings.plan.fit.reason.laptopClosed", "settings.plan.fit.reason.computers"],
+  enterprise: ["settings.plan.fit.reason.audit"],
   team: ["settings.plan.fit.reason.agents", "settings.plan.fit.reason.team"],
 };
 
@@ -584,7 +529,6 @@ export function PlanComparison({
           const perPerson = (value: string) => plan.perPerson
             ? t("settings.plan.spec.perPerson", { value })
             : value;
-          const historyDays = plan.historyDays ?? 30;
           const specs: Array<[string, string]> = [
             [t("settings.plan.hoursLabel"), t(plan.perPerson ? "settings.plan.spec.hoursPerPerson" : "settings.plan.spec.hours", {
               hours: formatHours(plan.agentHours, localization),
@@ -595,9 +539,7 @@ export function PlanComparison({
             [t("settings.plan.spec.projects"), plan.projects === null
               ? t("settings.plan.spec.unlimited")
               : perPerson(localization.formatNumber(plan.projects))],
-            [t("settings.plan.spec.history"), historyDays >= 365
-              ? t("settings.plan.spec.years", { count: Math.round(historyDays / 365) })
-              : t("settings.plan.spec.days", { count: historyDays })],
+
           ];
           return (
             <div
@@ -635,7 +577,7 @@ export function PlanComparison({
               </dl>
               {plan.teamFeatures && (
                 <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
-                  {TEAM_FEATURES.map((feature) => (
+                  {[...TEAM_FEATURES, ...(plan.id === "enterprise" ? ["activity.log"] : [])].map((feature) => (
                     <li key={feature}>
                       <Check size={12} aria-hidden="true" />
                       {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
@@ -854,10 +796,10 @@ function planActionLabel(subscribed: boolean, sellable: boolean): string {
   return subscribed ? "settings.plan.switch" : "settings.plan.upgrade";
 }
 
-function planKey(planId: string): PlanId | "team" {
-  if (planId === "plus" || planId === "personal") return "personal";
+function planKey(planId: string): PlanId {
+  if (["personal", "plus", "team_v2"].includes(planId)) return "team";
   if (planId === "free") return "free";
-  return "team";
+  return "enterprise";
 }
 
 /**

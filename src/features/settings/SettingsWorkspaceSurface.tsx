@@ -24,6 +24,9 @@ export type SettingsWorkspaceSurfaceProps = {
     refresh: () => void;
   };
   cloud: {
+    spaceId?: string | null;
+    spaceName?: string | null;
+    onSpaceChange?: () => void;
     enabled: boolean;
     session: DesktopCloudSession | null;
     sessionRestoring: boolean;
@@ -80,6 +83,9 @@ export function createSettingsWorkspaceSurface({
         gitStatusError={git.error}
         subThemeCatalog={subThemeCatalog}
         cloudEnabled={cloud.enabled}
+        currentSpaceId={cloud.spaceId}
+        currentSpaceName={cloud.spaceName}
+        onSpaceChange={cloud.onSpaceChange}
         cloudSession={cloud.session}
         cloudSessionRestoring={cloud.sessionRestoring}
         cloudApiBaseUrl={cloud.apiBaseUrl}

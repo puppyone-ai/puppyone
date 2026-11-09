@@ -6,6 +6,9 @@ export type CloudSpace = Readonly<{
   id: string;
   name: string;
   kind: "personal" | "team";
+  isDefault?: boolean;
+  role?: string | null;
+  canManageSpace?: boolean;
   canCreateProjects: boolean;
   /** The plan this space is on, when billing has published one; projects here use it. */
   planId?: string | null;

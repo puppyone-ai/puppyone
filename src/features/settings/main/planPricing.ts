@@ -38,10 +38,9 @@ const LOCAL_CURRENCY = "USD";
 const SECONDS_PER_HOUR = 3600;
 const DEFAULT_UNIT_SECONDS = 60;
 
-export const PLAN_ORDER = ["free", "personal", "team"] as const;
+export const PLAN_ORDER = ["free", "team", "enterprise"] as const;
 export type PlanId = (typeof PLAN_ORDER)[number];
 
-export type SpaceKind = "personal" | "team";
 
 /** What a team gets that one person does not need. Keys match catalog features. */
 // Only what Cloud enforces today. The catalog also publishes per-agent access
@@ -70,8 +69,6 @@ export type PlanOffer = {
   historyDays: number | null;
   teamFeatures: boolean;
   purchasable: boolean;
-  /** The kinds of space this plan is sold to: Personal for one's own, Team for a team. */
-  spaceKinds: readonly SpaceKind[];
   /**
    * The authoritative plan. Absent for indicative pricing, and a purchase can
    * never start without it.
@@ -97,28 +94,28 @@ const LOCAL_PLANS: Record<PlanId, PlanOffer> = {
   free: {
     id: "free", priceCents: 0, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
     projects: 1, storageBytes: 1 * BYTES_PER_GB, agentHours: 5, historyDays: 30,
-    teamFeatures: false, purchasable: false, spaceKinds: ["personal", "team"],
-  },
-  personal: {
-    id: "personal", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
-    projects: 20, storageBytes: 10 * BYTES_PER_GB, agentHours: 40, historyDays: 30,
-    teamFeatures: false, purchasable: true, spaceKinds: ["personal"],
+    teamFeatures: false, purchasable: false,
   },
   team: {
-    id: "team", priceCents: 4000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 2,
+    id: "team", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 1,
+    projects: 20, storageBytes: 10 * BYTES_PER_GB, agentHours: 40, historyDays: 30,
+    teamFeatures: true, purchasable: true,
+  },
+  enterprise: {
+    id: "enterprise", priceCents: 4000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 1,
     projects: 20, storageBytes: 20 * BYTES_PER_GB, agentHours: 40, historyDays: 365,
-    teamFeatures: true, purchasable: true, spaceKinds: ["team"],
+    teamFeatures: true, purchasable: true,
   },
 };
 
 const LOCAL_ADD_ONS: AddOnOffer[] = [
   {
     id: "agent_hours_100", kind: "hours", priceCents: 500, currency: LOCAL_CURRENCY,
-    hours: 100, storageBytes: 0, maxQuantity: 20, availableOn: ["personal", "team"],
+    hours: 100, storageBytes: 0, maxQuantity: 20, availableOn: ["team_v2", "enterprise_v2", "personal", "team"],
   },
   {
     id: "storage_10gb", kind: "storage", priceCents: 500, currency: LOCAL_CURRENCY,
-    hours: 0, storageBytes: 10 * BYTES_PER_GB, maxQuantity: 50, availableOn: ["personal", "team"],
+    hours: 0, storageBytes: 10 * BYTES_PER_GB, maxQuantity: 50, availableOn: ["team_v2", "enterprise_v2", "personal", "team"],
   },
 ];
 
@@ -140,7 +137,8 @@ export function resolvePlanCatalog(catalog: DesktopBillingCatalog | null): PlanC
   if (!catalog) return { plans: PLAN_ORDER.map((id) => LOCAL_PLANS[id]), addOns: LOCAL_ADD_ONS, authoritative: false };
   const unitSeconds = catalog.runtime.unit_seconds || DEFAULT_UNIT_SECONDS;
   const plans = PLAN_ORDER.map((id) => {
-    const plan = catalog.plans.find((candidate) => candidate.id === id || candidate.aliases.includes(id));
+    const catalogId = id === "free" ? "free" : `${id}_v2`;
+    const plan = catalog.plans.find((candidate) => candidate.id === catalogId);
     return plan ? planFromCatalog(id, plan, unitSeconds) : null;
   });
   if (plans.some((plan) => plan === null)) {
@@ -168,21 +166,8 @@ function planFromCatalog(id: PlanId, plan: DesktopBillingPlan, unitSeconds: numb
     historyDays: limitOf(plan, "history.retention_days"),
     teamFeatures: TEAM_FEATURES.some((feature) => plan.features[feature] === true),
     purchasable: plan.purchasable,
-    spaceKinds: plan.space_kinds?.length ? plan.space_kinds : DEFAULT_SPACE_KINDS[id],
     catalogPlan: plan,
   };
-}
-
-/** Plans belong to spaces; a catalog that predates the split falls back to these. */
-const DEFAULT_SPACE_KINDS: Readonly<Record<PlanId, readonly SpaceKind[]>> = {
-  free: ["personal", "team"],
-  personal: ["personal"],
-  team: ["team"],
-};
-
-/** Only the plans the given kind of space can hold, in the usual order. */
-export function plansForSpace(plans: readonly PlanOffer[], kind: SpaceKind): PlanOffer[] {
-  return plans.filter((plan) => plan.spaceKinds.includes(kind));
 }
 
 function addOnFromCatalog(addOn: DesktopBillingAddOn, unitSeconds: number): AddOnOffer {
@@ -297,8 +282,8 @@ export function resolvePlanHolding(
 }
 
 function canonicalPlanId(planId: string): PlanId | string {
-  if (planId === "plus") return "personal";
-  if (planId === "business" || planId === "pro") return "team";
+  if (["personal", "plus", "team_v2"].includes(planId)) return "team";
+  if (["business", "pro", "team", "enterprise_v2"].includes(planId)) return "enterprise";
   return planId;
 }
 
@@ -427,7 +412,7 @@ export function describeHoursReading(
 /** The localized name of the plan held. */
 export function heldPlanName(holding: PlanHolding, localization: LocalizationContextValue): string {
   if (!holding.subscribed) return localization.t("settings.plan.name.free");
-  return localization.t(holding.planId === "team" ? "settings.plan.name.team" : "settings.plan.name.personal");
+  return localization.t(holding.planId === "enterprise" ? "settings.plan.name.enterprise" : "settings.plan.name.team");
 }
 
 /** Bar tone: calm, then a warning from 80%, then exhausted from 90%. */

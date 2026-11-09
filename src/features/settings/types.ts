@@ -13,6 +13,9 @@ export type SettingsViewProps = {
   gitStatusLoading: boolean;
   gitStatusError: string | null;
   subThemeCatalog: SubThemeCatalogController;
+  currentSpaceId?: string | null;
+  currentSpaceName?: string | null;
+  onSpaceChange?: () => void;
   cloudEnabled: boolean;
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring: boolean;
