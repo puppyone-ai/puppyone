@@ -227,8 +227,12 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Verify Windows Agent process cleanup
-        run: npx vitest run tests/unit/agent/processes/electron.agent-process-tree.test.mjs tests/integration/platform/processes/windowsAgentProcessTree.test.mjs
+      - name: Verify Windows Agent process cleanup and built-in runtime
+        run: >-
+          npx vitest run
+          tests/unit/agent/processes/electron.agent-process-tree.test.mjs
+          tests/integration/platform/processes/windowsAgentProcessTree.test.mjs
+          tests/integration/agent/runtimes/puppyone-agent/electron.puppyone-pi-kernel.test.mjs
 
       - name: Resolve Windows package identity
         shell: pwsh

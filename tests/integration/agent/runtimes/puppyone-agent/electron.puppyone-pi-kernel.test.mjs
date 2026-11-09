@@ -34,11 +34,12 @@ describe("Built-in Agent Pi SDK kernel", () => {
       version: "0.85.1",
       compatibility: "puppyone-pi-rpc-v1",
     });
-    expect(readiness.argsPrefix).toEqual([expect.stringMatching(/puppyone-agent\/worker\/main\.mjs$/u)]);
+    expect(readiness.argsPrefix).toEqual([path.resolve(import.meta.dirname, "../../../../../electron/main/agent/runtimes/puppyone-agent/worker/main.mjs")]);
     expect(readiness.profilePath).toBe(path.join(userDataPath, "agent-runtime", "puppyone-agent"));
   });
 
   it("keeps provider credentials but strips user Pi and PuppyOne launch overrides", () => {
+    const profilePath = path.join(os.tmpdir(), "managed-puppyone");
     const environment = buildPuppyOneAgentEnvironment({
       PATH: "/usr/bin",
       HOME: "/Users/test",
@@ -49,16 +50,56 @@ describe("Built-in Agent Pi SDK kernel", () => {
       PI_CODING_AGENT_DIR: "/untrusted/pi",
       PUPPYONE_OPENCODE_BIN: "/untrusted/opencode",
       DEBUG: "secret-debug",
-    }, { profilePath: "/managed/puppyone" });
+    }, { profilePath });
     expect(environment.OPENAI_API_KEY).toBe("provider-key");
-    expect(environment.PI_CODING_AGENT_DIR).toBe("/managed/puppyone/pi");
-    expect(environment.PI_CODING_AGENT_SESSION_DIR).toBe("/managed/puppyone/sessions");
+    expect(environment.PI_CODING_AGENT_DIR).toBe(path.join(profilePath, "pi"));
+    expect(environment.PI_CODING_AGENT_SESSION_DIR).toBe(path.join(profilePath, "sessions"));
     expect(environment.PUPPYONE_OPENCODE_BIN).toBeUndefined();
     expect(environment.INTERNAL_API_KEY).toBeUndefined();
     expect(environment.RELEASE_AUTH_TOKEN).toBeUndefined();
     expect(environment.DATABASE_CREDENTIALS).toBeUndefined();
     expect(environment.DEBUG).toBeUndefined();
     expect(environment.ELECTRON_RUN_AS_NODE).toBe("1");
+  });
+
+  it.each(["Path", "path", "PATH"])("preserves Windows %s and canonicalizes allowed environment names", (pathKey) => {
+    const profilePath = path.join(os.tmpdir(), "managed-profile");
+    const environment = buildPuppyOneAgentEnvironment({
+      [pathKey]: "C:\\Tools;C:\\Windows\\System32",
+      ComSpec: "C:\\Windows\\System32\\cmd.exe",
+      SystemRoot: "C:\\Windows",
+      pathext: ".EXE;.CMD",
+      userprofile: "C:\\Users\\tester",
+      openai_api_key: "provider-fixture",
+      internal_api_key: "must-not-inherit",
+      pi_coding_agent_dir: "C:\\untrusted",
+    }, { profilePath, platform: "win32" });
+    expect(environment).toMatchObject({
+      PATH: "C:\\Tools;C:\\Windows\\System32",
+      COMSPEC: "C:\\Windows\\System32\\cmd.exe",
+      SYSTEMROOT: "C:\\Windows",
+      PATHEXT: ".EXE;.CMD",
+      USERPROFILE: "C:\\Users\\tester",
+      OPENAI_API_KEY: "provider-fixture",
+      PI_CODING_AGENT_DIR: path.join(profilePath, "pi"),
+    });
+    expect(Object.keys(environment).some(key => key !== key.toUpperCase())).toBe(false);
+    expect(environment.INTERNAL_API_KEY).toBeUndefined();
+    expect(stripPuppyOneProviderCredentials(environment, { platform: "win32" }).OPENAI_API_KEY).toBeUndefined();
+  });
+
+  it("strips Windows credential aliases before exposing an environment to shell tools", () => {
+    expect(stripPuppyOneProviderCredentials({
+      Path: "C:\\Tools", OpenAI_API_KEY: "provider-fixture", aws_secret_access_key: "aws-fixture",
+    }, { platform: "win32" })).toEqual({ Path: "C:\\Tools" });
+  });
+
+  it("keeps POSIX environment names case-sensitive", () => {
+    const environment = buildPuppyOneAgentEnvironment({ PATH: "/bin", Path: "/ignored", openai_api_key: "ignored" },
+      { profilePath: path.join(os.tmpdir(), "managed-profile"), platform: "linux" });
+    expect(environment.PATH).toBe("/bin");
+    expect(environment.Path).toBeUndefined();
+    expect(environment.openai_api_key).toBeUndefined();
   });
 
   it("removes provider credentials from model-callable shell subprocesses", () => {
