@@ -143,5 +143,9 @@
   "template.copiedNote": "Do link de modelo que você copiou.",
   "template.signIn": "Entrar para usar este modelo",
   "template.signingIn": "Entrando…",
-  "projects.groups.cloud": "Nuvem"
+  "projects.groups.cloud": "Nuvem",
+  "entry.import.retryOpen": "Abrir projeto importado",
+  "entry.import.openFailed": "O projeto foi importado, mas não pôde ser aberto. Verifique se a pasta está disponível e tente novamente.",
+  "entry.import.app.loading": "Lendo pastas…",
+  "entry.import.app.readFailed": "Não foi possível ler as pastas. Tente novamente."
 }

@@ -332,8 +332,10 @@ export function useWorkspaceLifecycle({
   const importSource = useCallback(async (request: WorkspaceImportSourceRequest) => {
     const navigation = ++navigationRequestRef.current;
     const result = await importSourceTarget(request);
-    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "imported");
-    return result !== null;
+    if (navigation === navigationRequestRef.current && result?.opening.status === "opened") {
+      handleWorkspaceOpenResult(result.opening.result, "imported");
+    }
+    return result;
   }, [handleWorkspaceOpenResult]);
 
   const removeWorkspaceFromRecents = useCallback(async (folderPath: string) => {

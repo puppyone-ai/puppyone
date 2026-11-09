@@ -1,8 +1,10 @@
 /**
  * @vitest-environment happy-dom
  */
+import { importProjectResult } from "../../../support/react/onboardingHome";
 import { desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
+import type { WorkspaceAppFolder, WorkspaceImportProgress, WorkspaceImportSourceResult } from "../../../../src/types/electron";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -12,8 +14,75 @@ import { ALL_EXPERIMENTAL_IMPORTS, mountRoot, renderHome, setInputValue, setUpOn
 setUpOnboardingHome();
 
 describe("importing from the Homepage", () => {
+  it("retries only opening after publication and preserves the original import task", async () => {
+    const success = await importProjectResult();
+    const onImportSource = vi.fn<() => Promise<WorkspaceImportSourceResult>>()
+      .mockResolvedValueOnce({ project: success.project, opening: { status: "failed", message: "Disk unavailable" } })
+      .mockResolvedValueOnce(success);
+    const container = renderHome({ onImportSource });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-import-source='github']")?.click());
+    const input = container.querySelector<HTMLInputElement>("input");
+    setInputValue(input, "https://github.com/example/notes.git");
+    await act(async () => container.querySelector<HTMLButtonElement>("button[type='submit']")?.click());
+    expect(container.querySelector("[role='alert']")?.textContent).toContain("The project was imported");
+    expect(container.querySelector("[role='alert']")?.textContent).not.toContain("Disk unavailable");
+    expect(input?.disabled).toBe(true);
+    const retry = container.querySelector<HTMLButtonElement>("button[type='submit']");
+    expect(retry?.textContent).toBe("Open imported project");
+    expect(retry?.disabled).toBe(false);
+    await act(async () => retry?.click());
+    expect(onImportSource.mock.calls[1]).toEqual(onImportSource.mock.calls[0]);
+    expect(container.querySelector("[role='dialog']")).toBeNull();
+  });
+
+  it("reports a failed app read and can retry discovering its folders", async () => {
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
+    const onListAppFolders = vi.fn(async (app: string): Promise<WorkspaceAppFolder[]> => {
+      if (app === "obsidian") throw new Error("access denied");
+      return [];
+    });
+    const container = renderHome({ onImportSource: vi.fn(importProjectResult), onListAppFolders,
+      onAddAppFolders: vi.fn(async () => ({ added: 1 })) });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click());
+    const source = container.querySelector<HTMLButtonElement>("[data-import-source='obsidian']");
+    expect(source?.disabled).toBe(false);
+    expect(source?.textContent).toContain("Could not read folders");
+    await act(async () => source?.click());
+    expect(container.querySelector("[role='alert']")?.textContent).toContain("Could not read folders");
+    onListAppFolders.mockImplementation(async (app) => app === "obsidian"
+      ? [{ path: "/notes", name: "Notes", lastUsedAt: null, added: false }] : []);
+    const retry = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Retry");
+    expect(retry).toBeDefined();
+    await act(async () => retry?.click());
+    expect(container.querySelector("[role='alert']")).toBeNull();
+    expect(container.querySelector(".onboarding-import-app-folder-name")?.textContent).toBe("Notes");
+  });
+
+  it("cancels an active import and disables cancellation during publication", async () => {
+    let progress: ((value: WorkspaceImportProgress) => void) | undefined;
+    let finish: ((value: WorkspaceImportSourceResult | null) => void) | undefined;
+    const onImportSource = vi.fn(() => new Promise<WorkspaceImportSourceResult | null>((resolve) => { finish = resolve; }));
+    const onCancelImportSource = vi.fn(async () => ({ cancelled: true }));
+    const container = renderHome({ onImportSource, onCancelImportSource,
+      onImportSourceProgress: (listener) => { progress = listener; return () => undefined; } });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-import-source='github']")?.click());
+    setInputValue(container.querySelector<HTMLInputElement>("input"), "https://github.com/example/notes.git");
+    await act(async () => container.querySelector<HTMLButtonElement>("button[type='submit']")?.click());
+    const taskId = (onImportSource.mock.calls[0] as unknown as [{ taskId: string }])[0].taskId;
+    const cancel = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Cancel")!;
+    await act(async () => { progress?.({ taskId, phase: "reading" }); });
+    expect(cancel.disabled).toBe(false);
+    await act(async () => cancel.click());
+    expect(onCancelImportSource).toHaveBeenCalledWith(taskId);
+    await act(async () => { progress?.({ taskId, phase: "publishing" }); });
+    expect(cancel.disabled).toBe(true);
+    await act(async () => finish?.(null));
+  });
+
   it("hides experimental sources by default", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const onChooseWorkspace = vi.fn(async () => undefined);
     const container = renderHome({ onImportSource, onChooseWorkspace });
 
@@ -67,7 +136,7 @@ describe("importing from the Homepage", () => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
-      onImportSource: vi.fn(async () => true),
+      onImportSource: vi.fn(importProjectResult),
       onChooseWorkspace: vi.fn(async () => undefined),
       onDefaultProjectLocation,
     });
@@ -103,7 +172,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("updates the production import preview and open picker from the import preference", async () => {
-    const container = renderHome({ onImportSource: vi.fn(async () => true) });
+    const container = renderHome({ onImportSource: vi.fn(importProjectResult) });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
     expect(container.querySelector('[data-import-source="obsidian"]')).toBeNull();
     act(() => preferences.getState().setExperimentalSettings(current => ({ ...current, enableOtherAppImports: true })));
@@ -113,7 +182,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("keeps remote providers unavailable until direct service adapters exist", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
       onImportSource,
@@ -140,7 +209,7 @@ describe("importing from the Homepage", () => {
       items: [{ id: "page-1", name: "Team notes", kind: "document" as const }],
       nextCursor: null,
     }));
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     act(() => renderWithTestLocalization(root, <OnboardingImportDialog
       onClose={onClose}
       onImportSource={onImportSource}
@@ -173,7 +242,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("lists the folders Obsidian records and adds the chosen ones in place", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const onListAppFolders = vi.fn(async (app: string) => app === "obsidian" ? [
       { path: "/Users/example/Notes", name: "Notes", lastUsedAt: 2, added: false },
       { path: "/Users/example/Journal", name: "Journal", lastUsedAt: 1, added: true },
@@ -207,7 +276,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("imports a GitHub repository into the default location without a folder picker", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
       path: "/Users/example/Documents/PuppyOne",
@@ -254,7 +323,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("auto-detects a GitLab URL and passes a null grant when no default location exists", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const container = renderHome({ onImportSource });
 
     await act(async () => {
@@ -279,7 +348,7 @@ describe("importing from the Homepage", () => {
   });
 
   it("explains unsupported repository URLs instead of silently disabling Import", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const container = renderHome({ onImportSource });
 
     await act(async () => {

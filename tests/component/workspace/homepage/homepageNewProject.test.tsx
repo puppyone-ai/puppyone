@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { importProjectResult } from "../../../support/react/onboardingHome";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { createProjectResult, expectBrandLockup, renderHome, requireSurface, setInputValue, setUpOnboardingHome } from "../../../support/react/onboardingHome";
@@ -16,7 +17,7 @@ describe("New project from the Homepage", () => {
       path: "/Users/example/Desktop",
     }));
     const onCreateProject = vi.fn(createProjectResult);
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const container = renderHome({
       onChooseWorkspace,
       onChooseProjectLocation,

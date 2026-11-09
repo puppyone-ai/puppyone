@@ -143,5 +143,9 @@
   "template.copiedNote": "Aus dem Vorlagenlink, den du kopiert hast.",
   "template.signIn": "Anmelden, um die Vorlage zu verwenden",
   "template.signingIn": "Anmeldung läuft…",
-  "projects.groups.cloud": "Cloud"
+  "projects.groups.cloud": "Cloud",
+  "entry.import.retryOpen": "Importiertes Projekt öffnen",
+  "entry.import.openFailed": "Das Projekt wurde importiert, konnte aber nicht geöffnet werden. Prüfe, ob der Ordner verfügbar ist, und versuche es erneut.",
+  "entry.import.app.loading": "Ordner werden gelesen…",
+  "entry.import.app.readFailed": "Ordner konnten nicht gelesen werden. Versuche es erneut."
 }

@@ -1,5 +1,6 @@
 import type {
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceOpenResult,
@@ -51,7 +52,7 @@ export async function defaultLocalProjectLocationTarget(): Promise<WorkspaceProj
 
 export async function importSourceTarget(
   request: WorkspaceImportSourceRequest,
-): Promise<WorkspaceOpenResult | null> {
+): Promise<WorkspaceImportSourceResult | null> {
   return importSourceBridge(request);
 }
 

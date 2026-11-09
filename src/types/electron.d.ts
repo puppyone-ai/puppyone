@@ -798,6 +798,12 @@ export type WorkspaceImportSourceRequest = {
   locationGrantId?: string | null;
 };
 
+/** Import publication and workspace opening are separate outcomes. */
+export type WorkspaceImportSourceResult = {
+  project: { path: string; name: string; provider: string };
+  opening: WorkspaceCreateProjectResult["opening"];
+};
+
 export type WorkspaceImportResource = ImportResource;
 export type WorkspaceImportResourcePage = ImportResourcePage;
 export type WorkspaceImportProgress = ImportProgress & { taskId: string };
@@ -1327,7 +1333,7 @@ declare global {
       listImportResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
       listAppFolders: (app: string) => Promise<{ folders: WorkspaceAppFolder[] }>;
       addAppFolders: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
-      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceOpenResult | null>;
+      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
       cancelImportSource: (request: { taskId: string }) => Promise<{ cancelled: boolean }>;
       onImportSourceProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
       getPathForFile: (file: File) => string;

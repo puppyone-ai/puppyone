@@ -143,5 +143,9 @@
   "template.copiedNote": "Del enlace de plantilla que copiaste.",
   "template.signIn": "Iniciar sesión para usar esta plantilla",
   "template.signingIn": "Iniciando sesión…",
-  "projects.groups.cloud": "Nube"
+  "projects.groups.cloud": "Nube",
+  "entry.import.retryOpen": "Abrir proyecto importado",
+  "entry.import.openFailed": "El proyecto se importó, pero no se pudo abrir. Comprueba que la carpeta esté disponible e inténtalo de nuevo.",
+  "entry.import.app.loading": "Leyendo carpetas…",
+  "entry.import.app.readFailed": "No se pudieron leer las carpetas. Inténtalo de nuevo."
 }

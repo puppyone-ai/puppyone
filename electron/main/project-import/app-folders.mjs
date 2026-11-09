@@ -21,11 +21,9 @@ export function createAppFolderDiscovery({
   readSqliteValue = readSqliteItem,
   readPlistValue = readMacPlistKey,
 } = {}) {
-  const appData = platform === "darwin"
-    ? path.join(home, "Library", "Application Support")
-    : platform === "win32"
-      ? env.APPDATA ?? path.join(home, "AppData", "Roaming")
-      : env.XDG_CONFIG_HOME ?? path.join(home, ".config");
+  let appData = env.XDG_CONFIG_HOME ?? path.join(home, ".config");
+  if (platform === "darwin") appData = path.join(home, "Library", "Application Support");
+  if (platform === "win32") appData = env.APPDATA ?? path.join(home, "AppData", "Roaming");
 
   const vsCodeHistory = (product) => async () => {
     const value = await readSqliteValue(
@@ -37,7 +35,14 @@ export function createAppFolderDiscovery({
     // Newest first. Remote folders and single files are not local projects.
     return entries
       .filter((entry) => typeof entry?.folderUri === "string" && entry.folderUri.startsWith("file:") && !entry.remoteAuthority)
-      .map((entry) => ({ path: fileURLToPath(entry.folderUri), lastUsedAt: null }));
+      .flatMap((entry) => {
+        try {
+          return [{ path: fileURLToPath(entry.folderUri), lastUsedAt: null }];
+        } catch {
+          // One malformed URI must not hide the app's other recorded folders.
+          return [];
+        }
+      });
   };
 
   const readers = {
@@ -63,16 +68,22 @@ export function createAppFolderDiscovery({
       const read = Object.hasOwn(readers, app) ? readers[app] : null;
       if (!read) throw new Error("This app is not a known folder source.");
       // An app that is not installed, or has never opened a folder, has nothing to offer.
-      const candidates = await read().catch(() => []);
+      const candidates = await read().catch((error) => {
+        if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return [];
+        throw error;
+      });
       const folders = [];
       const seen = new Set();
       for (const candidate of candidates) {
         if (folders.length >= MAX_FOLDERS_PER_APP) break;
-        if (typeof candidate.path !== "string" || !path.isAbsolute(candidate.path)) continue;
+        if (typeof candidate?.path !== "string" || candidate.path.includes("\0") || !path.isAbsolute(candidate.path)) continue;
         const folderPath = path.resolve(candidate.path);
         if (seen.has(folderPath)) continue;
         seen.add(folderPath);
-        const metadata = await io.stat(folderPath).catch(() => null);
+        const metadata = await io.stat(folderPath).catch((error) => {
+          if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return null;
+          throw error;
+        });
         if (!metadata?.isDirectory()) continue;
         folders.push({ path: folderPath, name: path.basename(folderPath) || folderPath, lastUsedAt: candidate.lastUsedAt });
       }
@@ -82,6 +93,7 @@ export function createAppFolderDiscovery({
 }
 
 async function readSqliteItem(databasePath, key) {
+  await fs.access(databasePath);
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
   try {
@@ -93,6 +105,7 @@ async function readSqliteItem(databasePath, key) {
 }
 
 async function readMacPlistKey(plistPath, key) {
-  const { stdout } = await execFileAsync("/usr/bin/plutil", ["-extract", key, "json", "-o", "-", plistPath], { timeout: 5000 });
-  return JSON.parse(stdout);
+  await fs.access(plistPath);
+  const { stdout } = await execFileAsync("/usr/bin/plutil", ["-convert", "json", "-o", "-", plistPath], { timeout: 5000 });
+  return JSON.parse(stdout)?.[key] ?? [];
 }

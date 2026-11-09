@@ -143,5 +143,9 @@
   "template.copiedNote": "From the template link you copied.",
   "template.signIn": "Sign in to use this template",
   "template.signingIn": "Signing in…",
-  "projects.groups.cloud": "Cloud"
+  "projects.groups.cloud": "Cloud",
+  "entry.import.retryOpen": "Open imported project",
+  "entry.import.openFailed": "The project was imported, but could not be opened. Check that its folder is available, then try again.",
+  "entry.import.app.loading": "Reading folders…",
+  "entry.import.app.readFailed": "Could not read folders. Try again."
 }

@@ -7,6 +7,7 @@ import { TemplateImportCard } from "../../components/TemplateImportCard";
 import { looksLikeTemplateLink } from "../../../shared/desktop/template-link.mjs";
 import type {
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceImportResourcePage,
   WorkspaceImportProgress,
   WorkspaceAppFolder,
@@ -81,7 +82,7 @@ export type ProjectEntryFlowProps = Readonly<{
   onCreateCloudProject?: (spaceId: string, name: string, operationId: string) => Promise<void>;
   /** Offers a project just created and opened here to the owner's other computers. */
   onShareWithMyDevices?: (path: string) => Promise<void>;
-  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
+  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
   onConnectSource?: (provider: string) => Promise<{ connectionId: string }>;
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
   onCancelImport?: (taskId: string) => Promise<{ cancelled: boolean }>;

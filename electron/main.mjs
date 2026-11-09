@@ -114,6 +114,7 @@ import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agen
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
+import { createImportOpeningRecovery } from "./main/project-import/opening.mjs";
 import { createAppFolderDiscovery } from "./main/project-import/app-folders.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
@@ -554,6 +555,10 @@ const projectEntryService = createProjectEntryService({
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
+const importOpeningRecovery = createImportOpeningRecovery({
+  remember: (projectPath) => workspaceStateStore.addRecentWorkspacePaths([projectPath]),
+  open: openWorkspaceInCurrentWindow,
+});
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
 const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
@@ -1806,6 +1811,8 @@ async function importSourceForCurrentWindow(sender, request) {
     throw new Error("An import task ID is required.");
   }
   return runProjectEntryOperation(sender, async () => {
+    const completed = importOpeningRecovery.get(sender, taskId);
+    if (completed) return importOpeningRecovery.open(sender, taskId, completed);
     let source;
     if (descriptor.mode === "folder") {
       const ownerWindow = getDialogOwnerWindow(sender);
@@ -1856,7 +1863,7 @@ async function importSourceForCurrentWindow(sender, request) {
       });
       importSourceTasks.delete(sender.id);
       if (grantId) projectLocationGrants.revoke(sender, grantId);
-      return openWorkspaceInCurrentWindow(sender, project.path);
+      return importOpeningRecovery.open(sender, taskId, project);
     } finally {
       importSourceTasks.delete(sender.id);
     }

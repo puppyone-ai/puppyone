@@ -272,7 +272,7 @@ describe("Homepage project layouts", () => {
   });
 
   it("moves through the entry menu by keyboard and hands focus back when dismissed", () => {
-    const { container } = renderHome({ onImportSource: vi.fn(async () => false) });
+    const { container } = renderHome({ onImportSource: vi.fn(async () => null) });
     const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
     const press = (key: string) => act(() => {
       document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));

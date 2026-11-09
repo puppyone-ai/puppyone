@@ -403,8 +403,7 @@
 
 /* GitHub and Notion ship as solid black marks; flip them on dark surfaces. */
 .dark .onboarding-import-mark.is-github,
-.dark .onboarding-import-mark.is-notion,
-.dark .onboarding-import-mark.is-cursor {
+.dark .onboarding-import-mark.is-notion {
   filter: invert(1);
 }
 

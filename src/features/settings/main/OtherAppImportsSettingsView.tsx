@@ -15,9 +15,9 @@ export function OtherAppImportsSettingsView({ onOpenImport }: { onOpenImport: ()
             title={t("settings.experimental.otherAppImports.title")}
           />
           <div className="desktop-settings-list desktop-settings-lead-list">
-            {SOURCES.map(({ id, operational }) => (
+            {SOURCES.map(({ id, label, operational }) => (
               <div className="desktop-settings-row" key={id}>
-                <span>{t(`onboarding.entry.import.source.${id}.title`)}</span>
+                <span>{label}</span>
                 {!operational && <span>{t("onboarding.entry.import.directUnavailable")}</span>}
               </div>
             ))}

@@ -29,6 +29,7 @@ import type {
   PuppyoneWorkspaceConfig,
   RecentWorkspacesResult,
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceImportResourcePage,
   WorkspaceAppFolder,
   WorkspaceImportProgress,
@@ -472,7 +473,7 @@ export async function addAppFolders(request: { app: string; paths: string[] }): 
   return getDesktopBridge().addAppFolders(request);
 }
 
-export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceOpenResult | null> {
+export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceImportSourceResult | null> {
   return getDesktopBridge().importSource(request);
 }
 

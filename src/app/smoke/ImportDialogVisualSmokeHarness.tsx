@@ -57,7 +57,7 @@ export function ImportDialogVisualSmokeHarness() {
       onClose={noop}
       onDefaultLocation={async () => GRANT}
       onChooseLocation={async () => GRANT}
-      onImportSource={async () => false}
+      onImportSource={async () => null}
       onConnectSource={async () => ({ connectionId: "fixture" })}
       onListResources={async () => ({
         items: [

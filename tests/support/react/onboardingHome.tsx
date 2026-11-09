@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../src/preferenceStorage";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../src/components/brand/PuppyBrandMark";
-import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, DesktopTelemetryState } from "../../../src/types/electron";
+import type { WorkspaceImportSourceResult, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, DesktopTelemetryState } from "../../../src/types/electron";
 import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../src/preferences";
 import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "./homeWithEntryFlow";
 import { renderWithTestLocalization } from "./localization";
@@ -206,5 +206,12 @@ export async function createProjectResult(request: WorkspaceCreateProjectRequest
   return {
     initialization: { operationId: request.operationId, outcome: "committed", name: request.name, path: "/projects/" + request.name, createdPaths: ["Getting Started.md"], initialOpenPath: "Getting Started.md", template: null },
     opening: { status: "opened", result: { status: "opened-current", workspaceId: "test", path: "/projects/" + request.name, workspace: null } },
+  };
+}
+
+export async function importProjectResult(): Promise<WorkspaceImportSourceResult> {
+  return {
+    project: { path: "/projects/imported", name: "imported", provider: "github" },
+    opening: { status: "opened", result: { status: "opened-current", workspaceId: "test", path: "/projects/imported", workspace: null } },
   };
 }
