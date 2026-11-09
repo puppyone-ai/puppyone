@@ -961,6 +961,73 @@
   color: var(--po-danger);
 }
 
+.desktop-plan-loading {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.desktop-plan-placeholder {
+  display: block;
+  max-width: 100%;
+  flex: none;
+  border-radius: 4px;
+}
+
+.desktop-plan-placeholder.name {
+  width: 108px;
+  height: calc(var(--po-text-size-section-title, 15px) * 1.4);
+}
+
+.desktop-plan-placeholder.detail {
+  width: 168px;
+  height: calc(var(--po-text-size-meta, 12px) * 1.5);
+}
+
+.desktop-plan-placeholder.meter,
+.desktop-plan-placeholder.action {
+  width: 100%;
+  height: 14px;
+}
+
+.desktop-plan-usage-item > .desktop-plan-placeholder.detail {
+  height: calc(var(--po-text-size-meta, 12px) * 1.4);
+}
+
+.desktop-plan-placeholder.price {
+  width: 120px;
+  height: calc(var(--po-type-ui-page-title, 21px) * 1.25);
+}
+
+.desktop-plan-placeholder.reading {
+  width: 84px;
+  color: transparent;
+}
+
+.desktop-plan-placeholder.tagline {
+  width: 90%;
+  height: 1.5em;
+}
+
+.desktop-plan-placeholder.spec {
+  width: 100%;
+  min-height: 1.5em;
+}
+
+.desktop-plan-loading .desktop-plan-card-details {
+  min-height: 64px;
+}
+
+.desktop-plan-placeholder.action {
+  height: var(--po-control-size-compact);
+}
+
+.desktop-plan-load-error {
+  min-height: 150px;
+  gap: 16px;
+  color: var(--po-text-muted);
+}
+
 .desktop-plan-overview {
   container-type: inline-size;
   display: grid;

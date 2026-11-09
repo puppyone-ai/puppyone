@@ -107,10 +107,13 @@ const usageOf = (usedUnits: number, grantedUnits: number, usedBytes: number, lim
   storage: { logical_bytes: usedBytes, limit_bytes: limitBytes },
 }) as unknown as DesktopBillingUsage;
 
-function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "personal" }: {
+function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "personal", loadError = false, onRefresh = () => undefined, restoring = false }: {
   onSignIn?: () => void;
   signedIn?: boolean;
   spaceKind?: "personal" | "team";
+  loadError?: boolean;
+  onRefresh?: () => void;
+  restoring?: boolean;
 }) {
   const localization = useLocalization();
   return (
@@ -123,7 +126,9 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "
       summary={null}
       usage={null}
       loading={false}
-      onRefresh={() => undefined}
+      loadError={loadError}
+      restoring={restoring}
+      onRefresh={onRefresh}
       localization={localization}
       onSignIn={onSignIn}
       spaceKind={spaceKind}
@@ -302,9 +307,32 @@ it("routes a signed-out reader to sign-in from every plan", async () => {
 
 it("does not offer sign-in to a reader who is already signed in", async () => {
   const host = await render(<SignedOut signedIn />);
-  const button = host.querySelector<HTMLButtonElement>(".desktop-plan-card button")!;
-  expect(button.textContent).toBe("Loading…");
-  expect(button.disabled).toBe(true);
+  expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(host.textContent).toContain("Your plan");
+  expect(host.textContent).toContain("Agent hours");
+  expect(host.textContent).toContain("Storage");
+  expect(host.querySelector(".desktop-plan-card button")).toBeNull();
+  expect(host.textContent).not.toContain("Free");
+  expect(host.querySelector("[role=progressbar]")).toBeNull();
+});
+
+it("keeps the signed-in page skeleton while restoring a session instead of flashing signed-out prices", async () => {
+  const host = await render(<SignedOut restoring />);
+  expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(host.textContent).toContain("Your plan");
+  expect(host.textContent).not.toContain("Sign in to choose");
+});
+
+it("offers retry and published prices after a failed signed-in read without inventing a Free holding", async () => {
+  const refresh = vi.fn();
+  const host = await render(<SignedOut signedIn loadError onRefresh={refresh} />);
+  expect(host.querySelector('[aria-busy="true"]')).toBeNull();
+  expect(host.querySelector('[role="alert"]')).not.toBeNull();
+  expect(host.querySelector('[aria-current="true"]')).toBeNull();
+  expect(host.querySelector(".desktop-plan-card button")).toBeNull();
+  expect(host.textContent).toContain("$20");
+  await act(async () => host.querySelector<HTMLButtonElement>('[role="alert"] button')?.click());
+  expect(refresh).toHaveBeenCalledOnce();
 });
 
 it("never reads a few saved files as zero gigabytes", () => {

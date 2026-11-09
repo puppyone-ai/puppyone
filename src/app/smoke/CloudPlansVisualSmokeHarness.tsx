@@ -1,4 +1,5 @@
 import { useLocalization } from "@puppyone/localization";
+import { useEffect, useState } from "react";
 import { SettingsSectionHeader } from "../../features/settings/components";
 import {
   AddOns,
@@ -23,10 +24,12 @@ import type {
 /**
  * Settings → Plan, for visual review: `#cloud-plans-visual-smoke`, with
  * `?state=signed-out` (default), `?state=free`, `?state=personal`, `?state=team`
- * or `?state=scheduled` (Team waiting to become Personal at renewal). Readings
+ * or `?state=scheduled` (Team waiting to become Personal at renewal).
+ * `?state=loading` holds the first-load layout; `?state=delayed` resolves it
+ * after five seconds for layout-shift review. Readings
  * are fixtures; nothing here reaches a billing service.
  */
-const state = new URLSearchParams(window.location.search).get("state") ?? "signed-out";
+const requestedState = new URLSearchParams(window.location.search).get("state") ?? "signed-out";
 const GB = 1000 ** 3;
 const SESSION = { user_id: "fixture", api_base_url: "https://cloud-fixture.puppyone.ai/api/v1" } as DesktopCloudSession;
 
@@ -68,6 +71,12 @@ function usage(used: number, granted: number, bytes: number, limit: number): Des
 }
 
 export function CloudPlansVisualSmokeHarness() {
+  const [state, setState] = useState(requestedState === "delayed" ? "loading" : requestedState);
+  useEffect(() => {
+    if (requestedState !== "delayed") return;
+    const timer = window.setTimeout(() => setState("personal"), 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const localization = useLocalization();
   const { t } = localization;
   const view = resolvePlanCatalog(null);
@@ -87,28 +96,32 @@ export function CloudPlansVisualSmokeHarness() {
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.seats.title")} />
-          {state === "signed-out" ? (
-            <CloudPlans
-              session={null}
-              apiBaseUrl={null}
-              organizationId={null}
-              onSessionChange={() => undefined}
-              catalog={null}
-              summary={null}
-              usage={null}
-              loading={false}
-              onRefresh={() => undefined}
-              localization={localization}
-              onSignIn={() => undefined}
-              spaceKind="personal"
-              canManageBilling={null}
-            />
+          {state === "signed-out" || state === "loading" ? (
+            <>
+              {state === "loading" && <OrganizationSwitch organizations={[]} selectedId={null}
+                onSelect={() => undefined} localization={localization} visible loading />}
+              <CloudPlans
+                session={state === "loading" ? SESSION : null}
+                apiBaseUrl={null}
+                organizationId={null}
+                onSessionChange={() => undefined}
+                catalog={null}
+                summary={null}
+                usage={null}
+                loading={state === "loading"}
+                onRefresh={() => undefined}
+                localization={localization}
+                onSignIn={() => undefined}
+                spaceKind="personal"
+                canManageBilling={null}
+              />
+            </>
           ) : (
             <>
               <OrganizationSwitch
                 organizations={state === "team"
                   ? [{ id: "me", name: "Me", personal: true }, { id: "o1", name: "Acme Research", personal: false }]
-                  : []}
+                  : [{ id: "o1", name: "Me", personal: true }]}
                 selectedId="o1"
                 onSelect={() => undefined}
                 localization={localization}

@@ -97,6 +97,7 @@ export function AccountSettingsView({
     enabled: cloudPlan,
   });
   const holding = resolvePlanHolding(snapshot.summary, snapshot.catalog);
+  const unknownPlan = snapshot.loading || cloudSessionRestoring ? t("settings.plan.loading") : "—";
 
   // Only say something about the session when it is not simply working. The
   // steady signed-in state needs no commentary; the email is the proof.
@@ -215,10 +216,12 @@ export function AccountSettingsView({
                     change — and this page states no catalogue price at all. */}
                 <SettingsValueRow
                   label={t("settings.account.plan")}
-                  value={describeHolding(holding, localization)}
+                  value={cloudSessionRestoring || (cloudSession && !snapshot.summary)
+                    ? unknownPlan
+                    : describeHolding(holding, localization)}
                   action={onOpenBilling ? (
                     <button type="button" className="desktop-settings-action" onClick={onOpenBilling}>
-                      {t(holding.subscribed ? "settings.account.openBilling" : "settings.account.upgrade")}
+                      {t(holding.subscribed || (cloudSession && !snapshot.summary) ? "settings.account.openBilling" : "settings.account.upgrade")}
                     </button>
                   ) : undefined}
                 />

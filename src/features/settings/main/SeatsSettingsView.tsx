@@ -30,12 +30,14 @@ import { useAccountPlan } from "./useAccountPlan";
  */
 export function SeatsSettingsView({
   cloudSession,
+  cloudSessionRestoring = false,
   cloudApiBaseUrl,
   onCloudSessionChange,
   onSignIn,
   signInDisabled = false,
 }: {
   cloudSession: DesktopCloudSession | null;
+  cloudSessionRestoring?: boolean;
   cloudApiBaseUrl: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   /** Buying needs an account, so the page offers the same sign-in Account does. */
@@ -55,7 +57,7 @@ export function SeatsSettingsView({
     session,
     apiBaseUrl: resolvedApiBaseUrl,
     onSessionChange: onCloudSessionChange,
-    enabled: payments,
+    enabled: payments && !cloudSessionRestoring,
   });
 
   // This surface exists only to ask for money. With the experiment off it must
@@ -73,6 +75,8 @@ export function SeatsSettingsView({
             selectedId={snapshot.organizationId}
             onSelect={snapshot.selectOrganization}
             localization={localization}
+            loading={cloudSessionRestoring || (Boolean(session) && snapshot.loading)}
+            visible={cloudSessionRestoring || Boolean(session)}
           />
           <CloudPlans
             session={session}
@@ -83,6 +87,8 @@ export function SeatsSettingsView({
             summary={snapshot.summary}
             usage={snapshot.usage}
             loading={snapshot.loading}
+            restoring={cloudSessionRestoring}
+            loadError={snapshot.error}
             onRefresh={snapshot.refresh}
             localization={localization}
             onSignIn={onSignIn}

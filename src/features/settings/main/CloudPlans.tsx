@@ -13,6 +13,7 @@ import {
 } from "../../../lib/cloudApi";
 import { useCloudBillingController } from "../../cloud";
 import { SettingsSubsection, SettingsValueRow } from "../components";
+import { PlanLoading } from "./PlanLoading";
 import {
   formatCurrency,
   formatHours,
@@ -40,7 +41,9 @@ type PlanPageProps = {
   summary: DesktopBillingSummary | null;
   usage: DesktopBillingUsage | null;
   loading: boolean;
-  onRefresh: () => void;
+  restoring?: boolean;
+  loadError?: boolean;
+  onRefresh: (force?: boolean) => void;
   localization: LocalizationContextValue;
   onSignIn: () => void;
   signInDisabled?: boolean;
@@ -69,7 +72,10 @@ type PlanPageProps = {
  */
 export function CloudPlans(props: PlanPageProps) {
   const { session, organizationId } = props;
-  if (session !== null && organizationId !== null) {
+  if (props.restoring || (session && !props.summary && (props.loading || !props.loadError))) {
+    return <PlanLoading localization={props.localization} />;
+  }
+  if (session !== null && organizationId !== null && props.summary) {
     return <ConnectedPlans {...props} session={session} organizationId={organizationId} />;
   }
   const view = resolvePlanCatalog(props.catalog);
@@ -77,19 +83,29 @@ export function CloudPlans(props: PlanPageProps) {
   const waiting = session !== null;
   return (
     <>
+      {session && (
+        <SettingsSubsection title={props.localization.t("settings.plan.currentLabel")}>
+          <div className="desktop-settings-row desktop-plan-load-error" role="alert">
+            <span>{props.localization.t("cloud.billing.loadFailed")}</span>
+            <button type="button" className="desktop-settings-action" onClick={() => props.onRefresh()}>
+              {props.localization.t("cloud.common.refresh")}
+            </button>
+          </div>
+        </SettingsSubsection>
+      )}
       <PlanComparison
         plans={plansForSpace(view.plans, props.spaceKind)}
         holding={holding}
         signedIn={false}
         localization={props.localization}
-        renderAction={(plan) => (
+        renderAction={(plan) => waiting ? null : (
           <button
             type="button"
             className={`desktop-settings-action${plan.id === "free" ? "" : " primary"}`}
             disabled={waiting || props.signInDisabled}
             onClick={props.onSignIn}
           >
-            {props.localization.t(waiting ? "settings.plan.loading" : "settings.plan.signInToChoose")}
+            {props.localization.t("settings.plan.signInToChoose")}
           </button>
         )}
       />
@@ -107,6 +123,7 @@ function ConnectedPlans({
   summary,
   usage,
   loading,
+  loadError,
   onRefresh,
   localization,
   spaceKind,
@@ -116,6 +133,8 @@ function ConnectedPlans({
   const { t } = localization;
   const controller = useCloudBillingController({
     session, apiBaseUrl, organizationId, enabled: true, onSessionChange, t,
+    readSnapshot: { catalog, summary, usage },
+    onSnapshotChange: () => onRefresh(false),
   });
   const billing = controller.state;
   const view = resolvePlanCatalog(billing.catalog ?? catalog);
@@ -123,7 +142,7 @@ function ConnectedPlans({
   const holding = resolvePlanHolding(effectiveSummary, billing.catalog ?? catalog);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
   // Only the space's owner can buy or change; others see the plan as it is.
-  const owner = canManageBilling !== false;
+  const owner = canManageBilling === true;
   const sellable = view.authoritative && !billingUnavailable(billing.error) && owner;
   const busy = billing.action !== null || loading;
   const spacePlans = plansForSpace(view.plans, spaceKind);
@@ -279,7 +298,16 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
-      {!owner && <p className="desktop-plan-note">{t("settings.plan.space.managedByOwner")}</p>}
+      {(loadError || billing.error) && (
+        <p className="desktop-plan-note desktop-plan-team-prompt" role="status">
+          <span>{t("cloud.billing.loadFailed")}</span>
+          <button type="button" className="desktop-settings-action" disabled={busy} onClick={refreshAll}>
+            {t("cloud.common.refresh")}
+          </button>
+        </p>
+      )}
+
+      {canManageBilling === false && <p className="desktop-plan-note">{t("settings.plan.space.managedByOwner")}</p>}
       <PlanComparison
         plans={spacePlans}
         holding={holding}
@@ -511,14 +539,25 @@ export function OrganizationSwitch({
   selectedId,
   onSelect,
   localization,
+  loading = false,
+  visible = organizations.length > 0,
 }: {
   organizations: readonly { id: string; name: string; personal: boolean }[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   localization: LocalizationContextValue;
+  loading?: boolean;
+  visible?: boolean;
 }) {
   const { t } = localization;
-  if (organizations.length < 2) return null;
+  if (!visible) return null;
+  if (organizations.length < 2) {
+    const organization = organizations[0];
+    let value: ReactNode = loading
+      ? <span className="desktop-plan-placeholder name" data-placeholder-shape="" aria-label={t("settings.plan.loading")} /> : "—";
+    if (organization) value = organization.personal ? t("settings.plan.org.personal") : organization.name;
+    return <SettingsValueRow label={t("settings.plan.org.label")} value={value} />;
+  }
   return (
     <SettingsValueRow
       label={t("settings.plan.org.label")}

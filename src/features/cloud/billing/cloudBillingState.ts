@@ -48,6 +48,7 @@ export type BillingReducerAction =
   | { type: "loadStarted"; contextKey: string }
   | { type: "loadSucceeded"; contextKey: string; result: BillingLoadResult }
   | { type: "loadFailed"; contextKey: string; error: string }
+  | { type: "operationsLoaded"; contextKey: string; operations: DesktopBillingOperation[] }
   | { type: "setSeatQuantity"; contextKey: string; value: number }
   | { type: "clearActionError"; contextKey: string }
   | {
@@ -132,6 +133,11 @@ export function billingReducer(
     }
     case "loadFailed":
       return { ...state, loading: false, error: action.error };
+    case "operationsLoaded":
+      return { ...state, loading: false, error: null, operations: action.operations.map((incoming) => {
+        const observed = state.operations.find((candidate) => candidate.id === incoming.id);
+        return observed?.terminal && !incoming.terminal ? observed : incoming;
+      }) };
     case "setSeatQuantity":
       return {
         ...state,
