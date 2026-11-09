@@ -802,6 +802,15 @@ export type WorkspaceImportResource = ImportResource;
 export type WorkspaceImportResourcePage = ImportResourcePage;
 export type WorkspaceImportProgress = ImportProgress & { taskId: string };
 
+/** A folder another app (Obsidian, VS Code, Cursor, Typora) already records. */
+export type WorkspaceAppFolder = {
+  path: string;
+  name: string;
+  lastUsedAt: number | null;
+  /** Already listed on the Homepage. */
+  added: boolean;
+};
+
 export type WorkspaceCreateEntryKind = "file" | "folder";
 
 export type WorkspaceCreateEntryRequest = {
@@ -1316,6 +1325,8 @@ declare global {
       ) => Promise<WorkspaceCreateProjectResult>;
       connectImportSource: (request: { provider: string }) => Promise<{ connectionId: string }>;
       listImportResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
+      listAppFolders: (app: string) => Promise<{ folders: WorkspaceAppFolder[] }>;
+      addAppFolders: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
       importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceOpenResult | null>;
       cancelImportSource: (request: { taskId: string }) => Promise<{ cancelled: boolean }>;
       onImportSourceProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;

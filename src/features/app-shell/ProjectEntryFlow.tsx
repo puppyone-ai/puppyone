@@ -9,6 +9,7 @@ import type {
   WorkspaceImportSourceRequest,
   WorkspaceImportResourcePage,
   WorkspaceImportProgress,
+  WorkspaceAppFolder,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
@@ -85,6 +86,8 @@ export type ProjectEntryFlowProps = Readonly<{
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
   onCancelImport?: (taskId: string) => Promise<{ cancelled: boolean }>;
   onImportProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
+  onListAppFolders?: (app: string) => Promise<WorkspaceAppFolder[]>;
+  onAddAppFolders?: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
   /** A Project is open in this window; a template must not take its place. */
   projectIsOpen?: boolean;
   /**
@@ -129,6 +132,8 @@ export function ProjectEntryFlow({
   onListResources,
   onCancelImport,
   onImportProgress,
+  onListAppFolders,
+  onAddAppFolders,
   projectIsOpen = false,
   offerCopiedTemplate = false,
 }: ProjectEntryFlowProps) {
@@ -253,6 +258,8 @@ export function ProjectEntryFlow({
         onListResources={onListResources}
         onCancelImport={onCancelImport}
         onImportProgress={onImportProgress}
+        onListAppFolders={onListAppFolders}
+        onAddAppFolders={onAddAppFolders}
         visibleSources={visibleImportSources}
       />
     );

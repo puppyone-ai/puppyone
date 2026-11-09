@@ -171,6 +171,42 @@ export function createWorkspaceStateStore({
     });
   }
 
+  /**
+   * Adds folders to the Homepage without opening any of them. Folders already
+   * listed keep their place; the open project stays the open project.
+   */
+  async function addRecentWorkspacePaths(folderPaths) {
+    const candidates = [];
+    for (const folderPath of folderPaths) {
+      const canonicalPath = await canonicalizeRequiredPath(folderPath);
+      const identity = await resolveIdentity(canonicalPath, null);
+      candidates.push({
+        workspaceInstanceId: identity.workspaceInstanceId,
+        puppyoneGitRemote: normalizePuppyoneGitRemote(identity.puppyoneGitRemote),
+        fsIdentity: identity.fsIdentity,
+        path: canonicalPath,
+        name: identity.name ?? (path.basename(canonicalPath) || canonicalPath),
+        lastOpenedAt: new Date(now()).toISOString(),
+      });
+    }
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      const added = [];
+      for (const record of candidates) {
+        if ([...state.recentWorkspaceRecords, ...added].some((item) => isSameWorkspaceRecord(item, record))) continue;
+        added.push(record);
+      }
+      if (added.length > 0) {
+        await writeWorkspaceState(createPersistedState(
+          [...added, ...state.recentWorkspaceRecords],
+          state.lastActiveWorkspacePaths,
+          state.lastActiveWorkbenchWorkspaceId,
+        ));
+      }
+      return added;
+    });
+  }
+
   async function rememberWorkspaceComposition(workspaces, options = {}) {
     if (!Array.isArray(workspaces) || workspaces.length === 0) {
       throw new TypeError("A Workspace composition requires at least one Folder.");
@@ -474,6 +510,7 @@ export function createWorkspaceStateStore({
     rememberWorkspaceComposition,
     clearActiveWorkspaceComposition,
     rememberRecentWorkspacePath,
+    addRecentWorkspacePaths,
     requireRecentWorkspacePath,
     removeRecentWorkspacePath,
     renameRecentWorkspacePath,

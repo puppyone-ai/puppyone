@@ -333,6 +333,8 @@ function AppContent() {
     importSource,
     connectImportSource,
     listImportResources,
+    listAppFolders,
+    addAppFolders,
     cancelImportSource,
     onImportSourceProgress,
     createProject,
@@ -1687,6 +1689,8 @@ function AppContent() {
       onImportSource={importSource}
       onConnectSource={connectImportSource}
       onListResources={listImportResources}
+      onListAppFolders={listAppFolders}
+      onAddAppFolders={addAppFolders}
       onCancelImport={cancelImportSource}
       onImportProgress={onImportSourceProgress}
       onOpenFolder={() => void openFolder()}

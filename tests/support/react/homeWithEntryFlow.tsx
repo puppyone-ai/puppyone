@@ -16,6 +16,8 @@ export type HomeWithEntryFlowProps =
     onListImportResources?: FlowProps["onListResources"];
     onCancelImportSource?: FlowProps["onCancelImport"];
     onImportSourceProgress?: FlowProps["onImportProgress"];
+    onListAppFolders?: FlowProps["onListAppFolders"];
+    onAddAppFolders?: FlowProps["onAddAppFolders"];
   };
 
 /** The Homepage wired to its entry flow as the window wires it. A given controller stands for a window's. */
@@ -29,6 +31,8 @@ export function HomeWithEntryFlow({
   onListImportResources,
   onCancelImportSource,
   onImportSourceProgress,
+  onListAppFolders,
+  onAddAppFolders,
   ...home
 }: HomeWithEntryFlowProps) {
   const ownFlow = useProjectEntryFlow();
@@ -53,6 +57,8 @@ export function HomeWithEntryFlow({
           onListResources={onListImportResources}
           onCancelImport={onCancelImportSource}
           onImportProgress={onImportSourceProgress}
+          onListAppFolders={onListAppFolders}
+          onAddAppFolders={onAddAppFolders}
         />
       )}
     </>

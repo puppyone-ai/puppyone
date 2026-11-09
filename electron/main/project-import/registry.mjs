@@ -2,7 +2,10 @@ import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs
 
 /** One registration boundary for import metadata and executable providers. */
 export function createImportSourceRegistry({ descriptors = LOCAL_IMPORT_SOURCES, adapters = {}, loadAdapter = null } = {}) {
-  const manifest = Object.freeze(descriptors.map((descriptor) => Object.freeze({ ...descriptor })));
+  // App folders are added to the Homepage in place; they have no import adapter.
+  const manifest = Object.freeze(descriptors
+    .filter((descriptor) => descriptor.mode !== "app")
+    .map((descriptor) => Object.freeze({ ...descriptor })));
   const entries = new Map();
   const loading = new Map();
   for (const descriptor of manifest) {

@@ -10,6 +10,7 @@ import {
   type RepositoryImportSource,
 } from "../features/project-import/importSourceRegistry";
 import type {
+  WorkspaceAppFolder,
   WorkspaceImportSourceRequest,
   WorkspaceImportResourcePage,
   WorkspaceImportResource,
@@ -81,6 +82,10 @@ export type OnboardingImportDialogProps = {
   onImportProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   /** Sources resolved from the shared capability and experiment registry. */
   visibleSources?: readonly ImportSourceDescriptor[];
+  /** Folders another app already records, read by Main from that app's own record. */
+  onListAppFolders?: (app: string) => Promise<WorkspaceAppFolder[]>;
+  /** Lists chosen folders on the Homepage in place; nothing is copied or opened. */
+  onAddAppFolders?: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
 };
 
 export function OnboardingImportDialog({
@@ -93,14 +98,18 @@ export function OnboardingImportDialog({
   onCancelImport,
   onImportProgress,
   visibleSources = DEFAULT_VISIBLE_IMPORT_SOURCES,
+  onListAppFolders,
+  onAddAppFolders,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
   const [source, setSource] = useState<OnboardingImportSource | null>(null);
   const [busy, setBusy] = useState(false);
+  const appFolders = useAppFolders(visibleSources, onListAppFolders);
   const selectedDescriptor = visibleSources.find((entry) => entry.id === source);
   const title = source === null
     ? t("onboarding.entry.import.title")
-    : t("onboarding.entry.import.repository.title", { provider: selectedDescriptor?.label ?? source });
+    : t(selectedDescriptor?.mode === "app" ? "onboarding.entry.import.app.title" : "onboarding.entry.import.repository.title",
+      { provider: selectedDescriptor?.label ?? source });
 
   const selectSource = (nextSource: OnboardingImportSource) => {
     setSource(nextSource);
@@ -146,6 +155,8 @@ export function OnboardingImportDialog({
           <ImportSourceList
             onSelect={selectSource}
             visibleSources={visibleSources}
+            appFolders={appFolders}
+            canAddAppFolders={Boolean(onListAppFolders && onAddAppFolders)}
           />
         )}
         {selectedDescriptor?.mode === "repository" && (
@@ -158,6 +169,15 @@ export function OnboardingImportDialog({
             onImportSource={onImportSource}
             onCancelImport={onCancelImport}
             onImportProgress={onImportProgress}
+          />
+        )}
+        {selectedDescriptor?.mode === "app" && onAddAppFolders && (
+          <AppFoldersStep
+            app={selectedDescriptor}
+            folders={appFolders[selectedDescriptor.id]}
+            onBusyChange={setBusy}
+            onClose={onClose}
+            onAddAppFolders={onAddAppFolders}
           />
         )}
         {selectedDescriptor?.mode === "folder" && (
@@ -191,32 +211,62 @@ export function OnboardingImportDialog({
   );
 }
 
+/** Each app's folders, asked once when the picker opens; `undefined` while asking. */
+function useAppFolders(
+  visibleSources: readonly ImportSourceDescriptor[],
+  onListAppFolders: OnboardingImportDialogProps["onListAppFolders"],
+) {
+  const [folders, setFolders] = useState<Record<string, WorkspaceAppFolder[] | undefined>>({});
+  const apps = visibleSources.filter(({ mode }) => mode === "app").map(({ id }) => id).join(",");
+  useEffect(() => {
+    if (!onListAppFolders || !apps) return;
+    let cancelled = false;
+    for (const app of apps.split(",")) {
+      void onListAppFolders(app)
+        .catch(() => [])
+        .then((list) => { if (!cancelled) setFolders((current) => ({ ...current, [app]: list })); });
+    }
+    return () => { cancelled = true; };
+  }, [apps, onListAppFolders]);
+  return folders;
+}
+
 function ImportSourceList({
   onSelect,
   visibleSources,
+  appFolders,
+  canAddAppFolders,
 }: {
   onSelect: (source: OnboardingImportSource) => void;
   visibleSources: readonly ImportSourceDescriptor[];
+  appFolders: Record<string, WorkspaceAppFolder[] | undefined>;
+  canAddAppFolders: boolean;
 }) {
   const { t } = useLocalization();
+  // An app with no folders on this computer has nothing to offer yet.
+  const statusOf = ({ id, mode, operational }: ImportSourceDescriptor) => {
+    if (!operational) return t("onboarding.entry.import.directUnavailable");
+    if (mode !== "app") return null;
+    if (!canAddAppFolders || appFolders[id]?.length === 0) return t("onboarding.entry.import.app.notFound");
+    return null;
+  };
   // What can be imported now comes first; what is still coming follows it.
   const orderedSources = [
-    ...visibleSources.filter(({ operational }) => operational),
-    ...visibleSources.filter(({ operational }) => !operational),
+    ...visibleSources.filter((source) => statusOf(source) === null),
+    ...visibleSources.filter((source) => statusOf(source) !== null),
   ];
   return (
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
       <ul className="onboarding-import-sources">
-        {orderedSources.map(({ id, label, mode, operational }, index) => (
+        {orderedSources.map((source, index) => (
           <ImportSourceRow
-            key={id}
-            source={id}
-            mode={mode}
-            icon={<ImportSourceMark brand={id} decorative />}
-            title={label}
+            key={source.id}
+            source={source.id}
+            mode={source.mode}
+            icon={<ImportSourceMark brand={source.id} decorative />}
+            title={source.label}
             initialFocus={index === 0}
-            operational={operational}
-            unavailableLabel={t("onboarding.entry.import.directUnavailable")}
+            unavailableLabel={statusOf(source)}
             onSelect={onSelect}
           />
         ))}
@@ -231,17 +281,16 @@ function ImportSourceRow({
   icon,
   title,
   initialFocus = false,
-  operational,
   unavailableLabel,
   onSelect,
 }: {
   source: OnboardingImportSource;
-  mode: "repository" | "remote" | "folder";
+  mode: ImportSourceDescriptor["mode"];
   icon: ReactNode;
   title: string;
   initialFocus?: boolean;
-  operational: boolean;
-  unavailableLabel: string;
+  /** Why the source cannot be chosen; `null` when it can. */
+  unavailableLabel: string | null;
   onSelect: (source: OnboardingImportSource) => void;
 }) {
   return (
@@ -252,14 +301,98 @@ function ImportSourceRow({
         data-import-source={source}
         data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
-        disabled={!operational}
+        disabled={unavailableLabel !== null}
         onClick={() => onSelect(source)}
       >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
-        {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
+        {unavailableLabel !== null && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
       </button>
     </li>
+  );
+}
+
+function AppFoldersStep({
+  app,
+  folders,
+  onBusyChange,
+  onClose,
+  onAddAppFolders,
+}: {
+  app: ImportSourceDescriptor;
+  folders: WorkspaceAppFolder[] | undefined;
+  onBusyChange: (busy: boolean) => void;
+  onClose: () => void;
+  onAddAppFolders: NonNullable<OnboardingImportDialogProps["onAddAppFolders"]>;
+}) {
+  const { t } = useLocalization();
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => onBusyChange(adding), [adding, onBusyChange]);
+
+  const toggle = (folderPath: string) => setChosen((current) => {
+    const next = new Set(current);
+    if (!next.delete(folderPath)) next.add(folderPath);
+    return next;
+  });
+  const add = async () => {
+    setAdding(true);
+    setError(null);
+    try {
+      await onAddAppFolders({ app: app.id, paths: [...chosen] });
+      onClose();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setAdding(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
+        <p className="onboarding-import-outcome">{t("onboarding.entry.import.app.outcome")}</p>
+        {folders?.length === 0 && (
+          <p className="onboarding-import-app-empty">{t("onboarding.entry.import.app.empty", { provider: app.label })}</p>
+        )}
+        {folders && folders.length > 0 && (
+          <ul className="onboarding-import-app-folders" aria-label={t("onboarding.entry.import.app.title", { provider: app.label })}>
+            {folders.map((folder, index) => (
+              <li key={folder.path}>
+                <label className="onboarding-import-app-folder" data-added={folder.added || undefined}>
+                  <input
+                    type="checkbox"
+                    checked={folder.added || chosen.has(folder.path)}
+                    disabled={folder.added || adding}
+                    data-desktop-dialog-initial-focus={index === 0 ? "true" : undefined}
+                    onChange={() => toggle(folder.path)}
+                  />
+                  <span className="onboarding-import-app-folder-copy">
+                    <span className="onboarding-import-app-folder-name">{folder.name}</span>
+                    <bdi className="onboarding-import-app-folder-path" dir="ltr">{folder.path}</bdi>
+                  </span>
+                  {folder.added && <span className="onboarding-import-app-folder-status">{t("onboarding.entry.import.app.added")}</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+      </div>
+      <footer className="desktop-dialog-footer">
+        <button className="desktop-dialog-button" type="button" disabled={adding} onClick={onClose}>
+          {t("common.action.cancel")}
+        </button>
+        <button
+          className="desktop-dialog-button primary file"
+          type="button"
+          disabled={adding || chosen.size === 0}
+          onClick={() => void add()}
+        >
+          {t("onboarding.entry.import.app.submit", { count: chosen.size })}
+        </button>
+      </footer>
+    </>
   );
 }
 
