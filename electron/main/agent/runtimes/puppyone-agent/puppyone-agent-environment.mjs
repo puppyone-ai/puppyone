@@ -47,8 +47,10 @@ export function buildPuppyOneAgentEnvironment(baseEnv, { profilePath, platform =
     throw new TypeError(`${BUILT_IN_AGENT_DISPLAY_NAME} requires an absolute managed profile path.`);
   }
   const environment = {};
-  for (const [key, value] of Object.entries(baseEnv ?? {})) {
+  for (const [rawKey, value] of Object.entries(baseEnv ?? {})) {
     if (typeof value !== "string") continue;
+    // Windows names are case-insensitive, including the usual Path/ComSpec.
+    const key = platform === "win32" ? rawKey.toUpperCase() : rawKey;
     if (
       EXACT_ENVIRONMENT_KEYS.has(key)
       || key.startsWith("LC_")
@@ -61,13 +63,15 @@ export function buildPuppyOneAgentEnvironment(baseEnv, { profilePath, platform =
   environment.PI_CODING_AGENT_DIR = path.join(environment.PUPPYONE_AGENT_HOME, "pi");
   environment.PI_CODING_AGENT_SESSION_DIR = path.join(environment.PUPPYONE_AGENT_HOME, "sessions");
   environment.ELECTRON_RUN_AS_NODE = "1";
-  if (platform === "win32") environment.PATHEXT = baseEnv?.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
+  if (platform === "win32") environment.PATHEXT = environment.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
   return environment;
 }
 
 /** Provider credentials are available to ModelRuntime, never to model-callable shell subprocesses. */
-export function stripPuppyOneProviderCredentials(environment) {
+export function stripPuppyOneProviderCredentials(environment, { platform = process.platform } = {}) {
   const sanitized = { ...(environment ?? {}) };
-  for (const key of PROVIDER_ENVIRONMENT_KEYS) delete sanitized[key];
+  for (const key of Object.keys(sanitized)) {
+    if (PROVIDER_ENVIRONMENT_KEYS.has(platform === "win32" ? key.toUpperCase() : key)) delete sanitized[key];
+  }
   return sanitized;
 }
