@@ -67,7 +67,7 @@ export function SeatsSettingsView({
   return (
     <section className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
-        <div className="desktop-settings-section">
+        <div className="desktop-settings-section desktop-plan-settings">
           <SettingsSectionHeader title={t("settings.seats.title")} />
 
           <OrganizationSwitch
@@ -89,6 +89,7 @@ export function SeatsSettingsView({
             loading={snapshot.loading}
             restoring={cloudSessionRestoring}
             loadError={snapshot.error}
+            catalogUnavailable={snapshot.catalogUnavailable}
             onRefresh={snapshot.refresh}
             localization={localization}
             onSignIn={onSignIn}

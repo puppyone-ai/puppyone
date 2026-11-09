@@ -596,7 +596,7 @@
   "plan.feature.agent_access_rules": "Escolha o que cada agente pode ver e alterar",
   "plan.feature.activity_log": "Registro do que os agentes fizeram",
   "plan.feature.billing_consolidated": "Uma só fatura para a equipe",
-  "plan.finePrint": "As horas de agente contam só o tempo em que agentes trabalham no seu espaço de trabalho hospedado; abrir e editar arquivos nunca as usa. Quem só lê e os agentes que você conecta são gratuitos. Os agentes usam o seu próprio modelo de IA.",
+  "plan.finePrint": "As horas de agente cobrem apenas agentes. A IA é cobrada à parte.",
   "plan.status.free": "Grátis",
   "plan.status.active": "Ativo",
   "plan.status.ending": "Terminando",
@@ -649,5 +649,7 @@
   "plan.addOnFailed": "Não foi possível alterar o complemento.",
   "plan.decrease": "Menos: {label}",
   "plan.increase": "Mais: {label}",
-  "plan.historyYears": "{count, plural, one {# ano} other {# anos}} de histórico"
+  "plan.historyYears": "{count, plural, one {# ano} other {# anos}} de histórico",
+  "plan.changesUnavailable": "Alterações de plano estão indisponíveis no momento.",
+  "plan.gaugeAvailable": "Disponível agora"
 }

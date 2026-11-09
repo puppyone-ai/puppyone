@@ -276,7 +276,6 @@ it("offers each space only the plans it can hold, with comparable prices and all
   expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
     .toEqual(["Free", "Team"]);
   expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
-  expect(teamCards[1]?.textContent).toContain("Member roles");
   // Not sold until Cloud enforces them.
   expect(teamCards[1]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
 });
@@ -289,10 +288,10 @@ it("keeps Personal and Team to the spaces they are for, even from an older catal
   expect(plansForSpace(local, "team").map((plan) => plan.id)).toEqual(["free", "team"]);
 });
 
-it("says beside the hours that people working in the cloud never spend them", async () => {
+it("explains what hours cover and keeps model costs separate", async () => {
   const host = await render(<SignedOut />);
   expect(host.querySelector(".desktop-plan-note")?.textContent)
-    .toMatch(/people opening and editing files never use them/);
+    .toMatch(/Agent hours cover agents only.*AI model costs are separate/);
 });
 
 it("routes a signed-out reader to sign-in from every plan", async () => {

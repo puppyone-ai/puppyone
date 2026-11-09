@@ -29,11 +29,12 @@ export type AccountPlanSnapshot = {
   /** Includes background revalidation; cached readings remain visible. */
   loading: boolean;
   error: boolean;
+  catalogUnavailable: boolean;
 };
 
 const EMPTY: AccountPlanSnapshot = {
   catalog: null, summary: null, usage: null, organizationId: null,
-  organizations: [], canManageBilling: null, loading: false, error: false,
+  organizations: [], canManageBilling: null, loading: false, error: false, catalogUnavailable: false,
 };
 
 function cachedSnapshot(scope: BillingReadScope, chosenId: string | null): AccountPlanSnapshot {
@@ -52,6 +53,7 @@ function cachedSnapshot(scope: BillingReadScope, chosenId: string | null): Accou
     canManageBilling: organizationId ? readBillingResource(selected, "access")?.can_manage_billing ?? null : null,
     loading: true,
     error: false,
+    catalogUnavailable: false,
   };
 }
 
@@ -102,12 +104,19 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled }
 
     const load = async () => {
       let failed = false;
+      let catalogUnavailable = false;
       const fallback = <T,>(promise: Promise<T>, cached: T | null): Promise<T | null> => promise.catch(() => {
         failed = true;
         return cached;
       });
       const [catalog, organizations] = await Promise.all([
-        fallback(loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, refresh), readBillingResource(readScope, "catalog") ?? null),
+        loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, refresh).catch((error: unknown) => {
+          const cause = error as Error & { status?: number; code?: string };
+          catalogUnavailable = cause?.status === 404 && (cause.code === "hosting_billing_disabled"
+            || /Hosting subscriptions are not available|Billing is not enabled/i.test(cause.message));
+          if (!catalogUnavailable) failed = true;
+          return catalogUnavailable ? null : readBillingResource(readScope, "catalog") ?? null;
+        }),
         fallback(loadBillingResource(readScope, "organizations",
           (signal) => listCloudOrganizations(currentSession, handleSessionChange, apiBaseUrl, signal), refresh), readBillingResource(readScope, "organizations") ?? null),
       ]);
@@ -137,7 +146,7 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled }
           organizationId: organizationId ?? (organizations === null ? previous.organizationId : null),
           organizations: organizations === null ? previous.organizations : ordered,
           canManageBilling: access?.can_manage_billing ?? (failed && sameSpace ? previous.canManageBilling : null),
-          loading: false, error: failed || summary === null,
+          loading: false, error: failed || summary === null, catalogUnavailable,
         } };
       });
     };

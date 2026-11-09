@@ -24,7 +24,7 @@ import {
   resolvePlanCatalog,
   resolvePlanHolding,
   plansForSpace,
-  TEAM_FEATURES,
+  unitsToHours,
   type AddOnOffer,
   type PlanHolding,
   type PlanId,
@@ -43,6 +43,7 @@ type PlanPageProps = {
   loading: boolean;
   restoring?: boolean;
   loadError?: boolean;
+  catalogUnavailable?: boolean;
   onRefresh: (force?: boolean) => void;
   localization: LocalizationContextValue;
   onSignIn: () => void;
@@ -93,7 +94,7 @@ export function CloudPlans(props: PlanPageProps) {
           </div>
         </SettingsSubsection>
       )}
-      <PlanComparison
+      {!props.catalogUnavailable && <PlanComparison
         plans={plansForSpace(view.plans, props.spaceKind)}
         holding={holding}
         signedIn={false}
@@ -108,8 +109,8 @@ export function CloudPlans(props: PlanPageProps) {
             {props.localization.t("settings.plan.signInToChoose")}
           </button>
         )}
-      />
-      <PlanFinePrint localization={props.localization} />
+      />}
+      {!props.catalogUnavailable && <PlanFinePrint localization={props.localization} />}
     </>
   );
 }
@@ -124,6 +125,7 @@ function ConnectedPlans({
   usage,
   loading,
   loadError,
+  catalogUnavailable,
   onRefresh,
   localization,
   spaceKind,
@@ -143,7 +145,7 @@ function ConnectedPlans({
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
   // Only the space's owner can buy or change; others see the plan as it is.
   const owner = canManageBilling === true;
-  const sellable = view.authoritative && !billingUnavailable(billing.error) && owner;
+  const sellable = !catalogUnavailable && view.authoritative && !billingUnavailable(billing.error) && owner;
   const busy = billing.action !== null || loading;
   const spacePlans = plansForSpace(view.plans, spaceKind);
 
@@ -242,6 +244,7 @@ function ConnectedPlans({
       <CurrentPlan
         offer={current}
         holding={holding}
+        showPrice={view.authoritative && !catalogUnavailable}
         usage={billing.usage ?? usage}
         addOns={view.addOns}
         localization={localization}
@@ -297,9 +300,9 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
-      {(loadError || billing.error) && (
+      {(catalogUnavailable || loadError || billing.error) && (
         <p className="desktop-plan-note desktop-plan-team-prompt" role="status">
-          <span>{t("cloud.billing.loadFailed")}</span>
+          <span>{t(!loadError && !billing.error && catalogUnavailable ? "settings.plan.changesUnavailable" : "cloud.billing.loadFailed")}</span>
           <button type="button" className="desktop-settings-action" disabled={busy} onClick={refreshAll}>
             {t("cloud.common.refresh")}
           </button>
@@ -307,7 +310,7 @@ function ConnectedPlans({
       )}
 
       {canManageBilling === false && <p className="desktop-plan-note">{t("settings.plan.space.managedByOwner")}</p>}
-      <PlanComparison
+      {!catalogUnavailable && <PlanComparison
         plans={spacePlans}
         holding={holding}
         signedIn
@@ -315,18 +318,17 @@ function ConnectedPlans({
         renderAction={owner ? renderAction : (plan) => plan.id === current.id
           ? <CurrentBadge localization={localization} />
           : null}
-      />
-      {spaceKind === "personal" && onCreateTeam && (
+      />}
+      {!catalogUnavailable && spaceKind === "personal" && onCreateTeam && (
         <p className="desktop-plan-note desktop-plan-team-prompt">
-          <span>{t("settings.plan.space.teamPrompt")}</span>
           <button type="button" className="desktop-settings-action" onClick={onCreateTeam}>
             {t("settings.plan.space.createTeam")}
           </button>
         </p>
       )}
-      <PlanFinePrint localization={localization} />
+      {!catalogUnavailable && <PlanFinePrint localization={localization} />}
 
-      {owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(holding.planId)) && (
+      {!catalogUnavailable && owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(holding.planId)) && (
         <AddOns
           session={session}
           apiBaseUrl={apiBaseUrl}
@@ -394,6 +396,7 @@ export function CurrentPlan({
   localization,
   action,
   scheduledAction,
+  showPrice = true,
 }: {
   offer: PlanOffer;
   holding: PlanHolding;
@@ -403,15 +406,23 @@ export function CurrentPlan({
   action?: ReactNode;
   /** Withdraws a scheduled downgrade; shown beside it. */
   scheduledAction?: ReactNode;
+  showPrice?: boolean;
 }) {
   const { t } = localization;
   const reading = resolveAllowance(usage, offer, holding, addOns);
+  // Older services report a balance without a monthly allowance. Show that
+  // balance directly rather than presenting a locally assumed monthly grant.
+  const availableHours = reading.usedHours === null && Number.isFinite(usage?.runtime.available_units)
+    ? unitsToHours(usage!.runtime.available_units) : null;
+  const hoursUsed = reading.usedHours ?? availableHours;
+  const hoursValue = hoursUsed === null ? null : formatHours(hoursUsed, localization);
+  const hoursDetailKey = availableHours !== null ? "settings.plan.gaugeAvailable" : "settings.plan.gaugeIncluded";
   const status = planStatus(holding);
   const facts: string[] = [];
   if (holding.subscribed) {
     // Until the catalog answers, the plan's own price stands in for the total.
     const monthly = holding.monthlyCents ?? offer.priceCents * (offer.perPerson ? holding.seats : 1);
-    facts.push(t("settings.plan.monthlyFor", { amount: formatMoney(monthly, holding.currency, localization) }));
+    if (showPrice) facts.push(t("settings.plan.monthlyFor", { amount: formatMoney(monthly, holding.currency, localization) }));
     if (offer.perPerson) facts.push(t("settings.plan.peopleUnit", { count: holding.seats }));
   }
   const date = holding.renewsAt
@@ -455,10 +466,10 @@ export function CurrentPlan({
         <UsageMeter
           kind="hours"
           label={t("settings.plan.hoursLabel")}
-          used={reading.usedHours === null ? null : formatHours(reading.usedHours, localization)}
-          total={reading.includedHours === null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
+          used={availableHours !== null ? t("settings.plan.gaugeHours", { hours: hoursValue! }) : hoursValue}
+          total={availableHours !== null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
           percent={percentOf(reading.usedHours, reading.includedHours)}
-          detail={reading.usedHours === null ? t("settings.plan.gaugeIncluded") : resets}
+          detail={reading.usedHours === null ? t(hoursDetailKey) : resets}
         />
         <UsageMeter
           kind="storage"
@@ -508,6 +519,7 @@ function UsageMeter({
 }) {
   return (
     <div className="desktop-plan-usage-item">
+      <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
       <div className="desktop-plan-usage-heading">
         <span>{label}</span>
         <span className="desktop-plan-usage-value">
@@ -515,7 +527,6 @@ function UsageMeter({
           {used !== null && total !== null && <span> / {total}</span>}
         </span>
       </div>
-      <PlanUsageBar percent={percent} kind={kind} label={label} reading={`${used} / ${total}`} />
       {detail && <span className="desktop-plan-usage-detail">{detail}</span>}
     </div>
   );
@@ -571,14 +582,6 @@ export function OrganizationSwitch({
   );
 }
 
-// What each plan is for, in the situations people recognise, so a plan is
-// chosen for a reason rather than by its numbers alone.
-const PLAN_FIT: Readonly<Record<string, readonly string[]>> = {
-  free: ["settings.plan.fit.free"],
-  personal: ["settings.plan.fit.reason.laptopClosed", "settings.plan.fit.reason.computers"],
-  team: ["settings.plan.fit.reason.agents", "settings.plan.fit.reason.team"],
-};
-
 /** Comparable plan cards use the same typography and controls as Settings. */
 export function PlanComparison({
   plans,
@@ -596,7 +599,7 @@ export function PlanComparison({
   const { t } = localization;
   return (
     <div className="desktop-plan-comparison">
-      <SettingsSubsection title={t("settings.plan.chooseTitle")} detail={t("settings.plan.fit.local")}>
+      <SettingsSubsection title={t("settings.plan.chooseTitle")}>
         <div className="desktop-plan-grid" role="list" style={{ "--desktop-plan-columns": plans.length } as CSSProperties}>
           {plans.map((plan) => {
             const current = signedIn && plan.id === holding.planId;
@@ -633,7 +636,6 @@ export function PlanComparison({
                       {t(plan.perPerson ? "settings.plan.spec.perPersonMonth" : "settings.plan.spec.perMonth")}
                     </span>
                   </span>
-                  <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
                 </div>
                 <dl className="desktop-plan-spec">
                   {specs.map(([label, value]) => (
@@ -643,21 +645,6 @@ export function PlanComparison({
                     </div>
                   ))}
                 </dl>
-                <div className="desktop-plan-card-details">
-                  {plan.teamFeatures && (
-                    <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
-                      {TEAM_FEATURES.map((feature) => (
-                        <li key={feature}>
-                          <Check size={12} aria-hidden="true" />
-                          {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <ul className="desktop-plan-card-fit" aria-label={t("settings.plan.fit.cardLabel")}>
-                    {(PLAN_FIT[plan.id] ?? []).map((key) => <li key={key}>{t(key)}</li>)}
-                  </ul>
-                </div>
                 <div className="desktop-plan-card-action">{renderAction(plan)}</div>
               </div>
             );

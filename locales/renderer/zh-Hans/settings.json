@@ -596,7 +596,7 @@
   "plan.feature.agent_access_rules": "按 Agent 设定能看到和改动什么",
   "plan.feature.activity_log": "Agent 活动记录",
   "plan.feature.billing_consolidated": "全队一张账单",
-  "plan.finePrint": "云端 Agent 时长只计 Agent 在托管工作区里干活的时间，人打开、编辑文件从不占用。只读的人和你接入的 Agent 不收费；Agent 用你自己的 AI 模型。",
+  "plan.finePrint": "Agent 时长仅计 Agent 运行；AI 模型费用另计。",
   "plan.status.free": "免费",
   "plan.status.active": "生效中",
   "plan.status.ending": "即将结束",
@@ -649,5 +649,7 @@
   "plan.addOnFailed": "附加项变更失败。",
   "plan.decrease": "减少：{label}",
   "plan.increase": "增加：{label}",
-  "plan.historyYears": "保留 {count, plural, other {# 年}}历史"
+  "plan.historyYears": "保留 {count, plural, other {# 年}}历史",
+  "plan.changesUnavailable": "暂时无法变更套餐。",
+  "plan.gaugeAvailable": "当前可用"
 }

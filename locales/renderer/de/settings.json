@@ -596,7 +596,7 @@
   "plan.feature.agent_access_rules": "Festlegen, was jeder Agent sehen und ändern kann",
   "plan.feature.activity_log": "Protokoll, was Agents getan haben",
   "plan.feature.billing_consolidated": "Eine Rechnung für das Team",
-  "plan.finePrint": "Agent-Stunden zählen nur die Zeit, in der Agents in deinem gehosteten Arbeitsbereich arbeiten; Personen, die Dateien öffnen und bearbeiten, verbrauchen keine. Wer nur liest und die Agents, die du verbindest, sind kostenlos. Agents nutzen dein eigenes KI-Modell.",
+  "plan.finePrint": "Agent-Stunden gelten nur für Agents. KI-Modellkosten fallen separat an.",
   "plan.status.free": "Kostenlos",
   "plan.status.active": "Aktiv",
   "plan.status.ending": "Endet",
@@ -649,5 +649,7 @@
   "plan.addOnFailed": "Das Zusatzpaket konnte nicht geändert werden.",
   "plan.decrease": "Weniger: {label}",
   "plan.increase": "Mehr: {label}",
-  "plan.historyYears": "{count, plural, one {# Jahr} other {# Jahre}} Verlauf"
+  "plan.historyYears": "{count, plural, one {# Jahr} other {# Jahre}} Verlauf",
+  "plan.changesUnavailable": "Tarifänderungen sind derzeit nicht verfügbar.",
+  "plan.gaugeAvailable": "Jetzt verfügbar"
 }

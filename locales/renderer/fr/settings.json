@@ -596,7 +596,7 @@
   "plan.feature.agent_access_rules": "Choisir ce que chaque agent peut voir et modifier",
   "plan.feature.activity_log": "Un relevé de ce qu’ont fait les agents",
   "plan.feature.billing_consolidated": "Une seule facture pour l’équipe",
-  "plan.finePrint": "Les heures d’agent ne comptent que le temps où les agents travaillent dans votre espace de travail hébergé ; ouvrir et modifier des fichiers ne les consomme jamais. Les personnes qui lisent seulement et les agents que vous connectez sont gratuits. Les agents utilisent votre propre modèle d’IA.",
+  "plan.finePrint": "Les heures d’agent couvrent uniquement les agents. L’IA est facturée à part.",
   "plan.status.free": "Gratuit",
   "plan.status.active": "Actif",
   "plan.status.ending": "Se termine",
@@ -649,5 +649,7 @@
   "plan.addOnFailed": "Impossible de modifier l’option.",
   "plan.decrease": "Moins : {label}",
   "plan.increase": "Plus : {label}",
-  "plan.historyYears": "{count, plural, one {# an} other {# ans}} d’historique"
+  "plan.historyYears": "{count, plural, one {# an} other {# ans}} d’historique",
+  "plan.changesUnavailable": "Les changements de forfait sont momentanément indisponibles.",
+  "plan.gaugeAvailable": "Disponible actuellement"
 }

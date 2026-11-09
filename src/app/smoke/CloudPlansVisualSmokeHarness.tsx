@@ -95,7 +95,7 @@ export function CloudPlansVisualSmokeHarness() {
   return (
     <section className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
-        <div className="desktop-settings-section">
+        <div className="desktop-settings-section desktop-plan-settings">
           <SettingsSectionHeader title={t("settings.seats.title")} />
           {state === "signed-out" || state === "loading" ? (
             <>
@@ -144,7 +144,6 @@ export function CloudPlansVisualSmokeHarness() {
                 localization={localization} renderAction={action} />
               {spaceKind === "personal" && (
                 <p className="desktop-plan-note desktop-plan-team-prompt">
-                  <span>{t("settings.plan.space.teamPrompt")}</span>
                   <button type="button" className="desktop-settings-action">{t("settings.plan.space.createTeam")}</button>
                 </p>
               )}

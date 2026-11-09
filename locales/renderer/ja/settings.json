@@ -596,7 +596,7 @@
   "plan.feature.agent_access_rules": "Agent ごとに見られる範囲と変更できる範囲を設定",
   "plan.feature.activity_log": "Agent の活動記録",
   "plan.feature.billing_consolidated": "チームで 1 つの請求",
-  "plan.finePrint": "クラウド Agent 時間は、Agent がホスト型ワークスペースで作業した時間だけを数えます。人がファイルを開いたり編集したりしても使いません。閲覧のみの人と接続した Agent は無料です。Agent はあなた自身の AI モデルを使います。",
+  "plan.finePrint": "Agent 時間は Agent の稼働のみが対象です。AI モデルの費用は別途かかります。",
   "plan.status.free": "無料",
   "plan.status.active": "有効",
   "plan.status.ending": "終了予定",
@@ -649,5 +649,7 @@
   "plan.addOnFailed": "追加オプションを変更できませんでした。",
   "plan.decrease": "減らす：{label}",
   "plan.increase": "増やす：{label}",
-  "plan.historyYears": "{count, plural, other {# 年}}分の履歴"
+  "plan.historyYears": "{count, plural, other {# 年}}分の履歴",
+  "plan.changesUnavailable": "現在、プランを変更できません。",
+  "plan.gaugeAvailable": "現在利用可能"
 }
