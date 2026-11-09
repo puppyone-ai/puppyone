@@ -7,6 +7,8 @@ export type CloudSpace = Readonly<{
   name: string;
   kind: "personal" | "team";
   canCreateProjects: boolean;
+  /** The plan this space is on, when billing has published one; projects here use it. */
+  planId?: string | null;
 }>;
 
 export type RecentWorkspaceHomeItem = {

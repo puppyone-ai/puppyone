@@ -42,17 +42,26 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     };
   }
 
-  if (personal) groups.push(destination(personal, "personal-shared", t("onboarding.sharing.personal")));
+  // Plans belong to spaces: each heading names the space and the plan its
+  // projects use, so where a project lives says who pays for it.
+  const planBadge = (space: CloudSpace) => space.planId
+    ? <span className="onboarding-space-plan">{t(`onboarding.spaces.plan.${planKey(space.planId)}`)}</span>
+    : undefined;
+  if (personal) groups.push({ ...destination(personal, "personal-shared", t("onboarding.spaces.mine")),
+    detail: planBadge(personal) });
   if (team) {
-    const group = destination(team, "team-shared", t("onboarding.sharing.team"));
+    const group = destination(team, "team-shared", teams.length > 1 ? t("onboarding.sharing.team") : team.name);
     groups.push({ ...group,
       keepEmpty: group.keepEmpty || cloudItems.some((item) => teams.some((space) => space.id === item.cloudOrganizationId)),
-      // One team needs no name beside the heading; several need choosing between.
-      detail: teams.length > 1 ? <select className="onboarding-team-selector"
-        aria-label={t("onboarding.sharing.selectTeam")} value={team.id} disabled={busy}
-        onChange={(event) => { onDragEnd(); setChosenTeam(event.target.value); }}>
-        {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-      </select> : undefined,
+      // One team is its own heading; several need choosing between.
+      detail: teams.length > 1 ? <>
+        <select className="onboarding-team-selector"
+          aria-label={t("onboarding.sharing.selectTeam")} value={team.id} disabled={busy}
+          onChange={(event) => { onDragEnd(); setChosenTeam(event.target.value); }}>
+          {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+        </select>
+        {planBadge(team)}
+      </> : planBadge(team),
     });
   }
   // Unresolved ownership is not evidence of a personal or team audience. Keep
@@ -61,4 +70,11 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   if (unknown.length) groups.push({ id: "shared-unresolved",
     title: t("onboarding.sharing.unresolved"), alwaysShowHeading: true, children: renderProjects(unknown) });
   return groups;
+}
+
+function planKey(planId: string): "free" | "personal" | "team" | "enterprise" {
+  if (planId === "plus" || planId === "personal") return "personal";
+  if (planId === "business" || planId === "pro" || planId === "team") return "team";
+  if (planId === "enterprise") return "enterprise";
+  return "free";
 }

@@ -47,7 +47,7 @@ function Harness({ account = session }: { account?: DesktopCloudSession }) {
 async function render(account = session) {
   await act(async () => root.render(withTestLocalization(<Harness account={account} />)));
 }
-const GROUPS: Record<string, string> = { "personal-shared": "My Share Project", "local-only": "On this computer" };
+const GROUPS: Record<string, string> = { "personal-shared": "My space", "local-only": "On this computer" };
 /** A group as it is announced: a region named by its heading. */
 const group = (id: string) => queryByRole(document, "region", { name: GROUPS[id] });
 const button = (name: string) => getByRole(document, "button", { name });
@@ -93,7 +93,7 @@ afterEach(async () => {
   clearSharedFolderAssignments();
 });
 
-describe("local folder drag into My Share Project", () => {
+describe("local folder drag into My space", () => {
   it("opens the exact source, asks first, then returns Home with one shared card and no Cloud publication", async () => {
     await render(); await shareDraft();
     expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);

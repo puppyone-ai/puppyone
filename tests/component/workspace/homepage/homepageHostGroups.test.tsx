@@ -87,6 +87,6 @@ describe("homepage audience grouping", () => {
     expect(readableText(container)).toContain("other computers");
     expect(handed!.cloud[0]?.id).toBe("shared-unresolved");
     expect(handed!.local?.title).toBe("On this computer");
-    expect(handed!.personalSharedTitle).toBe("My Share Project");
+    expect(handed!.personalSharedTitle).toBe("My space");
   });
 });

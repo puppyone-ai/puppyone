@@ -1220,9 +1220,27 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+/* The plan a space is on, beside its name: where a project lives says who pays. */
+.onboarding-space-plan {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--po-divider);
+  border-radius: 999px;
+  color: var(--po-text-subtle);
+  font-family: var(--po-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .onboarding-project-group-detail {
+  display: inline-flex;
   min-width: 0;
   flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   color: var(--po-text-subtle);
   text-overflow: ellipsis;

@@ -97,6 +97,8 @@ export type DesktopCloudOrganization = {
   seat_limit: number;
   created_at: string;
   member_count?: number | null;
+  /** The plan billing published for this space; absent from older servers. */
+  billing_plan_id?: string | null;
 };
 
 export type DesktopCloudOrgMember = {

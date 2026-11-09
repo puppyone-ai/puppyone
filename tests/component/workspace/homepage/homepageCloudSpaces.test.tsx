@@ -30,7 +30,7 @@ async function render(overrides: Partial<HomeWithEntryFlowProps> = {}) {
     onOpenDroppedWorkspace={async () => {}} {...overrides} />)));
   return host;
 }
-const GROUPS = { team: "Team Share Project", personal: "My Share Project", local: "On this computer" } as const;
+const GROUPS = { team: "Team Share Project", personal: "My space", local: "On this computer" } as const;
 /** A group as it is announced: a region named by its heading. */
 const group = (name: keyof typeof GROUPS) => queryByRole(document, "region", { name: GROUPS[name] });
 const target = (id: string) => group(id === "personal" ? "personal" : "team")!;
@@ -56,6 +56,21 @@ async function drag(element: Element, type: string, data = { effectAllowed: "", 
 const localButton = (name: string) => getByRole(document, "button", { name: `Open ${name} locally` });
 
 describe("personal and organization destinations", () => {
+  it("names a single team by its name and shows the plan each space is on", async () => {
+    await render({
+      cloudSpaces: [
+        { id: "personal", name: "Alex", kind: "personal", canCreateProjects: true, planId: "personal" },
+        { id: "team", name: "Design", kind: "team", canCreateProjects: true, planId: "team" },
+      ],
+      projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
+        cloudProjectId: "personal-project", cloudOrganizationId: "personal" }],
+    });
+    const names = queryAllByRole(document, "region").map(accessibleName);
+    expect(names).toEqual(expect.arrayContaining(["Design", "My space"]));
+    // Where a project lives says who pays for it.
+    const plans = [...document.querySelectorAll(".onboarding-space-plan")].map((node) => node.textContent);
+    expect(plans).toEqual(["Team", "Personal"]);
+  });
   it("uses audience headings and omits an unused empty personal area", async () => {
     await render();
     expect(groupNames()).toEqual(["Team Share Project", "On this computer"]);
@@ -67,7 +82,7 @@ describe("personal and organization destinations", () => {
   it("orders team, personal and local areas, with nothing to focus in their headings", async () => {
     const host = await render({ projectItems: [...items, { id: "personal-project", label: "Personal notes", localPath: "",
       cloudProjectId: "personal-project", cloudOrganizationId: "personal" }] });
-    expect(groupNames()).toEqual(["Team Share Project", "My Share Project", "On this computer"]);
+    expect(groupNames()).toEqual(["Team Share Project", "My space", "On this computer"]);
     // The rule between groups is the heading's own edge (see the Homepage visual contract),
     // never an element of its own that assistive technology or the keyboard could reach.
     for (const name of ["team", "personal", "local"] as const) {
@@ -144,6 +159,15 @@ describe("personal and organization destinations", () => {
   });
   it("keeps an empty team one can add to there to drop into, with the same exact target", async () => {
     await render({ projectItems: [local], cloudSpaces: [spaces[1]] });
+    const only = queryByRole(document, "region", { name: "Design" })!;
+    // One team is its own heading.
+    expect(only.textContent).toContain("Drag a project here to share it.");
+    await drag(localButton("Draft"), "dragstart");
+    await drag(only, "drop");
+    expect(publish).toHaveBeenCalledExactlyOnceWith("/fixture/draft", "team");
+  });
+  it("still asks which team when there are several", async () => {
+    await render({ projectItems: [local], cloudSpaces: [spaces[1], { id: "second", name: "Second team", kind: "team", canCreateProjects: true }] });
     expect(target("team").textContent).toContain("Team Share Project");
     expect(target("team").textContent).toContain("Drag a project here to share it.");
     await drag(localButton("Draft"), "dragstart");

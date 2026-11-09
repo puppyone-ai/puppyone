@@ -308,7 +308,7 @@ export function MinimalOnboarding({
     label: t("onboarding.projects.title"),
     layout: projectLayout,
     cloud: cloudGroups,
-    personalSharedTitle: t("onboarding.sharing.personal"),
+    personalSharedTitle: t("onboarding.spaces.mine"),
     localShare: onShareLocalFolder ? { draggingPath, busy,
       request: (path) => runOpening(path, () => onShareLocalFolder(path)),
       endDrag: () => setDraggingPath(null) } : undefined,
