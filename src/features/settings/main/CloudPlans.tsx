@@ -23,7 +23,6 @@ import {
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
-  TEAM_FEATURES,
   unitsToHours,
   type AddOnOffer,
   type PlanHolding,
@@ -514,14 +513,6 @@ function UsageMeter({
   );
 }
 
-// What each plan is for, in the situations people recognise, so a plan is
-// chosen for a reason rather than by its numbers alone.
-const PLAN_FIT: Readonly<Record<string, readonly string[]>> = {
-  free: ["settings.plan.fit.free"],
-  enterprise: ["settings.plan.fit.reason.audit"],
-  team: ["settings.plan.fit.reason.agents", "settings.plan.fit.reason.team"],
-};
-
 /** Comparable plan cards use the same typography and controls as Settings. */
 export function PlanComparison({
   plans,
@@ -582,21 +573,6 @@ export function PlanComparison({
                     </div>
                   ))}
                 </dl>
-                <div className="desktop-plan-card-details">
-                  {plan.teamFeatures && (
-                    <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
-                      {[...TEAM_FEATURES, ...(plan.id === "enterprise" ? ["activity.log"] : [])].map((feature) => (
-                        <li key={feature}>
-                          <Check size={12} aria-hidden="true" />
-                          {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <ul className="desktop-plan-card-fit" aria-label={t("settings.plan.fit.cardLabel")}>
-                    {(PLAN_FIT[plan.id] ?? []).map((key) => <li key={key}>{t(key)}</li>)}
-                  </ul>
-                </div>
                 <div className="desktop-plan-card-action">{renderAction(plan)}</div>
               </div>
             );
