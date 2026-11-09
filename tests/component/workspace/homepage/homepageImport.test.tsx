@@ -76,7 +76,7 @@ describe("importing from the Homepage", () => {
       container.querySelector<HTMLElement>(selector)?.click();
     });
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
-    expect(container.querySelectorAll(".onboarding-import-source")).toHaveLength(6);
+    expect(container.querySelectorAll(".onboarding-import-source")).toHaveLength(9);
     expect(onDefaultProjectLocation).not.toHaveBeenCalled();
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".desktop-dialog-header .desktop-dialog-icon-button")?.click();
@@ -172,31 +172,38 @@ describe("importing from the Homepage", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("copies an Obsidian vault through the local source adapter", async () => {
-    const onChooseWorkspace = vi.fn(async () => undefined);
+  it("lists the folders Obsidian records and adds the chosen ones in place", async () => {
     const onImportSource = vi.fn(async () => true);
+    const onListAppFolders = vi.fn(async (app: string) => app === "obsidian" ? [
+      { path: "/Users/example/Notes", name: "Notes", lastUsedAt: 2, added: false },
+      { path: "/Users/example/Journal", name: "Journal", lastUsedAt: 1, added: true },
+    ] : []);
+    const onAddAppFolders = vi.fn(async () => ({ added: 1 }));
     preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
-    const container = renderHome({
-      onImportSource,
-      onChooseWorkspace,
-    });
+    const container = renderHome({ onImportSource, onListAppFolders, onAddAppFolders });
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
+    // Apps with nothing recorded on this computer cannot be chosen.
+    expect(container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='vscode']")?.disabled).toBe(true);
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='obsidian']")?.click();
     });
-    // A vault is already a folder: no export steps, just the source and what happens to it.
-    expect(container.querySelector(".onboarding-import-steps")).toBeNull();
-    expect(container.querySelector(".onboarding-import-source-summary [data-import-brand='obsidian']")).not.toBeNull();
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Add folders from Obsidian");
+    const boxes = [...container.querySelectorAll<HTMLInputElement>(".onboarding-import-app-folder input")];
+    expect(boxes.map((box) => [box.checked, box.disabled])).toEqual([[false, false], [true, true]]);
+    const submit = container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary");
+    expect(submit?.disabled).toBe(true);
+    await act(async () => boxes[0]?.click());
+    expect(submit?.textContent).toBe("Add 1 folder");
     await act(async () => {
-      container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary")?.click();
+      submit?.click();
       await Promise.resolve();
     });
+    expect(onAddAppFolders).toHaveBeenCalledWith({ app: "obsidian", paths: ["/Users/example/Notes"] });
+    expect(onImportSource).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
-    expect(onImportSource).toHaveBeenCalledWith({ provider: "obsidian", locationGrantId: null, taskId: expect.any(String) });
-    expect(onChooseWorkspace).not.toHaveBeenCalled();
   });
 
   it("imports a GitHub repository into the default location without a folder picker", async () => {

@@ -640,3 +640,78 @@
 .onboarding-entry-template-destination button:hover:not(:disabled) {
   color: var(--po-text-strong);
 }
+
+/* Folders another app records: a quiet checklist, name first, place beneath. */
+.onboarding-import-app-folders {
+  display: grid;
+  max-height: min(320px, 50vh);
+  margin: 14px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  list-style: none;
+}
+
+.onboarding-import-app-folder {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.onboarding-import-app-folder:hover:not([data-added]) {
+  background: var(--po-hover);
+}
+
+.onboarding-import-app-folder > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-import-app-folder[data-added] {
+  cursor: default;
+}
+
+.onboarding-import-app-folder[data-added] > .onboarding-import-app-folder-copy {
+  opacity: 0.55;
+}
+
+.onboarding-import-app-folder-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.onboarding-import-app-folder-name {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-path {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-status {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.onboarding-import-app-empty {
+  margin: 14px 0 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 18px;
+}

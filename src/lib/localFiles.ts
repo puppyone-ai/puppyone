@@ -30,6 +30,7 @@ import type {
   RecentWorkspacesResult,
   WorkspaceImportSourceRequest,
   WorkspaceImportResourcePage,
+  WorkspaceAppFolder,
   WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
@@ -461,6 +462,14 @@ export async function listImportResources(request: {
   cursor?: string | null;
 }): Promise<WorkspaceImportResourcePage> {
   return getDesktopBridge().listImportResources(request);
+}
+
+export async function listAppFolders(app: string): Promise<WorkspaceAppFolder[]> {
+  return (await getDesktopBridge().listAppFolders(app)).folders;
+}
+
+export async function addAppFolders(request: { app: string; paths: string[] }): Promise<{ added: number }> {
+  return getDesktopBridge().addAppFolders(request);
 }
 
 export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceOpenResult | null> {

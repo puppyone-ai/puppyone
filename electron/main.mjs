@@ -114,6 +114,7 @@ import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agen
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
+import { createAppFolderDiscovery } from "./main/project-import/app-folders.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
@@ -1394,6 +1395,7 @@ function registerIpcHandlers() {
       home: app.getPath("home"),
     }),
     getDialogOwnerWindow,
+    appFolders: createAppFolderDiscovery({ home: app.getPath("home") }),
   });
   // Failed Cloud Computer openings go to the app log file so a report can be
   // matched to the server log by request id.

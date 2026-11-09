@@ -357,6 +357,8 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   connectImportSource: (request) => ipcRenderer.invoke("workspace:import-source-connect", request),
   listImportResources: (request) => ipcRenderer.invoke("workspace:import-source-list", request),
+  listAppFolders: (app) => ipcRenderer.invoke("workspace:app-folders-list", app),
+  addAppFolders: (request) => ipcRenderer.invoke("workspace:app-folders-add", request),
   importSource: (request) => ipcRenderer.invoke("workspace:import-source-current", request),
   cancelImportSource: (request) => ipcRenderer.invoke("workspace:import-source-cancel", request),
   onImportSourceProgress: (listener) => {
