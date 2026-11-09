@@ -6,7 +6,7 @@
   "settings.thisComputer": "Cet ordinateur",
   "settings.thisComputerDetail": "Ouvrez des dossiers partagés entre vos ordinateurs.",
   "settings.others": "Autres ordinateurs",
-  "settings.noOthers": "Connectez-vous au même compte PuppyOne sur un autre ordinateur pour le connecter.",
+  "settings.noOthers": "Aucun autre ordinateur.",
   "settings.sharing": "Partage",
   "settings.sharingOn": "Connecté",
   "settings.remove": "Retirer…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "Partage depuis cet ordinateur",
   "settings.sharingOff": "Aucun partage",
   "settings.folderCount": "{count, plural, one {# dossier partagé} other {# dossiers partagés}}",
-  "settings.emptyFolders": "Sur la page d’accueil, ouvrez le menu d’un dossier et choisissez « {action} ».",
+  "settings.emptyFolders": "Partagez un dossier depuis l’accueil.",
   "settings.sharedFolders": "Dossiers partagés",
   "settings.statusUnavailable": "Impossible de vérifier le partage de cet ordinateur.",
   "settings.title": "Accès entre ordinateurs"

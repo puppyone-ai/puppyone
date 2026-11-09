@@ -6,7 +6,7 @@
   "settings.thisComputer": "Este equipo",
   "settings.thisComputerDetail": "Abre carpetas compartidas entre tus equipos.",
   "settings.others": "Otros equipos",
-  "settings.noOthers": "Inicia sesión con la misma cuenta de PuppyOne en otro equipo para conectarlo.",
+  "settings.noOthers": "No hay otros equipos.",
   "settings.sharing": "Compartir",
   "settings.sharingOn": "Conectado",
   "settings.remove": "Quitar…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "Compartido desde este equipo",
   "settings.sharingOff": "Sin compartir",
   "settings.folderCount": "{count, plural, one {# carpeta compartida} other {# carpetas compartidas}}",
-  "settings.emptyFolders": "En Inicio, abre el menú de una carpeta y elige «{action}».",
+  "settings.emptyFolders": "Comparte una carpeta desde Inicio.",
   "settings.sharedFolders": "Carpetas compartidas",
   "settings.statusUnavailable": "No se puede comprobar si este equipo está compartiendo.",
   "settings.title": "Acceso entre equipos"

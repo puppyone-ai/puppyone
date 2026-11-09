@@ -6,7 +6,7 @@
   "settings.thisComputer": "Dieser Computer",
   "settings.thisComputerDetail": "Öffne geteilte Ordner auf deinen anderen Computern.",
   "settings.others": "Andere Computer",
-  "settings.noOthers": "Melde dich auf einem anderen Computer mit demselben PuppyOne-Konto an, um ihn zu verbinden.",
+  "settings.noOthers": "Keine weiteren Computer.",
   "settings.sharing": "Teilen",
   "settings.sharingOn": "Verbunden",
   "settings.remove": "Entfernen…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "Freigaben dieses Computers",
   "settings.sharingOff": "Keine Freigabe",
   "settings.folderCount": "{count, plural, one {# geteilter Ordner} other {# geteilte Ordner}}",
-  "settings.emptyFolders": "Öffne auf der Startseite das Menü eines Ordners und wähle „{action}“.",
+  "settings.emptyFolders": "Einen Ordner auf der Startseite freigeben.",
   "settings.sharedFolders": "Geteilte Ordner",
   "settings.statusUnavailable": "Die Freigabe dieses Computers kann nicht geprüft werden.",
   "settings.title": "Computerübergreifender Zugriff"

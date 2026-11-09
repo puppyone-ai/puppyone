@@ -6,7 +6,7 @@
   "settings.thisComputer": "Este computador",
   "settings.thisComputerDetail": "Abra pastas compartilhadas entre seus computadores.",
   "settings.others": "Outros computadores",
-  "settings.noOthers": "Entre na mesma conta PuppyOne em outro computador para conectá-lo.",
+  "settings.noOthers": "Nenhum outro computador.",
   "settings.sharing": "Compartilhamento",
   "settings.sharingOn": "Conectado",
   "settings.remove": "Remover…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "Compartilhado deste computador",
   "settings.sharingOff": "Sem compartilhamento",
   "settings.folderCount": "{count, plural, one {# pasta compartilhada} other {# pastas compartilhadas}}",
-  "settings.emptyFolders": "Na página inicial, abra o menu de uma pasta e escolha “{action}”.",
+  "settings.emptyFolders": "Compartilhe uma pasta pela página inicial.",
   "settings.sharedFolders": "Pastas compartilhadas",
   "settings.statusUnavailable": "Não foi possível verificar o compartilhamento deste computador.",
   "settings.title": "Acesso entre computadores"

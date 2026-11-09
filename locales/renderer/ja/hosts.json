@@ -6,7 +6,7 @@
   "settings.thisComputer": "このコンピューター",
   "settings.thisComputerDetail": "自分のほかのコンピューターで共有フォルダーを開けます。",
   "settings.others": "ほかのコンピューター",
-  "settings.noOthers": "ほかのコンピューターで同じ PuppyOne アカウントにログインすると接続できます。",
+  "settings.noOthers": "他のコンピューターはありません。",
   "settings.sharing": "共有",
   "settings.sharingOn": "接続済み",
   "settings.remove": "削除…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "このコンピューターからの共有",
   "settings.sharingOff": "共有していません",
   "settings.folderCount": "{count} 個のフォルダーを共有中",
-  "settings.emptyFolders": "ホームでフォルダーのメニューを開き、「{action}」を選択してください。",
+  "settings.emptyFolders": "ホームからフォルダーを共有できます。",
   "settings.sharedFolders": "共有フォルダー",
   "settings.statusUnavailable": "このコンピューターの共有状態を確認できません。",
   "settings.title": "コンピューター間のアクセス"

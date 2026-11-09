@@ -6,7 +6,7 @@
   "settings.thisComputer": "이 컴퓨터",
   "settings.thisComputerDetail": "다른 내 컴퓨터에서 공유 폴더를 열 수 있습니다.",
   "settings.others": "다른 컴퓨터",
-  "settings.noOthers": "다른 컴퓨터에서 같은 PuppyOne 계정으로 로그인하면 연결됩니다.",
+  "settings.noOthers": "다른 컴퓨터가 없습니다.",
   "settings.sharing": "공유",
   "settings.sharingOn": "연결됨",
   "settings.remove": "제거…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "이 컴퓨터의 공유",
   "settings.sharingOff": "공유하지 않음",
   "settings.folderCount": "폴더 {count}개 공유 중",
-  "settings.emptyFolders": "홈에서 폴더 메뉴를 열고 “{action}”을 선택하세요.",
+  "settings.emptyFolders": "홈에서 폴더를 공유하세요.",
   "settings.sharedFolders": "공유 폴더",
   "settings.statusUnavailable": "이 컴퓨터의 공유 상태를 확인할 수 없습니다.",
   "settings.title": "컴퓨터 간 접근"

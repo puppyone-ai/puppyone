@@ -46,7 +46,7 @@ describe("other computers, in Settings", () => {
   it("shows a real off state without irrelevant startup controls", async () => {
     const host = await render({ getHostStatus: async () => ({ state: "off", deviceId: null, paused: false, folders: [] }) }, []);
     expect(readableText(thisComputer(host))).toContain("Not sharing");
-    expect(readableText(thisComputer(host))).toContain("On the Homepage");
+    expect(readableText(thisComputer(host))).toContain("Share a folder from Homepage.");
     expect(startAtLogin(host)).toBeNull();
     expect(queryByRole(thisComputer(host), "button", { name: "Pause" })).toBeNull();
   });
@@ -55,13 +55,13 @@ describe("other computers, in Settings", () => {
     const listHostDevices = vi.fn().mockRejectedValue(new Error("unavailable"));
     const host = await render({ listHostDevices });
     expect(readableText(others(host))).toContain("Couldn’t load your computers.");
-    expect(readableText(others(host))).not.toContain("Sign in to the same");
+    expect(readableText(others(host))).not.toContain("No other computers.");
     const initialReads = listHostDevices.mock.calls.length;
     listHostDevices.mockResolvedValue({ devices: [device(THIS, "MacBook Pro", true)] });
     await act(async () => { getByRole(others(host), "button", { name: "Retry" }).click(); });
     expect(listHostDevices).toHaveBeenCalledTimes(initialReads + 1);
     expect(queryByRole(others(host), "alert")).toBeNull();
-    expect(readableText(others(host))).toContain("Sign in to the same");
+    expect(readableText(others(host))).toContain("No other computers.");
   });
 
   it("never claims sharing is on when local status is unavailable", async () => {
@@ -77,7 +77,7 @@ describe("other computers, in Settings", () => {
     const listHostDevices = vi.fn(() => pending);
     const host = await render({ listHostDevices });
     expect(readableText(thisComputer(host))).toContain("Connected");
-    expect(readableText(others(host))).not.toContain("Sign in to the same");
+    expect(readableText(others(host))).not.toContain("No other computers.");
     const initialReads = listHostDevices.mock.calls.length;
     await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
     expect(listHostDevices).toHaveBeenCalledTimes(initialReads);
@@ -92,7 +92,7 @@ describe("other computers, in Settings", () => {
     await act(async () => { window.dispatchEvent(new Event("focus")); });
     expect(readableText(others(host))).toContain("Office PC");
     expect(getByRole(others(host), "button", { name: "Retry" })).toBeTruthy();
-    expect(readableText(others(host))).not.toContain("Sign in to the same");
+    expect(readableText(others(host))).not.toContain("No other computers.");
   });
 
   it("shows shared folder names and opens their existing access controls", async () => {
@@ -169,7 +169,7 @@ describe("other computers, in Settings", () => {
 
   it("says when there are no other computers yet", async () => {
     const host = await render({}, [device(THIS, "MacBook Pro", true)]);
-    expect(readableText(others(host))).toContain("Sign in to the same PuppyOne account on another computer");
+    expect(readableText(others(host))).toContain("No other computers.");
   });
 
   it("pauses this computer's sharing and resumes it from the same row", async () => {

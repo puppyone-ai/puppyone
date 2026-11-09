@@ -6,7 +6,7 @@
   "settings.thisComputer": "这台电脑",
   "settings.thisComputerDetail": "在自己的其他电脑上，继续使用这里共享的文件夹。",
   "settings.others": "其他电脑",
-  "settings.noOthers": "在另一台电脑上登录同一个 PuppyOne 账号，即可连接。",
+  "settings.noOthers": "暂无其他电脑。",
   "settings.sharing": "共享",
   "settings.sharingOn": "已连接",
   "settings.remove": "移除…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "本机共享",
   "settings.sharingOff": "尚未共享",
   "settings.folderCount": "已共享 {count} 个文件夹",
-  "settings.emptyFolders": "从首页的文件夹菜单选择「{action}」。",
+  "settings.emptyFolders": "从首页共享文件夹。",
   "settings.sharedFolders": "共享的文件夹",
   "settings.statusUnavailable": "暂时无法确认本机的共享状态。",
   "settings.title": "跨电脑访问"

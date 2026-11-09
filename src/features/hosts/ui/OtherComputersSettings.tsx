@@ -22,11 +22,11 @@ export function OtherComputersSettings({ session, restoring = false, onSignIn }:
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section computer-access-settings">
           <SettingsSectionHeader title={t("hosts.settings.title")} />
-          <p className="computer-access-intro">{t("hosts.settings.thisComputerDetail")}</p>
+          {!session && !restoring && <p className="computer-access-intro">{t("hosts.settings.thisComputerDetail")}</p>}
           {session && !restoring ? <ComputerAccessContent key={`${session.user_id}:${session.session_generation}`} session={session} />
             : <div className="desktop-settings-row computer-access-signin">
               {restoring ? <InlineLoading label={t("common.status.loading")} />
-                : <button className="desktop-settings-action primary" type="button" onClick={onSignIn}>
+                : <button className="desktop-settings-action" type="button" onClick={onSignIn}>
                   {t("settings.account.signInWithBrowser")}</button>}
             </div>}
         </div>
@@ -56,10 +56,10 @@ function ComputerAccessContent({ session }: { session: DesktopCloudSession }) {
   return <>
     <SettingsSubsection title={t("hosts.settings.localSharing")}>
       <div className="computer-access-device">
-        <span className="computer-access-icon"><LocalIcon size={21} aria-hidden="true" /></span>
+        <span className="computer-access-icon"><LocalIcon size={16} aria-hidden="true" /></span>
         <div className="computer-access-identity">
-          <strong>{localName}</strong>
-          <span className="computer-access-presence" data-online={!catalog.statusError && catalog.sharing?.state === "online" && !paused && !noFolders || undefined}>
+          <span>{localName}</span>
+          <span className="computer-access-presence">
             <SharingStatus catalog={catalog} count={folders?.length} />
           </span>
         </div>
@@ -70,12 +70,12 @@ function ComputerAccessContent({ session }: { session: DesktopCloudSession }) {
           open={openComputer === catalog.thisComputerId} onOpenChange={(open) => setOpenComputer(open ? catalog.thisComputerId : null)}
           onRemove={() => remove(catalog.thisComputerId!)} />}
       </div>
-      {noFolders && !catalog.statusError && <p className="computer-access-hint">{t("hosts.settings.emptyFolders", { action: t("hosts.place.share") })}</p>}
+      {noFolders && !catalog.statusError && <p className="computer-access-hint">{t("hosts.settings.emptyFolders")}</p>}
       {folders && folders.length > 0 && <div className="computer-access-folders" role="list" aria-label={t("hosts.settings.sharedFolders")}>
         {folders.map((folder) => {
           const manageable = mine?.folders.some((item) => item.id === folder.id && item.state === "active");
           const content = <><Folder size={14} aria-hidden="true" /><span>{folder.name}</span>
-            <small>{t(folder.writable ? "hosts.catalog.editable" : "hosts.catalog.readOnly")}</small>
+            <span className="computer-access-permission">{t(folder.writable ? "hosts.catalog.editable" : "hosts.catalog.readOnly")}</span>
             {manageable && <ChevronRight size={13} aria-hidden="true" />}</>;
           return <div role="listitem" key={folder.id}>{manageable
             ? <button type="button" className="computer-access-folder" disabled={catalog.pending}
@@ -105,9 +105,9 @@ function OtherComputerList({ catalog, onRemove, openComputer, setOpenComputer }:
   let content = failed ? null : <div className="computer-access-read-state"><InlineLoading label={t("common.status.loading")} /></div>;
   if (catalog.loaded && catalog.sharing) {
     if (others.length > 0) content = <>{others.map((device) => <div className="computer-access-device" key={device.id}>
-      <span className="computer-access-icon"><LocalIcon size={21} aria-hidden="true" /></span>
-      <div className="computer-access-identity"><strong>{device.name}</strong>
-        <span className="computer-access-presence" data-online={device.online || undefined}>
+      <span className="computer-access-icon"><LocalIcon size={16} aria-hidden="true" /></span>
+      <div className="computer-access-identity"><span>{device.name}</span>
+        <span className="computer-access-presence">
           <ComputerPresence online={device.online} lastSeenAt={device.last_seen_at} /></span></div>
       <ComputerActionsMenu name={device.name} disabled={catalog.pending} onRemove={() => onRemove(device.id)}
         open={openComputer === device.id} onOpenChange={(open) => setOpenComputer(open ? device.id : null)} />

@@ -6,7 +6,7 @@
   "settings.thisComputer": "This computer",
   "settings.thisComputerDetail": "Open shared folders across your computers.",
   "settings.others": "Other computers",
-  "settings.noOthers": "Sign in to the same PuppyOne account on another computer to connect it.",
+  "settings.noOthers": "No other computers.",
   "settings.sharing": "Sharing",
   "settings.sharingOn": "Connected",
   "settings.remove": "Remove…",
@@ -101,7 +101,7 @@
   "settings.localSharing": "Sharing from this computer",
   "settings.sharingOff": "Not sharing",
   "settings.folderCount": "{count, plural, one {# folder shared} other {# folders shared}}",
-  "settings.emptyFolders": "On the Homepage, open a folder’s menu and choose “{action}”.",
+  "settings.emptyFolders": "Share a folder from Homepage.",
   "settings.sharedFolders": "Shared folders",
   "settings.statusUnavailable": "Can’t check sharing on this computer.",
   "settings.title": "Cross-computer access"
