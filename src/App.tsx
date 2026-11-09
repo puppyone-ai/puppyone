@@ -1604,7 +1604,8 @@ function AppContent() {
     name: workspace?.name ?? "" });
   // Who can open the local folder in this window, for its place menu: my devices
   // directly, a team through a copy in the Cloud.
-  const copyTeam = currentSpace.space?.canCreateProjects ? currentSpace.space : undefined;
+  const copySpace = currentSpace.space?.canCreateProjects ? currentSpace.space : undefined;
+  const canChooseCopySpace = cloudSpaces.spaces.some((space) => space.canCreateProjects);
   const localAudience = useLocalProjectAudience({
     cloudEnabled,
     devices: hostFolderPlace.devices,
@@ -1612,13 +1613,13 @@ function AppContent() {
     disconnectable: cloudLinkDisconnectable,
     unhosted: projectCloudContext.status === "local-only",
     publishPending: repositoryCloudInitializationPending,
-    canCopyToTeam: Boolean(copyTeam),
+    canCopyToTeam: Boolean(copySpace) || canChooseCopySpace,
     unsent: gitTitlebarStatus.outgoing,
     handlers: {
       onCopyToTeam: () => {
         openCloudPublish();
-        if (!repositoryCloudInitializationPending && copyTeam && workspace?.path && cloudSpaces.authority) {
-          setCloudPublishTarget({ path: workspace.path, organizationId: copyTeam.id, authority: cloudSpaces.authority });
+        if (!repositoryCloudInitializationPending && copySpace && workspace?.path && cloudSpaces.authority) {
+          setCloudPublishTarget({ path: workspace.path, organizationId: copySpace.id, authority: cloudSpaces.authority });
         }
       },
       onOpenCloudProject: (projectId) => { void selectCloudProject(projectId); },

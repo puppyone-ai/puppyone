@@ -824,11 +824,19 @@ export function createCloudTeam(
   }, apiBaseUrl);
 }
 
-export function ensurePersonalCloudSpace(
+export async function ensurePersonalCloudSpace(
   session: DesktopCloudSession,
   apiBaseUrl: string,
 ): Promise<DesktopCloudOrganization> {
-  return cloudApiRequest<DesktopCloudOrganization>("/auth/default-space", session, undefined, { method: "POST" }, apiBaseUrl);
+  try {
+    return await cloudApiRequest<DesktopCloudOrganization>("/auth/default-space", session, undefined, { method: "POST" }, apiBaseUrl);
+  } catch (error) {
+    // Bounded rollout compatibility: only a missing new route permits the old
+    // authenticated provisioner. Authentication and network failures never retry.
+    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 404) throw error;
+    const space = await cloudApiRequest<DesktopCloudOrganization>("/auth/personal-space", session, undefined, { method: "POST" }, apiBaseUrl);
+    return { ...space, is_default: true };
+  }
 }
 
 export function listCloudOrganizationMembers(

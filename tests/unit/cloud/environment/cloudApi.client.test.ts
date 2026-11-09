@@ -9,6 +9,7 @@ import {
   applyCloudBillingPlanChange,
   applyCloudBillingSeatChange,
   cloudApiRequest,
+  ensurePersonalCloudSpace,
   createCloudBillingCheckout,
   createCloudProject,
   getCloudAutomationOauthAuthorizeUrl,
@@ -622,5 +623,20 @@ describe("session / api-base guards", () => {
     await expect(
       cloudApiRequest("/projects/", session, undefined, {}, API),
     ).rejects.toThrow(/unavailable/i);
+  });
+});
+
+
+describe("default Space during a staggered server rollout", () => {
+  it("falls back only when the new authenticated route is absent", async () => {
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Not found"), { status: 404 }))
+      .mockResolvedValueOnce({ id: "existing-space", kind: "personal", can_create_projects: true });
+    expect(await ensurePersonalCloudSpace(session, API)).toMatchObject({ id: "existing-space", is_default: true });
+    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual(["/auth/default-space", "/auth/personal-space"]);
+  });
+  it.each([401, 403, 409, 500])("does not retry provisioning on status %i", async (status) => {
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Failure"), { status }));
+    await expect(ensurePersonalCloudSpace(session, API)).rejects.toMatchObject({ status });
+    expect(bridge).toHaveBeenCalledOnce();
   });
 });
