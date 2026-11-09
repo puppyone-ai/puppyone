@@ -10,7 +10,11 @@ vi.mock("../../../../src/lib/cloudApi", () => ({
   getCloudBillingUsage: vi.fn(), getCloudOrganizationAccess: vi.fn(),
 }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const session = { user_id: "u1", session_generation: 1, api_base_url: "https://cloud.example.test/api/v1" } as api.DesktopCloudSession;
+const session: api.DesktopCloudSession = {
+  user_id: "u1", user_email: "u1@example.test", session_generation: "1",
+  api_base_url: "https://cloud.example.test/api/v1", status: "authenticated",
+  expires_in: 3600, expires_at: 1_900_000_000,
+};
 let root: Root;
 let value: ReturnType<typeof useAccountPlan>;
 const changed = vi.fn();
