@@ -48,6 +48,7 @@ import { useCloudSpacePublishIntent, type CloudSpacePublishTarget } from "./feat
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { useCloudOrganizationName } from "./features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
+import { ProjectHeaderAccount } from "./features/cloud/workbench/CloudAccountButton";
 import {
   AccountCloudWorkspaceSurface,
   useAccountCloudWorkspacePresentation,
@@ -1938,6 +1939,11 @@ function AppContent() {
       {homepageFolderSharing.dialog}
       {folderRelocation.dialog}
       <DesktopTitlebarActions {...chromeActionProps} />
+      {accountAvailable && !cloudSessionRestoring && <>
+        <span className="desktop-titlebar-action-divider" aria-hidden="true" />
+        <ProjectHeaderAccount session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
+          onOpenAccount={() => openSettingsDialog("account")} />
+      </>}
     </>
   );
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
