@@ -1047,7 +1047,8 @@
 
 .desktop-plan-usage-value {
   color: var(--po-text);
-  font-size: var(--po-text-size-meta, 12px);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-text-size-label, 13px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1059,25 +1060,33 @@
 }
 
 .desktop-plan-meter {
-  height: 4px;
+  --desktop-plan-meter-color: var(--po-accent);
+
+  height: 14px;
   overflow: hidden;
-  border-radius: 999px;
   background: var(--po-control);
+  /* Keep the fill proportional while cutting the whole track into 32 ticks. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 2px), transparent 0);
+  mask-size: calc(100% / 32) 100%;
+  mask-repeat: repeat-x;
 }
 
 .desktop-plan-meter > span {
   display: block;
   height: 100%;
-  border-radius: inherit;
-  background: var(--po-accent);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--desktop-plan-meter-color) 72%, var(--po-canvas)),
+    var(--desktop-plan-meter-color)
+  );
 }
 
-.desktop-plan-meter.warning > span {
-  background: var(--po-warning);
+.desktop-plan-meter.warning {
+  --desktop-plan-meter-color: var(--po-warning);
 }
 
-.desktop-plan-meter.exhausted > span {
-  background: var(--po-danger);
+.desktop-plan-meter.exhausted {
+  --desktop-plan-meter-color: var(--po-danger);
 }
 
 .desktop-plan-space-select {
