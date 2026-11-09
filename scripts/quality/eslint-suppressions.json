@@ -809,11 +809,6 @@
       "count": 2
     }
   },
-  "src/shared-ui/editor/markdown/core/commands/markdownInlineCommands.ts": {
-    "no-nested-ternary": {
-      "count": 2
-    }
-  },
   "src/shared-ui/editor/markdown/features/code-block/codeBlockWidget.ts": {
     "no-nested-ternary": {
       "count": 1

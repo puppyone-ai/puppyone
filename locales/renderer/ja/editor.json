@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "列数",
   "shortcuts.insert": "挿入",
   "shortcuts.cancel": "キャンセル",
-  "shortcuts.tableSizeHint": "最大 50 行、20 列、合計 500 セル。"
+  "shortcuts.tableSizeHint": "最大 50 行、20 列、合計 500 セル。",
+  "selectionToolbar.label": "テキストの書式設定",
+  "selectionToolbar.highlight": "ハイライト"
 }

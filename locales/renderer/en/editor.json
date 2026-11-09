@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "Columns",
   "shortcuts.insert": "Insert",
   "shortcuts.cancel": "Cancel",
-  "shortcuts.tableSizeHint": "Up to 50 rows, 20 columns, and 500 cells."
+  "shortcuts.tableSizeHint": "Up to 50 rows, 20 columns, and 500 cells.",
+  "selectionToolbar.label": "Text formatting",
+  "selectionToolbar.highlight": "Highlight"
 }

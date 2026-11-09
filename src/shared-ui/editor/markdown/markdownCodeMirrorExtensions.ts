@@ -1,3 +1,4 @@
+import { markdownSelectionToolbar } from "./core/interaction/selection-toolbar/selectionToolbarExtension";
 import { markdownViewportLayoutExtension } from "./platform/codemirror/layoutCoordinator";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -76,6 +77,7 @@ export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHis
     highlightSpecialChars(),
     ...(includeHistory ? [history()] : []),
     dropCursor(),
+    markdownSelectionToolbar,
     indentOnInput(),
     bracketMatching(),
     EditorView.lineWrapping,

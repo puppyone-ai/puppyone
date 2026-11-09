@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "Colonnes",
   "shortcuts.insert": "Insérer",
   "shortcuts.cancel": "Annuler",
-  "shortcuts.tableSizeHint": "Jusqu’à 50 lignes, 20 colonnes et 500 cellules."
+  "shortcuts.tableSizeHint": "Jusqu’à 50 lignes, 20 colonnes et 500 cellules.",
+  "selectionToolbar.label": "Mise en forme du texte",
+  "selectionToolbar.highlight": "Surligner"
 }

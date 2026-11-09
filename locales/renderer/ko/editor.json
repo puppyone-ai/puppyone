@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "열 수",
   "shortcuts.insert": "삽입",
   "shortcuts.cancel": "취소",
-  "shortcuts.tableSizeHint": "최대 50행, 20열, 총 500개 셀."
+  "shortcuts.tableSizeHint": "최대 50행, 20열, 총 500개 셀.",
+  "selectionToolbar.label": "텍스트 서식",
+  "selectionToolbar.highlight": "강조 표시"
 }

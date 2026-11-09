@@ -33,14 +33,13 @@ export function applyMarkdownFormatCommand(view: EditorView, type: MarkdownForma
   return spec ? toggleMarkdownFormat(view, spec) : false;
 }
 
-export function toggleMarkdownInline(delimiter: "**" | "*" | "`" | "~~") {
-  const spec = delimiter === "**"
-    ? MARKDOWN_FORMAT_SPECS.strong
-    : delimiter === "*"
-      ? MARKDOWN_FORMAT_SPECS.emphasis
-      : delimiter === "~~"
-        ? MARKDOWN_FORMAT_SPECS.strike
-        : INLINE_CODE_SPEC;
+export function toggleMarkdownInline(delimiter: "**" | "*" | "`" | "~~" | "==") {
+  const specs: Record<typeof delimiter, MarkdownFormatSpec> = {
+    "**": MARKDOWN_FORMAT_SPECS.strong, "*": MARKDOWN_FORMAT_SPECS.emphasis,
+    "~~": MARKDOWN_FORMAT_SPECS.strike, "`": INLINE_CODE_SPEC,
+    "==": { kind: "highlight", open: "==", close: "==" },
+  };
+  const spec = specs[delimiter];
   return (view: EditorView): boolean => toggleMarkdownFormat(view, spec);
 }
 

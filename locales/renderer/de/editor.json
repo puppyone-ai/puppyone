@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "Spalten",
   "shortcuts.insert": "Einfügen",
   "shortcuts.cancel": "Abbrechen",
-  "shortcuts.tableSizeHint": "Bis zu 50 Zeilen, 20 Spalten und 500 Zellen."
+  "shortcuts.tableSizeHint": "Bis zu 50 Zeilen, 20 Spalten und 500 Zellen.",
+  "selectionToolbar.label": "Textformatierung",
+  "selectionToolbar.highlight": "Hervorheben"
 }

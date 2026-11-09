@@ -11,7 +11,7 @@ import { MARKDOWN_SHORTCUT_DEFINITIONS } from "./markdownShortcutDefinitions";
 const commands: Readonly<Record<string, Command>> = {
   strong: toggleMarkdownInline("**"), emphasis: toggleMarkdownInline("*"),
   underline: toggleMarkdownHtmlTag("u"), strike: toggleMarkdownInline("~~"),
-  inlineCode: toggleMarkdownInline("`"), link: wrapMarkdownLink,
+  inlineCode: toggleMarkdownInline("`"), highlight: toggleMarkdownInline("=="), link: wrapMarkdownLink,
   paragraph: setMarkdownHeadingLevel(0),
   heading1: setMarkdownHeadingLevel(1), heading2: setMarkdownHeadingLevel(2),
   heading3: setMarkdownHeadingLevel(3), heading4: setMarkdownHeadingLevel(4),

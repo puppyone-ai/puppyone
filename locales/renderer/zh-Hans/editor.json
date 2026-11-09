@@ -553,5 +553,7 @@
   "shortcuts.tableColumns": "列数",
   "shortcuts.insert": "插入",
   "shortcuts.cancel": "取消",
-  "shortcuts.tableSizeHint": "最多 50 行、20 列，共 500 个单元格。"
+  "shortcuts.tableSizeHint": "最多 50 行、20 列，共 500 个单元格。",
+  "selectionToolbar.label": "文字格式",
+  "selectionToolbar.highlight": "高亮"
 }

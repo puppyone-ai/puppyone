@@ -1,0 +1,54 @@
+/* Selection controls use UI typography, independent of the document theme. */
+.cm-md-selection-toolbar {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  width: max-content;
+  padding: 5px;
+  border: 1px solid var(--po-divider, #e1e3e6);
+  border-radius: 10px;
+  background: var(--po-menu-bg, var(--po-panel, #fff));
+  color: var(--po-text, #252525);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--po-shadow, #000) 14%, transparent), 0 1px 3px color-mix(in srgb, var(--po-shadow, #000) 6%, transparent);
+  font-family: var(--po-font-ui, system-ui);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 1;
+  user-select: none;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.cm-md-selection-toolbar[hidden] { display: none; }
+.cm-md-selection-toolbar button,
+.cm-md-selection-toolbar select {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  min-width: 30px;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: var(--po-clickable-cursor, default);
+}
+.cm-md-selection-toolbar .cm-md-selection-toolbar__block { width: 120px; padding-inline: 7px; font-weight: 500; }
+.cm-md-selection-toolbar select option { color: var(--po-text, #252525); background: var(--po-menu-bg, #fff); }
+.cm-md-selection-toolbar button:hover,
+.cm-md-selection-toolbar select:hover { background: var(--po-control-hover, #f1f3f5); }
+.cm-md-selection-toolbar button[aria-pressed="true"] {
+  color: var(--po-accent, #466a5c);
+  background: color-mix(in srgb, var(--po-accent, #466a5c) 12%, transparent);
+}
+.cm-md-selection-toolbar button:focus-visible,
+.cm-md-selection-toolbar select:focus-visible { outline: 2px solid var(--po-accent, #466a5c); outline-offset: -2px; }
+.cm-md-selection-toolbar svg { display: block; width: 18px; height: 18px; pointer-events: none; }
+.cm-md-selection-toolbar__divider { flex: 0 0 1px; height: 18px; margin-inline: 4px; background: var(--po-divider, #e1e3e6); }
+
+.cm-md-selection-toolbar button:disabled { opacity: .35; cursor: default; }

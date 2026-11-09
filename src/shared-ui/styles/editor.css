@@ -61,6 +61,7 @@
 /* Markdown block drag add-on */
 @import "./editor/markdown-block-drag.css";
 @import "./editor/markdown-image-drop.css";
+@import "./editor/markdown-selection-toolbar.css";
 
 /* Conflict markers, crash/empty states, misc editor status UI */
 @import "./editor/editor-status.css";
