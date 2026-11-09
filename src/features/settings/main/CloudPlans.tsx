@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, ExternalLink, Minus, Plus } from "lucide-react";
 import type { LocalizationContextValue } from "@puppyone/localization";
 import {
@@ -22,11 +22,13 @@ import {
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
+  plansForSpace,
   TEAM_FEATURES,
   type AddOnOffer,
   type PlanHolding,
   type PlanId,
   type PlanOffer,
+  type SpaceKind,
 } from "./planPricing";
 
 type PlanPageProps = {
@@ -42,6 +44,15 @@ type PlanPageProps = {
   localization: LocalizationContextValue;
   onSignIn: () => void;
   signInDisabled?: boolean;
+  /**
+   * The kind of space this page is for. Plans belong to spaces: a personal
+   * space holds Free or Personal, a team holds Free or Team.
+   */
+  spaceKind: SpaceKind;
+  /** Whether this person may change the plan; only a space's owner can. */
+  canManageBilling: boolean | null;
+  /** Starts a team when someone in their personal space wants to work with others. */
+  onCreateTeam?: () => void;
 };
 
 /**
@@ -67,7 +78,7 @@ export function CloudPlans(props: PlanPageProps) {
   return (
     <>
       <PlanComparison
-        plans={view.plans}
+        plans={plansForSpace(view.plans, props.spaceKind)}
         holding={holding}
         signedIn={false}
         localization={props.localization}
@@ -98,6 +109,9 @@ function ConnectedPlans({
   loading,
   onRefresh,
   localization,
+  spaceKind,
+  canManageBilling,
+  onCreateTeam,
 }: PlanPageProps & { session: DesktopCloudSession; organizationId: string }) {
   const { t } = localization;
   const controller = useCloudBillingController({
@@ -108,8 +122,11 @@ function ConnectedPlans({
   const effectiveSummary = billing.summary ?? summary;
   const holding = resolvePlanHolding(effectiveSummary, billing.catalog ?? catalog);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
-  const sellable = view.authoritative && !billingUnavailable(billing.error);
+  // Only the space's owner can buy or change; others see the plan as it is.
+  const owner = canManageBilling !== false;
+  const sellable = view.authoritative && !billingUnavailable(billing.error) && owner;
   const busy = billing.action !== null || loading;
+  const spacePlans = plansForSpace(view.plans, spaceKind);
 
   const team = view.plans.find((plan) => plan.id === "team");
   const teamMinimum = team?.minimumSeats ?? 2;
@@ -262,16 +279,27 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
+      {!owner && <p className="desktop-plan-note desktop-plan-managed">{t("settings.plan.space.managedByOwner")}</p>}
       <PlanComparison
-        plans={view.plans}
+        plans={spacePlans}
         holding={holding}
         signedIn
         localization={localization}
-        renderAction={renderAction}
+        renderAction={owner ? renderAction : (plan) => plan.id === current.id
+          ? <CurrentBadge localization={localization} />
+          : null}
       />
+      {spaceKind === "personal" && onCreateTeam && (
+        <p className="desktop-plan-note desktop-plan-team-prompt">
+          <span>{t("settings.plan.space.teamPrompt")}</span>
+          <button type="button" className="desktop-settings-action" onClick={onCreateTeam}>
+            {t("settings.plan.space.createTeam")}
+          </button>
+        </p>
+      )}
       <PlanFinePrint localization={localization} />
 
-      {holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(holding.planId)) && (
+      {owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(holding.planId)) && (
         <AddOns
           session={session}
           apiBaseUrl={apiBaseUrl}
@@ -550,7 +578,7 @@ export function PlanComparison({
       <p className="desktop-plan-sheets-claim">
         <strong>{t("settings.plan.fit.claim")}</strong> {t("settings.plan.fit.local")}
       </p>
-      <div className="desktop-plan-grid" role="list">
+      <div className="desktop-plan-grid" role="list" style={{ "--desktop-plan-columns": plans.length } as CSSProperties}>
         {plans.map((plan, index) => {
           const current = signedIn && plan.id === holding.planId;
           const perPerson = (value: string) => plan.perPerson

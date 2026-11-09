@@ -10,6 +10,7 @@ import {
 } from "../../features/settings/main/CloudPlans";
 import {
   resolvePlanCatalog,
+  plansForSpace,
   resolvePlanHolding,
   type PlanOffer,
 } from "../../features/settings/main/planPricing";
@@ -73,6 +74,8 @@ export function CloudPlansVisualSmokeHarness() {
   const summary = SUMMARIES[state] ?? null;
   const holding = resolvePlanHolding(summary, null);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
+  // Plans belong to spaces: the team fixtures are a team, the rest personal.
+  const spaceKind = state === "team" || state === "scheduled" ? "team" : "personal";
   const action = (plan: PlanOffer) => plan.id === current.id
     ? <span className="desktop-plan-current-badge">{t("settings.plan.current")}</span>
     : <button type="button" className={`desktop-settings-action${holding.subscribed ? "" : " primary"}`}>
@@ -97,6 +100,8 @@ export function CloudPlansVisualSmokeHarness() {
               onRefresh={() => undefined}
               localization={localization}
               onSignIn={() => undefined}
+              spaceKind="personal"
+              canManageBilling={null}
             />
           ) : (
             <>
@@ -121,7 +126,14 @@ export function CloudPlansVisualSmokeHarness() {
                   <button type="button" className="desktop-settings-action">{t("settings.plan.keepCurrent")}</button>
                 ) : undefined}
               />
-              <PlanComparison plans={view.plans} holding={holding} signedIn localization={localization} renderAction={action} />
+              <PlanComparison plans={plansForSpace(view.plans, spaceKind)} holding={holding} signedIn
+                localization={localization} renderAction={action} />
+              {spaceKind === "personal" && (
+                <p className="desktop-plan-note desktop-plan-team-prompt">
+                  <span>{t("settings.plan.space.teamPrompt")}</span>
+                  <button type="button" className="desktop-settings-action">{t("settings.plan.space.createTeam")}</button>
+                </p>
+              )}
               <PlanFinePrint localization={localization} />
               {holding.subscribed && (
                 <AddOns

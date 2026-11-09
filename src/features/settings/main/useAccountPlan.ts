@@ -3,6 +3,7 @@ import {
   getCloudBillingCatalog,
   getCloudBillingSummary,
   getCloudBillingUsage,
+  getCloudOrganizationAccess,
   listCloudOrganizations,
   type DesktopBillingCatalog,
   type DesktopBillingSummary,
@@ -39,6 +40,8 @@ export type AccountPlanSnapshot = {
   organizationId: string | null;
   /** Every organization the account belongs to, personal space first. */
   organizations: AccountPlanOrganization[];
+  /** Whether this person may change the selected space's plan; null while unknown. */
+  canManageBilling: boolean | null;
   loading: boolean;
 };
 
@@ -48,6 +51,7 @@ const EMPTY: AccountPlanSnapshot = {
   usage: null,
   organizationId: null,
   organizations: [],
+  canManageBilling: null,
   loading: false,
 };
 
@@ -111,14 +115,16 @@ export function useAccountPlan({
       const organizationId = ordered.find((organization) => organization.id === chosenOrganizationId)?.id
         ?? ordered[0]?.id
         ?? null;
-      const [summary, usage] = organizationId
+      const [summary, usage, access] = organizationId
         ? await Promise.all([
           getCloudBillingSummary(session, organizationId, handleSessionChange, apiBaseUrl)
             .catch(() => null),
           getCloudBillingUsage(session, organizationId, handleSessionChange, apiBaseUrl)
             .catch(() => null),
+          getCloudOrganizationAccess(session, organizationId, handleSessionChange, apiBaseUrl)
+            .catch(() => null),
         ])
-        : [null, null];
+        : [null, null, null];
       if (epoch !== epochRef.current) return;
 
       // Never show one organization's money under another's name.
@@ -128,6 +134,7 @@ export function useAccountPlan({
         usage: usage && usage.runtime.org_id === organizationId ? usage : null,
         organizationId,
         organizations: ordered,
+        canManageBilling: access && access.org_id === organizationId ? access.can_manage_billing : null,
         loading: false,
       });
     };

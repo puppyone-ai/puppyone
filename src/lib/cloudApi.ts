@@ -167,6 +167,8 @@ export type DesktopBillingPlan = {
     fixed_units: number;
     units_per_seat: number;
   };
+  /** Which kinds of space may hold this plan; empty or absent means any. */
+  space_kinds?: Array<"personal" | "team">;
 };
 
 /** A monthly add-on sold on top of a paid plan, such as extra agent hours. */
@@ -804,6 +806,19 @@ export function listCloudOrganizations(
   return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, {}, apiBaseUrl);
 }
 
+/** Starts a team the signed-in person owns. It begins on Free; its plan is its own. */
+export function createCloudTeam(
+  session: DesktopCloudSession,
+  name: string,
+  onSessionChange?: MutableSessionHandler,
+  apiBaseUrl?: string | null,
+): Promise<DesktopCloudOrganization> {
+  return cloudApiRequest<DesktopCloudOrganization>("/organizations/", session, onSessionChange, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  }, apiBaseUrl);
+}
+
 export function ensurePersonalCloudSpace(
   session: DesktopCloudSession,
   apiBaseUrl: string,
@@ -983,6 +998,12 @@ export function validateDesktopBillingCatalog(value: unknown): DesktopBillingCat
     requireBillingLimitRecord(plan.fixed_limits, "plan.fixed_limits", true);
     requireBillingLimitRecord(plan.per_seat_limits, "plan.per_seat_limits", false);
     requireBillingAllowRecord(plan.allow, "plan.allow");
+    if (plan.space_kinds !== undefined) {
+      if (!Array.isArray(plan.space_kinds)
+        || plan.space_kinds.some((kind) => kind !== "personal" && kind !== "team")) {
+        throw new Error("Cloud returned invalid billing plan.space_kinds.");
+      }
+    }
   }
   const catalogRuntime = requireBillingRecord(catalog.runtime, "runtime");
   const topUpsEnabled = requireBillingBoolean(

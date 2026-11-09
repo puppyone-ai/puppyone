@@ -41,6 +41,8 @@ const DEFAULT_UNIT_SECONDS = 60;
 export const PLAN_ORDER = ["free", "personal", "team"] as const;
 export type PlanId = (typeof PLAN_ORDER)[number];
 
+export type SpaceKind = "personal" | "team";
+
 /** What a team gets that one person does not need. Keys match catalog features. */
 // Only what Cloud enforces today. The catalog also publishes per-agent access
 // rules and the agent activity record; they are listed once Cloud honours them,
@@ -68,6 +70,8 @@ export type PlanOffer = {
   historyDays: number | null;
   teamFeatures: boolean;
   purchasable: boolean;
+  /** The kinds of space this plan is sold to: Personal for one's own, Team for a team. */
+  spaceKinds: readonly SpaceKind[];
   /**
    * The authoritative plan. Absent for indicative pricing, and a purchase can
    * never start without it.
@@ -93,17 +97,17 @@ const LOCAL_PLANS: Record<PlanId, PlanOffer> = {
   free: {
     id: "free", priceCents: 0, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
     projects: 1, storageBytes: 1 * BYTES_PER_GB, agentHours: 5, historyDays: 30,
-    teamFeatures: false, purchasable: false,
+    teamFeatures: false, purchasable: false, spaceKinds: ["personal", "team"],
   },
   personal: {
     id: "personal", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
     projects: 20, storageBytes: 10 * BYTES_PER_GB, agentHours: 40, historyDays: 30,
-    teamFeatures: false, purchasable: true,
+    teamFeatures: false, purchasable: true, spaceKinds: ["personal"],
   },
   team: {
     id: "team", priceCents: 4000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 2,
     projects: 20, storageBytes: 20 * BYTES_PER_GB, agentHours: 40, historyDays: 365,
-    teamFeatures: true, purchasable: true,
+    teamFeatures: true, purchasable: true, spaceKinds: ["team"],
   },
 };
 
@@ -164,8 +168,21 @@ function planFromCatalog(id: PlanId, plan: DesktopBillingPlan, unitSeconds: numb
     historyDays: limitOf(plan, "history.retention_days"),
     teamFeatures: TEAM_FEATURES.some((feature) => plan.features[feature] === true),
     purchasable: plan.purchasable,
+    spaceKinds: plan.space_kinds?.length ? plan.space_kinds : DEFAULT_SPACE_KINDS[id],
     catalogPlan: plan,
   };
+}
+
+/** Plans belong to spaces; a catalog that predates the split falls back to these. */
+const DEFAULT_SPACE_KINDS: Readonly<Record<PlanId, readonly SpaceKind[]>> = {
+  free: ["personal", "team"],
+  personal: ["personal"],
+  team: ["team"],
+};
+
+/** Only the plans the given kind of space can hold, in the usual order. */
+export function plansForSpace(plans: readonly PlanOffer[], kind: SpaceKind): PlanOffer[] {
+  return plans.filter((plan) => plan.spaceKinds.includes(kind));
 }
 
 function addOnFromCatalog(addOn: DesktopBillingAddOn, unitSeconds: number): AddOnOffer {

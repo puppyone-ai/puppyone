@@ -11,6 +11,7 @@ import {
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
+  plansForSpace,
 } from "../../../../src/features/settings/main/planPricing";
 import {
   CloudPlans,
@@ -106,9 +107,10 @@ const usageOf = (usedUnits: number, grantedUnits: number, usedBytes: number, lim
   storage: { logical_bytes: usedBytes, limit_bytes: limitBytes },
 }) as unknown as DesktopBillingUsage;
 
-function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
+function SignedOut({ onSignIn = () => undefined, signedIn = false, spaceKind = "personal" }: {
   onSignIn?: () => void;
   signedIn?: boolean;
+  spaceKind?: "personal" | "team";
 }) {
   const localization = useLocalization();
   return (
@@ -124,6 +126,8 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
       onRefresh={() => undefined}
       localization={localization}
       onSignIn={onSignIn}
+      spaceKind={spaceKind}
+      canManageBilling={null}
     />
   );
 }
@@ -243,27 +247,40 @@ it("reads used hours only from the billing service, never invents them", () => {
     .toEqual([12, 40, 3.2 * GB, 10 * GB]);
 });
 
-it("compares the three plans side by side, each with one price", async () => {
-  const host = await render(<SignedOut />);
-  const cards = [...host.querySelectorAll(".desktop-plan-card")];
+it("offers each space only the plans it can hold, as spec sheets", async () => {
+  const personal = await render(<SignedOut />);
+  const cards = [...personal.querySelectorAll(".desktop-plan-card")];
   // Each plan is a spec sheet: an index and a name, one price, the same rows.
   expect(cards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Personal", "03 / Team"]);
+    .toEqual(["01 / Free", "02 / Personal"]);
   expect(cards.map((card) => [
     card.querySelector(".desktop-plan-card-amount")?.textContent,
     card.querySelector(".desktop-plan-card-per")?.textContent,
-  ])).toEqual([["$0", "/ month"], ["$20", "/ month"], ["$40", "/ person / month"]]);
+  ])).toEqual([["$0", "/ month"], ["$20", "/ month"]]);
   const specs = (card: Element | undefined) => [...(card?.querySelectorAll(".desktop-plan-spec-row") ?? [])]
     .map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
   expect(specs(cards[1])).toEqual([
     ["Agent hours", "40 h / month"], ["Storage", "10 GB"], ["Projects online", "20"], ["History", "30 days"],
   ]);
-  expect(specs(cards[2])[0]).toEqual(["Agent hours", "40 h / person / month"]);
-  expect(cards[2]?.textContent).toContain("Member roles");
-  // Not sold until Cloud enforces them.
-  expect(cards[2]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
   // The machine behind the hours is never described.
-  expect(host.textContent).not.toMatch(/vCPU|GPU|RAM|\bcores?\b|\bVM\b|virtual machine|instance|\bunits?\b/i);
+  expect(personal.textContent).not.toMatch(/vCPU|GPU|RAM|\bcores?\b|\bVM\b|virtual machine|instance|\bunits?\b/i);
+
+  const team = await render(<SignedOut spaceKind="team" />);
+  const teamCards = [...team.querySelectorAll(".desktop-plan-card")];
+  expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
+    .toEqual(["01 / Free", "02 / Team"]);
+  expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
+  expect(teamCards[1]?.textContent).toContain("Member roles");
+  // Not sold until Cloud enforces them.
+  expect(teamCards[1]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
+});
+
+it("keeps Personal and Team to the spaces they are for, even from an older catalog", () => {
+  const { plans } = resolvePlanCatalog(CATALOG);
+  expect(plansForSpace(plans, "personal").map((plan) => plan.id)).toEqual(["free", "personal"]);
+  expect(plansForSpace(plans, "team").map((plan) => plan.id)).toEqual(["free", "team"]);
+  const local = resolvePlanCatalog(null).plans;
+  expect(plansForSpace(local, "team").map((plan) => plan.id)).toEqual(["free", "team"]);
 });
 
 it("says beside the hours that people working in the cloud never spend them", async () => {
@@ -277,7 +294,7 @@ it("routes a signed-out reader to sign-in from every plan", async () => {
   const host = await render(<SignedOut onSignIn={signIn} />);
   const buttons = [...host.querySelectorAll<HTMLButtonElement>(".desktop-plan-card button")];
   expect(buttons.map((button) => button.textContent)).toEqual([
-    "Sign in to choose", "Sign in to choose", "Sign in to choose",
+    "Sign in to choose", "Sign in to choose",
   ]);
   await act(async () => buttons[1]?.click());
   expect(signIn).toHaveBeenCalledOnce();

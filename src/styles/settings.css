@@ -1193,6 +1193,18 @@
   font-weight: 600;
 }
 
+.desktop-plan-managed {
+  margin: 0 0 10px;
+}
+
+.desktop-plan-team-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
 .desktop-plan-card-fit {
   display: grid;
   gap: 6px;
@@ -1217,7 +1229,7 @@
 
 .desktop-plan-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--desktop-plan-columns, 3), minmax(0, 1fr));
   margin-inline: 10px;
   border: 1px solid var(--po-divider);
   border-radius: 8px;
