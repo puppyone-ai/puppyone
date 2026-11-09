@@ -66,8 +66,7 @@ export type SettingsVisibilityContext = {
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "cloud",
-    // Everything here is tied to the PuppyOne account, not to Cloud: the
-    // account and its AI balance, the plan, and the computers signed in to it.
+    // Identity and plan information belong to the PuppyOne account.
     labelId: "settings.sidebar.accountGroup",
     items: [
       // An account is not Cloud: people buy PuppyOne compute on the website and
@@ -83,9 +82,6 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       // Plan links out to them instead of hosting a third entry here.
       { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresAccount: true },
       { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false, requiresCloud: true },
-      // The owner's computers belong to the account: every one signed in can open
-      // shared folders, and this is where one is taken out of that.
-      { id: "other-computers", labelId: "settings.sidebar.otherComputers", icon: LocalIcon, disabled: false, requiresHostDevices: true },
     ],
   },
   {
@@ -98,6 +94,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "other-app-imports", labelId: "settings.sidebar.otherAppImports", icon: FolderInput, disabled: false, requiresOtherAppImports: true },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
+      { id: "other-computers", labelId: "settings.sidebar.otherComputers", icon: LocalIcon, disabled: false, requiresHostDevices: true },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
     ],
   },

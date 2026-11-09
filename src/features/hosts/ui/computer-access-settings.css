@@ -1,0 +1,81 @@
+@layer features {
+  .computer-access-intro {
+    margin: -16px 0 8px;
+    padding-inline: 10px;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-label, 13px);
+    line-height: 1.5;
+  }
+  .computer-access-device {
+    display: flex;
+    min-width: 0;
+    min-height: 64px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+  }
+  .computer-access-icon {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--po-control);
+    color: var(--po-text-muted);
+  }
+  .computer-access-identity {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    font-size: var(--po-text-size-label, 13px);
+  }
+  .computer-access-identity strong { color: var(--po-text); font-weight: var(--po-text-weight-medium, 500); overflow-wrap: anywhere; }
+  .computer-access-presence { color: var(--po-text-subtle); font-size: var(--po-text-size-meta, 12px); line-height: 1.4; }
+  .computer-access-presence[data-online] { color: var(--po-success); }
+  .computer-access-more { flex: none; }
+  .computer-access-menu { z-index: var(--po-overlay-z-menu); }
+  .computer-access-hint {
+    margin: 0;
+    padding: 6px 10px;
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-meta, 12px);
+    line-height: 1.5;
+  }
+  .computer-access-folders { display: grid; gap: 2px; padding: 4px 10px 8px 58px; }
+  .computer-access-folder {
+    display: flex;
+    width: 100%;
+    min-height: 32px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-label, 13px);
+    text-align: start;
+  }
+  .computer-access-folder > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .computer-access-folder > svg { flex: none; }
+  .computer-access-folder small { color: var(--po-text-subtle); font-size: var(--po-text-size-meta, 12px); }
+  button.computer-access-folder:hover:not(:disabled) { background: var(--po-hover); }
+  button.computer-access-folder:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 1px; }
+  .computer-access-autostart { margin-block-start: 6px; }
+  .computer-access-read-state {
+    display: flex;
+    min-height: 48px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-label, 13px);
+    line-height: 1.5;
+  }
+  .computer-access-signin { min-height: 64px; justify-content: flex-start; }
+}

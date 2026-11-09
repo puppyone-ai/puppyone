@@ -129,12 +129,12 @@ export function SettingsView({
     );
   }
 
-  if (activeSection === "other-computers" && cloudSession) {
-    return <OtherComputersSettings session={cloudSession} />;
+  if (activeSection === "other-computers") {
+    return <OtherComputersSettings session={cloudSession} restoring={cloudSessionRestoring}
+      onSignIn={() => onSelectSection("account")} />;
   }
 
-  // The computers belong to the signed-in account; signed out, this is where to sign in.
-  if (activeSection === "account" || activeSection === "other-computers") {
+  if (activeSection === "account") {
     return (
       <AccountSettingsView
         cloudSession={cloudSession}

@@ -169,10 +169,11 @@ it("splits state from purchase, and puts every price on Plan", () => {
   // Invoices are documents, not a settings pane: Plan links out to them.
   expect(cloud?.items.map((item) => item.id)).not.toContain("billing");
 
-  // The owner's computers sit with the account, after Plan, once device sharing is on.
-  const withComputers = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true })
-    .find((group) => group.id === "cloud");
-  expect(withComputers?.items.map((item) => item.id)).toEqual(["account", "seats", "other-computers"]);
+  // Cross-computer access is an App capability, immediately after Privacy.
+  const groups = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true });
+  expect(groups.find((group) => group.id === "cloud")?.items.map((item) => item.id)).toEqual(["account", "seats"]);
+  const appItems = groups.find((group) => group.id === "desktop-app")!.items.map((item) => item.id);
+  expect(appItems[appItems.indexOf("privacy") + 1]).toBe("other-computers");
 });
 
 it("offers three plans with one price each and the same allowances", () => {
