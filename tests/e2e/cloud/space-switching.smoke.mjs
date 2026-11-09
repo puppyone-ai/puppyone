@@ -123,8 +123,9 @@ async function run() {
   await until("document.querySelector('.desktop-space-switcher select')?.value === 'org-1' && document.body.textContent.includes('Window acceptance')", 'first window returns A');
   assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-switcher select')?.value"),'org-2');
   await select(window,'settings');
-  await until("!!document.querySelector('.desktop-space-member-form')", 'current Space member settings');
+  await until("!!document.querySelector('.desktop-space-member-form input:not(:disabled)')", 'loaded current Space member settings');
   assert.ok(await evaluate("document.body.textContent.includes('Studio')"));
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await capture('02-space-a-settings');
   report.ok=true; report.window_count=2; report.current_spaces=['org-1','org-2'];
   assert.deepEqual(report.blocked_network, [], "Unexpected external request attempted");
