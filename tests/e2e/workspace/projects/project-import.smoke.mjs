@@ -145,6 +145,8 @@ async function checkDesktopImport() {
     assert.equal(await evaluate("document.querySelector('input').disabled"), true);
     assert.equal(await evaluate("document.querySelector('[role=alert]').textContent.includes('ENOENT')"), false);
     assert.equal(await evaluate("document.querySelector('button[type=submit]').textContent"), "Open imported project");
+    // DOM assertions can settle before Chromium paints the updated dialog.
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await fs.mkdir(screenshots, { recursive: true });
     await fs.writeFile(path.join(screenshots, "retry-open.png"), (await window.capturePage()).toPNG());
     await fs.rename(parkedPath, projectPath);
