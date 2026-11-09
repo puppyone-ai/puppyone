@@ -394,6 +394,9 @@ it("says what changes at renewal and offers to keep the current plan", async () 
   const host = await render(<ScheduledCard summary={SCHEDULED_TEAM} onKeep={keep} />);
   expect(host.textContent).toContain("Scheduled change");
   expect(host.textContent).toMatch(/2 people from Dec 8/);
+  // Unknown consumption still has a visible track, without claiming 0% used.
+  expect(host.querySelectorAll('.desktop-plan-meter[aria-hidden="true"]')).toHaveLength(2);
+  expect(host.querySelector('[role="progressbar"]')).toBeNull();
   await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
   expect(keep).toHaveBeenCalledOnce();
 

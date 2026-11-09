@@ -1,6 +1,7 @@
 import { PlaceholderLayer } from "@puppyone/shared-ui";
 import type { LocalizationContextValue } from "@puppyone/localization";
 import { SettingsSubsection } from "../components";
+import { PlanUsageBar } from "./PlanUsageBar";
 
 /** The signed-in page keeps its reading order while its first snapshot loads. */
 export function PlanLoading({ localization }: { localization: LocalizationContextValue }) {
@@ -23,7 +24,7 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
                 <span>{t(label)}</span>
                 <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
               </div>
-              <span className="desktop-plan-placeholder meter" data-placeholder-shape="" aria-hidden="true" />
+              <PlanUsageBar percent={null} kind={label === "settings.plan.hoursLabel" ? "hours" : "storage"} />
               <span className="desktop-plan-placeholder detail" data-placeholder-shape="" aria-hidden="true" />
             </div>
           ))}

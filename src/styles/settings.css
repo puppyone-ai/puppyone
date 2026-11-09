@@ -984,10 +984,8 @@
   height: calc(var(--po-text-size-meta, 12px) * 1.5);
 }
 
-.desktop-plan-placeholder.meter,
 .desktop-plan-placeholder.action {
   width: 100%;
-  height: 14px;
 }
 
 .desktop-plan-usage-item > .desktop-plan-placeholder.detail {
@@ -1127,25 +1125,38 @@
 }
 
 .desktop-plan-meter {
-  --desktop-plan-meter-color: var(--po-accent);
+  --desktop-plan-meter-color: #f87518;
+  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 15%, transparent);
 
-  height: 14px;
-  overflow: hidden;
-  background: var(--po-control);
-  /* Keep the fill proportional while cutting the whole track into 32 ticks. */
-  mask-image: linear-gradient(to right, #000 calc(100% - 2px), transparent 0);
-  mask-size: calc(100% / 32) 100%;
-  mask-repeat: repeat-x;
+  display: grid;
+  grid-template-columns: repeat(var(--desktop-plan-meter-cells, 12), minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
 }
 
-.desktop-plan-meter > span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--desktop-plan-meter-color) 72%, var(--po-canvas)),
-    var(--desktop-plan-meter-color)
-  );
+.desktop-plan-meter.is-storage {
+  --desktop-plan-meter-color: var(--po-brand-blue, #4599df);
+}
+
+.desktop-plan-meter-cell {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20%;
+  aspect-ratio: 1;
+}
+
+.desktop-plan-meter-tick {
+  position: relative;
+  background: var(--desktop-plan-meter-track);
+}
+
+.desktop-plan-meter-tick::before {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--desktop-plan-tick-fill, 0%);
+  background: var(--desktop-plan-meter-color);
+  content: "";
 }
 
 .desktop-plan-meter.warning {

@@ -14,12 +14,12 @@ import {
 import { useCloudBillingController } from "../../cloud";
 import { SettingsSubsection, SettingsValueRow } from "../components";
 import { PlanLoading } from "./PlanLoading";
+import { PlanUsageBar } from "./PlanUsageBar";
 import {
   formatCurrency,
   formatHours,
   formatMoney,
   formatStorage,
-  meterTone,
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
@@ -454,6 +454,7 @@ export function CurrentPlan({
       </SettingsSubsection>
       <div className="desktop-plan-usage">
         <UsageMeter
+          kind="hours"
           label={t("settings.plan.hoursLabel")}
           used={reading.usedHours === null ? null : formatHours(reading.usedHours, localization)}
           total={reading.includedHours === null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
@@ -461,6 +462,7 @@ export function CurrentPlan({
           detail={reading.usedHours === null ? t("settings.plan.gaugeIncluded") : resets}
         />
         <UsageMeter
+          kind="storage"
           label={t("settings.plan.storageLabel")}
           used={reading.usedBytes === null ? null : formatStorage(reading.usedBytes, localization)}
           total={reading.includedBytes === null ? null : formatStorage(reading.includedBytes, localization)}
@@ -489,14 +491,16 @@ function percentOf(used: number | null, total: number | null): number | null {
   return Math.max(0, Math.min(100, (used / total) * 100));
 }
 
-/** Show consumption only when the billing service has supplied a reading. */
+/** Keep the track visible; only authoritative readings light its bars. */
 function UsageMeter({
+  kind,
   label,
   used,
   total,
   percent,
   detail,
 }: {
+  kind: "hours" | "storage";
   label: string;
   used: string | null;
   total: string | null;
@@ -512,19 +516,7 @@ function UsageMeter({
           {used !== null && total !== null && <span> / {total}</span>}
         </span>
       </div>
-      {percent !== null && (
-        <div
-          className={`desktop-plan-meter${meterTone(percent)}`}
-          role="progressbar"
-          aria-label={label}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(percent)}
-          aria-valuetext={`${used} / ${total}`}
-        >
-          <span style={{ width: `${percent}%` }} />
-        </div>
-      )}
+      <PlanUsageBar percent={percent} kind={kind} label={label} reading={`${used} / ${total}`} />
       {detail && <span className="desktop-plan-usage-detail">{detail}</span>}
     </div>
   );

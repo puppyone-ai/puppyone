@@ -26,7 +26,8 @@ import type {
  * `?state=signed-out` (default), `?state=free`, `?state=personal`, `?state=team`
  * or `?state=scheduled` (Team waiting to become Personal at renewal).
  * `?state=loading` holds the first-load layout; `?state=delayed` resolves it
- * after five seconds for layout-shift review. Readings
+ * after five seconds for layout-shift review. `?state=no-usage` keeps the tracks
+ * visible before usage is available. Readings
  * are fixtures; nothing here reaches a billing service.
  */
 const requestedState = new URLSearchParams(window.location.search).get("state") ?? "signed-out";
@@ -80,7 +81,7 @@ export function CloudPlansVisualSmokeHarness() {
   const localization = useLocalization();
   const { t } = localization;
   const view = resolvePlanCatalog(null);
-  const summary = SUMMARIES[state] ?? null;
+  const summary = SUMMARIES[state === "no-usage" ? "personal" : state] ?? null;
   const holding = resolvePlanHolding(summary, null);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
   // Plans belong to spaces: the team fixtures are a team, the rest personal.
