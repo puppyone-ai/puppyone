@@ -11,7 +11,7 @@ import type {
  * Cloud pricing, as decided on 2026-11-08 (puppy-issues
  * `document/puppypay/product.md`, "云端套餐").
  *
- * Three plans, priced per person: Free, Personal ($10 a month) and Team ($20
+ * Three plans, priced per person: Free, Personal ($20 a month) and Team ($40
  * per person a month). Each plan includes the same three things, and the page
  * names exactly those: cloud projects, storage and cloud agent hours. Team adds
  * what a group needs to work together and keep its agents in check.
@@ -95,12 +95,12 @@ const LOCAL_PLANS: Record<PlanId, PlanOffer> = {
     teamFeatures: false, purchasable: false,
   },
   personal: {
-    id: "personal", priceCents: 1000, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
+    id: "personal", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: false, minimumSeats: 1,
     projects: 20, storageBytes: 10 * BYTES_PER_GB, agentHours: 40, historyDays: 30,
     teamFeatures: false, purchasable: true,
   },
   team: {
-    id: "team", priceCents: 2000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 2,
+    id: "team", priceCents: 4000, currency: LOCAL_CURRENCY, perPerson: true, minimumSeats: 2,
     projects: 20, storageBytes: 20 * BYTES_PER_GB, agentHours: 40, historyDays: 365,
     teamFeatures: true, purchasable: true,
   },

@@ -48,9 +48,9 @@ const REQUIRED = {
 const TEAM = {
   "team.member_roles": true, "agent.access_rules": true, "activity.log": true, "billing.consolidated": true,
 };
-/** The 2026-11-08.1 catalog as the billing service publishes it. */
+/** The 2026-11-09.1 catalog as the billing service publishes it. */
 const CATALOG = {
-  schema_version: "1.1", catalog_version: "2026-11-08.1", effective_at: "2026-11-08T00:00:00Z", currency: "USD",
+  schema_version: "1.1", catalog_version: "2026-11-09.1", effective_at: "2026-11-09T00:00:00Z", currency: "USD",
   plans: [
     {
       id: "free", aliases: [], name: "Free", description: "", public: true, purchasable: false, highlighted: false,
@@ -60,14 +60,14 @@ const CATALOG = {
     },
     {
       id: "personal", aliases: ["plus"], name: "Personal", description: "", public: true, purchasable: true,
-      highlighted: true, currency: "USD", interval: "month", price_per_seat_cents: 1000,
+      highlighted: true, currency: "USD", interval: "month", price_per_seat_cents: 2000,
       seats: { minimum: 1, maximum: 1, transition_to: "team" }, features: REQUIRED, allow: {},
       runtime: { fixed_units: 2400, units_per_seat: 0 }, per_seat_limits: {},
       fixed_limits: { "projects.max": 20, "storage.max_bytes": 10 * GB, "history.retention_days": 30 },
     },
     {
       id: "team", aliases: ["business"], name: "Team", description: "", public: true, purchasable: true,
-      highlighted: false, currency: "USD", interval: "month", price_per_seat_cents: 2000,
+      highlighted: false, currency: "USD", interval: "month", price_per_seat_cents: 4000,
       seats: { minimum: 2, retention_minimum: 1, maximum: null }, features: { ...REQUIRED, ...TEAM }, allow: {},
       runtime: { fixed_units: 0, units_per_seat: 2400 }, fixed_limits: { "history.retention_days": 365 },
       per_seat_limits: { "projects.max": 20, "storage.max_bytes": 20 * GB },
@@ -130,7 +130,7 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
 }
 
 /**
- * Pricing decided on 2026-11-08: Free, Personal $10 a month and Team $20 per
+ * Pricing (2026-11-09): Free, Personal $20 a month and Team $40 per
  * person a month, each including cloud projects, storage and cloud agent
  * hours. Hours count agent time only. Add-ons are monthly packs on a paid plan.
  */
@@ -172,8 +172,8 @@ it("offers three plans with one price each and the same allowances", () => {
   expect(authoritative).toBe(false);
   expect(plans.map((plan) => [plan.id, plan.priceCents, plan.perPerson])).toEqual([
     ["free", 0, false],
-    ["personal", 1000, false],
-    ["team", 2000, true],
+    ["personal", 2000, false],
+    ["team", 4000, true],
   ]);
   expect(plans.map((plan) => plan.agentHours)).toEqual([5, 40, 40]);
   expect(plans.map((plan) => plan.storageBytes)).toEqual([GB, 10 * GB, 20 * GB]);
@@ -212,7 +212,7 @@ it("treats holding nothing as Free, a complete answer", () => {
 
 it("bills a team per person and names a legacy plan by its new name", () => {
   const team = resolvePlanHolding(summaryOf({ plan_id: "business", seat_quantity: 5 }), CATALOG);
-  expect([team.planId, team.seats, team.monthlyCents]).toEqual(["team", 5, 10000]);
+  expect([team.planId, team.seats, team.monthlyCents]).toEqual(["team", 5, 20000]);
   const held = resolvePlanHolding(summaryOf({
     add_ons: [
       { add_on_id: "agent_hours_100", quantity: 2, status: "active", cancel_at_period_end: false, current_period_end: null },
@@ -272,8 +272,8 @@ it("compares the three plans side by side, each with one price", async () => {
   expect(cards.map((card) => card.querySelector("strong")?.textContent)).toEqual(["Free", "Personal", "Team"]);
   expect(cards.map((card) => card.querySelector(".desktop-plan-card-price")?.textContent)).toEqual([
     "$0 / month",
-    "$10 / month",
-    "$20 per person / month",
+    "$20 / month",
+    "$40 per person / month",
   ]);
   expect(cards[1]?.textContent).toContain("40 agent hours a month");
   expect(cards[2]?.textContent).toContain("40 agent hours per person a month");
