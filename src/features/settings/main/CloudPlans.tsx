@@ -66,7 +66,6 @@ export function CloudPlans(props: PlanPageProps) {
   const waiting = session !== null;
   return (
     <>
-      <CloudFit localization={props.localization} />
       <PlanComparison
         plans={view.plans}
         holding={holding}
@@ -263,7 +262,6 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
-      <CloudFit localization={localization} />
       <PlanComparison
         plans={view.plans}
         holding={holding}
@@ -486,34 +484,48 @@ function Gauge({
 }
 
 /**
- * When a folder is worth putting online, and what that buys that a drive or a
- * Git host does not. Read before the prices, so a plan is chosen for a reason.
+ * Plans, hours and storage belong to one organization. Someone in a team sees
+ * their personal space first and can switch to each team they belong to.
  */
-export function CloudFit({ localization }: { localization: LocalizationContextValue }) {
+export function OrganizationSwitch({
+  organizations,
+  selectedId,
+  onSelect,
+  localization,
+}: {
+  organizations: readonly { id: string; name: string; personal: boolean }[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  localization: LocalizationContextValue;
+}) {
   const { t } = localization;
-  const reasons = ["laptopClosed", "computers", "agents", "team"] as const;
+  if (organizations.length < 2) return null;
   return (
-    <section className="desktop-plan-fit" aria-labelledby="desktop-plan-fit-title">
-      <div className="desktop-plan-fit-claim">
-        <span className="desktop-plan-mono-label">{t("settings.plan.fit.kicker")}</span>
-        <h3 id="desktop-plan-fit-title">{t("settings.plan.fit.claim")}</h3>
-        <p>{t("settings.plan.fit.claimDetail")}</p>
-      </div>
-      <div className="desktop-plan-fit-list">
-        <span className="desktop-plan-mono-label">{t("settings.plan.fit.when")}</span>
-        <ol>
-          {reasons.map((reason, index) => (
-            <li key={reason}>
-              <span className="desktop-plan-fit-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-              <span>{t(`settings.plan.fit.reason.${reason}`)}</span>
-            </li>
-          ))}
-        </ol>
-        <p className="desktop-plan-fit-local">{t("settings.plan.fit.local")}</p>
-      </div>
-    </section>
+    <div className="desktop-plan-orgs" role="radiogroup" aria-label={t("settings.plan.org.label")}>
+      <span className="desktop-plan-mono-label">{t("settings.plan.org.label")}</span>
+      {organizations.map((organization) => (
+        <button
+          key={organization.id}
+          type="button"
+          role="radio"
+          aria-checked={organization.id === selectedId}
+          className={`desktop-plan-org${organization.id === selectedId ? " selected" : ""}`}
+          onClick={() => onSelect(organization.id)}
+        >
+          {organization.personal ? t("settings.plan.org.personal") : organization.name}
+        </button>
+      ))}
+    </div>
   );
 }
+
+// What each plan is for, in the situations people recognise, so a plan is
+// chosen for a reason rather than by its numbers alone.
+const PLAN_FIT: Readonly<Record<string, readonly string[]>> = {
+  free: ["settings.plan.fit.free"],
+  personal: ["settings.plan.fit.reason.laptopClosed", "settings.plan.fit.reason.computers"],
+  team: ["settings.plan.fit.reason.agents", "settings.plan.fit.reason.team"],
+};
 
 /** Three plans side by side, each a spec sheet with one price and the same lines. */
 export function PlanComparison({
@@ -535,6 +547,9 @@ export function PlanComparison({
       <h3 id="desktop-plan-sheets-title" className="desktop-plan-mono-label desktop-plan-sheets-title">
         {t("settings.plan.chooseTitle")}
       </h3>
+      <p className="desktop-plan-sheets-claim">
+        <strong>{t("settings.plan.fit.claim")}</strong> {t("settings.plan.fit.local")}
+      </p>
       <div className="desktop-plan-grid" role="list">
         {plans.map((plan, index) => {
           const current = signedIn && plan.id === holding.planId;
@@ -575,6 +590,12 @@ export function PlanComparison({
                   </span>
                 </span>
                 <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
+              </div>
+              <div className="desktop-plan-card-fit">
+                <span className="desktop-plan-mono-label">{t("settings.plan.fit.cardLabel")}</span>
+                <ul>
+                  {(PLAN_FIT[plan.id] ?? []).map((key) => <li key={key}>{t(key)}</li>)}
+                </ul>
               </div>
               <dl className="desktop-plan-spec">
                 {specs.map(([label, value]) => (

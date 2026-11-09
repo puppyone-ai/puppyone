@@ -2,9 +2,9 @@ import { useLocalization } from "@puppyone/localization";
 import { SettingsSectionHeader } from "../../features/settings/components";
 import {
   AddOns,
-  CloudFit,
   CloudPlans,
   CurrentPlan,
+  OrganizationSwitch,
   PlanComparison,
   PlanFinePrint,
 } from "../../features/settings/main/CloudPlans";
@@ -100,6 +100,14 @@ export function CloudPlansVisualSmokeHarness() {
             />
           ) : (
             <>
+              <OrganizationSwitch
+                organizations={state === "team"
+                  ? [{ id: "me", name: "Me", personal: true }, { id: "o1", name: "Acme Research", personal: false }]
+                  : []}
+                selectedId="o1"
+                onSelect={() => undefined}
+                localization={localization}
+              />
               <CurrentPlan
                 offer={current}
                 holding={holding}
@@ -113,7 +121,6 @@ export function CloudPlansVisualSmokeHarness() {
                   <button type="button" className="desktop-settings-action">{t("settings.plan.keepCurrent")}</button>
                 ) : undefined}
               />
-              <CloudFit localization={localization} />
               <PlanComparison plans={view.plans} holding={holding} signedIn localization={localization} renderAction={action} />
               <PlanFinePrint localization={localization} />
               {holding.subscribed && (

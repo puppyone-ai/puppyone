@@ -26,11 +26,19 @@ import {
  * pricing surface, it should fall back to published pricing.
  */
 
+export type AccountPlanOrganization = {
+  id: string;
+  name: string;
+  personal: boolean;
+};
+
 export type AccountPlanSnapshot = {
   catalog: DesktopBillingCatalog | null;
   summary: DesktopBillingSummary | null;
   usage: DesktopBillingUsage | null;
   organizationId: string | null;
+  /** Every organization the account belongs to, personal space first. */
+  organizations: AccountPlanOrganization[];
   loading: boolean;
 };
 
@@ -39,6 +47,7 @@ const EMPTY: AccountPlanSnapshot = {
   summary: null,
   usage: null,
   organizationId: null,
+  organizations: [],
   loading: false,
 };
 
@@ -53,8 +62,11 @@ export function useAccountPlan({
   onSessionChange: (session: DesktopCloudSession | null) => void;
   /** The payments experiment. Off means no wallet or billing read happens. */
   enabled: boolean;
-}): AccountPlanSnapshot & { refresh: () => void } {
+}): AccountPlanSnapshot & { refresh: () => void; selectOrganization: (id: string) => void } {
   const [snapshot, setSnapshot] = useState<AccountPlanSnapshot>(EMPTY);
+  // Null follows the default: the personal space. Plans, hours and storage
+  // belong to one organization, so a projects-holding team must be pickable.
+  const [chosenOrganizationId, setChosenOrganizationId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const epochRef = useRef(0);
   const onSessionChangeRef = useRef(onSessionChange);
@@ -87,7 +99,18 @@ export function useAccountPlan({
       ]);
       if (epoch !== epochRef.current) return;
 
-      const organizationId = organizations[0]?.id ?? null;
+      // Personal space first: it is the account's own plan, and the API's order
+      // is not a promise. Teams follow in the order the API returns them.
+      const ordered: AccountPlanOrganization[] = [...organizations]
+        .sort((a, b) => Number(b.kind === "personal") - Number(a.kind === "personal"))
+        .map((organization) => ({
+          id: organization.id,
+          name: organization.name,
+          personal: organization.kind === "personal",
+        }));
+      const organizationId = ordered.find((organization) => organization.id === chosenOrganizationId)?.id
+        ?? ordered[0]?.id
+        ?? null;
       const [summary, usage] = organizationId
         ? await Promise.all([
           getCloudBillingSummary(session, organizationId, handleSessionChange, apiBaseUrl)
@@ -104,6 +127,7 @@ export function useAccountPlan({
         summary: summary && summary.org_id === organizationId ? summary : null,
         usage: usage && usage.runtime.org_id === organizationId ? usage : null,
         organizationId,
+        organizations: ordered,
         loading: false,
       });
     };
@@ -112,8 +136,9 @@ export function useAccountPlan({
     return () => {
       epochRef.current += 1;
     };
-  }, [apiBaseUrl, enabled, revision, session, sessionKey]);
+  }, [apiBaseUrl, chosenOrganizationId, enabled, revision, session, sessionKey]);
 
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
-  return { ...snapshot, refresh };
+  const selectOrganization = useCallback((id: string) => setChosenOrganizationId(id), []);
+  return { ...snapshot, refresh, selectOrganization };
 }

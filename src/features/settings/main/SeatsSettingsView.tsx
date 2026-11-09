@@ -6,7 +6,7 @@ import {
 } from "../../../lib/cloudApi";
 import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader } from "../components";
-import { CloudPlans } from "./CloudPlans";
+import { CloudPlans, OrganizationSwitch } from "./CloudPlans";
 import { useAccountPlan } from "./useAccountPlan";
 
 /**
@@ -66,6 +66,12 @@ export function SeatsSettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.seats.title")} />
 
+          <OrganizationSwitch
+            organizations={snapshot.organizations}
+            selectedId={snapshot.organizationId}
+            onSelect={snapshot.selectOrganization}
+            localization={localization}
+          />
           <CloudPlans
             session={session}
             apiBaseUrl={resolvedApiBaseUrl}
