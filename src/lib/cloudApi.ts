@@ -807,8 +807,9 @@ export function listCloudOrganizations(
   session: DesktopCloudSession,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopCloudOrganization[]> {
-  return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, {}, apiBaseUrl);
+  return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, { signal }, apiBaseUrl);
 }
 
 /** Starts a team the signed-in person owns. It begins on Free; its plan is its own. */
@@ -907,12 +908,13 @@ export function getCloudOrganizationAccess(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopCloudOrganizationAccess> {
   return cloudApiRequest<unknown>(
     `/organizations/${encodeURIComponent(orgId)}/access`,
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopCloudOrganizationAccess);
 }
@@ -981,8 +983,9 @@ export function getCloudBillingCatalog(
   session: DesktopCloudSession,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingCatalog> {
-  return cloudApiRequest<unknown>("/billing/catalog", session, onSessionChange, {}, apiBaseUrl)
+  return cloudApiRequest<unknown>("/billing/catalog", session, onSessionChange, { signal }, apiBaseUrl)
     .then(validateDesktopBillingCatalog);
 }
 
@@ -1310,12 +1313,13 @@ export function getCloudBillingSummary(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingSummary> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "summary"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingSummary);
 }
@@ -1325,12 +1329,13 @@ export function getCloudBillingUsage(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingUsage> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "usage"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingUsage);
 }
@@ -1391,12 +1396,13 @@ export function listCloudBillingOperations(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingOperation[]> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "operations"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingOperations);
 }
@@ -1407,12 +1413,13 @@ export function getCloudBillingOperation(
   operationId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingOperation> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, `operations/${encodeURIComponent(operationId)}`),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingOperation);
 }

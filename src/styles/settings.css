@@ -946,7 +946,7 @@
 
 }
 
-/* Plan uses Settings sections and controls; only the comparison needs cards. */
+/* Plan uses one body style, aligned rows and the same controls as Settings. */
 .desktop-plan-note,
 .desktop-plan-error {
   margin: 0;
@@ -1021,151 +1021,83 @@
 }
 
 .desktop-plan-load-error {
-  min-height: 150px;
+  min-height: 44px;
   gap: 16px;
   color: var(--po-text-muted);
 }
 
-.desktop-plan-overview {
-  container-type: inline-size;
-  display: grid;
-  gap: 18px;
-  padding-block-end: 8px;
+.desktop-plan-settings {
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-label, 13px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 1.5;
 }
 
-.desktop-plan-summary {
-  min-height: var(--desktop-settings-lead-row-height);
-  padding-block: 6px;
+.desktop-plan-settings .desktop-settings-subsection-title,
+.desktop-plan-settings .desktop-settings-row,
+.desktop-plan-settings .desktop-settings-row > span,
+.desktop-plan-settings .desktop-settings-action,
+.desktop-plan-settings .desktop-settings-value-text,
+.desktop-plan-settings .desktop-plan-note {
+  font: inherit;
 }
 
-.desktop-plan-summary-main,
-.desktop-plan-addon-main {
-  display: grid;
-  min-width: 0;
-  gap: 5px;
-}
+.desktop-plan-settings .desktop-settings-subsection-title,
+.desktop-plan-settings .desktop-plan-note { color: var(--po-text-muted); }
 
-.desktop-plan-summary-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.desktop-plan-summary-heading h4,
-.desktop-plan-card-name {
+.desktop-plan-overview { container-type: inline-size; display: grid; gap: 16px; }
+.desktop-plan-summary { min-height: 44px; padding-block: 6px; }
+.desktop-plan-summary-main, .desktop-plan-addon-main { display: grid; min-width: 0; gap: 5px; }
+.desktop-plan-summary-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.desktop-plan-summary-heading h4, .desktop-plan-card-name {
   margin: 0;
   color: var(--po-text);
-  font-size: var(--po-text-size-section-title, 15px);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: 1.4;
+  font: inherit;
 }
-
-.desktop-plan-summary-detail,
-.desktop-plan-addon-detail {
+.desktop-plan-summary-detail, .desktop-plan-addon-detail {
   margin: 0;
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.5;
+  color: inherit;
+  font: inherit;
   overflow-wrap: anywhere;
 }
-
-.desktop-plan-status {
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.4;
-}
-
-.desktop-plan-status.is-ending,
-.desktop-plan-status.is-updating {
-  color: var(--po-warning);
-}
-
-.desktop-plan-status.is-attention {
-  color: var(--po-danger);
-}
-
+.desktop-plan-status { color: inherit; font: inherit; }
 .desktop-plan-usage {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px;
   padding-inline: 10px;
+  border-block: 1px solid var(--po-divider);
 }
-
 .desktop-plan-usage-item {
   display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   min-width: 0;
-  align-content: start;
-  gap: 8px;
+  min-height: 64px;
+  align-content: center;
+  align-items: center;
+  gap: 2px 12px;
+  padding-block: 12px;
 }
-
-.desktop-plan-usage-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
-  color: var(--po-text);
-  font-size: var(--po-text-size-label, 13px);
-  line-height: 1.5;
-}
-
+.desktop-plan-usage-item + .desktop-plan-usage-item { border-block-start: 1px solid var(--po-divider); }
+.desktop-plan-usage-heading { display: contents; }
 .desktop-plan-usage-value {
   color: var(--po-text);
-  font-family: var(--po-font-mono);
-  font-size: var(--po-text-size-label, 13px);
+  font: inherit;
   font-variant-numeric: tabular-nums;
+  text-align: end;
 }
-
-.desktop-plan-usage-value > span,
-.desktop-plan-usage-detail {
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.4;
-}
-
+.desktop-plan-usage-value > span, .desktop-plan-usage-detail { color: var(--po-text-muted); font: inherit; }
+.desktop-plan-usage-detail { grid-column: 3; text-align: end; }
 .desktop-plan-meter {
   --desktop-plan-meter-color: #f87518;
-  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 15%, transparent);
-
+  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 25%, transparent);
   display: grid;
-  grid-template-columns: repeat(var(--desktop-plan-meter-cells, 12), minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  width: 18px;
+  height: 18px;
 }
-
-.desktop-plan-meter.is-storage {
-  --desktop-plan-meter-color: var(--po-brand-blue, #4599df);
-}
-
-.desktop-plan-meter-cell {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20%;
-  aspect-ratio: 1;
-}
-
-.desktop-plan-meter-tick {
-  position: relative;
-  background: var(--desktop-plan-meter-track);
-}
-
-.desktop-plan-meter-tick::before {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: var(--desktop-plan-tick-fill, 0%);
-  background: var(--desktop-plan-meter-color);
-  content: "";
-}
-
-.desktop-plan-meter.warning {
-  --desktop-plan-meter-color: var(--po-warning);
-}
-
-.desktop-plan-meter.exhausted {
-  --desktop-plan-meter-color: var(--po-danger);
-}
+.desktop-plan-meter-tick { height: 100%; background: var(--desktop-plan-meter-track); }
+.desktop-plan-meter-tick[data-active] { background: var(--desktop-plan-meter-color); }
+.desktop-plan-meter.exhausted { --desktop-plan-meter-color: var(--po-danger); }
 
 .desktop-plan-space-select {
   max-width: 100%;
@@ -1179,27 +1111,27 @@
 .desktop-plan-grid {
   display: grid;
   grid-template-columns: repeat(var(--desktop-plan-columns, 2), minmax(0, 1fr));
-  gap: 16px 12px;
+  gap: 0 24px;
   margin: 10px 10px 0;
+  border-block: 1px solid var(--po-divider);
 }
 
 .desktop-plan-card {
   display: grid;
   min-width: 0;
-  /* Heading, four allowance rows, details and action align across plans. */
-  grid-row: span 7;
+  /* Heading, four allowance rows and action align across plans. */
+  grid-row: span 6;
   grid-template-rows: subgrid;
   gap: 16px;
-  padding: 18px;
-  border: 1px solid var(--po-divider);
-  border-radius: 8px;
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-meta, 12px);
+  padding: 16px 0;
+  color: inherit;
+  font: inherit;
   line-height: 1.5;
 }
 
-.desktop-plan-card.current {
-  border-color: color-mix(in srgb, var(--po-text-subtle) 45%, var(--po-divider));
+.desktop-plan-card + .desktop-plan-card {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--po-divider);
 }
 
 .desktop-plan-card-head {
@@ -1216,17 +1148,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.desktop-plan-card-amount {
-  color: var(--po-text);
-  font-size: var(--po-type-ui-page-title, 21px);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: 1.25;
-}
+.desktop-plan-card-amount { color: var(--po-text); font: inherit; }
 
-.desktop-plan-card-per {
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-}
+.desktop-plan-card-per { color: inherit; font: inherit; }
 
 .desktop-plan-card-tagline {
   color: var(--po-text-muted);
@@ -1240,7 +1164,6 @@
   row-gap: 10px;
   margin: 0;
   padding-block: 14px;
-  border-block: 1px solid var(--po-divider);
 }
 
 .desktop-plan-spec-row {
@@ -1315,9 +1238,8 @@
   min-height: var(--po-control-size-compact);
   align-items: center;
   gap: 6px;
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  font-weight: var(--po-text-weight-medium, 500);
+  color: inherit;
+  font: inherit;
 }
 
 .desktop-plan-team-prompt {
@@ -1327,6 +1249,8 @@
   justify-content: space-between;
   gap: 8px 16px;
 }
+
+.desktop-plan-team-prompt:not([role="status"]) { justify-content: flex-end; }
 
 .desktop-plan-team-prompt > span {
   flex: 1 1 260px;
@@ -1359,17 +1283,19 @@
 
 .desktop-plan-stepper-value {
   min-width: 28px;
-  color: var(--po-text);
-  font-size: var(--po-text-size-label, 13px);
+  color: inherit;
+  font: inherit;
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
 }
 
 @container (max-width: 520px) {
-  .desktop-plan-grid,
-  .desktop-plan-usage {
-    grid-template-columns: minmax(0, 1fr);
+  .desktop-plan-grid { grid-template-columns: minmax(0, 1fr); }
+  .desktop-plan-card + .desktop-plan-card {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--po-divider);
   }
 }
 

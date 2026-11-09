@@ -1,10 +1,6 @@
-import type { CSSProperties } from "react";
 import { meterTone } from "./planPricing";
 
-const CELL_COUNT = 12;
-const BARS_PER_CELL = 3;
-
-/** Twelve square cells, each split into three bars, with an exact fractional fill. */
+/** One square of three uninterrupted bars; the adjacent reading carries the exact value. */
 export function PlanUsageBar({ percent, kind, label, reading }: {
   percent: number | null;
   kind: "hours" | "storage";
@@ -12,11 +8,10 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
   reading?: string;
 }) {
   const bounded = percent === null ? null : Math.max(0, Math.min(100, percent));
-  const filledBars = ((bounded ?? 0) / 100) * CELL_COUNT * BARS_PER_CELL;
+  const activeBars = Math.ceil(((bounded ?? 0) / 100) * 3);
   return (
     <div
       className={`desktop-plan-meter is-${kind}${bounded === null ? " is-unknown" : meterTone(bounded)}`}
-      style={{ "--desktop-plan-meter-cells": CELL_COUNT } as CSSProperties}
       role={bounded === null ? undefined : "progressbar"}
       aria-hidden={bounded === null ? true : undefined}
       aria-label={bounded === null ? undefined : label}
@@ -25,14 +20,8 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
       aria-valuenow={bounded === null ? undefined : Math.round(bounded)}
       aria-valuetext={bounded === null ? undefined : reading}
     >
-      {Array.from({ length: CELL_COUNT }, (_, cell) => (
-        <span className="desktop-plan-meter-cell" key={cell}>
-          {Array.from({ length: BARS_PER_CELL }, (_, bar) => (
-            <span className="desktop-plan-meter-tick" key={bar} style={{
-              "--desktop-plan-tick-fill": `${Math.max(0, Math.min(1, filledBars - cell * BARS_PER_CELL - bar)) * 100}%`,
-            } as CSSProperties} />
-          ))}
-        </span>
+      {Array.from({ length: 3 }, (_, bar) => (
+        <span className="desktop-plan-meter-tick" key={bar} data-active={bar < activeBars || undefined} />
       ))}
     </div>
   );

@@ -16,7 +16,7 @@ import {
   type DesktopBillingUsage,
   type DesktopCloudSession,
 } from "../../../lib/cloudApi";
-import { loadBillingCatalog, loadBillingSummary, loadBillingUsage } from "./billingReadCache";
+import { loadBillingCatalog, loadBillingSummary, loadBillingUsage, withBillingReadDeadline } from "./billingReadCache";
 
 export type SessionChangeHandler = (session: DesktopCloudSession | null) => void;
 
@@ -83,8 +83,8 @@ export const DEFAULT_CLOUD_BILLING_DEPENDENCIES: CloudBillingControllerDependenc
   getCatalog: (session, handler, api) => loadBillingCatalog(session, handler, api, true),
   getSummary: (session, org, handler, api) => loadBillingSummary(session, org, handler, api, true),
   getUsage: (session, org, handler, api) => loadBillingUsage(session, org, handler, api, true),
-  listOperations: listCloudBillingOperations,
-  getOperation: getCloudBillingOperation,
+  listOperations: (session, org, handler, api) => withBillingReadDeadline((signal) => listCloudBillingOperations(session, org, handler, api, signal)),
+  getOperation: (session, org, id, handler, api) => withBillingReadDeadline((signal) => getCloudBillingOperation(session, org, id, handler, api, signal)),
   quotePlan: quoteCloudBillingPlan,
   quoteSeats: quoteCloudBillingSeats,
   createCheckout: createCloudBillingCheckout,

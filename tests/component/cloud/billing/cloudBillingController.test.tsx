@@ -289,7 +289,7 @@ describe("useCloudBillingController", () => {
     expect(deps.getSummary).not.toHaveBeenCalled();
   });
 
-  it("reuses the Settings snapshot, watches pending operations, and revalidates on explicit refresh", async () => {
+  it("delegates explicit snapshot refresh to Settings and refreshes operations independently", async () => {
     const deps = dependencies();
     const changed = vi.fn();
     const readSnapshot = { catalog, summary: summary("org-a"), usage: usage("org-a") };
@@ -303,11 +303,23 @@ describe("useCloudBillingController", () => {
     await act(async () => root?.render(<Probe deps={deps} readSnapshot={newerSnapshot} onSnapshotChange={changed} />));
     expect(container.firstElementChild?.getAttribute("data-revision")).toBe("5");
     await act(async () => container.querySelector<HTMLButtonElement>('[data-action="refresh"]')?.click());
-    expect(deps.getSummary).toHaveBeenCalledTimes(1);
-    expect(changed).toHaveBeenCalledOnce();
+    expect(deps.getSummary).not.toHaveBeenCalled();
+    expect(deps.listOperations).toHaveBeenCalledTimes(2);
+    expect(changed).toHaveBeenCalledExactlyOnceWith(true);
     // Quotes use the supplied summary even though it was never fetched twice.
     await act(async () => container.querySelector<HTMLButtonElement>('[data-action="quote"]')?.click());
     expect(deps.quotePlan).toHaveBeenCalledOnce();
+  });
+
+  it("requests a new Settings snapshot even when the operation list cannot be refreshed", async () => {
+    const deps = dependencies();
+    const changed = vi.fn();
+    const readSnapshot = { catalog, summary: summary("org-a"), usage: usage("org-a") };
+    await act(async () => root?.render(<Probe deps={deps} readSnapshot={readSnapshot} onSnapshotChange={changed} />));
+    vi.mocked(deps.listOperations).mockRejectedValue(new Error("operations unavailable"));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-action="refresh"]')?.click());
+    expect(changed).toHaveBeenCalledExactlyOnceWith(true);
+    expect(deps.getSummary).not.toHaveBeenCalled();
   });
 
   it("never lets a delayed operation response regress an observed terminal state", () => {

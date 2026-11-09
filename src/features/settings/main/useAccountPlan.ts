@@ -13,10 +13,11 @@ export type AccountPlanSnapshot = {
   canManageBilling: boolean | null;
   loading: boolean;
   error: boolean;
+  catalogUnavailable: boolean;
 };
 const EMPTY: AccountPlanSnapshot = {
   catalog: null, summary: null, usage: null, organizationId: null,
-  canManageBilling: null, loading: false, error: false,
+  canManageBilling: null, loading: false, error: false, catalogUnavailable: false,
 };
 function cachedSnapshot(scope: BillingReadScope): AccountPlanSnapshot {
   return {
@@ -25,7 +26,7 @@ function cachedSnapshot(scope: BillingReadScope): AccountPlanSnapshot {
     usage: readBillingResource(scope, "usage") ?? null,
     organizationId: scope.organizationId ?? null,
     canManageBilling: readBillingResource(scope, "access")?.can_manage_billing ?? null,
-    loading: true, error: false,
+    loading: true, error: false, catalogUnavailable: false,
   };
 }
 export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled, organizationId = null }: {
@@ -60,25 +61,31 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled, 
       if (epoch === epochRef.current) latest.current.onSessionChange(next);
     };
     let failed = false;
+    let catalogUnavailable = false;
     const fallback = <T,>(promise: Promise<T>, cached: T | null): Promise<T | null> => promise.catch(() => {
       failed = true; return cached;
     });
     void Promise.all([
-      fallback(loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, force),
-        readBillingResource({ ...selected, organizationId: null }, "catalog") ?? null),
+      loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, force).catch((error: unknown) => {
+        const cause = error as Error & { status?: number; code?: string };
+        catalogUnavailable = cause?.status === 404 && (cause.code === "hosting_billing_disabled"
+          || /Hosting subscriptions are not available|Billing is not enabled/i.test(cause.message));
+        if (!catalogUnavailable) failed = true;
+        return catalogUnavailable ? null : readBillingResource({ ...selected, organizationId: null }, "catalog") ?? null;
+      }),
       fallback(loadBillingSummary(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
         readBillingResource(selected, "summary") ?? null),
       fallback(loadBillingUsage(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
         readBillingResource(selected, "usage") ?? null),
-      fallback(loadBillingResource(selected, "access", async () => {
-        const access = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl);
+      fallback(loadBillingResource(selected, "access", async (signal) => {
+        const access = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl, signal);
         if (access.org_id !== organizationId) throw new Error("Billing access space mismatch.");
         return access;
       }, force), readBillingResource(selected, "access") ?? null),
     ]).then(([catalog, summary, usage, access]) => {
       if (epoch !== epochRef.current) return;
       setStored({ contextKey, snapshot: { catalog, summary, usage, organizationId,
-        canManageBilling: access?.can_manage_billing ?? null, loading: false, error: failed || summary === null } });
+        canManageBilling: access?.can_manage_billing ?? null, loading: false, error: failed || summary === null, catalogUnavailable } });
     });
     return () => { epochRef.current += 1; };
   }, [apiBaseUrl, contextKey, organizationId, revision]);
@@ -90,6 +97,6 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled, 
     document.addEventListener("visibilitychange", revalidate);
     return () => { window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
   }, [contextKey]);
-  const refresh = useCallback((force = true) => { refreshRef.current = force; setRevision((value) => value + 1); }, []);
+  const refresh = useCallback((force = true) => { refreshRef.current = refreshRef.current || force; setRevision((value) => value + 1); }, []);
   return { ...snapshot, refresh };
 }

@@ -175,10 +175,11 @@ it("splits state from purchase, and puts every price on Plan", () => {
   // Invoices are documents, not a settings pane: Plan links out to them.
   expect(cloud?.items.map((item) => item.id)).not.toContain("billing");
 
-  // The owner's computers sit with the account, after Plan, once device sharing is on.
-  const withComputers = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true })
-    .find((group) => group.id === "cloud");
-  expect(withComputers?.items.map((item) => item.id)).toEqual(["account", "seats", "other-computers"]);
+  // Cross-computer access is an App capability, immediately after Privacy.
+  const groups = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true });
+  expect(groups.find((group) => group.id === "cloud")?.items.map((item) => item.id)).toEqual(["account", "seats"]);
+  const appItems = groups.find((group) => group.id === "desktop-app")!.items.map((item) => item.id);
+  expect(appItems[appItems.indexOf("privacy") + 1]).toBe("other-computers");
 });
 
 it("offers three plans with one price each and the same allowances", () => {
@@ -281,7 +282,6 @@ it("offers every Space the same tiers, with comparable prices and allowances", a
   expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
     .toEqual(["Free", "Team", "Enterprise"]);
   expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
-  expect(teamCards[1]?.textContent).toContain("Member roles");
   // Not sold until Cloud enforces them.
   expect(teamCards[1]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
 });
@@ -293,10 +293,10 @@ it("offers both tiers regardless of historical space kind", () => {
   expect(local.map((plan) => plan.id)).toEqual(["free", "team", "enterprise"]);
 });
 
-it("says beside the hours that people working in the cloud never spend them", async () => {
+it("explains what hours cover and keeps model costs separate", async () => {
   const host = await render(<SignedOut />);
   expect(host.querySelector(".desktop-plan-note")?.textContent)
-    .toMatch(/people opening and editing files never use them/);
+    .toMatch(/Agent hours cover agents only.*AI model costs are separate/);
 });
 
 it("routes a signed-out reader to sign-in from every plan", async () => {

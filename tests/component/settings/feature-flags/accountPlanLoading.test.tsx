@@ -4,15 +4,21 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DesktopBillingSummary, DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { cloudCache, invalidateCloudCacheForMutation } from "../../../../src/features/cloud/cache/cloudCache";
-import { BILLING_READ_TTL_MS } from "../../../../src/features/cloud/billing/billingReadCache";
+import { BILLING_READ_TIMEOUT_MS, BILLING_READ_TTL_MS } from "../../../../src/features/cloud/billing/billingReadCache";
 import { useAccountPlan } from "../../../../src/features/settings/main/useAccountPlan";
+import { CloudPlans } from "../../../../src/features/settings/main/CloudPlans";
+import { useLocalization } from "@puppyone/localization";
+import { withTestLocalization } from "../../../support/react/localization";
+import { catalog as fixtureCatalog, usage as fixtureUsage } from "../../../fixtures/platform/ui-copy/billing";
 
 const api = vi.hoisted(() => ({
   getCloudBillingCatalog: vi.fn(), listCloudOrganizations: vi.fn(),
   getCloudBillingSummary: vi.fn(), getCloudBillingUsage: vi.fn(), getCloudOrganizationAccess: vi.fn(),
 }));
+const operationsRead = vi.hoisted(() => vi.fn());
 vi.mock("../../../../src/lib/cloudApi", async () => ({
   ...await vi.importActual<typeof import("../../../../src/lib/cloudApi")>("../../../../src/lib/cloudApi"), ...api,
+  listCloudBillingOperations: operationsRead,
 }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,6 +43,15 @@ function Probe({ activeSession = session, enabled = true, organizationId = "pers
   observed.push(latest);
   return <div data-plan={latest.summary?.plan_id ?? "unknown"} data-loading={latest.loading} />;
 }
+function PlanPageProbe() {
+  const localization = useLocalization();
+  const snapshot = useAccountPlan({ session, apiBaseUrl: session.api_base_url, enabled: true, organizationId: "personal", onSessionChange: () => undefined });
+  return <CloudPlans session={session} apiBaseUrl={session.api_base_url} organizationId={snapshot.organizationId}
+    onSessionChange={() => undefined} catalog={snapshot.catalog} summary={snapshot.summary} usage={snapshot.usage}
+    loading={snapshot.loading} loadError={snapshot.error} catalogUnavailable={snapshot.catalogUnavailable}
+    onRefresh={snapshot.refresh} localization={localization}
+    onSignIn={() => undefined} canManageBilling={snapshot.canManageBilling} />;
+}
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });
@@ -59,10 +74,11 @@ beforeEach(() => {
   api.getCloudBillingSummary.mockImplementation(async (_session, org: string) => summary(org));
   api.getCloudBillingUsage.mockImplementation(async (_session, org: string) => usage(org));
   api.getCloudOrganizationAccess.mockImplementation(async (_session, org: string) => ({ org_id: org, can_manage_billing: true }));
+  operationsRead.mockResolvedValue([]);
   host = document.createElement("div"); document.body.append(host);
   root = null;
 });
-afterEach(() => { unmount(); document.body.replaceChildren(); vi.restoreAllMocks(); cloudCache.clear(); });
+afterEach(() => { unmount(); document.body.replaceChildren(); vi.useRealTimers(); vi.restoreAllMocks(); cloudCache.clear(); });
 
 it("starts loading on the first render and publishes one complete snapshot after slow reads", async () => {
   const pending = deferred<DesktopBillingSummary>();
@@ -184,6 +200,107 @@ it("reports an unknown plan after an initial failure, and allows a forced retry"
   await act(async () => latest.refresh());
   expect(latest.summary?.plan_id).toBe("personal");
   expect(latest.error).toBe(false);
+});
+
+it("ends a stalled read, starts a new request on retry, and ignores the late old response", async () => {
+  vi.useFakeTimers();
+  const stalled = deferred<DesktopBillingSummary>();
+  api.getCloudBillingSummary.mockReturnValueOnce(stalled.promise);
+  await mount();
+  expect(latest.loading).toBe(true);
+  await act(async () => vi.advanceTimersByTimeAsync(BILLING_READ_TIMEOUT_MS));
+  expect(latest.loading).toBe(false);
+  expect(latest.error).toBe(true);
+  expect(cloudCache.snapshot().requests).toBe(0);
+  api.getCloudBillingSummary.mockResolvedValue(summary("personal", 2));
+  await act(async () => latest.refresh());
+  expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
+  expect(latest.summary?.source_revision).toBe(2);
+  expect(latest.error).toBe(false);
+  await act(async () => stalled.resolve(summary("personal", 1)));
+  unmount(); observed = [];
+  await mount();
+  expect(observed[0]?.summary?.source_revision).toBe(2);
+});
+
+it("forces fresh readings when Refresh is pressed inside the cache freshness window", async () => {
+  await mount();
+  api.getCloudBillingSummary.mockResolvedValue(summary("personal", 2));
+  await act(async () => latest.refresh());
+  expect(latest.summary?.source_revision).toBe(2);
+  for (const [name, read] of Object.entries(api)) {
+    expect(read).toHaveBeenCalledTimes(name === "listCloudOrganizations" ? 0 : 2);
+  }
+});
+
+it("does not let a cache notification downgrade a manual Refresh in the same turn", async () => {
+  await mount();
+  api.getCloudBillingSummary.mockResolvedValue(summary("personal", 2));
+  await act(async () => { latest.refresh(true); latest.refresh(false); });
+  expect(latest.summary?.source_revision).toBe(2);
+  expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
+});
+
+it("updates the visible usage on Refresh even when operation history is unavailable", async () => {
+  api.getCloudBillingCatalog.mockResolvedValue(fixtureCatalog);
+  api.getCloudBillingUsage.mockRejectedValueOnce(new Error("offline"));
+  await mount(withTestLocalization(<PlanPageProbe />));
+  expect(host.querySelector('.is-hours[role="progressbar"]')).toBeNull();
+  const fresh = fixtureUsage("personal");
+  fresh.runtime.allowance = { granted_units: 2400, consumed_units: 600, reserved_units: 0, unit_seconds: 60, resets_at: null };
+  fresh.storage.logical_bytes = 3 * 1000 ** 3;
+  fresh.storage.limit_bytes = 10 * 1000 ** 3;
+  api.getCloudBillingUsage.mockResolvedValue(fresh);
+  operationsRead.mockRejectedValue(new Error("history unavailable"));
+  const refresh = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Refresh");
+  expect(refresh).toBeTruthy();
+  await act(async () => refresh!.click());
+  expect(host.querySelector('.is-hours[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("25");
+  expect(host.querySelector('.is-storage[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("30");
+  expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
+  expect(api.getCloudBillingUsage).toHaveBeenCalledTimes(2);
+});
+
+it("shows the real plan and balance when the service disables only its sales catalog", async () => {
+  api.getCloudBillingCatalog.mockRejectedValue(Object.assign(new Error("Hosting subscriptions are not available"), {
+    status: 404, code: "hosting_billing_disabled",
+  }));
+  api.getCloudBillingSummary.mockResolvedValue({ ...summary(), plan_id: "free", status: "free" });
+  api.getCloudBillingUsage.mockResolvedValue(fixtureUsage("personal"));
+  await mount();
+  expect(latest.summary?.plan_id).toBe("free");
+  expect(latest.catalogUnavailable).toBe(true);
+  expect(latest.error).toBe(false);
+  unmount();
+  await mount(withTestLocalization(<PlanPageProbe />));
+  expect(host.querySelector('.desktop-plan-summary h4')?.textContent).toBe("Free");
+  expect(host.textContent).toContain("Available now");
+  expect(host.textContent).toContain("Plan changes are currently unavailable.");
+  expect(host.textContent).not.toContain("Billing details unavailable");
+  expect(host.querySelector('.desktop-plan-meter.is-storage[role="progressbar"]')).not.toBeNull();
+  expect(host.querySelector('.desktop-plan-card')).toBeNull();
+  api.getCloudBillingSummary.mockResolvedValue({ ...summary(), plan_id: "personal", status: "active" });
+  await mount();
+  await act(async () => latest.refresh());
+  unmount();
+  await mount(withTestLocalization(<PlanPageProbe />));
+  expect(host.querySelector('.desktop-plan-summary h4')?.textContent).toBe("Team");
+  expect(host.textContent).not.toContain("$20");
+});
+
+it("keeps an unavailable catalog distinct from an unknown current holding", async () => {
+  const disabled = Object.assign(new Error("Billing is not enabled"), { status: 404 });
+  api.getCloudBillingCatalog.mockRejectedValue(disabled);
+  api.getCloudBillingSummary.mockRejectedValue(disabled);
+  await mount();
+  expect(latest.summary).toBeNull();
+  expect(latest.error).toBe(true);
+  expect(latest.catalogUnavailable).toBe(true);
+  unmount();
+  await mount(withTestLocalization(<PlanPageProbe />));
+  expect(host.textContent).toContain("Billing details unavailable");
+  expect(host.querySelector('.desktop-plan-summary')).toBeNull();
+  expect(host.querySelector('.desktop-plan-card')).toBeNull();
 });
 
 it("invalidates snapshots after a billing mutation and never caches a mismatched space", async () => {
