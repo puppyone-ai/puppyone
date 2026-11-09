@@ -15,7 +15,6 @@ import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../components";
 import { AccountAICredits } from "./AccountAICredits";
 import { AccountIdentity } from "./AccountIdentity";
-import { AccountUsageMeters } from "./AccountUsageMeters";
 import { formatMoney, heldPlanName, resolvePlanHolding, type PlanHolding } from "./planPricing";
 import { useAccountPlan } from "./useAccountPlan";
 
@@ -223,20 +222,9 @@ export function AccountSettingsView({
                     </button>
                   ) : undefined}
                 />
-                <p className="desktop-plan-note">{t("settings.account.localFreeNote")}</p>
               </SettingsSubsection>
-
-              {/* A heading with nothing under it labels whatever comes next, so
-                  usage appears only once there is usage to report. */}
-              {signedIn && snapshot.usage && (
-                <SettingsSubsection title={t("settings.account.usageTitle")}>
-                  <AccountUsageMeters
-                    usage={snapshot.usage}
-                    catalog={snapshot.catalog}
-                    summary={snapshot.summary}
-                  />
-                </SettingsSubsection>
-              )}
+              {/* Hours and storage are read on Plan, beside what changes them;
+                  showing them here too made two pages answer one question. */}
             </>
           )}
 
@@ -244,8 +232,9 @@ export function AccountSettingsView({
             <AccountAICredits
               key={cloudSession?.user_id ?? "signed-out"}
               payments={payments}
-              // Without Cloud there is no Plan page, so Account is where compute is bought.
-              topUp={!cloudEnabled}
+              // The balance belongs to the account, so it is topped up here, the
+              // page the account button in every Header opens.
+              topUp
               signedIn={signedIn
                 && !cloudSessionRestoring
                 && cloudSession?.status !== "signing-out"

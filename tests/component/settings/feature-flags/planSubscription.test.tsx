@@ -17,7 +17,6 @@ import {
   CurrentPlan,
   describeQuoteTiming,
 } from "../../../../src/features/settings/main/CloudPlans";
-import { AccountUsageMeters } from "../../../../src/features/settings/main/AccountUsageMeters";
 import type {
   DesktopBillingCatalog,
   DesktopBillingQuote,
@@ -244,40 +243,25 @@ it("reads used hours only from the billing service, never invents them", () => {
     .toEqual([12, 40, 3.2 * GB, 10 * GB]);
 });
 
-it("shows Account the hours and storage of the plan held", async () => {
-  const host = await render(
-    <AccountUsageMeters
-      usage={usageOf(36 * 60, 40 * 60, 2.1 * GB, 10 * GB)}
-      catalog={CATALOG}
-      summary={summaryOf({})}
-    />,
-  );
-  const values = [...host.querySelectorAll(".desktop-account-meter-value")].map((node) => node.textContent);
-  expect(values).toEqual(["36 of 40 h", "2.1 GB of 10 GB"]);
-  const bars = [...host.querySelectorAll("[role=progressbar]")];
-  expect(bars.map((bar) => bar.getAttribute("aria-valuenow"))).toEqual(["90", "21"]);
-  expect(bars[0]?.classList.contains("exhausted")).toBe(true);
-});
-
-it("draws no bar without an authoritative reading", async () => {
-  const host = await render(<AccountUsageMeters usage={null} catalog={CATALOG} summary={null} />);
-  expect(host.querySelectorAll("[role=progressbar]")).toHaveLength(0);
-  const values = [...host.querySelectorAll(".desktop-account-meter-value")].map((node) => node.textContent);
-  expect(values).toEqual(["5 h this month", "1 GB"]);
-});
-
 it("compares the three plans side by side, each with one price", async () => {
   const host = await render(<SignedOut />);
   const cards = [...host.querySelectorAll(".desktop-plan-card")];
-  expect(cards.map((card) => card.querySelector("strong")?.textContent)).toEqual(["Free", "Personal", "Team"]);
-  expect(cards.map((card) => card.querySelector(".desktop-plan-card-price")?.textContent)).toEqual([
-    "$0 / month",
-    "$20 / month",
-    "$40 per person / month",
+  // Each plan is a spec sheet: an index and a name, one price, the same rows.
+  expect(cards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
+    .toEqual(["01 / Free", "02 / Personal", "03 / Team"]);
+  expect(cards.map((card) => [
+    card.querySelector(".desktop-plan-card-amount")?.textContent,
+    card.querySelector(".desktop-plan-card-per")?.textContent,
+  ])).toEqual([["$0", "/ month"], ["$20", "/ month"], ["$40", "/ person / month"]]);
+  const specs = (card: Element | undefined) => [...(card?.querySelectorAll(".desktop-plan-spec-row") ?? [])]
+    .map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
+  expect(specs(cards[1])).toEqual([
+    ["Agent hours", "40 h / month"], ["Storage", "10 GB"], ["Projects online", "20"], ["History", "30 days"],
   ]);
-  expect(cards[1]?.textContent).toContain("40 agent hours a month");
-  expect(cards[2]?.textContent).toContain("40 agent hours per person a month");
-  expect(cards[2]?.textContent).toContain("Choose what each agent can see and change");
+  expect(specs(cards[2])[0]).toEqual(["Agent hours", "40 h / person / month"]);
+  expect(cards[2]?.textContent).toContain("Member roles");
+  // Not sold until Cloud enforces them.
+  expect(cards[2]?.textContent).not.toMatch(/Choose what each agent|record of what agents/);
   // The machine behind the hours is never described.
   expect(host.textContent).not.toMatch(/vCPU|GPU|RAM|\bcores?\b|\bVM\b|virtual machine|instance|\bunits?\b/i);
 });

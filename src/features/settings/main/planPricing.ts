@@ -42,10 +42,11 @@ export const PLAN_ORDER = ["free", "personal", "team"] as const;
 export type PlanId = (typeof PLAN_ORDER)[number];
 
 /** What a team gets that one person does not need. Keys match catalog features. */
+// Only what Cloud enforces today. The catalog also publishes per-agent access
+// rules and the agent activity record; they are listed once Cloud honours them,
+// so the page never sells something a team cannot use yet.
 export const TEAM_FEATURES = [
   "team.member_roles",
-  "agent.access_rules",
-  "activity.log",
   "billing.consolidated",
 ] as const;
 

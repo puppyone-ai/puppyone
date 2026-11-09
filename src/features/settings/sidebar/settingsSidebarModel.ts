@@ -66,8 +66,9 @@ export type SettingsVisibilityContext = {
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "cloud",
-    labelId: "settings.sidebar.cloud",
-    labelWithoutCloudId: "settings.sidebar.puppyone",
+    // Everything here is tied to the PuppyOne account, not to Cloud: the
+    // account and its AI balance, the plan, and the computers signed in to it.
+    labelId: "settings.sidebar.accountGroup",
     items: [
       // An account is not Cloud: people buy PuppyOne compute on the website and
       // use it here with Cloud off, so Account is always offered where the

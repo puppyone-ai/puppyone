@@ -6,7 +6,6 @@ import {
 } from "../../../lib/cloudApi";
 import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader } from "../components";
-import { AccountAICredits } from "./AccountAICredits";
 import { CloudPlans } from "./CloudPlans";
 import { useAccountPlan } from "./useAccountPlan";
 
@@ -82,16 +81,8 @@ export function SeatsSettingsView({
             signInDisabled={signInDisabled}
           />
 
-          {/* The model is the user's own, and saying so is the point: plans
-              charge for the cloud and its agent time, never for the thinking
-              done by the model. The balance is an optional convenience. */}
-          <AccountAICredits
-            key={cloudSession?.user_id ?? "signed-out"}
-            payments={payments}
-            signedIn={Boolean(session)}
-            topUp
-            title={t("settings.seats.creditsTitle")}
-          />
+          {/* The AI balance is the account's, topped up on Account; plans charge
+              for the cloud and its agent time, never for the model's thinking. */}
         </div>
       </div>
     </section>

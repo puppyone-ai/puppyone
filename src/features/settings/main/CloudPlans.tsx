@@ -14,8 +14,6 @@ import {
 import { useCloudBillingController } from "../../cloud";
 import { SettingsSubsection, SettingsValueRow } from "../components";
 import {
-  describeHoursReading,
-  describeStorageReading,
   formatCurrency,
   formatHours,
   formatMoney,
@@ -68,6 +66,7 @@ export function CloudPlans(props: PlanPageProps) {
   const waiting = session !== null;
   return (
     <>
+      <CloudFit localization={props.localization} />
       <PlanComparison
         plans={view.plans}
         holding={holding}
@@ -264,6 +263,7 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
+      <CloudFit localization={localization} />
       <PlanComparison
         plans={view.plans}
         holding={holding}
@@ -353,23 +353,20 @@ export function CurrentPlan({
 }) {
   const { t } = localization;
   const reading = resolveAllowance(usage, offer, holding, addOns);
-  const name = t(`settings.plan.name.${offer.id}`);
-  const parts = [name];
+  const status = planStatus(holding);
+  const facts: string[] = [];
   if (holding.subscribed) {
     // Until the catalog answers, the plan's own price stands in for the total.
     const monthly = holding.monthlyCents ?? offer.priceCents * (offer.perPerson ? holding.seats : 1);
-    parts.push(t("settings.plan.monthlyFor", {
-      amount: formatMoney(monthly, holding.currency, localization),
-    }));
+    facts.push(t("settings.plan.monthlyFor", { amount: formatMoney(monthly, holding.currency, localization) }));
+    if (offer.perPerson) facts.push(t("settings.plan.peopleUnit", { count: holding.seats }));
   }
-  if (holding.subscribed && offer.perPerson) {
-    parts.push(t("settings.plan.peopleUnit", { count: holding.seats }));
-  }
-  if (holding.renewsAt) {
-    parts.push(t(holding.cancelAtPeriodEnd ? "settings.plan.endsOn" : "settings.plan.renewsOn", {
+  const date = holding.renewsAt
+    ? t(holding.cancelAtPeriodEnd ? "settings.plan.endsOn" : "settings.plan.renewsOn", {
       date: localization.formatDate(holding.renewsAt, { month: "short", day: "numeric" }),
-    }));
-  }
+    })
+    : null;
+  const storagePercent = percentOf(reading.usedBytes, reading.includedBytes);
   const resets = reading.resetsAt
     ? t("settings.plan.resetsOn", {
       date: localization.formatDate(reading.resetsAt, { month: "short", day: "numeric" }),
@@ -377,76 +374,148 @@ export function CurrentPlan({
     : null;
 
   return (
-    <SettingsSubsection leading>
-      <SettingsValueRow label={t("settings.plan.currentLabel")} value={parts.join(" · ")} action={action} />
+    <section className="desktop-plan-console" aria-label={t("settings.plan.currentLabel")}>
+      <header className="desktop-plan-console-head">
+        <span className={`desktop-plan-lamp is-${status}`} aria-hidden="true" />
+        {/* On Free the plan's name already says it; a status word would repeat it. */}
+        {status !== "free" && <span className="desktop-plan-mono-label">{t(`settings.plan.status.${status}`)}</span>}
+        <strong className="desktop-plan-console-name">{t(`settings.plan.name.${offer.id}`)}</strong>
+        {facts.length > 0 && <span className="desktop-plan-console-facts">{facts.join(" · ")}</span>}
+        <span className="desktop-plan-console-spacer" />
+        {date && <span className="desktop-plan-mono-label">{date}</span>}
+        {action}
+      </header>
       {holding.scheduled && (
-        <SettingsValueRow
-          label={t("settings.plan.scheduledLabel")}
-          value={describeScheduledChange(holding, localization)}
-          action={scheduledAction}
-        />
+        <div className="desktop-plan-console-notice">
+          <span className="desktop-plan-mono-label">{t("settings.plan.scheduledLabel")}</span>
+          <span>{describeScheduledChange(holding, localization)}</span>
+          <span className="desktop-plan-console-spacer" />
+          {scheduledAction}
+        </div>
       )}
-      <MeterRow
-        label={t("settings.plan.hoursLabel")}
-        value={describeHoursReading(reading, localization)}
-        detail={reading.usedHours === null ? null : resets}
-        used={reading.usedHours}
-        total={reading.includedHours}
-      />
-      <MeterRow
-        label={t("settings.plan.storageLabel")}
-        value={describeStorageReading(reading, localization)}
-        detail={null}
-        used={reading.usedBytes}
-        total={reading.includedBytes}
-      />
-    </SettingsSubsection>
+      <div className="desktop-plan-gauges">
+        <Gauge
+          label={t("settings.plan.hoursLabel")}
+          used={reading.usedHours === null ? null : formatHours(reading.usedHours, localization)}
+          total={reading.includedHours === null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
+          percent={percentOf(reading.usedHours, reading.includedHours)}
+          detail={reading.usedHours === null ? t("settings.plan.gaugeIncluded") : resets}
+        />
+        <Gauge
+          label={t("settings.plan.storageLabel")}
+          used={reading.usedBytes === null ? null : formatStorage(reading.usedBytes, localization)}
+          total={reading.includedBytes === null ? null : formatStorage(reading.includedBytes, localization)}
+          percent={storagePercent}
+          detail={storagePercent === null
+            ? t("settings.plan.gaugeIncluded")
+            : t("settings.plan.gaugePercent", { percent: localization.formatNumber(Math.round(storagePercent)) })}
+        />
+      </div>
+    </section>
   );
 }
 
-/** A value row with its bar beneath, drawn only against an authoritative reading. */
-function MeterRow({
+type PlanStatus = "free" | "active" | "ending" | "attention" | "updating";
+
+function planStatus(holding: PlanHolding): PlanStatus {
+  if (!holding.subscribed) return "free";
+  if (holding.status === "past_due" || holding.status === "disputed") return "attention";
+  if (holding.cancelAtPeriodEnd || holding.status === "cancel_scheduled") return "ending";
+  if (holding.status === "change_pending") return "updating";
+  return "active";
+}
+
+function percentOf(used: number | null, total: number | null): number | null {
+  if (used === null || total === null || total <= 0) return null;
+  return Math.max(0, Math.min(100, (used / total) * 100));
+}
+
+const GAUGE_SEGMENTS = 24;
+
+/**
+ * One reading, instrument-style: what is used over what is included, and a
+ * segmented bar drawn only against an authoritative reading.
+ */
+function Gauge({
   label,
-  value,
-  detail,
   used,
   total,
+  percent,
+  detail,
 }: {
   label: string;
-  value: string;
+  used: string | null;
+  total: string | null;
+  percent: number | null;
   detail: string | null;
-  used: number | null;
-  total: number | null;
 }) {
-  const percent = used === null || total === null || total <= 0
-    ? null
-    : Math.max(0, Math.min(100, (used / total) * 100));
+  const lit = percent === null ? 0 : Math.ceil((percent / 100) * GAUGE_SEGMENTS);
   return (
-    <div className="desktop-settings-row desktop-settings-value-row desktop-plan-meter-row">
-      <span>{label}</span>
-      <div className="desktop-settings-value">
-        <span className="desktop-settings-value-text">
-          {value}
-          {detail && <span className="desktop-plan-meter-detail"> · {detail}</span>}
-        </span>
-      </div>
-      {percent !== null && (
+    <div className="desktop-plan-gauge">
+      <span className="desktop-plan-mono-label">{label}</span>
+      <span className="desktop-plan-gauge-reading">
+        <span className="desktop-plan-gauge-used">{used ?? total ?? "—"}</span>
+        {used !== null && total !== null && (
+          <span className="desktop-plan-gauge-total">/ {total}</span>
+        )}
+      </span>
+      {percent !== null ? (
         <div
-          className={`desktop-plan-meter-track${meterTone(percent)}`}
+          className={`desktop-plan-segments${meterTone(percent)}`}
           role="progressbar"
           aria-label={label}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(percent)}
+          aria-valuetext={`${used} / ${total}`}
         >
-          <span style={{ width: `${percent}%` }} />
+          {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => (
+            <span key={index} className={index < lit ? "on" : undefined} />
+          ))}
+        </div>
+      ) : (
+        <div className="desktop-plan-segments is-idle" aria-hidden="true">
+          {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => <span key={index} />)}
         </div>
       )}
+      <span className="desktop-plan-gauge-detail">
+        {detail}
+      </span>
     </div>
   );
 }
 
-/** Three plans side by side, each with one price and the same lines. */
+/**
+ * When a folder is worth putting online, and what that buys that a drive or a
+ * Git host does not. Read before the prices, so a plan is chosen for a reason.
+ */
+export function CloudFit({ localization }: { localization: LocalizationContextValue }) {
+  const { t } = localization;
+  const reasons = ["laptopClosed", "computers", "agents", "team"] as const;
+  return (
+    <section className="desktop-plan-fit" aria-labelledby="desktop-plan-fit-title">
+      <div className="desktop-plan-fit-claim">
+        <span className="desktop-plan-mono-label">{t("settings.plan.fit.kicker")}</span>
+        <h3 id="desktop-plan-fit-title">{t("settings.plan.fit.claim")}</h3>
+        <p>{t("settings.plan.fit.claimDetail")}</p>
+      </div>
+      <div className="desktop-plan-fit-list">
+        <span className="desktop-plan-mono-label">{t("settings.plan.fit.when")}</span>
+        <ol>
+          {reasons.map((reason, index) => (
+            <li key={reason}>
+              <span className="desktop-plan-fit-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              <span>{t(`settings.plan.fit.reason.${reason}`)}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="desktop-plan-fit-local">{t("settings.plan.fit.local")}</p>
+      </div>
+    </section>
+  );
+}
+
+/** Three plans side by side, each a spec sheet with one price and the same lines. */
 export function PlanComparison({
   plans,
   holding,
@@ -462,10 +531,31 @@ export function PlanComparison({
 }) {
   const { t } = localization;
   return (
-    <SettingsSubsection title={t("settings.plan.chooseTitle")}>
+    <section className="desktop-plan-sheets" aria-labelledby="desktop-plan-sheets-title">
+      <h3 id="desktop-plan-sheets-title" className="desktop-plan-mono-label desktop-plan-sheets-title">
+        {t("settings.plan.chooseTitle")}
+      </h3>
       <div className="desktop-plan-grid" role="list">
-        {plans.map((plan) => {
+        {plans.map((plan, index) => {
           const current = signedIn && plan.id === holding.planId;
+          const perPerson = (value: string) => plan.perPerson
+            ? t("settings.plan.spec.perPerson", { value })
+            : value;
+          const historyDays = plan.historyDays ?? 30;
+          const specs: Array<[string, string]> = [
+            [t("settings.plan.hoursLabel"), t(plan.perPerson ? "settings.plan.spec.hoursPerPerson" : "settings.plan.spec.hours", {
+              hours: formatHours(plan.agentHours, localization),
+            })],
+            [t("settings.plan.storageLabel"), plan.storageBytes === null
+              ? t("settings.plan.custom")
+              : perPerson(formatStorage(plan.storageBytes, localization))],
+            [t("settings.plan.spec.projects"), plan.projects === null
+              ? t("settings.plan.spec.unlimited")
+              : perPerson(localization.formatNumber(plan.projects))],
+            [t("settings.plan.spec.history"), historyDays >= 365
+              ? t("settings.plan.spec.years", { count: Math.round(historyDays / 365) })
+              : t("settings.plan.spec.days", { count: historyDays })],
+          ];
           return (
             <div
               key={plan.id}
@@ -474,42 +564,42 @@ export function PlanComparison({
               aria-current={current ? "true" : undefined}
             >
               <div className="desktop-plan-card-head">
-                <strong>{t(`settings.plan.name.${plan.id}`)}</strong>
+                <span className="desktop-plan-mono-label">
+                  {String(index + 1).padStart(2, "0")} / {t(`settings.plan.name.${plan.id}`)}
+                  {current && <span className="desktop-plan-card-current"> · {t("settings.plan.current")}</span>}
+                </span>
                 <span className="desktop-plan-card-price">
-                  {t(plan.perPerson ? "settings.plan.pricePerPerson" : "settings.plan.pricePerMonth", {
-                    amount: formatCurrency(plan.priceCents, plan.currency, localization),
-                  })}
+                  <span className="desktop-plan-card-amount">{formatCurrency(plan.priceCents, plan.currency, localization)}</span>
+                  <span className="desktop-plan-card-per">
+                    {t(plan.perPerson ? "settings.plan.spec.perPersonMonth" : "settings.plan.spec.perMonth")}
+                  </span>
                 </span>
                 <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
               </div>
-              <ul className="desktop-plan-card-lines">
-                <li>{t(plan.perPerson ? "settings.plan.hoursPerPerson" : "settings.plan.hoursPerMonth", {
-                  hours: formatHours(plan.agentHours, localization),
-                })}</li>
-                <li>{plan.storageBytes === null ? t("settings.plan.storageCustom") : t(
-                  plan.perPerson ? "settings.plan.storagePerPerson" : "settings.plan.storageAmount",
-                  { amount: formatStorage(plan.storageBytes, localization) },
-                )}</li>
-                <li>{plan.projects === null ? t("settings.plan.projectsUnlimited") : t(
-                  plan.perPerson ? "settings.plan.projectsPerPerson" : "settings.plan.projects",
-                  { count: plan.projects },
-                )}</li>
-                <li>{(plan.historyDays ?? 365) >= 365
-                  ? t("settings.plan.historyYears", { count: Math.round((plan.historyDays ?? 365) / 365) })
-                  : t("settings.plan.historyDays", { count: plan.historyDays ?? 30 })}</li>
-                {plan.teamFeatures && TEAM_FEATURES.map((feature) => (
-                  <li key={feature} className="desktop-plan-card-feature">
-                    <Check size={12} aria-hidden="true" />
-                    {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
-                  </li>
+              <dl className="desktop-plan-spec">
+                {specs.map(([label, value]) => (
+                  <div key={label} className="desktop-plan-spec-row">
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
                 ))}
-              </ul>
+              </dl>
+              {plan.teamFeatures && (
+                <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
+                  {TEAM_FEATURES.map((feature) => (
+                    <li key={feature}>
+                      <Check size={12} aria-hidden="true" />
+                      {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="desktop-plan-card-action">{renderAction(plan)}</div>
             </div>
           );
         })}
       </div>
-    </SettingsSubsection>
+    </section>
   );
 }
 
@@ -592,31 +682,34 @@ export function AddOns({
   };
 
   return (
-    <SettingsSubsection title={t("settings.plan.addOnsTitle")}>
-      {addOns.map((addOn) => {
+    <section className="desktop-plan-modules" aria-labelledby="desktop-plan-modules-title">
+      <h3 id="desktop-plan-modules-title" className="desktop-plan-mono-label desktop-plan-sheets-title">
+        {t("settings.plan.addOnsTitle")}
+      </h3>
+      {addOns.map((addOn, index) => {
         const heldQuantity = holding.addOns[addOn.id] ?? 0;
         const shown = draft?.id === addOn.id ? draft.quantity : heldQuantity;
         return (
-          <SettingsValueRow
-            key={addOn.id}
-            label={t(`settings.plan.addOn.${addOn.kind}`)}
-            value={t(`settings.plan.addOn.${addOn.kind}Detail`, {
-              hours: formatHours(addOn.hours, localization),
-              amount: formatStorage(addOn.storageBytes, localization),
-              price: formatMoney(addOn.priceCents, addOn.currency, localization),
-            })}
-            action={(
-              <QuantityStepper
-                label={t(`settings.plan.addOn.${addOn.kind}`)}
-                value={shown}
-                minimum={0}
-                maximum={addOn.maxQuantity}
-                disabled={pending || !sellable || (draft !== null && draft.id !== addOn.id)}
-                onChange={(quantity) => setDraft(quantity === heldQuantity ? null : { id: addOn.id, quantity })}
-                localization={localization}
-              />
-            )}
-          />
+          <div key={addOn.id} className={`desktop-plan-module${heldQuantity > 0 ? " held" : ""}`}>
+            <span className="desktop-plan-module-index" aria-hidden="true">+{String(index + 1).padStart(2, "0")}</span>
+            <span className="desktop-plan-module-name">{t(`settings.plan.addOn.${addOn.kind}`)}</span>
+            <span className="desktop-plan-module-detail">
+              {t(`settings.plan.addOn.${addOn.kind}Detail`, {
+                hours: formatHours(addOn.hours, localization),
+                amount: formatStorage(addOn.storageBytes, localization),
+                price: formatMoney(addOn.priceCents, addOn.currency, localization),
+              })}
+            </span>
+            <QuantityStepper
+              label={t(`settings.plan.addOn.${addOn.kind}`)}
+              value={shown}
+              minimum={0}
+              maximum={addOn.maxQuantity}
+              disabled={pending || !sellable || (draft !== null && draft.id !== addOn.id)}
+              onChange={(quantity) => setDraft(quantity === heldQuantity ? null : { id: addOn.id, quantity })}
+              localization={localization}
+            />
+          </div>
         );
       })}
       {draft && draftOffer && (
@@ -653,7 +746,7 @@ export function AddOns({
           {message.text}
         </p>
       )}
-    </SettingsSubsection>
+    </section>
   );
 }
 
