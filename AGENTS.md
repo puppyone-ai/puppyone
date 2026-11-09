@@ -55,10 +55,10 @@ Test or build failures must be reported and resolved before release. Do not desc
 ## Personal Daily Application
 
 - `puppyone herb` is an installed application, independent of all source worktrees.
-- Future daily builds use a clean, exact `main` commit that has passed the release checks and the applicable CI/Internal verification. A branch name or successful merge alone does not establish readiness.
+- Personal daily builds use a clean, exact local `herbself` commit after relevant local tests, build checks, and packaged-app verification pass. This personal build does not require promotion to `qubits` or `main`, cloud pushes, or release publication. Official releases continue to follow the `main` promotion workflow.
 - Build that verified source as channel `dev` with `--display-name "puppyone herb"`, followed by `npm run dist:mac:prepared`. Preserve the existing dev data/credential identity; the personal label does not create a release channel.
 - Build in a temporary checkout of the verified commit. Verify the package and back up the installed app/data before replacement. Continuing development on `herbself` must not update the installed daily app.
-- The existing integration-built daily installation may remain in use until a verified `main` replacement is available. Do not downgrade it merely to change its source branch label.
+- Updating the personal daily application is an explicit local action. Preserve the previous installed app and user data for rollback; do not update it automatically when `herbself` changes.
 
 ## Cleanup
 
