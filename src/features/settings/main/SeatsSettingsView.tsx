@@ -15,13 +15,12 @@ import { useAccountPlan } from "./useAccountPlan";
  * Plan.
  *
  * Account answers who you are. This page answers what you are on, how much of
- * it you have used this period, and what else you could be on: Free, Personal
- * or Team, side by side, then the add-ons. See `planPricing.ts` for what is
- * sold and `CloudPlans.tsx` for how the page reads.
+ * it you have used this period, and the plans available to the selected space,
+ * followed by add-ons. See `planPricing.ts` for what is sold and `CloudPlans.tsx`
+ * for how the page reads.
  *
  * It is built from the same rows as every other Settings page. The one thing
- * of its own is the three-plan comparison, which is the only honest way to
- * show a choice between three things.
+ * of its own is the side-by-side plan comparison.
  *
  * Invoices, payment methods and cancellation stay in the payment provider's
  * browser portal; the page offers one link out and keeps no history of its own.

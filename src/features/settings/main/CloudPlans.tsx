@@ -60,7 +60,7 @@ type PlanPageProps = {
  *
  * The page answers three questions in the order people ask them. First the
  * plan held and this period's agent hours and storage, so "am I running out?"
- * is answered before anything is sold. Then the three plans side by side, each
+ * is answered before anything is sold. Then the available plans side by side, each
  * with one price and the same four lines, so they compare at a glance. Then,
  * for a paid plan, the two add-ons. Every change is quoted before it is paid,
  * and payment always finishes in the browser.
@@ -82,10 +82,10 @@ export function CloudPlans(props: PlanPageProps) {
         holding={holding}
         signedIn={false}
         localization={props.localization}
-        renderAction={() => (
+        renderAction={(plan) => (
           <button
             type="button"
-            className="desktop-settings-action"
+            className={`desktop-settings-action${plan.id === "free" ? "" : " primary"}`}
             disabled={waiting || props.signInDisabled}
             onClick={props.onSignIn}
           >
@@ -279,7 +279,7 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
-      {!owner && <p className="desktop-plan-note desktop-plan-managed">{t("settings.plan.space.managedByOwner")}</p>}
+      {!owner && <p className="desktop-plan-note">{t("settings.plan.space.managedByOwner")}</p>}
       <PlanComparison
         plans={spacePlans}
         holding={holding}
@@ -400,34 +400,39 @@ export function CurrentPlan({
     : null;
 
   return (
-    <section className="desktop-plan-console" aria-label={t("settings.plan.currentLabel")}>
-      <header className="desktop-plan-console-head">
-        <span className={`desktop-plan-lamp is-${status}`} aria-hidden="true" />
-        {/* On Free the plan's name already says it; a status word would repeat it. */}
-        {status !== "free" && <span className="desktop-plan-mono-label">{t(`settings.plan.status.${status}`)}</span>}
-        <strong className="desktop-plan-console-name">{t(`settings.plan.name.${offer.id}`)}</strong>
-        {facts.length > 0 && <span className="desktop-plan-console-facts">{facts.join(" · ")}</span>}
-        <span className="desktop-plan-console-spacer" />
-        {date && <span className="desktop-plan-mono-label">{date}</span>}
-        {action}
-      </header>
-      {holding.scheduled && (
-        <div className="desktop-plan-console-notice">
-          <span className="desktop-plan-mono-label">{t("settings.plan.scheduledLabel")}</span>
-          <span>{describeScheduledChange(holding, localization)}</span>
-          <span className="desktop-plan-console-spacer" />
-          {scheduledAction}
+    <div className="desktop-plan-overview">
+      <SettingsSubsection title={t("settings.plan.currentLabel")}>
+        <div className="desktop-settings-row desktop-plan-summary">
+          <div className="desktop-plan-summary-main">
+            <div className="desktop-plan-summary-heading">
+              <h4>{t(`settings.plan.name.${offer.id}`)}</h4>
+              {status !== "free" && (
+                <span className={`desktop-plan-status is-${status}`}>{t(`settings.plan.status.${status}`)}</span>
+              )}
+            </div>
+            {(facts.length > 0 || date) && (
+              <p className="desktop-plan-summary-detail">{[...facts, date].filter(Boolean).join(" · ")}</p>
+            )}
+          </div>
+          {action}
         </div>
-      )}
-      <div className="desktop-plan-gauges">
-        <Gauge
+        {holding.scheduled && (
+          <SettingsValueRow
+            label={t("settings.plan.scheduledLabel")}
+            value={describeScheduledChange(holding, localization)}
+            action={scheduledAction}
+          />
+        )}
+      </SettingsSubsection>
+      <div className="desktop-plan-usage">
+        <UsageMeter
           label={t("settings.plan.hoursLabel")}
           used={reading.usedHours === null ? null : formatHours(reading.usedHours, localization)}
           total={reading.includedHours === null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
           percent={percentOf(reading.usedHours, reading.includedHours)}
           detail={reading.usedHours === null ? t("settings.plan.gaugeIncluded") : resets}
         />
-        <Gauge
+        <UsageMeter
           label={t("settings.plan.storageLabel")}
           used={reading.usedBytes === null ? null : formatStorage(reading.usedBytes, localization)}
           total={reading.includedBytes === null ? null : formatStorage(reading.includedBytes, localization)}
@@ -437,7 +442,7 @@ export function CurrentPlan({
             : t("settings.plan.gaugePercent", { percent: localization.formatNumber(Math.round(storagePercent)) })}
         />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -456,13 +461,8 @@ function percentOf(used: number | null, total: number | null): number | null {
   return Math.max(0, Math.min(100, (used / total) * 100));
 }
 
-const GAUGE_SEGMENTS = 24;
-
-/**
- * One reading, instrument-style: what is used over what is included, and a
- * segmented bar drawn only against an authoritative reading.
- */
-function Gauge({
+/** Show consumption only when the billing service has supplied a reading. */
+function UsageMeter({
   label,
   used,
   total,
@@ -475,19 +475,18 @@ function Gauge({
   percent: number | null;
   detail: string | null;
 }) {
-  const lit = percent === null ? 0 : Math.ceil((percent / 100) * GAUGE_SEGMENTS);
   return (
-    <div className="desktop-plan-gauge">
-      <span className="desktop-plan-mono-label">{label}</span>
-      <span className="desktop-plan-gauge-reading">
-        <span className="desktop-plan-gauge-used">{used ?? total ?? "—"}</span>
-        {used !== null && total !== null && (
-          <span className="desktop-plan-gauge-total">/ {total}</span>
-        )}
-      </span>
-      {percent !== null ? (
+    <div className="desktop-plan-usage-item">
+      <div className="desktop-plan-usage-heading">
+        <span>{label}</span>
+        <span className="desktop-plan-usage-value">
+          {used ?? total ?? "—"}
+          {used !== null && total !== null && <span> / {total}</span>}
+        </span>
+      </div>
+      {percent !== null && (
         <div
-          className={`desktop-plan-segments${meterTone(percent)}`}
+          className={`desktop-plan-meter${meterTone(percent)}`}
           role="progressbar"
           aria-label={label}
           aria-valuemin={0}
@@ -495,18 +494,10 @@ function Gauge({
           aria-valuenow={Math.round(percent)}
           aria-valuetext={`${used} / ${total}`}
         >
-          {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => (
-            <span key={index} className={index < lit ? "on" : undefined} />
-          ))}
-        </div>
-      ) : (
-        <div className="desktop-plan-segments is-idle" aria-hidden="true">
-          {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => <span key={index} />)}
+          <span style={{ width: `${percent}%` }} />
         </div>
       )}
-      <span className="desktop-plan-gauge-detail">
-        {detail}
-      </span>
+      {detail && <span className="desktop-plan-usage-detail">{detail}</span>}
     </div>
   );
 }
@@ -529,21 +520,24 @@ export function OrganizationSwitch({
   const { t } = localization;
   if (organizations.length < 2) return null;
   return (
-    <div className="desktop-plan-orgs" role="radiogroup" aria-label={t("settings.plan.org.label")}>
-      <span className="desktop-plan-mono-label">{t("settings.plan.org.label")}</span>
-      {organizations.map((organization) => (
-        <button
-          key={organization.id}
-          type="button"
-          role="radio"
-          aria-checked={organization.id === selectedId}
-          className={`desktop-plan-org${organization.id === selectedId ? " selected" : ""}`}
-          onClick={() => onSelect(organization.id)}
+    <SettingsValueRow
+      label={t("settings.plan.org.label")}
+      value={(
+        <select
+          className="desktop-settings-select desktop-plan-space-select"
+          aria-label={t("settings.plan.org.label")}
+          value={selectedId ?? ""}
+          onChange={(event) => onSelect(event.target.value)}
         >
-          {organization.personal ? t("settings.plan.org.personal") : organization.name}
-        </button>
-      ))}
-    </div>
+          {selectedId === null && <option value="" disabled>—</option>}
+          {organizations.map((organization) => (
+            <option key={organization.id} value={organization.id}>
+              {organization.personal ? t("settings.plan.org.personal") : organization.name}
+            </option>
+          ))}
+        </select>
+      )}
+    />
   );
 }
 
@@ -555,7 +549,7 @@ const PLAN_FIT: Readonly<Record<string, readonly string[]>> = {
   team: ["settings.plan.fit.reason.agents", "settings.plan.fit.reason.team"],
 };
 
-/** Three plans side by side, each a spec sheet with one price and the same lines. */
+/** Comparable plan cards use the same typography and controls as Settings. */
 export function PlanComparison({
   plans,
   holding,
@@ -571,84 +565,76 @@ export function PlanComparison({
 }) {
   const { t } = localization;
   return (
-    <section className="desktop-plan-sheets" aria-labelledby="desktop-plan-sheets-title">
-      <h3 id="desktop-plan-sheets-title" className="desktop-plan-mono-label desktop-plan-sheets-title">
-        {t("settings.plan.chooseTitle")}
-      </h3>
-      <p className="desktop-plan-sheets-claim">
-        <strong>{t("settings.plan.fit.claim")}</strong> {t("settings.plan.fit.local")}
-      </p>
-      <div className="desktop-plan-grid" role="list" style={{ "--desktop-plan-columns": plans.length } as CSSProperties}>
-        {plans.map((plan, index) => {
-          const current = signedIn && plan.id === holding.planId;
-          const perPerson = (value: string) => plan.perPerson
-            ? t("settings.plan.spec.perPerson", { value })
-            : value;
-          const historyDays = plan.historyDays ?? 30;
-          const specs: Array<[string, string]> = [
-            [t("settings.plan.hoursLabel"), t(plan.perPerson ? "settings.plan.spec.hoursPerPerson" : "settings.plan.spec.hours", {
-              hours: formatHours(plan.agentHours, localization),
-            })],
-            [t("settings.plan.storageLabel"), plan.storageBytes === null
-              ? t("settings.plan.custom")
-              : perPerson(formatStorage(plan.storageBytes, localization))],
-            [t("settings.plan.spec.projects"), plan.projects === null
-              ? t("settings.plan.spec.unlimited")
-              : perPerson(localization.formatNumber(plan.projects))],
-            [t("settings.plan.spec.history"), historyDays >= 365
-              ? t("settings.plan.spec.years", { count: Math.round(historyDays / 365) })
-              : t("settings.plan.spec.days", { count: historyDays })],
-          ];
-          return (
-            <div
-              key={plan.id}
-              role="listitem"
-              className={`desktop-plan-card${current ? " current" : ""}`}
-              aria-current={current ? "true" : undefined}
-            >
-              <div className="desktop-plan-card-head">
-                <span className="desktop-plan-mono-label">
-                  {String(index + 1).padStart(2, "0")} / {t(`settings.plan.name.${plan.id}`)}
-                  {current && <span className="desktop-plan-card-current"> · {t("settings.plan.current")}</span>}
-                </span>
-                <span className="desktop-plan-card-price">
-                  <span className="desktop-plan-card-amount">{formatCurrency(plan.priceCents, plan.currency, localization)}</span>
-                  <span className="desktop-plan-card-per">
-                    {t(plan.perPerson ? "settings.plan.spec.perPersonMonth" : "settings.plan.spec.perMonth")}
+    <div className="desktop-plan-comparison">
+      <SettingsSubsection title={t("settings.plan.chooseTitle")} detail={t("settings.plan.fit.local")}>
+        <div className="desktop-plan-grid" role="list" style={{ "--desktop-plan-columns": plans.length } as CSSProperties}>
+          {plans.map((plan) => {
+            const current = signedIn && plan.id === holding.planId;
+            const perPerson = (value: string) => plan.perPerson
+              ? t("settings.plan.spec.perPerson", { value })
+              : value;
+            const historyDays = plan.historyDays ?? 30;
+            const specs: Array<[string, string]> = [
+              [t("settings.plan.hoursLabel"), t(plan.perPerson ? "settings.plan.spec.hoursPerPerson" : "settings.plan.spec.hours", {
+                hours: formatHours(plan.agentHours, localization),
+              })],
+              [t("settings.plan.storageLabel"), plan.storageBytes === null
+                ? t("settings.plan.custom")
+                : perPerson(formatStorage(plan.storageBytes, localization))],
+              [t("settings.plan.spec.projects"), plan.projects === null
+                ? t("settings.plan.spec.unlimited")
+                : perPerson(localization.formatNumber(plan.projects))],
+              [t("settings.plan.spec.history"), historyDays >= 365
+                ? t("settings.plan.spec.years", { count: Math.round(historyDays / 365) })
+                : t("settings.plan.spec.days", { count: historyDays })],
+            ];
+            return (
+              <div
+                key={plan.id}
+                role="listitem"
+                className={`desktop-plan-card${current ? " current" : ""}`}
+                aria-current={current ? "true" : undefined}
+              >
+                <div className="desktop-plan-card-head">
+                  <h4 className="desktop-plan-card-name">{t(`settings.plan.name.${plan.id}`)}</h4>
+                  <span className="desktop-plan-card-price">
+                    <span className="desktop-plan-card-amount">{formatCurrency(plan.priceCents, plan.currency, localization)}</span>
+                    <span className="desktop-plan-card-per">
+                      {t(plan.perPerson ? "settings.plan.spec.perPersonMonth" : "settings.plan.spec.perMonth")}
+                    </span>
                   </span>
-                </span>
-                <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
-              </div>
-              <div className="desktop-plan-card-fit">
-                <span className="desktop-plan-mono-label">{t("settings.plan.fit.cardLabel")}</span>
-                <ul>
-                  {(PLAN_FIT[plan.id] ?? []).map((key) => <li key={key}>{t(key)}</li>)}
-                </ul>
-              </div>
-              <dl className="desktop-plan-spec">
-                {specs.map(([label, value]) => (
-                  <div key={label} className="desktop-plan-spec-row">
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              {plan.teamFeatures && (
-                <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
-                  {TEAM_FEATURES.map((feature) => (
-                    <li key={feature}>
-                      <Check size={12} aria-hidden="true" />
-                      {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
-                    </li>
+                  <span className="desktop-plan-card-tagline">{t(`settings.plan.tagline.${plan.id}`)}</span>
+                </div>
+                <dl className="desktop-plan-spec">
+                  {specs.map(([label, value]) => (
+                    <div key={label} className="desktop-plan-spec-row">
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
                   ))}
-                </ul>
-              )}
-              <div className="desktop-plan-card-action">{renderAction(plan)}</div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+                </dl>
+                <div className="desktop-plan-card-details">
+                  {plan.teamFeatures && (
+                    <ul className="desktop-plan-card-features" aria-label={t("settings.plan.spec.team")}>
+                      {TEAM_FEATURES.map((feature) => (
+                        <li key={feature}>
+                          <Check size={12} aria-hidden="true" />
+                          {t(`settings.plan.feature.${feature.replace(".", "_")}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <ul className="desktop-plan-card-fit" aria-label={t("settings.plan.fit.cardLabel")}>
+                    {(PLAN_FIT[plan.id] ?? []).map((key) => <li key={key}>{t(key)}</li>)}
+                  </ul>
+                </div>
+                <div className="desktop-plan-card-action">{renderAction(plan)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </SettingsSubsection>
+    </div>
   );
 }
 
@@ -657,7 +643,12 @@ export function PlanFinePrint({ localization }: { localization: LocalizationCont
 }
 
 function CurrentBadge({ localization }: { localization: LocalizationContextValue }) {
-  return <span className="desktop-plan-current-badge">{localization.t("settings.plan.current")}</span>;
+  return (
+    <span className="desktop-plan-current-badge">
+      <Check size={13} aria-hidden="true" />
+      {localization.t("settings.plan.current")}
+    </span>
+  );
 }
 
 type AddOnDraft = { id: string; quantity: number };
@@ -731,24 +722,22 @@ export function AddOns({
   };
 
   return (
-    <section className="desktop-plan-modules" aria-labelledby="desktop-plan-modules-title">
-      <h3 id="desktop-plan-modules-title" className="desktop-plan-mono-label desktop-plan-sheets-title">
-        {t("settings.plan.addOnsTitle")}
-      </h3>
-      {addOns.map((addOn, index) => {
+    <SettingsSubsection title={t("settings.plan.addOnsTitle")}>
+      {addOns.map((addOn) => {
         const heldQuantity = holding.addOns[addOn.id] ?? 0;
         const shown = draft?.id === addOn.id ? draft.quantity : heldQuantity;
         return (
-          <div key={addOn.id} className={`desktop-plan-module${heldQuantity > 0 ? " held" : ""}`}>
-            <span className="desktop-plan-module-index" aria-hidden="true">+{String(index + 1).padStart(2, "0")}</span>
-            <span className="desktop-plan-module-name">{t(`settings.plan.addOn.${addOn.kind}`)}</span>
-            <span className="desktop-plan-module-detail">
-              {t(`settings.plan.addOn.${addOn.kind}Detail`, {
-                hours: formatHours(addOn.hours, localization),
-                amount: formatStorage(addOn.storageBytes, localization),
-                price: formatMoney(addOn.priceCents, addOn.currency, localization),
-              })}
-            </span>
+          <div key={addOn.id} className="desktop-settings-row desktop-plan-addon">
+            <div className="desktop-plan-addon-main">
+              <span>{t(`settings.plan.addOn.${addOn.kind}`)}</span>
+              <span className="desktop-plan-addon-detail">
+                {t(`settings.plan.addOn.${addOn.kind}Detail`, {
+                  hours: formatHours(addOn.hours, localization),
+                  amount: formatStorage(addOn.storageBytes, localization),
+                  price: formatMoney(addOn.priceCents, addOn.currency, localization),
+                })}
+              </span>
+            </div>
             <QuantityStepper
               label={t(`settings.plan.addOn.${addOn.kind}`)}
               value={shown}
@@ -795,7 +784,7 @@ export function AddOns({
           {message.text}
         </p>
       )}
-    </section>
+    </SettingsSubsection>
   );
 }
 

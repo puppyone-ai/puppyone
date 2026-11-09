@@ -247,12 +247,12 @@ it("reads used hours only from the billing service, never invents them", () => {
     .toEqual([12, 40, 3.2 * GB, 10 * GB]);
 });
 
-it("offers each space only the plans it can hold, as spec sheets", async () => {
+it("offers each space only the plans it can hold, with comparable prices and allowances", async () => {
   const personal = await render(<SignedOut />);
   const cards = [...personal.querySelectorAll(".desktop-plan-card")];
-  // Each plan is a spec sheet: an index and a name, one price, the same rows.
-  expect(cards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Personal"]);
+  // Each plan has a semantic name, one price, and the same allowance rows.
+  expect(cards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
+    .toEqual(["Free", "Personal"]);
   expect(cards.map((card) => [
     card.querySelector(".desktop-plan-card-amount")?.textContent,
     card.querySelector(".desktop-plan-card-per")?.textContent,
@@ -267,8 +267,8 @@ it("offers each space only the plans it can hold, as spec sheets", async () => {
 
   const team = await render(<SignedOut spaceKind="team" />);
   const teamCards = [...team.querySelectorAll(".desktop-plan-card")];
-  expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Team"]);
+  expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
+    .toEqual(["Free", "Team"]);
   expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
   expect(teamCards[1]?.textContent).toContain("Member roles");
   // Not sold until Cloud enforces them.
