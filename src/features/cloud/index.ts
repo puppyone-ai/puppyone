@@ -42,3 +42,8 @@ export { useCloudHistoryController } from "./history/useCloudHistoryController";
 export { useCloudBillingController } from "./billing/useCloudBillingController";
 export type { LocalFolderCloudNotice } from "./project/localFolderCloudNoticeState";
 export { decodeWorkspaceBytes, encodeWorkspaceBytes } from "./files/cloudWorkspaceClient";
+
+export { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillingUsage,
+  readBillingResource } from "./billing/billingReadCache";
+export type { BillingReadScope } from "./billing/billingReadCache";
+export { createCloudBillingContextKey } from "./billing/cloudBillingState";

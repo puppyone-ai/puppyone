@@ -115,9 +115,12 @@ const usageOf = (usedUnits: number, grantedUnits: number, usedBytes: number, lim
   storage: { logical_bytes: usedBytes, limit_bytes: limitBytes },
 }) as unknown as DesktopBillingUsage;
 
-function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
+function SignedOut({ onSignIn = () => undefined, signedIn = false, loadError = false, onRefresh = () => undefined, restoring = false }: {
   onSignIn?: () => void;
   signedIn?: boolean;
+  loadError?: boolean;
+  onRefresh?: () => void;
+  restoring?: boolean;
 }) {
   const localization = useLocalization();
   return (
@@ -130,7 +133,9 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false }: {
       summary={null}
       usage={null}
       loading={false}
-      onRefresh={() => undefined}
+      loadError={loadError}
+      restoring={restoring}
+      onRefresh={onRefresh}
       localization={localization}
       onSignIn={onSignIn}
       canManageBilling={null}
@@ -253,12 +258,12 @@ it("reads used hours only from the billing service, never invents them", () => {
     .toEqual([12, 40, 3.2 * GB, 10 * GB]);
 });
 
-it("offers the same seat-based plans for every space, as spec sheets", async () => {
+it("offers every Space the same tiers, with comparable prices and allowances", async () => {
   const personal = await render(<SignedOut />);
   const cards = [...personal.querySelectorAll(".desktop-plan-card")];
-  // Each plan is a spec sheet: an index and a name, one price, the same rows.
-  expect(cards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Team", "03 / Enterprise"]);
+  // Each plan has a semantic name, one price, and the same allowance rows.
+  expect(cards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
+    .toEqual(["Free", "Team", "Enterprise"]);
   expect(cards.map((card) => [
     card.querySelector(".desktop-plan-card-amount")?.textContent,
     card.querySelector(".desktop-plan-card-per")?.textContent,
@@ -273,8 +278,8 @@ it("offers the same seat-based plans for every space, as spec sheets", async () 
 
   const team = await render(<SignedOut />);
   const teamCards = [...team.querySelectorAll(".desktop-plan-card")];
-  expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-head .desktop-plan-mono-label")?.textContent))
-    .toEqual(["01 / Free", "02 / Team", "03 / Enterprise"]);
+  expect(teamCards.map((card) => card.querySelector(".desktop-plan-card-name")?.textContent))
+    .toEqual(["Free", "Team", "Enterprise"]);
   expect(specs(teamCards[1])[0]).toEqual(["Agent hours", "40 h / person / month"]);
   expect(teamCards[1]?.textContent).toContain("Member roles");
   // Not sold until Cloud enforces them.
@@ -307,9 +312,32 @@ it("routes a signed-out reader to sign-in from every plan", async () => {
 
 it("does not offer sign-in to a reader who is already signed in", async () => {
   const host = await render(<SignedOut signedIn />);
-  const button = host.querySelector<HTMLButtonElement>(".desktop-plan-card button")!;
-  expect(button.textContent).toBe("Loading…");
-  expect(button.disabled).toBe(true);
+  expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(host.textContent).toContain("Your plan");
+  expect(host.textContent).toContain("Agent hours");
+  expect(host.textContent).toContain("Storage");
+  expect(host.querySelector(".desktop-plan-card button")).toBeNull();
+  expect(host.textContent).not.toContain("Free");
+  expect(host.querySelector("[role=progressbar]")).toBeNull();
+});
+
+it("keeps the signed-in page skeleton while restoring a session instead of flashing signed-out prices", async () => {
+  const host = await render(<SignedOut restoring />);
+  expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(host.textContent).toContain("Your plan");
+  expect(host.textContent).not.toContain("Sign in to choose");
+});
+
+it("offers retry and published prices after a failed signed-in read without inventing a Free holding", async () => {
+  const refresh = vi.fn();
+  const host = await render(<SignedOut signedIn loadError onRefresh={refresh} />);
+  expect(host.querySelector('[aria-busy="true"]')).toBeNull();
+  expect(host.querySelector('[role="alert"]')).not.toBeNull();
+  expect(host.querySelector('[aria-current="true"]')).toBeNull();
+  expect(host.querySelector(".desktop-plan-card button")).toBeNull();
+  expect(host.textContent).toContain("$20");
+  await act(async () => host.querySelector<HTMLButtonElement>('[role="alert"] button')?.click());
+  expect(refresh).toHaveBeenCalledOnce();
 });
 
 it("never reads a few saved files as zero gigabytes", () => {
@@ -371,6 +399,9 @@ it("says what changes at renewal and offers to keep the current plan", async () 
   const host = await render(<ScheduledCard summary={SCHEDULED_TEAM} onKeep={keep} />);
   expect(host.textContent).toContain("Scheduled change");
   expect(host.textContent).toMatch(/2 people from Dec 8/);
+  // Unknown consumption still has a visible track, without claiming 0% used.
+  expect(host.querySelectorAll('.desktop-plan-meter[aria-hidden="true"]')).toHaveLength(2);
+  expect(host.querySelector('[role="progressbar"]')).toBeNull();
   await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
   expect(keep).toHaveBeenCalledOnce();
 

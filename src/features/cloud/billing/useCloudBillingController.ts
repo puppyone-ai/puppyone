@@ -3,6 +3,9 @@ import type { MessageFormatter } from "@puppyone/localization/core";
 import type {
   DesktopBillingOperation,
   DesktopBillingPlan,
+  DesktopBillingCatalog,
+  DesktopBillingSummary,
+  DesktopBillingUsage,
   DesktopCloudSession,
 } from "../../../lib/cloudApi";
 import {
@@ -39,6 +42,13 @@ type UseCloudBillingControllerOptions = {
   enabled: boolean;
   onSessionChange: SessionChangeHandler;
   t: MessageFormatter;
+  /** Settings owns these readings; only operations and explicit refreshes load here. */
+  readSnapshot?: {
+    catalog: DesktopBillingCatalog | null;
+    summary: DesktopBillingSummary | null;
+    usage: DesktopBillingUsage | null;
+  };
+  onSnapshotChange?: () => void;
 };
 
 export function useCloudBillingController(
@@ -49,6 +59,8 @@ export function useCloudBillingController(
     enabled,
     onSessionChange,
     t,
+    readSnapshot,
+    onSnapshotChange,
   }: UseCloudBillingControllerOptions,
   dependencies: BillingDependencies = DEFAULT_CLOUD_BILLING_DEPENDENCIES,
 ) {
@@ -58,9 +70,16 @@ export function useCloudBillingController(
     contextKey,
     createInitialBillingState,
   );
-  const state = storedState.contextKey === contextKey
+  const contextState = storedState.contextKey === contextKey
     ? storedState
     : createInitialBillingState(contextKey);
+  const state = {
+    ...contextState,
+    catalog: readSnapshot?.catalog ?? contextState.catalog,
+    summary: readSnapshot?.summary?.org_id === organizationId ? readSnapshot.summary : contextState.summary,
+    usage: readSnapshot?.usage?.runtime.org_id === organizationId ? readSnapshot.usage : contextState.usage,
+  };
+  const externallyLoaded = readSnapshot !== undefined;
   const currentContextRef = useRef(contextKey);
   const currentEnabledRef = useRef(enabled);
   const requestEpochRef = useRef(0);
@@ -71,7 +90,9 @@ export function useCloudBillingController(
     promise: Promise<void>;
   } | null>(null);
   const trailingRefreshContextRef = useRef<string | null>(null);
-  const runLoadRef = useRef<() => Promise<void>>(async () => undefined);
+  const runLoadRef = useRef<(operationsOnly?: boolean) => Promise<void>>(async () => undefined);
+  const snapshotChangeRef = useRef(onSnapshotChange);
+  useLayoutEffect(() => { snapshotChangeRef.current = onSnapshotChange; }, [onSnapshotChange]);
   const idempotencyKeysRef = useRef(new Map<string, string>());
 
   const isCurrentContext = useCallback((capturedContextKey: string) => (
@@ -81,7 +102,7 @@ export function useCloudBillingController(
     isCurrentContext(capturedContextKey) && actionEpochRef.current === actionEpoch
   ), [isCurrentContext]);
 
-  const runLoad = useCallback((): Promise<void> => {
+  const runLoad = useCallback((operationsOnly = false): Promise<void> => {
     const capturedContextKey = contextKey;
     const capturedOrganizationId = organizationId;
     if (!enabled || !capturedOrganizationId) return Promise.resolve();
@@ -94,7 +115,8 @@ export function useCloudBillingController(
 
     const epoch = ++requestEpochRef.current;
     dispatch({ type: "loadStarted", contextKey: capturedContextKey });
-    const promise = Promise.all([
+    const reads = operationsOnly ? dependencies.listOperations(session, capturedOrganizationId, onSessionChange, apiBaseUrl)
+      .then((operations) => ({ kind: "operations" as const, operations })) : Promise.all([
       dependencies.getCatalog(session, onSessionChange, apiBaseUrl),
       dependencies.getSummary(
         session,
@@ -114,18 +136,25 @@ export function useCloudBillingController(
         onSessionChange,
         apiBaseUrl,
       ),
-    ]).then(([catalog, summary, usage, operations]) => {
+    ]).then(([catalog, summary, usage, operations]) => ({ kind: "snapshot" as const, catalog, summary, usage, operations }));
+    const promise = reads.then((result) => {
       if (!isCurrentContext(capturedContextKey) || epoch !== requestEpochRef.current) return;
-      if (summary.org_id !== capturedOrganizationId
-        || usage.runtime.org_id !== capturedOrganizationId
-        || operations.some((operation) => operation.org_id !== capturedOrganizationId)) {
+      if (result.operations.some((operation) => operation.org_id !== capturedOrganizationId)) {
+        throw new Error(t("cloud.billing.organizationMismatch"));
+      }
+      if (result.kind === "operations") {
+        dispatch({ type: "operationsLoaded", contextKey: capturedContextKey, operations: result.operations });
+        return;
+      }
+      if (result.summary.org_id !== capturedOrganizationId || result.usage.runtime.org_id !== capturedOrganizationId) {
         throw new Error(t("cloud.billing.organizationMismatch"));
       }
       dispatch({
         type: "loadSucceeded",
         contextKey: capturedContextKey,
-        result: { catalog, summary, usage, operations },
+        result: { catalog: result.catalog, summary: result.summary, usage: result.usage, operations: result.operations },
       });
+      snapshotChangeRef.current?.();
     }).catch((error: unknown) => {
       if (!isCurrentContext(capturedContextKey) || epoch !== requestEpochRef.current) return;
       dispatch({
@@ -170,14 +199,14 @@ export function useCloudBillingController(
     trailingRefreshContextRef.current = null;
     idempotencyKeysRef.current.clear();
     dispatch({ type: "contextChanged", contextKey });
-    if (enabled && organizationId) void runLoadRef.current();
+    if (enabled && organizationId) void runLoadRef.current(externallyLoaded);
     return () => {
       requestEpochRef.current += 1;
       actionEpochRef.current += 1;
       currentEnabledRef.current = false;
       trailingRefreshContextRef.current = null;
     };
-  }, [contextKey, enabled, organizationId]);
+  }, [contextKey, enabled, externallyLoaded, organizationId]);
 
   useEffect(() => {
     const polling = state.polling;

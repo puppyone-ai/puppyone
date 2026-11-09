@@ -1,4 +1,5 @@
 import { useLocalization } from "@puppyone/localization";
+import { useEffect, useState } from "react";
 import { SettingsSectionHeader } from "../../features/settings/components";
 import {
   AddOns,
@@ -21,10 +22,13 @@ import type {
 /**
  * Settings → Plan, for visual review: `#cloud-plans-visual-smoke`, with
  * `?state=signed-out` (default), `?state=free`, `?state=personal`, `?state=team`
- * or `?state=scheduled` (Team waiting to become Personal at renewal). Readings
+ * or `?state=scheduled` (Team waiting to become Personal at renewal).
+ * `?state=loading` holds the first-load layout; `?state=delayed` resolves it
+ * after five seconds for layout-shift review. `?state=no-usage` keeps the tracks
+ * visible before usage is available. Readings
  * are fixtures; nothing here reaches a billing service.
  */
-const state = new URLSearchParams(window.location.search).get("state") ?? "signed-out";
+const requestedState = new URLSearchParams(window.location.search).get("state") ?? "signed-out";
 const GB = 1000 ** 3;
 const SESSION = { user_id: "fixture", api_base_url: "https://cloud-fixture.puppyone.ai/api/v1" } as DesktopCloudSession;
 
@@ -66,10 +70,16 @@ function usage(used: number, granted: number, bytes: number, limit: number): Des
 }
 
 export function CloudPlansVisualSmokeHarness() {
+  const [state, setState] = useState(requestedState === "delayed" ? "loading" : requestedState);
+  useEffect(() => {
+    if (requestedState !== "delayed") return;
+    const timer = window.setTimeout(() => setState("personal"), 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const localization = useLocalization();
   const { t } = localization;
   const view = resolvePlanCatalog(null);
-  const summary = SUMMARIES[state] ?? null;
+  const summary = SUMMARIES[state === "no-usage" ? "personal" : state] ?? null;
   const holding = resolvePlanHolding(summary, null);
   const current = view.plans.find((plan) => plan.id === holding.planId) ?? view.plans[0]!;
   // Plans belong to spaces: the team fixtures are a team, the rest personal.
@@ -84,16 +94,16 @@ export function CloudPlansVisualSmokeHarness() {
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.seats.title")} />
-          {state === "signed-out" ? (
+          {state === "signed-out" || state === "loading" ? (
             <CloudPlans
-              session={null}
+              session={state === "loading" ? SESSION : null}
               apiBaseUrl={null}
               organizationId={null}
               onSessionChange={() => undefined}
               catalog={null}
               summary={null}
               usage={null}
-              loading={false}
+              loading={state === "loading"}
               onRefresh={() => undefined}
               localization={localization}
               onSignIn={() => undefined}

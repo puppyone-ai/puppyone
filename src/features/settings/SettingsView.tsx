@@ -157,6 +157,7 @@ export function SettingsView({
         spaceName={currentSpaceName}
         onSpaceChange={onSpaceChange}
         cloudSession={cloudSession}
+        cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
         onCloudSessionChange={onCloudSessionChange}
         // Buying needs an account, and Account owns the one sign-in flow.

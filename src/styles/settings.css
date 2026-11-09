@@ -946,384 +946,336 @@
 
 }
 
-/* Plan ---------------------------------------------------------------------
-   Built from the shared label/value rows, like every other Settings page. Its
-   own parts are the meters under their rows, the three-plan comparison and the
-   quantity stepper. Type sizes and colours are the rows' own. */
-
-.desktop-plan-note {
-  margin: 10px 0 0;
+/* Plan uses Settings sections and controls; only the comparison needs cards. */
+.desktop-plan-note,
+.desktop-plan-error {
+  margin: 0;
   padding-inline: 10px;
   color: var(--po-text-subtle);
-  font-size: var(--po-text-size-caption, 12px);
-  line-height: 1.4;
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .desktop-plan-error {
-  margin: 10px 0 0;
-  padding-inline: 10px;
   color: var(--po-danger);
-  font-size: var(--po-text-size-caption, 12px);
+}
+
+.desktop-plan-loading {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.desktop-plan-placeholder {
+  display: block;
+  max-width: 100%;
+  flex: none;
+  border-radius: 4px;
+}
+
+.desktop-plan-placeholder.name {
+  width: 108px;
+  height: calc(var(--po-text-size-section-title, 15px) * 1.4);
+}
+
+.desktop-plan-placeholder.detail {
+  width: 168px;
+  height: calc(var(--po-text-size-meta, 12px) * 1.5);
+}
+
+.desktop-plan-placeholder.action {
+  width: 100%;
+}
+
+.desktop-plan-usage-item > .desktop-plan-placeholder.detail {
+  height: calc(var(--po-text-size-meta, 12px) * 1.4);
+}
+
+.desktop-plan-placeholder.price {
+  width: 120px;
+  height: calc(var(--po-type-ui-page-title, 21px) * 1.25);
+}
+
+.desktop-plan-placeholder.reading {
+  width: 84px;
+  color: transparent;
+}
+
+.desktop-plan-placeholder.tagline {
+  width: 90%;
+  height: 1.5em;
+}
+
+.desktop-plan-placeholder.spec {
+  width: 100%;
+  min-height: 1.5em;
+}
+
+.desktop-plan-loading .desktop-plan-card-details {
+  min-height: 64px;
+}
+
+.desktop-plan-placeholder.action {
+  height: var(--po-control-size-compact);
+}
+
+.desktop-plan-load-error {
+  min-height: 150px;
+  gap: 16px;
+  color: var(--po-text-muted);
+}
+
+.desktop-plan-overview {
+  container-type: inline-size;
+  display: grid;
+  gap: 18px;
+  padding-block-end: 8px;
+}
+
+.desktop-plan-summary {
+  min-height: var(--desktop-settings-lead-row-height);
+  padding-block: 6px;
+}
+
+.desktop-plan-summary-main,
+.desktop-plan-addon-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.desktop-plan-summary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.desktop-plan-summary-heading h4,
+.desktop-plan-card-name {
+  margin: 0;
+  color: var(--po-text);
+  font-size: var(--po-text-size-section-title, 15px);
+  font-weight: var(--po-text-weight-medium, 500);
   line-height: 1.4;
 }
 
-.desktop-plan-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding-inline: 10px;
-}
-
-/* The Plan page reads like an instrument panel: monospace capitals for labels,
-   tabular figures for every number, hairline frames, and readings drawn as
-   segmented bars. Colours and type come from the theme, so skins and dark mode
-   carry over. */
-.desktop-plan-mono-label {
+.desktop-plan-summary-detail,
+.desktop-plan-addon-detail {
+  margin: 0;
   color: var(--po-text-subtle);
-  font-family: var(--po-font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  line-height: 1.3;
-  text-transform: uppercase;
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-/* Current plan ------------------------------------------------------------ */
-.desktop-plan-console {
-  overflow: hidden;
-  margin: 4px 10px 18px;
-  border: 1px solid var(--po-divider);
-  border-radius: 8px;
-  background-color: var(--po-panel, transparent);
-  background-image: radial-gradient(color-mix(in srgb, var(--po-text) 7%, transparent) 1px, transparent 1px);
-  background-size: 14px 14px;
+.desktop-plan-status {
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.4;
 }
 
-.desktop-plan-console-head,
-.desktop-plan-console-notice {
-  display: flex;
-  min-height: 44px;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--po-divider);
-  background: var(--po-panel, var(--po-surface));
+.desktop-plan-status.is-ending,
+.desktop-plan-status.is-updating {
+  color: var(--po-warning);
 }
 
-.desktop-plan-console-notice {
-  color: var(--po-text);
-  font-size: var(--po-text-size-label, 13px);
-  background: color-mix(in srgb, var(--po-accent) 6%, var(--po-panel, var(--po-surface)));
+.desktop-plan-status.is-attention {
+  color: var(--po-danger);
 }
 
-.desktop-plan-console-name {
-  color: var(--po-text);
-  font-size: var(--po-text-size-section-title, 15px);
-  font-weight: 600;
-}
-
-.desktop-plan-console-facts {
-  color: var(--po-text-muted);
-  font-family: var(--po-font-mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.desktop-plan-console-spacer {
-  flex: 1 1 auto;
-}
-
-.desktop-plan-lamp {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--po-text-subtle);
-}
-
-.desktop-plan-lamp.is-active {
-  background: var(--po-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--po-success) 20%, transparent);
-}
-
-.desktop-plan-lamp.is-ending,
-.desktop-plan-lamp.is-updating {
-  background: var(--po-warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--po-warning) 20%, transparent);
-}
-
-.desktop-plan-lamp.is-attention {
-  background: var(--po-danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--po-danger) 20%, transparent);
-}
-
-.desktop-plan-gauges {
+.desktop-plan-usage {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  padding-inline: 10px;
 }
 
-.desktop-plan-gauge {
+.desktop-plan-usage-item {
   display: grid;
+  min-width: 0;
+  align-content: start;
   gap: 8px;
-  padding: 14px;
 }
 
-.desktop-plan-gauge + .desktop-plan-gauge {
-  border-left: 1px solid var(--po-divider);
-}
-
-.desktop-plan-gauge-reading {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-family: var(--po-font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.desktop-plan-gauge-used {
-  color: var(--po-text);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.desktop-plan-gauge-total {
-  color: var(--po-text-subtle);
-  font-size: 13px;
-}
-
-.desktop-plan-segments {
-  display: grid;
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 2px;
-  height: 10px;
-}
-
-.desktop-plan-segments > span {
-  border-radius: 1px;
-  background: var(--po-control);
-}
-
-.desktop-plan-segments > span.on {
-  background: var(--po-accent);
-}
-
-.desktop-plan-segments.warning > span.on {
-  background: color-mix(in srgb, var(--po-warning) 70%, var(--po-accent));
-}
-
-.desktop-plan-segments.exhausted > span.on {
-  background: var(--po-warning);
-}
-
-.desktop-plan-segments.is-idle > span {
-  background: repeating-linear-gradient(-45deg, var(--po-control) 0 2px, transparent 2px 4px);
-}
-
-.desktop-plan-gauge-detail {
-  color: var(--po-text-subtle);
-  font-family: var(--po-font-mono);
-  font-size: 11px;
-}
-
-/* Which organization ----------------------------------------------------- */
-.desktop-plan-orgs {
+.desktop-plan-usage-heading {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 0 10px 12px;
-}
-
-.desktop-plan-orgs > .desktop-plan-mono-label {
-  margin-inline-end: 4px;
-}
-
-.desktop-plan-org {
-  min-height: var(--po-control-size-compact);
-  padding: 0 10px;
-  border: 1px solid var(--po-divider);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-label, 13px);
-  cursor: var(--po-clickable-cursor, default);
-}
-
-.desktop-plan-org:hover {
-  background: var(--po-hover);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
   color: var(--po-text);
-}
-
-.desktop-plan-org.selected {
-  border-color: color-mix(in srgb, var(--po-accent) 55%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-accent) 8%, transparent);
-  color: var(--po-text);
-}
-
-.desktop-plan-org:focus-visible {
-  box-shadow: 0 0 0 2px var(--po-focus-ring);
-  outline: none;
-}
-
-/* Plans as spec sheets ---------------------------------------------------- */
-.desktop-plan-sheets,
-.desktop-plan-modules {
-  margin: 0 0 18px;
-}
-
-.desktop-plan-sheets-title {
-  margin: 0 0 4px;
-  padding-inline: 10px;
-}
-
-.desktop-plan-sheets-claim {
-  margin: 0 0 10px;
-  padding-inline: 10px;
-  color: var(--po-text-muted);
   font-size: var(--po-text-size-label, 13px);
   line-height: 1.5;
 }
 
-.desktop-plan-sheets-claim strong {
+.desktop-plan-usage-value {
   color: var(--po-text);
-  font-weight: 600;
+  font-family: var(--po-font-mono);
+  font-size: var(--po-text-size-label, 13px);
+  font-variant-numeric: tabular-nums;
 }
 
-.desktop-plan-managed {
-  margin: 0 0 10px;
-}
-
-.desktop-plan-team-prompt {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 0 0;
-}
-
-.desktop-plan-card-fit {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  border-left: 2px solid var(--po-accent);
-  background: color-mix(in srgb, var(--po-accent) 4%, transparent);
-}
-
-.desktop-plan-card-fit ul {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.desktop-plan-card-fit li {
-  color: var(--po-text);
+.desktop-plan-usage-value > span,
+.desktop-plan-usage-detail {
+  color: var(--po-text-subtle);
   font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.45;
+  line-height: 1.4;
+}
+
+.desktop-plan-meter {
+  --desktop-plan-meter-color: #f87518;
+  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 15%, transparent);
+
+  display: grid;
+  grid-template-columns: repeat(var(--desktop-plan-meter-cells, 12), minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.desktop-plan-meter.is-storage {
+  --desktop-plan-meter-color: var(--po-brand-blue, #4599df);
+}
+
+.desktop-plan-meter-cell {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20%;
+  aspect-ratio: 1;
+}
+
+.desktop-plan-meter-tick {
+  position: relative;
+  background: var(--desktop-plan-meter-track);
+}
+
+.desktop-plan-meter-tick::before {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--desktop-plan-tick-fill, 0%);
+  background: var(--desktop-plan-meter-color);
+  content: "";
+}
+
+.desktop-plan-meter.warning {
+  --desktop-plan-meter-color: var(--po-warning);
+}
+
+.desktop-plan-meter.exhausted {
+  --desktop-plan-meter-color: var(--po-danger);
+}
+
+.desktop-plan-space-select {
+  max-width: 100%;
+}
+
+.desktop-plan-comparison {
+  container-type: inline-size;
+  min-width: 0;
 }
 
 .desktop-plan-grid {
   display: grid;
-  grid-template-columns: repeat(var(--desktop-plan-columns, 3), minmax(0, 1fr));
-  margin-inline: 10px;
-  border: 1px solid var(--po-divider);
-  border-radius: 8px;
-  overflow: hidden;
+  grid-template-columns: repeat(var(--desktop-plan-columns, 2), minmax(0, 1fr));
+  gap: 16px 12px;
+  margin: 10px 10px 0;
 }
 
 .desktop-plan-card {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  gap: 14px;
-  padding: 14px;
+  /* Heading, four allowance rows, details and action align across plans. */
+  grid-row: span 7;
+  grid-template-rows: subgrid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
   color: var(--po-text-muted);
-  font-size: var(--po-text-size-label, 13px);
-}
-
-.desktop-plan-card + .desktop-plan-card {
-  border-left: 1px solid var(--po-divider);
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.5;
 }
 
 .desktop-plan-card.current {
-  background: color-mix(in srgb, var(--po-accent) 5%, transparent);
-  box-shadow: inset 0 2px 0 var(--po-accent);
+  border-color: color-mix(in srgb, var(--po-text-subtle) 45%, var(--po-divider));
 }
 
 .desktop-plan-card-head {
   display: grid;
-  gap: 6px;
-}
-
-.desktop-plan-card-current {
-  color: var(--po-accent);
+  align-content: start;
+  gap: 8px;
 }
 
 .desktop-plan-card-price {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px;
-  font-family: var(--po-font-mono);
+  gap: 5px;
   font-variant-numeric: tabular-nums;
 }
 
 .desktop-plan-card-amount {
   color: var(--po-text);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-size: var(--po-type-ui-page-title, 21px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 1.25;
 }
 
 .desktop-plan-card-per {
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-text-size-meta, 12px);
 }
 
 .desktop-plan-card-tagline {
   color: var(--po-text-muted);
   font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.4;
 }
 
 .desktop-plan-spec {
   display: grid;
-  flex: 1 1 auto;
-  align-content: start;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  row-gap: 10px;
   margin: 0;
-  border-top: 1px solid var(--po-divider);
+  padding-block: 14px;
+  border-block: 1px solid var(--po-divider);
 }
 
 .desktop-plan-spec-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding-block: 6px;
-  border-bottom: 1px dashed var(--po-divider);
+  gap: 12px;
 }
 
 .desktop-plan-spec-row dt {
-  color: var(--po-text-subtle);
-  font-family: var(--po-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--po-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .desktop-plan-spec-row dd {
   margin: 0;
   color: var(--po-text);
-  font-family: var(--po-font-mono);
-  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.desktop-plan-card-fit {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  margin: 0;
+  padding-inline-start: 15px;
+  color: var(--po-text-subtle);
+}
+
+.desktop-plan-card-details {
+  display: grid;
+  align-content: start;
+  gap: 12px;
 }
 
 .desktop-plan-card-features {
@@ -1336,79 +1288,66 @@
 
 .desktop-plan-card-features li {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 6px;
-  color: var(--po-text-muted);
-  line-height: 1.4;
 }
 
 .desktop-plan-card-features svg {
   flex: none;
-  margin-top: 3px;
-  color: var(--po-accent);
+  align-self: center;
+  color: var(--po-text-muted);
 }
 
 .desktop-plan-card-action {
   display: flex;
   min-height: var(--po-control-size-compact);
   align-items: center;
+  justify-content: center;
+  margin-block-start: 4px;
 }
 
-/* Add-ons as modules ------------------------------------------------------- */
-.desktop-plan-module {
-  display: grid;
-  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  margin: 0 10px;
-  padding: 10px 14px;
-  border: 1px solid var(--po-divider);
-  border-radius: 8px;
-}
-
-.desktop-plan-module + .desktop-plan-module {
-  margin-top: 6px;
-}
-
-.desktop-plan-module.held {
-  border-color: color-mix(in srgb, var(--po-accent) 40%, var(--po-divider));
-}
-
-.desktop-plan-module-index {
-  color: var(--po-accent);
-  font-family: var(--po-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.desktop-plan-module-name {
-  color: var(--po-text);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: 500;
-}
-
-.desktop-plan-module-detail {
-  color: var(--po-text-muted);
-  font-family: var(--po-font-mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.desktop-plan-card-team-action {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.desktop-plan-card-action > .desktop-settings-action {
+  width: 100%;
 }
 
 .desktop-plan-current-badge {
+  display: inline-flex;
+  min-height: var(--po-control-size-compact);
+  align-items: center;
+  gap: 6px;
   color: var(--po-text-subtle);
   font-size: var(--po-text-size-meta, 12px);
   font-weight: var(--po-text-weight-medium, 500);
 }
 
+.desktop-plan-team-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.desktop-plan-team-prompt > span {
+  flex: 1 1 260px;
+}
+
+.desktop-plan-addon {
+  padding-block: 10px;
+}
+
+.desktop-plan-card-team-action,
+.desktop-plan-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .desktop-plan-stepper {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
 }
@@ -1427,30 +1366,10 @@
   white-space: nowrap;
 }
 
-.desktop-plan-inline-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-@media (max-width: 760px) {
+@container (max-width: 520px) {
   .desktop-plan-grid,
-  .desktop-plan-gauges {
+  .desktop-plan-usage {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .desktop-plan-card + .desktop-plan-card,
-  .desktop-plan-gauge + .desktop-plan-gauge {
-    border-left: 0;
-    border-top: 1px solid var(--po-divider);
-  }
-
-  .desktop-plan-module {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .desktop-plan-module-detail {
-    grid-column: 2 / 3;
   }
 }
 

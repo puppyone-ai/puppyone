@@ -4,10 +4,7 @@ import {
   createCloudBillingCheckout,
   createCloudBillingPortal,
   createDesktopBillingIdempotencyKey,
-  getCloudBillingCatalog,
   getCloudBillingOperation,
-  getCloudBillingSummary,
-  getCloudBillingUsage,
   listCloudBillingOperations,
   openCloudBillingExternalUrl,
   quoteCloudBillingPlan,
@@ -19,6 +16,7 @@ import {
   type DesktopBillingUsage,
   type DesktopCloudSession,
 } from "../../../lib/cloudApi";
+import { loadBillingCatalog, loadBillingSummary, loadBillingUsage } from "./billingReadCache";
 
 export type SessionChangeHandler = (session: DesktopCloudSession | null) => void;
 
@@ -81,9 +79,10 @@ export type CloudBillingControllerDependencies = {
 };
 
 export const DEFAULT_CLOUD_BILLING_DEPENDENCIES: CloudBillingControllerDependencies = {
-  getCatalog: getCloudBillingCatalog,
-  getSummary: getCloudBillingSummary,
-  getUsage: getCloudBillingUsage,
+  // Controller refreshes follow billing actions and polling: always revalidate.
+  getCatalog: (session, handler, api) => loadBillingCatalog(session, handler, api, true),
+  getSummary: (session, org, handler, api) => loadBillingSummary(session, org, handler, api, true),
+  getUsage: (session, org, handler, api) => loadBillingUsage(session, org, handler, api, true),
   listOperations: listCloudBillingOperations,
   getOperation: getCloudBillingOperation,
   quotePlan: quoteCloudBillingPlan,

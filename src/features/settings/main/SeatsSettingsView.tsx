@@ -13,6 +13,7 @@ import { SpaceSettings } from "./SpaceSettings";
 /** The current Space owns members, configuration, plan and usage. */
 export function SeatsSettingsView({
   cloudSession,
+  cloudSessionRestoring = false,
   organizationId,
   spaceName,
   onSpaceChange,
@@ -22,6 +23,7 @@ export function SeatsSettingsView({
   signInDisabled = false,
 }: {
   cloudSession: DesktopCloudSession | null;
+  cloudSessionRestoring?: boolean;
   organizationId?: string | null;
   spaceName?: string | null;
   onSpaceChange?: () => void;
@@ -43,7 +45,7 @@ export function SeatsSettingsView({
     session,
     apiBaseUrl: resolvedApiBaseUrl,
     onSessionChange: onCloudSessionChange,
-    enabled: payments,
+    enabled: payments && !cloudSessionRestoring,
     organizationId,
   });
 
@@ -69,6 +71,8 @@ export function SeatsSettingsView({
             summary={snapshot.summary}
             usage={snapshot.usage}
             loading={snapshot.loading}
+            restoring={cloudSessionRestoring}
+            loadError={snapshot.error}
             onRefresh={snapshot.refresh}
             localization={localization}
             onSignIn={onSignIn}

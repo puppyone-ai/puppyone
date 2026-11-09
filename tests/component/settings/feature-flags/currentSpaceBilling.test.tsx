@@ -3,9 +3,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useAccountPlan } from "../../../../src/features/settings/main/useAccountPlan";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import * as api from "../../../../src/lib/cloudApi";
 
-vi.mock("../../../../src/lib/cloudApi", () => ({
+vi.mock("../../../../src/lib/cloudApi", async () => ({
+  ...await vi.importActual<typeof import("../../../../src/lib/cloudApi")>("../../../../src/lib/cloudApi"),
   getCloudBillingCatalog: vi.fn(), getCloudBillingSummary: vi.fn(),
   getCloudBillingUsage: vi.fn(), getCloudOrganizationAccess: vi.fn(),
 }));
@@ -25,14 +27,14 @@ function Harness({ id = "a", signedIn = true, enabled = true }: { id?: string | 
 }
 function summary(org_id: string) { return { org_id } as api.DesktopBillingSummary; }
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.resetAllMocks(); cloudCache.clear();
   vi.mocked(api.getCloudBillingCatalog).mockResolvedValue(null as never);
   vi.mocked(api.getCloudBillingSummary).mockImplementation(async (_session, id) => summary(id));
   vi.mocked(api.getCloudBillingUsage).mockResolvedValue(null as never);
   vi.mocked(api.getCloudOrganizationAccess).mockImplementation(async (_session, id) => ({ org_id: id, can_manage_billing: true }) as never);
   root = createRoot(document.createElement("div"));
 });
-afterEach(async () => { await act(async () => root.unmount()); });
+afterEach(async () => { await act(async () => root.unmount()); cloudCache.clear(); });
 
 it("ignores a delayed old-Space bill after navigation has loaded the new Space", async () => {
   let finish!: (value: api.DesktopBillingSummary) => void;

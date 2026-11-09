@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  getCloudBillingCatalog, getCloudBillingSummary, getCloudBillingUsage, getCloudOrganizationAccess,
-  type DesktopBillingCatalog, type DesktopBillingSummary, type DesktopBillingUsage, type DesktopCloudSession,
-} from "../../../lib/cloudApi";
+import { getCloudOrganizationAccess, type DesktopBillingCatalog, type DesktopBillingSummary,
+  type DesktopBillingUsage, type DesktopCloudSession } from "../../../lib/cloudApi";
+import { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillingUsage,
+  readBillingResource, createCloudBillingContextKey, type BillingReadScope } from "../../cloud";
 
-/** Read-only billing projection for the window's explicit Space. Wallet state is separate. */
+/** Cached readings belong to the window's explicit Space; personal wallets are separate. */
 export type AccountPlanSnapshot = {
   catalog: DesktopBillingCatalog | null;
   summary: DesktopBillingSummary | null;
@@ -12,57 +12,84 @@ export type AccountPlanSnapshot = {
   organizationId: string | null;
   canManageBilling: boolean | null;
   loading: boolean;
+  error: boolean;
 };
 const EMPTY: AccountPlanSnapshot = {
-  catalog: null, summary: null, usage: null, organizationId: null, canManageBilling: null, loading: false,
+  catalog: null, summary: null, usage: null, organizationId: null,
+  canManageBilling: null, loading: false, error: false,
 };
-
+function cachedSnapshot(scope: BillingReadScope): AccountPlanSnapshot {
+  return {
+    catalog: readBillingResource({ ...scope, organizationId: null }, "catalog") ?? null,
+    summary: readBillingResource(scope, "summary") ?? null,
+    usage: readBillingResource(scope, "usage") ?? null,
+    organizationId: scope.organizationId ?? null,
+    canManageBilling: readBillingResource(scope, "access")?.can_manage_billing ?? null,
+    loading: true, error: false,
+  };
+}
 export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled, organizationId = null }: {
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
   onSessionChange: (session: DesktopCloudSession | null) => void;
   enabled: boolean;
   organizationId?: string | null;
-}): AccountPlanSnapshot & { refresh: () => void } {
-  const [snapshot, setSnapshot] = useState<AccountPlanSnapshot>(EMPTY);
+}): AccountPlanSnapshot & { refresh: (force?: boolean) => void } {
+  const contextKey = enabled && session && organizationId
+    ? createCloudBillingContextKey(session, apiBaseUrl, organizationId) : "";
+  const scope = contextKey && session ? { session, apiBaseUrl, organizationId } : null;
+  const [stored, setStored] = useState(() => ({ contextKey, snapshot: scope ? cachedSnapshot(scope) : EMPTY }));
+  let snapshot = scope ? cachedSnapshot(scope) : EMPTY;
+  if (stored.contextKey === contextKey) snapshot = stored.snapshot;
   const [revision, setRevision] = useState(0);
   const epochRef = useRef(0);
-  const loadedForRef = useRef("");
-  const sessionRef = useRef(session);
-  const onSessionChangeRef = useRef(onSessionChange);
-  useLayoutEffect(() => {
-    sessionRef.current = session;
-    onSessionChangeRef.current = onSessionChange;
-  }, [session, onSessionChange]);
-  const sessionKey = session ? `${session.user_id}|${session.session_generation}|${session.api_base_url}` : "";
-  const scope = `${sessionKey}|${apiBaseUrl}|${organizationId}`;
+  const refreshRef = useRef(false);
+  const latest = useRef({ session, onSessionChange });
+  useLayoutEffect(() => { latest.current = { session, onSessionChange }; }, [session, onSessionChange]);
 
   useEffect(() => {
     const epoch = ++epochRef.current;
-    const currentSession = sessionRef.current;
-    if (!enabled || !currentSession || !organizationId) { setSnapshot(EMPTY); return; }
-    setSnapshot((current) => ({ ...current, loading: true }));
-    const handleSessionChange = (next: DesktopCloudSession | null) => onSessionChangeRef.current(next);
+    const currentSession = latest.current.session;
+    if (!contextKey || !currentSession || !organizationId) { setStored({ contextKey, snapshot: EMPTY }); return; }
+    const selected = { session: currentSession, apiBaseUrl, organizationId };
+    const force = refreshRef.current;
+    refreshRef.current = false;
+    setStored((current) => ({ contextKey, snapshot: current.contextKey === contextKey && current.snapshot.summary
+      ? { ...current.snapshot, loading: true, error: false } : cachedSnapshot(selected) }));
+    const handleSessionChange = (next: DesktopCloudSession | null) => {
+      if (epoch === epochRef.current) latest.current.onSessionChange(next);
+    };
+    let failed = false;
+    const fallback = <T,>(promise: Promise<T>, cached: T | null): Promise<T | null> => promise.catch(() => {
+      failed = true; return cached;
+    });
     void Promise.all([
-      getCloudBillingCatalog(currentSession, handleSessionChange, apiBaseUrl).catch(() => null),
-      getCloudBillingSummary(currentSession, organizationId, handleSessionChange, apiBaseUrl).catch(() => null),
-      getCloudBillingUsage(currentSession, organizationId, handleSessionChange, apiBaseUrl).catch(() => null),
-      getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl).catch(() => null),
+      fallback(loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, force),
+        readBillingResource({ ...selected, organizationId: null }, "catalog") ?? null),
+      fallback(loadBillingSummary(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
+        readBillingResource(selected, "summary") ?? null),
+      fallback(loadBillingUsage(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
+        readBillingResource(selected, "usage") ?? null),
+      fallback(loadBillingResource(selected, "access", async () => {
+        const access = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl);
+        if (access.org_id !== organizationId) throw new Error("Billing access space mismatch.");
+        return access;
+      }, force), readBillingResource(selected, "access") ?? null),
     ]).then(([catalog, summary, usage, access]) => {
       if (epoch !== epochRef.current) return;
-      loadedForRef.current = scope;
-      setSnapshot({ catalog, organizationId,
-        summary: summary?.org_id === organizationId ? summary : null,
-        usage: usage?.runtime.org_id === organizationId ? usage : null,
-        canManageBilling: access?.org_id === organizationId ? access.can_manage_billing : null,
-        loading: false,
-      });
+      setStored({ contextKey, snapshot: { catalog, summary, usage, organizationId,
+        canManageBilling: access?.can_manage_billing ?? null, loading: false, error: failed || summary === null } });
     });
     return () => { epochRef.current += 1; };
-  }, [apiBaseUrl, enabled, organizationId, revision, scope]);
+  }, [apiBaseUrl, contextKey, organizationId, revision]);
 
-  const refresh = useCallback(() => setRevision((value) => value + 1), []);
-  const matches = enabled && Boolean(session) && loadedForRef.current === scope;
-  return { ...(matches ? snapshot : { ...EMPTY, organizationId,
-    loading: enabled && Boolean(session) && Boolean(organizationId) }), refresh };
+  useEffect(() => {
+    if (!contextKey) return;
+    const revalidate = () => { if (!document.hidden) setRevision((value) => value + 1); };
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => { window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
+  }, [contextKey]);
+  const refresh = useCallback((force = true) => { refreshRef.current = force; setRevision((value) => value + 1); }, []);
+  return { ...snapshot, refresh };
 }
