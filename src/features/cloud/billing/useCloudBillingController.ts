@@ -42,13 +42,13 @@ type UseCloudBillingControllerOptions = {
   enabled: boolean;
   onSessionChange: SessionChangeHandler;
   t: MessageFormatter;
-  /** Settings owns these readings; only operations and explicit refreshes load here. */
+  /** Settings owns displayed readings; manual refresh requests a fresh owner snapshot. */
   readSnapshot?: {
     catalog: DesktopBillingCatalog | null;
     summary: DesktopBillingSummary | null;
     usage: DesktopBillingUsage | null;
   };
-  onSnapshotChange?: () => void;
+  onSnapshotChange?: (force?: boolean) => void;
 };
 
 export function useCloudBillingController(
@@ -89,7 +89,7 @@ export function useCloudBillingController(
     epoch: number;
     promise: Promise<void>;
   } | null>(null);
-  const trailingRefreshContextRef = useRef<string | null>(null);
+  const trailingRefreshContextRef = useRef<{ contextKey: string; operationsOnly: boolean } | null>(null);
   const runLoadRef = useRef<(operationsOnly?: boolean) => Promise<void>>(async () => undefined);
   const snapshotChangeRef = useRef(onSnapshotChange);
   useLayoutEffect(() => { snapshotChangeRef.current = onSnapshotChange; }, [onSnapshotChange]);
@@ -109,7 +109,9 @@ export function useCloudBillingController(
 
     const activeLoad = activeLoadRef.current;
     if (activeLoad?.contextKey === capturedContextKey) {
-      trailingRefreshContextRef.current = capturedContextKey;
+      const trailing = trailingRefreshContextRef.current;
+      trailingRefreshContextRef.current = { contextKey: capturedContextKey,
+        operationsOnly: trailing?.contextKey === capturedContextKey ? trailing.operationsOnly && operationsOnly : operationsOnly };
       return activeLoad.promise;
     }
 
@@ -154,7 +156,7 @@ export function useCloudBillingController(
         contextKey: capturedContextKey,
         result: { catalog: result.catalog, summary: result.summary, usage: result.usage, operations: result.operations },
       });
-      snapshotChangeRef.current?.();
+      snapshotChangeRef.current?.(false);
     }).catch((error: unknown) => {
       if (!isCurrentContext(capturedContextKey) || epoch !== requestEpochRef.current) return;
       dispatch({
@@ -165,12 +167,13 @@ export function useCloudBillingController(
     }).finally(() => {
       if (activeLoadRef.current?.epoch !== epoch) return;
       activeLoadRef.current = null;
-      if (trailingRefreshContextRef.current !== capturedContextKey
+      const trailing = trailingRefreshContextRef.current;
+      if (trailing?.contextKey !== capturedContextKey
         || !isCurrentContext(capturedContextKey)) {
         return;
       }
       trailingRefreshContextRef.current = null;
-      queueMicrotask(() => void runLoadRef.current());
+      queueMicrotask(() => void runLoadRef.current(trailing.operationsOnly));
     });
     activeLoadRef.current = { contextKey: capturedContextKey, epoch, promise };
     return promise;
@@ -324,8 +327,10 @@ export function useCloudBillingController(
 
   const refresh = useCallback(() => {
     dispatch({ type: "clearActionError", contextKey });
-    return runLoadRef.current();
-  }, [contextKey]);
+    // Settings owns the displayed readings. Request them even if operations fail.
+    if (externallyLoaded) snapshotChangeRef.current?.(true);
+    return runLoadRef.current(externallyLoaded);
+  }, [contextKey, externallyLoaded]);
 
   const setSeatQuantity = useCallback((value: number) => {
     dispatch({ type: "setSeatQuantity", contextKey, value });

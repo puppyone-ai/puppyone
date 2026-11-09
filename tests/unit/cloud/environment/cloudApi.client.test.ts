@@ -32,6 +32,7 @@ import {
 } from "../../../../src/lib/cloudApi";
 import { getCloudHistory, normalizeCloudHistory } from "../../../../src/lib/cloudHistoryApi";
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
+import { BILLING_READ_TIMEOUT_MS, withBillingReadDeadline } from "../../../../src/features/cloud/billing/billingReadCache";
 
 const API = "https://api.puppyone.ai/api/v1";
 const publishContract = JSON.parse(readFileSync(new URL("../../../fixtures/cloud/contracts/cloud-project-publish-v1.json", import.meta.url), "utf8"));
@@ -56,10 +57,26 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete (globalThis as unknown as { window?: unknown }).window;
 });
 
 describe("cloud API client delegation", () => {
+  it("cancels the secure billing read on deadline even if its IPC promise stalls", async () => {
+    vi.useFakeTimers();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    window.puppyoneDesktop!.cancelCloudSessionApi = cancel;
+    let finish!: (value: unknown) => void;
+    bridge.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const pending = withBillingReadDeadline((signal) => getCloudBillingCatalog(session, undefined, API, signal));
+    const rejected = expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+    await vi.advanceTimersByTimeAsync(BILLING_READ_TIMEOUT_MS);
+    await rejected;
+    expect(cancel).toHaveBeenCalledExactlyOnceWith(bridge.mock.calls[0]?.[0].requestId);
+    expect(bridge.mock.calls[0]?.[0].requestId).toEqual(expect.any(String));
+    finish(validBillingCatalog());
+    await Promise.resolve();
+  });
   it("does not invalidate file reads when resolving a repository context through POST", async () => {
     cloudCache.clear();
     const context = { session, projectId: "project-1", revision: "one", resource: "directory" };

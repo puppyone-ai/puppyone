@@ -109,7 +109,7 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled }
       const [catalog, organizations] = await Promise.all([
         fallback(loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, refresh), readBillingResource(readScope, "catalog") ?? null),
         fallback(loadBillingResource(readScope, "organizations",
-          () => listCloudOrganizations(currentSession, handleSessionChange, apiBaseUrl), refresh), readBillingResource(readScope, "organizations") ?? null),
+          (signal) => listCloudOrganizations(currentSession, handleSessionChange, apiBaseUrl, signal), refresh), readBillingResource(readScope, "organizations") ?? null),
       ]);
       if (epoch !== epochRef.current) return;
       const ordered = (organizations ?? []).slice()
@@ -120,8 +120,8 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled }
       const [summary, usage, access] = organizationId ? await Promise.all([
         fallback(loadBillingSummary(currentSession, organizationId, handleSessionChange, apiBaseUrl, refresh), readBillingResource(selected, "summary") ?? null),
         fallback(loadBillingUsage(currentSession, organizationId, handleSessionChange, apiBaseUrl, refresh), readBillingResource(selected, "usage") ?? null),
-        fallback(loadBillingResource(selected, "access", async () => {
-          const result = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl);
+        fallback(loadBillingResource(selected, "access", async (signal) => {
+          const result = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl, signal);
           if (result.org_id !== organizationId) throw new Error("Billing access space mismatch.");
           return result;
         }, refresh), readBillingResource(selected, "access") ?? null),
@@ -157,7 +157,7 @@ export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled }
   }, [accountKey]);
 
   const refresh = useCallback((force = true) => {
-    refreshRef.current = force;
+    refreshRef.current = refreshRef.current || force;
     setRevision((value) => value + 1);
   }, []);
   const selectOrganization = useCallback((id: string) => setSelection({ accountKey, id }), [accountKey]);

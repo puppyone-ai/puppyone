@@ -134,7 +134,7 @@ function ConnectedPlans({
   const controller = useCloudBillingController({
     session, apiBaseUrl, organizationId, enabled: true, onSessionChange, t,
     readSnapshot: { catalog, summary, usage },
-    onSnapshotChange: () => onRefresh(false),
+    onSnapshotChange: onRefresh,
   });
   const billing = controller.state;
   const view = resolvePlanCatalog(billing.catalog ?? catalog);
@@ -167,9 +167,8 @@ function ConnectedPlans({
   const quoteTiming = describeQuoteTiming(billing.quote, holding, localization);
 
   const refreshAll = useCallback(() => {
-    controller.refresh();
-    onRefresh();
-  }, [controller, onRefresh]);
+    void controller.refresh();
+  }, [controller]);
 
   const choose = (plan: PlanOffer) => {
     if (!plan.catalogPlan) return;
