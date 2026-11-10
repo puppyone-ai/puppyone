@@ -24,12 +24,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { resolveGitRepositoryIdentity as defaultResolveIdentity } from "../local-api/workspace.mjs";
+import { readGitMetadataSnapshot } from "./git-metadata-snapshot.mjs";
 
 export const GIT_REPOSITORY_INVALIDATED_CHANNEL = "git-repository:invalidated";
 
 export const GIT_METADATA_INVALIDATION_DEBOUNCE_MS = 120;
 export const GIT_METADATA_REARM_MIN_DELAY_MS = 250;
 export const GIT_METADATA_REARM_MAX_DELAY_MS = 30_000;
+export const GIT_METADATA_RECONCILE_MS = 2000;
 
 let subscriptionSequence = 0;
 
@@ -37,6 +39,7 @@ export function createGitMetadataWatchService({
   logger = console,
   resolveIdentity = defaultResolveIdentity,
   fsModule = fs,
+  readMetadataSnapshot = readGitMetadataSnapshot,
 } = {}) {
   // Keyed by canonical worktree identity (topLevel + gitDir + commonDir).
   const repositories = new Map();
@@ -84,13 +87,15 @@ export function createGitMetadataWatchService({
     });
   }
 
-  function attachRepositorySubscription({ subscriptionId, sender, onSenderDestroyed, identity }) {
+  async function attachRepositorySubscription({ subscriptionId, sender, onSenderDestroyed, identity }) {
     const identityKey = buildIdentityKey(identity);
     let repository = repositories.get(identityKey);
     if (!repository) {
       repository = createRepositoryWatch(identity, identityKey);
       repositories.set(identityKey, repository);
       armRepositoryWatchers(repository);
+      repository.snapshotReady = readMetadataSnapshot(identity, { isStopped: () => repository.disposed })
+        .then((snapshot) => { repository.metadataSnapshot = snapshot; }).catch(() => {});
     }
 
     repository.clients.set(subscriptionId, sender);
@@ -102,6 +107,11 @@ export function createGitMetadataWatchService({
       workspaceRoot: identity.topLevel,
       identityKey,
     });
+
+    // Establish the comparison baseline before acknowledging the subscription.
+    // A cold or silently failed OS stream must not lose its first operation.
+    await repository.snapshotReady;
+    scheduleRepositoryReconcile(repository);
 
     logger.info?.("git metadata watch started", {
       subscriptionId,
@@ -232,7 +242,33 @@ export function createGitMetadataWatchService({
       rearmTimer: null,
       rearmDelay: GIT_METADATA_REARM_MIN_DELAY_MS,
       disposed: false,
+      reconcileTimer: null,
+      snapshotReady: null,
+      metadataSnapshot: null,
+      reconciling: false,
     };
+  }
+
+  function scheduleRepositoryReconcile(repository) {
+    if (repository.disposed || repository.reconcileTimer || repository.reconciling) return;
+    repository.reconcileTimer = setTimeout(async () => {
+      repository.reconcileTimer = null;
+      repository.reconciling = true;
+      try {
+        const snapshot = await readMetadataSnapshot(repository.identity, { isStopped: () => repository.disposed });
+        if (!repository.disposed && (snapshot === null || snapshot !== repository.metadataSnapshot)) {
+          repository.metadataSnapshot = snapshot;
+          broadcastInvalidation(repository, "git-metadata");
+          armRepositoryWatchers(repository);
+        }
+      } catch {
+        if (!repository.disposed) broadcastInvalidation(repository, "git-metadata");
+      } finally {
+        repository.reconciling = false;
+        scheduleRepositoryReconcile(repository);
+      }
+    }, GIT_METADATA_RECONCILE_MS);
+    repository.reconcileTimer.unref?.();
   }
 
   function subscribePendingRoot(workspaceRoot, subscriptionId) {
@@ -242,6 +278,7 @@ export function createGitMetadataWatchService({
         subscriptionIds: new Set(),
         watcher: null,
         rearmTimer: null,
+        reconcileTimer: null,
         rearmDelay: GIT_METADATA_REARM_MIN_DELAY_MS,
         disposed: false,
         promotionPromise: null,
@@ -261,6 +298,24 @@ export function createGitMetadataWatchService({
     // Close the resolve-identity -> watcher-install TOCTOU gap. If `git init`
     // completed between those two steps there may be no future root event.
     void promotePendingRoot(workspaceRoot, "repository-initialized");
+    schedulePendingReconcile(workspaceRoot, entry);
+  }
+
+  function schedulePendingReconcile(workspaceRoot, entry) {
+    if (entry.disposed || entry.reconcileTimer) return;
+    entry.reconcileTimer = setTimeout(async () => {
+      entry.reconcileTimer = null;
+      try {
+        if (!entry.disposed && fsModule.existsSync(path.join(workspaceRoot, ".git"))) {
+          await promotePendingRoot(workspaceRoot, "repository-initialized");
+        }
+      } catch {
+        // Git initialization can race identity resolution; retry on the next tick.
+      } finally {
+        schedulePendingReconcile(workspaceRoot, entry);
+      }
+    }, GIT_METADATA_RECONCILE_MS);
+    entry.reconcileTimer.unref?.();
   }
 
   function armPendingWatcher(workspaceRoot, entry) {
@@ -369,7 +424,7 @@ export function createGitMetadataWatchService({
     for (const subscriptionId of subscriptionIds) {
       const subscription = subscriptions.get(subscriptionId);
       if (!subscription || subscription.kind !== "pending") continue;
-      attachRepositorySubscription({
+      await attachRepositorySubscription({
         subscriptionId,
         sender: subscription.sender,
         onSenderDestroyed: subscription.onSenderDestroyed,
@@ -592,6 +647,7 @@ export function createGitMetadataWatchService({
     if (!entry) return;
     entry.disposed = true;
     clearTimeout(entry.rearmTimer);
+    clearTimeout(entry.reconcileTimer);
     entry.rearmTimer = null;
     if (entry.watcher) {
       try {
@@ -607,6 +663,7 @@ export function createGitMetadataWatchService({
     repository.disposed = true;
     clearTimeout(repository.debounceTimer);
     clearTimeout(repository.rearmTimer);
+    clearTimeout(repository.reconcileTimer);
     repository.debounceTimer = null;
     repository.rearmTimer = null;
     unbindCommonDir(repository);

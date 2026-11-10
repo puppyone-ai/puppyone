@@ -7,6 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -66,19 +68,6 @@ async function waitFor(predicate, { timeout = 5000, interval = 40 } = {}) {
   }
 }
 
-// fs.watch returning does not establish that the native directory stream has
-// delivered an event yet. Prime the fixture with real, harmless local config
-// writes before testing subscription ownership or a sequence of Git operations.
-async function waitForMetadataWatchReady(events) {
-  const baseline = events.length;
-  let probe = 0;
-  await waitFor(() => {
-    if (events.length > baseline) return true;
-    git(["config", "--local", "puppyone.fixtureWatchReady", String(++probe)]);
-    return false;
-  });
-}
-
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "puppyone-git-meta-"));
 });
@@ -107,6 +96,47 @@ describe("resolveGitRepositoryIdentity", { timeout: 30_000 }, () => {
 });
 
 describe("git metadata watch service", { timeout: 30_000 }, () => {
+  function silentNativeService() {
+    return trackService(createGitMetadataWatchService({ logger: silentLogger(), fsModule: {
+      ...fs, watch: () => Object.assign(new EventEmitter(), { close() {} }),
+    } }));
+  }
+
+  it("reconciles a cold external commit and ref change when native events are silent", async () => {
+    initRepoWithIdentity();
+    await writeFile(path.join(root, "tracked.txt"), "before\n");
+    git(["add", "tracked.txt"]);
+    git(["commit", "-m", "initial"]);
+    const originalHead = git(["rev-parse", "HEAD"]);
+    const service = silentNativeService();
+    const { sender, events } = createRecordingSender(50);
+    const subscription = await service.start(sender, root);
+    git(["checkout", "-b", "silent-stream"]);
+    await writeFile(path.join(root, "tracked.txt"), "after\n");
+    git(["add", "tracked.txt"]);
+    git(["commit", "-m", "external"]);
+    await waitFor(() => events.some((event) => event.payload.reason === "git-metadata"));
+    const status = await getWorkspaceGitStatus(root);
+    expect(status.branch).toBe("silent-stream");
+    expect(status.headCommitId).not.toBe(originalHead);
+    expect(status.entries).toHaveLength(0);
+    service.stop(subscription.subscriptionId);
+    expect(service.getWatcherCount()).toBe(0);
+  });
+
+  it("promotes a cold non-repository after git init without a native event", async () => {
+    const service = silentNativeService();
+    const { sender, events } = createRecordingSender(51);
+    const subscription = await service.start(sender, root);
+    expect(subscription.repository).toBe(false);
+    initRepoWithIdentity();
+    await waitFor(() => events.some((event) => event.payload.reason === "repository-initialized"));
+    expect(service.getWatcherCount()).toBe(1);
+    expect(service.getPendingRootCount()).toBe(0);
+    service.stop(subscription.subscriptionId);
+    expect(service.getWatcherCount()).toBe(0);
+  });
+
   it("invalidates Git immediately after a renderer-owned working-tree write", async () => {
     initRepoWithIdentity();
     await writeFile(path.join(root, "tracked.txt"), "one\n");
@@ -337,10 +367,10 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
 
     await waitFor(() => service.getWatcherCount() === 1 && service.getPendingRootCount() === 0);
     expect(identityReads).toBeGreaterThanOrEqual(2);
-    expect(events.some((event) => (
+    await waitFor(() => events.some((event) => (
       event.channel === GIT_REPOSITORY_INVALIDATED_CHANNEL
       && event.payload.reason === "repository-initialized"
-    ))).toBe(true);
+    )));
 
     service.stop(subscription.subscriptionId);
   });
@@ -477,7 +507,6 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
     const oldSub = await service.start(first.sender, root);
     const newSub = await service.start(second.sender, root);
     expect(service.getWatcherCount()).toBe(1);
-    await waitForMetadataWatchReady(second.events);
 
     // Stale Strict Mode cleanup stops only the old token.
     service.stop(oldSub.subscriptionId);
@@ -535,7 +564,6 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
     const service = trackService(createGitMetadataWatchService({ logger: silentLogger() }));
     const { events, sender } = createRecordingSender(14);
     const subscription = await service.start(sender, root);
-    await waitForMetadataWatchReady(events);
 
     let baseline = events.length;
     try {
