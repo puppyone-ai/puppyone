@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { LogOut, Plus, Settings, UserRound } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
@@ -9,14 +9,16 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 /**
  * The account at the trailing end of the Header: "Sign in" when signed out,
  * otherwise the account's initial, which opens a menu naming who is signed in,
- * with Account (where the plan and the AI balance are topped up), Settings and
- * Sign out. The same control on the Homepage and inside every project.
+ * with Account (where the plan and the AI balance are topped up), Settings, a new
+ * Space and Sign out. The same control on the Homepage and inside every project.
  */
-export function CloudAccountButton({ session, onSignIn, onOpenAccount, onOpenSettings, onSignOut }: {
+export function CloudAccountButton({ session, onSignIn, onOpenAccount, onOpenSettings, onCreateSpace, onSignOut }: {
   session: DesktopCloudSession | null;
   onSignIn: () => void;
   onOpenAccount: () => void;
   onOpenSettings?: () => void;
+  /** A Space belongs to the account that starts it, which owns and pays for it. */
+  onCreateSpace?: () => void;
   onSignOut?: () => void;
 }) {
   const { t } = useLocalization();
@@ -39,6 +41,11 @@ export function CloudAccountButton({ session, onSignIn, onOpenAccount, onOpenSet
           {onOpenSettings && <DesktopMenuItem icon={<Settings size={15} />} label={t("shell.navigation.settings")}
             onClick={choose(onOpenSettings)} />}
         </DesktopMenuSection>
+        {onCreateSpace && <>
+          <DesktopMenuSeparator />
+          <DesktopMenuItem icon={<Plus size={15} />} label={t("settings.space.create")}
+            onClick={choose(onCreateSpace)} />
+        </>}
         {onSignOut && <>
           <DesktopMenuSeparator />
           <DesktopMenuItem icon={<LogOut size={15} />} label={t("settings.account.signOut")}
@@ -55,14 +62,15 @@ export function CloudAccountButton({ session, onSignIn, onOpenAccount, onOpenSet
 }
 
 /** The Header's account control, with its own sign-in flow. */
-export function ProjectHeaderAccount({ session, apiBaseUrl, onOpenAccount, onOpenSettings, onSignOut }: {
+export function ProjectHeaderAccount({ session, apiBaseUrl, onOpenAccount, onOpenSettings, onCreateSpace, onSignOut }: {
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onOpenAccount: () => void;
   onOpenSettings?: () => void;
+  onCreateSpace?: () => void;
   onSignOut?: () => void;
 }) {
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   return <CloudAccountButton session={session} onSignIn={auth.startSignIn} onOpenAccount={onOpenAccount}
-    onOpenSettings={onOpenSettings} onSignOut={onSignOut} />;
+    onOpenSettings={onOpenSettings} onCreateSpace={onCreateSpace} onSignOut={onSignOut} />;
 }

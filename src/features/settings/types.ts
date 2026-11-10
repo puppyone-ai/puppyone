@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
@@ -42,7 +41,6 @@ export type SettingsViewProps = {
 };
 
 export type SettingsSidebarProps = {
-  spaceHeading?: ReactNode;
   currentSpaceId?: string | null;
   currentSpaceName?: string | null;
   localWorkspaceAvailable?: boolean;

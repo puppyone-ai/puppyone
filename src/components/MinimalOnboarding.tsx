@@ -66,6 +66,7 @@ export type MinimalOnboardingProps = {
   cloudSpaces?: readonly CloudSpace[];
   cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
   onRetryCloudSpaces?: () => void;
+  onManageSpace?: (spaceId: string) => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
   onShareLocalFolder?: (path: string) => Promise<void>;
   /** Local projects whose folder cannot be opened now, with the few words that say why. */
@@ -113,6 +114,7 @@ export function MinimalOnboarding({
   cloudSpaces = [],
   cloudSpacesStatus = "signed-out",
   onRetryCloudSpaces,
+  onManageSpace,
   onPublishToSpace,
   onShareLocalFolder,
   unavailableProjects,
@@ -290,6 +292,7 @@ export function MinimalOnboarding({
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
     onDragEnd: () => setDraggingPath(null),
+    onManageSpace,
   });
   const entry = onboardingEntrySlots(hasProjects, {
     busy,

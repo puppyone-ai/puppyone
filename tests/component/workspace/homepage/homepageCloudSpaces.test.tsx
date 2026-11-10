@@ -60,6 +60,16 @@ describe("unified space destinations", () => {
     expect(host.querySelector('.desktop-space-trigger')).toBeNull();
     expect(host.querySelector('.onboarding-space-sidebar')).toBeNull();
   });
+  it("opens one Space's members and plan from that Space's own heading", async () => {
+    const manage = vi.fn();
+    await render({ projectItems: items, cloudSpaces: spaces, onManageSpace: manage });
+    expect(queryByRole(group("local")!, "button", { name: "Members & plan" })).toBeNull();
+    await act(async () => getByRole(group("team")!, "button", { name: "Members & plan" }).click());
+    expect(manage).toHaveBeenCalledExactlyOnceWith("team");
+    await act(async () => root.unmount());
+    await render({ projectItems: items, cloudSpaces: spaces });
+    expect(queryByRole(group("team")!, "button", { name: "Members & plan" })).toBeNull();
+  });
   it("keeps empty Spaces visible even when the account has no projects", async () => {
     const host = await render({ projectItems: [], cloudSpaces: spaces });
     expect(host.querySelectorAll('[data-project-group]')).toHaveLength(3);

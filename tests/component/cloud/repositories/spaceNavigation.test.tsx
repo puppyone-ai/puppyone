@@ -7,6 +7,8 @@ import { WindowAccountProvider } from "../../../../src/components/WindowAccount"
 import { CloudAccountButton } from "../../../../src/features/cloud/workbench/CloudAccountButton";
 import { ProjectSwitcherRail } from "../../../../src/features/app-shell/ProjectSwitcherRail";
 import { SettingsSidebar } from "../../../../src/features/settings/sidebar/SettingsSidebar";
+import { ProjectPlaceRows } from "../../../../src/features/app-shell/project-place/ProjectPlaceMenu";
+import { cloudProjectAddress, resolveProjectPlaceMenu } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import type { CloudSpace } from "../../../../src/lib/workspaceHomeModel";
 import { session } from "../../../fixtures/platform/ui-copy/billing";
@@ -50,20 +52,37 @@ it("keeps Account accessible and omits global Space switching from Header and pr
   expect(document.querySelector(".desktop-account-menu")).toBeNull();
 });
 
-it("offers Settings and Sign out from the account menu at the trailing end of the Header", async () => {
-  const settings = vi.fn(); const signOut = vi.fn();
+it("offers Settings, a new Space and Sign out from the account menu at the trailing end of the Header", async () => {
+  const settings = vi.fn(); const createSpace = vi.fn(); const signOut = vi.fn();
   await act(async () => root.render(withTestLocalization(<WindowAccountProvider value={<CloudAccountButton session={session}
-    onSignIn={vi.fn()} onOpenAccount={account} onOpenSettings={settings} onSignOut={signOut} />}>
+    onSignIn={vi.fn()} onOpenAccount={account} onOpenSettings={settings} onCreateSpace={createSpace} onSignOut={signOut} />}>
     <DesktopWindowChrome actions={<button type="button" className="desktop-titlebar-action fixture-tool">Tool</button>} />
   </WindowAccountProvider>)));
   const actions = document.querySelector(".desktop-titlebar-actions")!;
-  expect(actions.lastElementChild?.classList.contains("homepage-cloud-avatar")
-    || actions.lastElementChild?.querySelector(".homepage-cloud-avatar")).toBeTruthy();
-  await click(".homepage-cloud-avatar");
-  const items = [...document.querySelectorAll<HTMLButtonElement>(".desktop-account-menu .desktop-menu-item")];
-  expect(items.map(item => item.textContent)).toEqual(["Account", "Settings", "Sign out"]);
-  await act(async () => items[2].click());
+  expect(actions.lastElementChild?.classList.contains("homepage-cloud-avatar")).toBe(true);
+  const items = async () => {
+    await click(".homepage-cloud-avatar");
+    return [...document.querySelectorAll<HTMLButtonElement>(".desktop-account-menu .desktop-menu-item")];
+  };
+  const opened = await items();
+  expect(opened.map(item => item.textContent)).toEqual(["Account", "Settings", "Create space", "Sign out"]);
+  await act(async () => opened[2].click());
+  expect(createSpace).toHaveBeenCalledOnce();
+  const reopened = await items();
+  await act(async () => reopened[3].click());
   expect(signOut).toHaveBeenCalledOnce(); expect(settings).not.toHaveBeenCalled();
+});
+
+it("reaches a Cloud project's Space members and plan from the Header's place menu", async () => {
+  const manage = vi.fn(); const dismiss = vi.fn();
+  const menu = resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Studio") });
+  await act(async () => root.render(withTestLocalization(<ProjectPlaceRows menu={menu}
+    handlers={{ onOpenLocalFolder: vi.fn(), onManageSpace: manage }} onDismiss={dismiss} />)));
+  await click('[data-project-place-row="space"]');
+  expect(manage).toHaveBeenCalledOnce(); expect(dismiss).toHaveBeenCalledOnce();
+  await act(async () => root.render(withTestLocalization(<ProjectPlaceRows menu={resolveProjectPlaceMenu({ place: "local" })}
+    handlers={{ onOpenLocalFolder: vi.fn(), onManageSpace: manage }} onDismiss={dismiss} />)));
+  expect(document.querySelector('[data-project-place-row="space"]')).toBeNull();
 });
 
 it("keeps Account and Plan flat and labels the management group with the current Space", async () => {

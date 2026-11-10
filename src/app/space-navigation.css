@@ -23,22 +23,3 @@
   gap: 8px;
   padding: 8px 0;
 }
-
-.desktop-settings-space-selector {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: var(--po-clickable-cursor, default);
-  text-overflow: ellipsis;
-}
-.desktop-settings-space-selector:focus-visible {
-  outline: 2px solid var(--po-accent);
-  outline-offset: 3px;
-}

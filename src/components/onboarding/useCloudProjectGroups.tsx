@@ -7,10 +7,12 @@ import type { OnboardingProjectGroup } from "./OnboardingProjectGroups";
  * All accessible Spaces appear together, with their own project groups.
  * An existing project joins a group by being dragged in; New project starts one anywhere.
  */
-export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd }: {
+export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd, onManageSpace }: {
   spaces: readonly CloudSpace[]; cloudItems: ProjectHomeItem[]; localItems: ProjectHomeItem[];
   renderProjects: (items: ProjectHomeItem[]) => ReactNode; draggingPath: string | null; busy: boolean;
   onPublish?: (path: string, spaceId: string) => Promise<void>; onDragEnd: () => void;
+  /** Opens Settings on this one Space: its members, its seats and its plan. */
+  onManageSpace?: (spaceId: string) => void;
 }): OnboardingProjectGroup[] {
   const { t } = useLocalization();
   const source = localItems.find((item) => item.localPath === draggingPath && !item.linkedCloudProject);
@@ -39,8 +41,13 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
   const planBadge = (space: CloudSpace) => space.planId
     ? <span className="onboarding-space-plan">{t(`onboarding.spaces.plan.${planKey(space.planId)}`)}</span>
     : undefined;
+  const manage = (space: CloudSpace) => onManageSpace
+    ? <button type="button" className="onboarding-space-manage" onClick={() => onManageSpace(space.id)}>
+      {t("settings.space.manage")}
+    </button>
+    : undefined;
   for (const space of spaces) {
-    groups.push({ ...destination(space, `space:${space.id}`, space.name), detail: planBadge(space) });
+    groups.push({ ...destination(space, `space:${space.id}`, space.name), detail: planBadge(space), actions: manage(space) });
   }
   // Unresolved ownership is not evidence of a personal or team audience. Keep
   // existing content reachable while discovery is unavailable, without guessing.

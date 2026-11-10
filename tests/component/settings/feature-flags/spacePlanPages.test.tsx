@@ -119,7 +119,7 @@ it("restores the Account plan reading and shortcut while following the current S
 });
 
 
-it("loads only the chosen Space bill from the Plan selector and clears old amounts while loading", async () => {
+it("loads only the bill of the Space Settings was opened on and clears old amounts while loading", async () => {
   let finish!: (value: api.DesktopBillingSummary) => void;
   vi.mocked(api.getCloudBillingSummary).mockImplementation(async (_session, id) => id === "b"
     ? new Promise(resolve => { finish = resolve; }) : summary(id));
@@ -127,17 +127,16 @@ it("loads only the chosen Space bill from the Plan selector and clears old amoun
   const settings = { activeSection: "seats", onSelectSection: vi.fn(), onClose, workspace: null,
     git: {}, updates: {}, workspaceConfig: {},
     cloud: { enabled: true, session, sessionRestoring: false, apiBaseUrl: session.api_base_url,
-      spaceId: "a", spaceName: "Studio", onSessionChange: vi.fn(), spaces: [
-        { id: "a", name: "Studio", kind: "space", canCreateProjects: true },
-        { id: "b", name: "Research", kind: "space", canCreateProjects: true },
-      ] },
+      spaceId: "a", spaceName: "Studio", onSessionChange: vi.fn() },
   } as unknown as SettingsDialogProps;
   await render(<SettingsDialog {...settings} />);
   expect(host.querySelector('.desktop-plan-loading')).toBeNull();
-  const picker = host.querySelector<HTMLSelectElement>('.desktop-settings-dialog-navigation select')!;
-  await act(async () => { picker.value = "b"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(picker.value).toBe("b");
-  expect(host.querySelector('.desktop-settings-dialog-content .desktop-settings-space-selector')).toBeNull();
+  const navigation = host.querySelector('.desktop-settings-dialog-navigation')!;
+  expect(navigation.querySelector("select")).toBeNull();
+  expect(navigation.textContent).toContain("Studio");
+  await render(<SettingsDialog {...settings} cloud={{ ...settings.cloud, spaceId: "b", spaceName: "Research" }} />);
+  expect(navigation.textContent).toContain("Research");
+  expect(navigation.textContent).not.toContain("Studio");
   expect(host.querySelector('.desktop-plan-loading')).not.toBeNull();
   expect(host.querySelector('.desktop-plan-summary')).not.toBeNull(); // loading placeholder, no old bill
   expect(host.querySelector('.desktop-plan-summary')?.textContent).not.toContain("$36");

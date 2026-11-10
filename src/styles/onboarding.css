@@ -1274,6 +1274,29 @@ span.homepage-cloud-feedback {
   gap: 2px;
 }
 
+/* Who is in a Space and what it pays is reached from the Space's own heading. */
+.onboarding-space-manage {
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: transparent;
+  color: var(--po-text-subtle);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  line-height: 18px;
+}
+
+.onboarding-space-manage:hover,
+.onboarding-space-manage:focus-visible {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.onboarding-space-manage:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
 /* Unavailability belongs to the folder, not the entire personal audience. */
 .onboarding-project-group[data-inactive] .onboarding-project-list,
 .onboarding-project-row-wrap[data-host-folder][data-inactive] {

@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 import { beforeEach, expect, it } from "vitest";
-import { resolveSettingsSpace } from "../../../../src/features/cloud/spaces/resolveSettingsSpace";
+import { resolveProjectSpaceId, resolveSettingsSpace } from "../../../../src/features/cloud/spaces/resolveSettingsSpace";
 import type { CloudSpace, ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { readCachedSpaces } from "../../../../src/features/cloud/workbench/homepageCloudCatalogCache";
 const spaces: CloudSpace[] = [
@@ -18,6 +18,16 @@ it("suggests the open cloud project's Space only for management", () => {
   expect(resolveSettingsSpace({ account: "user", spaces, projectId: "pb", items })?.id).toBe("b");
   expect(resolveSettingsSpace({ account: "user", spaces, projectId: null, items })?.id).toBe("a");
   expect(items.map(item => item.id)).toEqual(["a1", "b1", "clone", "local"]);
+});
+it("manages the Space its opener named, and only an accessible one", () => {
+  expect(resolveSettingsSpace({ account: "user", spaces, projectId: "pa", items, requestedId: "b" })?.id).toBe("b");
+  expect(resolveSettingsSpace({ account: "user", spaces, projectId: "pb", items, requestedId: "gone" })?.id).toBe("b");
+  expect(resolveSettingsSpace({ account: null, spaces, projectId: null, items, requestedId: "b" })).toBeNull();
+});
+it("names the open Cloud project's Space only once the account lists it", () => {
+  expect(resolveProjectSpaceId({ spaces, projectId: "pb", items })).toBe("b");
+  expect(resolveProjectSpaceId({ spaces: [spaces[0]], projectId: "pb", items })).toBeNull();
+  expect(resolveProjectSpaceId({ spaces, projectId: null, items })).toBeNull();
 });
 it("ignores retired global selections and only chooses accessible Spaces", () => {
   localStorage.setItem("puppyone.current-space:user", "b");

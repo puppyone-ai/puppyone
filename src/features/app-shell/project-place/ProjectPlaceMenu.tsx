@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { History } from "lucide-react";
+import { History, UsersRound } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudIcon, LocalIcon } from "@puppyone/shared-ui";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
@@ -13,6 +13,8 @@ export type ProjectPlaceHandlers = Readonly<{
   onOpenLocalFolder: (path: string) => void;
   /** A hosted project's own record; absent where it has none to show. */
   onOpenHistory?: () => void;
+  /** The members, seats and plan of the Space that holds a Cloud project. */
+  onManageSpace?: () => void;
 }>;
 
 export type ProjectPlaceMenuProps = Readonly<{
@@ -87,6 +89,9 @@ export function ProjectPlaceRows({ menu, handlers, audience, onDismiss }: Projec
         {menu.place === "cloud" ? <CloudIcon size={15} strokeWidth={1.75} /> : <LocalIcon size={15} strokeWidth={1.75} />}
       </span>}
       label={placeLabel} detail={menu.detail ?? (menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined)} />
+    {menu.place === "cloud" && handlers.onManageSpace && <DesktopMenuItem className="desktop-project-place-row" role="button"
+      data-project-place-row="space" icon={<UsersRound size={15} strokeWidth={1.75} aria-hidden="true" />}
+      label={t("settings.space.manage")} onClick={run(handlers.onManageSpace)} />}
     {byAudience && <>
       <DesktopMenuSeparator />
       <ProjectAudienceRows audience={byAudience} onDismiss={onDismiss} />

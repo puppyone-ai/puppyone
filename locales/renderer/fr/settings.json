@@ -658,6 +658,7 @@
   "space.switch": "Changer d’espace",
   "space.local": "Sur cet ordinateur",
   "space.settings": "Paramètres de l’espace",
+  "space.manage": "Membres et forfait",
   "space.create": "Créer un espace",
   "space.name": "Nom de l’espace",
   "space.save": "Enregistrer",

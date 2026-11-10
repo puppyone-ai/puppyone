@@ -44,7 +44,8 @@ import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudW
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
-import { resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpace";
+import { resolveProjectSpaceId, resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpace";
+import { CreateTeamDialog } from "./features/settings/main/CreateTeamDialog";
 import "./app/space-navigation.css";
 import { WindowAccountProvider } from "./components/WindowAccount";
 import { useCloudSpaces } from "./features/cloud/spaces/useCloudSpaces";
@@ -430,6 +431,9 @@ function AppContent() {
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("account");
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [focusSpaceInvite, setFocusSpaceInvite] = useState(false);
+  // The Space a Settings opener named; null lets Settings take the open project's or the account's own.
+  const [settingsSpaceRequest, setSettingsSpaceRequest] = useState<string | null>(null);
+  const [creatingSpace, setCreatingSpace] = useState(false);
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [cloudPublishTarget, setCloudPublishTarget] = useState<CloudSpacePublishTarget | null>(null);
@@ -439,6 +443,8 @@ function AppContent() {
     ? accountCloud.context.projectId
     : null;
   const settingsSpace = resolveSettingsSpace({ account: projectCatalog.account, spaces: cloudSpaces.spaces,
+    projectId: currentProjectId, items: projectCatalog.items, requestedId: settingsSpaceRequest });
+  const openProjectSpaceId = resolveProjectSpaceId({ spaces: cloudSpaces.spaces,
     projectId: currentProjectId, items: projectCatalog.items });
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
@@ -669,6 +675,7 @@ function AppContent() {
   const openSettingsDialog = useCallback((section?: SettingsSection, invite = false) => {
     if (section) setActiveSettingsSection(section);
     setFocusSpaceInvite(invite);
+    setSettingsSpaceRequest(null);
     setSettingsDialogOpen(true);
     setPluginsDialogOpen(false);
     setCloudDialogOpen(false);
@@ -676,6 +683,11 @@ function AppContent() {
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen]);
   const closeSettingsDialog = useCallback(() => setSettingsDialogOpen(false), []);
+  /** Settings on one Space, named by the control that opened it. */
+  const openSpaceSettings = useCallback((spaceId: string, invite = false) => {
+    openSettingsDialog("space", invite);
+    setSettingsSpaceRequest(spaceId);
+  }, [openSettingsDialog]);
   const openPluginsDialog = useCallback(() => {
     if (!enableViewerPlugins) return;
     setActiveView("data");
@@ -1513,7 +1525,7 @@ function AppContent() {
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
-    onCreateProject={openProjectLauncher} /> : null;
+    onCreateProject={openProjectLauncher} onManageSpace={openProjectSpaceId ? () => openSpaceSettings(openProjectSpaceId) : undefined} /> : null;
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
     ? resolveLocalFolderCloudNotice(projectCloudContext) : null;
   // The folder's Cloud link can be ended from here whatever state it is in,
@@ -1641,7 +1653,6 @@ function AppContent() {
         }}
         cloud={{
           enabled: cloudEnabled,
-          spaces: cloudSpaces.spaces,
           spaceId: settingsSpace?.id,
           spaceName: settingsSpace?.name ?? null,
           onSpaceChange: cloudSpaces.refresh,
@@ -1675,6 +1686,12 @@ function AppContent() {
         onClose={closeSettingsDialog}
       />
     )}
+    {creatingSpace && activeCloudSession && desktopCloudApiBaseUrl && <CreateTeamDialog
+      key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
+      session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
+      onClose={() => setCreatingSpace(false)} onCreated={(space) => {
+        setCreatingSpace(false); cloudSpaces.refresh(); openSpaceSettings(space.id, true);
+      }} />}
   </DesktopOverlayPortal>;
   const projectNavigationOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message} diagnostic={projectOpenFailure.diagnostic}
@@ -1711,6 +1728,7 @@ function AppContent() {
     ? <div className="desktop-titlebar-account" data-window-no-drag="true">
       <ProjectHeaderAccount session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
         onOpenAccount={() => openSettingsDialog("account")} onOpenSettings={() => openSettingsDialog("general")}
+        onCreateSpace={cloudEnabled && activeCloudSession && desktopCloudApiBaseUrl ? () => setCreatingSpace(true) : undefined}
         onSignOut={() => { void clearDesktopCloudSession().catch(() => undefined).finally(() => updateCloudSession(null)); }} />
     </div>
     : null;
@@ -1796,6 +1814,7 @@ function AppContent() {
         cloudSpaces={cloudSpaces.spaces}
         cloudSpacesStatus={cloudSpaces.status}
         onRetryCloudSpaces={cloudSpaces.refresh}
+        onManageSpace={activeCloudSession ? (spaceId) => openSpaceSettings(spaceId) : undefined}
         onPublishToSpace={publishToCloudSpace}
         onShareLocalFolder={homepageFolderSharing.request}
         listHeld={homepageListHeld}
@@ -1909,6 +1928,7 @@ function AppContent() {
     handlers: {
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
       ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
+      ...(cloudWorkspaceActive && openProjectSpaceId ? { onManageSpace: () => openSpaceSettings(openProjectSpaceId) } : {}),
     },
     audience: localAudience,
   } : null;
