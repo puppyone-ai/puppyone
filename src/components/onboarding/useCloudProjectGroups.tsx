@@ -7,7 +7,8 @@ import type { OnboardingProjectGroup } from "./OnboardingProjectGroups";
  * Space identity chooses the audience; a team's name is a selector, not another heading.
  * An existing project joins a group by being dragged in; New project starts one anywhere.
  */
-export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd }: {
+export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderProjects, draggingPath, busy, onPublish, onDragEnd, spaceNavigation }: {
+  spaceNavigation?: ReactNode;
   spaces: readonly CloudSpace[]; cloudItems: ProjectHomeItem[]; localItems: ProjectHomeItem[];
   renderProjects: (items: ProjectHomeItem[]) => ReactNode; draggingPath: string | null; busy: boolean;
   onPublish?: (path: string, spaceId: string) => Promise<void>; onDragEnd: () => void;
@@ -22,7 +23,7 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     return {
       id, title, alwaysShowHeading: true, empty: projects.length === 0,
       // Every writable Space uses the same explicit publication flow.
-      keepEmpty: Boolean(space.canCreateProjects || (source && onPublish)),
+      keepEmpty: Boolean(spaceNavigation || space.canCreateProjects || (source && onPublish)),
       dropTarget: draggingPath ? { enabled: writable && Boolean(source),
         hint: t("onboarding.drop.team"), onDrop: () => {
         onDragEnd();
@@ -40,8 +41,12 @@ export function useCloudProjectGroups({ spaces, cloudItems, localItems, renderPr
     ? <span className="onboarding-space-plan">{t(`onboarding.spaces.plan.${planKey(space.planId)}`)}</span>
     : undefined;
   for (const space of spaces) {
-    groups.push({ ...destination(space, `space:${space.id}`, space.name), detail: planBadge(space) });
+    groups.push({ ...destination(space, `space:${space.id}`, space.name), title: spaceNavigation ?? space.name, detail: planBadge(space) });
   }
+  if (!spaces.length && spaceNavigation) groups.push({
+    id: "cloud-space-selection", title: spaceNavigation, alwaysShowHeading: true,
+    children: null,
+  });
   // Unresolved ownership is not evidence of a personal or team audience. Keep
   // existing content reachable while discovery is unavailable, without guessing.
   const unknown = cloudItems.filter((item) => !spaces.some((space) => space.id === item.cloudOrganizationId));

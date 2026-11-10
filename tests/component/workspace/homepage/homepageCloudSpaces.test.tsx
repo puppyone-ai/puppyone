@@ -52,6 +52,18 @@ async function drag(element: Element, type: string, data = { effectAllowed: "", 
 const localButton = (name: string) => getByRole(document, "button", { name: `Open ${name} locally` });
 
 describe("unified space destinations", () => {
+  it("keeps a Space selector reachable in an empty read-only Space without adding a Sidebar", async () => {
+    const select = vi.fn();
+    const host = await render({ projectItems: [], cloudSpaces: [spaces[2]],
+      cloudSpaceNavigation: <button onClick={select}>Guests</button> });
+    const control = host.querySelector<HTMLButtonElement>('.onboarding-project-group-head button')!;
+    expect(control).not.toBeNull();
+    expect(control.closest('[inert]')).toBeNull();
+    expect(host.querySelector('.onboarding-space-sidebar')).toBeNull();
+    await act(async () => control.click());
+    expect(select).toHaveBeenCalledOnce();
+  });
+
   it("names the selected space and the plan its projects use", async () => {
     await render({cloudSpaces: [{...spaces[1], planId: "team_v2"}]});
     expect(target("team").textContent).toContain("Team project");

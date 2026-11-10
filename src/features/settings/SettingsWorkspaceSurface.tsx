@@ -1,3 +1,4 @@
+import type { CloudSpace } from "../../lib/workspaceHomeModel";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type {
@@ -24,6 +25,7 @@ export type SettingsWorkspaceSurfaceProps = {
     refresh: () => void;
   };
   cloud: {
+    spaces?: readonly CloudSpace[];
     spaceId?: string | null;
     spaceName?: string | null;
     onSpaceChange?: () => void;

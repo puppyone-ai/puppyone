@@ -1648,6 +1648,7 @@ function AppContent() {
         }}
         cloud={{
           enabled: cloudEnabled,
+          spaces: cloudSpaces.spaces,
           spaceId: currentSpace.id,
           spaceName: currentSpace.space?.name ?? null,
           onSpaceChange: cloudSpaces.refresh,
@@ -1717,7 +1718,8 @@ function AppContent() {
     {accountAvailable && !cloudSessionRestoring && <ProjectHeaderAccount session={activeCloudSession}
       apiBaseUrl={desktopCloudApiBaseUrl} onOpenAccount={() => openSettingsDialog("account")} />}
   </div>;
-  const spaceNavigation = cloudEnabled && activeCloudSession ? <SpaceSwitcher
+  const renderSpaceNavigation = (placement: "sidebar" | "inline") => cloudEnabled && activeCloudSession ? <SpaceSwitcher
+    placement={placement}
     key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}:${desktopCloudApiBaseUrl}`}
     spaces={cloudSpaces.spaces} selectedId={currentSpace.id} session={activeCloudSession}
     apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
@@ -1725,6 +1727,7 @@ function AppContent() {
     onCreated={(id) => { currentSpace.select(id); cloudSpaces.refresh(); void goToHomepage(); }}
     onSettings={() => openSettingsDialog("space")}
     onInvite={() => openSettingsDialog("space", true)} /> : null;
+  const spaceNavigation = renderSpaceNavigation("sidebar");
   const themeRuntime = (content: ReactNode) => (
     <SidebarSpaceNavigationProvider value={{ content: spaceNavigation, inProjectRail: railOwnsProject }}><WindowNavigationProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
@@ -1805,6 +1808,7 @@ function AppContent() {
         onDeleteCloudProject={projectCatalog.deleteProject}
         projectItems={scopedProjectItems}
         cloudSpaces={currentSpace.space ? [currentSpace.space] : []}
+        cloudSpaceNavigation={renderSpaceNavigation("inline")}
         cloudSpacesStatus={cloudSpaces.status}
         onRetryCloudSpaces={cloudSpaces.refresh}
         onPublishToSpace={publishToCloudSpace}

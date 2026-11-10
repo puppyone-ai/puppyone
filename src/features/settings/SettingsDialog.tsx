@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { Settings } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -22,7 +23,18 @@ export type SettingsDialogProps = SettingsWorkspaceSurfaceProps & {
  */
 export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
   const { t } = useLocalization();
-  const surface = createSettingsWorkspaceSurface(settings);
+  // Settings chooses a billing/management target without navigating the project underneath.
+  const { cloud } = settings;
+  const authority = cloud.session ? JSON.stringify([cloud.session.user_id,
+    cloud.session.session_generation, cloud.apiBaseUrl]) : null;
+  const [selection, setSelection] = useState<{ authority: string | null; id: string } | null>(null);
+  const spaces = cloud.session ? cloud.spaces : undefined;
+  const selected = spaces?.find(space => space.id === (selection?.authority === authority ? selection?.id : cloud.spaceId))
+    ?? spaces?.find(space => space.id === cloud.spaceId) ?? spaces?.[0];
+  const managedCloud = spaces ? { ...cloud, spaceId: selected?.id ?? null, spaceName: selected?.name ?? null } : cloud;
+  const surface = createSettingsWorkspaceSurface({ ...settings, cloud: managedCloud });
+  const showSpacePicker = cloud.enabled && Boolean(spaces?.length)
+    && (settings.activeSection === "seats" || settings.activeSection === "space");
   const title = t("shell.navigation.settings");
 
   return (
@@ -46,7 +58,16 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
           <aside className="desktop-settings-dialog-navigation">
             {surface.sidebar}
           </aside>
-          <main className="desktop-settings-dialog-content">
+          <main className="desktop-settings-dialog-content" data-space-picker={showSpacePicker || undefined}>
+            {showSpacePicker && <div className="desktop-settings-space-picker">
+              <label>
+                <span>{t("settings.space.group")}</span>
+                <select className="desktop-settings-select" aria-label={t("settings.space.switch")}
+                  value={selected?.id ?? ""} onChange={event => setSelection({ authority, id: event.target.value })}>
+                  {spaces?.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}
+                </select>
+              </label>
+            </div>}
             {surface.main}
           </main>
         </div>

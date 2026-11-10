@@ -2,6 +2,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { SettingsDialog, type SettingsDialogProps } from "../../../../src/features/settings/SettingsDialog";
 import { SeatsSettingsView } from "../../../../src/features/settings/main/SeatsSettingsView";
 import { SpaceSettingsView } from "../../../../src/features/settings/main/SpaceSettingsView";
 import { AccountSettingsView } from "../../../../src/features/settings/main/AccountSettingsView";
@@ -116,4 +117,34 @@ it("restores the Account plan reading and shortcut while following the current S
     organizationId="a" spaceName="Studio" onOpenBilling={onOpenBilling} />);
   expect(host.textContent).not.toContain("Studio");
   expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
+});
+
+
+it("loads only the chosen Space bill from the Plan selector and clears old amounts while loading", async () => {
+  let finish!: (value: api.DesktopBillingSummary) => void;
+  vi.mocked(api.getCloudBillingSummary).mockImplementation(async (_session, id) => id === "b"
+    ? new Promise(resolve => { finish = resolve; }) : summary(id));
+  const onClose = vi.fn();
+  const settings = { activeSection: "seats", onSelectSection: vi.fn(), onClose, workspace: null,
+    git: {}, updates: {}, workspaceConfig: {},
+    cloud: { enabled: true, session, sessionRestoring: false, apiBaseUrl: session.api_base_url,
+      spaceId: "a", spaceName: "Studio", onSessionChange: vi.fn(), spaces: [
+        { id: "a", name: "Studio", kind: "space", canCreateProjects: true },
+        { id: "b", name: "Research", kind: "space", canCreateProjects: true },
+      ] },
+  } as unknown as SettingsDialogProps;
+  await render(<SettingsDialog {...settings} />);
+  expect(host.querySelector('.desktop-plan-loading')).toBeNull();
+  const picker = host.querySelector<HTMLSelectElement>('.desktop-settings-space-picker select')!;
+  await act(async () => { picker.value = "b"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(host.querySelector('.desktop-plan-note')?.textContent).toBe("Research");
+  expect(host.querySelector('.desktop-plan-loading')).not.toBeNull();
+  expect(host.querySelector('.desktop-plan-summary')).not.toBeNull(); // loading placeholder, no old bill
+  expect(host.querySelector('.desktop-plan-summary')?.textContent).not.toContain("$36");
+  await act(async () => finish({ ...summary("b"), seat_quantity: 7 }));
+  expect(host.querySelector('.desktop-plan-loading')).toBeNull();
+  expect(api.getCloudBillingSummary).toHaveBeenLastCalledWith(session, "b", expect.any(Function), session.api_base_url, expect.any(AbortSignal));
+  expect(api.getCloudBillingUsage).toHaveBeenLastCalledWith(session, "b", expect.any(Function), session.api_base_url, expect.any(AbortSignal));
+  expect(api.getCloudOrganizationAccess).toHaveBeenLastCalledWith(session, "b", expect.any(Function), session.api_base_url, expect.any(AbortSignal));
+  expect(settings.cloud.spaceId).toBe("a"); expect(onClose).not.toHaveBeenCalled();
 });
