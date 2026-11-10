@@ -66,6 +66,19 @@ async function waitFor(predicate, { timeout = 5000, interval = 40 } = {}) {
   }
 }
 
+// fs.watch returning does not establish that the native directory stream has
+// delivered an event yet. Prime the fixture with real, harmless local config
+// writes before testing subscription ownership or a sequence of Git operations.
+async function waitForMetadataWatchReady(events) {
+  const baseline = events.length;
+  let probe = 0;
+  await waitFor(() => {
+    if (events.length > baseline) return true;
+    git(["config", "--local", "puppyone.fixtureWatchReady", String(++probe)]);
+    return false;
+  });
+}
+
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "puppyone-git-meta-"));
 });
@@ -464,15 +477,18 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
     const oldSub = await service.start(first.sender, root);
     const newSub = await service.start(second.sender, root);
     expect(service.getWatcherCount()).toBe(1);
+    await waitForMetadataWatchReady(second.events);
 
     // Stale Strict Mode cleanup stops only the old token.
     service.stop(oldSub.subscriptionId);
     expect(service.getWatcherCount()).toBe(1);
+    const oldBaseline = first.events.length;
 
     const baseline = second.events.length;
     git(["checkout", "-b", "strict-mode-branch"]);
     await waitFor(() => second.events.length > baseline);
     expect(second.events.some((event) => event.payload.subscriptionId === newSub.subscriptionId)).toBe(true);
+    expect(first.events).toHaveLength(oldBaseline);
 
     service.stop(newSub.subscriptionId);
     expect(service.getWatcherCount()).toBe(0);
@@ -519,6 +535,7 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
     const service = trackService(createGitMetadataWatchService({ logger: silentLogger() }));
     const { events, sender } = createRecordingSender(14);
     const subscription = await service.start(sender, root);
+    await waitForMetadataWatchReady(events);
 
     let baseline = events.length;
     try {
