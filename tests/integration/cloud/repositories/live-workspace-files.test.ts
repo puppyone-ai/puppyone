@@ -21,10 +21,12 @@ it('round-trips real Bash changes through HTTP, Main IPC, file events and the de
   const requests: string[] = [];
   let pauses = 0;
   const sendChange = () => { for (const stream of streams) stream.write(`event: change\ndata: ${JSON.stringify({generation: workspace.generation, reset: true})}\n\n`); };
-  const watcher = watch(directory, sendChange);
+  await writeFile(path.join(directory, 'notes.md'), 'before');
+  // This fixture has one file. Observe it directly so macOS directory-event
+  // availability cannot mask the real Bash -> HTTP -> Main -> DataPort path.
+  const watcher = watch(path.join(directory, 'notes.md'), sendChange);
   let watcherError: Error | null = null;
   watcher.on('error', error => { watcherError = error; });
-  await writeFile(path.join(directory, 'notes.md'), 'before');
   const server = createServer(async (request, response) => {
     try {
       response.setHeader('Access-Control-Allow-Origin', '*');
