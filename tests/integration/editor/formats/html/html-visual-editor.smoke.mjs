@@ -10,8 +10,15 @@ import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import { registerWorkspaceFileIpcHandlers } from "../../../../../electron/main/ipc/workspace-files-ipc.mjs";
 import { createLocalFileCapabilityStore } from "../../../../../electron/main/local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../../../../../electron/main/local-file-protocol.mjs";
+import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const source = await readSourceIdentity(repoRoot);
+const artifactRoot = path.join(repoRoot, "artifacts/tests/editor/html-visual-editor");
+await fsp.mkdir(artifactRoot, { recursive: true });
+const output = process.env.PUPPYONE_HTML_VISUAL_ARTIFACT_DIR
+  ? path.resolve(process.env.PUPPYONE_HTML_VISUAL_ARTIFACT_DIR) : await fsp.mkdtemp(path.join(artifactRoot, `${Date.now()}-`));
+await fsp.mkdir(output, { recursive: true });
 const temp = await fsp.realpath(await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-html-native-")));
 const workspace = path.join(temp, "workspace");
 await fsp.mkdir(workspace);
@@ -24,6 +31,7 @@ await fsp.writeFile(path.join(workspace, "page.html"), original);
 app.setPath("userData", path.join(temp, "user-data"));
 protocol.registerSchemesAsPrivileged([{ scheme: "puppyone-local", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 let win = null, vite = null;
+app.on("window-all-closed", () => {});
 const projectionSources = new Map();
 const evaluate = (code) => win.webContents.executeJavaScript(code);
 const disk = () => fsp.readFile(path.join(workspace, "page.html"), "utf8");
@@ -85,8 +93,13 @@ async function moveAway() {
   await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 500 });
 }
 
+async function settledScroll(top, label) {
+  await until(async () => await preview().executeJavaScript('scrollY') === top
+    && await evaluate(`window.__htmlScrollReceipt?.frame===document.querySelector('iframe')&&window.__htmlScrollReceipt.top===${top}`), label);
+}
+
 app.whenReady().then(async () => {
-  let code = 0;
+  let code = 1, failure = null, checks = [];
   const timeout = setTimeout(() => { console.error("HTML smoke timed out"); app.exit(1); }, 90000);
   try {
     const localFileCapabilities = createLocalFileCapabilityStore();
@@ -123,7 +136,7 @@ app.whenReady().then(async () => {
       optimizeDeps: { entries: ["tests/fixtures/editor/formats/html-visual-editor.html"], include: ["jszip", "xlsx"] },
       server: { host: "127.0.0.1", port: 5298, strictPort: false, hmr: false, watch: null } });
     await vite.listen();
-    win = new BrowserWindow({ show: false, width: 1100, height: 780, webPreferences: {
+    win = new BrowserWindow({ show: true, width: 1100, height: 780, webPreferences: {
       backgroundThrottling: false, sandbox: true, contextIsolation: true,
       preload: path.join(repoRoot, "tests/fixtures/editor/formats/html-visual-editor-preload.cjs"),
     } });
@@ -146,15 +159,18 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Input.insertText', { text: 'Interactive input 中文' });
     assert.equal(await preview().executeJavaScript("document.querySelector('#interaction-input').value"), 'Interactive input 中文');
     assert.equal(await disk(), original, 'runtime DOM and form input never save into HTML source');
-    await fsp.writeFile('/private/tmp/puppyone-html-interaction-mode.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-interaction-mode.png'), (await win.webContents.capturePage()).toPNG());
+    // Both modes relay scroll only after updating the host's saved viewport.
+    // Wait for that real delivery, rather than racing a hidden frame's paint.
+    await evaluate("document.addEventListener('puppyone:embedded-scroll',event=>{if(event.target===document.querySelector('iframe'))window.__htmlScrollReceipt={frame:event.target,top:event.detail.top}})");
     await preview().executeJavaScript('scrollTo(0,200)');
-    await wait(100);
+    await settledScroll(200, 'interaction scroll delivered to host');
     await mode("edit");
     await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), 'editing bridge ready');
-    await until(async () => await preview().executeJavaScript('scrollY') === 200, 'interaction to edit retains scroll');
+    await settledScroll(200, 'interaction to edit retains scroll');
     await mode("preview");
     await until(() => evaluate("document.querySelector('[data-html-interactive=true]')?.getAttribute('aria-busy')==='false'"), 'return to interaction');
-    await until(async () => await preview().executeJavaScript('scrollY') === 200, 'edit to interaction retains scroll');
+    await settledScroll(200, 'edit to interaction retains scroll');
     await mode("edit");
     await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), 'return to editing');
     await preview().executeJavaScript('scrollTo(0,0)');
@@ -189,7 +205,7 @@ app.whenReady().then(async () => {
     assert.equal(initialHandle.placement, 'below', 'the shared horizontal rail uses the available outside edge');
     assert.ok(initialHandle.handle.top >= initialHandle.selection.bottom);
     await visibleSelectionBorder();
-    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-below.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-handle-outside-below.png'), (await win.webContents.capturePage()).toPNG());
     await evaluate("document.getElementById('root').style.setProperty('--po-accent','#14b8a6')");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(20, 184, 166)', 'selection follows theme changes');
     await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-pencil')).backgroundColor==='rgb(20, 184, 166)'"), 'edit affordance follows the same theme change');
@@ -207,9 +223,9 @@ app.whenReady().then(async () => {
     await visibleSelectionBorder();
     await preview().executeJavaScript("document.body.style.background='#10294c'");
     await visibleSelectionBorder();
-    await fsp.writeFile('/private/tmp/puppyone-html-selection-dark.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-selection-dark.png'), (await win.webContents.capturePage()).toPNG());
     await preview().executeJavaScript("document.body.style.background=''");
-    await fsp.writeFile('/private/tmp/puppyone-html-inline-text.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-inline-text.png'), (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5, replacementStart: 0, replacementEnd: 6 });
     await moveAway(); await wait(600);
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), true, 'moving away must not discard IME');
@@ -269,7 +285,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-floating-toolbar__popover').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),v=document.querySelector('iframe').getBoundingClientRect();return p.bottom<t.top && p.top>=v.top && p.left>=v.left && p.right<=v.right})()"), true, 'separate color tray is above and inside pane');
     assert.deepEqual(await evaluate("document.querySelector('.html-floating-toolbar').getBoundingClientRect().toJSON()"), beforeTray, 'tray never moves toolbar');
     assert.equal(await evaluate("[...document.querySelectorAll('.html-floating-toolbar__swatch')].every(e=>getComputedStyle(e).borderRadius==='50%')"), true, 'circular swatches');
-    await fsp.writeFile('/private/tmp/puppyone-html-pencil-palette.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-pencil-palette.png'), (await win.webContents.capturePage()).toPNG());
     await control('[aria-label="Choose #2563eb"]');
     await until(async () => (await disk()).includes('style="color: #2563eb"'), "style persisted");
     assert.equal(await evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), true, 'formatting keeps text focus');
@@ -293,7 +309,7 @@ app.whenReady().then(async () => {
     await until(() => preview().executeJavaScript("document.querySelector('#cover').complete && document.querySelector('#cover').naturalWidth===1"), 'imported image rendered');
     const imported = (await disk()).match(/src="(image-[a-z0-9-]+\.png)"/)[1];
     assert.ok((await fsp.stat(path.join(workspace, imported))).size > 0);
-    await fsp.writeFile('/private/tmp/puppyone-html-editor.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-editor.png'), (await win.webContents.capturePage()).toPNG());
     await history("undo");
     await until(async () => (await disk()).includes('src="old.png"'), 'image undo');
     assert.ok((await fsp.stat(path.join(workspace, imported))).size > 0, 'undo must not delete shared assets');
@@ -313,7 +329,7 @@ app.whenReady().then(async () => {
     await wait(400);
     assert.equal((await handleGeometry()).selection.y, above.selection.y, 'slow diagonal approach keeps the original block');
     assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'selection and docking never write the source');
-    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-above.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-handle-outside-above.png'), (await win.webContents.capturePage()).toPNG());
     // Exercise a flush viewport edge without changing the document model or fixture file.
     await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;inset:0;margin:0;padding:24px;background:#f7f8fa'");
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='inside'"), 'inside fallback only when both outside edges are unavailable');
@@ -324,14 +340,14 @@ app.whenReady().then(async () => {
       true, 'inside fallback preserves the selection color relationship');
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     assert.ok(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),r=b.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.html-editor-pencil')===b})()"), 'inside handle remains reachable beside the standalone source menu');
-    await fsp.writeFile('/private/tmp/puppyone-html-handle-inside-fallback.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-handle-inside-fallback.png'), (await win.webContents.capturePage()).toPNG());
     await preview().executeJavaScript("document.querySelector('#card').style.cssText='margin-top:24px;padding:24px;height:160px;box-sizing:border-box;border-radius:18px;background:#f7f8fa'");
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'return outside when room becomes available');
     await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'block action menu');
     assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return !p&&t.bottom<s.top&&Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"),
       true, 'active menu is centered above the block after the pencil disappears');
-    await fsp.writeFile('/private/tmp/puppyone-html-action-rail.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-action-rail.png'), (await win.webContents.capturePage()).toPNG());
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
     await clickElement('#card-title');
@@ -389,15 +405,27 @@ app.whenReady().then(async () => {
       const url = await evaluate("document.querySelector('iframe')?.src");
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
-    console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
+    const result = { passed: true, electron: process.versions.electron, platform: process.platform,
       checks: ["default interaction and native page scripts", "interactive form input does not write source", "mode switching commits input and retains scroll", "pointer movement is idle and click reveals selection", "single circular theme-colored action handle", "edit handle yields to a centered active panel", "shared aligned rail above the selected block with bounded fallbacks", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "semantic color controls and separate circular palette", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
-        "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
+        "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] };
+    checks = result.checks; code = 0; console.log(JSON.stringify(result));
   } catch (error) {
-    code = 1; console.error(error?.stack ?? error);
-    if (win) {
+    code = 1; failure = String(error?.stack ?? error); console.error(failure);
+    if (win && !win.isDestroyed()) {
       console.error(await evaluate("JSON.stringify({host:document.querySelector('.html-document-editor')?.getBoundingClientRect(),menu:document.querySelector('.html-editor-options')?.getBoundingClientRect(),menuPosition:getComputedStyle(document.querySelector('.html-editor-options')).position,text:document.body.innerText,active:document.activeElement?.outerHTML.slice(0,400),pencil:document.querySelector('.html-editor-pencil')?.outerHTML,toolbar:document.querySelector('.html-floating-toolbar')?.getBoundingClientRect(),style:document.querySelector('.html-floating-toolbar')?.getAttribute('style'),frame:document.querySelector('iframe')?.getBoundingClientRect(),selection:document.querySelector('.html-editor-selection')?.getBoundingClientRect()})"));
-      await fsp.writeFile('/private/tmp/puppyone-html-native-failure.png', (await win.webContents.capturePage()).toPNG());
+      await fsp.writeFile(path.join(output, 'puppyone-html-native-failure.png'), (await win.webContents.capturePage()).toPNG());
     }
   }
-  finally { clearTimeout(timeout); win?.destroy(); await vite?.close(); await fsp.rm(temp, { recursive: true, force: true }); app.exit(code); }
+  finally {
+    clearTimeout(timeout);
+    try {
+      win?.destroy(); await vite?.close(); await fsp.rm(temp, { recursive: true, force: true });
+      const sourceAfter = await readSourceIdentity(repoRoot);
+      if (JSON.stringify(sourceAfter) !== JSON.stringify(source)) { code = 1; failure = "Source changed during HTML acceptance."; }
+      await fsp.writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: code === 0, source, sourceAfter,
+        platform: process.platform, electron: process.versions.electron, checks, failure }, null, 2));
+      console.log(`HTML visual evidence: ${output}`);
+    } catch (error) { code = 1; console.error(error?.stack ?? error); }
+    finally { app.exit(code); }
+  }
 });

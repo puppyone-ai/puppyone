@@ -62,4 +62,17 @@ describe("integration branch quality gates", () => {
     expect(source.find(check => check.id === "tests").command).toEqual(["npm", "run", "test:core:coverage"]);
     expect(source.find(check => check.id === "tests").artifacts).toContain("{checkDir}/vitest/coverage/coverage-summary.json");
   });
+
+  it("requires real HTML navigation and visual editing in both native App plans", async () => {
+    const manifest = await loadManifest();
+    for (const platform of ["darwin", "linux"]) {
+      const appPlan = createPlan(manifest, { group: "app", platform });
+      for (const id of ["html-app", "html-editor"]) {
+        const check = appPlan.find(entry => entry.id === id);
+        expect(check, `${id} on ${platform}`).toBeDefined();
+        expect(check.dependsOn).toContain("build");
+        expect(check.artifacts.some(artifact => artifact.endsWith("/result.json"))).toBe(true);
+      }
+    }
+  });
 });

@@ -538,6 +538,32 @@
       "artifacts": []
     },
     {
+      "id": "html-app",
+      "name": "HTML links, CSP, real project editing and document lifecycle",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-app/result.json"],
+      "environment": { "PUPPYONE_HTML_APP_ARTIFACT_DIR": "{checkDir}/html-app" }
+    },
+    {
+      "id": "html-editor",
+      "name": "HTML visual editing, acknowledged scroll, geometry and safe cleanup",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-editor"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-editor/result.json"],
+      "environment": { "PUPPYONE_HTML_VISUAL_ARTIFACT_DIR": "{checkDir}/html-editor" }
+    },
+    {
       "id": "editor-panes",
       "name": "Every preset Viewer: split, resize, move, menu close and retained history",
       "group": "app",

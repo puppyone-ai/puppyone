@@ -14,7 +14,9 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-html-app-"));
 const artifactRoot = path.join(repo, "artifacts/tests/editor/html-app");
 await fs.mkdir(artifactRoot, { recursive: true });
-const output = await fs.mkdtemp(path.join(artifactRoot, `${Date.now()}-`));
+const output = process.env.PUPPYONE_HTML_APP_ARTIFACT_DIR
+  ? path.resolve(process.env.PUPPYONE_HTML_APP_ARTIFACT_DIR) : await fs.mkdtemp(path.join(artifactRoot, `${Date.now()}-`));
+await fs.mkdir(output, { recursive: true });
 const source = await readSourceIdentity(repo);
 app.setAppPath(repo); app.setPath("appData", path.join(temporary, "app-data"));
 app.setPath("userData", path.join(app.getPath("appData"), getDesktopBuildChannelPolicy("dev").userDataName));
