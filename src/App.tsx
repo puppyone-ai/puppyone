@@ -429,6 +429,7 @@ function AppContent() {
   // project, signed in or out.
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("account");
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [focusSpaceInvite, setFocusSpaceInvite] = useState(false);
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [cloudPublishTarget, setCloudPublishTarget] = useState<CloudSpacePublishTarget | null>(null);
@@ -670,8 +671,9 @@ function AppContent() {
     setGitOperationLoading,
     setPendingBranchSwitch,
   } = git;
-  const openSettingsDialog = useCallback((section?: SettingsSection) => {
+  const openSettingsDialog = useCallback((section?: SettingsSection, invite = false) => {
     if (section) setActiveSettingsSection(section);
+    setFocusSpaceInvite(invite);
     setSettingsDialogOpen(true);
     setPluginsDialogOpen(false);
     setCloudDialogOpen(false);
@@ -778,10 +780,11 @@ function AppContent() {
       accountAvailable,
       otherAppImportsEnabled: enableOtherAppImports,
       hostDevicesEnabled,
+      currentSpaceAvailable: Boolean(currentSpace.id),
     })) {
       setActiveSettingsSection(accountAvailable ? "account" : "general");
     }
-  }, [accountAvailable, activeSettingsSection, cloudEnabled, enableOtherAppImports, hostDevicesEnabled]);
+  }, [accountAvailable, activeSettingsSection, cloudEnabled, currentSpace.id, enableOtherAppImports, hostDevicesEnabled]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {
@@ -1652,6 +1655,7 @@ function AppContent() {
           spaceId: currentSpace.id,
           spaceName: currentSpace.space?.name ?? null,
           onSpaceChange: cloudSpaces.refresh,
+          focusSpaceInvite,
           session: cloudSession,
           sessionRestoring: cloudSessionRestoring,
           apiBaseUrl: desktopCloudApiBaseUrl,
@@ -1713,13 +1717,18 @@ function AppContent() {
     />
   </DesktopOverlayPortal>;
   const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
-  const spaceNavigation = cloudEnabled && activeCloudSession ? <SpaceSwitcher
+  const spaceNavigation = <div className="desktop-account-space-navigation" data-window-no-drag="true">
+    {accountAvailable && !cloudSessionRestoring && <ProjectHeaderAccount session={activeCloudSession}
+      apiBaseUrl={desktopCloudApiBaseUrl} onOpenAccount={() => openSettingsDialog("account")} />}
+    {cloudEnabled && activeCloudSession && <SpaceSwitcher
     key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}:${desktopCloudApiBaseUrl}`}
     spaces={cloudSpaces.spaces} selectedId={currentSpace.id} session={activeCloudSession}
     apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     onSelect={(id) => { void goToHomepage().then(() => currentSpace.select(id)); }}
     onCreated={(id) => { currentSpace.select(id); cloudSpaces.refresh(); void goToHomepage(); }}
-    onSettings={() => openSettingsDialog("space")} /> : null;
+    onSettings={() => openSettingsDialog("space")}
+    onInvite={() => openSettingsDialog("space", true)} />}
+  </div>;
   const themeRuntime = (content: ReactNode) => (
     <WindowNavigationProvider value={spaceNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
@@ -1811,7 +1820,7 @@ function AppContent() {
           ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
               session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
               onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
-        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus showAccountButton={false} status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
@@ -1964,11 +1973,6 @@ function AppContent() {
       {homepageFolderSharing.dialog}
       {folderRelocation.dialog}
       <DesktopTitlebarActions {...chromeActionProps} />
-      {accountAvailable && !cloudSessionRestoring && <>
-        <span className="desktop-titlebar-action-divider" aria-hidden="true" />
-        <ProjectHeaderAccount session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
-          onOpenAccount={() => openSettingsDialog("account")} />
-      </>}
     </>
   );
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}

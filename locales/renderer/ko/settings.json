@@ -675,5 +675,7 @@
   "space.choose": "탐색에서 스페이스를 선택하여 설정과 요금제를 관리하세요.",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "스페이스 감사 및 제어",
-  "plan.fit.reason.audit": "프로젝트 감사 로그 접근"
+  "plan.fit.reason.audit": "프로젝트 감사 로그 접근",
+  "space.group": "스페이스",
+  "space.membersAndSettings": "멤버 및 설정"
 }

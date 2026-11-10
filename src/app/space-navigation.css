@@ -4,14 +4,34 @@
   min-width: 0;
 }
 
-.desktop-space-switcher select {
+.desktop-space-trigger.desktop-titlebar-action {
+  width: auto;
   max-width: 180px;
-  padding: 3px 6px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
+  min-width: 0;
+  padding-inline: 6px;
+  gap: 6px;
+}
+
+.desktop-space-trigger svg {
+  flex-shrink: 0;
+}
+
+.desktop-space-trigger bdi {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-account-space-navigation {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-account-space-navigation .homepage-cloud-avatar {
+  margin-inline-end: 0;
 }
 
 .desktop-space-member-form {

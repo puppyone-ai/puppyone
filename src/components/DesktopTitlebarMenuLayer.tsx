@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type KeyboardEventHandler, type ReactNode, type RefObject } from "react";
 import { DesktopMenuSurface } from "./DesktopMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
@@ -18,6 +18,8 @@ type DesktopTitlebarMenuLayerProps = {
   role?: "menu" | "dialog";
   id?: string;
   ariaLabel?: string;
+  focusOnOpen?: boolean;
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
 };
 
 const TITLEBAR_CONTEXT_MENU_WIDTH = 300;
@@ -42,6 +44,8 @@ export function DesktopTitlebarMenuLayer({
   role = "menu",
   id,
   ariaLabel,
+  focusOnOpen = false,
+  onKeyDown,
 }: DesktopTitlebarMenuLayerProps) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
@@ -61,11 +65,14 @@ export function DesktopTitlebarMenuLayer({
       return;
     }
     // The Portal first mounts hidden for measurement; focus after positioning.
-    if (role === "dialog" && overlayPosition && !focusedOnOpen.current) {
-      overlayRef.current?.focus({ preventScroll: true });
+    if ((role === "dialog" || focusOnOpen) && overlayPosition && !focusedOnOpen.current) {
+      const target = role === "dialog" ? overlayRef.current
+        : overlayRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')
+          ?? overlayRef.current?.querySelector<HTMLElement>('.desktop-menu-item:not(:disabled)');
+      target?.focus({ preventScroll: true });
       focusedOnOpen.current = true;
     }
-  }, [open, overlayPosition, overlayRef, role]);
+  }, [focusOnOpen, open, overlayPosition, overlayRef, role]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -141,6 +148,7 @@ export function DesktopTitlebarMenuLayer({
         tone="quiet"
         typographySurface="left-sidebar"
         style={style}
+        onKeyDown={onKeyDown}
       >
         {children}
       </DesktopMenuSurface>

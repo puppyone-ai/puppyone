@@ -675,5 +675,7 @@
   "space.choose": "Elige un espacio en la navegación para gestionar sus ajustes y plan.",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "Auditoría y control para tu espacio",
-  "plan.fit.reason.audit": "Acceso a los registros de auditoría del proyecto"
+  "plan.fit.reason.audit": "Acceso a los registros de auditoría del proyecto",
+  "space.group": "Espacio",
+  "space.membersAndSettings": "Miembros y ajustes"
 }

@@ -16,6 +16,7 @@ export type SettingsViewProps = {
   currentSpaceId?: string | null;
   currentSpaceName?: string | null;
   onSpaceChange?: () => void;
+  focusSpaceInvite?: boolean;
   cloudEnabled: boolean;
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring: boolean;
@@ -40,6 +41,8 @@ export type SettingsViewProps = {
 };
 
 export type SettingsSidebarProps = {
+  currentSpaceId?: string | null;
+  currentSpaceName?: string | null;
   localWorkspaceAvailable?: boolean;
   activeSection: SettingsSection;
   cloudEnabled: boolean;

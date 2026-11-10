@@ -61,8 +61,9 @@ it("restores Plan without member forms and retains the current Space's usage and
 
 it("keeps Space settings available with payments off and makes no billing reads", async () => {
   desktopPreferencesStore.getState().setExperimentalSettings(value => ({ ...value, enablePayments: false }));
-  await render(<SpaceSettingsView {...props} organizationId="a" spaceName="Studio" />);
-  expect(host.textContent).toContain("Space settings");
+  await render(<SpaceSettingsView {...props} organizationId="a" spaceName="Studio" focusInvite />);
+  expect(document.activeElement?.getAttribute("type")).toBe("email");
+  expect(host.textContent).toContain("Members & settings");
   expect(host.querySelector(".desktop-space-member-form")).not.toBeNull();
   expect(host.querySelector(".desktop-plan-grid")).toBeNull();
   expect(api.listCloudOrganizationMembers).toHaveBeenCalledWith(session, "a", props.onCloudSessionChange, session.api_base_url);

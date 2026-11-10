@@ -675,5 +675,7 @@
   "space.choose": "Choisissez un espace dans la navigation pour gérer ses paramètres et son forfait.",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "Audit et contrôle de votre espace",
-  "plan.fit.reason.audit": "Accès aux journaux d’audit du projet"
+  "plan.fit.reason.audit": "Accès aux journaux d’audit du projet",
+  "space.group": "Espace",
+  "space.membersAndSettings": "Membres et paramètres"
 }

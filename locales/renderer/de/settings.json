@@ -675,5 +675,7 @@
   "space.choose": "Wähle in der Navigation einen Bereich, um Einstellungen und Tarif zu verwalten.",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "Audit und Kontrolle für deinen Bereich",
-  "plan.fit.reason.audit": "Zugriff auf Projekt-Auditprotokolle"
+  "plan.fit.reason.audit": "Zugriff auf Projekt-Auditprotokolle",
+  "space.group": "Bereich",
+  "space.membersAndSettings": "Mitglieder & Einstellungen"
 }

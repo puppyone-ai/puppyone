@@ -675,5 +675,7 @@
   "space.choose": "ナビゲーションでスペースを選ぶと、設定とプランを管理できます。",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "スペースの監査と管理",
-  "plan.fit.reason.audit": "プロジェクト監査ログへのアクセス"
+  "plan.fit.reason.audit": "プロジェクト監査ログへのアクセス",
+  "space.group": "スペース",
+  "space.membersAndSettings": "メンバーと設定"
 }

@@ -47,6 +47,7 @@ export function DesktopWindowChrome({
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
           <div className="desktop-titlebar-left">
+            <WindowNavigationSlot />
             <div className="desktop-titlebar-brand" aria-hidden="true">
               <PuppyBrandMark
                 className="desktop-titlebar-brand-icon"
@@ -55,7 +56,6 @@ export function DesktopWindowChrome({
               <strong className="desktop-titlebar-brand-name">{t("shell.brand.name")}</strong>
               <span className="desktop-titlebar-brand-separator">—</span>
             </div>
-            <WindowNavigationSlot />
             {context}
           </div>
           <div

@@ -27,6 +27,7 @@ export type SettingsWorkspaceSurfaceProps = {
     spaceId?: string | null;
     spaceName?: string | null;
     onSpaceChange?: () => void;
+    focusSpaceInvite?: boolean;
     enabled: boolean;
     session: DesktopCloudSession | null;
     sessionRestoring: boolean;
@@ -67,6 +68,8 @@ export function createSettingsWorkspaceSurface({
   return {
     sidebar: (
       <SettingsSidebar
+        currentSpaceId={cloud.spaceId}
+        currentSpaceName={cloud.spaceName}
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
         localWorkspaceAvailable={workspace !== null}
@@ -86,6 +89,7 @@ export function createSettingsWorkspaceSurface({
         currentSpaceId={cloud.spaceId}
         currentSpaceName={cloud.spaceName}
         onSpaceChange={cloud.onSpaceChange}
+        focusSpaceInvite={cloud.focusSpaceInvite}
         cloudSession={cloud.session}
         cloudSessionRestoring={cloud.sessionRestoring}
         cloudApiBaseUrl={cloud.apiBaseUrl}

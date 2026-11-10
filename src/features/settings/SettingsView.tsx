@@ -48,6 +48,7 @@ export function SettingsView({
   currentSpaceId,
   currentSpaceName,
   onSpaceChange,
+  focusSpaceInvite,
   cloudSession,
   cloudSessionRestoring,
   cloudApiBaseUrl,
@@ -84,6 +85,7 @@ export function SettingsView({
     otherAppImportsEnabled,
     localWorkspaceAvailable: workspace !== null,
     hostDevicesEnabled,
+    currentSpaceAvailable: Boolean(currentSpaceId),
   })) {
     return (
       <GeneralSettingsView
@@ -158,6 +160,7 @@ export function SettingsView({
       organizationId={currentSpaceId}
       spaceName={currentSpaceName}
       onSpaceChange={onSpaceChange}
+      focusInvite={focusSpaceInvite}
       cloudSession={cloudSession}
       cloudSessionRestoring={cloudSessionRestoring}
       cloudApiBaseUrl={cloudApiBaseUrl}

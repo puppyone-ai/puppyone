@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { getCloudOrganizationAccess, inviteCloudSpaceMember, listCloudOrganizationMembers,
   removeCloudSpaceMember, transferCloudSpaceOwnership, updateCloudSpace, updateCloudSpaceMemberRole,
@@ -6,9 +6,10 @@ import { getCloudOrganizationAccess, inviteCloudSpaceMember, listCloudOrganizati
 import { SettingsSubsection, SettingsValueRow } from "../components";
 
 /** Uses the existing owner-authorized API; membership never starts a hidden purchase. */
-export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSessionChange, onChanged }: {
+export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSessionChange, onChanged, focusInvite = false }: {
   session: DesktopCloudSession; organizationId: string; name: string; apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void; onChanged: () => void;
+  focusInvite?: boolean;
 }) {
   const { t } = useLocalization();
   const [members, setMembers] = useState<DesktopCloudOrgMember[]>([]);
@@ -22,6 +23,10 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [transferTo, setTransferTo] = useState("");
   const [revision, setRevision] = useState(0);
+  const inviteInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusInvite && owner && !loading) inviteInput.current?.focus();
+  }, [focusInvite, owner, loading]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -72,7 +77,7 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
           setInviteUrl(invite.invite_url ?? null); setEmail("");
         });
       }}>
-        <input type="email" required aria-label={t("settings.space.inviteEmail")} value={email} disabled={disabled}
+        <input ref={inviteInput} type="email" required aria-label={t("settings.space.inviteEmail")} value={email} disabled={disabled}
           onChange={(event) => setEmail(event.target.value)} placeholder={t("settings.space.inviteEmail")} />
         <select aria-label={t("settings.space.inviteRole")} value={role} disabled={disabled}
           onChange={(event) => setRole(event.target.value as "viewer" | "member")}>

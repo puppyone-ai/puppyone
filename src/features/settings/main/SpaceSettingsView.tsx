@@ -17,6 +17,7 @@ export function SpaceSettingsView({
   onCloudSessionChange,
   onSpaceChange,
   onSignIn,
+  focusInvite = false,
 }: {
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring?: boolean;
@@ -26,6 +27,7 @@ export function SpaceSettingsView({
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   onSpaceChange?: () => void;
   onSignIn: () => void;
+  focusInvite?: boolean;
 }) {
   const { t } = useLocalization();
   const apiBaseUrl = cloudApiBaseUrl || getDesktopCloudApiBaseUrl();
@@ -35,7 +37,7 @@ export function SpaceSettingsView({
     <section className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section">
-          <SettingsSectionHeader title={t("settings.space.settings")} />
+          <SettingsSectionHeader title={t("settings.space.membersAndSettings")} />
           {cloudSessionRestoring && <p className="desktop-plan-note" role="status">{t("settings.account.status.restoring")}</p>}
           {!cloudSessionRestoring && !session && <button type="button" className="desktop-settings-action" onClick={onSignIn}>
               {t("settings.account.signInWithBrowser")}
@@ -46,6 +48,7 @@ export function SpaceSettingsView({
                 key={`${session.user_id}:${session.session_generation}:${apiBaseUrl}:${organizationId}`}
                 session={session} organizationId={organizationId} name={spaceName ?? ""}
                 apiBaseUrl={apiBaseUrl} onSessionChange={onCloudSessionChange}
+                focusInvite={focusInvite}
                 onChanged={() => onSpaceChange?.()} />}
             </>}
         </div>

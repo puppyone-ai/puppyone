@@ -675,5 +675,7 @@
   "space.choose": "请在主导航中选择空间，再管理它的设置和套餐。",
   "plan.name.enterprise": "Enterprise",
   "plan.tagline.enterprise": "空间审计与管理",
-  "plan.fit.reason.audit": "访问项目审计记录"
+  "plan.fit.reason.audit": "访问项目审计记录",
+  "space.group": "空间",
+  "space.membersAndSettings": "成员与设置"
 }

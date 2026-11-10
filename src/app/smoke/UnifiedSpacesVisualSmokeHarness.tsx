@@ -25,7 +25,7 @@ export function UnifiedSpacesVisualSmokeHarness() {
   const catalog = resolvePlanCatalog(null);
   const navigation = <SpaceSwitcher spaces={SPACES} selectedId={selected} session={SESSION}
     apiBaseUrl={SESSION.api_base_url} onSessionChange={() => undefined} onCreated={() => undefined}
-    onSelect={(id) => { setSelected(id); setSettings(false); }} onSettings={() => setSettings(true)} />;
+    onSelect={(id) => { setSelected(id); setSettings(false); }} onSettings={() => setSettings(true)} onInvite={() => setSettings(true)} />;
   return <WindowNavigationProvider value={navigation}>
     <DesktopWindowChrome />
     <main className="desktop-utility-view desktop-settings-view">
