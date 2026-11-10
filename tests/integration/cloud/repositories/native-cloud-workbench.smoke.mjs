@@ -204,8 +204,8 @@ async function headerPresentation(location) {
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   const expectedIcon = sample.buttonColor;
   assert(JSON.stringify(sample.icon.color) === JSON.stringify(sample.labelColor), 'The project mark must match the project name, open or closed');
-  assert(sample.icon.product === 'home' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
-    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'The project mark must share readable Header ink');
+  assert(sample.icon.product === 'folder' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
+    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), `The project folder mark must share readable Header ink: ${JSON.stringify(sample.icon)}`);
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud mark must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
