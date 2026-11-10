@@ -1,5 +1,4 @@
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
-import { useSidebarSpaceNavigation } from "./WindowNavigation";
 import { useDesktopPreference } from "../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
@@ -124,7 +123,6 @@ export function MinimalOnboarding({
   appearance,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
-  const spaceNavigation = useSidebarSpaceNavigation("home");
   const desktopPlatform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
   // A failure handed down replaces what is shown; the page's own actions clear it.
@@ -325,7 +323,6 @@ export function MinimalOnboarding({
     <main
       className={`onboarding-shell onboarding-homepage-shell ${resolvedTheme === "dark" ? "dark" : ""} ${folderDrop.dragging ? "dragging" : ""} ${showEmptyStateIntro ? "is-empty-state-intro" : ""}`}
       data-onboarding-state={onboardingState}
-      data-space-sidebar={spaceNavigation ? "true" : undefined}
       data-po-scrollbar="content"
       {...appearance.rootProps}
       onDragEnter={folderDrop.onDragEnter}
@@ -334,10 +331,6 @@ export function MinimalOnboarding({
       onDrop={folderDrop.onDrop}
     >
       <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
-      {spaceNavigation && <aside className="onboarding-space-sidebar" aria-label={t("settings.space.group")}>
-        <span className="onboarding-space-sidebar-label">{t("onboarding.projects.title")}</span>
-        <div className="desktop-sidebar-space-navigation">{spaceNavigation}</div>
-      </aside>}
       <section
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}

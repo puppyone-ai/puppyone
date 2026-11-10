@@ -428,10 +428,12 @@ export function DesktopDataWorkspaceSurface({
           ? (
               <div className="desktop-sidebar-companion-host">
                 {sidebarCompanion}
-                {navigation.showWorkspaceNavigation && (
-                  <DesktopSidebarFooterNavigation {...navigationCommon} />
-                )}
-                {spaceNavigation && <div className="desktop-sidebar-space-navigation">{spaceNavigation}</div>}
+                <div className="desktop-sidebar-bottom-controls">
+                  {navigation.showWorkspaceNavigation && (
+                    <DesktopSidebarFooterNavigation {...navigationCommon} />
+                  )}
+                  {spaceNavigation && <div className="desktop-sidebar-space-navigation">{spaceNavigation}</div>}
+                </div>
               </div>
             )
           : undefined}

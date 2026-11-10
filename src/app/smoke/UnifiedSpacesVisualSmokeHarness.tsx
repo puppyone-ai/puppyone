@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocalization } from "@puppyone/localization";
+import { ProjectSwitcherRail } from "../../features/app-shell/ProjectSwitcherRail";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
 import { SidebarSpaceNavigationProvider, WindowNavigationProvider } from "../../components/WindowNavigation";
 import { SpaceSwitcher } from "../SpaceSwitcher";
@@ -26,9 +27,10 @@ export function UnifiedSpacesVisualSmokeHarness() {
   const navigation = <SpaceSwitcher spaces={SPACES} selectedId={selected} session={SESSION}
     apiBaseUrl={SESSION.api_base_url} onSessionChange={() => undefined} onCreated={() => undefined}
     onSelect={(id) => { setSelected(id); setSettings(false); }} onSettings={() => setSettings(true)} onInvite={() => setSettings(true)} />;
-  return <SidebarSpaceNavigationProvider value={{ content: navigation, inProjectRail: false }}><WindowNavigationProvider value={null}>
+  return <SidebarSpaceNavigationProvider value={{ content: navigation, inProjectRail: true }}><WindowNavigationProvider value={null}>
     <DesktopWindowChrome />
-    <aside className="onboarding-space-sidebar">{navigation}</aside>
+    <ProjectSwitcherRail activeWorkspace={{ id: "fixture", path: "/fixture", name: "Research", status: "recording" }} recentWorkspaces={[]} projectItems={[]} expanded
+      onCreateNew={() => undefined} onSelectProject={() => undefined} />
     <main className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body">
         <div className="desktop-settings-section">

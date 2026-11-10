@@ -35,7 +35,7 @@ export function SpaceSwitcher({ spaces, selectedId, session, apiBaseUrl, onSelec
     </button>
     <DesktopTitlebarMenuLayer anchorRef={trigger} open={open} onDismiss={() => setOpen(false)}
       className="desktop-space-menu" preferredMaxHeight={480} preferredWidth={260}
-      placementPreference="above"
+      placementPreference="above" alignment="end"
       id={menuId} ariaLabel={t("settings.space.switch")} focusOnOpen
       onKeyDown={(event) => walkDesktopMenu(event, event.currentTarget)}>
       {spaces.map((candidate) => <DesktopMenuItem

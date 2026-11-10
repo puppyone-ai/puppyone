@@ -9,8 +9,8 @@
   align-items: center;
   width: 100%;
   min-width: 0;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 4px 6px;
   border: 0;
   border-radius: var(--po-control-radius, 6px);
   background: transparent;
@@ -56,27 +56,35 @@
   padding: 8px 0;
 }
 
-.desktop-sidebar-space-navigation {
-  flex: 0 0 auto;
-  width: 100%;
-  padding: 4px;
-  border-top: 1px solid var(--po-border);
-}
-
-.onboarding-space-sidebar {
-  position: absolute;
-  inset-block: var(--desktop-chrome-height) 0;
-  inset-inline-start: 0;
-  width: 200px;
+/* Share the existing project Sidebar footer; Home never gains a navigation rail. */
+.desktop-sidebar-bottom-controls {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  background: var(--po-sidebar);
-  color: var(--po-text-muted);
-  border-inline-end: 1px solid var(--po-border);
+  align-items: center;
+  min-width: 0;
 }
 
-.onboarding-space-sidebar-label { padding: 20px 16px; }
-.onboarding-homepage-shell[data-space-sidebar="true"] {
-  padding-inline-start: calc(200px + var(--desktop-utility-page-padding-inline));
+.desktop-sidebar-bottom-controls > .desktop-sidebar-footer-bar {
+  flex: 0 1 auto;
+}
+
+.desktop-sidebar-space-navigation {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline-start: auto;
+  padding: 4px;
+}
+
+.desktop-sidebar-space-navigation .desktop-space-switcher {
+  width: auto;
+  min-width: 0;
+  max-width: 144px;
+}
+
+.desktop-space-trigger { font-size: var(--desktop-sidebar-font-size, 12px); }
+
+.desktop-project-switcher-rail > .desktop-sidebar-space-navigation {
+  flex-shrink: 0;
 }
