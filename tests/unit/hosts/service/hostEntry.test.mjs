@@ -9,13 +9,15 @@ const appData = path.join(path.parse(process.cwd()).root, "Application Support")
 
 afterEach(() => {
   vi.doUnmock("electron");
+  vi.doUnmock("../../../../shared/host-contract/rollout.mjs");
   vi.doUnmock("../../../../electron/main/build-info-service.mjs");
   vi.doUnmock("../../../../electron/host-service/runtime.mjs");
   vi.resetModules();
 });
 
-async function launch(channel, { lockGranted = true } = {}) {
+async function launch(channel, { lockGranted = true, enabled = true } = {}) {
   vi.resetModules();
+  vi.doMock("../../../../shared/host-contract/rollout.mjs", () => ({ HOST_DEVICES_AVAILABLE: enabled }));
   const buildInfo = resolveDesktopBuildIdentity({ baseVersion: "0.4.2", channel,
     buildNumber: 18, commitSha: "c".repeat(40) });
   // Electron starts with the package name, not the Desktop channel's profile.
@@ -46,6 +48,14 @@ async function launch(channel, { lockGranted = true } = {}) {
 }
 
 describe("Host's Electron entry", () => {
+  it("does not start from an existing login item outside the rollout", async () => {
+    const { app, runHostService } = await launch("stable", { enabled: false });
+    expect(app.exit).toHaveBeenCalledWith(0);
+    expect(app.requestSingleInstanceLock).not.toHaveBeenCalled();
+    expect(app.whenReady).not.toHaveBeenCalled();
+    expect(runHostService).not.toHaveBeenCalled();
+  });
+
   it.each(["dev", "internal", "stable"])("uses Desktop's %s identity before choosing its profile and lock", async (channel) => {
     const { app, buildInfo, loadDesktopBuildInfo, lockPath, runHostService, userData } = await launch(channel);
     const policy = getDesktopBuildChannelPolicy(channel);

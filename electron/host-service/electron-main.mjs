@@ -4,6 +4,7 @@
  * App's own binary keeps the OS key store (safeStorage), code signing and
  * updates identical to the App's.
  */
+import { HOST_DEVICES_AVAILABLE } from "../../shared/host-contract/rollout.mjs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +21,7 @@ const buildInfo = loadDesktopBuildInfo({ app, packageMetadata: require("../../pa
 // Electron's default package name is not Desktop's dev/internal/stable identity.
 configureDesktopApplicationIdentity({ app, buildInfo });
 app.setPath("userData", hostServiceStateDir(app.getPath("userData")));
-if (!app.requestSingleInstanceLock()) {
+if (!HOST_DEVICES_AVAILABLE || !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else {
   app.dock?.hide();

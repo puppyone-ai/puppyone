@@ -9,8 +9,12 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const rollout = vi.hoisted(() => ({ available: true }));
+vi.mock("../../../../shared/host-contract/rollout.mjs", () => ({
+  get HOST_DEVICES_AVAILABLE() { return rollout.available; },
+}));
 let root: Root | null = null;
-beforeEach(() => { vi.stubEnv("VITE_HOST_DEVICES_ENABLED", "false"); localStorage.clear(); initializeDesktopPreferences(); });
+beforeEach(() => { rollout.available = true; vi.stubEnv("VITE_HOST_DEVICES_ENABLED", "false"); localStorage.clear(); initializeDesktopPreferences(); });
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
@@ -36,6 +40,17 @@ function render(accounts = true) {
 }
 
 describe("Other computers experiment", () => {
+  it("hides the experiment and ignores an old enabled preference outside the rollout", () => {
+    rollout.available = false;
+    vi.stubEnv("VITE_HOST_DEVICES_ENABLED", "true");
+    localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableHostDevices: true }));
+    initializeDesktopPreferences();
+    const container = render();
+    expect(container.querySelector('input[aria-label="Other computers"]')).toBeNull();
+    expect(container.querySelector('[data-testid="other-computers"]')?.textContent).toBe("false");
+    expect(store.getState().experimentalSettings.enableHostDevices).toBe(true);
+  });
+
   it("is off by default, switches immediately without Cloud, and restores both saved choices", () => {
     const container = render();
     const toggle = container.querySelector<HTMLInputElement>('input[aria-label="Other computers"]')!;

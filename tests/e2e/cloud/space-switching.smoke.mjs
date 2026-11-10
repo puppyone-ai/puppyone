@@ -120,13 +120,17 @@ async function run() {
   assert.ok(window, "Production Main created a BrowserWindow");
   window.setContentSize(1280, 900); window.show();
   await until("!!document.querySelector('.desktop-onboarding, .desktop-titlebar')", "Home mount");
-  await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: true }));");
+  await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: true, enableHostDevices: true }));");
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.reload(); });
   await until("document.body.textContent.includes('Window acceptance')", "default Space Home");
   assert.equal(await evaluate("!!document.querySelector('.onboarding-space-sidebar, .desktop-space-trigger')"), false, 'Home has no added Sidebar or Space control');
   assert.equal(await evaluate("document.querySelector('.onboarding-homepage-shell')?.hasAttribute('data-space-sidebar')"), false);
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await capture('00-home-without-sidebar');
+  assert.equal(await evaluate("document.body.textContent.includes('Other computers')"), false);
+  assert.deepEqual(await evaluate("window.puppyoneDesktop.listHostDevices({userId:'user-1',generation:'stale'})"), { devices: [] });
+  assert.equal(await evaluate("window.puppyoneDesktop.registerHostFolder({rootPath:'/invalid'}).then(() => false, error => error.message.includes('unavailable in this build'))"), true);
+  report.other_computers_rollout_disabled = true;
   const openLocal = async owner => {
     await owner.webContents.executeJavaScript("[...document.querySelectorAll('[data-project-open]')].find(button => button.getAttribute('aria-label')?.includes('This Mac fixture')).click()", true);
     for (let n = 0; n < 300; n++) {

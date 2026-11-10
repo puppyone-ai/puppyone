@@ -89,7 +89,7 @@ function desktop({ userData, launcher, session, answers = null }) {
   const handlers = new Map();
   const marked = [];
   const prompts = [];
-  const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+  const ipc = registerHostIpcHandlers({ enabled: true, ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     app: { getPath: () => userData }, auth, apiBase, logger: { warn() {} }, hostService: launcher,
     authorizeWorkspaceRoot: async (_event, root) => root,
     dialog: { showMessageBox: async (_window, options) => { prompts.push(options); return { response: answers?.shift() ?? 1 }; } },
@@ -102,11 +102,64 @@ function desktop({ userData, launcher, session, answers = null }) {
 }
 
 describe("host IPC", () => {
+  it("blocks all host operations by default without starting a service or reading an account", async () => {
+    const handlers = new Map();
+    let starts = 0;
+    const ipc = registerHostIpcHandlers({
+      ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+      hostService: { tryConnect: async () => null, ensure: async () => { starts++; } },
+      auth: { readSession: async () => { throw new Error("must not read account"); } },
+    });
+    await ipc.ready;
+    const reads = new Map([
+      ["host:status", { state: "off", folders: [] }],
+      ["host:catalog", { devices: [] }],
+      ["host:recent-folders", { folders: [], lastActive: null }],
+      ["host:autostart", { supported: false, enabled: false }],
+    ]);
+    expect(handlers.size).toBeGreaterThan(20);
+    for (const [name, handler] of handlers) {
+      if (reads.has(name)) expect(await handler()).toMatchObject(reads.get(name));
+      else await expect(handler({ sender: {} }, {})).rejects.toThrow("unavailable in this build");
+    }
+    expect(starts).toBe(0);
+    expect(await ipc.retireSharesAtMissingRoot("/missing")).toEqual({ retired: 0 });
+    ipc.dispose();
+  });
+
+  it("pauses an already running service and preserves registered local folders", async () => {
+    const userData = await temporaryRoot();
+    const stateDir = path.join(userData, "host-service");
+    const folder = path.join(userData, "Notes");
+    await fs.mkdir(folder);
+    await fs.writeFile(path.join(folder, "note.txt"), "keep me");
+    const cloud = deviceChallenges();
+    const service = inProcessHostService(stateDir, cloud.fetchImpl);
+    const session = { current: { user_id: owner, session_generation: "one", api_base_url: apiBase } };
+    const prior = desktop({ userData, launcher: service.launcher, session });
+    await prior.handlers.get("host:register-folder")({ sender: {} }, { rootPath: folder });
+    const originalFolders = (await prior.status()).folders;
+    prior.ipc.dispose();
+    const disabled = registerHostIpcHandlers({ ipcMain: { handle() {} }, hostService: service.launcher });
+    await disabled.ready;
+    await settle();
+    expect(service.running.starts).toBe(1);
+    expect(JSON.parse(await fs.readFile(path.join(stateDir, "host-sharing.json"), "utf8")).paused).toBe(true);
+    expect(await fs.readFile(path.join(folder, "note.txt"), "utf8")).toBe("keep me");
+    // Even a previous service version will not resume a persisted pause.
+    await service.stop(); await service.start(); await settle();
+    const status = await service.running.host.service.methods.status();
+    expect(status.paused).toBe(true);
+    expect(status.folders.map(({ name }) => name)).toEqual(originalFolders.map(({ name }) => name));
+    expect(cloud.requests).toHaveLength(1);
+    disabled.dispose();
+  });
+
   it("requires an admitted local root and explicit approval before registration", async () => {
     const handlers = new Map();
     const ipcMain = { handle: (name, fn) => handlers.set(name, fn) };
     let promptCount = 0;
-    const host = registerHostIpcHandlers({ ipcMain, app: { getPath: () => "/unused" },
+    const host = registerHostIpcHandlers({ enabled: true, ipcMain, app: { getPath: () => "/unused" },
       auth: { readSession: async () => ({ user_id: "a", session_generation: "one",
         api_base_url: "https://api.puppyone.ai/api/v1" }),
         requestSessionApi: async () => { throw new Error("must not contact cloud"); } },
@@ -139,7 +192,7 @@ describe("host IPC", () => {
     let session = { user_id: owner, session_generation: "one", api_base_url: apiBase };
     const handlers = new Map();
     let starts = 0;
-    const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+    const ipc = registerHostIpcHandlers({ enabled: true, ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
       app: { getPath: () => userData }, apiBase, auth: { readSession: async () => session },
       authorizeWorkspaceRoot: createSenderWorkspaceAuthorization({ getWorkspaceRootsForSender: () => [assignedRoot] }),
       dialog: { showMessageBox: async () => {
@@ -270,7 +323,7 @@ describe("host IPC", () => {
     let enabled = false;
     const hostAutostart = { supported: true, status: async () => ({ supported: true, enabled }),
       set: async (on) => { enabled = on; return enabled; } };
-    const ipc = registerHostIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+    const ipc = registerHostIpcHandlers({ enabled: true, ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
       app: { getPath: () => "/unused" }, auth: { readSession: async () => null, subscribe: () => () => {} },
       apiBase: "https://api.puppyone.ai/api/v1", logger: { warn() {} }, hostAutostart,
       BrowserWindow: { getAllWindows: () => [] }, t: (id) => id });

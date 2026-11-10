@@ -1,3 +1,4 @@
+import { HOST_DEVICES_AVAILABLE } from "../../../shared/host-contract/rollout.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,8 +30,33 @@ function requireSession(expectedSession) {
  * folder names and status; file bytes cross IPC only for a folder a renderer
  * explicitly opened.
  */
-export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorizeWorkspaceRoot, dialog,
+export function registerHostIpcHandlers({ ipcMain: trustedIpcMain, enabled = HOST_DEVICES_AVAILABLE, app, auth, apiBase, authorizeWorkspaceRoot, dialog,
   BrowserWindow, t, hostService = null, markWorkspaceShared = async () => {}, logger = console, hostAutostart = null }) {
+  // A previous build may have left a standalone service running. Suspend it
+  // without starting a new service, deleting registrations or touching files.
+  const ready = enabled ? Promise.resolve() : (async () => {
+    const running = await hostService?.tryConnect({});
+    if (!running) return;
+    try {
+      try {
+        await running.call("setPaused", { paused: true });
+        await running.call("execStopAll");
+      } finally { await running.call("shutdown"); }
+    } finally { running.close(); }
+  })().catch(error => logger.warn("Unable to suspend Host during rollout", error?.message));
+  const ipcMain = {
+    handle(name, handler) {
+      trustedIpcMain.handle(name, async (...args) => {
+        if (enabled) return handler(...args);
+        await ready;
+        if (name === "host:status") return { ...OFF, folders: [] };
+        if (name === "host:catalog") return { devices: [] };
+        if (name === "host:recent-folders") return { folders: [], lastActive: null };
+        if (name === "host:autostart") return { supported: false, enabled: false };
+        throw new Error("Other computers is unavailable in this build.");
+      });
+    },
+  };
   let recents = null;
   const recentFolders = () => {
     recents ??= createHostRecents({ filePath: path.join(app.getPath("userData"), "host-recent-folders.json") });
@@ -121,7 +147,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
   // sharing follows the person signed in here: signing out or switching
   // accounts stops it; a new session for the same person does not.
   let lastUser;
-  void auth.readSession().then((session) => { lastUser ??= session?.user_id ?? null; }).catch(() => {});
+  if (enabled) void auth.readSession().then((session) => { lastUser ??= session?.user_id ?? null; }).catch(() => {});
   async function followSignedInAccount() {
     let session = null;
     try { session = await auth.readSession(); } catch { return; }
@@ -133,7 +159,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
     const status = await running?.call("status").catch(() => null);
     if (status?.active && status.active.accountId !== user) await running.call("stopSharing").catch(() => {});
   }
-  const unsubscribeAuth = auth.subscribe?.(() => { void followSignedInAccount(); }) ?? null;
+  const unsubscribeAuth = enabled ? auth.subscribe?.(() => { void followSignedInAccount(); }) ?? null : null;
 
   ipcMain.handle("host:catalog", async (_event, expectedSession) => {
     if (!apiBase) return { devices: [] };
@@ -462,6 +488,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
   });
 
   return {
+    ready,
     /**
      * Withdraw what this computer shares from a folder that is gone from disk, after
      * the person found where it went. Narrowing only, so no approval is asked; a
@@ -469,6 +496,7 @@ export function registerHostIpcHandlers({ ipcMain, app, auth, apiBase, authorize
      * ordinary, approved Turn on.
      */
     async retireSharesAtMissingRoot(rootPath) {
+      if (!enabled) return { retired: 0 };
       if (typeof rootPath !== "string" || !path.isAbsolute(rootPath)) return { retired: 0 };
       if (await fs.promises.stat(rootPath).then(() => true, () => false)) return { retired: 0 };
       const status = await hostStatus();
