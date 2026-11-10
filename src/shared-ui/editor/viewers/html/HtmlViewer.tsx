@@ -16,11 +16,12 @@ import { HtmlViewMenu } from "./HtmlViewMenu";
 import { isHtmlDocumentEmpty } from "./htmlDocumentEmpty";
 import { digestHtmlSource, readHtmlFolderAccessGrant, requestsHtmlFolderAccess, writeHtmlFolderAccessGrant } from "./htmlFolderAccess";
 import type { HtmlFolderAccessPort } from "../../preview-services/types";
+import type { HtmlLinkFailure } from "./htmlLinkNavigation";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
 
 type HtmlViewerProps = Pick<PresetViewerRenderContext, "document" | "content" | "fileUrl" | "fileUrlLoading"
-  | "fileUrlError" | "loading" | "error" | "htmlTrustMode" | "canEdit" | "hideSourceView">;
+  | "fileUrlError" | "loading" | "error" | "htmlTrustMode" | "canEdit" | "hideSourceView" | "documentNavigation">;
 type Mode = "preview" | "edit" | "source";
 
 export function HtmlViewer(props: HtmlViewerProps) {
@@ -30,7 +31,7 @@ export function HtmlViewer(props: HtmlViewerProps) {
   return <HtmlDocumentEditor key={props.document.path} {...props} />;
 }
 
-function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit, hideSourceView }: HtmlViewerProps) {
+function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit, hideSourceView, documentNavigation }: HtmlViewerProps) {
   const { t } = useLocalization();
   const owner = useDocumentModelOwner();
   const publishMenu = useEditorPaneMenuContributionPublisher();
@@ -51,6 +52,7 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   const [preview, setPreview] = useState(() => model.readSnapshot().content);
   const emptyPage = useMemo(() => isHtmlDocumentEmpty(preview), [preview]);
   const [error, setError] = useState<string | null>(null);
+  const onLinkFailure = useCallback((reason: HtmlLinkFailure) => setError(t(`editor.html.linkFailure.${reason}`)), [t]);
   const prepare = useRef<(() => void | Promise<void>) | null>(null);
   const registerPrepare = useCallback((callback: (() => void | Promise<void>) | null) => { prepare.current = callback; }, []);
   const lifecycle = useRef(0);
@@ -151,7 +153,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
     return <div className="native-preview native-preview-framed">
       <Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}>
         <HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode}
-          interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null} />
+          interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null}
+          documentNavigation={documentNavigation} onLinkFailure={onLinkFailure} />
       </Suspense>
     </div>;
   };

@@ -9,6 +9,8 @@ import { HTML_PAGE_SCROLLBAR_STYLE, htmlPageViewportScript, useHtmlPageViewport,
 import type { HtmlFolderAccessSession } from "../../preview-services/types";
 import { htmlFolderAccessScript, readHtmlPageStorage, useHtmlFolderAccessBridge } from "./htmlFolderAccess";
 import { useLocalization } from "@puppyone/localization/react";
+import type { DocumentNavigationPort } from "../../navigation/documentNavigation";
+import { allowHtmlNavigationScript, htmlLinkNavigationScript, useHtmlLinkNavigation, type HtmlLinkFailure } from "./htmlLinkNavigation";
 
 export function HtmlPreviewFrame({
   path,
@@ -19,6 +21,8 @@ export function HtmlPreviewFrame({
   interactive = false,
   viewportState,
   folderAccess = null,
+  documentNavigation,
+  onLinkFailure,
 }: {
   path: string;
   title: string;
@@ -29,6 +33,8 @@ export function HtmlPreviewFrame({
   viewportState?: HtmlPageViewport;
   /** Set only after the person allowed this page to use its folder; the page then runs offline. */
   folderAccess?: HtmlFolderAccessSession | null;
+  documentNavigation?: DocumentNavigationPort | null;
+  onLinkFailure?: (reason: HtmlLinkFailure) => void;
 }) {
   const { t } = useLocalization();
   const offline = interactive && !!folderAccess;
@@ -46,6 +52,7 @@ export function HtmlPreviewFrame({
   ].join("|");
   const projectionPort = useEditorPreviewServices().services?.documentProjection;
   const folderName = folderAccess?.folderName;
+  const sourceBase = useMemo(() => readHtmlBaseHref(content ?? ""), [content]);
   const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl,
     offline ? OFFLINE_HTML_PREVIEW_POLICY : getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined,
     offline && folderName !== undefined ? htmlFolderAccessScript(viewportChannel, folderName, readHtmlPageStorage(path)) : undefined) : null,
@@ -58,17 +65,19 @@ export function HtmlPreviewFrame({
     const abort = new AbortController();
     let release: (() => Promise<void>) | undefined;
     // Ordinary previews retain their existing link/interaction policy through the iframe sandbox.
-    void projectionPort.create(path, projection, abort.signal, { interactive: true, baseHref: readHtmlBaseHref(content ?? ""), offline }).then(async (lease) => {
+    void projectionPort.create(path, projection, abort.signal, { interactive: true, baseHref: sourceBase, offline }).then(async (lease) => {
       if (abort.signal.aborted) { await lease.close(); return; }
       release = lease.close;
       setResource({ key: frameKey, url: lease.url });
     }).catch(() => { if (!abort.signal.aborted) setResource({ key: frameKey, url: null }); });
     return () => { abort.abort(); void release?.().catch(() => undefined); };
-  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content, offline]);
+  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content, offline, sourceBase]);
   const resourceReady = resource?.key === frameKey;
   const projectionUrl = resourceReady ? resource.url : undefined;
   const waitingForProjection = useProjection && !resourceReady;
   const visibleFrameKey = `${frameKey}|${projectionUrl ?? String(waitingForProjection)}`;
+  useHtmlLinkNavigation({ frame, channel: viewportChannel, generation: visibleFrameKey, path,
+    sourceBase, navigation: documentNavigation, offline, onFailure: onLinkFailure });
   const frameReadiness = useVisibleFrameReadiness(visibleFrameKey);
   const onFrameLoad = useHtmlPageViewport({ frame, viewportState, channel: viewportChannel,
     enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });
@@ -189,6 +198,11 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
     parent.childNodes = parent.childNodes.filter((node) => {
       if (policy.csp && "tagName" in node && node.tagName === "meta"
         && node.attrs.some((attr) => attr.name === "http-equiv" && attr.value.toLowerCase() === "refresh")) return false;
+      if (viewportChannel && "tagName" in node && node.tagName === "meta"
+        && node.attrs.some((attr) => attr.name === "http-equiv" && attr.value.toLowerCase() === "content-security-policy")) {
+        const content = node.attrs.find((attr) => attr.name === "content");
+        if (content) content.value = allowHtmlNavigationScript(content.value, viewportChannel);
+      }
       if ("tagName" in node && node.tagName === "base") {
         originalBase ??= node.attrs.find((attr) => attr.name === "href")?.value;
         return false;
@@ -223,6 +237,7 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   if (viewportChannel) {
     const body = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "body")!;
     body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);
+    body.childNodes.push(...parseFragment(htmlLinkNavigationScript(viewportChannel, baseHref)).childNodes);
   }
   return serialize(tree);
 }

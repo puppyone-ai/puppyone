@@ -899,11 +899,6 @@
       "count": 1
     }
   },
-  "src/shared-ui/editor/navigation/documentNavigation.ts": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/shared-ui/editor/registry/editorProviderPolicy.ts": {
     "no-nested-ternary": {
       "count": 1

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createDocumentNavigationPort,
+  DocumentNavigationMissingError,
   parseDocumentReferenceIntent,
 } from "../../../../src/shared-ui/editor/navigation/documentNavigation";
 
@@ -114,5 +115,33 @@ describe("document navigation boundary", () => {
     const reference = port.resolveReference("table.csv", "https://example.com");
     if (!reference) throw new Error("External reference did not resolve.");
     expect(port.canOpenReference(reference)).toBe(false);
+  });
+
+  it("lets a capable host resolve files outside the loaded Explorer metadata", async () => {
+    const openWorkspaceCandidates = vi.fn().mockResolvedValue(true);
+    const port = createDocumentNavigationPort({
+      resolveWorkspaceCandidatesOnOpen: true,
+      resolveWorkspaceReference: () => ({ exists: false, ambiguous: false, path: null, candidatePaths: ["unexpanded/spec.html"] }),
+      openWorkspaceCandidates,
+    });
+    const reference = port.resolveReference("page.html", "./unexpanded/spec.html");
+    expect(reference).toMatchObject({ kind: "workspace", status: "unresolved" });
+    if (!reference) throw new Error("Expected a deferred file reference.");
+    expect(port.canOpenReference(reference)).toBe(true);
+    await port.openReference(reference);
+    expect(openWorkspaceCandidates).toHaveBeenCalledWith(["unexpanded/spec.html"]);
+    openWorkspaceCandidates.mockResolvedValueOnce(false);
+    await expect(port.openReference(reference)).rejects.toBeInstanceOf(DocumentNavigationMissingError);
+  });
+
+  it("preserves hosts that cancel navigation or do not return an outcome", async () => {
+    const port = createDocumentNavigationPort({
+      resolveWorkspaceCandidatesOnOpen: true,
+      resolveWorkspaceReference: () => ({ exists: false, ambiguous: false, path: null, candidatePaths: ["note.md"] }),
+      openWorkspaceCandidates: async () => undefined,
+    });
+    const reference = port.resolveReference("page.html", "./note.md");
+    if (!reference) throw new Error("Expected a deferred file reference.");
+    await expect(port.openReference(reference)).resolves.toBeUndefined();
   });
 });

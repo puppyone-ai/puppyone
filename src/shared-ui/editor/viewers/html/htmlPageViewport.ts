@@ -65,7 +65,7 @@ export function readHtmlPagePointer(value: unknown): { x: number; y: number } | 
 }
 
 export function htmlPageViewportScript(channel: string): string {
-  return `<script>(()=>{const channel=${JSON.stringify(channel)};let queued=false;
+  return `<script nonce="${channel}">(()=>{const channel=${JSON.stringify(channel)};let queued=false;
 addEventListener('scroll',()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;
 parent.postMessage({type:'puppyone-html-viewport',channel,x:scrollX,y:scrollY},'*')})},{passive:true});
 let pointer=null,pointerQueued=false;

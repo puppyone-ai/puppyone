@@ -80,6 +80,7 @@ import {
   joinDataResourcePath,
   normalizeDataResourcePath,
   rebaseDataResourcePath,
+  resolveDataResourceWorkspaceRoot,
 } from "../core/dataResourcePath";
 
 const rendererPerformance = getRendererPerformanceTracker();
@@ -805,7 +806,10 @@ export function DataWorkspace({
         if (requestGeneration !== loadGenerationRef.current) return null;
       }
 
-      const ancestorPaths = collectAncestorFolderPaths(normalizedPath);
+      // URI scope segments identify the workspace; they are not Explorer rows.
+      const scopeRoot = resolveDataResourceWorkspaceRoot(normalizedPath, workspace.path);
+      const ancestorPaths = collectAncestorFolderPaths(normalizedPath)
+        .filter((folderPath) => !scopeRoot || isDataResourceDescendant(folderPath, scopeRoot));
       for (const folderPath of ancestorPaths) {
         if (requestGeneration !== loadGenerationRef.current) return null;
         let workingTree = treeRef.current;
@@ -828,7 +832,7 @@ export function DataWorkspace({
       }
       return node;
     },
-    [loadFolderChildren],
+    [loadFolderChildren, workspace.path],
   );
 
   useEffect(() => {
@@ -871,8 +875,9 @@ export function DataWorkspace({
         if (node.type === "folder") {
           void loadFolder(node.path);
         }
-        return;
+        return true;
       }
+      return false;
     },
     [loadFolder, loadLinkedPathNode, requestActiveNodeChange, tree],
   );
@@ -985,6 +990,7 @@ export function DataWorkspace({
   );
   const canOpenExternalDocumentReference = Boolean(onOpenExternalUrl);
   const documentNavigation = useMemo(() => createDocumentNavigationPort({
+    resolveWorkspaceCandidatesOnOpen: true,
     resolveWorkspaceReference(sourcePath, target) {
       return resolveDocumentReferenceCommand(sourcePath, target);
     },

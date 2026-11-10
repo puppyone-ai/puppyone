@@ -16,6 +16,7 @@ export type DocumentExternalReference = Readonly<{
 
 export type DocumentWorkspaceReferenceStatus =
   | "resolved"
+  | "unresolved"
   | "ambiguous"
   | "missing";
 
@@ -57,13 +58,19 @@ export type DocumentNavigationPort = Readonly<{
 }>;
 
 export type DocumentNavigationOptions = Readonly<{
+  /** The host can load a path that is not yet in the Explorer's metadata. */
+  resolveWorkspaceCandidatesOnOpen?: boolean;
   resolveWorkspaceReference?: (
     sourcePath: string,
     target: string,
   ) => WorkspaceDocumentReferenceResolution | null;
-  openWorkspaceCandidates?: (paths: readonly string[]) => void | Promise<void>;
+  openWorkspaceCandidates?: (paths: readonly string[]) => boolean | void | Promise<boolean | void>;
   openExternalUrl?: (href: string) => void | Promise<void>;
 }>;
+
+export class DocumentNavigationMissingError extends Error {
+  constructor() { super("The linked document could not be found."); this.name = "DocumentNavigationMissingError"; }
+}
 
 type ParsedReferenceIntent =
   | Omit<DocumentExternalReference, "kind">
@@ -113,14 +120,14 @@ export function createDocumentNavigationPort(
         ...(resolution?.path ? [resolution.path] : []),
         ...(resolution?.candidatePaths ?? []),
       ]);
+      let status: DocumentWorkspaceReferenceStatus = "missing";
+      if (resolution?.ambiguous) status = "ambiguous";
+      else if (resolution?.exists && resolution.path) status = "resolved";
+      else if (options.resolveWorkspaceCandidatesOnOpen && candidatePaths.length > 0) status = "unresolved";
       return admit({
         kind: "workspace",
         ...intent,
-        status: resolution?.ambiguous
-          ? "ambiguous"
-          : resolution?.exists && resolution.path
-            ? "resolved"
-            : "missing",
+        status,
         path: resolution?.path ?? null,
         candidatePaths: Object.freeze(candidatePaths),
       });
@@ -136,7 +143,9 @@ export function createDocumentNavigationPort(
         ...(reference.path ? [reference.path] : []),
         ...reference.candidatePaths,
       ]);
-      if (candidates.length > 0) return options.openWorkspaceCandidates?.(candidates);
+      if (candidates.length > 0) return Promise.resolve(options.openWorkspaceCandidates?.(candidates)).then((opened) => {
+        if (opened === false) throw new DocumentNavigationMissingError();
+      });
     },
   });
 }
