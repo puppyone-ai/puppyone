@@ -1030,6 +1030,8 @@
 
 .desktop-plan-settings {
   --desktop-plan-accent: #f87518;
+  font-size: var(--po-text-size-label, 13px);
+  line-height: 1.5;
 }
 
 .desktop-plan-overview { container-type: inline-size; display: grid; gap: 16px; }
