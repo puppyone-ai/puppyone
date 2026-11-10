@@ -60,6 +60,8 @@ async function until(expression, description = expression) {
   throw new Error(`Timed out: ${description}`);
 }
 async function capture(name) {
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await wait(150);
   // A newly mounted native view may not have a compositor frame yet.
   for (let attempt = 0; ; attempt++) {
     try {
@@ -122,142 +124,91 @@ async function run() {
   await until("!!document.querySelector('.desktop-onboarding, .desktop-titlebar')", "Home mount");
   await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: true, enableHostDevices: true }));");
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.reload(); });
-  await until("document.body.textContent.includes('Window acceptance')", "default Space Home");
-  assert.equal(await evaluate("!!document.querySelector('.onboarding-space-sidebar')"), false, 'Home has no added Sidebar');
-  assert.equal(await evaluate("document.querySelector('.onboarding-homepage-shell')?.hasAttribute('data-space-sidebar')"), false);
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await capture('00-home-without-sidebar');
+  const allProjects = "['Window acceptance','Space B only','This Mac fixture','Local working copy'].every(name => document.body.textContent.includes(name))";
+  await until(allProjects, "all Space and local projects on Home");
+  assert.equal(await evaluate("!!document.querySelector('.onboarding-space-sidebar, .desktop-space-trigger')"), false);
+  assert.equal(await evaluate("document.querySelectorAll('[data-project-group^=\"space:\"]').length"), 2);
   assert.equal(await evaluate("document.body.textContent.includes('Other computers')"), false);
   assert.deepEqual(await evaluate("window.puppyoneDesktop.listHostDevices({userId:'user-1',generation:'stale'})"), { devices: [] });
   assert.equal(await evaluate("window.puppyoneDesktop.registerHostFolder({rootPath:'/invalid'}).then(() => false, error => error.message.includes('unavailable in this build'))"), true);
-  report.other_computers_rollout_disabled = true;
-  const openLocal = async owner => {
-    await owner.webContents.executeJavaScript("[...document.querySelectorAll('[data-project-open]')].find(button => button.getAttribute('aria-label')?.includes('This Mac fixture')).click()", true);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await capture('00-all-spaces-home');
+  window.setContentSize(680, 900);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"));
+  await capture('00b-all-spaces-home-narrow');
+  window.setContentSize(1280, 900);
+
+  const untilOwner = async (owner, expression) => {
     for (let n = 0; n < 300; n++) {
-      if (await owner.webContents.executeJavaScript("!!document.querySelector('.desktop-shell .desktop-space-trigger')")) return;
+      if (await owner.webContents.executeJavaScript(expression, true)) return;
       await wait(50);
     }
-    throw new Error('Local project Sidebar did not mount');
+    throw new Error(`Window did not settle: ${expression}`);
   };
-  const select = async (owner, id) => {
-    if (!await owner.webContents.executeJavaScript("!!document.querySelector('.desktop-space-trigger')")) await openLocal(owner);
-    await owner.webContents.executeJavaScript("document.querySelector('.desktop-space-trigger').click()", true);
-    const selector = id === 'settings' || id === 'invite' ? `[data-space-action="${id}"]` : `[data-space-id="${id}"]`;
-    for (let n = 0; n < 100; n++) {
-      if (await owner.webContents.executeJavaScript(`!!document.querySelector(${JSON.stringify(selector)})`)) break;
-      await wait(20);
-    }
-    await owner.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`, true);
+  const openPlan = async owner => {
+    await owner.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar').click()", true);
+    await untilOwner(owner, "!!document.querySelector('.desktop-settings-dialog')");
+    await owner.webContents.executeJavaScript("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()", true);
+    await untilOwner(owner, "!!document.querySelector('.desktop-settings-space-picker select')");
   };
+  const pickPlan = async (owner, id) => {
+    await owner.webContents.executeJavaScript(`(() => { const picker=document.querySelector('.desktop-settings-space-picker select'); picker.value=${JSON.stringify(id)}; picker.dispatchEvent(new Event('change',{bubbles:true})); })()`, true);
+    await untilOwner(owner, `document.querySelector('.desktop-settings-space-picker select')?.value === ${JSON.stringify(id)}`);
+  };
+  const closeSettings = async owner => {
+    await owner.webContents.executeJavaScript("document.querySelector('.desktop-settings-dialog-header button').click()", true);
+    await untilOwner(owner, "!document.querySelector('.desktop-settings-dialog')");
+  };
+  await openPlan(window);
+  assert.equal(await evaluate("document.querySelectorAll('.desktop-settings-space-picker option').length"), 2);
+  await pickPlan(window, 'org-2');
+  await until("document.querySelector('.desktop-plan-settings').textContent.includes('Research')", 'Plan explicitly targets Research');
+  await capture('01-plan-choose-space');
+  await evaluate("document.querySelector('.desktop-settings-space-picker button').click()");
+  await until("!!document.querySelector('.desktop-dialog-field input')", 'Create space remains available in settings');
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true}))");
+  await until("!document.querySelector('.desktop-dialog-field input') && !!document.querySelector('.desktop-settings-dialog')", 'cancel creation retains settings');
+  assert.equal(await evaluate("document.querySelector('.desktop-settings-space-picker select').value"), 'org-2');
+  await closeSettings(window);
+  assert.ok(await evaluate(allProjects), 'choosing a bill must not filter Home');
 
-  assert.ok(await evaluate("!!document.querySelector('.onboarding-project-group-head .desktop-space-trigger')"), 'Home exposes Space switching beside cloud projects');
-  await select(window, 'org-2');
-  await until("document.body.textContent.includes('Space B only')", 'switch from Home without opening a project');
-  await capture('00c-home-space-switch');
-  await select(window, 'org-1');
-  await until("document.body.textContent.includes('Window acceptance')", 'return to Space A from Home');
-  window.setContentSize(680, 900);
-  await evaluate("document.querySelector('.onboarding-project-group-head .desktop-space-trigger').click()");
-  await until("!!document.querySelector('.desktop-space-menu')", 'Home Space menu at narrow width');
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.ok(await evaluate("(() => { const r=document.querySelector('.desktop-space-menu').getBoundingClientRect(); return r.left >= 8 && r.right <= innerWidth - 8; })()"));
-  await capture('00d-home-menu-narrow');
-  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
-  window.setContentSize(1280, 900);
-  await openLocal(window);
-  assert.ok(await evaluate("(() => { const name=document.querySelector('.desktop-space-trigger bdi'); return name.clientWidth >= name.scrollWidth - 1; })()"), 'short Space name fits the Sidebar control');
-  await evaluate("document.querySelector('.desktop-space-trigger').click()");
-  await until("document.activeElement?.getAttribute('data-space-id') === 'org-1'", 'Space menu keyboard focus');
-  assert.equal(await evaluate("!!document.querySelector('.desktop-space-menu [aria-haspopup=menu]')"), false);
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await capture('00-account-space-menu');
-  window.setContentSize(680, 900);
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.ok(await evaluate("(() => { const r=document.querySelector('.desktop-space-menu').getBoundingClientRect(); return r.left >= 8 && r.right <= innerWidth - 8; })()"));
-  await capture('00b-account-space-menu-narrow');
-  window.setContentSize(1280, 900);
-  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
-  await until("!document.querySelector('.desktop-space-menu')", 'Space menu dismissal');
-  assert.equal(await evaluate("document.body.textContent.includes('Space B only')"), false);
-  assert.ok(await evaluate("(() => { const trigger = document.querySelector('.desktop-space-trigger').getBoundingClientRect(); const footer = document.querySelector('.desktop-sidebar-bottom-controls').getBoundingClientRect(); return trigger.top > innerHeight * .7 && Math.abs(trigger.right - footer.right) < 10; })()"), 'Space sits at the bottom right of the existing project Sidebar');
-  assert.equal(await evaluate("!!document.querySelector('.desktop-titlebar .desktop-space-trigger')"), false);
-  await select(window, 'org-2');
-  await until("document.body.textContent.includes('Space B only')", "Space B Home");
-  assert.equal(await evaluate("document.body.textContent.includes('Window acceptance')"), false);
-  assert.ok(await evaluate("document.body.textContent.includes('This Mac fixture') && document.body.textContent.includes('Local working copy')"));
-  await capture('01-space-b-home');
   await evaluate("[...document.querySelectorAll('[data-project-open]')].find(button => button.getAttribute('aria-label')?.includes('This Mac fixture')).click()");
-  await until("!!document.querySelector('.desktop-shell .desktop-sidebar-space-navigation .desktop-space-trigger')", 'Space switcher in the local project Sidebar');
-  assert.equal(await evaluate("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"), 'org-2');
-  await capture('01b-local-project-keeps-space');
-  await select(window, 'org-2');
-  await until("document.body.textContent.includes('Space B only') && document.body.textContent.includes('This Mac fixture')", 'return Home with local and cloud projects');
-  await evaluate("window.puppyoneDesktop.openCloudProjectInNewWindow({projectId:'project-b',userId:'user-1'})");
-  for(let i=0;i<200&&BrowserWindow.getAllWindows().length<2;i++)await wait(50);
-  const second=BrowserWindow.getAllWindows().find(candidate=>candidate.id!==window.id);
-  assert.ok(second, 'Production Main creates a second window');
-  for(let i=0;i<500;i++) {
-    if(await second.webContents.executeJavaScript("document.body.textContent.includes('Space B only') && !!document.querySelector('[data-project-open]')"))break;
-    await wait(50);
-  }
-  // This fixture supplies project discovery, not repository hydration. Inspect
-  // its selected Space in a local workbench after the new window reaches Home.
-  await openLocal(second);
-  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"),'org-2');
-  assert.equal(await second.webContents.executeJavaScript("document.querySelectorAll('.homepage-cloud-avatar').length"), 1);
-  assert.ok(await second.webContents.executeJavaScript("!!document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar')"));
+  await until("!!document.querySelector('.desktop-shell') && document.body.textContent.includes('README.md')", 'local project files load');
+  assert.equal(await evaluate("!!document.querySelector('.desktop-space-trigger, .desktop-sidebar-space-navigation')"), false, 'no global Space control in the project Sidebar');
+  await capture('02-project-without-space-switcher');
+  await openPlan(window);
+  await pickPlan(window, 'org-1');
+  assert.ok(await evaluate("document.querySelector('.desktop-titlebar').textContent.includes('This Mac fixture')"));
+  await capture('03-plan-over-local-project');
 
-  await select(window,'org-1');
-  await until("document.body.textContent.includes('Window acceptance')", 'first window returns A');
-  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"),'org-2');
-  await select(window,'invite');
-  await until("!!document.querySelector('.desktop-space-member-form input:not(:disabled)')", 'loaded current Space member settings');
-  assert.ok(await evaluate("document.body.textContent.includes('Studio')"));
-  assert.equal(await evaluate("document.activeElement?.type"), 'email');
-  assert.equal(await evaluate("document.querySelectorAll('.homepage-cloud-avatar').length"), 1);
-  assert.ok(await evaluate("!!document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar')"));
-  assert.equal(await evaluate("!!document.querySelector('.desktop-titlebar-trailing .homepage-cloud-avatar')"), false);
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await capture('02-space-a-settings');
-  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-grid')"), false);
-  await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()");
-  await until("document.querySelector('.desktop-settings-section h2')?.textContent === 'Plan'", 'separate Plan page');
-  assert.equal(await evaluate("!!document.querySelector('.desktop-space-member-form')"), false);
-  assert.ok(await evaluate("document.querySelector('.desktop-plan-settings').textContent.includes('Studio')"));
-  const pickPlan = async id => evaluate(`(() => { const picker=document.querySelector('.desktop-settings-space-picker select'); picker.value=${JSON.stringify(id)}; picker.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-  await pickPlan('org-2');
-  await until("document.querySelector('.desktop-plan-settings').textContent.includes('Research')", 'Plan switches to Research without leaving Settings');
-  assert.equal(await evaluate("document.querySelector('.onboarding-project-group-head .desktop-space-trigger')?.dataset.currentSpace"), 'org-1', 'billing selection does not navigate Home');
-  assert.equal(await evaluate("document.querySelectorAll('.desktop-settings-dialog').length"), 1);
-  await capture('03b-plan-space-selection');
-  await pickPlan('org-1');
-  await until("document.querySelector('.desktop-plan-settings').textContent.includes('Studio')", 'Plan returns to Studio');
-  await capture('03-space-plan');
-  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"),'org-2');
-  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
-  await until("!document.querySelector('.desktop-settings-dialog')", 'close Plan');
-  await evaluate("document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar').click()");
-  await until("document.querySelector('.desktop-account-settings-section h2')?.textContent === 'Account'", 'avatar opens Account directly');
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await capture('04-account-from-leading-avatar');
+  await evaluate("window.puppyoneDesktop.openCloudProjectInNewWindow({projectId:'project-b',userId:'user-1'})");
+  for (let n = 0; n < 200 && BrowserWindow.getAllWindows().length < 2; n++) await wait(50);
+  const second = BrowserWindow.getAllWindows().find(candidate => candidate.id !== window.id);
+  assert.ok(second, 'second real window');
+  // Discovery fixture only: repository hydration is intentionally unavailable.
+  await untilOwner(second, allProjects);
+  await openPlan(second);
+  await pickPlan(second, 'org-2');
+  assert.equal(await evaluate("document.querySelector('.desktop-settings-space-picker select').value"), 'org-1');
+  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-settings-space-picker select').value"), 'org-2');
+  await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Members & settings').click()");
+  await until("!!document.querySelector('.desktop-space-member-form input:not(:disabled)')", 'members of the chosen Space');
+  await capture('04-space-members');
+  await closeSettings(window);
   await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: false }));");
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.reload(); });
-  await until("!!document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar') && !document.querySelector('.desktop-space-trigger')", 'account remains available with Cloud off');
+  await until("!!document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar')", 'account with Cloud off');
   await evaluate("document.querySelector('.desktop-titlebar-left .homepage-cloud-avatar').click()");
-  await until("document.querySelector('.desktop-account-settings-section h2')?.textContent === 'Account'", 'Account with Cloud off');
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await until("document.querySelector('.desktop-account-settings-section h2')?.textContent === 'Account'", 'Account stays accessible');
   await capture('05-account-with-cloud-off');
-  report.account_available_without_cloud = true;
-  report.cloud_only_space_sidebar = true;
-  report.home_has_no_added_sidebar = true;
-  report.home_inline_space_switching = true;
-  report.plan_inline_space_selection = true;
-  report.space_at_existing_sidebar_bottom_right = true;
+  report.all_spaces_on_home = true;
+  report.no_global_space_switcher = true;
+  report.plan_explicit_space_selection = true;
   report.local_projects_always_visible = true;
-  report.local_project_keeps_cloud_space = true;
-  report.leading_account_and_flat_space_menu = true;
-  report.separate_space_and_plan = true;
-  report.ok=true; report.window_count=2; report.current_spaces=['org-1','org-2'];
+  report.other_computers_rollout_disabled = true;
+  report.account_available_without_cloud = true;
+  report.ok = true; report.window_count = 2; report.current_spaces = ['org-1', 'org-2'];
   assert.deepEqual(report.blocked_network, [], "Unexpected external request attempted");
 }
 let bootstrapError;

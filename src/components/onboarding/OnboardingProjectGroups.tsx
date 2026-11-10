@@ -53,7 +53,7 @@ export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: Proje
 }
 
 /**
- * Local projects lead, followed by the selected cloud Space and other computers. One page
+ * Local projects lead, followed by all accessible cloud Spaces and other computers. One page
  * scrolls, and heterogeneous local/hosted/device lists flow through one grid.
  * Generic callers may still opt into an unheaded single list.
  */

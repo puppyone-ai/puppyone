@@ -1,4 +1,3 @@
-import { useSidebarSpaceNavigation } from "../../components/WindowNavigation";
 import { Tooltip, CloudIcon } from "@puppyone/shared-ui";
 import {
   useEffect,
@@ -96,7 +95,6 @@ export function ProjectSwitcherRail({
   utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
-  const spaceNavigation = useSidebarSpaceNavigation("rail");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [failedAvatarUrls, setFailedAvatarUrls] = useState<ReadonlySet<string>>(() => new Set());
   const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
@@ -273,7 +271,6 @@ export function ProjectSwitcherRail({
           </div>
         </div>
       )}
-      {spaceNavigation && <div className="desktop-sidebar-space-navigation">{spaceNavigation}</div>}
     </nav>
   );
 }

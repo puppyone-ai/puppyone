@@ -64,7 +64,6 @@ export type MinimalOnboardingProps = {
    */
   projectGroups?: (base: OnboardingGroupsBase) => ReactNode;
   cloudSpaces?: readonly CloudSpace[];
-  cloudSpaceNavigation?: ReactNode;
   cloudSpacesStatus?: "signed-out" | "loading" | "ready" | "error";
   onRetryCloudSpaces?: () => void;
   onPublishToSpace?: (path: string, spaceId: string) => Promise<void>;
@@ -112,7 +111,6 @@ export function MinimalOnboarding({
   cloudAccountStatus,
   projectGroups,
   cloudSpaces = [],
-  cloudSpaceNavigation,
   cloudSpacesStatus = "signed-out",
   onRetryCloudSpaces,
   onPublishToSpace,
@@ -187,7 +185,7 @@ export function MinimalOnboarding({
   });
 
   // Account/auth controls are page chrome, never synthetic Project rows.
-  const hasProjects = items.length > 0 || listHeld || Boolean(cloudSpaceNavigation);
+  const hasProjects = items.length > 0 || listHeld || cloudSpaces.length > 0;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(!hasProjects);
   // The intro belongs to a page that has just become empty, and ends if it fills.
@@ -288,7 +286,7 @@ export function MinimalOnboarding({
   );
   // This computer stays visible; cloud Space and device-sharing facts keep their own groups.
   const cloudGroups = useCloudProjectGroups({
-    spaces: cloudSpaces, spaceNavigation: cloudSpaceNavigation,
+    spaces: cloudSpaces,
     cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
     onDragEnd: () => setDraggingPath(null),

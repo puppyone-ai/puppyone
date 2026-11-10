@@ -1,4 +1,3 @@
-import { useSidebarSpaceNavigation } from "../../components/WindowNavigation";
 import { useDesktopPreference, selectFileIconTheme } from "../settings";
 import {
   useCallback,
@@ -205,7 +204,6 @@ export function DesktopDataWorkspaceSurface({
       : undefined,
     [workspaceFolders],
   );
-  const spaceNavigation = useSidebarSpaceNavigation();
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
@@ -424,16 +422,13 @@ export function DesktopDataWorkspaceSurface({
         explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
-        explorerFooterSlot={navigation.showWorkspaceNavigation || sidebarCompanion || spaceNavigation
+        explorerFooterSlot={navigation.showWorkspaceNavigation || sidebarCompanion
           ? (
               <div className="desktop-sidebar-companion-host">
                 {sidebarCompanion}
-                <div className="desktop-sidebar-bottom-controls">
-                  {navigation.showWorkspaceNavigation && (
-                    <DesktopSidebarFooterNavigation {...navigationCommon} />
-                  )}
-                  {spaceNavigation && <div className="desktop-sidebar-space-navigation">{spaceNavigation}</div>}
-                </div>
+                {navigation.showWorkspaceNavigation && (
+                  <DesktopSidebarFooterNavigation {...navigationCommon} />
+                )}
               </div>
             )
           : undefined}

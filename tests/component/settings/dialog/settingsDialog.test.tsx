@@ -41,6 +41,11 @@ describe("SettingsDialog", () => {
     act(() => { picker.value = "b"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(host.querySelector('[data-testid="settings-content"]')?.getAttribute("data-space-id")).toBe("b");
     expect(props.cloud.spaceId).toBe("a"); expect(onClose).not.toHaveBeenCalled();
+    act(() => host.querySelector<HTMLButtonElement>(".desktop-settings-space-picker button")!.click());
+    expect(document.querySelector(".desktop-dialog-field input")).not.toBeNull();
+    act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector(".desktop-dialog-field input")).toBeNull();
+    expect(picker.value).toBe("b"); expect(onClose).not.toHaveBeenCalled();
     render({ ...props, activeSection: "space" });
     expect(picker.value).toBe("b");
     render({ ...props, cloud: { ...props.cloud, session: { ...props.cloud.session!, session_generation: "two" } } });

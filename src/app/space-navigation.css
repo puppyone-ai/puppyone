@@ -1,41 +1,3 @@
-.desktop-space-switcher {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.desktop-space-trigger {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: var(--po-control-radius, 6px);
-  background: transparent;
-  color: var(--po-text-muted);
-  font: inherit;
-  text-align: start;
-}
-
-.desktop-space-trigger:hover:not(:disabled) { background: var(--po-hover); }
-.desktop-space-trigger:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: -2px; }
-.desktop-space-switcher { width: 100%; }
-.desktop-space-trigger bdi { flex: 1; }
-.desktop-project-switcher-rail:not([data-expanded="true"]) .desktop-space-trigger bdi,
-.desktop-project-switcher-rail:not([data-expanded="true"]) .desktop-space-trigger > svg:last-child { display: none; }
-
-.desktop-space-trigger svg {
-  flex-shrink: 0;
-}
-
-.desktop-space-trigger bdi {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .desktop-account-space-navigation {
   display: flex;
   align-items: center;
@@ -56,47 +18,11 @@
   padding: 8px 0;
 }
 
-/* Share the existing project Sidebar footer; Home never gains a navigation rail. */
-.desktop-sidebar-bottom-controls {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.desktop-sidebar-bottom-controls > .desktop-sidebar-footer-bar {
-  flex: 0 1 auto;
-}
-
-.desktop-sidebar-space-navigation {
-  display: flex;
-  justify-content: flex-end;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  margin-inline-start: auto;
-  padding: 4px;
-}
-
-.desktop-sidebar-space-navigation .desktop-space-switcher {
-  width: auto;
-  min-width: 0;
-  max-width: 144px;
-}
-
-.desktop-space-trigger { font-size: var(--desktop-sidebar-font-size, 12px); }
-
-.desktop-project-switcher-rail > .desktop-sidebar-space-navigation {
-  flex-shrink: 0;
-}
-
-/* Inline context controls live with their content, never in Home's window chrome. */
-.desktop-space-switcher[data-placement="inline"] { width: auto; max-width: 100%; }
-.desktop-space-switcher[data-placement="inline"] .desktop-space-trigger {
-  padding: 3px 6px;
-  font: inherit;
-  color: inherit;
-}
 .desktop-settings-space-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   flex: 0 0 auto;
   padding: 16px var(--desktop-utility-page-padding-inline) 0;
 }

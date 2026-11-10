@@ -52,18 +52,19 @@ async function drag(element: Element, type: string, data = { effectAllowed: "", 
 const localButton = (name: string) => getByRole(document, "button", { name: `Open ${name} locally` });
 
 describe("unified space destinations", () => {
-  it("keeps a Space selector reachable in an empty read-only Space without adding a Sidebar", async () => {
-    const select = vi.fn();
-    const host = await render({ projectItems: [], cloudSpaces: [spaces[2]],
-      cloudSpaceNavigation: <button onClick={select}>Guests</button> });
-    const control = host.querySelector<HTMLButtonElement>('.onboarding-project-group-head button')!;
-    expect(control).not.toBeNull();
-    expect(control.closest('[inert]')).toBeNull();
+  it("shows every Space together including empty read-only groups, without switching", async () => {
+    const host = await render({ projectItems: items, cloudSpaces: spaces });
+    expect([...host.querySelectorAll('[data-project-group]')].map(group => group.getAttribute('data-project-group')))
+      .toEqual(["local-only", "space:personal", "space:team", "space:read"]);
+    expect(host.textContent).toContain("Draft"); expect(host.textContent).toContain("Team project");
+    expect(host.querySelector('.desktop-space-trigger')).toBeNull();
     expect(host.querySelector('.onboarding-space-sidebar')).toBeNull();
-    await act(async () => control.click());
-    expect(select).toHaveBeenCalledOnce();
   });
-
+  it("keeps empty Spaces visible even when the account has no projects", async () => {
+    const host = await render({ projectItems: [], cloudSpaces: spaces });
+    expect(host.querySelectorAll('[data-project-group]')).toHaveLength(3);
+    expect(host.querySelector('.onboarding-project-groups')?.closest('[inert]')).toBeNull();
+  });
   it("names the selected space and the plan its projects use", async () => {
     await render({cloudSpaces: [{...spaces[1], planId: "team_v2"}]});
     expect(target("team").textContent).toContain("Team project");
