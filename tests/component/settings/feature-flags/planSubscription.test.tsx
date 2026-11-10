@@ -426,7 +426,8 @@ it("shows used, total and spendable hours beside a complete short rail", async (
   const host = await render(<UsageCard runtimeUsage={usage} />);
   expect(host.querySelector('.desktop-plan-usage-value')?.textContent).toBe("20 / 40 h used");
   expect(host.querySelector('.desktop-plan-usage-remaining')?.textContent).toBe("19 h left");
-  expect(host.querySelector('.desktop-plan-usage-remaining')?.getAttribute('title')).toBe("1 h in progress");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.getAttribute('data-tooltip')).toBe("1 h in progress");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.hasAttribute('title')).toBe(false);
   expect(host.querySelectorAll('.desktop-plan-meter-tick')).toHaveLength(24);
   expect(host.querySelectorAll('.desktop-plan-meter-tick[data-active]')).toHaveLength(12);
 });

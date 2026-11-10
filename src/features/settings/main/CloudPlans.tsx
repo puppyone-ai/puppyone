@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, ExternalLink, Minus, Plus } from "lucide-react";
+import { Tooltip } from "@puppyone/shared-ui";
 import type { LocalizationContextValue } from "@puppyone/localization";
 import {
   changeCloudBillingAddOn,
@@ -505,7 +506,7 @@ function UsageMeter({
       <div className="desktop-plan-usage-inline">
         <span className="desktop-plan-usage-value">{reading}</span>
         <PlanUsageBar percent={percent} kind={kind} label={label} reading={[reading, remaining, reserved].filter(Boolean).join(" · ")} />
-        <span className="desktop-plan-usage-remaining" title={reserved}>{remaining}</span>
+        <Tooltip content={reserved}><span className="desktop-plan-usage-remaining">{remaining}</span></Tooltip>
       </div>
     </div>
   );
