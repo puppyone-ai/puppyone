@@ -43,7 +43,7 @@ export function SpaceSettingsView({
               {t("settings.account.signInWithBrowser")}
             </button>}
           {!cloudSessionRestoring && session && <>
-              <p className="desktop-plan-note">{organizationId ? spaceName : t("settings.space.choose")}</p>
+              {!organizationId && <p className="desktop-plan-note">{t("settings.space.choose")}</p>}
               {organizationId && <SpaceSettings
                 key={`${session.user_id}:${session.session_generation}:${apiBaseUrl}:${organizationId}`}
                 session={session} organizationId={organizationId} name={spaceName ?? ""}

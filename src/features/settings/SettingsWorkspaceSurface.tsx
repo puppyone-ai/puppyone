@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { CloudSpace } from "../../lib/workspaceHomeModel";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
@@ -66,12 +67,13 @@ export function createSettingsWorkspaceSurface({
   updates,
   workspace,
   workspaceConfig,
-}: SettingsWorkspaceSurfaceProps) {
+}: SettingsWorkspaceSurfaceProps, spaceHeading?: ReactNode) {
   return {
     sidebar: (
       <SettingsSidebar
         currentSpaceId={cloud.spaceId}
         currentSpaceName={cloud.spaceName}
+        spaceHeading={spaceHeading}
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
         localWorkspaceAvailable={workspace !== null}

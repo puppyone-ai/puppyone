@@ -241,7 +241,7 @@ it("does not let a cache notification downgrade a manual Refresh in the same tur
   expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
 });
 
-it("updates the visible usage on Refresh even when operation history is unavailable", async () => {
+it("retries failed usage without depending on operation history", async () => {
   api.getCloudBillingCatalog.mockResolvedValue(fixtureCatalog);
   api.getCloudBillingUsage.mockRejectedValueOnce(new Error("offline"));
   await mount(withTestLocalization(<PlanPageProbe />));
@@ -252,7 +252,7 @@ it("updates the visible usage on Refresh even when operation history is unavaila
   fresh.storage.limit_bytes = 10 * 1000 ** 3;
   api.getCloudBillingUsage.mockResolvedValue(fresh);
   operationsRead.mockRejectedValue(new Error("history unavailable"));
-  const refresh = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Refresh");
+  const refresh = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Retry");
   expect(refresh).toBeTruthy();
   await act(async () => refresh!.click());
   expect(host.querySelector('.is-hours[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("25");
@@ -275,8 +275,9 @@ it("shows the real plan and balance when the service disables only its sales cat
   unmount();
   await mount(withTestLocalization(<PlanPageProbe />));
   expect(host.querySelector('.desktop-plan-summary h4')?.textContent).toBe("Free");
-  expect(host.textContent).toContain("Available now");
-  expect(host.textContent).toContain("Plan changes are currently unavailable.");
+  expect(host.textContent).not.toContain("Available now");
+  expect(host.textContent).not.toContain("Plan changes are currently unavailable.");
+  expect([...host.querySelectorAll('button')].some(button => button.textContent === "Refresh")).toBe(false);
   expect(host.textContent).not.toContain("Billing details unavailable");
   expect(host.querySelector('.desktop-plan-meter.is-storage')).toBeNull();
   expect(host.querySelectorAll('.desktop-plan-card')).toHaveLength(3);

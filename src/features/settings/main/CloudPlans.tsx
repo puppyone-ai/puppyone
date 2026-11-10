@@ -80,7 +80,7 @@ export function CloudPlans(props: PlanPageProps) {
           <div className="desktop-settings-row desktop-plan-load-error" role="alert">
             <span>{props.localization.t("cloud.billing.loadFailed")}</span>
             <button type="button" className="desktop-settings-action" onClick={() => props.onRefresh()}>
-              {props.localization.t("cloud.common.refresh")}
+              {props.localization.t("common.action.retry")}
             </button>
           </div>
         </SettingsSubsection>
@@ -298,11 +298,11 @@ function ConnectedPlans({
         <p className="desktop-plan-error" role="alert">{billing.actionError}</p>
       )}
 
-      {(catalogUnavailable || loadError || billing.error) && (
+      {loadError && (
         <p className="desktop-plan-note desktop-plan-team-prompt" role="status">
-          <span>{t(!loadError && !billing.error && catalogUnavailable ? "settings.plan.changesUnavailable" : "cloud.billing.loadFailed")}</span>
+          <span>{t("cloud.billing.loadFailed")}</span>
           <button type="button" className="desktop-settings-action" disabled={busy} onClick={refreshAll}>
-            {t("cloud.common.refresh")}
+            {t("common.action.retry")}
           </button>
         </p>
       )}
@@ -397,7 +397,6 @@ export function CurrentPlan({
     ? unitsToHours(usage!.runtime.available_units) : null;
   const hoursUsed = reading.usedHours ?? availableHours;
   const hoursValue = hoursUsed === null ? null : formatHours(hoursUsed, localization);
-  const hoursDetailKey = availableHours !== null ? "settings.plan.gaugeAvailable" : "settings.plan.gaugeIncluded";
   const status = planStatus(holding);
   const facts: string[] = [];
   if (holding.subscribed) {
@@ -420,20 +419,23 @@ export function CurrentPlan({
 
   return (
     <div className="desktop-plan-overview">
-      <SettingsSubsection title={t("settings.plan.currentLabel")}>
+      <SettingsSubsection leading>
         <div className="desktop-settings-row desktop-plan-summary">
-          <div className="desktop-plan-summary-main">
-            <div className="desktop-plan-summary-heading">
-              <h4>{t(`settings.plan.name.${offer.id}`)}</h4>
-              {status !== "free" && (
-                <span className={`desktop-plan-status is-${status}`}>{t(`settings.plan.status.${status}`)}</span>
+          <span>{t("settings.plan.currentLabel")}</span>
+          <div className="desktop-settings-value">
+            <div className="desktop-plan-summary-main">
+              <div className="desktop-plan-summary-heading">
+                <h4>{t(`settings.plan.name.${offer.id}`)}</h4>
+                {status !== "free" && (
+                  <span className={`desktop-plan-status is-${status}`}>{t(`settings.plan.status.${status}`)}</span>
+                )}
+              </div>
+              {(facts.length > 0 || date) && (
+                <p className="desktop-plan-summary-detail">{[...facts, date].filter(Boolean).join(" · ")}</p>
               )}
             </div>
-            {(facts.length > 0 || date) && (
-              <p className="desktop-plan-summary-detail">{[...facts, date].filter(Boolean).join(" · ")}</p>
-            )}
+            {action}
           </div>
-          {action}
         </div>
         {holding.scheduled && (
           <SettingsValueRow
@@ -450,7 +452,7 @@ export function CurrentPlan({
           used={availableHours !== null ? t("settings.plan.gaugeHours", { hours: hoursValue! }) : hoursValue}
           total={availableHours !== null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
           percent={percentOf(reading.usedHours, reading.includedHours)}
-          detail={reading.usedHours === null ? t(hoursDetailKey) : resets}
+          detail={reading.usedHours === null ? null : resets}
         />
       </div>
       {storagePercent !== null && storagePercent >= 80 && (

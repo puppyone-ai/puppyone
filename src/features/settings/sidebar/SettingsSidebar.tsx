@@ -6,7 +6,7 @@ import { SidebarGroup } from "../../../components/sidebar";
 import type { SettingsSidebarProps } from "../types";
 import { resolveSettingsSidebarGroups } from "./settingsSidebarModel";
 
-export function SettingsSidebar({ activeSection, cloudEnabled, currentSpaceId, currentSpaceName, localWorkspaceAvailable = true, onSelectSection }: SettingsSidebarProps) {
+export function SettingsSidebar({ activeSection, cloudEnabled, currentSpaceId, currentSpaceName, spaceHeading, localWorkspaceAvailable = true, onSelectSection }: SettingsSidebarProps) {
   const otherAppImportsEnabled = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const { t } = useLocalization();
   const accountAvailable = useAccountAvailable();
@@ -17,7 +17,7 @@ export function SettingsSidebar({ activeSection, cloudEnabled, currentSpaceId, c
     <SidebarRoot className="desktop-settings-sidebar" aria-label={t("settings.sidebar.desktopApp")}>
       <SidebarScrollArea>
         {groups.map((group) => (
-          <SidebarGroup title={group.id === "space" && currentSpaceName ? <bdi>{currentSpaceName}</bdi> : t(group.labelId)} key={group.id}>
+          <SidebarGroup title={group.id === "space" ? spaceHeading ?? (currentSpaceName ? <bdi>{currentSpaceName}</bdi> : t(group.labelId)) : t(group.labelId)} key={group.id}>
             {group.items.map((section) => {
               const Icon = section.icon;
               const active = section.id === activeSection;

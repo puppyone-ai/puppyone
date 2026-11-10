@@ -10,8 +10,9 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
   return (
     <div className="desktop-plan-loading po-placeholder-surface" role="status" aria-label={t("settings.plan.loading")} aria-busy="true">
       <div className="desktop-plan-overview">
-        <SettingsSubsection title={t("settings.plan.currentLabel")}>
+        <SettingsSubsection leading>
           <div className="desktop-settings-row desktop-plan-summary" aria-hidden="true">
+            <span>{t("settings.plan.currentLabel")}</span>
             <div className="desktop-plan-summary-main">
               <span className="desktop-plan-placeholder name" data-placeholder-shape="" />
               <span className="desktop-plan-placeholder detail" data-placeholder-shape="" />
@@ -25,7 +26,6 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
               <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
             </div>
             <PlanUsageBar percent={null} kind="hours" />
-            <span className="desktop-plan-placeholder detail" data-placeholder-shape="" aria-hidden="true" />
           </div>
         </div>
       </div>

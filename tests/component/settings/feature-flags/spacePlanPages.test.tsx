@@ -40,22 +40,21 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); cloudCache.clear(); localStorage.clear(); });
 async function render(node: ReactNode) { await act(async () => root.render(withTestLocalization(node))); }
 
-it("restores Plan without member forms and retains the current Space's usage and Refresh", async () => {
+it("uses the standard Plan header without duplicate context or operation-history notices", async () => {
   vi.mocked(api.listCloudBillingOperations).mockRejectedValueOnce(new Error("History unavailable"));
   await render(<SeatsSettingsView {...props} organizationId="a" spaceName="Studio" />);
   expect(host.querySelector("h2")?.textContent).toBe("Plan");
-  expect(host.textContent).toContain("Studio");
+  expect(host.textContent).not.toContain("Studio");
   expect(host.querySelector(".desktop-plan-grid")).not.toBeNull();
   expect(host.querySelector(".desktop-space-member-form")).toBeNull();
   expect(api.listCloudOrganizationMembers).not.toHaveBeenCalled();
-  const refresh = [...host.querySelectorAll("button")].find(button => button.textContent === "Refresh")!;
-  expect(refresh).toBeDefined();
-  await act(async () => refresh.click());
-  expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
+  expect([...host.querySelectorAll("button")].some(button => button.textContent === "Refresh")).toBe(false);
+  expect(host.textContent).not.toContain("Billing details unavailable");
+  expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(1);
   expect(api.getCloudBillingUsage).toHaveBeenLastCalledWith(session, "a", expect.any(Function), session.api_base_url, expect.any(AbortSignal));
 
   await render(<SeatsSettingsView {...props} organizationId="b" spaceName="Research" />);
-  expect(host.textContent).toContain("Research");
+  expect(host.textContent).not.toContain("Research");
   expect(host.textContent).not.toContain("Studio");
   expect(api.getCloudBillingSummary).toHaveBeenLastCalledWith(session, "b", expect.any(Function), session.api_base_url, expect.any(AbortSignal));
 });
@@ -64,7 +63,7 @@ it("keeps Space settings available with payments off and makes no billing reads"
   desktopPreferencesStore.getState().setExperimentalSettings(value => ({ ...value, enablePayments: false }));
   await render(<SpaceSettingsView {...props} organizationId="a" spaceName="Studio" focusInvite />);
   expect(document.activeElement?.getAttribute("type")).toBe("email");
-  expect(host.textContent).toContain("Members & settings");
+  expect(host.textContent).toContain("Members");
   expect(host.querySelector(".desktop-space-member-form")).not.toBeNull();
   expect(host.querySelector(".desktop-plan-grid")).toBeNull();
   expect(api.listCloudOrganizationMembers).toHaveBeenCalledWith(session, "a", props.onCloudSessionChange, session.api_base_url);
@@ -135,9 +134,10 @@ it("loads only the chosen Space bill from the Plan selector and clears old amoun
   } as unknown as SettingsDialogProps;
   await render(<SettingsDialog {...settings} />);
   expect(host.querySelector('.desktop-plan-loading')).toBeNull();
-  const picker = host.querySelector<HTMLSelectElement>('.desktop-settings-space-picker select')!;
+  const picker = host.querySelector<HTMLSelectElement>('.desktop-settings-dialog-navigation select')!;
   await act(async () => { picker.value = "b"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(host.querySelector('.desktop-plan-note')?.textContent).toBe("Research");
+  expect(picker.value).toBe("b");
+  expect(host.querySelector('.desktop-settings-dialog-content .desktop-settings-space-selector')).toBeNull();
   expect(host.querySelector('.desktop-plan-loading')).not.toBeNull();
   expect(host.querySelector('.desktop-plan-summary')).not.toBeNull(); // loading placeholder, no old bill
   expect(host.querySelector('.desktop-plan-summary')?.textContent).not.toContain("$36");

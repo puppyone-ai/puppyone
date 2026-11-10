@@ -1,15 +1,15 @@
 /**
  * @vitest-environment happy-dom
  */
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialog, type SettingsDialogProps } from "../../../../src/features/settings/SettingsDialog";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 
 vi.mock("../../../../src/features/settings/SettingsWorkspaceSurface", () => ({
-  createSettingsWorkspaceSurface: ({ cloud }: SettingsDialogProps) => ({
-    sidebar: <div data-testid="settings-navigation">Navigation</div>,
+  createSettingsWorkspaceSurface: ({ cloud }: SettingsDialogProps, spaceHeading?: ReactNode) => ({
+    sidebar: <div data-testid="settings-navigation">Navigation{spaceHeading}</div>,
     main: <div data-testid="settings-content" data-space-id={cloud.spaceId}>Content</div>,
   }),
 }));
@@ -37,11 +37,13 @@ describe("SettingsDialog", () => {
     const render = (value: SettingsDialogProps) => act(() => renderWithTestLocalization(root!, <SettingsDialog {...value} />));
     render(props);
     const picker = host.querySelector<HTMLSelectElement>("select")!;
+    expect(picker.closest('.desktop-settings-dialog-navigation')).not.toBeNull();
+    expect(host.querySelector('.desktop-settings-space-picker')).toBeNull();
     expect(picker.value).toBe("a");
     act(() => { picker.value = "b"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(host.querySelector('[data-testid="settings-content"]')?.getAttribute("data-space-id")).toBe("b");
     expect(props.cloud.spaceId).toBe("a"); expect(onClose).not.toHaveBeenCalled();
-    act(() => host.querySelector<HTMLButtonElement>(".desktop-settings-space-picker button")!.click());
+    act(() => { picker.value = "__create_space__"; picker.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(document.querySelector(".desktop-dialog-field input")).not.toBeNull();
     act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(document.querySelector(".desktop-dialog-field input")).toBeNull();

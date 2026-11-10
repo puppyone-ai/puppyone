@@ -18,30 +18,21 @@
   padding: 8px 0;
 }
 
-.desktop-settings-space-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
-  padding: 16px var(--desktop-utility-page-padding-inline) 0;
-}
-.desktop-settings-space-picker label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--po-text-muted);
-}
-.desktop-settings-space-picker .desktop-settings-select {
+.desktop-settings-space-selector {
+  display: block;
+  width: 100%;
   min-width: 0;
-  max-width: min(320px, 75%);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: var(--po-clickable-cursor, default);
+  text-overflow: ellipsis;
 }
-
-.desktop-settings-dialog-content[data-space-picker="true"] { flex-direction: column; }
-.desktop-settings-dialog-content[data-space-picker="true"] > .desktop-settings-view {
-  flex: 1;
-  min-height: 0;
-}
-.desktop-settings-dialog-content[data-space-picker="true"] .desktop-settings-body {
-  padding-block-start: 24px;
+.desktop-settings-space-selector:focus-visible {
+  outline: 2px solid var(--po-accent);
+  outline-offset: 3px;
 }

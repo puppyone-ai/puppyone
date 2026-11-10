@@ -34,9 +34,18 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
   const selected = spaces?.find(space => space.id === (selection?.authority === authority ? selection?.id : cloud.spaceId))
     ?? spaces?.find(space => space.id === cloud.spaceId) ?? spaces?.[0];
   const managedCloud = spaces ? { ...cloud, spaceId: selected?.id ?? null, spaceName: selected?.name ?? null } : cloud;
-  const surface = createSettingsWorkspaceSurface({ ...settings, cloud: managedCloud });
-  const showSpacePicker = cloud.enabled && Boolean(cloud.session) && !cloud.sessionRestoring
-    && (settings.activeSection === "seats" || settings.activeSection === "space");
+  const spaceHeading = cloud.enabled && cloud.session && !cloud.sessionRestoring && spaces ? (
+    <select className="desktop-settings-space-selector" aria-label={t("settings.space.switch")}
+      value={selected?.id ?? ""} onChange={event => {
+        if (event.target.value === "__create_space__") setCreatingFor(authority);
+        else setSelection({ authority, id: event.target.value });
+      }}>
+      {!spaces.length && <option value="" disabled>{t("settings.space.group")}</option>}
+      {spaces.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}
+      {cloud.apiBaseUrl && <option value="__create_space__">{t("settings.space.create")}</option>}
+    </select>
+  ) : undefined;
+  const surface = createSettingsWorkspaceSurface({ ...settings, cloud: managedCloud }, spaceHeading);
   const title = t("shell.navigation.settings");
 
   return (
@@ -60,19 +69,7 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
           <aside className="desktop-settings-dialog-navigation">
             {surface.sidebar}
           </aside>
-          <main className="desktop-settings-dialog-content" data-space-picker={showSpacePicker || undefined}>
-            {showSpacePicker && <div className="desktop-settings-space-picker">
-              <label>
-                <span>{t("settings.space.group")}</span>
-                <select className="desktop-settings-select" aria-label={t("settings.space.switch")}
-                  disabled={!spaces?.length} value={selected?.id ?? ""} onChange={event => setSelection({ authority, id: event.target.value })}>
-                  {!spaces?.length && <option value="">{t("settings.space.group")}</option>}
-                  {spaces?.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}
-                </select>
-              </label>
-              <button type="button" className="desktop-settings-action" disabled={!cloud.apiBaseUrl}
-                onClick={() => setCreatingFor(authority)}>{t("settings.space.create")}</button>
-            </div>}
+          <main className="desktop-settings-dialog-content">
             {surface.main}
           </main>
         </div>

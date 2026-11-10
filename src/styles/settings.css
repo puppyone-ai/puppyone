@@ -1030,27 +1030,12 @@
 
 .desktop-plan-settings {
   --desktop-plan-accent: #f87518;
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: 1.5;
 }
-
-.desktop-plan-settings .desktop-settings-subsection-title,
-.desktop-plan-settings .desktop-settings-row,
-.desktop-plan-settings .desktop-settings-row > span,
-.desktop-plan-settings .desktop-settings-action,
-.desktop-plan-settings .desktop-settings-value-text,
-.desktop-plan-settings .desktop-plan-note {
-  font: inherit;
-}
-
-.desktop-plan-settings .desktop-settings-subsection-title,
-.desktop-plan-settings .desktop-plan-note { color: var(--po-text-muted); }
 
 .desktop-plan-overview { container-type: inline-size; display: grid; gap: 16px; }
 .desktop-plan-summary { min-height: 44px; padding-block: 6px; }
 .desktop-plan-summary-main, .desktop-plan-addon-main { display: grid; min-width: 0; gap: 5px; }
+.desktop-plan-summary-main { justify-items: end; text-align: end; }
 .desktop-plan-summary-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .desktop-plan-summary-heading h4, .desktop-plan-card-name {
   margin: 0;
@@ -1072,7 +1057,6 @@
 .desktop-plan-usage-item {
   display: grid;
   min-width: 0;
-  min-height: calc(3em + 42px);
   align-content: start;
   gap: 12px;
 }

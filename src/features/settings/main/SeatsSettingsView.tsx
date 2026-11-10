@@ -14,7 +14,6 @@ export function SeatsSettingsView({
   cloudSession,
   cloudSessionRestoring = false,
   organizationId = null,
-  spaceName,
   cloudApiBaseUrl,
   onCloudSessionChange,
   onSignIn,
@@ -54,7 +53,7 @@ export function SeatsSettingsView({
         <div className="desktop-settings-section desktop-plan-settings">
           <SettingsSectionHeader title={t("settings.seats.title")} />
 
-          <p className="desktop-plan-note">{organizationId ? spaceName : t("settings.space.choose")}</p>
+          {!organizationId && <p className="desktop-plan-note">{t("settings.space.choose")}</p>}
           <CloudPlans
             session={session}
             apiBaseUrl={resolvedApiBaseUrl}

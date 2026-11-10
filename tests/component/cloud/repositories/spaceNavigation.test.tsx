@@ -50,9 +50,9 @@ it("keeps Account and Plan flat and labels the management group with the current
   await render();
   const sidebar = document.querySelector(".desktop-settings-sidebar")!;
   expect(sidebar.textContent).toContain("Studio");
-  expect(sidebar.textContent).toContain("Members & settings");
+  expect(sidebar.textContent).toContain("Members");
   expect([...sidebar.querySelectorAll("button")].filter(button => button.textContent === "Plan")).toHaveLength(1);
   await render(null);
-  expect(sidebar.textContent).not.toContain("Members & settings");
+  expect(sidebar.textContent).not.toContain("Members");
   expect(sidebar.textContent).toContain("Plan");
 });
