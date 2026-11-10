@@ -399,12 +399,12 @@ function ScheduledCard({ summary, onKeep }: { summary: DesktopBillingSummary; on
   );
 }
 
-function UsageCard({ storagePercent }: { storagePercent: number }) {
+function UsageCard({ storagePercent = 30, runtimeUsage }: { storagePercent?: number; runtimeUsage?: DesktopBillingUsage | null }) {
   const localization = useLocalization();
   const { plans, addOns } = resolvePlanCatalog(CATALOG);
   return <CurrentPlan offer={plans[1]!}
     holding={resolvePlanHolding(summaryOf({ plan_id: "team_v2" }), CATALOG)}
-    usage={usageOf(1200, 2400, storagePercent / 100 * 10 * GB, 10 * GB)}
+    usage={runtimeUsage === undefined ? usageOf(1200, 2400, storagePercent / 100 * 10 * GB, 10 * GB) : runtimeUsage}
     addOns={addOns} localization={localization} />;
 }
 
@@ -418,6 +418,47 @@ it.each([
   const warning = host.querySelector(".desktop-plan-storage-warning");
   if (notice) expect(warning?.textContent).toContain(notice);
   else expect(warning).toBeNull();
+});
+
+it("shows used, total and spendable hours beside a complete short rail", async () => {
+  const usage = usageOf(1200, 2400, GB, 10 * GB);
+  usage.runtime.allowance!.reserved_units = 60;
+  const host = await render(<UsageCard runtimeUsage={usage} />);
+  expect(host.querySelector('.desktop-plan-usage-value')?.textContent).toBe("20 / 40 h used");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.textContent).toBe("19 h left");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.getAttribute('title')).toBe("1 h in progress");
+  expect(host.querySelectorAll('.desktop-plan-meter-tick')).toHaveLength(24);
+  expect(host.querySelectorAll('.desktop-plan-meter-tick[data-active]')).toHaveLength(12);
+});
+
+it("keeps every tick for an empty legacy balance without inventing a plan grant", async () => {
+  const usage = usageOf(0, 0, 0, GB);
+  usage.runtime = { org_id: "o1", granted_units: 0, consumed_units: 0, available_units: 0, reserved_units: 0,
+    postpaid_available_units: 0, postpaid_consumed_units: 0, buckets: [] };
+  const host = await render(<UsageCard runtimeUsage={usage} />);
+  expect(host.querySelector('.desktop-plan-usage-value')?.textContent).toBe("0 h used");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.textContent).toBe("0 h left");
+  expect(host.querySelectorAll('.desktop-plan-meter-tick')).toHaveLength(24);
+  expect(host.querySelector('[data-active]')).toBeNull();
+  expect(host.querySelector('[role="progressbar"]')).toBeNull();
+});
+
+it("reads legacy consumption separately from the remaining balance", async () => {
+  const usage = usageOf(0, 0, 0, GB);
+  usage.runtime = { org_id: "o1", granted_units: 300, consumed_units: 120, available_units: 150, reserved_units: 30,
+    postpaid_available_units: 0, postpaid_consumed_units: 0, buckets: [] };
+  const host = await render(<UsageCard runtimeUsage={usage} />);
+  expect(host.querySelector('.desktop-plan-usage-value')?.textContent).toBe("2 / 5 h used");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.textContent).toBe("2.5 h left");
+  expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe("40");
+});
+
+it("keeps the rail when usage is missing without claiming zero consumption", async () => {
+  const host = await render(<UsageCard runtimeUsage={null} />);
+  expect(host.querySelector('.desktop-plan-usage-value')?.textContent).toBe("— h used");
+  expect(host.querySelector('.desktop-plan-usage-remaining')?.textContent).toBe("— h left");
+  expect(host.querySelectorAll('.desktop-plan-meter-tick')).toHaveLength(24);
+  expect(host.querySelector('[role="progressbar"]')).toBeNull();
 });
 
 it("says what changes at renewal and offers to keep the current plan", async () => {

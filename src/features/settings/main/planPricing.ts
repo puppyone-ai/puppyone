@@ -296,6 +296,23 @@ export type AllowanceReading = {
   includedBytes: number | null;
 };
 
+/** Monthly allowance when supplied, otherwise the service's actual balance. */
+export function resolveAgentHours(usage: DesktopBillingUsage | null) {
+  const runtime = usage?.runtime;
+  const allowance = runtime?.allowance;
+  const units = allowance ?? runtime;
+  const seconds = allowance?.unit_seconds ?? 60;
+  const hours = (value: number | undefined) => value !== undefined && Number.isFinite(value)
+    ? unitsToHours(value, seconds) : null;
+  const usedHours = hours(units?.consumed_units);
+  const totalHours = hours(units?.granted_units);
+  const reservedHours = hours(units?.reserved_units);
+  const remainingHours = allowance && totalHours !== null && usedHours !== null
+    ? Math.max(0, totalHours - usedHours - (reservedHours ?? 0))
+    : hours(runtime?.available_units);
+  return { usedHours, totalHours, remainingHours, reservedHours };
+}
+
 /**
  * This period's agent hours and storage against what the plan includes.
  *

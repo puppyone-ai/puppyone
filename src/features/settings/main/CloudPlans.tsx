@@ -20,10 +20,10 @@ import {
   formatHours,
   formatMoney,
   formatStorage,
+  resolveAgentHours,
   resolveAllowance,
   resolvePlanCatalog,
   resolvePlanHolding,
-  unitsToHours,
   type AddOnOffer,
   type PlanHolding,
   type PlanId,
@@ -389,12 +389,15 @@ export function CurrentPlan({
 }) {
   const { t } = localization;
   const reading = resolveAllowance(usage, offer, holding, addOns);
-  // Older services report a balance without a monthly allowance. Show that
-  // balance directly rather than presenting a locally assumed monthly grant.
-  const availableHours = reading.usedHours === null && Number.isFinite(usage?.runtime.available_units)
-    ? unitsToHours(usage!.runtime.available_units) : null;
-  const hoursUsed = reading.usedHours ?? availableHours;
-  const hoursValue = hoursUsed === null ? null : formatHours(hoursUsed, localization);
+  const hours = resolveAgentHours(usage);
+  const hoursValue = hours.usedHours === null ? "—" : formatHours(hours.usedHours, localization);
+  const usedReading = t("settings.plan.hoursUsed", {
+    hours: hours.totalHours !== null && hours.totalHours > 0
+      ? `${hoursValue} / ${formatHours(hours.totalHours, localization)}` : hoursValue,
+  });
+  const remainingReading = t("settings.plan.hoursRemaining", {
+    hours: hours.remainingHours === null ? "—" : formatHours(hours.remainingHours, localization),
+  });
   const status = planStatus(holding);
   const facts: string[] = [];
   if (holding.subscribed) {
@@ -448,9 +451,11 @@ export function CurrentPlan({
         <UsageMeter
           kind="hours"
           label={t("settings.plan.hoursLabel")}
-          used={hoursValue !== null ? t("settings.plan.gaugeHours", { hours: hoursValue }) : null}
-          total={availableHours !== null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
-          percent={percentOf(reading.usedHours, reading.includedHours)}
+          reading={usedReading}
+          remaining={remainingReading}
+          reserved={hours.reservedHours !== null && hours.reservedHours > 0
+            ? t("settings.plan.hoursReserved", { hours: formatHours(hours.reservedHours, localization) }) : undefined}
+          percent={percentOf(hours.usedHours, hours.totalHours)}
         />
       </div>
       {storagePercent !== null && storagePercent >= 80 && (
@@ -482,26 +487,25 @@ function percentOf(used: number | null, total: number | null): number | null {
 function UsageMeter({
   kind,
   label,
-  used,
-  total,
+  reading,
+  remaining,
+  reserved,
   percent,
 }: {
   kind: "hours" | "storage";
   label: string;
-  used: string | null;
-  total: string | null;
+  reading: string;
+  remaining: string;
+  reserved?: string;
   percent: number | null;
 }) {
   return (
     <div className="desktop-plan-usage-item">
       <span className="desktop-plan-usage-heading">{label}</span>
       <div className="desktop-plan-usage-inline">
-        <span className="desktop-plan-usage-reading">
-          <span className="desktop-plan-usage-value" title={[used, total].filter((value) => value !== null).join(" / ")}>
-            {used ?? total ?? "—"}
-          </span>
-        </span>
-        <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
+        <span className="desktop-plan-usage-value">{reading}</span>
+        <PlanUsageBar percent={percent} kind={kind} label={label} reading={[reading, remaining, reserved].filter(Boolean).join(" · ")} />
+        <span className="desktop-plan-usage-remaining" title={reserved}>{remaining}</span>
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
             <div className="desktop-plan-usage-inline">
               <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
               <PlanUsageBar percent={null} kind="hours" />
+              <span className="desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">—</span>
             </div>
           </div>
         </div>

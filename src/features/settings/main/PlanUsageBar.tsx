@@ -1,6 +1,6 @@
 import { meterTone } from "./planPricing";
 
-/** A short inline rail; an unknown allowance keeps only its starting marker. */
+/** A complete short rail stays visible for every reading, including zero. */
 export function PlanUsageBar({ percent, kind, label, reading }: {
   percent: number | null;
   kind: "hours" | "storage";
@@ -8,8 +8,8 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
   reading?: string;
 }) {
   const bounded = percent === null ? null : Math.max(0, Math.min(100, percent));
-  const bars = bounded === null ? 1 : 12;
-  const activeBars = Math.round(((bounded ?? 0) / 100) * bars);
+  const bars = 24;
+  const activeBars = bounded === null || bounded === 0 ? 0 : Math.max(1, Math.round((bounded / 100) * bars));
   return (
     <div
       className={`desktop-plan-meter is-${kind}${bounded === null ? " is-unknown" : meterTone(bounded)}`}
