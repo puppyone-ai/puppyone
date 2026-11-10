@@ -14,7 +14,7 @@ import { HostFolderSharingDialog, type HostFolderSharingTarget } from "./HostFol
 import { RemoteFolderList } from "./RemoteFolderList";
 
 
-/** Device folders join the same personal audience as hosted projects, not new device groups. */
+/** Device sharing remains separate from cloud Spaces; this computer's folders keep their place. */
 export function HomepageComputers({ session, apiBase, onOpen, base }: {
   session: DesktopCloudSession;
   apiBase: string;
@@ -57,50 +57,25 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   const visible = others.map((device) => ({ ...device,
     folders: device.folders.filter((folder) => !localFolderIds.has(folder.id)),
   })).filter((device) => device.folders.length > 0);
-  if (visible.length) {
-    const index = groups.findIndex((group) => group.id === "personal-shared");
-    const previous = groups[index] ?? base.cloud.find((group) => group.id === "personal-shared");
-    const personal: OnboardingProjectGroup = {
-      ...previous, id: "personal-shared", title: base.personalSharedTitle,
-      alwaysShowHeading: true, empty: false,
-      children: <>{previous && !previous.empty && previous.children}{visible.map((device) => <RemoteFolderList
-        key={device.id} device={device} folders={[...device.folders].sort((a, b) => a.name.localeCompare(b.name))}
-        layout={base.layout} onOpen={(folder) => onOpen({
-          ref: { deployment: apiBase, accountId: session.user_id, deviceId: device.id, folderId: folder.id },
-          name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write"),
-          capabilities: folder.capabilities,
-        })} />)}</>,
-    };
-    if (index < 0) groups.unshift(personal);
-    else groups[index] = personal;
-  }
   const share = base.localShare;
-  if (share) {
-    const candidates = (local?.items ?? []).filter((item) => !item.hostFolderId || !sharedFolderIds.has(item.hostFolderId));
-    const source = candidates.find((item) => item.localPath === share.draggingPath);
-    // The personal area is always there to drop into: dragging a folder in is how it
-    // is shared, and every computer signed in to this account can then open it.
-    const index = groups.findIndex((group) => group.id === "personal-shared");
-    const previous = groups[index];
-    const personal: OnboardingProjectGroup = {
-      ...previous, id: "personal-shared", title: base.personalSharedTitle,
-      alwaysShowHeading: true, empty: false,
-      dropTarget: share.draggingPath ? { enabled: Boolean(source) && !share.busy,
+  const source = local?.items.find((item) => item.localPath === share?.draggingPath
+    && (!item.hostFolderId || !sharedFolderIds.has(item.hostFolderId)));
+  if (visible.length || share) {
+    groups.push({ id: "other-computers", title: t("hosts.settings.others"), alwaysShowHeading: true,
+      dropTarget: share?.draggingPath ? { enabled: Boolean(source) && !share.busy,
         hint: t("onboarding.drop.personal"), onDrop: () => {
-        share.endDrag();
-        if (source && !share.busy) void share.request(source.localPath);
-      } } : undefined,
-      children: previous && !previous.empty ? previous.children
-        : <p className="onboarding-cloud-space-empty">{t("onboarding.spaces.empty")}</p>,
-    };
-    if (index < 0) groups.push(personal);
-    else groups[index] = personal;
+          share.endDrag();
+          if (source && !share.busy) void share.request(source.localPath);
+        } } : undefined,
+      children: visible.map((device) => <RemoteFolderList key={device.id} device={device}
+        folders={[...device.folders].sort((a, b) => a.name.localeCompare(b.name))} layout={base.layout}
+        onOpen={(folder) => onOpen({ ref: { deployment: apiBase, accountId: session.user_id, deviceId: device.id, folderId: folder.id },
+          name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write"), capabilities: folder.capabilities })} />),
+    });
   }
-  const personalIndex = groups.findIndex((group) => group.id === "personal-shared");
-  if (personalIndex >= 0 && catalog.thisComputerId) {
-    groups[personalIndex] = { ...groups[personalIndex],
-      detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} /> };
-  }
+  const localIndex = groups.findIndex((group) => group.id === "local-only");
+  if (localIndex >= 0 && catalog.thisComputerId) groups[localIndex] = { ...groups[localIndex],
+    detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} /> };
   return <>
     <OnboardingProjectGroups label={base.label} groups={groups}
       note={catalog.error ? <HomepageComputersNote catalog={catalog} /> : undefined} />

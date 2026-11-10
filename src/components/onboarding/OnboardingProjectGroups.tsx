@@ -31,7 +31,6 @@ export type OnboardingGroupsBase = Readonly<{
   label: string;
   layout: HomepageProjectLayout;
   cloud: readonly OnboardingProjectGroup[];
-  personalSharedTitle: string;
   /** In-page source only; the owner navigates and confirms before granting access. */
   localShare?: Readonly<{
     draggingPath: string | null;
@@ -46,37 +45,15 @@ export type OnboardingGroupsBase = Readonly<{
   }> | null;
 }>;
 
-/** Known sharing survives offline/paused state; storage location never changes its audience. */
+/** Every registered local folder stays on this computer, including shared folders and Cloud checkouts. */
 export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: ProjectListSharing): OnboardingProjectGroup[] {
-  const isShared = (item: ProjectHomeItem) => Boolean(item.hostFolderId
-    && (sharing ? sharing.sharedFolderIds.has(item.hostFolderId) : true));
-  const offered = base.local?.items.filter(isShared) ?? [];
-  const localOnly = base.local?.items.filter((item) => !isShared(item)) ?? [];
-  const groups = [...base.cloud];
-  if (offered.length && base.local) {
-    const index = groups.findIndex((group) => group.id === "personal-shared");
-    const previous = groups[index];
-    const personal: OnboardingProjectGroup = {
-      ...previous, id: "personal-shared", title: base.personalSharedTitle, alwaysShowHeading: true, empty: false,
-      children: <>{previous && !previous.empty && previous.children}{base.local.render(offered, sharing)}</>,
-    };
-    if (index < 0) groups.unshift(personal);
-    else groups[index] = personal;
-  }
-  if (base.local && localOnly.length) {
-    groups.push({ id: "local-only", title: base.local.title, alwaysShowHeading: true,
-      children: base.local.render(localOnly, sharing) });
-  }
-  return groups.filter((group) => !group.empty || group.keepEmpty);
+  const local: OnboardingProjectGroup[] = base.local?.items.length ? [{ id: "local-only", title: base.local.title,
+    alwaysShowHeading: true, children: base.local.render([...base.local.items], sharing) }] : [];
+  return [...local, ...base.cloud].filter((group) => !group.empty || group.keepEmpty);
 }
 
-// Apply the same display order after every catalog has contributed its groups.
-const audienceOrder = new Map([
-  ["team-shared", 0], ["personal-shared", 1], ["shared-unresolved", 2], ["local-only", 3],
-]);
-
 /**
- * Shared projects are grouped by audience, not by storage location. One page
+ * Local projects lead, followed by the selected cloud Space and other computers. One page
  * scrolls, and heterogeneous local/hosted/device lists flow through one grid.
  * Generic callers may still opt into an unheaded single list.
  */
@@ -90,8 +67,7 @@ export function OnboardingProjectGroups({ groups, label, note }: {
   const [only] = groups;
   const plain = groups.length === 1 && !only.alwaysShowHeading && only.detail === undefined && only.actions === undefined;
   if (plain && note === undefined) return <>{only.children}</>;
-  const ordered = [...groups].sort((left, right) =>
-    (audienceOrder.get(left.id) ?? 2) - (audienceOrder.get(right.id) ?? 2));
+  const ordered = groups;
   // A project is being dragged: the groups that take it become places to drop it.
   const dragging = groups.some((group) => group.dropTarget);
   return (

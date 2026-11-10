@@ -1,8 +1,6 @@
 import { useCallback, useLayoutEffect, useState } from "react";
 import type { CloudSpace, ProjectHomeItem } from "../../../lib/workspaceHomeModel";
 
-const LOCAL = "local";
-
 /** One renderer is one window. Stored selection is a preference, never authority. */
 export function useCurrentSpace({ account, spaces, projectId, items }: {
   account: string | null;
@@ -17,8 +15,7 @@ export function useCurrentSpace({ account, spaces, projectId, items }: {
   const fallback = spaces.find((space) => space.isDefault)?.id ?? spaces[0]?.id ?? null;
   const projectSpaceId = projectId ? items.find((item) => item.cloudProjectId === projectId)?.cloudOrganizationId : null;
   let selected: string | null = fallback;
-  if (preferred === LOCAL) selected = null;
-  else if (spaces.some((space) => space.id === preferred)) selected = preferred;
+  if (spaces.some((space) => space.id === preferred)) selected = preferred;
   const id = account ? projectSpaceId ?? selected : null;
 
   useLayoutEffect(() => {
@@ -33,19 +30,16 @@ export function useCurrentSpace({ account, spaces, projectId, items }: {
   }, [fallback, key, projectSpaceId, selection.key, stored]);
 
   const select = useCallback((next: string | null) => {
-    setSelection({ key, id: next ?? LOCAL });
-    try { if (key) localStorage.setItem(key, next ?? LOCAL); } catch { /* Optional preference. */ }
-  }, [key]);
+    // Creation can select its new ID before discovery has refreshed the list.
+    const target = next ?? fallback;
+    setSelection({ key, id: target });
+    try { if (key && target) localStorage.setItem(key, target); } catch { /* Optional preference. */ }
+  }, [fallback, key]);
   return { id, space: spaces.find((space) => space.id === id) ?? null, select,
     items: projectsInSpace(items, id) };
 }
 
 export function projectsInSpace(items: readonly ProjectHomeItem[], spaceId: string | null): ProjectHomeItem[] {
-  const ownership = new Map(items.filter((item) => item.cloudProjectId)
-    .map((item) => [item.cloudProjectId!, item.cloudOrganizationId]));
-  return items.filter((item) => {
-    let owner = item.cloudOrganizationId;
-    if (!item.cloudProjectId) owner = item.linkedCloudProject ? ownership.get(item.linkedCloudProject.id) : undefined;
-    return spaceId === null ? Boolean(item.localPath && !owner) : owner === spaceId;
-  });
+  return items.filter((item) => Boolean(item.localPath)
+    || (spaceId !== null && item.cloudOrganizationId === spaceId));
 }

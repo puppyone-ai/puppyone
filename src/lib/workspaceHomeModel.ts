@@ -5,7 +5,7 @@ import type { getRecentWorkspaces } from "./localFiles";
 export type CloudSpace = Readonly<{
   id: string;
   name: string;
-  kind: "personal" | "team";
+  kind: "space";
   isDefault?: boolean;
   role?: string | null;
   canManageSpace?: boolean;

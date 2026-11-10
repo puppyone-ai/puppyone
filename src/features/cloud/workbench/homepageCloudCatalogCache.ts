@@ -78,8 +78,8 @@ export function readCachedSpaces(scope: string): CloudSpace[] | undefined {
       { scope?: unknown; spaces?: unknown } | null;
     if (cached?.scope !== scope || !Array.isArray(cached.spaces)) return undefined;
     return cached.spaces.filter((space): space is CloudSpace => typeof space?.id === "string"
-      && typeof space?.name === "string" && (space.kind === "personal" || space.kind === "team")
-      && typeof space.canCreateProjects === "boolean");
+      && typeof space?.name === "string" && (["space", "personal", "team"].includes(space.kind))
+      && typeof space.canCreateProjects === "boolean").map((space) => ({ ...space, kind: "space" as const }));
   } catch {
     return undefined;
   }

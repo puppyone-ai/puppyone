@@ -88,7 +88,7 @@ export type DesktopCloudRepositoryContext = {
 export type DesktopCloudOrganization = {
   id: string;
   /** Absent on older deployments: never infer personal identity from a name. */
-  kind?: "personal" | "team";
+  kind?: "space" | "personal" | "team";
   is_default?: boolean;
   role?: string | null;
   can_manage_space?: boolean;

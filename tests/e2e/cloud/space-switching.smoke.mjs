@@ -23,7 +23,10 @@ const report = { ok: false, source: execFileSync("git", ["rev-parse", "HEAD"], {
   evidence_scope: "production Main/preload/App and two BrowserWindows; isolated auth/backend, no installer acceptance" };
 let window, server;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const evaluate = code => window.webContents.executeJavaScript(code, true);
+const evaluate = code => Promise.race([
+  window.webContents.executeJavaScript(code, true),
+  wait(5000).then(() => { throw new Error('Renderer evaluation timed out'); }),
+]);
 const guard = setTimeout(() => { console.error("Entrypoint window gate timed out"); app.exit(1); }, 210_000);
 app.setAppPath(root);
 app.setPath("appData", temporaryRoot);
@@ -60,6 +63,18 @@ async function capture(name) {
   await fs.writeFile(path.join(artifactDirectory, `${name}.png`), (await window.webContents.capturePage()).toPNG());
 }
 async function initialize() {
+  const { createWorkspaceStateStore } = await import("../../../electron/main/workspace-state-store.mjs");
+  const localPaths = [path.join(temporaryRoot, "This Mac fixture"), path.join(temporaryRoot, "Local working copy")];
+  for (const folder of localPaths) {
+    await fs.mkdir(folder, { recursive: true });
+    execFileSync("git", ["init", "--initial-branch=main", folder], { stdio: "ignore" });
+    await fs.writeFile(path.join(folder, "README.md"), "Disposable local Space navigation fixture\n");
+  }
+  execFileSync("git", ["-C", localPaths[1], "remote", "add", "origin", `${origin}/git/project-b.git`]);
+  const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-state.json",
+    canonicalizeWorkspacePath: folder => fs.realpath(folder),
+    workspaceFromPath: async folder => ({ path: folder, name: path.basename(folder) }) });
+  await registry.addRecentWorkspacePaths(localPaths);
   await fs.writeFile(path.join(app.getPath("userData"), "desktop-cloud-session.json"), JSON.stringify({
     version: 2, storage: "plaintext-dev", data: { version: 2, user_id: "user-1", user_email: "window@example.test",
       api_origin: `${origin}/api/v1`, refresh_token: "isolated-window-refresh", updated_at: new Date().toISOString() },
@@ -123,10 +138,20 @@ async function run() {
   await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
   await until("!document.querySelector('.desktop-space-menu')", 'Space menu dismissal');
   assert.equal(await evaluate("document.body.textContent.includes('Space B only')"), false);
+  assert.ok(await evaluate("document.body.textContent.includes('This Mac fixture') && document.body.textContent.includes('Local working copy')"));
+  assert.ok(await evaluate("document.querySelector('.onboarding-space-sidebar .desktop-space-trigger').getBoundingClientRect().top > innerHeight * .7"));
+  assert.equal(await evaluate("!!document.querySelector('.desktop-titlebar .desktop-space-trigger')"), false);
   await select(window, 'org-2');
   await until("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace === 'org-2' && document.body.textContent.includes('Space B only')", "Space B Home");
   assert.equal(await evaluate("document.body.textContent.includes('Window acceptance')"), false);
+  assert.ok(await evaluate("document.body.textContent.includes('This Mac fixture') && document.body.textContent.includes('Local working copy')"));
   await capture('01-space-b-home');
+  await evaluate("[...document.querySelectorAll('[data-project-open]')].find(button => button.getAttribute('aria-label')?.includes('This Mac fixture')).click()");
+  await until("!!document.querySelector('.desktop-shell .desktop-sidebar-space-navigation .desktop-space-trigger')", 'Space switcher in the local project Sidebar');
+  assert.equal(await evaluate("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"), 'org-2');
+  await capture('01b-local-project-keeps-space');
+  await select(window, 'org-2');
+  await until("document.body.textContent.includes('Space B only') && document.body.textContent.includes('This Mac fixture')", 'return Home with local and cloud projects');
   await evaluate("window.puppyoneDesktop.openCloudProjectInNewWindow({projectId:'project-b',userId:'user-1'})");
   for(let i=0;i<200&&BrowserWindow.getAllWindows().length<2;i++)await wait(50);
   const second=BrowserWindow.getAllWindows().find(candidate=>candidate.id!==window.id);
@@ -157,14 +182,12 @@ async function run() {
   await until("document.querySelector('.desktop-settings-section h2')?.textContent === 'Plan'", 'separate Plan page');
   assert.equal(await evaluate("!!document.querySelector('.desktop-space-member-form')"), false);
   assert.ok(await evaluate("document.querySelector('.desktop-plan-settings').textContent.includes('Studio')"));
-  await select(window, 'local');
-  await until("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace === 'local' && document.querySelector('.desktop-plan-note')?.textContent.includes('Choose a space in the navigation') && document.querySelectorAll('.desktop-plan-card').length === 3", 'Plan comparison in local mode');
-  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-card button')"), false);
-  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-settings [role=alert]')"), false);
+  await evaluate("document.querySelector('.desktop-space-trigger').click()");
+  await until("!!document.querySelector('.desktop-space-menu')", 'cloud-only Space menu');
+  assert.equal(await evaluate("!!document.querySelector('[data-space-id=local]')"), false);
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await capture('03-restored-plan');
-  await select(window, 'org-1');
-  await until("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace === 'org-1'", 'Plan returns to Space A');
+  await capture('03-space-plan');
   assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-trigger')?.dataset.currentSpace"),'org-2');
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
   await until("!document.querySelector('.desktop-settings-dialog')", 'close Plan');
@@ -180,6 +203,9 @@ async function run() {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await capture('05-account-with-cloud-off');
   report.account_available_without_cloud = true;
+  report.cloud_only_space_sidebar = true;
+  report.local_projects_always_visible = true;
+  report.local_project_keeps_cloud_space = true;
   report.leading_account_and_flat_space_menu = true;
   report.separate_space_and_plan = true;
   report.ok=true; report.window_count=2; report.current_spaces=['org-1','org-2'];
@@ -195,10 +221,11 @@ void (bootstrapError ? Promise.reject(bootstrapError) : run()).catch(async error
   }
   console.error(report.error);
 }).finally(async () => {
-  clearTimeout(guard);
   for(const owner of BrowserWindow.getAllWindows())owner.destroy();
-  await server?.close().catch(error => console.error(error.message));
+  server?.httpServer?.closeAllConnections();
+  await Promise.race([server?.close().catch(error => console.error(error.message)), wait(3000)]);
   await fs.writeFile(process.env.PUPPYONE_ENTRYPOINT_TEST_REPORT,JSON.stringify(report,null,2));
   await fs.writeFile(path.join(artifactDirectory, "report.json"),JSON.stringify(report,null,2));
+  clearTimeout(guard);
   app.exit(report.ok?0:1);
 });

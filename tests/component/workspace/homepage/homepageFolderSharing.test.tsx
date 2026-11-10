@@ -38,7 +38,7 @@ function Harness({ account = session }: { account?: DesktopCloudSession }) {
     openProject: async (next) => { opened(next); setPath(next); },
     returnHome: async () => { returned(); setPath(null); } });
   return <>{!path && <HomeWithEntryFlow key={sharing.authority} appearance={createTestSurfaceAppearance()}
-    projectItems={items} cloudSpaces={[{ id: "personal", name: "Me", kind: "personal", canCreateProjects: true }]}
+    projectItems={items} cloudSpaces={[{ id: "personal", name: "Me", kind: "space", canCreateProjects: true }]}
     cloudSpacesStatus="ready" onPublishToSpace={publish} onShareLocalFolder={sharing.request}
     onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
     projectGroups={(base) => <HomepageComputers key={sharing.authority} session={account} apiBase={API} base={base} onOpen={() => {}} />} />}
@@ -47,7 +47,7 @@ function Harness({ account = session }: { account?: DesktopCloudSession }) {
 async function render(account = session) {
   await act(async () => root.render(withTestLocalization(<Harness account={account} />)));
 }
-const GROUPS: Record<string, string> = { "personal-shared": "My space", "local-only": "On this computer" };
+const GROUPS: Record<string, string> = { "other-computers": "Other computers", "local-only": "On this computer" };
 /** A group as it is announced: a region named by its heading. */
 const group = (id: string) => queryByRole(document, "region", { name: GROUPS[id] });
 const button = (name: string) => getByRole(document, "button", { name });
@@ -65,7 +65,7 @@ async function drag(element: Element, type: string) {
 }
 async function shareDraft() {
   await drag(project("Draft"), "dragstart");
-  await drag(group("personal-shared")!, "drop");
+  await drag(group("other-computers")!, "drop");
 }
 beforeEach(() => {
   publish.mockClear(); opened.mockClear(); returned.mockClear(); register.mockReset();
@@ -103,15 +103,15 @@ describe("local folder drag into My space", () => {
     expect(register).toHaveBeenCalledExactlyOnceWith({ rootPath: DRAFT, writable: false,
       expectedSession: { userId: "owner", generation: "one" } });
     expect(returned).toHaveBeenCalledOnce();
-    expect(group("personal-shared")?.textContent).toContain("Draft");
-    expect(group("local-only")?.textContent).not.toContain("Draft");
+    expect(group("local-only")?.textContent).toContain("Draft");
+    expect(group("local-only")?.textContent).toContain("Draft");
     expect(queryAllByRole(document, "button", { name: "Open Draft locally" })).toHaveLength(1);
     expect(publish).not.toHaveBeenCalled();
   });
   it("returns an unshared folder unchanged when the dialog is cancelled", async () => {
     await render(); await shareDraft(); await act(async () => button("Cancel").click());
     expect(register).not.toHaveBeenCalled(); expect(group("local-only")?.textContent).toContain("Draft");
-    expect(group("personal-shared")?.textContent).not.toContain("Draft");
+    expect(group("other-computers")?.textContent).not.toContain("Draft");
   });
   it("does not move the card when native approval is declined", async () => {
     register.mockResolvedValue({ cancelled: true });
@@ -128,12 +128,12 @@ describe("local folder drag into My space", () => {
     expect(group("local-only")?.textContent).toContain("Draft");
   });
   it("rejects forged external paths and already-shared sources", async () => {
-    await render(); await drag(group("personal-shared")!, "drop");
-    await drag(project("Shared"), "dragstart"); await drag(group("personal-shared")!, "drop");
+    await render(); await drag(group("other-computers")!, "drop");
+    await drag(project("Shared"), "dragstart"); await drag(group("other-computers")!, "drop");
     expect(opened).not.toHaveBeenCalled(); expect(register).not.toHaveBeenCalled(); expect(publish).not.toHaveBeenCalled();
   });
   it("can share a linked local folder without rebinding or publishing its Cloud project", async () => {
-    await render(); await drag(project("Linked"), "dragstart"); await drag(group("personal-shared")!, "drop");
+    await render(); await drag(project("Linked"), "dragstart"); await drag(group("other-computers")!, "drop");
     expect(opened).toHaveBeenCalledExactlyOnceWith(LINKED);
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Linked");
     expect(publish).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe("local folder drag into My space", () => {
     devices[0] = { ...devices[0], folders: [] };
     await render();
     // Dragging a folder in is how it is shared, so the place to drop it is never hidden.
-    expect(group("personal-shared")?.textContent).toContain("Drag a project here to share it.");
+    expect(group("local-only")?.textContent).toContain("Draft");
     await shareDraft(); expect(opened).toHaveBeenCalledExactlyOnceWith(DRAFT);
   });
   it("offers the same sharing from the project's own menu, for the keyboard", async () => {
@@ -160,7 +160,7 @@ describe("local folder drag into My space", () => {
     });
     installStop(removeHostFolder);
     await render();
-    await vi.waitFor(() => expect(group("personal-shared")?.textContent).toContain("Shared"));
+    await vi.waitFor(() => expect(group("local-only")?.textContent).toContain("Shared"));
     const devicesRow = await devicesRowOf("Shared");
     expect(accessibleName(devicesRow)).toBe("All my devices Stop");
     expect(isChecked(devicesRow)).toBe(true);
@@ -168,7 +168,7 @@ describe("local folder drag into My space", () => {
     await vi.waitFor(() => expect(group("local-only")?.textContent).toContain("Shared"));
     expect(removeHostFolder).toHaveBeenCalledExactlyOnceWith({ deviceId: DEVICE, folderId: "shared",
       expectedSession: { userId: "owner", generation: "one" } });
-    expect(group("personal-shared")?.textContent).not.toContain("Shared");
+    expect(group("other-computers")?.textContent).not.toContain("Shared");
     expect(publish).not.toHaveBeenCalled();
   });
   it.each([
@@ -178,18 +178,18 @@ describe("local folder drag into My space", () => {
     const remove = vi.fn(removeHostFolder);
     installStop(remove);
     await render();
-    await vi.waitFor(() => expect(group("personal-shared")?.textContent).toContain("Shared"));
+    await vi.waitFor(() => expect(group("local-only")?.textContent).toContain("Shared"));
     const devicesRow = await devicesRowOf("Shared");
     await act(async () => devicesRow.click());
     await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce());
     const said = () => queryAllByRole(document, "status").some((status) => status.textContent?.includes("Unable to stop sharing this folder."));
     await vi.waitFor(() => expect(said()).toBe(failed));
-    expect(group("personal-shared")?.textContent).toContain("Shared");
-    expect(group("local-only")?.textContent).not.toContain("Shared");
+    expect(group("local-only")?.textContent).toContain("Shared");
+    expect(group("local-only")?.textContent).toContain("Shared");
   });
   it("discards the drag when the account generation changes", async () => {
     await render(); await drag(project("Draft"), "dragstart");
     await render({ ...session, session_generation: "two" });
-    await drag(group("personal-shared")!, "drop"); expect(opened).not.toHaveBeenCalled();
+    await drag(group("other-computers")!, "drop"); expect(opened).not.toHaveBeenCalled();
   });
 });

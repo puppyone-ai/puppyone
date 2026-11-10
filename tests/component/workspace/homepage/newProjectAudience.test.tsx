@@ -12,10 +12,10 @@ import { accessibleName, getByRole, isChecked, isDisabled, queryAllByRole, query
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-const PERSONAL: CloudSpace = { id: "personal", name: "Personal", kind: "personal", canCreateProjects: true };
-const DESIGN: CloudSpace = { id: "design", name: "Design", kind: "team", canCreateProjects: true };
-const READERS: CloudSpace = { id: "readers", name: "Readers", kind: "team", canCreateProjects: false };
-const RESEARCH: CloudSpace = { id: "research", name: "Research", kind: "team", canCreateProjects: true };
+const PERSONAL: CloudSpace = { id: "personal", name: "Personal", kind: "space", canCreateProjects: true };
+const DESIGN: CloudSpace = { id: "design", name: "Design", kind: "space", canCreateProjects: true };
+const READERS: CloudSpace = { id: "readers", name: "Readers", kind: "space", canCreateProjects: false };
+const RESEARCH: CloudSpace = { id: "research", name: "Research", kind: "space", canCreateProjects: true };
 
 type Props = Partial<Parameters<typeof OnboardingProjectEntryDialog>[0]>;
 const opened = (status: "opened-current" | "opened-new" = "opened-current") => vi.fn(async (request: WorkspaceCreateProjectRequest) => ({

@@ -147,5 +147,6 @@
   "entry.import.retryOpen": "打开已导入的项目",
   "entry.import.openFailed": "项目已导入，但暂时无法打开。请确认文件夹可访问后重试。",
   "entry.import.app.loading": "正在读取文件夹…",
-  "entry.import.app.readFailed": "无法读取文件夹，请重试。"
+  "entry.import.app.readFailed": "无法读取文件夹，请重试。",
+  "sharing.thisMac": "此 Mac"
 }

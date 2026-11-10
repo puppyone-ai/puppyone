@@ -27,8 +27,8 @@ const session = {
   user_email: "a@example.com", status: "authenticated", expires_in: 3600, expires_at: 0,
 } satisfies DesktopCloudSession;
 const organizations = [
-  { id: "personal", name: "Personal space", kind: "personal" },
-  { id: "team", name: "Research", kind: "team" },
+  { id: "personal", name: "Personal space", kind: "space" },
+  { id: "team", name: "Research", kind: "space" },
 ];
 const summary = (org = "personal", revision = 1) => ({ org_id: org, plan_id: "personal", source_revision: revision }) as DesktopBillingSummary;
 const usage = (org: string) => ({ runtime: { org_id: org }, storage: { logical_bytes: 123 } });

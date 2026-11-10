@@ -47,7 +47,7 @@ import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWor
 import { useCurrentSpace } from "./features/cloud/spaces/useCurrentSpace";
 import "./app/space-navigation.css";
 import { SpaceSwitcher } from "./app/SpaceSwitcher";
-import { WindowNavigationProvider } from "./components/WindowNavigation";
+import { SidebarSpaceNavigationProvider, WindowNavigationProvider } from "./components/WindowNavigation";
 import { useCloudSpaces } from "./features/cloud/spaces/useCloudSpaces";
 import { useCloudSpacePublishIntent, type CloudSpacePublishTarget } from "./features/cloud/spaces/useCloudSpacePublishIntent";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
@@ -437,14 +437,10 @@ function AppContent() {
     session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
   const currentProjectId = cloudWorkspaceActive && accountCloud.context.status === "resolved"
     ? accountCloud.context.projectId
-    : projectCatalog.items.find((item) => item.localPath === workspace?.path)?.linkedCloudProject?.id ?? null;
+    : null;
   const currentSpace = useCurrentSpace({ account: projectCatalog.account, spaces: cloudSpaces.spaces,
     projectId: currentProjectId, items: projectCatalog.items });
   const scopedProjectItems = currentSpace.items;
-  const selectCurrentSpace = currentSpace.select;
-  useLayoutEffect(() => {
-    if (workspace?.path && !currentProjectId) selectCurrentSpace(null);
-  }, [workspace?.path, currentProjectId, selectCurrentSpace]);
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -1717,20 +1713,20 @@ function AppContent() {
     />
   </DesktopOverlayPortal>;
   const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
-  const spaceNavigation = <div className="desktop-account-space-navigation" data-window-no-drag="true">
+  const accountNavigation = <div className="desktop-account-space-navigation" data-window-no-drag="true">
     {accountAvailable && !cloudSessionRestoring && <ProjectHeaderAccount session={activeCloudSession}
       apiBaseUrl={desktopCloudApiBaseUrl} onOpenAccount={() => openSettingsDialog("account")} />}
-    {cloudEnabled && activeCloudSession && <SpaceSwitcher
+  </div>;
+  const spaceNavigation = cloudEnabled && activeCloudSession ? <SpaceSwitcher
     key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}:${desktopCloudApiBaseUrl}`}
     spaces={cloudSpaces.spaces} selectedId={currentSpace.id} session={activeCloudSession}
     apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     onSelect={(id) => { void goToHomepage().then(() => currentSpace.select(id)); }}
     onCreated={(id) => { currentSpace.select(id); cloudSpaces.refresh(); void goToHomepage(); }}
     onSettings={() => openSettingsDialog("space")}
-    onInvite={() => openSettingsDialog("space", true)} />}
-  </div>;
+    onInvite={() => openSettingsDialog("space", true)} /> : null;
   const themeRuntime = (content: ReactNode) => (
-    <WindowNavigationProvider value={spaceNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <SidebarSpaceNavigationProvider value={{ content: spaceNavigation, inProjectRail: railOwnsProject }}><WindowNavigationProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
@@ -1747,7 +1743,7 @@ function AppContent() {
         {projectEntryOverlay}
         {settingsOverlay}
       </div>
-    </SurfaceAppearanceProvider></WindowNavigationProvider>
+    </SurfaceAppearanceProvider></WindowNavigationProvider></SidebarSpaceNavigationProvider>
   );
 
   if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
@@ -1816,7 +1812,7 @@ function AppContent() {
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        projectGroups={currentSpace.id === null && hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
+        projectGroups={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
           ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
               session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
               onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
@@ -1998,7 +1994,7 @@ function AppContent() {
     />
   );
   return (
-    <WindowNavigationProvider value={spaceNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <SidebarSpaceNavigationProvider value={{ content: spaceNavigation, inProjectRail: railOwnsProject }}><WindowNavigationProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
         <ProjectWindow
           location={workspaceLocation}
           appearance={surfaceAppearance}
@@ -2248,7 +2244,7 @@ function AppContent() {
       {projectNavigationOverlay}
       {projectEntryOverlay}
       <DesktopOverlayPortal appearance={surfaceAppearance}>{cloudLinkDisconnectDialog}</DesktopOverlayPortal>
-    </SurfaceAppearanceProvider></WindowNavigationProvider>
+    </SurfaceAppearanceProvider></WindowNavigationProvider></SidebarSpaceNavigationProvider>
   );
 }
 

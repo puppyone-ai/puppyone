@@ -20,6 +20,7 @@ type DesktopTitlebarMenuLayerProps = {
   ariaLabel?: string;
   focusOnOpen?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+  placementPreference?: "auto" | "above" | "below";
 };
 
 const TITLEBAR_CONTEXT_MENU_WIDTH = 300;
@@ -46,6 +47,7 @@ export function DesktopTitlebarMenuLayer({
   ariaLabel,
   focusOnOpen = false,
   onKeyDown,
+  placementPreference = "below",
 }: DesktopTitlebarMenuLayerProps) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
@@ -56,7 +58,7 @@ export function DesktopTitlebarMenuLayer({
     gap,
     margin: 8,
     alignment,
-    placementPreference: "below",
+    placementPreference,
   });
   const focusedOnOpen = useRef(false);
   useEffect(() => {

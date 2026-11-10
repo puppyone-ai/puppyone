@@ -147,5 +147,6 @@
   "entry.import.retryOpen": "가져온 프로젝트 열기",
   "entry.import.openFailed": "프로젝트를 가져왔지만 열지 못했습니다. 폴더에 접근할 수 있는지 확인한 후 다시 시도하세요.",
   "entry.import.app.loading": "폴더를 읽는 중…",
-  "entry.import.app.readFailed": "폴더를 읽지 못했습니다. 다시 시도하세요."
+  "entry.import.app.readFailed": "폴더를 읽지 못했습니다. 다시 시도하세요.",
+  "sharing.thisMac": "이 Mac"
 }

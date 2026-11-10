@@ -100,9 +100,9 @@ function HomepageComputersFixture() {
   const sharing = useHomepageFolderSharing({ enabled: true, session, apiBase: API,
     workspacePath: sharingPath, workspaceName: sharingPath?.split("/").pop() ?? "",
     openProject: async (path) => setSharingPath(path), returnHome: async () => setSharingPath(null) });
-  const spaces = [{ id: "personal", name: "Alex", kind: "personal" as const, canCreateProjects: true },
-    { id: "team", name: "Design team", kind: "team" as const, canCreateProjects: true },
-    { id: "empty", name: "New team", kind: "team" as const, canCreateProjects: true }];
+  const spaces = [{ id: "personal", name: "Alex", kind: "space" as const, canCreateProjects: true },
+    { id: "team", name: "Design team", kind: "space" as const, canCreateProjects: true },
+    { id: "empty", name: "New team", kind: "space" as const, canCreateProjects: true }];
   useDesktopPreferenceEffects();
   const { resolvedAppearance, lightThemePreset, darkThemePreset } = useDesktopAppearance();
   const setTheme = useDesktopPreference((s) => s.setThemeMode);

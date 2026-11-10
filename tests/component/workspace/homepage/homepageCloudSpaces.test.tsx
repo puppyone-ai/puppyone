@@ -11,9 +11,9 @@ import type { CloudSpace, ProjectHomeItem } from "../../../../src/lib/workspaceH
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const spaces: CloudSpace[] = [
-  { id: "personal", name: "Alex", kind: "personal", canCreateProjects: true },
-  { id: "team", name: "Design", kind: "team", canCreateProjects: true },
-  { id: "read", name: "Guests", kind: "team", canCreateProjects: false },
+  { id: "personal", name: "Alex", kind: "space", canCreateProjects: true },
+  { id: "team", name: "Design", kind: "space", canCreateProjects: true },
+  { id: "read", name: "Guests", kind: "space", canCreateProjects: false },
 ];
 const local: ProjectHomeItem = { id: "local", label: "Draft", localPath: "/fixture/draft" };
 const items: ProjectHomeItem[] = [local,

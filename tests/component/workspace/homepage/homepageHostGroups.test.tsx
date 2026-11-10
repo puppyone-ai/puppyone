@@ -54,12 +54,12 @@ function groups(container: HTMLElement) {
 describe("homepage audience grouping", () => {
   it("keeps unresolved shared ownership reachable without misclassifying local folders", () => {
     const shown = groups(renderHome());
-    expect(shown.map((group) => group.title)).toEqual(["Shared projects", "On this computer"]);
-    expect(shown[0].names.join(" ")).toMatch(/shared/);
-    expect(shown[0].names.join(" ")).not.toMatch(/notes/);
+    expect(shown.map((group) => group.title)).toEqual(["On this computer", "Shared projects"]);
+    expect(shown[1].names.join(" ")).toMatch(/shared/);
+    expect(shown[1].names.join(" ")).not.toMatch(/notes/);
     // A folder with its own Cloud project is still this computer's folder.
-    expect(shown[1].names.join(" ")).toMatch(/notes/);
-    expect(shown[1].names.join(" ")).toMatch(/site/);
+    expect(shown[0].names.join(" ")).toMatch(/notes/);
+    expect(shown[0].names.join(" ")).toMatch(/site/);
   });
 
   it("scrolls the page as one, so no group can cut off its own last row", () => {
@@ -87,6 +87,6 @@ describe("homepage audience grouping", () => {
     expect(readableText(container)).toContain("other computers");
     expect(handed!.cloud[0]?.id).toBe("shared-unresolved");
     expect(handed!.local?.title).toBe("On this computer");
-    expect(handed!.personalSharedTitle).toBe("My space");
+    expect(handed!.cloud.map(group => group.title)).toEqual(["Shared projects"]);
   });
 });

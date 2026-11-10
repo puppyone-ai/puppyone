@@ -33,7 +33,7 @@ export function useCloudSpaces({ enabled, visible, session, apiBaseUrl }: {
         }
         if (organizations.some((org) => typeof org.can_create_projects !== "boolean")) throw new Error("Space discovery unavailable");
         const spaces = organizations.map((org): CloudSpace => ({ id: org.id, name: org.name,
-          kind: org.kind === "personal" ? "personal" : "team", canCreateProjects: org.can_create_projects === true,
+          kind: "space", canCreateProjects: org.can_create_projects === true,
           isDefault: org.is_default === true, role: org.role, canManageSpace: org.can_manage_space === true,
           planId: typeof org.billing_plan_id === "string" ? org.billing_plan_id : null }));
         spaces.sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

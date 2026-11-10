@@ -44,7 +44,6 @@ async function render({ bridge = {}, until = (host: HTMLElement) => Boolean(devi
   } as never);
   let sharing: ProjectListSharing | undefined;
   const base: OnboardingGroupsBase = { label: "Projects", layout: "grid",
-    personalSharedTitle: "My shared projects",
     cloud: [{ id: "team-shared", title: "Team shared projects", children: <ul className="onboarding-project-list" /> }],
     local: { title: "Only on this computer", items: [
       { id: "local-shared", label: "ditherit", localPath: "/fixture/ditherit", hostFolderId: "f-1" },
@@ -65,7 +64,7 @@ async function render({ bridge = {}, until = (host: HTMLElement) => Boolean(devi
 /** The groups as announced: regions named by their headings. */
 const titles = (host: HTMLElement) => queryAllByRole(host, "region").map(accessibleName);
 const region = (host: HTMLElement, name: string) => queryByRole(host, "region", { name });
-const personal = (host: HTMLElement) => region(host, "My shared projects")!;
+const personal = (host: HTMLElement) => region(host, "Only on this computer")!;
 const localOnly = (host: HTMLElement) => region(host, "Only on this computer")!;
 const deviceList = (host: HTMLElement, name: string) => queryByRole(host, "list", { name: `On ${name}` });
 /** A remote folder's button, by the name it is announced with. */
@@ -75,12 +74,12 @@ const folderButtons = (list: HTMLElement) => queryAllByRole(list, "button").map(
 describe("the owner's other computers on the Homepage", () => {
   it("shows three audiences, with shared local and remote folders together rather than device headings", async () => {
     const { host } = await render();
-    expect(titles(host)).toEqual(["Team shared projects", "My shared projects", "Only on this computer"]);
+    expect(titles(host)).toEqual(["Only on this computer", "Team shared projects", "Other computers"]);
     expect(personal(host).textContent).toContain("ditherit");
     expect(personal(host).textContent).toContain("paused");
-    expect(personal(host).textContent).toContain("contracts");
+    expect(region(host, "Other computers")?.textContent).toContain("contracts");
     expect(localOnly(host).textContent).toContain("private");
-    expect(localOnly(host).textContent).not.toContain("ditherit");
+    expect(localOnly(host).textContent).toContain("ditherit");
   });
 
   it("lists a computer's open folders by name, and opens one there", async () => {
@@ -111,13 +110,13 @@ describe("the owner's other computers on the Homepage", () => {
     const { host } = await render({ bridge: { listHostDevices: async () => { throw new Error("offline"); } },
       until: (mounted) => queryAllByRole(mounted, "status").length > 0 });
     expect(personal(host).textContent).toContain("ditherit");
-    expect(localOnly(host).textContent).not.toContain("ditherit");
+    expect(localOnly(host).textContent).toContain("ditherit");
   });
 
   it("keeps known sharing and avoids duplicate remote cards when this computer's status is unavailable", async () => {
     const { host } = await render({ bridge: { getHostStatus: async () => { throw new Error("host unavailable"); } } });
     expect(personal(host).textContent).toContain("ditherit");
-    expect(localOnly(host).textContent).not.toContain("ditherit");
+    expect(localOnly(host).textContent).toContain("ditherit");
     // This computer's own folder is not listed again as if it were on another computer.
     expect(queryAllByRole(personal(host), "button", { name: /^Open notes on / })).toEqual([]);
   });
@@ -125,11 +124,11 @@ describe("the owner's other computers on the Homepage", () => {
   it("moves the card only after an explicit stop-sharing confirmation and updates again on sharing", async () => {
     const { host } = await render();
     await act(async () => forgetSharedFolder("f-1", "/fixture/ditherit"));
-    expect(personal(host).textContent).not.toContain("ditherit");
+    expect(personal(host).textContent).toContain("ditherit");
     expect(localOnly(host).textContent).toContain("ditherit");
     await act(async () => rememberSharedFolder("/fixture/ditherit", "f-1"));
     expect(personal(host).textContent).toContain("ditherit");
-    expect(localOnly(host).textContent).not.toContain("ditherit");
+    expect(localOnly(host).textContent).toContain("ditherit");
   });
 
 });

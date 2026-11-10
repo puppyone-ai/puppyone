@@ -147,5 +147,6 @@
   "entry.import.retryOpen": "インポートしたプロジェクトを開く",
   "entry.import.openFailed": "プロジェクトはインポートされましたが、開けませんでした。フォルダーにアクセスできることを確認して、もう一度お試しください。",
   "entry.import.app.loading": "フォルダーを読み取り中…",
-  "entry.import.app.readFailed": "フォルダーを読み取れませんでした。もう一度お試しください。"
+  "entry.import.app.readFailed": "フォルダーを読み取れませんでした。もう一度お試しください。",
+  "sharing.thisMac": "この Mac"
 }

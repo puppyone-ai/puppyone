@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
-import { WindowNavigationProvider } from "../../components/WindowNavigation";
+import { SidebarSpaceNavigationProvider, WindowNavigationProvider } from "../../components/WindowNavigation";
 import { SpaceSwitcher } from "../SpaceSwitcher";
 import { PlanComparison } from "../../features/settings/main/CloudPlans";
 import { resolvePlanCatalog, resolvePlanHolding } from "../../features/settings/main/planPricing";
@@ -10,8 +10,8 @@ import type { DesktopCloudSession } from "../../lib/cloudApi";
 import "../space-navigation.css";
 
 const SPACES: CloudSpace[] = [
-  { id: "acme", name: "Acme Research", kind: "team", canCreateProjects: true, planId: "enterprise_v2" },
-  { id: "mine", name: "My space", kind: "personal", canCreateProjects: true, planId: "team_v2" },
+  { id: "acme", name: "Acme Research", kind: "space", canCreateProjects: true, planId: "enterprise_v2" },
+  { id: "mine", name: "My space", kind: "space", canCreateProjects: true, planId: "team_v2" },
 ];
 const SESSION = { user_id: "fixture", api_base_url: "https://fixture.invalid/api/v1" } as DesktopCloudSession;
 
@@ -26,8 +26,9 @@ export function UnifiedSpacesVisualSmokeHarness() {
   const navigation = <SpaceSwitcher spaces={SPACES} selectedId={selected} session={SESSION}
     apiBaseUrl={SESSION.api_base_url} onSessionChange={() => undefined} onCreated={() => undefined}
     onSelect={(id) => { setSelected(id); setSettings(false); }} onSettings={() => setSettings(true)} onInvite={() => setSettings(true)} />;
-  return <WindowNavigationProvider value={navigation}>
+  return <SidebarSpaceNavigationProvider value={{ content: navigation, inProjectRail: false }}><WindowNavigationProvider value={null}>
     <DesktopWindowChrome />
+    <aside className="onboarding-space-sidebar">{navigation}</aside>
     <main className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body">
         <div className="desktop-settings-section">
@@ -41,5 +42,5 @@ export function UnifiedSpacesVisualSmokeHarness() {
         </div>
       </div>
     </main>
-  </WindowNavigationProvider>;
+  </WindowNavigationProvider></SidebarSpaceNavigationProvider>;
 }

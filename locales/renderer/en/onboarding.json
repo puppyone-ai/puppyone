@@ -147,5 +147,6 @@
   "entry.import.retryOpen": "Open imported project",
   "entry.import.openFailed": "The project was imported, but could not be opened. Check that its folder is available, then try again.",
   "entry.import.app.loading": "Reading folders…",
-  "entry.import.app.readFailed": "Could not read folders. Try again."
+  "entry.import.app.readFailed": "Could not read folders. Try again.",
+  "sharing.thisMac": "This Mac"
 }

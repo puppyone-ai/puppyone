@@ -7,8 +7,8 @@ import { ensurePersonalCloudSpace, listCloudOrganizations, type DesktopCloudSess
 vi.mock("../../../../src/lib/cloudApi", () => ({ ensurePersonalCloudSpace: vi.fn(), listCloudOrganizations: vi.fn() }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const session = { user_id: "a", session_generation: "1", status: "authenticated" } as DesktopCloudSession;
-const personal = { is_default: true, id: "personal", name: "Alex", kind: "personal", can_create_projects: true };
-const team = { id: "team", name: "Company", kind: "team", can_create_projects: true };
+const personal = { is_default: true, id: "personal", name: "Alex", kind: "space", can_create_projects: true };
+const team = { id: "team", name: "Company", kind: "space", can_create_projects: true };
 let root: Root;
 let state: ReturnType<typeof useCloudSpaces>;
 function Harness({ user = session }: { user?: DesktopCloudSession | null }) {
