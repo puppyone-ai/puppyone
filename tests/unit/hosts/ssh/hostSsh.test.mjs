@@ -169,14 +169,16 @@ describe("host SSH: certificate login, files, terminals and commands, end to end
     const events = [];
     const controller = new AbortController();
     void files.watch(folderId, null, async (event) => { events.push(event); }, controller.signal);
-    // Wait for the actual watcher, not an arbitrary delay that races a loaded CI worker.
-    await watchStarted;
-    await fs.writeFile(path.join(root, "new.md"), "x");
-    const sawNew = () => events.some((event) => event.type === "change" && (event.reset || event.paths.includes("new.md")));
-    for (let i = 0; i < 50 && !sawNew(); i++) await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(sawNew(), JSON.stringify(events)).toBe(true);
-    controller.abort();
-    ssh.closeAll();
+    try {
+      await watchStarted;
+      await fs.writeFile(path.join(root, "new.md"), "x");
+      const sawNew = () => events.some((event) => event.type === "change" && (event.reset || event.paths.includes("new.md")));
+      for (let i = 0; i < 50 && !sawNew(); i++) await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(sawNew(), JSON.stringify(events)).toBe(true);
+    } finally {
+      controller.abort();
+      ssh.closeAll();
+    }
   });
 
   it("refuses view-only writes on the host itself", async () => {

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -11,7 +12,7 @@ const contract = JSON.parse(readFileSync(fileURLToPath(new URL(
 const roots = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))); });
 
-async function setup({ capabilities = ["folder.read", "folder.write"], files = { "note.md": "initial" }, symlinks = {} } = {}) {
+async function setup({ capabilities = ["folder.read", "folder.write"], files = { "note.md": "initial" }, symlinks = {}, watchPath } = {}) {
   const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-host-files-")));
   roots.push(base);
   const root = path.join(base, "shared");
@@ -23,7 +24,7 @@ async function setup({ capabilities = ["folder.read", "folder.write"], files = {
   }
   for (const [name, target] of Object.entries(symlinks)) await fs.symlink(target, path.join(root, name));
   let state = "active";
-  const service = createHostFileService({ resolveFolder: async (id) => id === "folder" ?
+  const service = createHostFileService({ watchPath, resolveFolder: async (id) => id === "folder" ?
     { rootPath: root, state, capabilities } : null });
   return { root, base, service, revoke: () => { state = "removed"; } };
 }
@@ -88,7 +89,6 @@ describe("host file service", () => {
     const events = [];
     const stop = await service.watch("folder", (event) => events.push(event));
     try {
-      await new Promise((resolve) => setTimeout(resolve, 150));
       await fs.writeFile(path.join(root, "note.md"), "changed here");
       await fs.mkdir(path.join(root, ".git"));
       await fs.writeFile(path.join(root, ".git", "HEAD"), "ref");
@@ -99,6 +99,63 @@ describe("host file service", () => {
       expect(events.some((event) => event.reset) || paths.includes("note.md")).toBe(true);
       expect(paths.some((item) => item.split("/").includes(".git"))).toBe(false);
     } finally { stop(); }
+  });
+
+  it("reconciles real file changes when the native directory stream stays silent", async () => {
+    const native = Object.assign(new EventEmitter(), { close: vi.fn() });
+    const { root, base, service } = await setup({
+      watchPath: () => native,
+      files: { "keep.md": "same", "old.md": "old", "nested/note.md": "initial" },
+      symlinks: { escape: ".." },
+    });
+    const events = [];
+    const stop = await service.watch("folder", (event) => events.push(event));
+    try {
+      await fs.writeFile(path.join(root, "replacement"), "atomic");
+      await fs.rename(path.join(root, "replacement"), path.join(root, "nested/note.md"));
+      await fs.rename(path.join(root, "old.md"), path.join(root, "new.md"));
+      await fs.mkdir(path.join(root, ".git"));
+      await fs.writeFile(path.join(root, ".git/HEAD"), "private");
+      await fs.writeFile(path.join(root, ".puppyone-write-hidden"), "temporary");
+      await fs.writeFile(path.join(base, "outside.md"), "outside change");
+      const deadline = Date.now() + 3000;
+      while (!events.length && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
+      expect(events.some((event) => event.reset)).toBe(false);
+      const paths = events.flatMap((event) => event.paths);
+      expect(paths).toEqual(expect.arrayContaining(["nested/note.md", "old.md", "new.md"]));
+      expect(paths.some((name) => ["keep.md", "escape", "outside.md", ".git/HEAD", ".puppyone-write-hidden"].includes(name))).toBe(false);
+    } finally { stop(); }
+    expect(native.close).toHaveBeenCalledOnce();
+  });
+
+  it("ends reconciliation after revocation and releases the native watch", async () => {
+    const native = Object.assign(new EventEmitter(), { close: vi.fn() });
+    const { root, service, revoke } = await setup({ watchPath: () => native });
+    const events = [];
+    const stop = await service.watch("folder", (event) => events.push(event));
+    try {
+      revoke();
+      await fs.writeFile(path.join(root, "private.md"), "no longer shared");
+      const deadline = Date.now() + 3000;
+      while (!events.length && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
+      expect(events).toEqual([{ paths: [], reset: true }]);
+      expect(native.close).toHaveBeenCalledOnce();
+    } finally { stop(); }
+  });
+
+  it("does not scan or publish after the last subscriber stops", async () => {
+    const { root } = await setup();
+    const native = Object.assign(new EventEmitter(), { close: vi.fn() });
+    const resolveFolder = vi.fn(async () => ({ rootPath: root, state: "active", capabilities: ["folder.read"] }));
+    const service = createHostFileService({ resolveFolder, watchPath: () => native });
+    const changed = vi.fn();
+    const stop = await service.watch("folder", changed);
+    stop();
+    await fs.writeFile(path.join(root, "note.md"), "after stop");
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    expect(resolveFolder).toHaveBeenCalledOnce();
+    expect(native.close).toHaveBeenCalledOnce();
+    expect(changed).not.toHaveBeenCalled();
   });
 
   describe("a directory swapped for a symlink between check and use", () => {

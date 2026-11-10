@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
-import { watch as watchPath, constants } from "node:fs";
+import { watch as nativeWatchPath, constants } from "node:fs";
 import path from "node:path";
 import { normalizeRelativePath, resolveExistingWorkspacePath, isSameOrInsidePath } from "../../local-api/files/path-policy.mjs";
 
@@ -10,6 +10,7 @@ export const MAX_ENTRIES = 10_000;
 const MAX_EVENT_PATHS = 256;
 const COALESCE_MS = 100;
 const TEMP_PREFIX = ".puppyone-write-";
+const WATCH_RECONCILE_MS = 2000;
 
 export class HostFileError extends Error {
   constructor(code) { super(code); this.code = code; }
@@ -56,7 +57,7 @@ function fileErrorCode(error) {
  * and revocation state on every call; a transport-supplied root is never accepted.
  * This is deliberately not a shell, Git or general local workspace IPC bridge.
  */
-export function createHostFileService({ resolveFolder, platform = process.platform,
+export function createHostFileService({ resolveFolder, platform = process.platform, watchPath = nativeWatchPath,
   /** Test seam: runs between a path check and the filesystem call it guards. */
   beforeIo = async () => {} }) {
   const writes = new Map();
@@ -294,8 +295,16 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
     const changed = new Set();
     let reset = false;
     let timer = null;
+    let reconcileTimer = null;
     let stopped = false;
     const watchers = new Map();
+    const stop = () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      if (reconcileTimer) clearTimeout(reconcileTimer);
+      for (const watcher of watchers.values()) watcher.close();
+      watchers.clear();
+    };
     const flush = () => {
       timer = null;
       if (stopped) return;
@@ -313,6 +322,64 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
       timer ??= setTimeout(flush, COALESCE_MS);
     };
     const failed = () => { reset = true; timer ??= setTimeout(flush, COALESCE_MS); if (platform === "linux") rescan(); };
+    // Directory event streams can silently omit changes. Reconcile metadata only
+    // while this folder has a subscriber; never read file contents or follow links.
+    // One bounded scan at a time also catches atomic replacement and nested edits.
+    const snapshot = async () => {
+      const state = new Map();
+      let visited = 0;
+      const visit = async (relative) => {
+        if (stopped) return;
+        const directory = await entry(rootPath, relative);
+        const children = await fs.readdir(directory, { withFileTypes: true });
+        await stillAt(rootPath, directory);
+        for (const child of children) {
+          if (stopped) return;
+          if (child.name.toLowerCase() === ".git" || child.name.startsWith(TEMP_PREFIX) || child.isSymbolicLink()) continue;
+          if (++visited > MAX_ENTRIES) throw new HostFileError("too_many_entries");
+          const name = relative ? `${relative}/${child.name}` : child.name;
+          const location = await entry(rootPath, name);
+          const info = await fs.lstat(location, { bigint: true });
+          await stillAt(rootPath, location);
+          if (!info.isFile() && !info.isDirectory()) continue;
+          state.set(name, `${info.dev}:${info.ino}:${info.mode}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`);
+          if (info.isDirectory()) await visit(name);
+        }
+      };
+      await visit("");
+      return state;
+    };
+    let previous;
+    const reconcile = async () => {
+      reconcileTimer = null;
+      try {
+        if (await admit(folderId, "folder.read") !== rootPath) throw new HostFileError("root_changed");
+        const current = await snapshot();
+        if (await admit(folderId, "folder.read") !== rootPath) throw new HostFileError("root_changed");
+        if (!stopped) {
+          if (!previous) record(null);
+          else {
+            for (const [name, version] of current) if (previous.get(name) !== version) record(name);
+            for (const name of previous.keys()) if (!current.has(name)) record(name);
+          }
+          previous = current;
+        }
+      } catch (error) {
+        // A missing/replaced root, a race or a capped scan invalidates the view,
+        // without disclosing names from an incomplete or unauthorized snapshot.
+        if (!stopped) {
+          if (error?.code === "folder_unavailable" || error?.code === "root_changed") {
+            stop();
+            onEvent({ paths: [], reset: true });
+          } else record(null);
+        }
+      } finally {
+        if (!stopped) {
+          reconcileTimer = setTimeout(reconcile, WATCH_RECONCILE_MS);
+          reconcileTimer.unref?.();
+        }
+      }
+    };
     // Linux recursive fs.watch keeps stale inode watches after atomic saves; watch
     // each directory instead. macOS (FSEvents) and Windows watch the tree natively.
     const rescan = () => {
@@ -346,12 +413,11 @@ export function createHostFileService({ resolveFolder, platform = process.platfo
       watcher.on("error", failed);
       watchers.set(rootPath, watcher);
     }
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-      for (const watcher of watchers.values()) watcher.close();
-      watchers.clear();
-    };
+    try { previous = await snapshot(); }
+    catch { record(null); }
+    reconcileTimer = setTimeout(reconcile, WATCH_RECONCILE_MS);
+    reconcileTimer.unref?.();
+    return stop;
   }
 
   const api = {
