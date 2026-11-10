@@ -21,11 +21,11 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
         </SettingsSubsection>
         <div className="desktop-plan-usage">
           <div className="desktop-plan-usage-item">
-            <div className="desktop-plan-usage-heading">
-              <span>{t("settings.plan.hoursLabel")}</span>
+            <span className="desktop-plan-usage-heading">{t("settings.plan.hoursLabel")}</span>
+            <div className="desktop-plan-usage-inline">
               <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
+              <PlanUsageBar percent={null} kind="hours" />
             </div>
-            <PlanUsageBar percent={null} kind="hours" />
           </div>
         </div>
       </div>

@@ -448,10 +448,9 @@ export function CurrentPlan({
         <UsageMeter
           kind="hours"
           label={t("settings.plan.hoursLabel")}
-          used={availableHours !== null ? t("settings.plan.gaugeHours", { hours: hoursValue! }) : hoursValue}
+          used={hoursValue !== null ? t("settings.plan.gaugeHours", { hours: hoursValue }) : null}
           total={availableHours !== null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
           percent={percentOf(reading.usedHours, reading.includedHours)}
-          localization={localization}
         />
       </div>
       {storagePercent !== null && storagePercent >= 80 && (
@@ -486,30 +485,24 @@ function UsageMeter({
   used,
   total,
   percent,
-  localization,
 }: {
   kind: "hours" | "storage";
   label: string;
   used: string | null;
   total: string | null;
   percent: number | null;
-  localization: LocalizationContextValue;
 }) {
   return (
     <div className="desktop-plan-usage-item">
-      <div className="desktop-plan-usage-heading">
-        <span>{label}</span>
+      <span className="desktop-plan-usage-heading">{label}</span>
+      <div className="desktop-plan-usage-inline">
         <span className="desktop-plan-usage-reading">
-          <span className="desktop-plan-usage-value">
+          <span className="desktop-plan-usage-value" title={[used, total].filter((value) => value !== null).join(" / ")}>
             {used ?? total ?? "—"}
-            {used !== null && total !== null && <span> / {total}</span>}
           </span>
-          {percent !== null && <span className="desktop-plan-usage-percent">
-            {localization.formatNumber(percent / 100, { style: "percent", maximumFractionDigits: 0 })}
-          </span>}
         </span>
+        <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
       </div>
-      <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
     </div>
   );
 }
@@ -618,7 +611,6 @@ export function PlanFinePrint({ localization }: { localization: LocalizationCont
 function CurrentBadge({ localization }: { localization: LocalizationContextValue }) {
   return (
     <span className="desktop-plan-current-badge">
-      <Check size={13} aria-hidden="true" />
       {localization.t("settings.plan.current")}
     </span>
   );

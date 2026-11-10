@@ -1061,44 +1061,41 @@
 .desktop-plan-status { color: inherit; font: inherit; }
 .desktop-plan-usage {
   display: grid;
-  padding: 0 10px 30px;
+  padding: 0 10px 24px;
   border-block-end: 1px solid var(--po-divider);
 }
 .desktop-plan-usage-item {
   display: grid;
   min-width: 0;
   align-content: start;
-  gap: 12px;
+  gap: 8px;
 }
 .desktop-plan-usage-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--po-text);
+  color: var(--po-text-muted);
 }
+.desktop-plan-usage-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .desktop-plan-usage-value {
   color: var(--po-text);
   font: inherit;
   font-variant-numeric: tabular-nums;
-  text-align: end;
+  text-align: start;
 }
-.desktop-plan-usage-reading { display: flex; align-items: baseline; gap: 16px; }
-.desktop-plan-usage-value > span, .desktop-plan-usage-percent { color: var(--po-text-muted); font: inherit; }
-.desktop-plan-usage-percent { min-width: 36px; text-align: end; font-variant-numeric: tabular-nums; }
+.desktop-plan-usage-reading { display: flex; align-items: baseline; }
 .desktop-plan-meter {
   --desktop-plan-meter-color: var(--desktop-plan-accent, #f87518);
-  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 25%, transparent);
+  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 38%, transparent);
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 2px;
-  justify-content: space-between;
-  width: 100%;
+  column-gap: 8px;
+  width: max-content;
   min-width: 0;
   height: 18px;
 }
 .desktop-plan-meter-tick { width: 2px; height: 18px; background: var(--desktop-plan-meter-track); }
 .desktop-plan-meter-tick[data-active] { background: var(--desktop-plan-meter-color); }
+.desktop-plan-meter.is-unknown .desktop-plan-meter-tick { background: var(--desktop-plan-meter-color); }
+.desktop-plan-loading .desktop-plan-meter.is-unknown .desktop-plan-meter-tick { background: var(--desktop-plan-meter-track); }
 .desktop-plan-meter.exhausted { --desktop-plan-meter-color: var(--po-danger); }
 
 .desktop-plan-storage-warning {
@@ -1145,8 +1142,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 300px;
-  padding: 20px;
+  min-height: 280px;
+  padding: 16px;
   border: 1px solid var(--po-divider);
   border-radius: 8px;
   color: inherit;
@@ -1161,7 +1158,7 @@
 .desktop-plan-card-head {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
 }
 .desktop-plan-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 21px; }
 .desktop-plan-card-heading > svg { color: var(--po-text-muted); flex: none; }
@@ -1191,8 +1188,8 @@
 
 .desktop-plan-spec {
   display: grid;
-  gap: 12px;
-  margin: 22px 0 24px;
+  gap: 10px;
+  margin: 18px 0 20px;
 }
 
 .desktop-plan-spec-row {
