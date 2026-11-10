@@ -187,6 +187,7 @@ declare global {
     editAgent: typeof editCloudAgentPrompt;
     selectLocation: (location: "local" | "cloud") => void;
     requestCloud: () => void;
+    openHistory: () => void;
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
     addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string; content_base64?: string }>) => void;
@@ -302,6 +303,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       editAgent: editCloudAgentPrompt,
       selectLocation: (next) => { if (next === "cloud") openCloudProject(); else openLocalFolder(); },
       requestCloud,
+      openHistory: cloudSidebar.openHistory,
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
@@ -336,7 +338,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location, openCloudProject, openLocalFolder, requestCloud, setLanguagePreference, setSidebarCollapsed, workbench]);
+  }, [cloudSidebar.openHistory, location, openCloudProject, openLocalFolder, requestCloud, setLanguagePreference, setSidebarCollapsed, workbench]);
   // The account catalog: the folder, linked to its Cloud project, and that
   // Cloud project as its own entry while this account can reach it.
   const linked = repositoryContext.status === "resolved";

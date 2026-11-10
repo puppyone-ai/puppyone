@@ -245,11 +245,15 @@ async function validateImportPicker(context) {
   const picker = await evaluate(`(() => {
     const dialog = document.querySelector('.is-import-sources');
     const bounds = dialog.getBoundingClientRect();
-    return { width:bounds.width, height:bounds.height, sources:[...dialog.querySelectorAll('.onboarding-import-source')].map(row => row.dataset.importSource),
+    return { width:bounds.width, height:bounds.height, viewport:innerWidth,
+      columns:getComputedStyle(dialog.querySelector('.onboarding-import-sources')).gridTemplateColumns.split(' ').length,
+      sources:[...dialog.querySelectorAll('.onboarding-import-source')].map(row => row.dataset.importSource),
       modes:[...dialog.querySelectorAll('.onboarding-import-source')].map(row => row.dataset.importMode), listItems:dialog.querySelectorAll('ul > li > button').length,
       clipped:[...dialog.querySelectorAll('.onboarding-import-source')].some(row => row.scrollWidth > row.clientWidth) };
   })()`);
-  assert.ok(picker.width <= 360 && picker.height <= 360, `${context}: compact source dialog`);
+  assert.ok(Math.abs(picker.width - Math.min(460, picker.viewport - 32)) < 1 && picker.height <= 360,
+    `${context}: bounded source tiles (${picker.width}x${picker.height})`);
+  assert.equal(picker.columns, 2, `${context}: two source columns`);
   assert.deepEqual(picker.sources, ["github", "gitlab"], `${context}: experimental sources stay hidden`);
   assert.deepEqual(picker.modes, ["repository", "repository"], `${context}: source capability is explicit`);
   assert.equal(picker.listItems, 2, `${context}: native list and button semantics`);
