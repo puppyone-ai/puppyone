@@ -1096,20 +1096,13 @@
   --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 25%, transparent);
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 18px;
+  grid-auto-columns: 2px;
   justify-content: space-between;
   width: 100%;
   min-width: 0;
   height: 18px;
 }
-.desktop-plan-meter-group {
-  display: grid;
-  grid-template-columns: repeat(3, 4px);
-  gap: 3px;
-  width: 18px;
-  height: 18px;
-}
-.desktop-plan-meter-tick { height: 18px; background: var(--desktop-plan-meter-track); }
+.desktop-plan-meter-tick { width: 2px; height: 18px; background: var(--desktop-plan-meter-track); }
 .desktop-plan-meter-tick[data-active] { background: var(--desktop-plan-meter-color); }
 .desktop-plan-meter.exhausted { --desktop-plan-meter-color: var(--po-danger); }
 

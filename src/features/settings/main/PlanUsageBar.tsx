@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { meterTone } from "./planPricing";
 
-/** Repeat the reference's square of three full-height bars across the whole rail. */
+/** A single row of thin, evenly spaced bars, with no grouped gaps. */
 export function PlanUsageBar({ percent, kind, label, reading }: {
   percent: number | null;
   kind: "hours" | "storage";
@@ -9,13 +9,13 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
   reading?: string;
 }) {
   const rail = useRef<HTMLDivElement>(null);
-  const [groups, setGroups] = useState(1);
+  const [bars, setBars] = useState(1);
   useLayoutEffect(() => {
     const element = rail.current;
     if (!element) return;
     const measure = () => {
-      // Each square is 18px wide, with at least 6px between squares.
-      setGroups(Math.max(1, Math.floor((element.getBoundingClientRect().width + 6) / 24)));
+      // Keep 2px bars at least 10px apart and avoid crowding wider rails.
+      setBars(Math.max(1, Math.min(48, Math.floor((element.getBoundingClientRect().width + 10) / 12))));
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;
@@ -24,7 +24,7 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
     return () => observer.disconnect();
   }, []);
   const bounded = percent === null ? null : Math.max(0, Math.min(100, percent));
-  const activeBars = Math.round(((bounded ?? 0) / 100) * groups * 3);
+  const activeBars = Math.round(((bounded ?? 0) / 100) * bars);
   return (
     <div
       ref={rail}
@@ -37,12 +37,8 @@ export function PlanUsageBar({ percent, kind, label, reading }: {
       aria-valuenow={bounded === null ? undefined : Math.round(bounded)}
       aria-valuetext={bounded === null ? undefined : reading}
     >
-      {Array.from({ length: groups }, (_, group) => (
-        <span className="desktop-plan-meter-group" key={group} aria-hidden="true">
-          {Array.from({ length: 3 }, (_, bar) => (
-            <span className="desktop-plan-meter-tick" key={bar} data-active={group * 3 + bar < activeBars || undefined} />
-          ))}
-        </span>
+      {Array.from({ length: bars }, (_, bar) => (
+        <span className="desktop-plan-meter-tick" key={bar} aria-hidden="true" data-active={bar < activeBars || undefined} />
       ))}
     </div>
   );
