@@ -7,8 +7,6 @@ import { WindowNavigationProvider, type WindowNavigation } from "../../../../src
 import { OnboardingHeaderBrand } from "../../../../src/components/onboarding/OnboardingBrandLockup";
 import { ProjectSwitcherRail } from "../../../../src/features/app-shell/ProjectSwitcherRail";
 import { SettingsSidebar } from "../../../../src/features/settings/sidebar/SettingsSidebar";
-import { ProjectPlaceRows } from "../../../../src/features/app-shell/project-place/ProjectPlaceMenu";
-import { cloudProjectAddress, resolveProjectPlaceMenu } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import type { CloudSpace } from "../../../../src/lib/workspaceHomeModel";
 import { session } from "../../../fixtures/platform/ui-copy/billing";
@@ -52,47 +50,13 @@ it("keeps the account out of the Header's trailing end and omits global Space sw
   expect(document.querySelector(".desktop-space-trigger")).toBeNull();
 });
 
-it("offers Home, every place and then the account from the Header's place menu", async () => {
-  const home = vi.fn(); const show = vi.fn(); const dismiss = vi.fn(); const createSpace = vi.fn(); const signOut = vi.fn();
-  const menu = resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Studio"), space: spaces[0] });
-  await act(async () => root.render(withTestLocalization(<WindowNavigationProvider value={navigation({ onShowPlace: show,
-    account: { session, apiBaseUrl: "https://cloud.fixture", onOpenAccount: account, onOpenSettings: vi.fn(), onCreateSpace: createSpace, onSignOut: signOut } })}>
-    <ProjectPlaceRows menu={menu} handlers={{ onOpenLocalFolder: vi.fn() }} onHome={home} onDismiss={dismiss} />
-  </WindowNavigationProvider>)));
-  expect(places()).toEqual(["home", "local", "a", "b"]);
-  expect(document.querySelector('[data-window-place="a"]')?.getAttribute("aria-current")).toBe("true");
-  expect(document.querySelector('[data-window-place="b"]')?.hasAttribute("aria-current")).toBe(false);
-  expect(document.querySelector("[data-window-place]")?.getAttribute("role")).toBe("button");
-  expect(document.querySelector(".desktop-project-place-rows")?.textContent).toContain(session.user_email);
-  expect(accountRows()).toEqual(["Account", "Settings", "Create space", "Sign out"]);
-
-  await click('[data-window-place="home"]');
-  expect(home).toHaveBeenCalledOnce(); expect(show).not.toHaveBeenCalled();
-  await click('[data-window-place="b"]');
-  expect(show).toHaveBeenCalledWith("b");
-  await click('[data-account-row="create-space"]');
-  await click('[data-account-row="sign-out"]');
-  expect(createSpace).toHaveBeenCalledOnce(); expect(signOut).toHaveBeenCalledOnce();
-  expect(dismiss).toHaveBeenCalledTimes(4);
-});
-
-it("marks this computer among the places of a local project", async () => {
-  await act(async () => root.render(withTestLocalization(<WindowNavigationProvider value={navigation({ onShowPlace: vi.fn() })}>
-    <ProjectPlaceRows menu={resolveProjectPlaceMenu({ place: "local" })} handlers={{ onOpenLocalFolder: vi.fn() }} onDismiss={vi.fn()} />
-  </WindowNavigationProvider>)));
-  expect(places()).toEqual(["local", "a", "b"]);
-  expect(document.querySelector('[data-window-place="local"]')?.getAttribute("aria-current")).toBe("true");
-});
-
-it("asks to sign in from the place menu and the Header's trailing end while signed out", async () => {
+it("asks to sign in at the Header's trailing end while signed out", async () => {
   const signedOut = navigation({ account: { session: null, apiBaseUrl: "https://cloud.fixture", onOpenAccount: account },
     spaces: [], trailing: <button type="button" className="desktop-titlebar-action homepage-cloud-sign-in">Sign in</button> });
   await act(async () => root.render(withTestLocalization(<WindowNavigationProvider value={signedOut}>
     <DesktopWindowChrome />
-    <ProjectPlaceRows menu={resolveProjectPlaceMenu({ place: "local" })} handlers={{ onOpenLocalFolder: vi.fn() }} onDismiss={vi.fn()} />
   </WindowNavigationProvider>)));
   expect(document.querySelector(".desktop-titlebar-actions .homepage-cloud-sign-in")).not.toBeNull();
-  expect(accountRows()).toEqual(["Sign in"]);
 });
 
 it("opens the places and the account from the Homepage's brand, without a way to the page it is on", async () => {
@@ -103,21 +67,10 @@ it("opens the places and the account from the Homepage's brand, without a way to
   await click(".onboarding-header-brand");
   expect(places()).toEqual(["local", "a", "b"]);
   expect(accountRows()).toEqual(["Account"]);
+  expect(document.querySelector('[data-window-place="home"]')).toBeNull();
   await click('[data-window-place="local"]');
   expect(show).toHaveBeenCalledWith("local");
   expect(document.querySelector("[data-window-place]")).toBeNull();
-});
-
-it("reaches a Cloud project's Space members and plan from the Header's place menu", async () => {
-  const manage = vi.fn(); const dismiss = vi.fn();
-  const menu = resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Studio") });
-  await act(async () => root.render(withTestLocalization(<ProjectPlaceRows menu={menu}
-    handlers={{ onOpenLocalFolder: vi.fn(), onManageSpace: manage }} onDismiss={dismiss} />)));
-  await click('[data-project-place-row="space"]');
-  expect(manage).toHaveBeenCalledOnce(); expect(dismiss).toHaveBeenCalledOnce();
-  await act(async () => root.render(withTestLocalization(<ProjectPlaceRows menu={resolveProjectPlaceMenu({ place: "local" })}
-    handlers={{ onOpenLocalFolder: vi.fn(), onManageSpace: manage }} onDismiss={dismiss} />)));
-  expect(document.querySelector('[data-project-place-row="space"]')).toBeNull();
 });
 
 it("keeps Account and Plan flat and labels the management group with the current Space", async () => {

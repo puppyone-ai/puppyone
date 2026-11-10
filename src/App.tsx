@@ -101,7 +101,6 @@ import {
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
-import { clearDesktopCloudSession } from "./lib/cloudSession";
 import { resolveVisibleCreateNewMenuItems } from "./preferences";
 import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron";
 import {
@@ -109,7 +108,6 @@ import {
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { cloudProjectAddress, localProjectAddress, resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
-import { useLocalProjectAudience } from "./features/app-shell/project-place/useLocalProjectAudience";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
@@ -1531,7 +1529,7 @@ function AppContent() {
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
-    onCreateProject={openProjectLauncher} onManageSpace={openProjectSpaceId ? () => openSpaceSettings(openProjectSpaceId) : undefined} /> : null;
+    onCreateProject={openProjectLauncher} /> : null;
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
     ? resolveLocalFolderCloudNotice(projectCloudContext) : null;
   // The folder's Cloud link can be ended from here whatever state it is in,
@@ -1618,27 +1616,6 @@ function AppContent() {
     enabled: hostDevicesEnabled && Boolean(window.puppyoneDesktop && desktopCloudApiBaseUrl) && !cloudWorkspaceActive,
     session: activeCloudSession, rootPath: workspace?.path, recordedFolderId: workspace?.hostFolderId,
     name: workspace?.name ?? "" });
-  // Who can open the local folder in this window, for its place menu: my devices
-  // directly, a team through a copy in the Cloud.
-  const canChooseCopySpace = cloudSpaces.spaces.some((space) => space.canCreateProjects);
-  const localAudience = useLocalProjectAudience({
-    cloudEnabled,
-    devices: hostFolderPlace.devices,
-    notice: cloudProjectNoticeState,
-    disconnectable: cloudLinkDisconnectable,
-    unhosted: projectCloudContext.status === "local-only",
-    publishPending: repositoryCloudInitializationPending,
-    canCopyToTeam: canChooseCopySpace,
-    unsent: gitTitlebarStatus.outgoing,
-    handlers: {
-      onCopyToTeam: openCloudPublish,
-      onOpenCloudProject: (projectId) => { void selectCloudProject(projectId); },
-      onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
-      onRetry: revalidateRepositoryContext,
-      onDisconnect: openCloudLinkDisconnect,
-      onSend: () => { void handlePushGit(); },
-    },
-  });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1742,7 +1719,6 @@ function AppContent() {
     onOpenAccount: () => openSettingsDialog("account"),
     onOpenSettings: () => openSettingsDialog("general"),
     onCreateSpace: cloudEnabled && activeCloudSession && desktopCloudApiBaseUrl ? () => setCreatingSpace(true) : undefined,
-    onSignOut: () => { void clearDesktopCloudSession().catch(() => undefined).finally(() => updateCloudSession(null)); },
   } : null;
   const windowNavigation: WindowNavigation = {
     account: windowAccount,
@@ -1847,7 +1823,7 @@ function AppContent() {
           ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
               session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
               onOpen={(selection) => void selectHostFolder(selection)} /> : undefined}
-        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus showAccountButton={false} status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
@@ -1933,12 +1909,7 @@ function AppContent() {
   // the rail on, the name and the place are in the rail's rows, and repeating
   // them here would give the window two places to read the same fact from.
   const headerWorkspace = cloudWorkspaceActive && hostedWorkspace ? hostedWorkspace : workspace;
-  // Where the open project is, and who can open it; a Cloud copy offers the
-  // folder it was made from.
-  const openCloudProjectId = cloudWorkspaceActive && accountCloud.context.status === "resolved"
-    ? accountCloud.context.projectId : null;
-  const linkedFolder = openCloudProjectId
-    ? projectCatalog.items.find((item) => item.localPath && item.linkedCloudProject?.id === openCloudProjectId) : undefined;
+  // Where the open folder is: its Space, or this computer with its Cloud link.
   const placeMenu = {
     menu: resolveProjectPlaceMenu({
       cloudEnabled,
@@ -1947,14 +1918,7 @@ function AppContent() {
       space: workspaceLocation === "cloud" ? openProjectSpace : null,
       notice: cloudProjectNoticeState,
       disconnectable: cloudLinkDisconnectable,
-      linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
     }),
-    handlers: {
-      onOpenLocalFolder: (path: string) => { void selectProject(path); },
-      ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
-      ...(cloudWorkspaceActive && openProjectSpaceId ? { onManageSpace: () => openSpaceSettings(openProjectSpaceId) } : {}),
-    },
-    audience: localAudience,
   };
   // The rail names the project; the Header keeps its place, the way to Home and the account.
   const titlebarContext = (
@@ -1999,6 +1963,7 @@ function AppContent() {
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
+        onOpenHistory={cloudWorkspaceActive && cloudSidebar.historyAvailable ? cloudSidebar.openHistory : undefined}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       {hostFolderPlace.dialog}

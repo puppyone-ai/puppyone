@@ -3,14 +3,6 @@ import type { CloudSpace } from "../../../lib/workspaceHomeModel";
 import { compactDisplayPath, getWorkspacePathForDisplay } from "../../../lib/workspaceHomeModel";
 
 /**
- * What the Header's place menu offers beside who can open the project. A local
- * folder and its Cloud copy are two projects (puppy-issues ADR-001); from the
- * copy, the menu opens the folder it was made from. It never moves one project
- * between this computer and the Cloud.
- */
-export type ProjectPlaceAction = { kind: "open-local-folder"; path: string; name: string };
-
-/**
  * A local folder's link to its Cloud copy. The link is only the folder's Git
  * connection to that project; the Header's mark says it exists, and who can open
  * the project says what it is and how it ends.
@@ -32,7 +24,7 @@ export type ProjectPlaceMenu = Readonly<{
   place: "local" | "cloud" | "computer";
   /** A named computer, rather than this computer or a Cloud organization. */
   label?: string;
-  /** Access to a folder on another computer belongs in its place menu. */
+  /** Access to a folder on another computer, spoken with its name. */
   detail?: string;
   /** Absent while it is unknown; the Header then names the kind of place instead. */
   address?: ProjectPlaceAddress | null;
@@ -41,7 +33,6 @@ export type ProjectPlaceMenu = Readonly<{
    * The Header then names the Space instead of the organization's address.
    */
   space?: CloudSpace | null;
-  action: ProjectPlaceAction | null;
   /** The open local folder's Cloud link, when it has one. */
   link?: ProjectPlaceCloudLink | null;
 }>;
@@ -97,7 +88,12 @@ export function cloudProjectAddress(organizationName: string | null | undefined)
   return name ? { short: name, full: name } : null;
 }
 
-export function resolveProjectPlaceMenu({ place, address = null, space = null, cloudEnabled = true, notice = null, disconnectable = false, linkedFolder }: {
+/**
+ * A local folder and its Cloud copy are two projects (puppy-issues ADR-001):
+ * the Header states the copy's link on the folder's place, and never moves one
+ * project between this computer and the Cloud.
+ */
+export function resolveProjectPlaceMenu({ place, address = null, space = null, cloudEnabled = true, notice = null, disconnectable = false }: {
   place: "local" | "cloud";
   address?: ProjectPlaceAddress | null;
   /** For an open Cloud project: the Space that holds it, when known. */
@@ -108,12 +104,8 @@ export function resolveProjectPlaceMenu({ place, address = null, space = null, c
   notice?: LocalFolderCloudNotice | null;
   /** This app can end the open local folder's Cloud link. */
   disconnectable?: boolean;
-  /** For an open Cloud project: the local folder linked to it, if any. */
-  linkedFolder?: Readonly<{ path: string; name: string }> | null;
 }): ProjectPlaceMenu {
-  if (!cloudEnabled) return { place: "local", address, action: null };
-  if (place === "cloud") {
-    return { place, address, ...(space ? { space } : {}), action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
-  }
-  return { place, address, action: null, link: notice ? { notice, disconnectable } : null };
+  if (!cloudEnabled) return { place: "local", address };
+  if (place === "cloud") return { place, address, ...(space ? { space } : {}) };
+  return { place, address, link: notice ? { notice, disconnectable } : null };
 }

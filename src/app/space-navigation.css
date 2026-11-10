@@ -9,13 +9,6 @@
   margin-inline-start: 4px;
 }
 
-.desktop-account-menu-email {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Settings names the one Space it manages the way the Header and Homepage do. */
 .desktop-settings-space-heading {
   display: flex;

@@ -10,7 +10,6 @@ export type WindowAccountMenu = Readonly<{
   onOpenSettings?: () => void;
   /** A Space belongs to the account that starts it, which owns and pays for it. */
   onCreateSpace?: () => void;
-  onSignOut?: () => void;
 }>;
 
 /**

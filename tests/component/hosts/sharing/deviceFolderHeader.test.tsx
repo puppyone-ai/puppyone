@@ -37,7 +37,7 @@ function openProjectMenu() {
 }
 
 describe("remote folder Header", () => {
-  it.each([false, true])("uses the shared project and named-computer controls, keeping access inside the place menu (%s)", async writable => {
+  it.each([false, true])("uses the shared project and named-computer controls, speaking the access with the computer (%s)", async writable => {
     await render({ writable });
     const header = container.querySelector("header")!;
     expect(header.querySelector(".desktop-titlebar-workspace-name")?.textContent).toBe("Notes");
@@ -46,12 +46,7 @@ describe("remote folder Header", () => {
     expect(place.getAttribute("aria-label")).not.toContain("This computer");
     expect(header.textContent).not.toMatch(/Remote folder|View only|Can edit|puppyone-device:/);
     expect(header.getAttribute("data-workspace-kind")).not.toBe("cloud");
-    act(() => place.click());
-    const current = document.querySelector('[data-project-place-row="current"]')!;
-    expect(current.textContent).toContain("Studio Mac");
-    expect(current.textContent).toContain(writable ? "Can edit" : "View only");
-    expect(document.querySelector('[data-project-place-row="put-in-cloud"]')).toBeNull();
-    expect(document.querySelector('[data-project-place-row="other-computers"]')).toBeNull();
+    expect(place.getAttribute("aria-label")).toContain(`Studio Mac, ${writable ? "Can edit" : "View only"}`);
   });
 
   it("switches projects from the project menu and goes Home from the place menu", async () => {

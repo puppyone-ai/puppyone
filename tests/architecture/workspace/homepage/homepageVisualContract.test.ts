@@ -135,7 +135,7 @@ describe("Homepage visual contract", () => {
 
     it("names the product in the Header in the muted ink of a project's Header", () => {
       expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
-      expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
+      expect(onboardingCss).not.toContain(".homepage-cloud-avatar");
       expect(onboardingCss).not.toContain("onboarding-header-mark");
     });
 

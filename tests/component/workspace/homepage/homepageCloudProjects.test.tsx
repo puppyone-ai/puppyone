@@ -1,6 +1,8 @@
+/** @vitest-environment happy-dom */
+import { WindowNavigationProvider } from "../../../../src/components/WindowNavigation";
+import { HeaderSignInButton } from "../../../../src/features/cloud/workbench/CloudAccountButton";
 import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
-/** @vitest-environment happy-dom */
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,12 +44,14 @@ function Harness({ currentSession = session, visible = true, enabled = true, loc
   const [shown, onShow] = useState<"local" | "cloud">("local");
   account = useAccountCloudWorkspace({ enabled, shown, onShow, session: currentSession, apiBaseUrl: API });
   home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
-  return visible && !account.active ? <HomeWithEntryFlow appearance={appearance} projectItems={home.items}
+  const navigation = { account: { session: currentSession, apiBaseUrl: API, onOpenAccount: openAccount }, spaces: [],
+    trailing: currentSession ? null : <HeaderSignInButton apiBaseUrl={API} /> };
+  return visible && !account.active ? <WindowNavigationProvider value={navigation}><HomeWithEntryFlow appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
     cloudAccountStatus={<HomepageCloudStatus status={home.status} restoring={false} empty={enabled && home.items.length === 0} apiBaseUrl={API}
-      session={currentSession} onOpenAccount={openAccount} controller={account} onRetry={home.refresh} />} /> : null;
+      session={currentSession} onOpenAccount={openAccount} controller={account} onRetry={home.refresh} />} /></WindowNavigationProvider> : null;
 }
 async function render(props: Parameters<typeof Harness>[0] = {}) { await act(async () => root.render(withTestLocalization(<Harness {...props} />))); }
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("button")];
@@ -147,19 +151,12 @@ describe("inline Homepage Cloud projects", () => {
     ]);
   });
 
-  it("keeps the account avatar available without the Cloud experiment and opens account settings", async () => {
+  it("leaves the account to the Header's place menu, signed in or out", async () => {
     await render({ enabled: false });
     expect(bridge).not.toHaveBeenCalled();
-    expect(document.querySelector(".homepage-cloud-sign-in")).toBeNull();
-    const avatar = document.querySelector<HTMLButtonElement>(".homepage-cloud-avatar");
-    expect(avatar?.textContent).toBe("A");
-    expect(avatar?.getAttribute("aria-label")).toContain("alice@example.com");
-    await click(".homepage-cloud-avatar");
-    await click(".desktop-account-menu .desktop-menu-item");
-    expect(openAccount).toHaveBeenCalledOnce();
+    expect(document.querySelector(".homepage-cloud-account button")).toBeNull();
     await render({ enabled: false, currentSession: null });
-    expect(document.querySelector(".homepage-cloud-avatar")).toBeNull();
-    expect(document.querySelector(".homepage-cloud-sign-in")?.textContent).toBe("Sign in");
+    expect(document.querySelector(".homepage-cloud-account button")).toBeNull();
   });
 
   it("opens a linked folder locally, while its Cloud project mark opens that other project by its exact ID", async () => {
@@ -184,7 +181,6 @@ describe("inline Homepage Cloud projects", () => {
   it("keeps local rows usable during loading and after a listing failure; retry stays inline", async () => {
     const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     await render(); expect(document.body.textContent).toContain("Loading Cloud projects");
-    expect(document.querySelector(".homepage-cloud-avatar")).not.toBeNull();
     await click(".onboarding-project-row"); expect(openLocal).toHaveBeenCalled();
     await act(async () => pending.resolve([project("a")]));
     bridge.mockRejectedValueOnce(new Error("Offline")); await act(async () => home.refresh());

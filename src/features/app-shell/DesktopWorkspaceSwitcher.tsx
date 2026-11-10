@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CloudIcon, createWorkspaceFolder, HomeIcon, LocalIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
+import { CloudIcon, createWorkspaceFolder, FolderIcon, LocalIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
   Plus,
@@ -18,7 +18,7 @@ import { SpaceMark, useSpaceName } from "../cloud/spaces/SpaceMark";
 import { projectMatchesTarget } from "./window-project/projectNavigation";
 import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
-import { groupProjectsByPlace, projectMenuGroupsNeedHeadings, type ProjectMenuGroup } from "./projectMenuGroups";
+import { groupProjectsByPlace, projectMenuGroupsInPlace, projectMenuGroupsNeedHeadings, type ProjectMenuGroup, type ProjectMenuPlace } from "./projectMenuGroups";
 
 const NO_SPACES: readonly CloudSpace[] = [];
 
@@ -33,6 +33,8 @@ export type DesktopWorkspaceSwitcherProps = {
   projectItems?: readonly ProjectHomeItem[];
   /** Every Space this account reaches; the menu lists Cloud projects under the Space that holds them. */
   spaces?: readonly CloudSpace[];
+  /** The open folder's place; the menu then lists only its folders. Absent, it lists every place's. */
+  place?: ProjectMenuPlace;
   pendingProject?: ProjectTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
@@ -54,6 +56,7 @@ export function DesktopWorkspaceSwitcher({
   availableProjects = [],
   projectItems,
   spaces = NO_SPACES,
+  place,
   pendingProject,
   onAddExistingProject,
   onOpenFolder,
@@ -86,8 +89,12 @@ export function DesktopWorkspaceSwitcher({
         ...(hosted && project.projectId ? { cloudProjectId: project.projectId } : {}) };
     }), [availableProjects, projectItems]);
   const currentCloudProjectId = workspace.path.startsWith("puppyone-cloud:") ? workspace.projectId : null;
-  const groups = useMemo(() => groupProjectsByPlace(projects, spaces), [projects, spaces]);
-  const headings = projectMenuGroupsNeedHeadings(groups);
+  const groups = useMemo(() => {
+    const all = groupProjectsByPlace(projects, spaces);
+    return place ? projectMenuGroupsInPlace(all, place) : all;
+  }, [place, projects, spaces]);
+  const headings = !place && projectMenuGroupsNeedHeadings(groups);
+  const listed = groups.some((group) => group.items.length > 0);
   const platform = useDesktopPlatformCapabilities();
   const spaceName = useSpaceName();
   const groupName = (group: ProjectMenuGroup) => {
@@ -107,7 +114,7 @@ export function DesktopWorkspaceSwitcher({
         type="button" ref={triggerRef} className="desktop-titlebar-workspace-button"
         aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) })}
         aria-expanded={open} aria-haspopup="menu" onClick={() => { setView("projects"); onToggle(); }}>
-        <HomeIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
+        <FolderIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button>
       <DesktopTitlebarMenuLayer
@@ -128,7 +135,7 @@ export function DesktopWorkspaceSwitcher({
             {onHome && <>
               <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
                 onClick={() => { onClose(); onHome(); }} />
-              {projects.length > 0 && <DesktopMenuSeparator />}
+              {listed && <DesktopMenuSeparator />}
             </>}
             <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
               {groups.map(group => {
@@ -161,7 +168,7 @@ export function DesktopWorkspaceSwitcher({
               })}
             </div>
             {onCreateProject && <>
-              {projects.length > 0 && <DesktopMenuSeparator />}
+              {listed && <DesktopMenuSeparator />}
               <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
                 onClick={() => { onClose(); onCreateProject(); }} />
             </>}

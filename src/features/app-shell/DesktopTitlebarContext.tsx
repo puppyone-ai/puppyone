@@ -1,23 +1,20 @@
 import type { ReactNode } from "react";
 import { DesktopWorkspaceSwitcher, type DesktopWorkspaceSwitcherProps } from "./DesktopWorkspaceSwitcher";
 import { ProjectPlaceMenuControl, type ProjectPlaceMenuProps } from "./project-place/ProjectPlaceMenu";
+import type { ProjectPlaceMenu } from "./project-place/projectPlaceMenuState";
+import type { ProjectMenuPlace } from "./projectMenuGroups";
 
 /**
- * Where the open project is, then the project, read like a path: the Space
- * that holds it, this computer or another computer, then its name.
+ * Two levels, read like a path: the place (a Space, this computer or another
+ * computer), then the folder.
  *
- * A Space is a place, not a mode. No control switches the window into a Space;
- * the project menu lists every project by the place that holds it, and opening
- * one in another Space is how the window gets there. The place menu states the
- * place and offers what applies to it: the Space's members and plan, or who can
- * open a local folder.
+ * A Space is a place, not a mode. The place menu goes back to Home, to another
+ * place (shown on Home) and to the account. The folder menu lists only the
+ * folders in the open folder's place, and starts a new one; it offers Home
+ * only where no place menu does.
  *
  * A local folder and its Cloud project are two projects (puppy-issues ADR-001),
  * so the Header never switches one project between this computer and the Cloud.
- *
- * The place menu is where the window goes elsewhere: back to Home, to another
- * place, and to the account. The project menu only switches projects and adds
- * them; it offers Home only where no place menu does.
  *
  * The Header states the Project only while it is the Project switcher surface.
  * When the Project rail takes that role the Header keeps the place alone, so
@@ -29,9 +26,17 @@ export function DesktopTitlebarContext({ placeMenu, locationActivity, projectHid
       <ProjectPlaceMenuControl {...placeMenu} onHome={onHome} projectMenuOpen={project.open} onOpen={project.onClose} />
       {!projectHidden && <span className="desktop-titlebar-context-separator" aria-hidden="true">/</span>}
     </>}
-    {!projectHidden && <DesktopWorkspaceSwitcher {...project} onHome={placeMenu ? undefined : onHome} />}
+    {!projectHidden && <DesktopWorkspaceSwitcher {...project} place={projectMenuPlace(placeMenu?.menu)}
+      onHome={placeMenu ? undefined : onHome} />}
     {!projectHidden && locationActivity}
   </div>;
+}
+
+/** Another computer's folders are not in the account's catalog, so its menu keeps every place. */
+function projectMenuPlace(menu: ProjectPlaceMenu | undefined): ProjectMenuPlace | undefined {
+  if (!menu || menu.place === "computer") return undefined;
+  if (menu.space) return { kind: "space", spaceId: menu.space.id };
+  return { kind: menu.place };
 }
 
 export type DesktopTitlebarContextProps = DesktopWorkspaceSwitcherProps & {

@@ -25,6 +25,20 @@ export function groupProjectsByPlace(items: readonly ProjectHomeItem[], spaces: 
   return groups;
 }
 
+/** The place the open folder is in, as the project menu knows it. */
+export type ProjectMenuPlace = Readonly<{ kind: "local" } | { kind: "space"; spaceId: string } | { kind: "cloud" }>;
+
+/**
+ * Two levels, Spaces and folders: inside a place the project menu lists only
+ * that place's folders. Other places are reached from the place menu.
+ */
+export function projectMenuGroupsInPlace(groups: readonly ProjectMenuGroup[], place: ProjectMenuPlace): ProjectMenuGroup[] {
+  return groups.filter((group) => {
+    if (place.kind === "space") return group.kind === "space" && group.space.id === place.spaceId;
+    return group.kind === place.kind;
+  });
+}
+
 /** A menu of only this computer's folders needs no heading to say so. */
 export function projectMenuGroupsNeedHeadings(groups: readonly ProjectMenuGroup[]): boolean {
   return groups.length > 1 || (groups.length === 1 && groups[0].kind !== "local");

@@ -5,7 +5,6 @@ import { useCloudAuthController } from "../hooks/useCloudAuthController";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { AccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { formatCloudMessage } from "../cloudPresentation";
-import { CloudAccountButton } from "./CloudAccountButton";
 
 function HomepageCloudFailure({ controller, authError, onSignIn, onOpenAccount, onRetry }: {
   controller: AccountCloudWorkspace;
@@ -29,7 +28,7 @@ function HomepageCloudFailure({ controller, authError, onSignIn, onOpenAccount, 
 }
 
 /** Global Homepage account affordance. It must never masquerade as a Project row. */
-export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseUrl, controller, session, onOpenAccount, onRetry, showAccountButton = true }: {
+export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseUrl, controller, session, onOpenAccount, onRetry }: {
   status: "signed-out" | "loading" | "ready" | "error";
   restoring: boolean;
   empty?: boolean;
@@ -38,7 +37,6 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
   session: DesktopCloudSession | null;
   onOpenAccount: () => void;
   onRetry: () => void;
-  showAccountButton?: boolean;
 }) {
   const { t } = useLocalization();
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
@@ -55,6 +53,5 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
 
   return <div className="homepage-cloud-account">
     {feedback}
-    {showAccountButton && !restoring && <CloudAccountButton session={session} onSignIn={auth.startSignIn} onOpenAccount={onOpenAccount} />}
   </div>;
 }

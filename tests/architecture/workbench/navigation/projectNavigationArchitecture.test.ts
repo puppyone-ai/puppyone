@@ -42,7 +42,7 @@ describe("one project navigation policy across shell surfaces", () => {
     expect(source).not.toContain("accountCloud.retry");
     expect(source).not.toContain("controller={accountCloud}");
   });
-  it("routes both New workspace actions to the shared launcher", () => {
+  it("routes both New folder actions to the shared launcher", () => {
     expect(bindings("ProjectSwitcherRail", "onCreateNew")).toEqual(["openProjectLauncher"]);
     expect(bindings("DesktopTitlebarContext", "onCreateProject")).toEqual(["openProjectLauncher"]);
     expect(bindings("AccountCloudWorkspaceSurface", "onCreateProject")).toEqual(["openProjectLauncher"]);

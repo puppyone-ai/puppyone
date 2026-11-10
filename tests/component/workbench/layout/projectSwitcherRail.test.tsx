@@ -510,7 +510,7 @@ describe("Project switcher rail", () => {
       const buttons = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-button")];
       expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
         "Project: ⁨Alpha⁩ · Local folder",
-        "New workspace",
+        "New folder",
       ]);
       expect(host.querySelector(".desktop-project-switcher-rail-home")).toBeNull();
       expect(host.querySelector(".po-directional-icon")).toBeNull();
@@ -598,7 +598,7 @@ describe("Project switcher rail", () => {
     expect(compactRow?.hasAttribute("data-tooltip")).toBe(false);
     expect(compactRow?.hasAttribute("title")).toBe(false);
     const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
-    expect(create?.dataset.tooltip).toBe("New workspace");
+    expect(create?.dataset.tooltip).toBe("New folder");
     expect(create?.dataset.tooltipPlacement).toBe("right");
     expect(create?.hasAttribute("title")).toBe(false);
 

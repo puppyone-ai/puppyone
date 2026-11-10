@@ -34,7 +34,7 @@
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action:not(.homepage-cloud-avatar)
+    .desktop-titlebar-action
   ) {
   border: var(--interface-titlebar-control-border);
   border-radius: var(--interface-titlebar-control-border-radius);
@@ -45,14 +45,14 @@
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action:not(.homepage-cloud-avatar)
+    .desktop-titlebar-action
   ):hover,
 :root[data-interface-style]:not([data-interface-style="default"])
   :where(
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action:not(.homepage-cloud-avatar)
+    .desktop-titlebar-action
   )[aria-expanded="true"],
 :root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar-action[aria-pressed="true"] {
   border-color: var(--interface-titlebar-control-active-border-color);

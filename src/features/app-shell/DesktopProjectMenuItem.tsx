@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { Tooltip } from "@puppyone/shared-ui";
+import { CloudIcon, FolderIcon, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
-import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { writeClipboardText } from "../../lib/clipboard";
 import { getProjectName, projectHomeItemLocation, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+
+/**
+ * Every row is a folder: the menu lists one place's folders, so the place is
+ * not repeated on each. A small cloud says a local folder has a Cloud copy.
+ */
+function ProjectFolderMark({ project }: { project: ProjectHomeItem }) {
+  const linked = Boolean(project.localPath && project.linkedCloudProject);
+  return <span className="onboarding-project-icon" data-project-location={linked ? "linked" : undefined} aria-hidden="true">
+    <FolderIcon size={14} strokeWidth={1.85} />
+    {linked && <CloudIcon className="onboarding-project-cloud-badge" size={9} backplate />}
+  </span>;
+}
 
 export function DesktopProjectMenuItem({ project, selected, pending = false, onSelect }: {
   project: ProjectHomeItem;
@@ -41,7 +52,7 @@ export function DesktopProjectMenuItem({ project, selected, pending = false, onS
       data-project-location={projectHomeItemLocation(project)}
       data-linked-cloud-project-id={project.linkedCloudProject?.id}>
       <DesktopMenuItem
-        icon={<HomeProjectIcon item={project} />}
+        icon={<ProjectFolderMark project={project} />}
         label={<bdi>{name}</bdi>}
         selected={selected}
         aria-current={selected ? "page" : undefined}

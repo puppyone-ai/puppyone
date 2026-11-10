@@ -302,7 +302,7 @@ describe("titlebar typography architecture", () => {
     expect(rule).toContain("line-height: var(--desktop-titlebar-context-line-height);");
   });
 
-  it("keeps the combined Home / project trigger quiet with no location control beside it", () => {
+  it("keeps the folder trigger quiet with no location control beside it", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
     const projectButton = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-button");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
@@ -315,7 +315,7 @@ describe("titlebar typography architecture", () => {
     expect(titlebarContextSource).not.toContain("GitBranch");
     expect(titlebarContextSource).not.toContain("DesktopProjectLocationSwitcher");
     expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
-    expect(workspaceSwitcherSource).toContain("<HomeIcon");
+    expect(workspaceSwitcherSource).toContain("<FolderIcon");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");

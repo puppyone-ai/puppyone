@@ -4,12 +4,8 @@ import { useRef, useState } from "react";
 import { SquareTerminal } from "lucide-react";
 import { AgentEntryIcon } from "../components/brand/AgentEntryIcon";
 import { DesktopTitlebarContext } from "../features/app-shell/DesktopTitlebarContext";
-import type { ProjectPlaceMenuProps } from "../features/app-shell/project-place/ProjectPlaceMenu";
 import { VersionControlIcon } from "../features/source-control";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
-
-const noop = () => {};
-const placeHandlers: ProjectPlaceMenuProps["handlers"] = { onOpenLocalFolder: noop };
 
 /** Same project navigation and named-place control as local and Cloud projects. */
 export function DeviceFolderHeader({ workspace, folder, hostName, writable, projectItems,
@@ -26,7 +22,7 @@ export function DeviceFolderHeader({ workspace, folder, hostName, writable, proj
     onClose={() => setOpen(false)} onToggle={() => setOpen(current => !current)} onHome={onHome}
     onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject} onCreateProject={onCreateProject}
     placeMenu={{ menu: { place: "computer", label: hostName, address: { short: hostName, full: hostName },
-      detail: t(writable ? "hosts.catalog.editable" : "hosts.catalog.readOnly"), action: null }, handlers: placeHandlers }} />;
+      detail: t(writable ? "hosts.catalog.editable" : "hosts.catalog.readOnly") } }} />;
 }
 
 export type DeviceFolderTool = "terminal" | "agent" | "git";

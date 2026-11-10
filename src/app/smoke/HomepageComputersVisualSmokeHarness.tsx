@@ -6,8 +6,7 @@ import type { HostCatalogDevice, HostSharingStatus } from "../../../shared/host-
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../features/appearance/AppearanceRuntime";
 import { useProjectEntryFlow } from "../../features/app-shell/ProjectEntryFlow";
-import { ProjectPlaceRows } from "../../features/app-shell/project-place/ProjectPlaceMenu";
-import { resolveProjectPlaceMenu } from "../../features/app-shell/project-place/projectPlaceMenuState";
+import { ProjectAudienceRows } from "../../components/project-audience";
 import { HomepageComputers, useHomepageFolderSharing, useHostFolderPlace } from "../../features/hosts";
 import { DesktopMenuSurface } from "../../components/DesktopMenu";
 import { useHostCatalog } from "../../features/hosts/data/useHostCatalog";
@@ -142,11 +141,10 @@ const noop = () => undefined;
 function FixturePlaceMenu({ shared }: { shared: boolean }) {
   const place = useHostFolderPlace({ enabled: true, session, rootPath: "/Users/demo/Projects/puppyone Vault",
     recordedFolderId: shared ? "f-vault" : null, name: "puppyone Vault" });
-  const menu = resolveProjectPlaceMenu({ place: "local", address: { short: "~/Projects", full: "~/Projects/puppyone Vault" } });
   return <>
     <DesktopMenuSurface className="desktop-project-place-menu" elevation="compact"
       style={{ position: "fixed", top: 52, left: 220, width: 300, padding: "var(--po-menu-padding)", zIndex: 30 }}>
-      <ProjectPlaceRows menu={menu} onDismiss={noop} handlers={{ onOpenLocalFolder: noop }}
+      <ProjectAudienceRows onDismiss={noop}
         audience={{ devices: place.devices, team: shared
           ? { copy: { onOpen: noop, unsent: 2, onSend: noop } } : { copy: null, onCopy: noop } }} />
     </DesktopMenuSurface>
