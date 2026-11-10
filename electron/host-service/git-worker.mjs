@@ -6,12 +6,7 @@
  * Input: argv[2] = JSON { fn, root, args }. Output: one JSON line on stdout.
  */
 import * as workspace from "../local-api/workspace.mjs";
-
-export const GIT_OPERATIONS = Object.freeze([
-  "commitWorkspaceGit", "discardWorkspaceGitPaths", "getWorkspaceGitBranchGraph", "getWorkspaceGitCommitDetail",
-  "getWorkspaceGitFileDiff", "getWorkspaceGitStatus", "pullWorkspaceGit", "pushWorkspaceGit",
-  "stageAllWorkspaceGitChanges", "stageWorkspaceGitPaths", "unstageAllWorkspaceGitChanges", "unstageWorkspaceGitPaths",
-]);
+import { GIT_OPERATIONS } from "./git-operations.mjs";
 
 if (process.argv[2]) {
   try {

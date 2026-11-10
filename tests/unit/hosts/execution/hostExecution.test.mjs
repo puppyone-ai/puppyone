@@ -174,6 +174,17 @@ describe("host Git service", () => {
     return { root, git };
   }
 
+  it.each(["path", "operation JSON"])("imports the sandbox adapter without interpreting a launch %s", async (kind) => {
+    const { root, git } = await repository();
+    const argument = kind === "path" ? root : JSON.stringify({ fn: "stageAllWorkspaceGitChanges", root, args: [] });
+    const adapter = new URL("../../../../electron/host-service/sandboxed-git.mjs", import.meta.url).href;
+    const output = execFileSync(process.execPath, ["--input-type=module", "-e",
+      `process.argv[2] = ${JSON.stringify(argument)}; await import(${JSON.stringify(adapter)});`],
+    { encoding: "utf8", timeout: 3000 });
+    expect(git("diff", "--cached", "--name-only").toString()).toBe("");
+    expect(output).toBe("");
+  });
+
   it("runs named operations with this computer's Git only when allowed", async () => {
     const { root, git } = await repository();
     let capabilities = ["folder.read", "folder.write", "folder.git"];

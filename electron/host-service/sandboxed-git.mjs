@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { GIT_OPERATIONS } from "./git-worker.mjs";
+import { GIT_OPERATIONS } from "./git-operations.mjs";
 import { wrapInSandbox } from "./sandbox.mjs";
 
 const WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), "git-worker.mjs");
