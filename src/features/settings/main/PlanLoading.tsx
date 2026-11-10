@@ -19,15 +19,14 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
           </div>
         </SettingsSubsection>
         <div className="desktop-plan-usage">
-          {["settings.plan.hoursLabel", "settings.plan.storageLabel"].map((label) => (
-            <div className="desktop-plan-usage-item" key={label}>
-              <PlanUsageBar percent={null} kind={label === "settings.plan.hoursLabel" ? "hours" : "storage"} />
-              <div className="desktop-plan-usage-heading">
-                <span>{t(label)}</span>
-                <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
-              </div>
+          <div className="desktop-plan-usage-item">
+            <div className="desktop-plan-usage-heading">
+              <span>{t("settings.plan.hoursLabel")}</span>
+              <span className="desktop-plan-usage-value desktop-plan-placeholder reading" data-placeholder-shape="" aria-hidden="true">— / —</span>
             </div>
-          ))}
+            <PlanUsageBar percent={null} kind="hours" />
+            <span className="desktop-plan-placeholder detail" data-placeholder-shape="" aria-hidden="true" />
+          </div>
         </div>
       </div>
       <div className="desktop-plan-comparison">
@@ -40,13 +39,19 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
                   <span className="desktop-plan-placeholder price" data-placeholder-shape="" />
                 </div>
                 <div className="desktop-plan-spec">
-                  {[0, 1, 2].map((row) => <span className="desktop-plan-placeholder spec" key={row} data-placeholder-shape="" />)}
+                  {[0, 1, 2].map((row) => <div className="desktop-plan-spec-row" key={row}>
+                    <span className="desktop-plan-placeholder spec" data-placeholder-shape="" />
+                    <span className="desktop-plan-placeholder reading" data-placeholder-shape="" />
+                  </div>)}
                 </div>
                 <div className="desktop-plan-card-action"><span className="desktop-plan-placeholder action" data-placeholder-shape="" /></div>
               </div>
             ))}
           </div>
         </SettingsSubsection>
+        <div className="desktop-plan-storage-details" aria-hidden="true">
+          <span className="desktop-plan-placeholder name" data-placeholder-shape="" />
+        </div>
       </div>
       <PlaceholderLayer />
     </div>

@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "スペースの監査と管理",
   "plan.fit.reason.audit": "プロジェクト監査ログへのアクセス",
   "space.group": "スペース",
-  "space.membersAndSettings": "メンバーと設定"
+  "space.membersAndSettings": "メンバーと設定",
+  "plan.storageIncluded": "含まれています",
+  "plan.storageDetails": "ストレージの詳細",
+  "plan.storageUsed": "使用中の容量",
+  "plan.storageNearLimit": "ストレージがまもなくいっぱいになります",
+  "plan.storageFull": "ストレージがいっぱいです",
+  "plan.storagePolicy": "容量がいっぱいになったら、空きを作るか容量を増やしてください。既存のファイルは引き続き利用できます。"
 }

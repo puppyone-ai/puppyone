@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "Auditoria e controle do seu espaço",
   "plan.fit.reason.audit": "Acesso aos registros de auditoria do projeto",
   "space.group": "Espaço",
-  "space.membersAndSettings": "Membros e configurações"
+  "space.membersAndSettings": "Membros e configurações",
+  "plan.storageIncluded": "Incluído",
+  "plan.storageDetails": "Detalhes de armazenamento",
+  "plan.storageUsed": "Seu armazenamento",
+  "plan.storageNearLimit": "O armazenamento está quase cheio",
+  "plan.storageFull": "O armazenamento está cheio",
+  "plan.storagePolicy": "Quando encher, libere espaço ou amplie o armazenamento. Os arquivos existentes continuam disponíveis."
 }

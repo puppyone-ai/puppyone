@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "스페이스 감사 및 제어",
   "plan.fit.reason.audit": "프로젝트 감사 로그 접근",
   "space.group": "스페이스",
-  "space.membersAndSettings": "멤버 및 설정"
+  "space.membersAndSettings": "멤버 및 설정",
+  "plan.storageIncluded": "포함됨",
+  "plan.storageDetails": "저장 공간 상세",
+  "plan.storageUsed": "사용 중인 저장 공간",
+  "plan.storageNearLimit": "저장 공간이 거의 찼습니다",
+  "plan.storageFull": "저장 공간이 가득 찼습니다",
+  "plan.storagePolicy": "공간이 가득 차면 정리하거나 용량을 늘리세요. 기존 파일은 계속 사용할 수 있습니다."
 }

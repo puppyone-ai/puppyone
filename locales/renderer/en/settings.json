@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "Audit and control for your space",
   "plan.fit.reason.audit": "Access to project audit logs",
   "space.group": "Space",
-  "space.membersAndSettings": "Members & settings"
+  "space.membersAndSettings": "Members & settings",
+  "plan.storageIncluded": "Included",
+  "plan.storageDetails": "Storage details",
+  "plan.storageUsed": "Your storage",
+  "plan.storageNearLimit": "Storage is almost full",
+  "plan.storageFull": "Storage is full",
+  "plan.storagePolicy": "When full, free up space or expand storage. Existing files remain available."
 }

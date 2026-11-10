@@ -256,7 +256,8 @@ it("updates the visible usage on Refresh even when operation history is unavaila
   expect(refresh).toBeTruthy();
   await act(async () => refresh!.click());
   expect(host.querySelector('.is-hours[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("25");
-  expect(host.querySelector('.is-storage[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("30");
+  expect(host.querySelector('.is-storage[role="progressbar"]')).toBeNull();
+  expect(host.querySelector('.desktop-plan-storage-body')?.textContent).toContain("3 GB / 10 GB");
   expect(api.getCloudBillingSummary).toHaveBeenCalledTimes(2);
   expect(api.getCloudBillingUsage).toHaveBeenCalledTimes(2);
 });
@@ -277,15 +278,17 @@ it("shows the real plan and balance when the service disables only its sales cat
   expect(host.textContent).toContain("Available now");
   expect(host.textContent).toContain("Plan changes are currently unavailable.");
   expect(host.textContent).not.toContain("Billing details unavailable");
-  expect(host.querySelector('.desktop-plan-meter.is-storage[role="progressbar"]')).not.toBeNull();
-  expect(host.querySelector('.desktop-plan-card')).toBeNull();
+  expect(host.querySelector('.desktop-plan-meter.is-storage')).toBeNull();
+  expect(host.querySelectorAll('.desktop-plan-card')).toHaveLength(3);
+  expect([...host.querySelectorAll<HTMLButtonElement>('.desktop-plan-card button')].every(button => button.disabled)).toBe(true);
+  expect(host.querySelector('.desktop-plan-storage-body')?.textContent).toContain("Your storage");
   api.getCloudBillingSummary.mockResolvedValue({ ...summary(), plan_id: "personal", status: "active" });
   await mount();
   await act(async () => latest.refresh());
   unmount();
   await mount(withTestLocalization(<PlanPageProbe />));
   expect(host.querySelector('.desktop-plan-summary h4')?.textContent).toBe("Team");
-  expect(host.textContent).not.toContain("$20");
+  expect(host.querySelector('.desktop-plan-summary')?.textContent).not.toContain("$20");
 });
 
 it("keeps an unavailable catalog distinct from an unknown current holding", async () => {
@@ -300,7 +303,8 @@ it("keeps an unavailable catalog distinct from an unknown current holding", asyn
   await mount(withTestLocalization(<PlanPageProbe />));
   expect(host.textContent).toContain("Billing details unavailable");
   expect(host.querySelector('.desktop-plan-summary')).toBeNull();
-  expect(host.querySelector('.desktop-plan-card')).toBeNull();
+  expect(host.querySelectorAll('.desktop-plan-card')).toHaveLength(3);
+  expect(host.querySelector('.desktop-plan-card[aria-current="true"]')).toBeNull();
 });
 
 it("invalidates snapshots after a billing mutation and never caches a mismatched space", async () => {

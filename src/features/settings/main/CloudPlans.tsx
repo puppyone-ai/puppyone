@@ -54,7 +54,7 @@ type PlanPageProps = {
  * Plan: what you are on, what you have used, and what else you could be on.
  *
  * The page answers three questions in the order people ask them. First the
- * plan held and this period's agent hours and storage, so "am I running out?"
+ * plan held and this period's agent hours, so "am I running out?"
  * is answered before anything is sold. Then the available plans side by side, each
  * with one price and the same allowance rows, so they compare at a glance. Then,
  * for a paid plan, the two add-ons. Every change is quoted before it is paid,
@@ -85,7 +85,7 @@ export function CloudPlans(props: PlanPageProps) {
           </div>
         </SettingsSubsection>
       )}
-      {!props.catalogUnavailable && <PlanComparison
+      <PlanComparison
         plans={view.plans}
         holding={holding}
         signedIn={false}
@@ -100,8 +100,8 @@ export function CloudPlans(props: PlanPageProps) {
             {props.localization.t("settings.plan.signInToChoose")}
           </button>
         )}
-      />}
-      {!props.catalogUnavailable && <PlanFinePrint localization={props.localization} />}
+      />
+      <PlanFinePrint localization={props.localization} />
     </>
   );
 }
@@ -136,6 +136,16 @@ function ConnectedPlans({
   const owner = canManageBilling === true;
   const sellable = !catalogUnavailable && view.authoritative && !billingUnavailable(billing.error) && owner;
   const busy = billing.action !== null || loading;
+  const availableAddOns = !catalogUnavailable && owner && holding.subscribed
+    ? view.addOns.filter((addOn) => addOn.availableOn.includes(effectiveSummary?.plan_id ?? "")) : [];
+  const renderAddOns = (kind: AddOnOffer["kind"]) => {
+    const offers = availableAddOns.filter((addOn) => addOn.kind === kind);
+    return offers.length > 0 ? <AddOns
+      session={session} apiBaseUrl={apiBaseUrl} organizationId={organizationId}
+      onSessionChange={onSessionChange} addOns={offers} holding={holding}
+      sellable={sellable} localization={localization} onChanged={refreshAll}
+    /> : null;
+  };
 
   const team = view.plans.find((plan) => plan.id === "team");
   const teamMinimum = team?.minimumSeats ?? 1;
@@ -298,30 +308,20 @@ function ConnectedPlans({
       )}
 
       {canManageBilling === false && <p className="desktop-plan-note">{t("settings.plan.space.managedByOwner")}</p>}
-      {!catalogUnavailable && <PlanComparison
+      <PlanComparison
         plans={view.plans}
         holding={holding}
+        usage={billing.usage ?? usage}
+        storageActions={renderAddOns("storage")}
         signedIn
         localization={localization}
         renderAction={owner ? renderAction : (plan) => plan.id === current.id
           ? <CurrentBadge localization={localization} />
           : null}
-      />}
-      {!catalogUnavailable && <PlanFinePrint localization={localization} />}
+      />
+      <PlanFinePrint localization={localization} />
 
-      {!catalogUnavailable && owner && holding.subscribed && view.addOns.some((addOn) => addOn.availableOn.includes(effectiveSummary?.plan_id ?? "")) && (
-        <AddOns
-          session={session}
-          apiBaseUrl={apiBaseUrl}
-          organizationId={organizationId}
-          onSessionChange={onSessionChange}
-          addOns={view.addOns.filter((addOn) => addOn.availableOn.includes(effectiveSummary?.plan_id ?? ""))}
-          holding={holding}
-          sellable={sellable}
-          localization={localization}
-          onChanged={refreshAll}
-        />
-      )}
+      {renderAddOns("hours")}
     </>
   );
 }
@@ -368,7 +368,7 @@ export function describeQuoteTiming(
   return { confirm: "settings.plan.confirmAndPay", note: t("settings.plan.quoteNote"), opensBrowser: true };
 }
 
-/** The plan held, and this period's agent hours and storage against it. */
+/** The plan held and its one primary usage indicator: cloud agent hours. */
 export function CurrentPlan({
   offer,
   holding,
@@ -452,17 +452,13 @@ export function CurrentPlan({
           percent={percentOf(reading.usedHours, reading.includedHours)}
           detail={reading.usedHours === null ? t(hoursDetailKey) : resets}
         />
-        <UsageMeter
-          kind="storage"
-          label={t("settings.plan.storageLabel")}
-          used={reading.usedBytes === null ? null : formatStorage(reading.usedBytes, localization)}
-          total={reading.includedBytes === null ? null : formatStorage(reading.includedBytes, localization)}
-          percent={storagePercent}
-          detail={storagePercent === null
-            ? t("settings.plan.gaugeIncluded")
-            : t("settings.plan.gaugePercent", { percent: localization.formatNumber(Math.round(storagePercent)) })}
-        />
       </div>
+      {storagePercent !== null && storagePercent >= 80 && (
+        <p className={`desktop-plan-storage-warning${storagePercent >= 100 ? " is-full" : ""}`} role="status">
+          <span>{t(storagePercent >= 100 ? "settings.plan.storageFull" : "settings.plan.storageNearLimit")}</span>
+          <span>{formatStorage(reading.usedBytes!, localization)} / {formatStorage(reading.includedBytes!, localization)}</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -500,7 +496,6 @@ function UsageMeter({
 }) {
   return (
     <div className="desktop-plan-usage-item">
-      <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
       <div className="desktop-plan-usage-heading">
         <span>{label}</span>
         <span className="desktop-plan-usage-value">
@@ -508,6 +503,7 @@ function UsageMeter({
           {used !== null && total !== null && <span> / {total}</span>}
         </span>
       </div>
+      <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
       {detail && <span className="desktop-plan-usage-detail">{detail}</span>}
     </div>
   );
@@ -517,12 +513,16 @@ function UsageMeter({
 export function PlanComparison({
   plans,
   holding,
+  usage,
+  storageActions,
   signedIn,
   localization,
   renderAction,
 }: {
   plans: readonly PlanOffer[];
   holding: PlanHolding;
+  usage?: DesktopBillingUsage | null;
+  storageActions?: ReactNode;
   signedIn: boolean;
   localization: LocalizationContextValue;
   renderAction: (plan: PlanOffer) => ReactNode;
@@ -541,9 +541,7 @@ export function PlanComparison({
               [t("settings.plan.hoursLabel"), t(plan.perPerson ? "settings.plan.spec.hoursPerPerson" : "settings.plan.spec.hours", {
                 hours: formatHours(plan.agentHours, localization),
               })],
-              [t("settings.plan.storageLabel"), plan.storageBytes === null
-                ? t("settings.plan.custom")
-                : perPerson(formatStorage(plan.storageBytes, localization))],
+              [t("settings.plan.storageLabel"), t("settings.plan.storageIncluded")],
               [t("settings.plan.spec.projects"), plan.projects === null
                 ? t("settings.plan.spec.unlimited")
                 : perPerson(localization.formatNumber(plan.projects))],
@@ -579,6 +577,22 @@ export function PlanComparison({
           })}
         </div>
       </SettingsSubsection>
+      <details className="desktop-plan-storage-details">
+        <summary>{t("settings.plan.storageDetails")}</summary>
+        <div className="desktop-plan-storage-body">
+          {usage && <SettingsValueRow
+            label={t("settings.plan.storageUsed")}
+            value={`${formatStorage(usage.storage.logical_bytes, localization)}${usage.storage.limit_bytes === null ? "" : ` / ${formatStorage(usage.storage.limit_bytes, localization)}`}`}
+          />}
+          {plans.map((plan) => {
+            let capacity = plan.storageBytes === null ? t("settings.plan.custom") : formatStorage(plan.storageBytes, localization);
+            if (plan.storageBytes !== null && plan.perPerson) capacity = t("settings.plan.spec.perPerson", { value: capacity });
+            return <SettingsValueRow key={plan.id} label={t(`settings.plan.name.${plan.id}`)} value={capacity} />;
+          })}
+          <p className="desktop-plan-note">{t("settings.plan.storagePolicy")}</p>
+          {storageActions}
+        </div>
+      </details>
     </div>
   );
 }

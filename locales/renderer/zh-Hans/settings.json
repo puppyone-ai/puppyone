@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "空间审计与管理",
   "plan.fit.reason.audit": "访问项目审计记录",
   "space.group": "空间",
-  "space.membersAndSettings": "成员与设置"
+  "space.membersAndSettings": "成员与设置",
+  "plan.storageIncluded": "已包含",
+  "plan.storageDetails": "存储详情",
+  "plan.storageUsed": "当前占用",
+  "plan.storageNearLimit": "存储空间即将用满",
+  "plan.storageFull": "存储空间已满",
+  "plan.storagePolicy": "空间用满后，可清理内容或扩容。已有文件仍可读取、导出和删除。"
 }

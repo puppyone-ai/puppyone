@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "Audit et contrôle de votre espace",
   "plan.fit.reason.audit": "Accès aux journaux d’audit du projet",
   "space.group": "Espace",
-  "space.membersAndSettings": "Membres et paramètres"
+  "space.membersAndSettings": "Membres et paramètres",
+  "plan.storageIncluded": "Inclus",
+  "plan.storageDetails": "Détails du stockage",
+  "plan.storageUsed": "Votre stockage",
+  "plan.storageNearLimit": "Le stockage est presque plein",
+  "plan.storageFull": "Le stockage est plein",
+  "plan.storagePolicy": "Si le stockage est plein, libérez de l’espace ou augmentez la capacité. Les fichiers existants restent accessibles."
 }

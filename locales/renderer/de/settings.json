@@ -677,5 +677,11 @@
   "plan.tagline.enterprise": "Audit und Kontrolle für deinen Bereich",
   "plan.fit.reason.audit": "Zugriff auf Projekt-Auditprotokolle",
   "space.group": "Bereich",
-  "space.membersAndSettings": "Mitglieder & Einstellungen"
+  "space.membersAndSettings": "Mitglieder & Einstellungen",
+  "plan.storageIncluded": "Enthalten",
+  "plan.storageDetails": "Speicherdetails",
+  "plan.storageUsed": "Dein Speicher",
+  "plan.storageNearLimit": "Der Speicher ist fast voll",
+  "plan.storageFull": "Der Speicher ist voll",
+  "plan.storagePolicy": "Bei vollem Speicher kannst du Platz freigeben oder den Speicher erweitern. Vorhandene Dateien bleiben verfügbar."
 }

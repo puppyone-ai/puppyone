@@ -273,8 +273,11 @@ it("offers every Space the same tiers, with comparable prices and allowances", a
   const specs = (card: Element | undefined) => [...(card?.querySelectorAll(".desktop-plan-spec-row") ?? [])]
     .map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
   expect(specs(cards[1])).toEqual([
-    ["Agent hours", "40 h / person / month"], ["Storage", "10 GB / person"], ["Projects online", "20 / person"],
+    ["Agent hours", "40 h / person / month"], ["Storage", "Included"], ["Projects online", "20 / person"],
   ]);
+  const storageDetails = personal.querySelector<HTMLDetailsElement>(".desktop-plan-storage-details")!;
+  expect(storageDetails.open).toBe(false);
+  expect(storageDetails.textContent).toContain("10 GB / person");
   // The machine behind the hours is never described.
   expect(personal.textContent).not.toMatch(/vCPU|GPU|RAM|\bcores?\b|\bVM\b|virtual machine|instance|\bunits?\b/i);
 
@@ -296,8 +299,8 @@ it("offers both tiers regardless of historical space kind", () => {
 
 it("explains what hours cover and keeps model costs separate", async () => {
   const host = await render(<SignedOut />);
-  expect(host.querySelector(".desktop-plan-note")?.textContent)
-    .toMatch(/Agent hours cover agents only.*AI model costs are separate/);
+  expect([...host.querySelectorAll(".desktop-plan-note")].some(note =>
+    /Agent hours cover agents only.*AI model costs are separate/.test(note.textContent ?? ""))).toBe(true);
 });
 
 it("routes a signed-out reader to sign-in from every plan", async () => {
@@ -316,7 +319,7 @@ it("does not offer sign-in to a reader who is already signed in", async () => {
   expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
   expect(host.textContent).toContain("Your plan");
   expect(host.textContent).toContain("Agent hours");
-  expect(host.textContent).toContain("Storage");
+  expect(host.querySelectorAll('.desktop-plan-usage-item')).toHaveLength(1);
   expect(host.querySelector(".desktop-plan-card button")).toBeNull();
   expect(host.textContent).not.toContain("Free");
   expect(host.querySelector("[role=progressbar]")).toBeNull();
@@ -395,13 +398,34 @@ function ScheduledCard({ summary, onKeep }: { summary: DesktopBillingSummary; on
   );
 }
 
+function UsageCard({ storagePercent }: { storagePercent: number }) {
+  const localization = useLocalization();
+  const { plans, addOns } = resolvePlanCatalog(CATALOG);
+  return <CurrentPlan offer={plans[1]!}
+    holding={resolvePlanHolding(summaryOf({ plan_id: "team_v2" }), CATALOG)}
+    usage={usageOf(1200, 2400, storagePercent / 100 * 10 * GB, 10 * GB)}
+    addOns={addOns} localization={localization} />;
+}
+
+it.each([
+  [30, null], [85, "Storage is almost full"], [100, "Storage is full"],
+] as const)("keeps one Agent meter and shows storage only when it needs attention (%s%%)", async (percent, notice) => {
+  const host = await render(<UsageCard storagePercent={percent} />);
+  expect(host.querySelectorAll('[role="progressbar"]')).toHaveLength(1);
+  expect(host.querySelector('[role="progressbar"]')?.getAttribute("aria-label")).toBe("Agent hours");
+  expect(host.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("50");
+  const warning = host.querySelector(".desktop-plan-storage-warning");
+  if (notice) expect(warning?.textContent).toContain(notice);
+  else expect(warning).toBeNull();
+});
+
 it("says what changes at renewal and offers to keep the current plan", async () => {
   const keep = vi.fn();
   const host = await render(<ScheduledCard summary={SCHEDULED_TEAM} onKeep={keep} />);
   expect(host.textContent).toContain("Scheduled change");
   expect(host.textContent).toMatch(/2 people from Dec 8/);
   // Unknown consumption still has a visible track, without claiming 0% used.
-  expect(host.querySelectorAll('.desktop-plan-meter[aria-hidden="true"]')).toHaveLength(2);
+  expect(host.querySelectorAll('.desktop-plan-meter[aria-hidden="true"]')).toHaveLength(1);
   expect(host.querySelector('[role="progressbar"]')).toBeNull();
   await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
   expect(keep).toHaveBeenCalledOnce();
