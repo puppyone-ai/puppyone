@@ -1,6 +1,6 @@
-import { Folder, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { LocalIcon } from "@puppyone/shared-ui";
+import { FolderIcon, LocalIcon } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../../../components/SettingsControls";
 import { InlineLoading } from "../../../components/loading";
@@ -74,7 +74,7 @@ function ComputerAccessContent({ session }: { session: DesktopCloudSession }) {
       {folders && folders.length > 0 && <div className="computer-access-folders" role="list" aria-label={t("hosts.settings.sharedFolders")}>
         {folders.map((folder) => {
           const manageable = mine?.folders.some((item) => item.id === folder.id && item.state === "active");
-          const content = <><Folder size={14} aria-hidden="true" /><span>{folder.name}</span>
+          const content = <><FolderIcon size={14} aria-hidden="true" /><span>{folder.name}</span>
             <span className="computer-access-permission">{t(folder.writable ? "hosts.catalog.editable" : "hosts.catalog.readOnly")}</span>
             {manageable && <ChevronRight size={13} aria-hidden="true" />}</>;
           return <div role="listitem" key={folder.id}>{manageable

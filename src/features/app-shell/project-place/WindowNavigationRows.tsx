@@ -5,7 +5,7 @@ import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/Deskt
 import { useWindowNavigation, type WindowNavigation } from "../../../components/WindowNavigation";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import { SpaceMark, useSpaceName } from "../../cloud/spaces/SpaceMark";
-import { useCloudAuthController } from "../../cloud/hooks/useCloudAuthController";
+import { useCloudAuthController } from "../../cloud";
 
 /** This computer's key among the places; a Space's is its id. */
 export const LOCAL_PLACE = "local";

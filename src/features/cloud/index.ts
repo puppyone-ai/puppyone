@@ -39,6 +39,7 @@ export type { CloudWorkspaceSection } from "./types";
 export { formatCloudMessage } from "./cloudPresentation";
 export { isAccessPointNavigationResource } from "./access-points";
 export { useCloudHistoryController } from "./history/useCloudHistoryController";
+export { useCloudAuthController } from "./hooks/useCloudAuthController";
 export { useCloudBillingController } from "./billing/useCloudBillingController";
 export type { LocalFolderCloudNotice } from "./project/localFolderCloudNoticeState";
 export { decodeWorkspaceBytes, encodeWorkspaceBytes } from "./files/cloudWorkspaceClient";

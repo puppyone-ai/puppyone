@@ -134,6 +134,27 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
     setPreview(model.readSnapshot().content); setMode("preview"); setError(t("editor.html.unsupported"));
   }, [model, t]);
   const showEmptyPage = mode !== "source" && emptyPage;
+  const renderDocumentSurface = () => {
+    if (showEmptyPage) return null;
+    if (mode === "source") {
+      return <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />;
+    }
+    if (mode === "edit") {
+      return <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}>
+        <HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit}
+          viewportState={viewport} registerPrepare={registerPrepare} onUnavailable={unavailable} />
+      </Suspense>;
+    }
+    if (folderAccess.state === "checking") return <DocumentSurfacePending label={t("editor.html.loading")} />;
+    // The host's dialog is asking; the page stays unloaded until it answers.
+    if (folderAccess.state === "ask" || folderAccess.state === "changed") return <div className="editor-state" />;
+    return <div className="native-preview native-preview-framed">
+      <Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}>
+        <HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode}
+          interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null} />
+      </Suspense>
+    </div>;
+  };
   return <section className="editor-host html-document-editor">
     {!publishMenu && viewMenu.options.length > 1 && <HtmlViewMenu item={viewMenu} />}
     {error && <FloatingNoticeStack
@@ -147,12 +168,7 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
           {t("editor.html.showCode")}
         </button>}
       </div>}
-    {!showEmptyPage && (mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
-      : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} viewportState={viewport} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
-        : folderAccess.state === "checking" ? <DocumentSurfacePending label={t("editor.html.loading")} />
-        // The host's dialog is asking; the page stays unloaded until it answers.
-        : folderAccess.state === "ask" || folderAccess.state === "changed" ? <div className="editor-state" />
-        : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null} /></Suspense></div>)}
+    {renderDocumentSurface()}
   </section>;
 }
 
@@ -175,8 +191,10 @@ function useHtmlFolderAccessDecision(document: EditorDocument, source: string,
     void digestHtmlSource(source).then((digest) => {
       if (cancelled) return;
       const granted = readHtmlFolderAccessGrant(document.path);
-      const state: FolderAccessState = granted === digest ? "allowed"
-        : declinedHtmlPages.has(`${document.path}\0${digest}`) ? "declined" : granted ? "changed" : "ask";
+      let state: FolderAccessState = "ask";
+      if (granted === digest) state = "allowed";
+      else if (declinedHtmlPages.has(`${document.path}\0${digest}`)) state = "declined";
+      else if (granted) state = "changed";
       setDecision({ source, digest, state });
     });
     return () => { cancelled = true; };

@@ -129,11 +129,6 @@
       "count": 1
     }
   },
-  "electron/main/agent/runtimes/claude/claude-native-values.mjs": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "electron/main/agent/runtimes/codex/codex-events.mjs": {
     "no-nested-ternary": {
       "count": 5
@@ -965,11 +960,6 @@
     }
   },
   "src/shared-ui/editor/viewers/html/HtmlFloatingToolbar.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/shared-ui/editor/viewers/html/HtmlViewer.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
