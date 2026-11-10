@@ -44,7 +44,7 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
   };
   const disabled = busy || loading;
   return <>
-    <SettingsSubsection title={t("settings.space.settings")}>
+    <SettingsSubsection>
       <SettingsValueRow label={t("settings.space.name")} value={owner
         ? <input aria-label={t("settings.space.name")} value={newName} maxLength={80} disabled={disabled}
             onChange={(event) => setNewName(event.target.value)} /> : name}

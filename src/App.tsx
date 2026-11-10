@@ -1719,7 +1719,7 @@ function AppContent() {
     apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     onSelect={(id) => { void goToHomepage().then(() => currentSpace.select(id)); }}
     onCreated={(id) => { currentSpace.select(id); cloudSpaces.refresh(); void goToHomepage(); }}
-    onSettings={() => openSettingsDialog("seats")} /> : null;
+    onSettings={() => openSettingsDialog("space")} /> : null;
   const themeRuntime = (content: ReactNode) => (
     <WindowNavigationProvider value={spaceNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocalization } from "@puppyone/localization";
+import { useLocalization, type LocalizationContextValue } from "@puppyone/localization";
 import {
   getDesktopCloudApiBaseUrl,
   isCloudSessionForApiBase,
@@ -15,6 +15,8 @@ import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../components";
 import { AccountAICredits } from "./AccountAICredits";
 import { AccountIdentity } from "./AccountIdentity";
+import { formatMoney, heldPlanName, resolvePlanHolding, type PlanHolding } from "./planPricing";
+import { useAccountPlan } from "./useAccountPlan";
 
 type AccountAuthOperation = "signin" | "signout";
 
@@ -38,15 +40,9 @@ function resolveStatusNote({ restoring, status, mismatched, t }: {
 /**
  * Account.
  *
- * Who you are, what you run, what it costs you a month, and what is left of
- * what you bought. Every line is a statement of fact, and nothing on this page
- * changes what you pay — the one place that does is Billing, offered once, as
- * a link beside the figure it would change.
- *
- * That is a deliberately different line from the old "Account / Plan & Usage"
- * split, which failed because both pages answered *what you hold*: each ended
- * in a link to the other and neither was the answer. State and purchase is a
- * line a reader can keep: I am looking something up, or I am changing it.
+ * Identity and account AI credits, plus a compact reading of the current
+ * Space's plan. The reading names its Space and links to Plan, which owns
+ * usage, catalog prices and subscription changes.
  *
  * It deliberately does not use the label/value rows the rest of Settings uses
  * for the identity — those are for configuration, and an identity is not a
@@ -59,11 +55,16 @@ export function AccountSettingsView({
   cloudApiBaseUrl,
   onCloudSessionChange,
   cloudEnabled,
+  organizationId = null,
+  spaceName,
+  onOpenBilling,
 }: {
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring: boolean;
   cloudApiBaseUrl: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
+  organizationId?: string | null;
+  spaceName?: string | null;
   /**
    * The Plan line and storage usage describe the Cloud Computer plan, so they
    * appear only with Cloud on. Identity and compute credit never wait for it.
@@ -86,7 +87,19 @@ export function AccountSettingsView({
   const desktopOAuthAvailable = supportsDesktopCloudOAuth();
   const busy = Boolean(operation) || cloudSessionRestoring;
 
-
+  const cloudPlan = payments && cloudEnabled && Boolean(organizationId);
+  const snapshot = useAccountPlan({
+    session: sessionMatchesService ? cloudSession : null,
+    apiBaseUrl: resolvedApiBaseUrl,
+    onSessionChange: onCloudSessionChange,
+    enabled: cloudPlan && !cloudSessionRestoring,
+    organizationId,
+  });
+  const holding = resolvePlanHolding(snapshot.summary, snapshot.catalog);
+  let planDescription = describeHolding(holding, localization);
+  if (cloudSessionRestoring || (cloudSession && !snapshot.summary)) {
+    planDescription = snapshot.loading || cloudSessionRestoring ? t("settings.plan.loading") : "—";
+  }
   // Only say something about the session when it is not simply working. The
   // steady signed-in state needs no commentary; the email is the proof.
   const statusNote = resolveStatusNote({
@@ -196,6 +209,18 @@ export function AccountSettingsView({
             </SettingsSubsection>
           )}
 
+          {cloudPlan && sessionMatchesService && (
+            <SettingsSubsection leading>
+              <SettingsValueRow
+                label={t("settings.account.plan")}
+                value={<>{spaceName && `${spaceName} · `}{planDescription}</>}
+                action={onOpenBilling && <button type="button" className="desktop-settings-action" onClick={onOpenBilling}>
+                  {t(holding.subscribed || (cloudSession && !snapshot.summary) ? "settings.account.openBilling" : "settings.account.upgrade")}
+                </button>}
+              />
+            </SettingsSubsection>
+          )}
+
           {sessionMatchesService && (
             <AccountAICredits
               key={cloudSession?.user_id ?? "signed-out"}
@@ -215,4 +240,13 @@ export function AccountSettingsView({
       </div>
     </section>
   );
+}
+
+/** An actual holding, never a locally assumed catalog price. */
+function describeHolding(holding: PlanHolding, localization: LocalizationContextValue): string {
+  const name = heldPlanName(holding, localization);
+  if (!holding.subscribed || holding.monthlyCents === null) return name;
+  return `${name} · ${localization.t("settings.plan.monthlyFor", {
+    amount: formatMoney(holding.monthlyCents, holding.currency, localization),
+  })}`;
 }

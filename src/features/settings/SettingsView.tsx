@@ -5,6 +5,7 @@ import { LocalAgentsSettingsView } from "../local-agents";
 import { ModelConnectionsSettings } from "../model-connections";
 import { AccountSettingsView } from "./main/AccountSettingsView";
 import { SeatsSettingsView } from "./main/SeatsSettingsView";
+import { SpaceSettingsView } from "./main/SpaceSettingsView";
 import { ExperimentalSettingsView } from "./main/ExperimentalSettingsView";
 import { FilesSettingsView } from "./main/FileSettingsViews";
 import { GeneralSettingsView } from "./main/GeneralSettingsView";
@@ -140,6 +141,8 @@ export function SettingsView({
   if (activeSection === "account") {
     return (
       <AccountSettingsView
+        organizationId={currentSpaceId}
+        spaceName={currentSpaceName}
         cloudSession={cloudSession}
         cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
@@ -150,12 +153,24 @@ export function SettingsView({
     );
   }
 
+  if (activeSection === "space") {
+    return <SpaceSettingsView
+      organizationId={currentSpaceId}
+      spaceName={currentSpaceName}
+      onSpaceChange={onSpaceChange}
+      cloudSession={cloudSession}
+      cloudSessionRestoring={cloudSessionRestoring}
+      cloudApiBaseUrl={cloudApiBaseUrl}
+      onCloudSessionChange={onCloudSessionChange}
+      onSignIn={() => onSelectSection("account")}
+    />;
+  }
+
   if (activeSection === "seats") {
     return (
       <SeatsSettingsView
         organizationId={currentSpaceId}
         spaceName={currentSpaceName}
-        onSpaceChange={onSpaceChange}
         cloudSession={cloudSession}
         cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}

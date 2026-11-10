@@ -64,7 +64,7 @@ type PlanPageProps = {
  */
 export function CloudPlans(props: PlanPageProps) {
   const { session, organizationId } = props;
-  if (props.restoring || (session && !props.summary && (props.loading || !props.loadError))) {
+  if (props.restoring || (session && organizationId && !props.summary && (props.loading || !props.loadError))) {
     return <PlanLoading localization={props.localization} />;
   }
   if (session !== null && organizationId !== null && props.summary) {
@@ -75,7 +75,7 @@ export function CloudPlans(props: PlanPageProps) {
   const waiting = session !== null;
   return (
     <>
-      {session && (
+      {session && organizationId && (
         <SettingsSubsection title={props.localization.t("settings.plan.currentLabel")}>
           <div className="desktop-settings-row desktop-plan-load-error" role="alert">
             <span>{props.localization.t("cloud.billing.loadFailed")}</span>

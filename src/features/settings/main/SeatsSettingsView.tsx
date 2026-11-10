@@ -8,15 +8,13 @@ import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader } from "../components";
 import { CloudPlans } from "./CloudPlans";
 import { useAccountPlan } from "./useAccountPlan";
-import { SpaceSettings } from "./SpaceSettings";
 
-/** The current Space owns members, configuration, plan and usage. */
+/** Plan and usage for the window's current Space. Members live in Space settings. */
 export function SeatsSettingsView({
   cloudSession,
   cloudSessionRestoring = false,
-  organizationId,
+  organizationId = null,
   spaceName,
-  onSpaceChange,
   cloudApiBaseUrl,
   onCloudSessionChange,
   onSignIn,
@@ -26,7 +24,6 @@ export function SeatsSettingsView({
   cloudSessionRestoring?: boolean;
   organizationId?: string | null;
   spaceName?: string | null;
-  onSpaceChange?: () => void;
   cloudApiBaseUrl: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   /** Buying needs an account, so the page offers the same sign-in Account does. */
@@ -49,7 +46,7 @@ export function SeatsSettingsView({
     organizationId,
   });
 
-  // Space management is available independently of experimental payments.
+  if (!payments) return null;
 
   return (
     <section className="desktop-utility-view desktop-settings-view">
@@ -57,12 +54,8 @@ export function SeatsSettingsView({
         <div className="desktop-settings-section desktop-plan-settings">
           <SettingsSectionHeader title={t("settings.seats.title")} />
 
-          <p className="desktop-plan-note">{spaceName ?? t("settings.space.choose")}</p>
-          {session && organizationId && <SpaceSettings
-            key={`${session.user_id}:${session.session_generation}:${resolvedApiBaseUrl}:${organizationId}`}
-            session={session} organizationId={organizationId} name={spaceName ?? ""}
-            apiBaseUrl={resolvedApiBaseUrl} onSessionChange={onCloudSessionChange} onChanged={() => { snapshot.refresh(); onSpaceChange?.(); }} />}
-          {payments && organizationId !== null && <CloudPlans
+          <p className="desktop-plan-note">{organizationId ? spaceName : t("settings.space.choose")}</p>
+          <CloudPlans
             session={session}
             apiBaseUrl={resolvedApiBaseUrl}
             organizationId={snapshot.organizationId}
@@ -79,7 +72,7 @@ export function SeatsSettingsView({
             onSignIn={onSignIn}
             signInDisabled={signInDisabled}
             canManageBilling={snapshot.canManageBilling}
-          />}
+          />
 
           {/* The AI balance is the account's, topped up on Account; plans charge
               for the cloud and its agent time, never for the model's thinking. */}

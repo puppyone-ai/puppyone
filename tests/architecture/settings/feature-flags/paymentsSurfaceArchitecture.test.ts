@@ -25,7 +25,9 @@ describe("payments surfaces in Settings", () => {
     for (const file of ["AccountSettingsView", "SeatsSettingsView"]) {
       const source = readFileSync(`src/features/settings/main/${file}.tsx`, "utf8");
       expect(source).toContain("usePaymentsExperience();");
-      expect(source).toMatch(/if \(!payments\) return null;|const cloudPlan = payments && cloudEnabled;/);
+      expect(source).toContain(file === "AccountSettingsView"
+        ? "const cloudPlan = payments && cloudEnabled && Boolean(organizationId);"
+        : "if (!payments) return null;");
     }
     // Nothing below them may render a price by reading the experiment itself.
     const purchase = readFileSync("src/features/settings/main/CloudPlans.tsx", "utf8");

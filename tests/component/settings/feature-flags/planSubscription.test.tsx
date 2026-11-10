@@ -127,7 +127,7 @@ function SignedOut({ onSignIn = () => undefined, signedIn = false, loadError = f
     <CloudPlans
       session={signedIn ? ({ user_id: "u1" } as never) : null}
       apiBaseUrl={null}
-      organizationId={null}
+      organizationId={signedIn ? "organization-a" : null}
       onSessionChange={() => undefined}
       catalog={null}
       summary={null}
@@ -170,14 +170,14 @@ it("keeps the price reachable without a local project, and only with Cloud on", 
 it("splits state from purchase, and puts every price on Plan", () => {
   const context = { cloudEnabled: true, accountAvailable: true };
   const cloud = resolveSettingsSidebarGroups(context).find((group) => group.id === "cloud");
-  expect(cloud?.items.map((item) => item.id)).toEqual(["account", "seats"]);
+  expect(cloud?.items.map((item) => item.id)).toEqual(["account", "space", "seats"]);
   expect(isSettingsSectionAvailable("seats", context)).toBe(true);
   // Invoices are documents, not a settings pane: Plan links out to them.
   expect(cloud?.items.map((item) => item.id)).not.toContain("billing");
 
   // Cross-computer access is an App capability, immediately after Privacy.
   const groups = resolveSettingsSidebarGroups({ ...context, hostDevicesEnabled: true });
-  expect(groups.find((group) => group.id === "cloud")?.items.map((item) => item.id)).toEqual(["account", "seats"]);
+  expect(groups.find((group) => group.id === "cloud")?.items.map((item) => item.id)).toEqual(["account", "space", "seats"]);
   const appItems = groups.find((group) => group.id === "desktop-app")!.items.map((item) => item.id);
   expect(appItems[appItems.indexOf("privacy") + 1]).toBe("other-computers");
 });

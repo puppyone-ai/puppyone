@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Type,
   UserRound,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import { LocalIcon } from "@puppyone/shared-ui";
@@ -66,21 +67,21 @@ export type SettingsVisibilityContext = {
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "cloud",
-    // Identity and plan information belong to the PuppyOne account.
+    // Account identity, then configuration and billing for the current Space.
     labelId: "settings.sidebar.accountGroup",
     items: [
       // An account is not Cloud: people buy PuppyOne compute on the website and
       // use it here with Cloud off, so Account is always offered where the
       // build has accounts. Plan sells storage and the Cloud Computer, so it
-      // waits for Cloud. Who you are, then what you pay. Account reports identity and nothing
-      // that costs money; Plan (section id "seats": the product is priced per
-      // person) is the only place a price appears or a charge begins. The split that failed before was "Account / Plan", where both
-      // pages answered what you hold.
+      // waits for Cloud. Space owns names and members; Plan keeps usage,
+      // subscription changes and purchases together. The historical "seats"
+      // section ID remains stable for existing billing links.
       //
       // Invoices are deliberately absent: they are documents, card forms and
       // tax fields, which belong in a browser rather than a settings pane, so
       // Plan links out to them instead of hosting a third entry here.
       { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresAccount: true },
+      { id: "space", labelId: "settings.space.settings", icon: UsersRound, disabled: false, requiresCloud: true },
       { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false, requiresCloud: true },
     ],
   },

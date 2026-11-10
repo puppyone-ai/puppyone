@@ -17,6 +17,7 @@ describe("Settings Cloud feature gate", () => {
     expect(groups.find((group) => group.id === "cloud")?.labelId).toBe("settings.sidebar.accountGroup");
     expect(isSettingsSectionAvailable("account", context)).toBe(true);
     expect(isSettingsSectionAvailable("seats", context)).toBe(false);
+    expect(isSettingsSectionAvailable("space", context)).toBe(false);
     expect(sections).not.toContain("other-app-imports");
     // Where a project is hosted is a fact about the project, and GitHub is one
     // of the answers, so it survives our Cloud being switched off entirely.
@@ -45,7 +46,7 @@ describe("Settings Cloud feature gate", () => {
 
     // Identity, then what is held. Hosting moved to the project it describes,
     // and invoices are a browser surface that Seats links out to.
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "seats"]);
+    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "space", "seats"]);
     expect(cloudGroup?.labelId).toBe("settings.sidebar.accountGroup");
     expect(isSettingsSectionAvailable("account", { cloudEnabled: true, accountAvailable: true })).toBe(true);
     // Cloud leads once enabled: the nav scrolls, and an account below the fold

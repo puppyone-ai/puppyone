@@ -127,6 +127,21 @@ async function run() {
   assert.ok(await evaluate("document.body.textContent.includes('Studio')"));
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await capture('02-space-a-settings');
+  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-grid')"), false);
+  await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()");
+  await until("document.querySelector('.desktop-settings-section h2')?.textContent === 'Plan'", 'separate Plan page');
+  assert.equal(await evaluate("!!document.querySelector('.desktop-space-member-form')"), false);
+  assert.ok(await evaluate("document.querySelector('.desktop-plan-settings').textContent.includes('Studio')"));
+  await select(window, 'local');
+  await until("document.querySelector('.desktop-space-switcher select')?.value === 'local' && document.querySelector('.desktop-plan-note')?.textContent.includes('Choose a space in the navigation') && document.querySelectorAll('.desktop-plan-card').length === 3", 'Plan comparison in local mode');
+  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-card button')"), false);
+  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-settings [role=alert]')"), false);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await capture('03-restored-plan');
+  await select(window, 'org-1');
+  await until("document.querySelector('.desktop-space-switcher select')?.value === 'org-1'", 'Plan returns to Space A');
+  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-space-switcher select')?.value"),'org-2');
+  report.separate_space_and_plan = true;
   report.ok=true; report.window_count=2; report.current_spaces=['org-1','org-2'];
   assert.deepEqual(report.blocked_network, [], "Unexpected external request attempted");
 }
