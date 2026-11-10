@@ -101,7 +101,6 @@ export function CloudPlans(props: PlanPageProps) {
           </button>
         )}
       />
-      <PlanFinePrint localization={props.localization} />
     </>
   );
 }
@@ -319,7 +318,6 @@ function ConnectedPlans({
           ? <CurrentBadge localization={localization} />
           : null}
       />
-      <PlanFinePrint localization={localization} />
 
       {renderAddOns("hours")}
     </>
@@ -419,21 +417,22 @@ export function CurrentPlan({
 
   return (
     <div className="desktop-plan-overview">
-      <SettingsSubsection leading>
+      <SettingsSubsection>
         <div className="desktop-settings-row desktop-plan-summary">
           <span>{t("settings.plan.currentLabel")}</span>
-          <div className="desktop-settings-value">
-            <div className="desktop-plan-summary-main">
-              <div className="desktop-plan-summary-heading">
-                <h4>{t(`settings.plan.name.${offer.id}`)}</h4>
-                {status !== "free" && (
-                  <span className={`desktop-plan-status is-${status}`}>{t(`settings.plan.status.${status}`)}</span>
-                )}
-              </div>
-              {(facts.length > 0 || date) && (
-                <p className="desktop-plan-summary-detail">{[...facts, date].filter(Boolean).join(" · ")}</p>
+          <div className="desktop-plan-summary-main">
+            <div className="desktop-plan-summary-heading">
+              <h4>{t(`settings.plan.name.${offer.id}`)}</h4>
+              {status !== "free" && (
+                <span className={`desktop-plan-status is-${status}`}>{t(`settings.plan.status.${status}`)}</span>
               )}
             </div>
+            {(facts.length > 0 || date) && (
+              <p className="desktop-plan-summary-detail">{[...facts, date].filter(Boolean).join(" · ")}</p>
+            )}
+          </div>
+          <div className="desktop-plan-summary-trailing">
+            {resets && <span>{resets}</span>}
             {action}
           </div>
         </div>
@@ -452,7 +451,7 @@ export function CurrentPlan({
           used={availableHours !== null ? t("settings.plan.gaugeHours", { hours: hoursValue! }) : hoursValue}
           total={availableHours !== null ? null : t("settings.plan.gaugeHours", { hours: formatHours(reading.includedHours, localization) })}
           percent={percentOf(reading.usedHours, reading.includedHours)}
-          detail={reading.usedHours === null ? null : resets}
+          localization={localization}
         />
       </div>
       {storagePercent !== null && storagePercent >= 80 && (
@@ -487,26 +486,30 @@ function UsageMeter({
   used,
   total,
   percent,
-  detail,
+  localization,
 }: {
   kind: "hours" | "storage";
   label: string;
   used: string | null;
   total: string | null;
   percent: number | null;
-  detail: string | null;
+  localization: LocalizationContextValue;
 }) {
   return (
     <div className="desktop-plan-usage-item">
       <div className="desktop-plan-usage-heading">
         <span>{label}</span>
-        <span className="desktop-plan-usage-value">
-          {used ?? total ?? "—"}
-          {used !== null && total !== null && <span> / {total}</span>}
+        <span className="desktop-plan-usage-reading">
+          <span className="desktop-plan-usage-value">
+            {used ?? total ?? "—"}
+            {used !== null && total !== null && <span> / {total}</span>}
+          </span>
+          {percent !== null && <span className="desktop-plan-usage-percent">
+            {localization.formatNumber(percent / 100, { style: "percent", maximumFractionDigits: 0 })}
+          </span>}
         </span>
       </div>
       <PlanUsageBar percent={percent} kind={kind} label={label} reading={[used, total].filter((value) => value !== null).join(" / ")} />
-      {detail && <span className="desktop-plan-usage-detail">{detail}</span>}
     </div>
   );
 }
@@ -547,7 +550,12 @@ export function PlanComparison({
               [t("settings.plan.spec.projects"), plan.projects === null
                 ? t("settings.plan.spec.unlimited")
                 : perPerson(localization.formatNumber(plan.projects))],
-
+              [t("settings.plan.spec.history"), plan.historyDays === null
+                ? t("settings.plan.spec.unlimited")
+                : t(plan.historyDays >= 365 && plan.historyDays % 365 === 0
+                  ? "settings.plan.spec.years" : "settings.plan.spec.days", {
+                  count: plan.historyDays >= 365 && plan.historyDays % 365 === 0 ? plan.historyDays / 365 : plan.historyDays,
+                })],
             ];
             return (
               <div
@@ -557,7 +565,10 @@ export function PlanComparison({
                 aria-current={current ? "true" : undefined}
               >
                 <div className="desktop-plan-card-head">
-                  <h4 className="desktop-plan-card-name">{t(`settings.plan.name.${plan.id}`)}</h4>
+                  <div className="desktop-plan-card-heading">
+                    <h4 className="desktop-plan-card-name">{t(`settings.plan.name.${plan.id}`)}</h4>
+                    {current && <Check size={13} aria-label={t("settings.plan.current")} />}
+                  </div>
                   <span className="desktop-plan-card-price">
                     <span className="desktop-plan-card-amount">{formatCurrency(plan.priceCents, plan.currency, localization)}</span>
                     <span className="desktop-plan-card-per">
@@ -579,6 +590,7 @@ export function PlanComparison({
           })}
         </div>
       </SettingsSubsection>
+      <PlanFinePrint localization={localization} />
       <details className="desktop-plan-storage-details">
         <summary>{t("settings.plan.storageDetails")}</summary>
         <div className="desktop-plan-storage-body">

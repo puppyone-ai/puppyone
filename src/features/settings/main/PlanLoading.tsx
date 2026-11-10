@@ -10,7 +10,7 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
   return (
     <div className="desktop-plan-loading po-placeholder-surface" role="status" aria-label={t("settings.plan.loading")} aria-busy="true">
       <div className="desktop-plan-overview">
-        <SettingsSubsection leading>
+        <SettingsSubsection>
           <div className="desktop-settings-row desktop-plan-summary" aria-hidden="true">
             <span>{t("settings.plan.currentLabel")}</span>
             <div className="desktop-plan-summary-main">
@@ -39,7 +39,7 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
                   <span className="desktop-plan-placeholder price" data-placeholder-shape="" />
                 </div>
                 <div className="desktop-plan-spec">
-                  {[0, 1, 2].map((row) => <div className="desktop-plan-spec-row" key={row}>
+                  {[0, 1, 2, 3].map((row) => <div className="desktop-plan-spec-row" key={row}>
                     <span className="desktop-plan-placeholder spec" data-placeholder-shape="" />
                     <span className="desktop-plan-placeholder reading" data-placeholder-shape="" />
                   </div>)}
@@ -49,6 +49,7 @@ export function PlanLoading({ localization }: { localization: LocalizationContex
             ))}
           </div>
         </SettingsSubsection>
+        <p className="desktop-plan-note" aria-hidden="true"><span className="desktop-plan-placeholder detail" data-placeholder-shape="" /></p>
         <div className="desktop-plan-storage-details" aria-hidden="true">
           <span className="desktop-plan-placeholder name" data-placeholder-shape="" />
         </div>

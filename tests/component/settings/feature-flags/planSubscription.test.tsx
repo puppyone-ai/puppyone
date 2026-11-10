@@ -274,6 +274,7 @@ it("offers every Space the same tiers, with comparable prices and allowances", a
     .map((row) => [row.querySelector("dt")?.textContent, row.querySelector("dd")?.textContent]);
   expect(specs(cards[1])).toEqual([
     ["Agent hours", "40 h / person / month"], ["Storage", "Included"], ["Projects online", "20 / person"],
+    ["History", "30 days"],
   ]);
   const storageDetails = personal.querySelector<HTMLDetailsElement>(".desktop-plan-storage-details")!;
   expect(storageDetails.open).toBe(false);

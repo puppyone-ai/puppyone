@@ -10,7 +10,6 @@ import {
   CloudPlans,
   CurrentPlan,
   PlanComparison,
-  PlanFinePrint,
 } from "../../features/settings/main/CloudPlans";
 import {
   resolvePlanCatalog,
@@ -153,7 +152,6 @@ function PlanFixture() {
               />
               <PlanComparison plans={view.plans} holding={holding} usage={USAGE[state] ?? null} storageActions={addOns("storage")} signedIn
                 localization={localization} renderAction={action} />
-              <PlanFinePrint localization={localization} />
               {addOns("hours")}
             </>
           )}
