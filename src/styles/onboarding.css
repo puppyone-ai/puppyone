@@ -1142,6 +1142,11 @@ span.homepage-cloud-feedback {
   transition: opacity 160ms ease;
 }
 
+/* An empty Space keeps the Grid's edges too, so every heading's mark lines up. */
+.onboarding-project-groups:has(.onboarding-project-list[data-project-layout="grid"]) > .onboarding-project-group {
+  --onboarding-group-inset: 0px;
+}
+
 .onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
   --onboarding-group-inset: 0px;
   grid-template-columns: repeat(auto-fill, var(--onboarding-tile-width));
@@ -1219,19 +1224,21 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+/* The place's shape before its name, the same square the Header shows. */
+.onboarding-project-group-mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--po-text-subtle);
+}
+
 /* The plan a space is on, beside its name: where a project lives says who pays. */
 .onboarding-space-plan {
-  display: inline-flex;
-  align-items: center;
   min-height: 18px;
-  padding: 0 6px;
-  border: 1px solid var(--po-divider);
-  border-radius: 999px;
+}
+
+.onboarding-space-role {
   color: var(--po-text-subtle);
-  font-family: var(--po-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .onboarding-project-group-detail {

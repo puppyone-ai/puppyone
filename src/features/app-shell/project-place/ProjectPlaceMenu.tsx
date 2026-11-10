@@ -6,6 +6,7 @@ import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/Deskt
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import { ProjectAudienceRows, type ProjectAudience } from "../../../components/project-audience";
 import { useDesktopPlatformCapabilities } from "../../../platform";
+import { SpaceMark, SpacePlanBadge, useSpaceName } from "../../cloud/spaces/SpaceMark";
 import { cloudLinkHasProblem, cloudLinkProblemMessage, type ProjectPlaceAction, type ProjectPlaceCloudLink, type ProjectPlaceMenu } from "./projectPlaceMenuState";
 import "./project-place.css";
 
@@ -28,10 +29,11 @@ export type ProjectPlaceMenuProps = Readonly<{
 }>;
 
 /**
- * Where the open project is, in the Header, and who can open it. The mark says
- * which kind of place it is, so the words say where: the folder that holds a local
- * project, or the organization that holds a Cloud project. A small cloud after a
- * folder's address says the folder has a copy in the Cloud.
+ * Where the open project is, first in the Header, read like a path from the
+ * largest place to the project: the Space that holds a Cloud project, this
+ * computer, or another computer. A folder's path is a detail of this computer,
+ * so it stays in the menu. A small cloud after this computer says the folder
+ * has a copy in the Cloud.
  */
 export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
   projectMenuOpen?: boolean;
@@ -40,24 +42,21 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
-  const placeLabel = useProjectPlaceLabel(menu.place, menu.label);
+  const place = useProjectPlaceName(menu);
   const linkLabel = useCloudLinkLabel();
-  const address = menu.address;
   useEffect(() => { if (projectMenuOpen) setOpen(false); }, [projectMenuOpen]);
   return <div className="desktop-titlebar-place-wrap">
     <button ref={anchor} type="button" className="desktop-titlebar-place-button"
-      data-project-place={menu.place} data-place-action={menu.action?.kind}
+      data-project-place={menu.place} data-place-space={menu.space ? "" : undefined} data-place-action={menu.action?.kind}
       data-cloud-link={cloudLinkState(menu.link)}
       aria-haspopup="dialog" aria-expanded={open}
-      aria-label={[placeLabel, address?.full !== placeLabel && address?.full, menu.link && linkLabel(menu.link),
+      aria-label={[...place.spoken, menu.link && linkLabel(menu.link),
         t("cloud.placeMenu.label")].filter(Boolean).join(", ")}
       onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}>
       <span className="desktop-titlebar-workspace-mark" aria-hidden="true">
-        {menu.place === "cloud" ? <CloudIcon size={16} strokeWidth={1.75} /> : <LocalIcon size={16} strokeWidth={1.75} />}
+        <ProjectPlaceMark menu={menu} size={16} />
       </span>
-      {address
-        ? <span className="desktop-titlebar-place-address"><PlaceAddress place={menu.place} text={address.short} /></span>
-        : <span>{placeLabel}</span>}
+      <span className="desktop-titlebar-place-address"><bdi>{place.name}</bdi></span>
       {menu.link && <span className="desktop-titlebar-place-link" aria-hidden="true">
         <CloudIcon size={13} strokeWidth={1.9} />
       </span>}
@@ -78,20 +77,27 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
  */
 export function ProjectPlaceRows({ menu, handlers, audience, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
-  const placeLabel = useProjectPlaceLabel(menu.place, menu.label);
+  const place = useProjectPlaceName(menu);
   const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
   // A local project's audiences carry its Cloud copy and its other computers.
   const byAudience = menu.place === "local" ? audience : null;
+  const { space } = menu;
   return <section className="desktop-project-place-rows" aria-label={t("cloud.placeMenu.label")}>
     <DesktopMenuItem className="desktop-project-place-row" role="button" aria-current="true" aria-disabled="true"
-      data-project-place-row="current"
+      data-project-place-row="current" data-place-space={space ? "" : undefined}
       icon={<span className="desktop-project-place-mark" aria-hidden="true">
-        {menu.place === "cloud" ? <CloudIcon size={15} strokeWidth={1.75} /> : <LocalIcon size={15} strokeWidth={1.75} />}
+        <ProjectPlaceMark menu={menu} size={15} large />
       </span>}
-      label={placeLabel} detail={menu.detail ?? (menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined)} />
-    {menu.place === "cloud" && handlers.onManageSpace && <DesktopMenuItem className="desktop-project-place-row" role="button"
-      data-project-place-row="space" icon={<UsersRound size={15} strokeWidth={1.75} aria-hidden="true" />}
-      label={t("settings.space.manage")} onClick={run(handlers.onManageSpace)} />}
+      label={space
+        ? <span className="desktop-project-place-space-name"><bdi>{place.name}</bdi><SpacePlanBadge planId={space.planId} /></span>
+        : <bdi>{menu.place === "cloud" ? place.spoken[0] : place.name}</bdi>}
+      detail={space ? place.detail : menu.detail ?? (menu.address ? <PlaceAddress place={menu.place} text={menu.address.full} /> : undefined)} />
+    {menu.place === "cloud" && handlers.onManageSpace && <>
+      {space && <DesktopMenuSeparator />}
+      <DesktopMenuItem className="desktop-project-place-row" role="button"
+        data-project-place-row="space" icon={<UsersRound size={15} strokeWidth={1.75} aria-hidden="true" />}
+        label={t("settings.space.manage")} onClick={run(handlers.onManageSpace)} />
+    </>}
     {byAudience && <>
       <DesktopMenuSeparator />
       <ProjectAudienceRows audience={byAudience} onDismiss={onDismiss} />
@@ -150,12 +156,40 @@ function PlaceAddress({ place, text }: { place: ProjectPlaceMenu["place"]; text:
   return place === "local" ? <bdi dir="ltr">{text}</bdi> : <bdi>{text}</bdi>;
 }
 
-function useProjectPlaceLabel(place: ProjectPlaceMenu["place"], computerName?: string) {
+/** The kind of place by its shape: a Space's square, a computer, or the Cloud while its Space is unknown. */
+function ProjectPlaceMark({ menu, size, large = false }: { menu: ProjectPlaceMenu; size: number; large?: boolean }) {
+  if (menu.space) return <SpaceMark space={menu.space} size={large ? "lg" : "md"} />;
+  return menu.place === "cloud"
+    ? <CloudIcon size={size} strokeWidth={1.75} />
+    : <LocalIcon size={size} strokeWidth={1.75} />;
+}
+
+/**
+ * The place as the Header names it, and what the menu says under that name: a
+ * Space and the account's role in it, this computer, a named computer, or the
+ * organization that holds a Cloud project until its Space is known.
+ */
+function useProjectPlaceName(menu: ProjectPlaceMenu): { name: string; detail?: string; spoken: readonly string[] } {
   const { t } = useLocalization();
   const platform = useDesktopPlatformCapabilities();
-  if (place === "computer") return computerName ?? "";
-  if (place === "cloud") return t("cloud.home.location.cloud");
-  return t(platform?.platform === "macos"
+  const spaceName = useSpaceName();
+  if (menu.space) {
+    const name = spaceName(menu.space);
+    const role = menu.space.role && SPACE_ROLES.has(menu.space.role) ? t(`settings.space.role.${menu.space.role}`) : undefined;
+    return { name, detail: role, spoken: role ? [name, role] : [name] };
+  }
+  if (menu.place === "computer") {
+    const name = menu.label ?? menu.address?.short ?? "";
+    return { name, spoken: [name] };
+  }
+  if (menu.place === "cloud") {
+    const kind = t("cloud.home.location.cloud");
+    return menu.address ? { name: menu.address.short, spoken: [kind, menu.address.full] } : { name: kind, spoken: [kind] };
+  }
+  const name = t(platform?.platform === "macos"
     ? "shell.workspaceSwitcher.location.thisMac"
     : "shell.workspaceSwitcher.location.thisComputer");
+  return { name, detail: menu.address?.full, spoken: menu.address ? [name, menu.address.full] : [name] };
 }
+
+const SPACE_ROLES = new Set(["owner", "member", "viewer"]);

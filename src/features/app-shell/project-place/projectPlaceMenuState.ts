@@ -1,4 +1,5 @@
 import type { LocalFolderCloudNotice } from "../../cloud";
+import type { CloudSpace } from "../../../lib/workspaceHomeModel";
 import { compactDisplayPath, getWorkspacePathForDisplay } from "../../../lib/workspaceHomeModel";
 
 /**
@@ -35,6 +36,11 @@ export type ProjectPlaceMenu = Readonly<{
   detail?: string;
   /** Absent while it is unknown; the Header then names the kind of place instead. */
   address?: ProjectPlaceAddress | null;
+  /**
+   * The Space that holds a Cloud project, once the account's catalog names it.
+   * The Header then names the Space instead of the organization's address.
+   */
+  space?: CloudSpace | null;
   action: ProjectPlaceAction | null;
   /** The open local folder's Cloud link, when it has one. */
   link?: ProjectPlaceCloudLink | null;
@@ -91,9 +97,11 @@ export function cloudProjectAddress(organizationName: string | null | undefined)
   return name ? { short: name, full: name } : null;
 }
 
-export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = true, notice = null, disconnectable = false, linkedFolder }: {
+export function resolveProjectPlaceMenu({ place, address = null, space = null, cloudEnabled = true, notice = null, disconnectable = false, linkedFolder }: {
   place: "local" | "cloud";
   address?: ProjectPlaceAddress | null;
+  /** For an open Cloud project: the Space that holds it, when known. */
+  space?: CloudSpace | null;
   /** Other-computer folders have a place menu even when Cloud is off. */
   cloudEnabled?: boolean;
   /** What the open local folder's Cloud link means, when it has one. */
@@ -105,7 +113,7 @@ export function resolveProjectPlaceMenu({ place, address = null, cloudEnabled = 
 }): ProjectPlaceMenu {
   if (!cloudEnabled) return { place: "local", address, action: null };
   if (place === "cloud") {
-    return { place, address, action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
+    return { place, address, ...(space ? { space } : {}), action: linkedFolder ? { kind: "open-local-folder", ...linkedFolder } : null };
   }
   return { place, address, action: null, link: notice ? { notice, disconnectable } : null };
 }

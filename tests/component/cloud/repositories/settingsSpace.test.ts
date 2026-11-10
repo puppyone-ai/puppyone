@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 import { beforeEach, expect, it } from "vitest";
 import { resolveProjectSpaceId, resolveSettingsSpace } from "../../../../src/features/cloud/spaces/resolveSettingsSpace";
+import { resolveProjectSpace, spaceDisplayName, spaceMarkInitial, spaceMarkTone, spacePlanKey } from "../../../../src/features/cloud/spaces/spacePresentation";
 import type { CloudSpace, ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { readCachedSpaces } from "../../../../src/features/cloud/workbench/homepageCloudCatalogCache";
 const spaces: CloudSpace[] = [
@@ -28,6 +29,20 @@ it("names the open Cloud project's Space only once the account lists it", () => 
   expect(resolveProjectSpaceId({ spaces, projectId: "pb", items })).toBe("b");
   expect(resolveProjectSpaceId({ spaces: [spaces[0]], projectId: "pb", items })).toBeNull();
   expect(resolveProjectSpaceId({ spaces, projectId: null, items })).toBeNull();
+});
+it("states a Space the same way everywhere: Personal for the account's own, one stable tone per id", () => {
+  expect(resolveProjectSpace({ spaces, projectId: "pb", items })).toBe(spaces[1]);
+  expect(resolveProjectSpace({ spaces, projectId: "pb", items: items.filter(item => item.id !== "b1") })).toBeNull();
+  expect(spaceDisplayName({ name: "guanqun's Workspace", isDefault: true }, "Personal")).toBe("Personal");
+  expect(spaceDisplayName({ name: "Acme" }, "Personal")).toBe("Acme");
+  expect(spaceMarkInitial(" acme")).toBe("A");
+  expect(spaceMarkInitial("")).toBe("S");
+  const tone = spaceMarkTone("b");
+  expect(spaceMarkTone("b")).toBe(tone);
+  expect(tone).toBeGreaterThanOrEqual(0);
+  expect(tone).toBeLessThan(6);
+  expect(spacePlanKey("team_v2")).toBe("team");
+  expect(spacePlanKey("free")).toBe("free");
 });
 it("ignores retired global selections and only chooses accessible Spaces", () => {
   localStorage.setItem("puppyone.current-space:user", "b");

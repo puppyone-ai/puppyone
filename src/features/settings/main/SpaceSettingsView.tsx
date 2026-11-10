@@ -13,6 +13,7 @@ export function SpaceSettingsView({
   cloudSessionRestoring = false,
   organizationId,
   spaceName,
+  personal = false,
   cloudApiBaseUrl,
   onCloudSessionChange,
   onSpaceChange,
@@ -23,6 +24,8 @@ export function SpaceSettingsView({
   cloudSessionRestoring?: boolean;
   organizationId?: string | null;
   spaceName?: string | null;
+  /** The account's own Space: always "Personal", never renamed. */
+  personal?: boolean;
   cloudApiBaseUrl: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   onSpaceChange?: () => void;
@@ -46,7 +49,7 @@ export function SpaceSettingsView({
               {!organizationId && <p className="desktop-plan-note">{t("settings.space.choose")}</p>}
               {organizationId && <SpaceSettings
                 key={`${session.user_id}:${session.session_generation}:${apiBaseUrl}:${organizationId}`}
-                session={session} organizationId={organizationId} name={spaceName ?? ""}
+                session={session} organizationId={organizationId} name={spaceName ?? ""} personal={personal}
                 apiBaseUrl={apiBaseUrl} onSessionChange={onCloudSessionChange}
                 focusInvite={focusInvite}
                 onChanged={() => onSpaceChange?.()} />}

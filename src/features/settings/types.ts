@@ -1,5 +1,6 @@
 import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
+import type { CloudSpace } from "../../lib/workspaceHomeModel";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
@@ -15,6 +16,8 @@ export type SettingsViewProps = {
   subThemeCatalog: SubThemeCatalogController;
   currentSpaceId?: string | null;
   currentSpaceName?: string | null;
+  /** The account's own Space keeps the name "Personal"; it is not renamed. */
+  currentSpacePersonal?: boolean;
   onSpaceChange?: () => void;
   focusSpaceInvite?: boolean;
   cloudEnabled: boolean;
@@ -41,6 +44,8 @@ export type SettingsViewProps = {
 };
 
 export type SettingsSidebarProps = {
+  /** Heads the Space group with the square and plan the Header and Homepage show. */
+  currentSpace?: CloudSpace | null;
   currentSpaceId?: string | null;
   currentSpaceName?: string | null;
   localWorkspaceAvailable?: boolean;

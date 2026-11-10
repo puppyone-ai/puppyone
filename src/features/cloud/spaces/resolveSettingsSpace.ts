@@ -1,4 +1,5 @@
 import type { CloudSpace, ProjectHomeItem } from "../../../lib/workspaceHomeModel";
+import { resolveProjectSpace } from "./spacePresentation";
 
 /**
  * The one Space Settings manages: the Space its opener named, else the open
@@ -25,6 +26,5 @@ export function resolveProjectSpaceId({ spaces, projectId, items }: {
   projectId: string | null;
   items: readonly ProjectHomeItem[];
 }): string | null {
-  const ownerId = projectId ? items.find(item => item.cloudProjectId === projectId)?.cloudOrganizationId : null;
-  return ownerId && spaces.some(space => space.id === ownerId) ? ownerId : null;
+  return resolveProjectSpace({ spaces, projectId, items })?.id ?? null;
 }

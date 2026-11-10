@@ -148,7 +148,7 @@ async function headerPresentation(location) {
       return [...canvas.getImageData(0,0,1,1).data].slice(0,3);
     };
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
-      x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
+      x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, projectButtonLeft:button.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       themeText:rgb(themeText),
       place:place ? { location:place.dataset.projectPlace ?? null, cloudOutline:Boolean(placeOutline),
@@ -182,9 +182,11 @@ async function headerPresentation(location) {
   assert(sample.location === location, `Header place must follow the committed ${location} provider`);
   assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Both places must keep the theme's Header color: ${JSON.stringify(sample)}`);
   // The mark says which kind of place; the words say where it is.
-  assert(sample.place?.location === location && sample.place.text === (location === 'cloud' ? 'Fixture team' : '~/Documents/Clients')
-    && sample.place.addressFits && sample.place.right <= sample.viewport,
-    `The Header must state the ${location} project's place by its address, whole and on screen: ${JSON.stringify(sample.place)}`);
+  // The place leads the Header: the organization until its Space is known, or this computer.
+  assert(sample.place?.location === location
+    && (location === 'cloud' ? sample.place.text === 'Fixture team' : ['This Mac', 'This computer'].includes(sample.place.text))
+    && sample.place.addressFits && sample.place.right <= sample.viewport && sample.place.right <= sample.projectButtonLeft,
+    `The Header must state the ${location} project's place before the project, whole and on screen: ${JSON.stringify(sample.place)}`);
   if (location === 'cloud') {
     assert(sample.place?.location === 'cloud' && sample.place.cloudOutline, `The Cloud project must show its Cloud place mark: ${JSON.stringify(sample.place)}`);
     assert(JSON.stringify(sample.place.color) === JSON.stringify(sample.accent)

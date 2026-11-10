@@ -44,7 +44,8 @@ import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudW
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
-import { resolveProjectSpaceId, resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpace";
+import { resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpace";
+import { resolveProjectSpace, spaceDisplayName } from "./features/cloud/spaces/spacePresentation";
 import { CreateTeamDialog } from "./features/settings/main/CreateTeamDialog";
 import "./app/space-navigation.css";
 import { WindowAccountProvider } from "./components/WindowAccount";
@@ -444,8 +445,6 @@ function AppContent() {
     : null;
   const settingsSpace = resolveSettingsSpace({ account: projectCatalog.account, spaces: cloudSpaces.spaces,
     projectId: currentProjectId, items: projectCatalog.items, requestedId: settingsSpaceRequest });
-  const openProjectSpaceId = resolveProjectSpaceId({ spaces: cloudSpaces.spaces,
-    projectId: currentProjectId, items: projectCatalog.items });
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -1510,6 +1509,10 @@ function AppContent() {
     organizationId: activeCloudProjectId
       ? projectCatalog.items.find((item) => item.cloudProjectId === activeCloudProjectId)?.cloudOrganizationId : null,
   });
+  // The Header's place: the Space that holds the open Cloud project, once both are known.
+  const openProjectSpace = resolveProjectSpace({ spaces: cloudSpaces.spaces,
+    projectId: activeCloudProjectId, items: projectCatalog.items });
+  const openProjectSpaceId = openProjectSpace?.id ?? null;
   const {
     projectOpening, projectOpeningInWindow, projectOpeningSurface,
   } = useProjectOpeningSurfaces({
@@ -1520,6 +1523,7 @@ function AppContent() {
     opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive} organizationName={openCloudOrganizationName}
+    space={openProjectSpace} spaces={cloudSpaces.spaces}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onHome={() => void goToHomepage()}
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
@@ -1653,8 +1657,9 @@ function AppContent() {
         }}
         cloud={{
           enabled: cloudEnabled,
+          space: settingsSpace,
           spaceId: settingsSpace?.id,
-          spaceName: settingsSpace?.name ?? null,
+          spaceName: settingsSpace ? spaceDisplayName(settingsSpace, t("settings.space.personal")) : null,
           onSpaceChange: cloudSpaces.refresh,
           focusSpaceInvite,
           session: cloudSession,
@@ -1921,6 +1926,7 @@ function AppContent() {
       cloudEnabled,
       place: workspaceLocation,
       address: workspaceLocation === "cloud" ? cloudProjectAddress(openCloudOrganizationName) : localProjectAddress(workspace?.path),
+      space: workspaceLocation === "cloud" ? openProjectSpace : null,
       notice: cloudProjectNoticeState,
       disconnectable: cloudLinkDisconnectable,
       linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
@@ -1944,6 +1950,7 @@ function AppContent() {
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
       availableProjects={recentWorkspaceItems.map((item) => item.workspace)}
       projectItems={projectCatalog.items}
+      spaces={cloudSpaces.spaces}
       pendingProject={projectNavigation.pending}
       open={switcherOpen}
       refObject={switcherRef}

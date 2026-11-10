@@ -109,6 +109,33 @@ describe("combined Home and project menu", () => {
     expect(menu()).toBe(popup);
   });
 
+  it("lists projects under the place that holds them, so opening one in another Space is how the window gets there", async () => {
+    const selectCloud = vi.fn();
+    const spaces = [
+      { id: "mine", name: "guanqun's Workspace", kind: "space" as const, isDefault: true, canCreateProjects: true },
+      { id: "acme", name: "Acme", kind: "space" as const, canCreateProjects: true },
+    ];
+    await render(<DesktopWorkspaceSwitcher {...projectProps} spaces={spaces} onSelectCloudProject={selectCloud}
+      projectItems={[
+        { id: "acme-notes", label: "Research notes", localPath: "", cloudProjectId: "notes", cloudOrganizationId: "acme" },
+        { id: workspace.id, label: workspace.name, localPath: workspace.path },
+        { id: "todo", label: "To-Do", localPath: "", cloudProjectId: "todo", cloudOrganizationId: "mine" },
+        { id: "lost", label: "Unplaced", localPath: "", cloudProjectId: "lost", cloudOrganizationId: "gone" },
+      ]} />);
+    const groups = [...menu().querySelectorAll<HTMLElement>(".desktop-project-menu-group")];
+    expect(groups.map((group) => [group.getAttribute("aria-label"),
+      [...group.querySelectorAll(".desktop-menu-item-label")].map((label) => label.textContent)]))
+      .toEqual([["This Mac", [workspace.name]], ["Personal", ["To-Do"]], ["Acme", ["Research notes"]], ["Cloud project", ["Unplaced"]]]);
+    expect(groups[2].querySelector(".po-space-mark")?.textContent).toBe("A");
+    clickText("Research notes");
+    expect(selectCloud).toHaveBeenCalledWith("notes");
+  });
+
+  it("needs no heading when every project is on this computer", async () => {
+    await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second]} />);
+    expect(menu().querySelector(".desktop-project-menu-group")).toBeNull();
+  });
+
   it("keeps a failed copy retryable without switching the selected project", async () => {
     const close = vi.fn(), select = vi.fn();
     vi.mocked(writeClipboardText).mockRejectedValueOnce(new Error("Clipboard unavailable"))

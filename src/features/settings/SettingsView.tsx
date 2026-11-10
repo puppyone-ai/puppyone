@@ -47,6 +47,7 @@ export function SettingsView({
   cloudEnabled,
   currentSpaceId,
   currentSpaceName,
+  currentSpacePersonal = false,
   onSpaceChange,
   focusSpaceInvite,
   cloudSession,
@@ -159,6 +160,7 @@ export function SettingsView({
     return <SpaceSettingsView
       organizationId={currentSpaceId}
       spaceName={currentSpaceName}
+      personal={currentSpacePersonal}
       onSpaceChange={onSpaceChange}
       focusInvite={focusSpaceInvite}
       cloudSession={cloudSession}

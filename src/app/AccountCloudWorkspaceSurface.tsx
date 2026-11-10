@@ -17,7 +17,7 @@ import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWork
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
 import type { ProjectCloudContext } from "../features/cloud/project/context";
 import type { ProjectTarget } from "../features/app-shell/window-project/windowProjectStore";
-import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
+import type { CloudSpace, ProjectHomeItem } from "../lib/workspaceHomeModel";
 import { useCloudAgentWorkspace } from "../features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "../features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "../features/cloud/workbench/useCloudWorkspaceSidebar";
@@ -63,16 +63,17 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 }
 
 /** A Cloud project is its own project; a folder linked to it is another one. */
-function hostedPlaceMenu({ projectId, organizationName, projectItems, sidebar, onSelectProject, onManageSpace }: {
+function hostedPlaceMenu({ projectId, organizationName, space, projectItems, sidebar, onSelectProject, onManageSpace }: {
   projectId: string | null | undefined;
   organizationName: string | null | undefined;
+  space: CloudSpace | null;
   projectItems: readonly ProjectHomeItem[];
   sidebar: CloudWorkspaceSidebarController;
   onSelectProject: (path: string) => void;
   onManageSpace?: () => void;
 }) {
   const linkedFolder = projectItems.find((item) => item.localPath && item.linkedCloudProject?.id === projectId);
-  return { menu: resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress(organizationName),
+  return { menu: resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress(organizationName), space,
     linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
   handlers: { onOpenLocalFolder: (path: string) => onSelectProject(path),
     ...(sidebar.historyAvailable ? { onOpenHistory: sidebar.openHistory } : {}),
@@ -81,7 +82,7 @@ function hostedPlaceMenu({ projectId, organizationName, projectItems, sidebar, o
 
 /** Cloud project surface used when no local folder is open. With a local folder
  * open, the retained local shell embeds the presentation above instead. */
-export function AccountCloudWorkspaceSurface({ opening, workbench, presentation, active, organizationName, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, onManageSpace, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
+export function AccountCloudWorkspaceSurface({ opening, workbench, presentation, active, organizationName, space = null, spaces, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, onManageSpace, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   /** Another project on its way into this window: its name and its wait. */
   opening?: ProjectWindowOpening & Readonly<{ projectName: string }>;
   workbench: NativeCloudWorkbench;
@@ -89,6 +90,10 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   active: boolean;
   /** The organization that holds this Cloud project, once known; the Header states it as the project's place. */
   organizationName?: string | null;
+  /** The Space that holds this Cloud project, once the account's catalog names it. */
+  space?: CloudSpace | null;
+  /** Every Space this account reaches, so the project menu lists projects by their place. */
+  spaces?: readonly CloudSpace[];
   agent?: ReturnType<typeof useCloudAgentWorkspace>;
   sidebar?: CloudWorkspaceSidebarController;
   appearance: ResolvedSurfaceAppearance;
@@ -121,14 +126,14 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
-  const placeMenu = hostedPlaceMenu({ projectId: service.workspace.projectId, organizationName, projectItems, sidebar, onSelectProject, onManageSpace });
+  const placeMenu = hostedPlaceMenu({ projectId: service.workspace.projectId, organizationName, space, projectItems, sidebar, onSelectProject, onManageSpace });
   // The rail states the Project it is switching between, so the hosted Header
   // repeats neither the name nor the place while the rail is present.
   const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         titlebarLabel={opening?.projectName ?? service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} placeMenu={opening ? null : placeMenu}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
+        projectItems={projectItems} spaces={spaces} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome} />;
   return <ProjectWindow location="cloud" hosted active={active} opening={opening} appearance={appearance}
     rootAttributes={{ hidden: !active, style: active ? undefined : { display: "none" },

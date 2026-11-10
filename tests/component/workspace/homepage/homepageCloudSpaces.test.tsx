@@ -81,6 +81,18 @@ describe("unified space destinations", () => {
     expect(document.querySelector(".onboarding-space-plan")?.textContent).toBe("Team");
     expect(publish).not.toHaveBeenCalled();
   });
+  it("heads each Space with the Header's square, names the account's own Personal and says which team Spaces it owns", async () => {
+    const host = await render({ cloudSpaces: [
+      { ...spaces[0], name: "Alex's Workspace", isDefault: true, role: "owner", planId: "free" },
+      { ...spaces[1], role: "owner", planId: "team_v2" },
+      { ...spaces[2], role: "viewer" },
+    ] });
+    const heads = [...host.querySelectorAll<HTMLElement>('[data-project-group^="space:"] .onboarding-project-group-head')];
+    expect(heads.map((head) => [head.querySelector(".po-space-mark")?.textContent,
+      head.querySelector("h2")?.textContent, head.querySelector(".onboarding-space-role")?.textContent ?? null]))
+      .toEqual([["A", "Personal", null], ["D", "Design", "Owner"], ["G", "Guests", null]]);
+    expect(host.querySelector('[data-project-group="local-only"] .onboarding-project-group-mark svg')).not.toBeNull();
+  });
   it("uses the same presentation for a former personal space", async () => {
     await render({cloudSpaces: [spaces[0]], projectItems: [local, {
       id: "notes", label: "Notes", localPath: "", cloudProjectId: "notes", cloudOrganizationId: "personal",

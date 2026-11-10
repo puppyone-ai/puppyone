@@ -95,3 +95,13 @@ it("keeps Account and Plan flat and labels the management group with the current
   expect(sidebar.textContent).not.toContain("Members");
   expect(sidebar.textContent).toContain("Plan");
 });
+
+it("heads the Space group with the square and plan the Header and Homepage show", async () => {
+  const studio = { ...spaces[0], planId: "team_v2" };
+  await act(async () => root.render(withTestLocalization(<SettingsSidebar activeSection="space" cloudEnabled
+    currentSpace={studio} currentSpaceId="a" currentSpaceName="Studio" onSelectSection={vi.fn()} />)));
+  const heading = document.querySelector(".desktop-settings-space-heading")!;
+  expect(heading.querySelector(".po-space-mark")?.textContent).toBe("S");
+  expect(heading.querySelector("bdi")?.textContent).toBe("Studio");
+  expect(heading.querySelector(".po-space-plan")?.textContent).toBe("Team");
+});

@@ -63,11 +63,14 @@ describe("where the open project is (ADR-001)", () => {
       .toEqual({ place: "cloud", address: null, action: { kind: "open-local-folder", path: "/tmp/one", name: "One" } });
   });
 
-  it("states a local project by the folder that holds it, as a fact at the head of its menu", async () => {
+  it("states a local project by this computer, before the project, with its folder at the head of its menu", async () => {
     await renderHeader(local({ address: localProjectAddress("/Users/example/project/puppyone-qubits") }));
     const button = placeButton();
-    expect(button.textContent).toBe("~/project");
-    expect(button.querySelector("bdi")?.getAttribute("dir")).toBe("ltr");
+    expect(button.textContent).toBe("This Mac");
+    // Read like a path: the place, then the project.
+    const context = container.querySelector(".desktop-titlebar-context")!;
+    expect([...context.children].map((child) => child.className)).toEqual([
+      "desktop-titlebar-place-wrap", "desktop-titlebar-context-separator", "desktop-titlebar-workspace-wrap"]);
     expect(accessibleName(button)).toBe("This Mac, ~/project/puppyone-qubits, Where this project is");
     openMenu();
     const current = getByRole(menu()!, "button", { name: "This Mac ~/project/puppyone-qubits" });
@@ -77,7 +80,7 @@ describe("where the open project is (ADR-001)", () => {
     expect(current.hasAttribute("aria-checked")).toBe(false);
   });
 
-  it("states a Cloud project by its space and opens its linked folder as another project", async () => {
+  it("states a Cloud project by its organization until its Space is known, and opens its linked folder as another project", async () => {
     await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme"),
       linkedFolder: { path: "/tmp/one", name: "One" } }));
     expect(placeButton().textContent).toBe("Acme");
@@ -86,6 +89,27 @@ describe("where the open project is (ADR-001)", () => {
     expect(audienceRegion()).toBeNull();
     act(() => getByRole(menu()!, "button", { name: /^Open folder on this Mac/ }).click());
     expect(handlers.onOpenLocalFolder).toHaveBeenCalledWith("/tmp/one");
+  });
+
+  it("states a Cloud project by the Space that holds it, with its square, plan and the account's role", async () => {
+    const space = { id: "acme", name: "Acme", kind: "space" as const, role: "owner", canCreateProjects: true, planId: "team_v2" };
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme org"), space }));
+    const button = placeButton();
+    expect(button.querySelector(".po-space-mark")?.textContent).toBe("A");
+    expect(button.querySelector(".desktop-titlebar-place-address")?.textContent).toBe("Acme");
+    expect(accessibleName(button)).toBe("Acme, Owner, Where this project is");
+    openMenu();
+    const current = menu()!.querySelector('[data-project-place-row="current"]')!;
+    expect(current.querySelector(".po-space-mark")?.getAttribute("data-size")).toBe("lg");
+    expect(current.querySelector(".po-space-plan")?.textContent).toBe("Team");
+    expect(current.querySelector(".desktop-menu-item-detail")?.textContent).toBe("Owner");
+  });
+
+  it("names the account's own Space Personal, never the server's generated name", async () => {
+    const space = { id: "mine", name: "guanqun's Workspace", kind: "space" as const, isDefault: true, role: "owner", canCreateProjects: true };
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", space }));
+    expect(placeButton().querySelector(".desktop-titlebar-place-address")?.textContent).toBe("Personal");
+    expect(placeButton().querySelector(".po-space-mark")?.textContent).toBe("G");
   });
 
   it("says a folder has a Cloud copy, and says what is wrong with one that cannot be used", async () => {

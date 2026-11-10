@@ -215,6 +215,21 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
+/* The place gives way before the project on a narrow window. */
+.desktop-titlebar-context > .desktop-titlebar-place-wrap {
+  flex-shrink: 4;
+}
+
+.desktop-titlebar-context-separator {
+  flex: 0 0 auto;
+  margin-inline: -2px;
+  color: var(--po-text-disabled);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  line-height: var(--desktop-titlebar-context-line-height);
+  user-select: none;
+}
+
 .desktop-titlebar-context-item {
   display: inline-flex;
   align-items: center;

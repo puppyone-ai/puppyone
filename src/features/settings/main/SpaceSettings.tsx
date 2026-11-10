@@ -6,10 +6,12 @@ import { getCloudOrganizationAccess, inviteCloudSpaceMember, listCloudOrganizati
 import { SettingsSubsection, SettingsValueRow } from "../components";
 
 /** Uses the existing owner-authorized API; membership never starts a hidden purchase. */
-export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSessionChange, onChanged, focusInvite = false }: {
+export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSessionChange, onChanged, focusInvite = false, personal = false }: {
   session: DesktopCloudSession; organizationId: string; name: string; apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void; onChanged: () => void;
   focusInvite?: boolean;
+  /** The account's own Space reads "Personal" everywhere, so it has no name to change. */
+  personal?: boolean;
 }) {
   const { t } = useLocalization();
   const [members, setMembers] = useState<DesktopCloudOrgMember[]>([]);
@@ -48,12 +50,13 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
     finally { setBusy(false); }
   };
   const disabled = busy || loading;
+  const renamable = owner && !personal;
   return <>
     <SettingsSubsection>
-      <SettingsValueRow label={t("settings.space.name")} value={owner
-        ? <input aria-label={t("settings.space.name")} value={newName} maxLength={80} disabled={disabled}
+      <SettingsValueRow label={t("settings.space.name")} value={renamable
+        ? <input className="desktop-settings-text-input" aria-label={t("settings.space.name")} value={newName} maxLength={80} disabled={disabled}
             onChange={(event) => setNewName(event.target.value)} /> : name}
-        action={owner && <button className="desktop-settings-action" type="button"
+        action={renamable && <button className="desktop-settings-action" type="button"
           disabled={disabled || !newName.trim() || newName.trim() === name}
           onClick={() => void run(() => updateCloudSpace(session, organizationId, newName.trim(), onSessionChange, apiBaseUrl))}>
           {t("settings.space.save")}</button>} />
@@ -77,9 +80,9 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
           setInviteUrl(invite.invite_url ?? null); setEmail("");
         });
       }}>
-        <input ref={inviteInput} type="email" required aria-label={t("settings.space.inviteEmail")} value={email} disabled={disabled}
+        <input ref={inviteInput} className="desktop-settings-text-input" type="email" required aria-label={t("settings.space.inviteEmail")} value={email} disabled={disabled}
           onChange={(event) => setEmail(event.target.value)} placeholder={t("settings.space.inviteEmail")} />
-        <select aria-label={t("settings.space.inviteRole")} value={role} disabled={disabled}
+        <select className="desktop-settings-select" aria-label={t("settings.space.inviteRole")} value={role} disabled={disabled}
           onChange={(event) => setRole(event.target.value as "viewer" | "member")}>
           <option value="viewer">{t("settings.space.role.viewer")}</option>
           <option value="member">{t("settings.space.role.member")}</option>
@@ -87,9 +90,9 @@ export function SpaceSettings({ session, organizationId, name, apiBaseUrl, onSes
         <button className="desktop-settings-action" disabled={disabled || !email.trim()} type="submit">{t("settings.space.invite")}</button>
       </form>}
       {owner && <p className="desktop-plan-note">{t("settings.space.seatNotice")}</p>}
-      {inviteUrl && <SettingsValueRow label={t("settings.space.invitationLink")} value={<input readOnly value={inviteUrl} onFocus={(event) => event.target.select()} />} />}
+      {inviteUrl && <SettingsValueRow label={t("settings.space.invitationLink")} value={<input className="desktop-settings-text-input" readOnly value={inviteUrl} onFocus={(event) => event.target.select()} />} />}
       {owner && members.some((member) => member.user_id !== session.user_id) && <SettingsValueRow
-        label={t("settings.space.transfer")} value={<select aria-label={t("settings.space.transfer")} value={transferTo}
+        label={t("settings.space.transfer")} value={<select className="desktop-settings-select" aria-label={t("settings.space.transfer")} value={transferTo}
           disabled={disabled} onChange={(event) => setTransferTo(event.target.value)}>
           <option value="">{t("settings.space.chooseMember")}</option>
           {members.filter((member) => member.user_id !== session.user_id).map((member) => <option key={member.user_id} value={member.user_id}>

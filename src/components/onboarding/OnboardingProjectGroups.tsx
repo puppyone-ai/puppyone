@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
+import { LocalIcon } from "@puppyone/shared-ui";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import type { ProjectListSharing } from "./OnboardingProjectList";
@@ -6,6 +7,8 @@ import type { ProjectListSharing } from "./OnboardingProjectList";
 export type OnboardingProjectGroup = Readonly<{
   id: string;
   title: ReactNode;
+  /** The place's shape before its name: a Space's square or a computer. */
+  mark?: ReactNode;
   /** One quiet line after the title: presence, or what this computer offers. */
   detail?: ReactNode;
   /** The group's own controls at the end of its head. */
@@ -48,6 +51,7 @@ export type OnboardingGroupsBase = Readonly<{
 /** Every registered local folder stays on this computer, including shared folders and Cloud checkouts. */
 export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: ProjectListSharing): OnboardingProjectGroup[] {
   const local: OnboardingProjectGroup[] = base.local?.items.length ? [{ id: "local-only", title: base.local.title,
+    mark: <LocalIcon size={16} strokeWidth={1.75} />,
     alwaysShowHeading: true, children: base.local.render([...base.local.items], sharing) }] : [];
   return [...local, ...base.cloud].filter((group) => !group.empty || group.keepEmpty);
 }
@@ -104,6 +108,7 @@ function ProjectGroup({ group }: { group: OnboardingProjectGroup }) {
       }}
       data-inactive={group.inactive || undefined} aria-labelledby={titleId}>
       <header className="onboarding-project-group-head">
+        {group.mark !== undefined && <span className="onboarding-project-group-mark" aria-hidden="true">{group.mark}</span>}
         <h2 id={titleId} className="onboarding-project-group-title"><bdi>{group.title}</bdi></h2>
         {group.detail !== undefined && <span className="onboarding-project-group-detail">{group.detail}</span>}
         <span className="onboarding-project-group-spacer" aria-hidden="true" />
