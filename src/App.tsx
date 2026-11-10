@@ -46,7 +46,7 @@ import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspace
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
 import { resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpace";
 import "./app/space-navigation.css";
-import { WindowNavigationProvider } from "./components/WindowNavigation";
+import { WindowAccountProvider } from "./components/WindowAccount";
 import { useCloudSpaces } from "./features/cloud/spaces/useCloudSpaces";
 import { useCloudSpacePublishIntent, type CloudSpacePublishTarget } from "./features/cloud/spaces/useCloudSpacePublishIntent";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
@@ -98,6 +98,7 @@ import {
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
+import { clearDesktopCloudSession } from "./lib/cloudSession";
 import { resolveVisibleCreateNewMenuItems } from "./preferences";
 import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron";
 import {
@@ -1706,12 +1707,15 @@ function AppContent() {
     />
   </DesktopOverlayPortal>;
   const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
-  const accountNavigation = <div className="desktop-account-space-navigation" data-window-no-drag="true">
-    {accountAvailable && !cloudSessionRestoring && <ProjectHeaderAccount session={activeCloudSession}
-      apiBaseUrl={desktopCloudApiBaseUrl} onOpenAccount={() => openSettingsDialog("account")} />}
-  </div>;
+  const accountNavigation = accountAvailable && !cloudSessionRestoring
+    ? <div className="desktop-titlebar-account" data-window-no-drag="true">
+      <ProjectHeaderAccount session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
+        onOpenAccount={() => openSettingsDialog("account")} onOpenSettings={() => openSettingsDialog("general")}
+        onSignOut={() => { void clearDesktopCloudSession().catch(() => undefined).finally(() => updateCloudSession(null)); }} />
+    </div>
+    : null;
   const themeRuntime = (content: ReactNode) => (
-    <WindowNavigationProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <WindowAccountProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
@@ -1728,7 +1732,7 @@ function AppContent() {
         {projectEntryOverlay}
         {settingsOverlay}
       </div>
-    </SurfaceAppearanceProvider></WindowNavigationProvider>
+    </SurfaceAppearanceProvider></WindowAccountProvider>
   );
 
   if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
@@ -1979,7 +1983,7 @@ function AppContent() {
     />
   );
   return (
-    <WindowNavigationProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <WindowAccountProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
         <ProjectWindow
           location={workspaceLocation}
           appearance={surfaceAppearance}
@@ -2229,7 +2233,7 @@ function AppContent() {
       {projectNavigationOverlay}
       {projectEntryOverlay}
       <DesktopOverlayPortal appearance={surfaceAppearance}>{cloudLinkDisconnectDialog}</DesktopOverlayPortal>
-    </SurfaceAppearanceProvider></WindowNavigationProvider>
+    </SurfaceAppearanceProvider></WindowAccountProvider>
   );
 }
 

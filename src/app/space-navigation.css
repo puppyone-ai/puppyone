@@ -1,13 +1,19 @@
-.desktop-account-space-navigation {
-  display: flex;
+.desktop-titlebar-account {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  min-width: 0;
-  gap: 6px;
   color: var(--desktop-titlebar-text-muted);
 }
 
-.desktop-account-space-navigation .homepage-cloud-avatar {
-  margin-inline-end: 0;
+.desktop-titlebar-account:not(:first-child) {
+  margin-inline-start: 4px;
+}
+
+.desktop-account-menu-email {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .desktop-space-member-form {

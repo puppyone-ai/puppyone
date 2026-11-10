@@ -155,6 +155,7 @@ describe("inline Homepage Cloud projects", () => {
     expect(avatar?.textContent).toBe("A");
     expect(avatar?.getAttribute("aria-label")).toContain("alice@example.com");
     await click(".homepage-cloud-avatar");
+    await click(".desktop-account-menu .desktop-menu-item");
     expect(openAccount).toHaveBeenCalledOnce();
     await render({ enabled: false, currentSession: null });
     expect(document.querySelector(".homepage-cloud-avatar")).toBeNull();

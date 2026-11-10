@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
-import { WindowNavigationSlot } from "./WindowNavigation";
+import { useWindowAccount } from "./WindowAccount";
 
 type DesktopWindowChromeProps = {
   /** Header presentation location; shell content separately owns the committed provider. */
@@ -32,6 +32,7 @@ export function DesktopWindowChrome({
   const fullScreen = useWindowFullScreenState();
   const windowActive = useWindowActivityState();
   const platformCapabilities = useDesktopPlatformCapabilities();
+  const account = useWindowAccount();
 
   return (
     <header
@@ -47,7 +48,6 @@ export function DesktopWindowChrome({
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
           <div className="desktop-titlebar-left">
-            <WindowNavigationSlot />
             <div className="desktop-titlebar-brand" aria-hidden="true">
               <PuppyBrandMark
                 className="desktop-titlebar-brand-icon"
@@ -74,9 +74,10 @@ export function DesktopWindowChrome({
           </div>
         </div>
         <div className="desktop-titlebar-trailing">
-          {actions && (
+          {(actions || account) && (
             <div className="desktop-titlebar-actions">
               {actions}
+              {account}
             </div>
           )}
           <div className="desktop-window-controls" data-window-no-drag="true">
