@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
-import { WindowAccountProvider } from "../../components/WindowAccount";
+import { WindowNavigationProvider } from "../../components/WindowNavigation";
 import { PlanComparison } from "../../features/settings/main/CloudPlans";
 import { resolvePlanCatalog, resolvePlanHolding } from "../../features/settings/main/planPricing";
 import type { CloudSpace } from "../../lib/workspaceHomeModel";
@@ -19,7 +19,7 @@ export function UnifiedSpacesVisualSmokeHarness() {
   const [settings, setSettings] = useState(false);
   const space = SPACES.find((candidate) => candidate.id === selected);
   const catalog = resolvePlanCatalog(null);
-  return <WindowAccountProvider value={null}>
+  return <WindowNavigationProvider value={null}>
     <DesktopWindowChrome />
     <main className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body">
@@ -37,5 +37,5 @@ export function UnifiedSpacesVisualSmokeHarness() {
         </div>
       </div>
     </main>
-  </WindowAccountProvider>;
+  </WindowNavigationProvider>;
 }

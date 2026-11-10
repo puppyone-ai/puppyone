@@ -113,6 +113,8 @@
   "workspaceSwitcher.changeIcon": "更换图标…",
   "workspaceSwitcher.resetIcon": "重置图标",
   "workspaceSwitcher.home": "首页",
+  "placeMenu.places": "位置",
+  "placeMenu.label": "位置与账户",
   "workspaceSwitcher.createNew": "新建工作区",
   "workspaceSwitcher.localPath": "本地文件夹",
   "workspaceSwitcher.contextAssetCloud": "云端项目",

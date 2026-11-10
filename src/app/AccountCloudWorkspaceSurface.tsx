@@ -128,8 +128,9 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   if (!service || !workbench.visited) return null;
   const placeMenu = hostedPlaceMenu({ projectId: service.workspace.projectId, organizationName, space, projectItems, sidebar, onSelectProject, onManageSpace });
   // The rail states the Project it is switching between, so the hosted Header
-  // repeats neither the name nor the place while the rail is present.
-  const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
+  // keeps only the place, with the way to Home and the account.
+  const projectContext = !active ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
+        projectHidden={Boolean(projectRail)}
         titlebarLabel={opening?.projectName ?? service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} placeMenu={opening ? null : placeMenu}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}

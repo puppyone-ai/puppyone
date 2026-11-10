@@ -113,6 +113,8 @@
   "workspaceSwitcher.changeIcon": "아이콘 변경…",
   "workspaceSwitcher.resetIcon": "아이콘 재설정",
   "workspaceSwitcher.home": "홈",
+  "placeMenu.places": "위치",
+  "placeMenu.label": "위치 및 계정",
   "workspaceSwitcher.createNew": "새 작업 공간",
   "workspaceSwitcher.localPath": "로컬 폴더",
   "workspaceSwitcher.contextAssetCloud": "Cloud 프로젝트",

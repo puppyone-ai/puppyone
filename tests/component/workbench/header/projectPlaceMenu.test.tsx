@@ -54,6 +54,27 @@ const tier = (name: RegExp) => getByRole(audienceRegion()!, "menuitemcheckbox", 
 const detail = (name: RegExp) => getByRole(audienceRegion()!, "menuitem", { name });
 
 describe("where the open project is (ADR-001)", () => {
+  it("goes Home from the place, and leaves the project menu to switching and adding projects", async () => {
+    const home = vi.fn();
+    await act(async () => root.render(withTestLocalization(
+      <DesktopTitlebarContext {...projectProps} open onHome={home} onCreateProject={noOp} placeMenu={{ menu: local(), handlers }} />)));
+    const projectMenu = document.querySelector(".desktop-workspace-menu, [role='menu']")!;
+    expect(projectMenu.textContent).not.toContain("Home");
+    await act(async () => root.render(withTestLocalization(
+      <DesktopTitlebarContext {...projectProps} onHome={home} placeMenu={{ menu: local(), handlers }} />)));
+    openMenu();
+    act(() => getByRole(menu()!, "button", { name: "Home" }).click());
+    expect(home).toHaveBeenCalledOnce();
+    expect(menu()).toBeNull();
+  });
+
+  it("keeps the place alone in the Header while the Project rail names the project", async () => {
+    await act(async () => root.render(withTestLocalization(
+      <DesktopTitlebarContext {...projectProps} projectHidden placeMenu={{ menu: local(), handlers }} />)));
+    const context = container.querySelector(".desktop-titlebar-context")!;
+    expect([...context.children].map((child) => child.className)).toEqual(["desktop-titlebar-place-wrap"]);
+  });
+
   it("keeps a local folder's link only as its Cloud copy, and offers a Cloud project its folder", () => {
     expect(local()).toEqual({ place: "local", address: null, action: null, link: null });
     expect(local({ notice: linked, disconnectable: true })).toEqual({

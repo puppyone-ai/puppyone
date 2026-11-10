@@ -113,6 +113,8 @@
   "workspaceSwitcher.changeIcon": "Change icon…",
   "workspaceSwitcher.resetIcon": "Reset icon",
   "workspaceSwitcher.home": "Home",
+  "placeMenu.places": "Places",
+  "placeMenu.label": "Places and account",
   "workspaceSwitcher.createNew": "New workspace",
   "workspaceSwitcher.localPath": "Local folder",
   "workspaceSwitcher.contextAssetCloud": "Cloud project",

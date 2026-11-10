@@ -113,6 +113,8 @@
   "workspaceSwitcher.changeIcon": "アイコンを変更…",
   "workspaceSwitcher.resetIcon": "アイコンをリセット",
   "workspaceSwitcher.home": "ホーム",
+  "placeMenu.places": "場所",
+  "placeMenu.label": "場所とアカウント",
   "workspaceSwitcher.createNew": "新しいワークスペース",
   "workspaceSwitcher.localPath": "ローカルフォルダー",
   "workspaceSwitcher.contextAssetCloud": "Cloud プロジェクト",

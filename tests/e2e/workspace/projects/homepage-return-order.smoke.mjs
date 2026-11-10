@@ -114,9 +114,9 @@ async function returnHomeFrom(name) {
   while (hydrating > 0) await wait(50);
   await fs.appendFile(path.join(roots[name], "note.md"), "\nJust edited.\n");
   await evaluate(observer);
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
-  await until("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].some(item => item.textContent.includes('Home'))", "Home in the menu");
-  await evaluate("window.homepageOrders.clickedAt = performance.now(); [...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes('Home')).click()");
+  await evaluate("document.querySelector('.desktop-titlebar-place-wrap > button').click()");
+  await until("!!document.querySelector('[data-window-place=\"home\"]')", "Home in the menu");
+  await evaluate("window.homepageOrders.clickedAt = performance.now(); document.querySelector('[data-window-place=\"home\"]').click()");
   await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 4", "the Homepage");
   await wait(1800);
   return evaluate("(() => { window.homepageOrders.recording = false; return window.homepageOrders; })()");

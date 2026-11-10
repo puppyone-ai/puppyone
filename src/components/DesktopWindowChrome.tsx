@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
-import { useWindowAccount } from "./WindowAccount";
+import { useWindowNavigation } from "./WindowNavigation";
 
 type DesktopWindowChromeProps = {
   /** Header presentation location; shell content separately owns the committed provider. */
@@ -32,7 +32,7 @@ export function DesktopWindowChrome({
   const fullScreen = useWindowFullScreenState();
   const windowActive = useWindowActivityState();
   const platformCapabilities = useDesktopPlatformCapabilities();
-  const account = useWindowAccount();
+  const account = useWindowNavigation()?.trailing;
 
   return (
     <header

@@ -54,7 +54,7 @@ describe("remote folder Header", () => {
     expect(document.querySelector('[data-project-place-row="other-computers"]')).toBeNull();
   });
 
-  it("keeps Home and local/Cloud project navigation in the existing project menu", async () => {
+  it("switches projects from the project menu and goes Home from the place menu", async () => {
     const onSelectProject = vi.fn();
     const onSelectCloudProject = vi.fn();
     await render({ onSelectProject, onSelectCloudProject, projectItems: [
@@ -70,7 +70,12 @@ describe("remote folder Header", () => {
     };
     select("Local notes"); expect(onSelectProject).toHaveBeenCalledWith("/tmp/notes");
     select("Cloud notes"); expect(onSelectCloudProject).toHaveBeenCalledWith("cloud-notes");
-    select("Home"); expect(onHome).toHaveBeenCalledOnce();
+    openProjectMenu();
+    expect([...document.querySelectorAll('[role="menuitem"]')].some(item => item.textContent === "Home")).toBe(false);
+    openProjectMenu();
+    act(() => container.querySelector<HTMLButtonElement>('[data-project-place="computer"]')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('[data-window-place="home"]')!.click());
+    expect(onHome).toHaveBeenCalledOnce();
   });
 
   it("shows only allowed remote commands with the shared Header button treatment", async () => {

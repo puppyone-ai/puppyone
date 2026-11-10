@@ -15,18 +15,22 @@ import { ProjectPlaceMenuControl, type ProjectPlaceMenuProps } from "./project-p
  * A local folder and its Cloud project are two projects (puppy-issues ADR-001),
  * so the Header never switches one project between this computer and the Cloud.
  *
+ * The place menu is where the window goes elsewhere: back to Home, to another
+ * place, and to the account. The project menu only switches projects and adds
+ * them; it offers Home only where no place menu does.
+ *
  * The Header states the Project only while it is the Project switcher surface.
- * When the Project rail takes that role its host renders no context at all,
- * so this component never has to describe a Project it does not own.
+ * When the Project rail takes that role the Header keeps the place alone, so
+ * this component never has to describe a Project it does not own.
  */
-export function DesktopTitlebarContext({ placeMenu, locationActivity, ...project }: DesktopTitlebarContextProps) {
+export function DesktopTitlebarContext({ placeMenu, locationActivity, projectHidden = false, onHome, ...project }: DesktopTitlebarContextProps) {
   return <div className="desktop-titlebar-context">
     {placeMenu && <>
-      <ProjectPlaceMenuControl {...placeMenu} projectMenuOpen={project.open} onOpen={project.onClose} />
-      <span className="desktop-titlebar-context-separator" aria-hidden="true">/</span>
+      <ProjectPlaceMenuControl {...placeMenu} onHome={onHome} projectMenuOpen={project.open} onOpen={project.onClose} />
+      {!projectHidden && <span className="desktop-titlebar-context-separator" aria-hidden="true">/</span>}
     </>}
-    <DesktopWorkspaceSwitcher {...project} />
-    {locationActivity}
+    {!projectHidden && <DesktopWorkspaceSwitcher {...project} onHome={placeMenu ? undefined : onHome} />}
+    {!projectHidden && locationActivity}
   </div>;
 }
 
@@ -38,4 +42,6 @@ export type DesktopTitlebarContextProps = DesktopWorkspaceSwitcherProps & {
    * publish to Cloud, stated beside the project it changes.
    */
   locationActivity?: ReactNode;
+  /** The Project rail names the project, so the Header keeps only its place. */
+  projectHidden?: boolean;
 };

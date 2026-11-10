@@ -140,6 +140,13 @@
     margin-block: 2px;
   }
 
+  /* Each place in the list carries its own mark: a Space's square, or this computer. */
+  .desktop-window-place-mark {
+    display: grid;
+    place-items: center;
+    color: inherit;
+  }
+
   /* An action with a second line stacks it under its name. */
   .desktop-project-place-row:has(.desktop-menu-item-detail) {
     height: auto;

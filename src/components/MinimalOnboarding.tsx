@@ -26,6 +26,8 @@ import {
 import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
 import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
+import { useProjectGroupFocus, type HomepagePlaceFocus } from "./onboarding/useProjectGroupFocus";
+import { useWindowNavigation } from "./WindowNavigation";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
@@ -78,6 +80,8 @@ export type MinimalOnboardingProps = {
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
   appearance: ResolvedSurfaceAppearance;
+  /** The place chosen from the Header, brought into view. */
+  focusPlace?: HomepagePlaceFocus | null;
 };
 
 const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
@@ -123,8 +127,11 @@ export function MinimalOnboarding({
   onOpenCloudProject,
   initialError = null,
   appearance,
+  focusPlace,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
+  const navigation = useWindowNavigation();
+  useProjectGroupFocus(focusPlace);
   const desktopPlatform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
   // A failure handed down replaces what is shown; the page's own actions clear it.
@@ -333,7 +340,7 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
+      <DesktopWindowChrome context={hasProjects || navigation?.account ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
       <section
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}

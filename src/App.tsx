@@ -48,13 +48,14 @@ import { resolveSettingsSpace } from "./features/cloud/spaces/resolveSettingsSpa
 import { resolveProjectSpace, spaceDisplayName } from "./features/cloud/spaces/spacePresentation";
 import { CreateTeamDialog } from "./features/settings/main/CreateTeamDialog";
 import "./app/space-navigation.css";
-import { WindowAccountProvider } from "./components/WindowAccount";
+import { WindowNavigationProvider, type WindowNavigation } from "./components/WindowNavigation";
+import type { HomepagePlaceFocus } from "./components/onboarding/useProjectGroupFocus";
 import { useCloudSpaces } from "./features/cloud/spaces/useCloudSpaces";
 import { useCloudSpacePublishIntent, type CloudSpacePublishTarget } from "./features/cloud/spaces/useCloudSpacePublishIntent";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { useCloudOrganizationName } from "./features/cloud/workbench/useCloudOrganizationName";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
-import { ProjectHeaderAccount } from "./features/cloud/workbench/CloudAccountButton";
+import { HeaderSignInButton } from "./features/cloud/workbench/CloudAccountButton";
 import {
   AccountCloudWorkspaceSurface,
   useAccountCloudWorkspacePresentation,
@@ -973,6 +974,7 @@ function AppContent() {
   }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, pluginsDialogOpen, settingsDialogOpen]);
 
   const [homepageListHeld, holdHomepageList] = useHomepageListHold();
+  const [homepagePlaceFocus, setHomepagePlaceFocus] = useState<HomepagePlaceFocus | null>(null);
   const goToHomepage = useCallback(async () => {
     cancelProjectNavigationRef.current();
     try {
@@ -1729,16 +1731,31 @@ function AppContent() {
     />
   </DesktopOverlayPortal>;
   const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
-  const accountNavigation = accountAvailable && !cloudSessionRestoring
-    ? <div className="desktop-titlebar-account" data-window-no-drag="true">
-      <ProjectHeaderAccount session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
-        onOpenAccount={() => openSettingsDialog("account")} onOpenSettings={() => openSettingsDialog("general")}
-        onCreateSpace={cloudEnabled && activeCloudSession && desktopCloudApiBaseUrl ? () => setCreatingSpace(true) : undefined}
-        onSignOut={() => { void clearDesktopCloudSession().catch(() => undefined).finally(() => updateCloudSession(null)); }} />
-    </div>
-    : null;
+  // Every place is shown on Home, at its own projects.
+  const showHomepagePlace = (place: string) => {
+    setHomepagePlaceFocus({ place, nonce: Date.now() });
+    if (workspace || cloudWorkspaceActive || shownHostFolder) void goToHomepage();
+  };
+  const windowAccount = accountAvailable && !cloudSessionRestoring ? {
+    session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl,
+    onOpenAccount: () => openSettingsDialog("account"),
+    onOpenSettings: () => openSettingsDialog("general"),
+    onCreateSpace: cloudEnabled && activeCloudSession && desktopCloudApiBaseUrl ? () => setCreatingSpace(true) : undefined,
+    onSignOut: () => { void clearDesktopCloudSession().catch(() => undefined).finally(() => updateCloudSession(null)); },
+  } : null;
+  const windowNavigation: WindowNavigation = {
+    account: windowAccount,
+    spaces: cloudSpaces.spaces,
+    onShowPlace: showHomepagePlace,
+    trailing: windowAccount && !windowAccount.session
+      ? <div className="desktop-titlebar-account" data-window-no-drag="true">
+        <HeaderSignInButton apiBaseUrl={windowAccount.apiBaseUrl} />
+      </div>
+      : null,
+  };
   const themeRuntime = (content: ReactNode) => (
-    <WindowAccountProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <WindowNavigationProvider value={windowNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
@@ -1755,7 +1772,7 @@ function AppContent() {
         {projectEntryOverlay}
         {settingsOverlay}
       </div>
-    </SurfaceAppearanceProvider></WindowAccountProvider>
+    </SurfaceAppearanceProvider></WindowNavigationProvider>
   );
 
   if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
@@ -1800,6 +1817,7 @@ function AppContent() {
       {unavailableHomeProjectDialog}
       {folderRelocation.dialog}
       <MinimalOnboarding key={cloudSpaces.authority ?? "local"}
+        focusPlace={homepagePlaceFocus}
         unavailableProjects={unavailableHomeProjects}
         onOpenUnavailableProject={(folderPath) => {
           setUnavailableHomeProjectPath(folderPath);
@@ -1921,7 +1939,7 @@ function AppContent() {
     ? accountCloud.context.projectId : null;
   const linkedFolder = openCloudProjectId
     ? projectCatalog.items.find((item) => item.localPath && item.linkedCloudProject?.id === openCloudProjectId) : undefined;
-  const placeMenu = cloudEnabled || hostDevicesEnabled ? {
+  const placeMenu = {
     menu: resolveProjectPlaceMenu({
       cloudEnabled,
       place: workspaceLocation,
@@ -1937,9 +1955,11 @@ function AppContent() {
       ...(cloudWorkspaceActive && openProjectSpaceId ? { onManageSpace: () => openSpaceSettings(openProjectSpaceId) } : {}),
     },
     audience: localAudience,
-  } : null;
-  const titlebarContext = railOwnsProject ? null : (
+  };
+  // The rail names the project; the Header keeps its place, the way to Home and the account.
+  const titlebarContext = (
     <DesktopTitlebarContext
+      projectHidden={railOwnsProject}
       titlebarLabel={projectOpening?.projectName ?? headerWorkspace.name}
       placeMenu={projectOpening ? null : placeMenu}
       locationActivity={cloudEnabled && !projectOpening
@@ -2010,7 +2030,7 @@ function AppContent() {
     />
   );
   return (
-    <WindowAccountProvider value={accountNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
+    <WindowNavigationProvider value={windowNavigation}><SurfaceAppearanceProvider value={surfaceAppearance}>
         <ProjectWindow
           location={workspaceLocation}
           appearance={surfaceAppearance}
@@ -2260,7 +2280,7 @@ function AppContent() {
       {projectNavigationOverlay}
       {projectEntryOverlay}
       <DesktopOverlayPortal appearance={surfaceAppearance}>{cloudLinkDisconnectDialog}</DesktopOverlayPortal>
-    </SurfaceAppearanceProvider></WindowAccountProvider>
+    </SurfaceAppearanceProvider></WindowNavigationProvider>
   );
 }
 

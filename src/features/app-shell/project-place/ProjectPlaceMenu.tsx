@@ -7,6 +7,8 @@ import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMen
 import { ProjectAudienceRows, type ProjectAudience } from "../../../components/project-audience";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import { SpaceMark, SpacePlanBadge, useSpaceName } from "../../cloud/spaces/SpaceMark";
+import { useWindowNavigation } from "../../../components/WindowNavigation";
+import { LOCAL_PLACE, WindowNavigationRows, windowNavigationHasRows } from "./WindowNavigationRows";
 import { cloudLinkHasProblem, cloudLinkProblemMessage, type ProjectPlaceAction, type ProjectPlaceCloudLink, type ProjectPlaceMenu } from "./projectPlaceMenuState";
 import "./project-place.css";
 
@@ -26,6 +28,8 @@ export type ProjectPlaceMenuProps = Readonly<{
    * team through a copy in the Cloud. Absent where neither is available.
    */
   audience?: ProjectAudience | null;
+  /** Back to Home, where every place and its projects are. */
+  onHome?: () => void;
 }>;
 
 /**
@@ -34,8 +38,11 @@ export type ProjectPlaceMenuProps = Readonly<{
  * computer, or another computer. A folder's path is a detail of this computer,
  * so it stays in the menu. A small cloud after this computer says the folder
  * has a copy in the Cloud.
+ *
+ * The menu is also the window's way out: back to Home, to another place, and
+ * to the account, so the Header's trailing end keeps the project's tools only.
  */
-export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
+export function ProjectPlaceMenuControl({ menu, handlers, audience, onHome, projectMenuOpen = false, onOpen }: ProjectPlaceMenuProps & {
   projectMenuOpen?: boolean;
   onOpen?: () => void;
 }) {
@@ -63,9 +70,9 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
     </button>
     <DesktopTitlebarMenuLayer anchorRef={anchor} open={open} onDismiss={() => setOpen(false)}
       dismissOnFocusExit={false} className="desktop-project-place-menu" gap={2}
-      preferredWidth={280} preferredMaxHeight={260} widthMode="content" alignment="start" role="dialog"
+      preferredWidth={280} preferredMaxHeight={560} widthMode="content" alignment="start" role="dialog"
       ariaLabel={t("cloud.placeMenu.label")}>
-      <ProjectPlaceRows menu={menu} handlers={handlers} audience={audience} onDismiss={() => setOpen(false)} />
+      <ProjectPlaceRows menu={menu} handlers={handlers} audience={audience} onHome={onHome} onDismiss={() => setOpen(false)} />
     </DesktopTitlebarMenuLayer>
   </div>;
 }
@@ -74,10 +81,12 @@ export function ProjectPlaceMenuControl({ menu, handlers, audience, projectMenuO
  * Where the project is, as a fact, then what can be done about it. A local project
  * says who can open it, in the Homepage's three audiences; a Cloud project offers
  * the folder linked to it. Invitations belong to the Cloud project, never here.
+ * Then the window's places and the account.
  */
-export function ProjectPlaceRows({ menu, handlers, audience, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
+export function ProjectPlaceRows({ menu, handlers, audience, onHome, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
   const place = useProjectPlaceName(menu);
+  const navigation = useWindowNavigation();
   const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
   // A local project's audiences carry its Cloud copy and its other computers.
   const byAudience = menu.place === "local" ? audience : null;
@@ -111,6 +120,10 @@ export function ProjectPlaceRows({ menu, handlers, audience, onDismiss }: Projec
       <DesktopMenuItem className="desktop-project-place-row" role="button" data-project-place-row="history"
         icon={<History size={15} strokeWidth={1.75} aria-hidden="true" />}
         label={t("source-control.history.title")} onClick={run(handlers.onOpenHistory)} />
+    </>}
+    {windowNavigationHasRows(navigation, onHome) && <>
+      <DesktopMenuSeparator />
+      <WindowNavigationRows current={currentPlace(menu)} onHome={onHome} onDismiss={onDismiss} itemRole="button" />
     </>}
   </section>;
 }
@@ -149,6 +162,12 @@ function useCloudLinkLabel() {
 function cloudLinkState(link: ProjectPlaceCloudLink | null | undefined) {
   if (!link) return undefined;
   return cloudLinkHasProblem(link) ? "problem" : "linked";
+}
+
+/** The open project's place among the window's places, where it is one of them. */
+function currentPlace(menu: ProjectPlaceMenu) {
+  if (menu.space) return menu.space.id;
+  return menu.place === "local" ? LOCAL_PLACE : null;
 }
 
 /** A folder path always reads left to right; an organization's name follows its own script. */

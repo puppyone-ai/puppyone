@@ -147,9 +147,9 @@ async function run() {
     throw new Error(`Window did not settle: ${expression}`);
   };
   const openPlan = async owner => {
-    await owner.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-actions .homepage-cloud-avatar').click()", true);
-    await untilOwner(owner, "!!document.querySelector('.desktop-account-menu .desktop-menu-item')");
-    await owner.webContents.executeJavaScript("document.querySelector('.desktop-account-menu .desktop-menu-item').click()", true);
+    await owner.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-place-wrap > button').click()", true);
+    await untilOwner(owner, "!!document.querySelector('[data-account-row=\"account\"]')");
+    await owner.webContents.executeJavaScript("document.querySelector('[data-account-row=\"account\"]').click()", true);
     await untilOwner(owner, "!!document.querySelector('.desktop-settings-dialog')");
     await owner.webContents.executeJavaScript("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()", true);
     await untilOwner(owner, "!!document.querySelector('.desktop-settings-space-picker select')");
@@ -200,10 +200,10 @@ async function run() {
   await closeSettings(window);
   await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: false }));");
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.reload(); });
-  await until("!!document.querySelector('.desktop-titlebar-actions .homepage-cloud-avatar')", 'account with Cloud off');
-  await evaluate("document.querySelector('.desktop-titlebar-actions .homepage-cloud-avatar').click()");
-  await until("!!document.querySelector('.desktop-account-menu .desktop-menu-item')", 'account menu');
-  await evaluate("document.querySelector('.desktop-account-menu .desktop-menu-item').click()");
+  await until("!!document.querySelector('.desktop-titlebar-place-wrap > button')", 'account with Cloud off');
+  await evaluate("document.querySelector('.desktop-titlebar-place-wrap > button').click()");
+  await until("!!document.querySelector('[data-account-row=\"account\"]')", 'account menu');
+  await evaluate("document.querySelector('[data-account-row=\"account\"]').click()");
   await until("document.querySelector('.desktop-account-settings-section h2')?.textContent === 'Account'", 'Account stays accessible');
   await capture('05-account-with-cloud-off');
   report.all_spaces_on_home = true;

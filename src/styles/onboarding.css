@@ -1328,6 +1328,19 @@ span.homepage-cloud-feedback {
   opacity: 0.38;
 }
 
+/* A place chosen from the Header comes into view under it, filled for a moment. */
+.onboarding-project-group {
+  scroll-margin-top: 12px;
+}
+
+.onboarding-project-group[data-project-group-focus]::before {
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+}
+
+.onboarding-project-group[data-project-group-focus] .onboarding-project-group-head {
+  color: var(--po-text);
+}
+
 .onboarding-project-group[data-drop-available]::before {
   background: color-mix(in srgb, var(--po-text) 4%, transparent);
 }
