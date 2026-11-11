@@ -93,8 +93,8 @@ app.whenReady().then(async () => {
   try {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window");
     window.unmaximize();
-    const display = screen.getPrimaryDisplay().workAreaSize;
-    window.setSize(Math.min(1400, display.width - 48), Math.min(950, display.height - 48));
+    const displaySize = screen.getPrimaryDisplay().workAreaSize;
+    window.setSize(Math.min(1400, displaySize.width - 48), Math.min(950, displaySize.height - 48));
     window.webContents.setBackgroundThrottling(false);
     const prototype = Object.getPrototypeOf(window.webContents);
     const send = prototype.send;
@@ -224,6 +224,7 @@ app.whenReady().then(async () => {
     const replacement = { ...saved, elements: [embed], appState: { ...saved.appState, viewBackgroundColor: "#fff4e6" } };
     const replacementText = JSON.stringify(replacement);
     await fs.writeFile(path.join(root, "board.excalidraw"), replacementText);
+    if (process.env.PUPPYONE_QA_INJECT_WATCH === "1") window.webContents.send("workspace:changed", { rootPath: root, path: "board.excalidraw", paths: ["board.excalidraw"], eventType: "change" });
     await until(() => evaluate("!!document.querySelector('.whiteboard-editor iframe')"), "AI replacement and HTML embed");
     console.log("Whiteboard: embedding");
     const frame = await until(() => window.webContents.mainFrame.frames.find(frame => frame.url.includes("/document-projection/")), "HTML projection frame");
@@ -236,6 +237,7 @@ app.whenReady().then(async () => {
     await wait(200);
     assert.equal(await disk(), replacementText, "undo cannot resurrect pre-AI scene");
     await fs.writeFile(path.join(root, "demo.html"), '<!doctype html><h1 id="updated">Updated HTML</h1>');
+    if (process.env.PUPPYONE_QA_INJECT_WATCH === "1") window.webContents.send("workspace:changed", { rootPath: root, path: "demo.html", paths: ["demo.html"], eventType: "change" });
     await until(async () => {
       for (const frame of window.webContents.mainFrame.frames) {
         if (frame.url.includes("/document-projection/") && await frame.executeJavaScript("!!document.querySelector('#updated')").catch(() => false)) return true;
