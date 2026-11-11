@@ -7,11 +7,13 @@ import { createProjectInitializationService } from "../../../../electron/main/pr
 import { materializeTemplate, validateTemplatePlan } from "../../../../electron/local-api/templates/materialize.mjs";
 import { publishDirectory } from "../../../../electron/local-api/templates/publish-directory.mjs";
 import { resolveProjectTemplate } from "../../../../electron/local-api/templates/project-catalog.mjs";
+import { syncGettingStartedSamples } from "../../../../scripts/project-templates/getting-started-samples.mjs";
 
 let root, parentPath, journalDirectory;
-const source = { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } };
+const source = { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 } };
 const request = (extra = {}) => ({ parentPath, name: "Notes", operationId: randomUUID(), source, locale: "en", ...extra });
 const guide = { files: [{ path: "Getting Started.md", content: "hello" }], initialOpenPath: "Getting Started.md" };
+const samplePaths = ["Formats.csv", "Getting Started.md", "How It Works.html", "Workspace Map.excalidraw"];
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-initialization-"));
@@ -75,10 +77,11 @@ describe("project initialization receipts", () => {
   it("creates an ordinary localized guide and a separately selectable true blank folder", async () => {
     const service = createProjectInitializationService({ journalDirectory });
     const receipt = await service.initialize(request({ locale: "zh-Hans" }));
-    expect(receipt).toMatchObject({ outcome: "committed", initialOpenPath: "Getting Started.md", createdPaths: ["Getting Started.md"], template: { version: 1, resolvedLocale: "zh-Hans" } });
+    expect(receipt).toMatchObject({ outcome: "committed", initialOpenPath: "Getting Started.md", template: { version: 2, resolvedLocale: "zh-Hans" } });
+    expect([...receipt.createdPaths].sort()).toEqual(samplePaths);
     expect(receipt.template.digest).toMatch(/^[a-f0-9]{64}$/);
     expect(await fs.readFile(path.join(receipt.path, receipt.initialOpenPath), "utf8")).toContain("云端模型");
-    expect(await fs.readdir(receipt.path)).toEqual(["Getting Started.md"]);
+    expect((await fs.readdir(receipt.path)).sort()).toEqual(samplePaths);
     const blank = await service.initialize(request({ name: "Blank", source: { kind: "blank" } }));
     expect(blank.initialOpenPath).toBeNull();
     expect(blank.template).toBeNull();
@@ -91,12 +94,19 @@ describe("project initialization receipts", () => {
     for (const locale of supportedLocales) {
       const plan = await resolveProjectTemplate(source, locale);
       expect(plan.template.resolvedLocale).toBe(locale);
-      expect(plan.files).toHaveLength(1);
+      expect(plan.files.map((file) => file.path).sort()).toEqual(samplePaths);
       expect(plan.files[0].path).toBe("Getting Started.md");
       if (locale !== "en") expect(plan.files[0].content.toString()).not.toBe(english);
+      const text = (name) => plan.files.find((file) => file.path === name).content.toString();
+      const map = JSON.parse(text("Workspace Map.excalidraw"));
+      expect(map).toMatchObject({ type: "excalidraw", version: 2 });
+      expect(map.elements.every((element) => element.roughness === 0 && element.roundness === null)).toBe(true);
+      expect(text("Formats.csv").trim().split("\n")).toHaveLength(9);
+      expect(text("How It Works.html")).not.toMatch(/\s(?:src|href)="(?:https?:)?\/\//);
     }
+    await expect(syncGettingStartedSamples({ check: true })).resolves.toBeUndefined();
     expect((await resolveProjectTemplate(source, "it")).template.resolvedLocale).toBe("en");
-    for (const ref of [{ ...source.ref, version: 2 }, { ...source.ref, sourceId: "remote" }, { ...source.ref, id: "slides.default" }]) {
+    for (const ref of [{ ...source.ref, version: 1 }, { ...source.ref, sourceId: "remote" }, { ...source.ref, id: "slides.default" }]) {
       await expect(resolveProjectTemplate({ kind: "template", ref }, "en")).rejects.toThrow(/unsupported/i);
     }
   });
@@ -112,7 +122,7 @@ describe("project initialization receipts", () => {
     expect(await fs.readFile(file, "utf8")).toBe("my edits");
     await fs.unlink(file);
     await expect(createProjectInitializationService({ journalDirectory }).initialize(input)).resolves.toEqual(one);
-    expect(await fs.readdir(one.path)).toEqual([]);
+    expect((await fs.readdir(one.path)).sort()).toEqual(samplePaths.filter((name) => name !== one.initialOpenPath));
     await expect(service.initialize({ ...input, name: "Another" })).rejects.toThrow(/different request/i);
   });
 
@@ -126,7 +136,7 @@ describe("project initialization receipts", () => {
     await fs.writeFile(journalPath, JSON.stringify(record));
     await expect(createProjectInitializationService({ journalDirectory }).initialize(input)).resolves.toEqual(receipt);
     expect(await fs.readdir(parentPath)).toEqual(["Notes"]);
-    expect(await fs.readdir(receipt.path)).toEqual(["Getting Started.md"]);
+    expect((await fs.readdir(receipt.path)).sort()).toEqual(samplePaths);
   });
 
   it("fails safely on ambiguous recovery without modifying the replacement directory", async () => {

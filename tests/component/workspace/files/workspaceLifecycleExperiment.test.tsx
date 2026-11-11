@@ -187,7 +187,7 @@ describe("multi-project Workspace experiment", () => {
         name: created.name,
         locationGrantId: "grant",
         operationId: "11111111-1111-4111-8111-111111111111",
-        source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+        source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 } },
         locale: "en",
       });
     });

@@ -122,7 +122,7 @@ describe("project template selection", () => {
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       name: "Notes",
-      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 } },
       operationId: expect.any(String),
     }));
     expect(onClose).toHaveBeenCalledOnce();

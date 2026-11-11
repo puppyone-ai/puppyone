@@ -767,7 +767,7 @@ export type WorkspaceCreateProjectRequest = {
   numberIfTaken?: boolean;
   /** Leave this window's Project where it is and open the new one beside it. */
   openInNewWindow?: boolean;
-  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 2 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
   locale: string;
 };
 

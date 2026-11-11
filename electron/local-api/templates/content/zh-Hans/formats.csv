@@ -1,0 +1,9 @@
+格式,扩展名,在 puppyone 里可以,本项目中的示例
+Markdown,.md,边写边排版：标题、表格、任务清单和文件之间的链接,Getting Started.md
+表格,.csv,像电子表格一样编辑单元格，添加行和列,Formats.csv
+网页,.html,预览可交互的页面，并直接修改文字,How It Works.html
+白板,.excalidraw,画图形、连线、贴便签,Workspace Map.excalidraw
+PDF,.pdf,阅读文档,
+Office 文档,.docx .xlsx .pptx,预览文档、表格和幻灯片,
+图片、音频和视频,.png .jpg .mp3 .mp4,预览媒体文件,
+代码和纯文本,.txt .json .js .py,带语法高亮的编辑,
