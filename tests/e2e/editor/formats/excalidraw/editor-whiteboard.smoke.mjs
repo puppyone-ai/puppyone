@@ -63,7 +63,9 @@ app.whenReady().then(async () => {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window");
     window.unmaximize();
     const displaySize = screen.getPrimaryDisplay().workAreaSize;
-    window.setSize(Math.min(1400, displaySize.width - 48), Math.min(950, displaySize.height - 48));
+    const requestedSize = (process.env.PUPPYONE_WHITEBOARD_WINDOW_SIZE ?? "1400x950").match(/^(\d+)x(\d+)$/);
+    assert.ok(requestedSize, "Whiteboard test window size uses WIDTHxHEIGHT");
+    window.setSize(Math.min(Number(requestedSize[1]), displaySize.width - 48), Math.min(Number(requestedSize[2]), displaySize.height - 48));
     window.webContents.setBackgroundThrottling(false);
     window.hide();
     window.webContents.on("console-message", (_event, level, message) => { if (level >= 2) errors.push(message); });
@@ -151,8 +153,18 @@ app.whenReady().then(async () => {
     assert.equal(JSON.parse(await disk()).elements.length, saved.elements.length, "appearance changes do not edit the scene");
     steps.push("whiteboard follows the product color mode without rewriting the file");
     await click('.excalidraw [data-testid="toolbar-text"]');
-    await pointer("mousePressed", x + 200, y + 150);
-    await pointer("mouseReleased", x + 200, y + 150);
+    // Hosted macOS has a small display: the old fixed offset hit the properties
+    // panel. Use the unobstructed canvas and prove the pointer's actual target.
+    const textPoint = await evaluate(`(() => {
+      const canvas = document.querySelector('.excalidraw canvas').getBoundingClientRect();
+      const properties = document.querySelector('.excalidraw .App-menu__left')?.getBoundingClientRect();
+      const x = Math.round((canvas.left + Math.min(canvas.right, properties?.left ?? canvas.right)) / 2);
+      const y = Math.round(canvas.top + canvas.height / 2);
+      return { x, y, onCanvas: document.elementFromPoint(x, y)?.tagName === 'CANVAS' };
+    })()`);
+    assert.ok(textPoint.onCanvas, "text input pointer reaches the canvas, clear of the properties panel");
+    await pointer("mousePressed", textPoint.x, textPoint.y);
+    await pointer("mouseReleased", textPoint.x, textPoint.y);
     await until(() => evaluate("!!document.querySelector('.excalidraw-wysiwyg')"), "text input");
     await window.webContents.debugger.sendCommand("Input.insertText", { text: "Whiteboard 中文" });
     assert.ok(!["none", "missing"].includes(await display('.excalidraw [data-testid="font-family-hand-drawn"]')), "hand-drawn font remains available");
