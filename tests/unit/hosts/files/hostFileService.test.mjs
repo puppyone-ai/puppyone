@@ -12,7 +12,7 @@ const contract = JSON.parse(readFileSync(fileURLToPath(new URL(
 const roots = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))); });
 
-async function setup({ capabilities = ["folder.read", "folder.write"], files = { "note.md": "initial" }, symlinks = {}, watchPath } = {}) {
+async function setup({ capabilities = ["folder.read", "folder.write"], files = { "note.md": "initial" }, symlinks = {}, watchPath, platform } = {}) {
   const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-host-files-")));
   roots.push(base);
   const root = path.join(base, "shared");
@@ -24,7 +24,7 @@ async function setup({ capabilities = ["folder.read", "folder.write"], files = {
   }
   for (const [name, target] of Object.entries(symlinks)) await fs.symlink(target, path.join(root, name));
   let state = "active";
-  const service = createHostFileService({ watchPath, resolveFolder: async (id) => id === "folder" ?
+  const service = createHostFileService({ watchPath, platform, resolveFolder: async (id) => id === "folder" ?
     { rootPath: root, state, capabilities } : null });
   return { root, base, service, revoke: () => { state = "removed"; } };
 }
@@ -101,10 +101,16 @@ describe("host file service", () => {
     } finally { stop(); }
   });
 
-  it("reconciles real file changes when the native directory stream stays silent", async () => {
-    const native = Object.assign(new EventEmitter(), { close: vi.fn() });
+  it.each(["linux", "darwin", "win32"])("reconciles real file changes when the native %s directory stream stays silent", async (platform) => {
+    const watchers = [];
     const { root, base, service } = await setup({
-      watchPath: () => native,
+      platform,
+      // Linux opens one watch per directory; each native handle is distinct.
+      watchPath: () => {
+        const watcher = Object.assign(new EventEmitter(), { close: vi.fn() });
+        watchers.push(watcher);
+        return watcher;
+      },
       files: { "keep.md": "same", "old.md": "old", "nested/note.md": "initial" },
       symlinks: { escape: ".." },
     });
@@ -125,7 +131,8 @@ describe("host file service", () => {
       expect(paths).toEqual(expect.arrayContaining(["nested/note.md", "old.md", "new.md"]));
       expect(paths.some((name) => ["keep.md", "escape", "outside.md", ".git/HEAD", ".puppyone-write-hidden"].includes(name))).toBe(false);
     } finally { stop(); }
-    expect(native.close).toHaveBeenCalledOnce();
+    expect(watchers).toHaveLength(platform === "linux" ? 2 : 1);
+    for (const watcher of watchers) expect(watcher.close).toHaveBeenCalledOnce();
   });
 
   it("ends reconciliation after revocation and releases the native watch", async () => {
