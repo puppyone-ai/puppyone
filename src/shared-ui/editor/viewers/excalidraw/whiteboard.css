@@ -179,6 +179,20 @@
   color: var(--po-text-muted);
 }
 
+/* The main menu shares the left column with the properties panel; move its
+ * inline-positioned wrapper to the top-right corner and open the menu leftward. */
+.whiteboard-editor .excalidraw .App-menu_top__left > :first-child {
+  position: absolute !important;
+  /* Matches the toolbar's 4px inset so the trigger centers against it. */
+  top: 4px;
+  right: 0;
+}
+
+.whiteboard-editor .excalidraw .App-menu_top__left > :first-child > .dropdown-menu {
+  right: 0;
+  left: auto;
+}
+
 .whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-container {
   padding: var(--po-menu-padding);
   border: 1px solid var(--po-menu-border);
