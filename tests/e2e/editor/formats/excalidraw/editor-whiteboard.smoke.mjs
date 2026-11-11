@@ -43,6 +43,7 @@ async function until(check, label) {
 }
 const disk = async () => await fs.readFile(path.join(root, "board.excalidraw"), "utf8");
 const watchAudit = [];
+const rootWatchListeners = [];
 const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
   if (channel === "workspace:watch-start") {
@@ -64,6 +65,7 @@ const originalWatch = nativeFs.watch;
 nativeFs.watch = (location, options, listener) => {
   if (String(location) !== root) return originalWatch.call(nativeFs, location, options, listener);
   watchAudit.push({ type: "start", location });
+  rootWatchListeners.push(listener);
   const watcher = originalWatch.call(nativeFs, location, options, (event, name) => {
     watchAudit.push({ type: "event", event, name: String(name) });
     listener(event, name);
@@ -225,6 +227,7 @@ app.whenReady().then(async () => {
     const replacementText = JSON.stringify(replacement);
     await fs.writeFile(path.join(root, "board.excalidraw"), replacementText);
     if (process.env.PUPPYONE_QA_INJECT_WATCH === "1") window.webContents.send("workspace:changed", { rootPath: root, path: "board.excalidraw", paths: ["board.excalidraw"], eventType: "change" });
+    if (process.env.PUPPYONE_QA_INJECT_WATCH === "2") rootWatchListeners.forEach(listener => listener("change", "board.excalidraw"));
     await until(() => evaluate("!!document.querySelector('.whiteboard-editor iframe')"), "AI replacement and HTML embed");
     console.log("Whiteboard: embedding");
     const frame = await until(() => window.webContents.mainFrame.frames.find(frame => frame.url.includes("/document-projection/")), "HTML projection frame");
@@ -238,6 +241,7 @@ app.whenReady().then(async () => {
     assert.equal(await disk(), replacementText, "undo cannot resurrect pre-AI scene");
     await fs.writeFile(path.join(root, "demo.html"), '<!doctype html><h1 id="updated">Updated HTML</h1>');
     if (process.env.PUPPYONE_QA_INJECT_WATCH === "1") window.webContents.send("workspace:changed", { rootPath: root, path: "demo.html", paths: ["demo.html"], eventType: "change" });
+    if (process.env.PUPPYONE_QA_INJECT_WATCH === "2") rootWatchListeners.forEach(listener => listener("change", "demo.html"));
     await until(async () => {
       for (const frame of window.webContents.mainFrame.frames) {
         if (frame.url.includes("/document-projection/") && await frame.executeJavaScript("!!document.querySelector('#updated')").catch(() => false)) return true;

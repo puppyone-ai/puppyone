@@ -41,6 +41,7 @@ export function createWorkspaceWatchService({ logger = console, fsModule = fs } 
     const subscriptionId = `workspace-watch-${(workspaceWatchSubscriptionSequence += 1)}-${Date.now().toString(36)}`;
     const onSenderDestroyed = () => stop(subscriptionId);
     entry.clients.set(subscriptionId, sender);
+    if (resolvedRoot.includes("puppyone-whiteboard-")) console.info("WHITEBOARD_QA_WATCH_START " + JSON.stringify({ subscriptionId, root: resolvedRoot, clients: entry.clients.size }));
     subscriptions.set(subscriptionId, {
       root: resolvedRoot,
       senderId: sender.id,
@@ -77,6 +78,7 @@ export function createWorkspaceWatchService({ logger = console, fsModule = fs } 
 
   function stop(subscriptionId, expectedSenderId = null) {
     const subscription = subscriptions.get(subscriptionId);
+    if (subscription?.root.includes("puppyone-whiteboard-")) console.info("WHITEBOARD_QA_WATCH_STOP " + JSON.stringify({ subscriptionId, stack: new Error().stack }));
     if (!subscription) return { ok: true };
     if (expectedSenderId !== null && subscription.senderId !== expectedSenderId) {
       return { ok: true };
@@ -356,6 +358,7 @@ function scheduleWorkspaceEditReviewFlush(entry) {
 }
 
 function broadcastWorkspaceChange(entry) {
+  if (entry.rootPath.includes("puppyone-whiteboard-")) console.info("WHITEBOARD_QA_WATCH_BROADCAST " + JSON.stringify({ clients: entry.clients.size, last: entry.lastEvent, pending: [...entry.pendingPaths] }));
   if (!entry.lastEvent) return;
 
   const paths = [...entry.pendingPaths];
@@ -402,6 +405,7 @@ function broadcastWorkspaceChange(entry) {
 }
 
 function deliverWorkspaceChange(entry, event, suppressedSendersByPath) {
+  if (entry.rootPath.includes("puppyone-whiteboard-")) console.info("WHITEBOARD_QA_WATCH_DELIVER " + JSON.stringify({ clients: entry.clients.size, suppressed: [...suppressedSendersByPath], event }));
   if (entry.disposed) return;
   for (const [id, sender] of entry.clients.entries()) {
     if (typeof sender.isDestroyed === "function" && sender.isDestroyed()) {
