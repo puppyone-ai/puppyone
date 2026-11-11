@@ -11,8 +11,10 @@ import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-buil
 import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-whiteboard-"));
-const output = path.join(repo, "artifacts/tests/editor/whiteboard", String(Date.now()));
+const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-whiteboard-")));
+const output = process.env.PUPPYONE_WHITEBOARD_ARTIFACT_DIR
+  ? path.resolve(process.env.PUPPYONE_WHITEBOARD_ARTIFACT_DIR)
+  : path.join(repo, "artifacts/tests/editor/whiteboard", String(Date.now()));
 await fs.mkdir(output, { recursive: true });
 const source = await readSourceIdentity(repo);
 app.setAppPath(repo);
@@ -220,6 +222,10 @@ app.whenReady().then(async () => {
     if (window && !window.isDestroyed()) {
       await fs.writeFile(path.join(output, "failure.png"), (await window.webContents.capturePage()).toPNG());
       await fs.writeFile(path.join(output, "failure-dom.txt"), await evaluate("document.body.innerHTML"));
+      const frames = await Promise.all(window.webContents.mainFrame.frames.map(async frame => ({
+        url: frame.url, content: await frame.executeJavaScript("document.documentElement.outerHTML").catch(() => "unavailable"),
+      })));
+      await fs.writeFile(path.join(output, "failure-frames.json"), JSON.stringify(frames, null, 2));
     }
   } finally {
     clearTimeout(deadline);

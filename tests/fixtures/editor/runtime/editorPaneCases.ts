@@ -22,6 +22,8 @@ export const EDITOR_PANE_CASES: readonly EditorPaneCase[] = [
   { id: "puppyflow", viewerId: "puppyflow", name: "flow.puppyflow", type: "workflow",
     content: JSON.stringify({ kind: "puppyflow", version: 1, title: "Pane flow", description: "", steps: [{ id: "step_pane", agent: "codex", prompt: "Keep this prompt", enabled: true }] }), selector: ".puppyflow-prompt-cell textarea" },
   { id: "json", viewerId: "json", name: "settings.json", type: "json", content: '{"pane":"retained"}', selector: ".cm-editor" },
+  { id: "whiteboard", viewerId: "excalidraw", name: "board.excalidraw", type: "whiteboard",
+    content: JSON.stringify({ type: "excalidraw", version: 2, elements: [], appState: {}, files: {} }), selector: ".whiteboard-editor canvas" },
   ...([",", "\t"] as const).map((delimiter) => ({
     id: delimiter === "," ? "csv" : "tsv", viewerId: "csv-table", name: delimiter === "," ? "table.csv" : "table.tsv", type: "spreadsheet" as const,
     mimeType: delimiter === "," ? "text/csv" : "text/tab-separated-values",
