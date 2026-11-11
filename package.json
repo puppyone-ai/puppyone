@@ -123,6 +123,7 @@
     "smoke:html-app": "electron tests/e2e/editor/formats/html/editor-html.smoke.mjs",
     "smoke:pdf-dom": "electron tests/integration/editor/formats/pdf/dom-embedded-pdf-surface.smoke.mjs",
     "smoke:cloud-formats": "electron tests/integration/cloud/repositories/native-cloud-workbench.smoke.mjs",
+    "smoke:cloud-auth-network": "node tests/support/runners/run-cloud-auth-network-smoke.mjs",
     "smoke:cloud-agent": "electron tests/integration/cloud/agent/cloud-agent-sidebar.smoke.mjs",
     "test:e2e:cloud-agent:live": "node tests/e2e/cloud/agent/cloud-agent-live.smoke.mjs",
     "smoke:pdf-app": "electron tests/e2e/editor/formats/pdf/editor-pdf.smoke.mjs",

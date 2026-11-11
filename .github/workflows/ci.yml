@@ -62,6 +62,15 @@ jobs:
       - name: Pre-release Checks — platform
         run: npm run check:release -- --group platform
 
+      - name: Prepare headless Electron network test
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install --yes xvfb
+
+      - name: Verify Cloud authentication through the native proxy transport
+        run: npm run smoke:cloud-auth-network
+
       - name: Retain pre-release check results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
