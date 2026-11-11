@@ -26,5 +26,26 @@ describe("Excalidraw Desktop host integration", () => {
       }
       expect(() => patchExcalidrawHostIntegration(source + source, build)).toThrow("review");
     });
+    it(`repaints ${build} breakpoints when window resize already updated the canvas dimensions`, () => {
+      const source = patchExcalidrawHostIntegration(upstream(build), build).source;
+      const observer = source.match(/new ResizeObserver\(\(\)\s*=>\s*\{([^{}]*(?:\{\}[^{}]*)*)\}\)/g)
+        ?.find(callback => callback.includes("Puppyone breakpoint repaint"));
+      expect(observer).toBeTruthy();
+      let callback;
+      const ResizeObserver = class { constructor(listener) { callback = listener; } };
+      let mobile = false;
+      const renders = [];
+      const host = {
+        refreshEditorBreakpoints: () => { const changed = !mobile; mobile = true; return changed; },
+        // The window resize already committed width=440, so this is a no-op.
+        updateDOMRect: () => {},
+        setState: () => renders.push(mobile),
+      };
+      new Function("ResizeObserver", `return ${observer}`).call(host, ResizeObserver);
+      callback();
+      expect(renders).toEqual([true]);
+      callback();
+      expect(renders).toEqual([true]);
+    });
   }
 });

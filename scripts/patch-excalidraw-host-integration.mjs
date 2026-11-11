@@ -17,6 +17,9 @@ const overlayHost = 'document.getElementById("desktop-overlay-root")/* Puppyone 
  * Mouse-driven editors keep the desktop layout down to 500px; touch-primary
  * devices retain upstream behavior.
  * Upstream: packages/excalidraw/components/App.tsx, isMobileBreakpoint.
+ * The ResizeObserver must also publish changed breakpoints: on macOS the
+ * window resize can update the canvas dimensions first, so updateDOMRect then
+ * sees no change and otherwise leaves the mobile UI on its previous layout.
  *
  * Overlay host: modals and tooltips are appended to document.body, outside the
  * themed Desktop overlay root, so they cannot resolve product appearance tokens.
@@ -44,6 +47,10 @@ export const excalidrawHostPatches = {
       after: `__publicField(this, "isMobileBreakpoint", (width, height) => {\n      ${desktopGuard("width")}`,
     },
     {
+      before: "this.resizeObserver = new ResizeObserver(() => {\n        this.refreshEditorBreakpoints();\n        this.updateDOMRect();\n      });",
+      after: "this.resizeObserver = new ResizeObserver(() => {\n        const breakpointsChanged = this.refreshEditorBreakpoints();\n        this.updateDOMRect();\n        if (breakpointsChanged) this.setState({}); /* Puppyone breakpoint repaint */\n      });",
+    },
+    {
       before: "excalidrawContainer?.querySelector(opts.parentSelector) : document.body;",
       after: `excalidrawContainer?.querySelector(opts.parentSelector) : ${overlayHost};`,
     },
@@ -68,6 +75,10 @@ export const excalidrawHostPatches = {
     {
       before: 'C(this,"isMobileBreakpoint",(t,r)=>t<Ch||r<Sh&&t<Ih);',
       after: `C(this,"isMobileBreakpoint",(t,r)=>{${desktopGuard("t")}return t<Ch||r<Sh&&t<Ih});`,
+    },
+    {
+      before: "new ResizeObserver(()=>{this.refreshEditorBreakpoints(),this.updateDOMRect()})",
+      after: "new ResizeObserver(()=>{const t=this.refreshEditorBreakpoints();this.updateDOMRect();if(t)this.setState({});/* Puppyone breakpoint repaint */})",
     },
     {
       before: "i?.querySelector(e.parentSelector):document.body;",
