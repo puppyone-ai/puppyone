@@ -39,6 +39,7 @@ export class ExcalidrawDocumentModel {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   setInputEnabled = (enabled: boolean) => { this.enabled = enabled; };
   replaceContent = (content: string): EditorSourceSnapshot => {
+    console.info("WHITEBOARD_QA_REPLACE " + JSON.stringify({ generation: this.generation, elements: parseWhiteboard(content)?.elements?.map(element => element.type) }));
     this.scene = parseWhiteboard(content);
     this.baseline = null;
     this.snapshot = { content, revision: `excalidraw:${++this.sequence}` };

@@ -303,6 +303,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     content: string,
     version: string | null = null,
   ): ExternalBaselineResult => {
+    if (this.documentId.endsWith("board.excalidraw")) console.info("WHITEBOARD_QA_BASELINE " + JSON.stringify({ version, content: content.slice(0, 150), source: !!this.source, pending: !!this.pending, inFlight: !!this.inFlight }));
     const recovering = Boolean(this.unavailable);
     this.unavailable = null;
     this.updateInputAvailability();

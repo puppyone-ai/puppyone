@@ -5,7 +5,7 @@ import nativeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen, ipcMain } from "electron";
 import { workspaceFromPath } from "../../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-build-identity.mjs";
@@ -43,6 +43,23 @@ async function until(check, label) {
 }
 const disk = async () => await fs.readFile(path.join(root, "board.excalidraw"), "utf8");
 const watchAudit = [];
+const handle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
+  if (channel === "workspace:watch-start") {
+    watchAudit.push({ type: "subscription", request: args });
+    const send = event.sender.send.bind(event.sender);
+    event.sender.send = (name, ...data) => {
+      if (name === "workspace:changed") watchAudit.push({ type: "message", data });
+      return send(name, ...data);
+    };
+  }
+  const result = await listener(event, ...args);
+  if (channel === "workspace:read-file" && args[0]?.path?.endsWith("board.excalidraw")) {
+    let scene; try { scene = JSON.parse(result.content); } catch {}
+    watchAudit.push({ type: "read", version: result.version, elements: scene?.elements?.map(element => element.type) });
+  }
+  return result;
+});
 const originalWatch = nativeFs.watch;
 nativeFs.watch = (location, options, listener) => {
   if (String(location) !== root) return originalWatch.call(nativeFs, location, options, listener);
@@ -75,7 +92,9 @@ await import("../../../../../electron/main.mjs");
 app.whenReady().then(async () => {
   try {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window");
-    window.setSize(1400, 950);
+    window.unmaximize();
+    const display = screen.getPrimaryDisplay().workAreaSize;
+    window.setSize(Math.min(1400, display.width - 48), Math.min(950, display.height - 48));
     window.webContents.setBackgroundThrottling(false);
     const prototype = Object.getPrototypeOf(window.webContents);
     const send = prototype.send;
@@ -114,7 +133,8 @@ app.whenReady().then(async () => {
     assert.equal(await display(".excalidraw .HintViewer"), "none", "canvas hints stay hidden");
     steps.push("standard file opens without writes; pointer drawing saves through document session");
     const boardWidth = () => evaluate("document.querySelector('.whiteboard-editor').getBoundingClientRect().width");
-    const chrome = 1400 - await boardWidth();
+    const [contentWidth, contentHeight] = window.getContentSize();
+    const chrome = contentWidth - await boardWidth();
     const isMobile = "document.querySelector('.excalidraw').classList.contains('excalidraw--mobile')";
     const box = selector => evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();return r&&{top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height}})()`);
     const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -124,13 +144,13 @@ app.whenReady().then(async () => {
       assert.ok(!overlaps(toolbar, footer) && !overlaps(toolbar, properties), `${label}: the toolbar clears the zoom footer and properties panel`);
     };
     await assertBottomToolbar("wide pane");
-    window.setSize(Math.round(chrome + 560), 950);
+    window.setContentSize(Math.round(chrome + 560), contentHeight);
     await until(async () => Math.abs(await boardWidth() - 560) < 2, "narrow desktop whiteboard");
     await wait(300);
     assert.equal(await evaluate(isMobile), false, "a narrow mouse-driven pane keeps the desktop layout");
     await assertBottomToolbar("narrow pane");
     await fs.writeFile(path.join(output, "whiteboard-narrow.png"), (await window.webContents.capturePage()).toPNG());
-    window.setSize(Math.round(chrome + 440), 950);
+    window.setContentSize(Math.round(chrome + 440), contentHeight);
     await until(() => evaluate(isMobile), "phone layout below 500px");
     await click('.excalidraw .App-bottom-bar button[aria-label="Edit"]');
     await until(() => evaluate("!!document.querySelector('.excalidraw .App-bottom-bar .panelColumn')"), "phone properties sheet");
@@ -139,7 +159,7 @@ app.whenReady().then(async () => {
     await wait(300);
     await fs.writeFile(path.join(output, "whiteboard-phone.png"), (await window.webContents.capturePage()).toPNG());
     await click('.excalidraw .App-bottom-bar button[aria-label="Edit"]');
-    window.setSize(1400, 950);
+    window.setContentSize(contentWidth, contentHeight);
     await until(async () => !(await evaluate(isMobile)), "desktop layout restored");
     await assertBottomToolbar("restored pane");
     steps.push("the shape toolbar sits at the bottom without overlap; narrow panes keep the desktop layout; the phone sheet stays partial");
