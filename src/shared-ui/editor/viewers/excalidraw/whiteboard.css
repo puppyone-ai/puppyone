@@ -4,6 +4,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  container: whiteboard / inline-size;
 }
 
 .whiteboard-editor .native-preview-frame {
@@ -102,6 +103,28 @@
   padding: 10px;
 }
 
+/* Desktop layout persists down to 500px (see scripts/patch-excalidraw-mobile-breakpoint.mjs). */
+@container whiteboard (max-width: 840px) {
+  .whiteboard-editor .excalidraw .App-menu__left {
+    top: calc(var(--lg-button-size) + 16px);
+  }
+}
+
+@container whiteboard (max-width: 620px) {
+  .whiteboard-editor .excalidraw .App-menu_top {
+    grid-template-columns: auto 1fr 0;
+    column-gap: 8px;
+  }
+
+  .whiteboard-editor .excalidraw .shapes-section {
+    justify-content: flex-start;
+  }
+}
+
+.whiteboard-editor .excalidraw .App-bottom-bar > .Island {
+  max-height: 55%;
+}
+
 .whiteboard-editor .excalidraw .panelColumn {
   row-gap: 10px;
 }
@@ -126,7 +149,7 @@
 }
 
 /* Option buttons sit directly on the panel material, like product menu rows. */
-.whiteboard-editor .excalidraw .App-menu__left .buttonList {
+.whiteboard-editor .excalidraw :is(.App-menu__left, .App-mobile-menu) .buttonList {
   --button-bg: transparent;
   --button-border: transparent;
   --button-hover-bg: var(--po-hover);
