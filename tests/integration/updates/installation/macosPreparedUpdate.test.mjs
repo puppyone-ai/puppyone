@@ -8,6 +8,7 @@ import { createMacosPreparedUpdate } from "../../../../electron/main/platform/ma
 
 const run = promisify(execFile);
 const IDENTIFIER = "ai.puppyone.test.prepared-update";
+const BUNDLE_MTIME = new Date("2000-01-01T00:00:00.000Z");
 const roots = [];
 const processes = [];
 
@@ -124,9 +125,10 @@ async function createWorld() {
   roots.push(root);
   const appPath = path.join(root, "Applications", "Prepared Test.app");
   const stagingRoot = path.join(root, "Caches", "prepared-test.prepared-update");
-  const openMarker = path.join(root, "opened");
-  const openCommand = path.join(root, "open");
-  await fs.writeFile(openCommand, `#!/bin/sh\nprintf '%s' "$1" > ${JSON.stringify(openMarker)}\n`, { mode: 0o755 });
+  // A fresh unsigned script can spend over a second in macOS execution checks.
+  // Use a trusted native command to observe the actual dispatch and target;
+  // keep the real detached process and the existing sub-second assertion.
+  const openCommand = "/usr/bin/touch";
   await buildApp(appPath, "1.0.0");
   let running = null;
 
@@ -153,7 +155,7 @@ async function createWorld() {
     async installedVersion() {
       return JSON.parse(await fs.readFile(path.join(appPath, "Contents/Resources/build-info.json"), "utf8")).version;
     },
-    opened: () => fs.readFile(openMarker, "utf8").catch(() => null),
+    opened: async () => (await fs.stat(appPath)).mtimeMs > BUNDLE_MTIME.getTime() ? appPath : null,
     async until(probe, timeoutMs = 5000) {
       const deadline = Date.now() + timeoutMs;
       while (!(await probe())) {
@@ -180,4 +182,5 @@ async function buildApp(appPath, version, identifier = IDENTIFIER) {
   await fs.copyFile("/bin/sleep", path.join(appPath, "Contents/MacOS/prepared-test"));
   // Ad hoc, with the requirement a release app's would hold: its identifier.
   await run("/usr/bin/codesign", ["--force", "--sign", "-", "-r=designated => identifier \"" + IDENTIFIER + "\"", appPath]);
+  await fs.utimes(appPath, BUNDLE_MTIME, BUNDLE_MTIME);
 }

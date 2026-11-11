@@ -11,7 +11,7 @@ import {
 
 const GETTING_STARTED = {
   kind: "template",
-  ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
+  ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 },
 } as const;
 
 /** Who can open the new project: the same three audiences as the Homepage's groups. */

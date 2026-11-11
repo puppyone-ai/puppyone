@@ -9,6 +9,8 @@ import {
 function createFakeFsWatch() {
   const watchers = [];
   const fsModule = {
+    readdirSync: () => [],
+    statSync: () => ({ ino: 1, dev: 1 }),
     promises: {
       readFile: vi.fn(async () => Buffer.from("after")),
     },

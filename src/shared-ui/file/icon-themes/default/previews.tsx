@@ -11,7 +11,7 @@ import {
   renderFolderPreview,
   SNIPPET_PREVIEW_KINDS,
 } from "../shared/PreviewShell";
-import { DatabaseGlyph, HtmlDocumentGlyph } from "../shared/semanticGlyphs";
+import { DatabaseGlyph, HtmlDocumentGlyph, WhiteboardGlyph } from "../shared/semanticGlyphs";
 import { renderDefaultFolderPreviewGlyph } from "./glyphs";
 
 const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
@@ -19,6 +19,7 @@ const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
   app: renderDefaultAppPreviewGlyph,
   "context-map": renderDefaultWorkflowPreviewGlyph,
   workflow: renderDefaultWorkflowPreviewGlyph,
+  whiteboard: WhiteboardGlyph,
   markdown: renderDefaultDocumentPreviewGlyph,
   json: renderDefaultDocumentPreviewGlyph,
   html: HtmlDocumentGlyph,

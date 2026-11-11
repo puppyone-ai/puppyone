@@ -1,0 +1,583 @@
+.whiteboard-editor {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  container: whiteboard / inline-size;
+}
+
+.whiteboard-editor .native-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Excalidraw declares its palette on .excalidraw and .excalidraw.theme--dark;
+ * both selectors are listed so the host tokens win in either color mode.
+ * Modals portal into the themed overlay root
+ * (see scripts/patch-excalidraw-host-integration.mjs). */
+.whiteboard-editor .excalidraw,
+.whiteboard-editor .excalidraw.theme--dark,
+.desktop-overlay-root > .excalidraw.excalidraw-modal-container {
+  --ui-font: var(--po-font-ui);
+  --border-radius-md: var(--desktop-control-radius);
+  --border-radius-lg: var(--po-menu-radius);
+
+  --color-primary: var(--po-accent);
+  --color-primary-darker: color-mix(in srgb, var(--po-accent) 88%, var(--po-text));
+  --color-primary-darkest: color-mix(in srgb, var(--po-accent) 76%, var(--po-text));
+  --color-primary-hover: var(--color-primary-darker);
+  --color-primary-light: color-mix(in srgb, var(--po-accent) 14%, var(--po-panel-raised));
+  --color-primary-light-darker: color-mix(in srgb, var(--po-accent) 22%, var(--po-panel-raised));
+  --color-brand-hover: var(--color-primary-darker);
+  --color-brand-active: var(--color-primary-darkest);
+  --color-selection: var(--po-accent);
+  --select-highlight-color: var(--po-accent);
+  --focus-highlight-color: var(--po-focus-ring);
+  --link-color: var(--po-accent-text);
+  --color-surface-primary-container: color-mix(in srgb, var(--po-accent) 14%, transparent);
+  --color-on-primary-container: var(--po-accent-text);
+  --color-slider-track: color-mix(in srgb, var(--po-accent) 28%, transparent);
+  --color-slider-thumb: var(--po-text-muted);
+
+  --default-bg-color: var(--po-editor-bg);
+  --island-bg-color: var(--po-menu-bg);
+  --popup-bg-color: var(--po-menu-bg);
+  --sidebar-bg-color: var(--po-menu-bg);
+  --popup-secondary-bg-color: var(--po-panel);
+  --overlay-bg-color: color-mix(in srgb, var(--po-canvas) 88%, transparent);
+  --shadow-island: var(--po-menu-shadow), 0 0 0 1px var(--po-menu-border);
+  --sidebar-shadow: var(--po-menu-shadow);
+  --modal-shadow: var(--po-menu-shadow);
+  --sidebar-border-color: var(--po-border);
+  --dialog-border-color: var(--po-border);
+  --default-border-color: var(--po-border);
+  --avatar-border-color: var(--po-border);
+
+  --color-surface-lowest: var(--po-panel-raised);
+  --color-surface-low: var(--po-hover);
+  --color-surface-mid: var(--po-panel);
+  --color-surface-high: var(--po-control-hover);
+  --color-on-surface: var(--po-text);
+  --text-primary-color: var(--po-text);
+  --popup-text-color: var(--po-text);
+  --keybinding-color: var(--po-text-subtle);
+  --color-disabled: var(--po-text-disabled);
+  --color-border-outline: var(--po-border-strong);
+  --color-border-outline-variant: var(--po-border);
+  --button-hover-bg: var(--po-hover);
+  --button-active-bg: var(--po-selected);
+  --input-bg-color: var(--po-control);
+  --input-border-color: var(--po-border);
+  --input-hover-bg-color: var(--po-control-hover);
+  --input-label-color: var(--po-text-muted);
+  --scrollbar-thumb: var(--po-scrollbar-presentation-thumb);
+  --scrollbar-thumb-hover: var(--po-scrollbar-presentation-thumb-hover);
+}
+
+.whiteboard-editor .excalidraw {
+  --default-button-size: var(--po-control-size-compact);
+  --lg-button-size: var(--po-control-size-compact);
+  --default-icon-size: 15px;
+  --lg-icon-size: 16px;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar-content {
+  padding: 4px;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar__divider {
+  height: 16px;
+  margin: 0 2px;
+}
+
+/* Shortcuts remain in each tool's tooltip; the corner digits crowd compact buttons. */
+.whiteboard-editor .excalidraw .App-toolbar .ToolIcon__keybinding,
+.whiteboard-editor .excalidraw .color-picker__button__hotkey-label {
+  display: none;
+}
+
+/* The panel is already absolutely positioned against the top UI layer; only its
+ * static left-column placement changes. */
+.whiteboard-editor .excalidraw .App-menu__left {
+  top: 0;
+  right: 0;
+  width: 184px;
+  padding: 10px;
+}
+
+/* The shape toolbar shares the bottom edge with the zoom and history footer.
+ * The top-side container spans the whole editor, so the section anchors to its
+ * bottom; Excalidraw caps the properties panel 166px short of the editor height,
+ * which keeps it clear of this row. */
+.whiteboard-editor .excalidraw {
+  --whiteboard-bottom-row: calc(var(--editor-container-padding) + var(--lg-button-size) + 8px);
+}
+
+.whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar__extra-tools-dropdown {
+  top: auto;
+  bottom: calc(100% + 8px);
+  margin-top: 0;
+}
+
+.whiteboard-editor .excalidraw :is(.scroll-back-to-content, .Toast) {
+  bottom: calc(var(--whiteboard-bottom-row) + 12px);
+}
+
+/* Desktop layout persists down to 500px (see scripts/patch-excalidraw-host-integration.mjs). */
+@container whiteboard (max-width: 860px) {
+  .whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+    justify-content: flex-end;
+  }
+}
+
+@container whiteboard (max-width: 660px) {
+  .whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+    justify-content: center;
+  }
+
+  .whiteboard-editor .excalidraw .App-menu_bottom {
+    bottom: calc(var(--whiteboard-bottom-row) + 8px);
+  }
+}
+
+.whiteboard-editor .excalidraw .App-bottom-bar > .Island {
+  max-height: 55%;
+}
+
+.whiteboard-editor .excalidraw .panelColumn {
+  row-gap: 10px;
+}
+
+.whiteboard-editor .excalidraw .panelColumn .buttonList {
+  gap: 4px;
+}
+
+.whiteboard-editor .excalidraw .App-menu__left .buttonList {
+  padding: 2px 0;
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu-button {
+  padding: 0;
+}
+
+.whiteboard-editor .excalidraw .panelColumn :is(legend, h3, .control-label) {
+  margin-bottom: 6px;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro);
+  font-weight: var(--po-text-weight-medium);
+}
+
+/* Option buttons sit directly on the panel material, like product menu rows. */
+.whiteboard-editor .excalidraw :is(.App-menu__left, .App-mobile-menu) .buttonList {
+  --button-bg: transparent;
+  --button-border: transparent;
+  --button-hover-bg: var(--po-hover);
+  --button-hover-border: transparent;
+  --button-active-bg: var(--po-selected);
+  --button-active-border: transparent;
+  --button-selected-border: transparent;
+}
+
+.whiteboard-editor .excalidraw .buttonList :is(label, button, .zIndexButton) {
+  padding: 0;
+  border-radius: var(--desktop-control-radius);
+}
+
+.whiteboard-editor .excalidraw .color-picker__button--large {
+  --radius: var(--desktop-control-radius);
+  width: 24px;
+  height: 24px;
+}
+
+.whiteboard-editor .excalidraw .color-picker__button.active-color {
+  --radius: var(--desktop-control-radius);
+}
+
+/* The range paints its unfilled track with --button-bg. */
+.whiteboard-editor .excalidraw .range-wrapper {
+  --slider-thumb-size: 12px;
+  --button-bg: var(--po-control-hover);
+  --color-slider-track: var(--po-accent);
+  padding-top: 6px;
+  padding-bottom: 20px;
+}
+
+.whiteboard-editor .excalidraw .range-input {
+  height: 3px;
+}
+
+.whiteboard-editor .excalidraw .range-input::-webkit-slider-thumb {
+  background: var(--po-panel-raised);
+  box-shadow: 0 0 0 1px var(--po-border-strong), var(--po-elevation-low);
+}
+
+.whiteboard-editor .excalidraw :is(.zero-label, .value-bubble) {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.whiteboard-editor .excalidraw .reset-zoom-button {
+  width: 48px !important;
+  padding: 0 !important;
+  font-size: var(--po-type-ui-caption) !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--po-text-muted);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-container {
+  padding: var(--po-menu-padding);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  box-shadow: var(--po-menu-shadow);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu :is(.dropdown-menu-item, .dropdown-menu-item-bare) {
+  height: var(--po-menu-item-height);
+  margin: 0;
+  width: 100%;
+  padding: 0 var(--po-menu-item-padding-inline);
+  border: 0;
+  border-radius: var(--po-menu-item-radius);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item-base {
+  column-gap: var(--po-menu-item-gap);
+  font-size: var(--po-type-ui-control);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item:hover {
+  background-color: var(--po-hover);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item svg {
+  color: var(--po-text-muted);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu div:has(> [data-testid="canvas-background-label"]) {
+  margin-top: 4px !important;
+  padding-top: 8px;
+  border-top: 1px solid var(--po-divider);
+}
+
+/* Excalidraw sets this label's size inline. */
+.whiteboard-editor .excalidraw .dropdown-menu [data-testid="canvas-background-label"] {
+  padding: 0 var(--po-menu-item-padding-inline);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro) !important;
+  font-weight: var(--po-text-weight-medium);
+}
+
+/* The extra-tools "Generate" heading is an unclassed div with inline type. */
+.whiteboard-editor .excalidraw .App-toolbar__extra-tools-dropdown .dropdown-menu-container > div:not([class]) {
+  margin: 4px 0 0 !important;
+  padding: 8px var(--po-menu-item-padding-inline) 4px;
+  border-top: 1px solid var(--po-divider);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro) !important;
+  font-weight: var(--po-text-weight-medium) !important;
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item__shortcut {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption);
+  opacity: 1;
+}
+
+.whiteboard-editor .excalidraw .context-menu {
+  min-width: 200px;
+  margin: 0;
+  padding: var(--po-menu-padding);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  background: var(--po-menu-bg);
+  background-clip: padding-box;
+  box-shadow: var(--po-menu-shadow);
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item {
+  height: var(--po-menu-item-height);
+  padding: 0 var(--po-menu-item-padding-inline);
+  border-radius: var(--po-menu-item-radius);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-control);
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+/* Canvas menus carry toggles; reserve the checkmark column only there. */
+.whiteboard-editor .excalidraw .context-menu:has(.checkmark) .context-menu-item {
+  padding-inline-start: 26px;
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item.checkmark::before {
+  left: 9px;
+  color: var(--po-text);
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item:is(:hover, :focus-visible) {
+  background: var(--po-hover);
+  color: var(--po-text);
+  outline: none;
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item.dangerous .context-menu-item__label {
+  color: var(--po-danger);
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item.dangerous:hover {
+  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item__shortcut {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption);
+  opacity: 1;
+}
+
+.whiteboard-editor .excalidraw .context-menu .context-menu-item-separator {
+  margin: 4px 0;
+  border-top: 1px solid var(--po-divider);
+}
+
+/* Color and font pickers: product popovers have no pointer arrow. */
+.whiteboard-editor .excalidraw .focus-visible-none > .Island {
+  padding: 8px;
+}
+
+.whiteboard-editor .excalidraw .focus-visible-none > span:has(> svg) {
+  display: none;
+}
+
+.whiteboard-editor .excalidraw :is(.color-picker__heading, .color-picker-content--canvas-title, .dropdown-menu-group-title) {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-micro);
+  font-weight: var(--po-text-weight-medium);
+}
+
+.whiteboard-editor .excalidraw .color-picker-swatch {
+  border-color: var(--po-border);
+  border-radius: var(--desktop-control-radius);
+}
+
+.whiteboard-editor .excalidraw .QuickSearch__wrapper {
+  border-radius: var(--desktop-control-radius);
+}
+
+.whiteboard-editor .excalidraw .QuickSearch__input {
+  font-size: var(--po-type-ui-control);
+}
+
+.whiteboard-editor .excalidraw .scroll-back-to-content {
+  height: var(--po-control-size);
+  padding: 0 12px;
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  background: var(--po-menu-bg);
+  box-shadow: var(--po-menu-shadow-compact);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-control);
+}
+
+.whiteboard-editor .excalidraw .scroll-back-to-content:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.whiteboard-editor .excalidraw .Toast {
+  padding: 6px 0;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 9px;
+  background: var(--po-menu-bg);
+  box-shadow: var(--po-menu-shadow);
+  font-size: var(--po-type-ui-caption);
+}
+
+.whiteboard-editor .excalidraw-hyperlinkContainer {
+  border-radius: var(--po-menu-radius);
+  box-shadow: var(--po-menu-shadow), 0 0 0 1px var(--po-menu-border);
+}
+
+.whiteboard-editor .excalidraw-hyperlinkContainer :is(.excalidraw-hyperlinkContainer-input, .excalidraw-hyperlinkContainer-link) {
+  font-size: var(--po-type-ui-control);
+  font-weight: var(--po-text-weight-regular);
+}
+
+.whiteboard-editor .excalidraw-hyperlinkContainer button {
+  color: var(--po-text-muted);
+}
+
+.whiteboard-editor .excalidraw-hyperlinkContainer button.excalidraw-hyperlinkContainer--remove,
+.whiteboard-editor .excalidraw-hyperlinkContainer--remove .ToolIcon__icon svg {
+  color: var(--po-danger);
+}
+
+/* Modal chrome follows the Desktop dialog surface (src/styles/dialogs.css). */
+.desktop-overlay-root > .excalidraw.excalidraw-modal-container {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  font-family: var(--po-font-ui);
+}
+
+.excalidraw-modal-container .Modal__background {
+  background: var(--po-backdrop);
+  backdrop-filter: blur(2px);
+}
+
+.excalidraw-modal-container .Modal__content {
+  border: 1px solid var(--po-border);
+  border-radius: 12px;
+  background: var(--po-overlay);
+  box-shadow: 0 24px 48px var(--po-shadow);
+}
+
+.excalidraw-modal-container .Modal .Island {
+  padding: 16px 20px 20px;
+  background: transparent;
+}
+
+.excalidraw-modal-container .Dialog.confirm-dialog .Modal__content {
+  max-width: 420px;
+}
+
+.excalidraw-modal-container .Dialog__title {
+  margin-bottom: 8px;
+  padding: 0;
+  border-bottom: 0;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-control);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 18px;
+}
+
+.excalidraw-modal-container .confirm-dialog .Dialog__content {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-control);
+  line-height: 20px;
+}
+
+.excalidraw-modal-container .confirm-dialog-buttons {
+  margin-top: 20px;
+  column-gap: 10px;
+}
+
+.excalidraw-modal-container .Dialog__close {
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--desktop-control-radius);
+  color: var(--po-text-subtle);
+}
+
+.excalidraw-modal-container .Dialog__close:hover {
+  background: var(--po-active);
+  color: var(--po-text-muted);
+}
+
+.excalidraw-modal-container .Dialog__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button {
+  height: var(--po-control-size);
+  padding: 0 14px;
+  border: 1px solid var(--po-border-strong);
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-control);
+  font-weight: var(--po-text-weight-medium);
+  letter-spacing: 0;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button:not(.Dialog__action-button--primary, .Dialog__action-button--danger):hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button--primary {
+  border-color: var(--po-text);
+  background: var(--po-text);
+  color: var(--po-text-inverse);
+  font-weight: var(--po-text-weight-semibold, 600);
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button--danger {
+  border-color: color-mix(in srgb, var(--po-danger) 72%, var(--po-border));
+  background: var(--po-danger);
+  color: var(--po-text-inverse);
+  font-weight: var(--po-text-weight-semibold, 600);
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button--primary:hover {
+  border-color: color-mix(in srgb, var(--po-text) 88%, var(--po-panel) 12%);
+  background: color-mix(in srgb, var(--po-text) 88%, var(--po-panel) 12%);
+}
+
+.excalidraw-modal-container .Dialog .Dialog__action-button--danger:hover {
+  border-color: color-mix(in srgb, var(--po-danger) 86%, var(--po-text) 14%);
+  background: color-mix(in srgb, var(--po-danger) 86%, var(--po-text) 14%);
+}
+
+.excalidraw-modal-container .ExcButton {
+  border-radius: var(--desktop-control-radius);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-ui-control);
+}
+
+.excalidraw-modal-container .ExcButton--color-primary.ExcButton--variant-filled {
+  --text-color: var(--po-text-inverse);
+  --back-color: var(--po-text);
+}
+
+.excalidraw-modal-container .ExcButton--color-primary.ExcButton--variant-filled:is(:hover, :active) {
+  --back-color: color-mix(in srgb, var(--po-text) 88%, var(--po-panel) 12%);
+}
+
+.excalidraw-modal-container .ImageExportModal h3 {
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-ui-control);
+  font-weight: var(--po-text-weight-semibold, 600);
+}
+
+.desktop-overlay-root > .excalidraw-tooltip {
+  padding: 4px 8px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 9px;
+  background: var(--po-editor-bg);
+  background-clip: padding-box;
+  box-shadow: var(--po-menu-shadow);
+  color: var(--po-text);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-ui-caption);
+  font-weight: 400;
+  line-height: calc(var(--po-type-ui-caption) + 4px);
+  text-align: start;
+}
+
+/* Dark mode inverts the stored light scene; 90% maps the default white page to
+ * the dark editor material instead of Excalidraw's near-black. */
+.whiteboard-editor .excalidraw.theme--dark {
+  --theme-filter: invert(90%) hue-rotate(180deg);
+}
+
+.whiteboard-editor .excalidraw .help-icon,
+.whiteboard-editor .excalidraw .default-sidebar-trigger,
+.whiteboard-editor .excalidraw .HintViewer {
+  display: none;
+}

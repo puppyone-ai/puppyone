@@ -139,7 +139,7 @@ describe("New project from the Homepage", () => {
     expect(onCreateProject).toHaveBeenCalledWith({
       operationId: expect.any(String),
       locale: "en",
-      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 } },
       name: defaultName,
       locationGrantId: "default-1",
     });
@@ -181,7 +181,7 @@ describe("New project from the Homepage", () => {
     expect(onCreateProject).toHaveBeenCalledWith({
       operationId: expect.any(String),
       locale: "en",
-      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 2 } },
       name: "Knowledge Base",
       locationGrantId: "location-1",
     });

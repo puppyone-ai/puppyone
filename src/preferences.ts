@@ -524,7 +524,10 @@ export function parseCreateNewMenuSettings(value: string | null | undefined): Cr
       .filter((item) => !item.enabled)
       .map((item) => item.kind);
     for (const kind of CREATE_NEW_ITEM_IDS) {
-      if (!seen.has(kind)) hidden.push(kind);
+      if (!seen.has(kind)) {
+        if (kind === "whiteboard") main.splice(main.indexOf(CREATE_NEW_SUBMENU_ID), 0, kind);
+        else hidden.push(kind);
+      }
     }
     return { version: CREATE_NEW_MENU_VERSION, main, submenu, hidden };
   } catch {
@@ -595,7 +598,10 @@ function normalizeCreateNewMenuLayout(
   }
 
   for (const kind of CREATE_NEW_ITEM_IDS) {
-    if (!seenItems.has(kind)) hidden.push(kind);
+    if (!seenItems.has(kind)) {
+      if (kind === "whiteboard") main.splice(main.indexOf(CREATE_NEW_SUBMENU_ID), 0, kind);
+      else hidden.push(kind);
+    }
   }
   return { version: CREATE_NEW_MENU_VERSION, main, submenu, hidden };
 }

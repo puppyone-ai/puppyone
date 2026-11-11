@@ -39,6 +39,7 @@ describe("Create New settings", () => {
       "markdown",
       "csv",
       "html",
+      "whiteboard",
       "customFiles",
     ]);
     expect(readEntries(container, "submenu")).toEqual(["contextMap"]);
@@ -67,7 +68,7 @@ describe("Create New settings", () => {
 
     expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "csv", "customFiles", "html"],
+      main: ["markdown", "csv", "customFiles", "html", "whiteboard"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow"],
     });
@@ -76,6 +77,7 @@ describe("Create New settings", () => {
       "csv",
       "customFiles",
       "html",
+      "whiteboard",
     ]);
   });
 
@@ -96,11 +98,11 @@ describe("Create New settings", () => {
 
     expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "html", "customFiles"],
+      main: ["markdown", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow", "csv"],
     });
-    expect(readEntries(container, "main")).toEqual(["markdown", "html", "customFiles"]);
+    expect(readEntries(container, "main")).toEqual(["markdown", "html", "whiteboard", "customFiles"]);
     expect(readEntries(container, "hidden")).toEqual(["text", "json", "slides", "app", "puppyflow", "csv"]);
   });
 
@@ -121,7 +123,7 @@ describe("Create New settings", () => {
 
     expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap", "text"],
       hidden: ["json", "slides", "app", "puppyflow"],
     });

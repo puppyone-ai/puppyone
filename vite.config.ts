@@ -1,3 +1,4 @@
+import { excalidrawAssetsPlugin } from "./scripts/desktop/build/excalidraw-assets-plugin.mjs";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -43,7 +44,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
+  plugins: [excalidrawAssetsPlugin(), rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {
@@ -96,7 +97,13 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["docx-preview"],
+    exclude: ["@excalidraw/excalidraw"],
+    // The SDK stays unbundled so its host/font adapters can run. Its CommonJS
+    // dependencies still need ESM interop on a cold development-server cache.
+    include: ["docx-preview", ...[
+      "@braintree/sanitize-url", "es6-promise-pool", "fuzzy", "image-blob-reduce",
+      "lodash.debounce", "lodash.throttle", "png-chunk-text", "png-chunks-encode", "png-chunks-extract",
+    ].map(dependency => `@excalidraw/excalidraw > ${dependency}`)],
   },
   worker: {
     format: "es",

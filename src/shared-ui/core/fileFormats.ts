@@ -14,6 +14,7 @@ export type FileCategory =
   | "binary";
 
 export type GenericViewerId =
+  | "excalidraw-editor"
   | "app-preview"
   | "context-map-viewer"
   | "markdown-editor"
@@ -63,6 +64,7 @@ export const FILE_SEMANTIC_KINDS = [
   "app",
   "context-map",
   "workflow",
+  "whiteboard",
   "markdown",
   "json",
   "html",
@@ -225,6 +227,7 @@ export function isTextLikeFile(
 }
 
 export function isTextLikeFileFormat(format: FileFormat): boolean {
+  if (format.id === "excalidraw") return true;
   return (
     format.category === "markdown" ||
     format.category === "text" ||
@@ -235,7 +238,7 @@ export function isTextLikeFileFormat(format: FileFormat): boolean {
 }
 
 export function getPreviewKindForFormat(format: FileFormat): FilePreviewKind {
-  if (format.id === "puppyflow") return "text";
+  if (format.id === "puppyflow" || format.id === "excalidraw") return "text";
   if (format.id === "json" || format.id === "jsonl") return "json";
 
   switch (format.defaultViewer) {

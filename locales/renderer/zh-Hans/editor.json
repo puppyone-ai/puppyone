@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "允许",
   "html.folderAccessDecline": "不允许，仅查看",
   "html.folderAccessToggle": "允许此页面读写所在文件夹",
-  "html.folderAccessUnavailable": "这里无法让页面读写文件夹。请从这台电脑上的项目中打开它。"
+  "html.folderAccessUnavailable": "这里无法让页面读写文件夹。请从这台电脑上的项目中打开它。",
+  "whiteboard.label": "白板",
+  "whiteboard.invalidFile": "Excalidraw 文件无效。请打开源文件修复。",
+  "whiteboard.embedUnavailable": "使用相对路径嵌入本地 HTML 文件，例如 ./demo.html。"
 }

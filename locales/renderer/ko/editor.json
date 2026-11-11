@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "허용",
   "html.folderAccessDecline": "허용 안 함, 보기만",
   "html.folderAccessToggle": "이 페이지가 폴더를 사용하도록 허용",
-  "html.folderAccessUnavailable": "여기서는 이 페이지가 폴더를 사용할 수 없습니다. 이 컴퓨터의 프로젝트에서 여세요."
+  "html.folderAccessUnavailable": "여기서는 이 페이지가 폴더를 사용할 수 없습니다. 이 컴퓨터의 프로젝트에서 여세요.",
+  "whiteboard.label": "화이트보드",
+  "whiteboard.invalidFile": "잘못된 Excalidraw 파일입니다. 원본을 열어 수정하세요.",
+  "whiteboard.embedUnavailable": "./demo.html 같은 상대 경로로 로컬 HTML 파일을 삽입하세요."
 }

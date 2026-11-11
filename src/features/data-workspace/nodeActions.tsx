@@ -934,6 +934,7 @@ const DESKTOP_FILE_TYPE_OPTIONS = [
   { id: "text", extension: ".txt" },
   { id: "csv", extension: ".csv" },
   { id: "html", extension: ".html" },
+  { id: "whiteboard", extension: ".excalidraw" },
   { id: "app", extension: ".puppyoneapp" },
   { id: "puppyflow", extension: ".puppyflow", experimentalSetting: "enablePuppyFlowFiles" },
   { id: "javascript", extension: ".js" },
@@ -1046,6 +1047,7 @@ export function getCreateEntryInitialContent(
   kind: DesktopCreateEntryKind,
   templates: DesktopCreateEntryTemplates,
 ): string {
+  if (kind === "whiteboard") return `${JSON.stringify({ type: "excalidraw", version: 2, source: "https://excalidraw.com", elements: [], appState: { viewBackgroundColor: "#ffffff" }, files: {} }, null, 2)}\n`;
   if (kind === "json") return "{}\n";
   if (kind === "contextMap") return createDefaultContextMapDocumentContent();
   if (kind === "csv") {
@@ -1070,6 +1072,9 @@ export function normalizeCreateEntryName(kind: DesktopCreateEntryKind, value: st
   }
   if (name.includes("\0")) {
     throw new DesktopNodeNameError("name-unsupported");
+  }
+  if (kind === "whiteboard") {
+    return ensureCreateEntryExtension(name, /\.excalidraw(?:\.json)?$/i, ".excalidraw");
   }
   if (kind === "markdown") {
     return ensureCreateEntryExtension(name, /\.(md|markdown|mdx)$/i, ".md");

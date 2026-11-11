@@ -1,0 +1,9 @@
+형식,확장자,puppyone에서 할 수 있는 일,이 프로젝트의 예시
+Markdown,.md,"제목, 표, 할 일 목록, 파일 간 링크를 실시간 서식으로 작성",Getting Started.md
+표,.csv,스프레드시트처럼 셀을 편집하고 행이나 열 추가,Formats.csv
+웹 페이지,.html,인터랙티브 페이지를 미리 보고 텍스트 편집,How It Works.html
+화이트보드,.excalidraw,도형을 그리고 아이디어를 연결하고 메모 추가,Workspace Map.excalidraw
+PDF,.pdf,문서 읽기,
+Office 문서,.docx .xlsx .pptx,"문서, 스프레드시트, 슬라이드 미리 보기",
+"이미지, 오디오, 동영상",.png .jpg .mp3 .mp4,미디어 미리 보기,
+코드와 텍스트,.txt .json .js .py,구문 강조와 함께 편집,

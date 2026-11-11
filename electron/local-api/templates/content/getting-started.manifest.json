@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "puppyone.project.getting-started",
-  "version": 1,
+  "version": 2,
   "scope": "project",
   "defaultLocale": "en",
   "locales": [
@@ -15,14 +15,14 @@
     "zh-Hans"
   ],
   "digests": {
-    "de": "a40d14808508b7e87f18a21320b0cf151fe24eb826d7e6e1e443f287bb35a137",
-    "en": "87e414cc46845bc12ed5750c87b55dc70706f409b66faf809bcb3aac482b51b6",
-    "es": "6272df0ac7903ed06a3ca42483eb5657bb81dcf5ee5ff0d12f5b02286627d1c6",
-    "fr": "70a67cf2e2e316769669a02f8175fb2fadff76347e9a5f194ee69d9956edce60",
-    "ja": "671ba50ee1e9537b7cfe31ced8f7e162fe846319a7f3654fb61fd2f9d74ee6e1",
-    "ko": "1d76b28ef8debe186a7f0e38dc3436e72c1f1dd16a95172773f370d443af74f4",
-    "pt-BR": "dff57d6875e94a956e24cc87625fc0640ccb900e429483a8331e41f5fe4ca6a0",
-    "zh-Hans": "c6fef4f27969749b004285cf638c35a8316ef33370ff3b9eb51fefb312eac7dd"
+    "de": "73a9e65528dc403bd3fb6f20e6a5a14cce6eb221e65c496b769f0bb2fb817ce7",
+    "en": "7f902ce5bab1b1347c0a44cb843ccee4ad141e465e1b02236a748378a09b2d2f",
+    "es": "116c7f4d4a1597fc0dec0a632c338ad8be5e008a751b69aff65bb00aca578989",
+    "fr": "b39c941b160561b9ef3607d78a23069cfce01e7f6d735ed3c2cc5956922e6cf1",
+    "ja": "faf629e9332e822099d4260460fb4d6435ed9188fc316be36a2a40bb265c1822",
+    "ko": "e4c8463bb0c8e554516b5ac123c7e3976c60c7725de1cd7a76461cd5c3f17e4b",
+    "pt-BR": "529bf9f68644ba533cd15872e1b7f31e052644284582849252bb09473f90e71d",
+    "zh-Hans": "edc49282fd3c47659e1f6b999a0267c0df40a2fd6388fdc9525b3c7cf34157a1"
   },
   "files": [
     {
@@ -36,6 +36,45 @@
         "ko": "ko/getting-started.md",
         "pt-BR": "pt-BR/getting-started.md",
         "zh-Hans": "zh-Hans/getting-started.md"
+      }
+    },
+    {
+      "path": "Formats.csv",
+      "sources": {
+        "de": "de/formats.csv",
+        "en": "en/formats.csv",
+        "es": "es/formats.csv",
+        "fr": "fr/formats.csv",
+        "ja": "ja/formats.csv",
+        "ko": "ko/formats.csv",
+        "pt-BR": "pt-BR/formats.csv",
+        "zh-Hans": "zh-Hans/formats.csv"
+      }
+    },
+    {
+      "path": "How It Works.html",
+      "sources": {
+        "de": "de/how-it-works.html",
+        "en": "en/how-it-works.html",
+        "es": "es/how-it-works.html",
+        "fr": "fr/how-it-works.html",
+        "ja": "ja/how-it-works.html",
+        "ko": "ko/how-it-works.html",
+        "pt-BR": "pt-BR/how-it-works.html",
+        "zh-Hans": "zh-Hans/how-it-works.html"
+      }
+    },
+    {
+      "path": "Workspace Map.excalidraw",
+      "sources": {
+        "de": "de/workspace-map.excalidraw",
+        "en": "en/workspace-map.excalidraw",
+        "es": "es/workspace-map.excalidraw",
+        "fr": "fr/workspace-map.excalidraw",
+        "ja": "ja/workspace-map.excalidraw",
+        "ko": "ko/workspace-map.excalidraw",
+        "pt-BR": "pt-BR/workspace-map.excalidraw",
+        "zh-Hans": "zh-Hans/workspace-map.excalidraw"
       }
     }
   ],

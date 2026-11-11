@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "Permitir",
   "html.folderAccessDecline": "Não permitir, só ver",
   "html.folderAccessToggle": "Permitir que esta página use a pasta dela",
-  "html.folderAccessUnavailable": "Esta página não pode usar a pasta aqui. Abra-a a partir de um projeto neste computador."
+  "html.folderAccessUnavailable": "Esta página não pode usar a pasta aqui. Abra-a a partir de um projeto neste computador.",
+  "whiteboard.label": "Quadro branco",
+  "whiteboard.invalidFile": "Arquivo Excalidraw inválido. Abra o código-fonte para corrigir.",
+  "whiteboard.embedUnavailable": "Incorpore um arquivo HTML do projeto com um caminho relativo, como ./demo.html."
 }

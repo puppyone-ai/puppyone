@@ -123,4 +123,5 @@ const FILE_KIND_LABELS: Partial<Record<FileVisualKind, string>> = {
   spreadsheet: "TABLE",
   word: "DOC",
   workflow: "FLOW",
+  whiteboard: "DRAW",
 };

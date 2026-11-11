@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "Permitir",
   "html.folderAccessDecline": "No permitir, solo ver",
   "html.folderAccessToggle": "Permitir que esta página use su carpeta",
-  "html.folderAccessUnavailable": "Esta página no puede usar su carpeta aquí. Ábrela desde un proyecto en este equipo."
+  "html.folderAccessUnavailable": "Esta página no puede usar su carpeta aquí. Ábrela desde un proyecto en este equipo.",
+  "whiteboard.label": "Pizarra",
+  "whiteboard.invalidFile": "Archivo Excalidraw no válido. Abre el código fuente para repararlo.",
+  "whiteboard.embedUnavailable": "Inserta un archivo HTML del proyecto con una ruta relativa, como ./demo.html."
 }
