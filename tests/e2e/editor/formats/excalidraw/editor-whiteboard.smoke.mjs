@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import { workspaceFromPath } from "../../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-build-identity.mjs";
@@ -61,7 +61,9 @@ await import("../../../../../electron/main.mjs");
 app.whenReady().then(async () => {
   try {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window");
-    window.setSize(1400, 950);
+    window.unmaximize();
+    const displaySize = screen.getPrimaryDisplay().workAreaSize;
+    window.setSize(Math.min(1400, displaySize.width - 48), Math.min(950, displaySize.height - 48));
     window.webContents.setBackgroundThrottling(false);
     window.hide();
     window.webContents.on("console-message", (_event, level, message) => { if (level >= 2) errors.push(message); });
@@ -94,7 +96,8 @@ app.whenReady().then(async () => {
     assert.equal(await display(".excalidraw .HintViewer"), "none", "canvas hints stay hidden");
     steps.push("standard file opens without writes; pointer drawing saves through document session");
     const boardWidth = () => evaluate("document.querySelector('.whiteboard-editor').getBoundingClientRect().width");
-    const chrome = 1400 - await boardWidth();
+    const [contentWidth, contentHeight] = window.getContentSize();
+    const chrome = contentWidth - await boardWidth();
     const isMobile = "document.querySelector('.excalidraw').classList.contains('excalidraw--mobile')";
     const box = selector => evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();return r&&{top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height}})()`);
     const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -104,13 +107,13 @@ app.whenReady().then(async () => {
       assert.ok(!overlaps(toolbar, footer) && !overlaps(toolbar, properties), `${label}: the toolbar clears the zoom footer and properties panel`);
     };
     await assertBottomToolbar("wide pane");
-    window.setSize(Math.round(chrome + 560), 950);
+    window.setContentSize(Math.round(chrome + 560), contentHeight);
     await until(async () => Math.abs(await boardWidth() - 560) < 2, "narrow desktop whiteboard");
     await wait(300);
     assert.equal(await evaluate(isMobile), false, "a narrow mouse-driven pane keeps the desktop layout");
     await assertBottomToolbar("narrow pane");
     await fs.writeFile(path.join(output, "whiteboard-narrow.png"), (await window.webContents.capturePage()).toPNG());
-    window.setSize(Math.round(chrome + 440), 950);
+    window.setContentSize(Math.round(chrome + 440), contentHeight);
     await until(() => evaluate(isMobile), "phone layout below 500px");
     await click('.excalidraw .App-bottom-bar button[aria-label="Edit"]');
     await until(() => evaluate("!!document.querySelector('.excalidraw .App-bottom-bar .panelColumn')"), "phone properties sheet");
@@ -119,7 +122,7 @@ app.whenReady().then(async () => {
     await wait(300);
     await fs.writeFile(path.join(output, "whiteboard-phone.png"), (await window.webContents.capturePage()).toPNG());
     await click('.excalidraw .App-bottom-bar button[aria-label="Edit"]');
-    window.setSize(1400, 950);
+    window.setContentSize(contentWidth, contentHeight);
     await until(async () => !(await evaluate(isMobile)), "desktop layout restored");
     await assertBottomToolbar("restored pane");
     steps.push("the shape toolbar sits at the bottom without overlap; narrow panes keep the desktop layout; the phone sheet stays partial");
@@ -226,6 +229,10 @@ app.whenReady().then(async () => {
         url: frame.url, content: await frame.executeJavaScript("document.documentElement.outerHTML").catch(() => "unavailable"),
       })));
       await fs.writeFile(path.join(output, "failure-frames.json"), JSON.stringify(frames, null, 2));
+      await fs.writeFile(path.join(output, "failure-window.json"), JSON.stringify({
+        bounds: window.getBounds(), contentBounds: window.getContentBounds(), maximized: window.isMaximized(),
+        whiteboard: await evaluate("document.querySelector('.whiteboard-editor')?.getBoundingClientRect().toJSON()"),
+      }, null, 2));
     }
   } finally {
     clearTimeout(deadline);
