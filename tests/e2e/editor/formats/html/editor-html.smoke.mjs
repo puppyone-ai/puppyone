@@ -145,6 +145,10 @@ app.whenReady().then(async () => {
   try {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window"); window.setSize(1200, 850);
     await until(() => evaluate("!!document.querySelector('.app-shell')"), "app ready");
+    // This isolated acceptance window deliberately stays hidden. Keep its
+    // paint scheduling active for the same native-pointer/rAF checks as a
+    // foreground window; focus emulation alone does not prevent throttling.
+    window.webContents.setBackgroundThrottling(false);
     window.hide();
     window.webContents.debugger.attach("1.3");
     window.webContents.on("will-frame-navigate", event => {

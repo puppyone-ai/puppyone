@@ -1,12 +1,15 @@
 #!/usr/bin/env electron
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+// This fixture supplies its project list and never talks to a Cloud service.
+process.env.VITE_DESKTOP_CLOUD_API_URL = "http://127.0.0.1:9/api/v1";
+process.env.VITE_DESKTOP_CLOUD_WEB_URL = "http://127.0.0.1:9";
 const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "puppyone-onboarding-visual-"));
 const screenshots = path.join(repoRoot, "artifacts/tests/onboarding-home");
 app.setPath("userData", path.join(temporaryRoot, "profile"));
@@ -63,7 +66,7 @@ app.whenReady().then(runSmoke).catch((error) => { console.error(error); app.exit
 
 async function open({ theme, state, width, height, count = 1, mixed = false, held = false, layout }) {
   window.setContentSize(width, height);
-  const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
+  const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/`);
   url.searchParams.set("theme", theme);
   url.searchParams.set("state", state);
   url.searchParams.set("count", String(count));
@@ -97,15 +100,27 @@ async function chooseLayout(layout) {
 async function runSmoke() {
   let exitCode = 0;
   try {
-    const { createServer } = await import("vite");
-    server = await createServer({
+    const { build, preview } = await import("vite");
+    const outDir = path.join(temporaryRoot, "fixture-build");
+    // Repeated navigation must use immutable assets. A development server can
+    // replace optimized dependencies mid-run, disposing the renderer while a
+    // geometry assertion is waiting for it.
+    await build({
       root: repoRoot,
-      cacheDir: path.join(temporaryRoot, "vite-cache"),
+      base: "/",
       logLevel: "error",
-      optimizeDeps: { entries: ["tests/fixtures/workspace/projects/onboarding-home.html"] },
-      server: { host: "127.0.0.1", port: 5299, strictPort: false, hmr: false, watch: null },
+      build: { outDir, emptyOutDir: true, rollupOptions: {
+        input: path.join(repoRoot, "tests/fixtures/workspace/projects/onboarding-home.html"),
+      } },
     });
-    await server.listen();
+    // Product runtime assets are relative to the application entry document.
+    await copyFile(path.join(outDir, "tests/fixtures/workspace/projects/onboarding-home.html"), path.join(outDir, "index.html"));
+    server = await preview({
+      root: repoRoot,
+      logLevel: "error",
+      build: { outDir },
+      preview: { host: "127.0.0.1", port: 0, strictPort: false },
+    });
     await mkdir(screenshots, { recursive: true });
     window = new BrowserWindow({
       show: true, width: 900, height: 680, frame: false, enableLargerThanScreen: true,
@@ -113,6 +128,12 @@ async function runSmoke() {
     });
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
+    });
+    window.webContents.on("render-process-gone", (_event, details) => {
+      console.error("Onboarding renderer exited", details);
+    });
+    window.webContents.on("did-fail-load", (_event, code, description, url) => {
+      console.error("Onboarding navigation failed", { code, description, url });
     });
     for (const theme of ["dark", "light"]) {
       for (const [width, height] of [[900, 680], [MINIMUM_WIDTH, MINIMUM_HEIGHT]]) {
