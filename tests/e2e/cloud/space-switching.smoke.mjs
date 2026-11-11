@@ -150,7 +150,7 @@ async function run() {
   };
   const selectPlan = async owner => {
     await owner.webContents.executeJavaScript("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()", true);
-    await untilOwner(owner, "!!document.querySelector('.desktop-plan-settings')");
+    await untilOwner(owner, "!!document.querySelector('.desktop-plan-settings [role=progressbar]')");
     assert.equal(await owner.webContents.executeJavaScript("!!document.querySelector('.desktop-settings-space-picker')"), false, 'Settings cannot switch Space');
   };
   const openPlan = async (owner, spaceId) => {
@@ -165,6 +165,10 @@ async function run() {
   };
   await openPlan(window, 'org-2');
   assert.ok((await heading(window)).includes('Research'), 'Home heading explicitly targets Research');
+  assert.equal(await evaluate("document.querySelector('.desktop-plan-meter.is-hours').getAttribute('aria-valuenow')"), '40');
+  assert.equal(await evaluate("document.querySelectorAll('.desktop-plan-meter.is-hours .desktop-plan-meter-tick').length"), 24);
+  assert.equal(await evaluate("document.querySelectorAll('.desktop-plan-meter.is-hours [data-active]').length"), 10);
+  assert.equal(await evaluate("!!document.querySelector('.desktop-plan-load-error')"), false);
   await capture('01-plan-named-by-home');
   await closeSettings(window);
   assert.ok(await evaluate(allProjects), 'choosing a bill must not filter Home');
@@ -191,6 +195,8 @@ async function run() {
   await openPlan(second, 'org-2');
   assert.ok((await heading(window)).includes('Personal'));
   assert.ok((await heading(second)).includes('Research'));
+  assert.equal(await evaluate("document.querySelector('.desktop-plan-meter.is-hours').getAttribute('aria-valuenow')"), '20');
+  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-plan-meter.is-hours').getAttribute('aria-valuenow')"), '40');
   second.minimize(); window.show(); window.focus();
   await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Members').click()");
   await until("!!document.querySelector('.desktop-space-member-form input:not(:disabled)')", 'members of the chosen Space');
@@ -208,6 +214,8 @@ async function run() {
   report.no_global_space_switcher = true;
   report.plan_opener_names_space = true;
   report.settings_has_no_space_switcher = true;
+  report.agent_hours_percent_by_window = [20, 40];
+  report.continuous_usage_ticks = 24;
   report.local_projects_always_visible = true;
   report.other_computers_rollout_disabled = true;
   report.account_available_without_cloud = true;
