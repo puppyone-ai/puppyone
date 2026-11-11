@@ -58,7 +58,8 @@ module.exports = {
     tsConfig: { fileName: "tsconfig.json" },
     enhancedResolveOptions: {
       exportsFields: ["exports"],
-      conditionNames: ["import", "require", "node", "default"],
+      // Match the shipped renderer, including packages with conditional CSS exports.
+      conditionNames: ["import", "require", "node", "production", "default"],
     },
   },
 };

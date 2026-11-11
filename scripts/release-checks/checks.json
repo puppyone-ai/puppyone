@@ -564,6 +564,18 @@
       "environment": { "PUPPYONE_HTML_VISUAL_ARTIFACT_DIR": "{checkDir}/html-editor" }
     },
     {
+      "id": "whiteboard",
+      "name": "Whiteboard: drawing, text, persistence, external replacement and HTML embeds",
+      "group": "app",
+      "command": ["npm", "run", "smoke:whiteboard"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_WHITEBOARD_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
+    },
+    {
       "id": "editor-panes",
       "name": "Every preset Viewer: split, resize, move, menu close and retained history",
       "group": "app",

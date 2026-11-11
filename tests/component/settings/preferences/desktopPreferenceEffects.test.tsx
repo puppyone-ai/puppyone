@@ -94,7 +94,7 @@ describe("desktop preference effects and subscriptions", () => {
     fireStorage(LOCAL_AGENTS_STORAGE_KEY, '{"hiddenTerminalAgentIds":["codex"],"chatHistoryDiscoveryEnabled":true}');
     expect(store.getState().localAgentsSettings.hiddenTerminalAgentIds).toEqual(["codex"]);
     fireStorage(CREATE_NEW_MENU_STORAGE_KEY, '{"version":5,"main":["csv"],"submenu":[],"hidden":[]}');
-    expect(store.getState().createNewMenuSettings.main).toEqual(["csv", "customFiles"]);
+    expect(store.getState().createNewMenuSettings.main).toEqual(["csv", "whiteboard", "customFiles"]);
     const before = store.getState();
     fireStorage("unrelated", "true");
     fireStorage(APPEARANCE_PREFERENCES_STORAGE_KEY, '{"schemaVersion":99}');
