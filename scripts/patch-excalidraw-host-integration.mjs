@@ -20,6 +20,8 @@ const overlayHost = 'document.getElementById("desktop-overlay-root")/* Puppyone 
  * The ResizeObserver must also publish changed breakpoints: on macOS the
  * window resize can update the canvas dimensions first, so updateDOMRect then
  * sees no change and otherwise leaves the mobile UI on its previous layout.
+ * Native window resize also refreshes editor breakpoints directly, so hidden
+ * windows do not depend on the observer being delivered before the next paint.
  *
  * Overlay host: modals and tooltips are appended to document.body, outside the
  * themed Desktop overlay root, so they cannot resolve product appearance tokens.
@@ -51,6 +53,10 @@ export const excalidrawHostPatches = {
       after: "this.resizeObserver = new ResizeObserver(() => {\n        const breakpointsChanged = this.refreshEditorBreakpoints();\n        this.updateDOMRect();\n        if (breakpointsChanged) this.setState({}); /* Puppyone breakpoint repaint */\n      });",
     },
     {
+      before: "this.refreshViewportBreakpoints();\n      this.updateDOMRect();\n      if (!supportsResizeObserver) {\n        this.refreshEditorBreakpoints();\n      }\n      this.setState({});",
+      after: "this.refreshViewportBreakpoints();\n      this.refreshEditorBreakpoints(); /* Puppyone host resize breakpoints */\n      this.updateDOMRect();\n      this.setState({});",
+    },
+    {
       before: "excalidrawContainer?.querySelector(opts.parentSelector) : document.body;",
       after: `excalidrawContainer?.querySelector(opts.parentSelector) : ${overlayHost};`,
     },
@@ -79,6 +85,10 @@ export const excalidrawHostPatches = {
     {
       before: "new ResizeObserver(()=>{this.refreshEditorBreakpoints(),this.updateDOMRect()})",
       after: "new ResizeObserver(()=>{const t=this.refreshEditorBreakpoints();this.updateDOMRect();if(t)this.setState({});/* Puppyone breakpoint repaint */})",
+    },
+    {
+      before: "this.refreshViewportBreakpoints(),this.updateDOMRect(),Qi||this.refreshEditorBreakpoints(),this.setState({})",
+      after: "this.refreshViewportBreakpoints(),this.refreshEditorBreakpoints()/* Puppyone host resize breakpoints */,this.updateDOMRect(),this.setState({})",
     },
     {
       before: "i?.querySelector(e.parentSelector):document.body;",

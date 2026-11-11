@@ -47,5 +47,24 @@ describe("Excalidraw Desktop host integration", () => {
       callback();
       expect(renders).toEqual([true]);
     });
+    it(`updates ${build} editor breakpoints on native resize before any observer delivery`, () => {
+      const source = patchExcalidrawHostIntegration(upstream(build), build).source;
+      const marker = build === "dev" ? '__publicField(this, "onResize", ' : 'C(this,"onResize",';
+      const start = source.indexOf(marker) + marker.length;
+      const callback = source.slice(start, source.indexOf("}));", start) + 2);
+      let mobile = false;
+      const renders = [];
+      const host = {
+        scene: { getElementsIncludingDeleted: () => [] },
+        refreshViewportBreakpoints: () => {},
+        refreshEditorBreakpoints: () => { mobile = true; },
+        updateDOMRect: () => renders.push(mobile),
+        setState: () => renders.push(mobile),
+      };
+      const batch = callback => callback;
+      const onResize = new Function("withBatchedUpdates", "Fe", `return ${callback}`).call(host, batch, batch);
+      onResize();
+      expect(renders).toEqual([true, true]);
+    });
   }
 });
