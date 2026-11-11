@@ -162,12 +162,22 @@ void (bootstrapError ? Promise.reject(bootstrapError) : run()).catch(async error
   report.server_state = await control('state').catch(() => null);
   console.error(report.error);
 }).finally(async () => {
-  clearTimeout(guard);
   await fs.writeFile(path.join(artifactDirectory, "report.json"), JSON.stringify(report, null, 2));
   if (process.env.PUPPYONE_ENTRYPOINT_TEST_REPORT) await fs.writeFile(process.env.PUPPYONE_ENTRYPOINT_TEST_REPORT, JSON.stringify(report, null, 2));
   console.log(`Entrypoint window receipt: ${artifactDirectory}/report.json`);
-  if (window && !window.isDestroyed()) window.destroy();
-  await server?.close();
-  await fs.rm(temporaryRoot, { recursive: true, force: true });
-  app.exit(report.ok ? 0 : 1);
+  try {
+    if (window && !window.isDestroyed()) window.destroy();
+    await server?.close();
+    // The Python parent removes its directory after Electron has exited and
+    // stopped flushing profile files. Deleting it here races those writes.
+    if (!process.env.PUPPYONE_ENTRYPOINT_TEST_WORKSPACE) {
+      await fs.rm(temporaryRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+  } catch (error) {
+    report.ok = false;
+    console.error("Entrypoint window cleanup failed", error);
+  } finally {
+    clearTimeout(guard);
+    app.exit(report.ok ? 0 : 1);
+  }
 });
