@@ -93,7 +93,11 @@
   display: none;
 }
 
+/* The panel is already absolutely positioned against the top UI layer; only its
+ * static left-column placement changes. */
 .whiteboard-editor .excalidraw .App-menu__left {
+  top: 0;
+  right: 0;
   width: 184px;
   padding: 10px;
 }
@@ -177,20 +181,6 @@
   font-size: var(--po-type-ui-caption) !important;
   font-variant-numeric: tabular-nums;
   color: var(--po-text-muted);
-}
-
-/* The main menu shares the left column with the properties panel; move its
- * inline-positioned wrapper to the top-right corner and open the menu leftward. */
-.whiteboard-editor .excalidraw .App-menu_top__left > :first-child {
-  position: absolute !important;
-  /* Matches the toolbar's 4px inset so the trigger centers against it. */
-  top: 4px;
-  right: 0;
-}
-
-.whiteboard-editor .excalidraw .App-menu_top__left > :first-child > .dropdown-menu {
-  right: 0;
-  left: auto;
 }
 
 .whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-container {
