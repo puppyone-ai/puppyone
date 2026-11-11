@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { Excalidraw, MainMenu, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, FONT_FAMILY, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
@@ -50,7 +50,15 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
   return <div ref={container} className="whiteboard-editor" aria-label={t("editor.whiteboard.label")}>
     {scene ? <Excalidraw
       key={generation}
-      initialData={{ ...scene, scrollToContent: true }}
+      initialData={{
+        ...scene,
+        appState: {
+          currentItemRoughness: 0,
+          currentItemFontFamily: FONT_FAMILY.Nunito,
+          ...scene.appState,
+        },
+        scrollToContent: true,
+      }}
       name={props.document.name}
       langCode={LANGUAGES[locale] ?? "en"}
       viewModeEnabled={!props.canEdit}

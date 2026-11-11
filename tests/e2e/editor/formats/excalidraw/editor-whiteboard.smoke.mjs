@@ -80,6 +80,7 @@ app.whenReady().then(async () => {
     await pointer("mouseReleased", x + 150, y + 90);
     await key("s", process.platform === "darwin" ? 4 : 2, "KeyS");
     let saved = await until(async () => { const data = JSON.parse(await disk()); return data.elements.some(el => el.type === "rectangle") ? data : null; }, "draw and save rectangle");
+    assert.equal(saved.elements.find(el => el.type === "rectangle").roughness, 0, "first-use shapes default to clean lines");
     steps.push("standard file opens without writes; pointer drawing saves through document session");
     await click('.excalidraw [data-testid="toolbar-text"]');
     await pointer("mousePressed", x + 200, y + 150);
@@ -89,7 +90,8 @@ app.whenReady().then(async () => {
     // Switching directly, without an explicit save, must flush the in-progress textarea.
     await click('.tree-row.file[aria-label="note.md"]');
     saved = await until(async () => { const data = JSON.parse(await disk()); return data.elements.some(el => el.text === "Whiteboard 中文") ? data : null; }, "text commits on file switch");
-    steps.push("in-progress text including Chinese commits when switching files");
+    assert.equal(saved.elements.find(el => el.text === "Whiteboard 中文").fontFamily, 6, "first-use text defaults to the normal Nunito font");
+    steps.push("in-progress text including Chinese commits when switching files; clean lines and normal font on first use");
     await click('.tree-row.file[aria-label="note.md"]');
     await openBoard();
     assert.equal(JSON.parse(await disk()).elements.length, saved.elements.length);
