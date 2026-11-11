@@ -5,9 +5,10 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, net, session } from "electron";
+import { app, session } from "electron";
 import { createCloudAuthService } from "../../../../electron/cloud-auth-service.mjs";
-import { createCloudNetwork, requestCloudApi } from "../../../../electron/main/cloud-api-client.mjs";
+import { requestCloudApi } from "../../../../electron/main/cloud-api-client.mjs";
+import { createDesktopCloudRuntime } from "../../../../electron/main/cloud-runtime.mjs";
 
 const directory = process.env.PUPPYONE_AUTH_PROXY_QA_DIR;
 assert.ok(directory, "Run through the isolated Node smoke launcher.");
@@ -75,12 +76,12 @@ async function respond(request, response, viaProxy) {
   return send(404, {});
 }
 
-function fixture(options) {
+function fixture(createService = createCloudAuthService) {
   let saved = null;
   const opened = [];
-  const service = createCloudAuthService({
+  const service = createService({
     app: { getPath: () => directory, getAppPath: () => repositoryRoot },
-    requestCloudApi, ...options, getWindows: () => [], revealWindow() {},
+    requestCloudApi, getWindows: () => [], revealWindow() {},
     localCloudWebUrl: "https://web.example.test", logger: { warn() {}, error() {} },
     externalNavigation: { open: async url => { opened.push(url); } },
     credentialStore: {
@@ -136,8 +137,8 @@ async function run() {
     assert.equal(requests.filter(item => item.viaProxy).length, 0);
     checkpoint("original failure reproduced");
 
-    const network = createCloudNetwork({ fetchImpl: (input, init) => net.fetch(input, init) });
-    const fixed = fixture({ requestCloudApi: network.requestCloudApi, fetchImpl: network.fetch });
+    const runtime = createDesktopCloudRuntime();
+    const fixed = fixture(options => runtime.createAuthService(options));
     await fixed.service.startOAuth({ apiBase });
     checkpoint("browser sign-in started");
     assert.equal(fixed.opened.length, 1);
@@ -166,6 +167,7 @@ async function run() {
     for (const route of ["/api/v1/auth/config", "/auth/v1/settings", "/api/v1/auth/initialize"]) assert.ok(proxied.some(item => item.path === route));
     assert.ok(proxied.every(item => !item.cookie));
     const report = { result: "passed", platform: process.platform, electron: process.versions.electron,
+      production_composition: true,
       reproduced_before_fix: "fetch failed", browser_opened: true, pkce_exchange: exchanges,
       token_refresh: refreshes, logout: logouts, proxy_requests: proxied.length, browser_cookies_sent: false };
     await fs.writeFile(path.join(directory, "report.json"), JSON.stringify(report));

@@ -45,14 +45,11 @@ import { registerProjectSessionIpc } from "./main/ipc/project-session-ipc.mjs";
 import { createAgentAttachmentStore } from "./main/agent/infrastructure/attachments/agent-attachment-store.mjs";
 import { createLocalAgentInventory } from "./main/agent/connections/local-agent-inventory.mjs";
 import { createDefaultAgentRuntimeHost } from "./main/agent/bootstrap/create-agent-runtime-host.mjs";
-import {
-  createCloudNetwork,
-  getCloudApiErrorMessage,
-} from "./main/cloud-api-client.mjs";
+import { getCloudApiErrorMessage } from "./main/cloud-api-client.mjs";
+import { createDesktopCloudRuntime } from "./main/cloud-runtime.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
 import { resolveTemplateStoreOrigin } from "../shared/desktop/template-link.mjs";
 import { createTemplateIntentStore } from "./main/template-intent-store.mjs";
-import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
 import { createHostServiceLauncher } from "./host-service/launcher.mjs";
 import { hostServiceStateDir } from "./host-service/paths.mjs";
@@ -201,8 +198,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const packageMetadata = require("../package.json");
 const projectRoot = path.resolve(__dirname, "..");
-const cloudNetwork = createCloudNetwork({ fetchImpl: (input, init) => net.fetch(input, init) });
-const requestCloudApi = cloudNetwork.requestCloudApi;
+const cloudRuntime = createDesktopCloudRuntime();
+const requestCloudApi = cloudRuntime.requestCloudApi;
 const preloadPath = path.join(__dirname, "preload.cjs");
 const rendererDistPath = path.join(projectRoot, "dist", "index.html");
 const desktopBuildInfo = loadDesktopBuildInfo({
@@ -564,10 +561,8 @@ const importOpeningRecovery = createImportOpeningRecovery({
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
 const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
-const cloudAuthService = createCloudAuthService({
+const cloudAuthService = cloudRuntime.createAuthService({
   app,
-  requestCloudApi,
-  fetchImpl: cloudNetwork.fetch,
   getCloudApiErrorMessage,
   secureStorage: safeStorage,
   externalNavigation,
