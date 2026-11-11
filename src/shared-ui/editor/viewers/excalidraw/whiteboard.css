@@ -110,14 +110,122 @@
   padding: 2px 0;
 }
 
-.whiteboard-editor .excalidraw .dropdown-menu-button,
-.whiteboard-editor .excalidraw .buttonList :is(label, button, .zIndexButton) {
+.whiteboard-editor .excalidraw .dropdown-menu-button {
   padding: 0;
 }
 
+.whiteboard-editor .excalidraw .panelColumn :is(legend, h3, .control-label) {
+  margin-bottom: 6px;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro);
+  font-weight: var(--po-text-weight-medium);
+}
+
+/* Option buttons sit directly on the panel material, like product menu rows. */
+.whiteboard-editor .excalidraw .App-menu__left .buttonList {
+  --button-bg: transparent;
+  --button-border: transparent;
+  --button-hover-bg: var(--po-hover);
+  --button-hover-border: transparent;
+  --button-active-bg: var(--po-selected);
+  --button-active-border: transparent;
+  --button-selected-border: transparent;
+}
+
+.whiteboard-editor .excalidraw .buttonList :is(label, button, .zIndexButton) {
+  padding: 0;
+  border-radius: var(--desktop-control-radius);
+}
+
 .whiteboard-editor .excalidraw .color-picker__button--large {
+  --radius: var(--desktop-control-radius);
   width: 24px;
   height: 24px;
+}
+
+.whiteboard-editor .excalidraw .color-picker__button.active-color {
+  --radius: var(--desktop-control-radius);
+}
+
+/* The range paints its unfilled track with --button-bg. */
+.whiteboard-editor .excalidraw .range-wrapper {
+  --slider-thumb-size: 12px;
+  --button-bg: var(--po-control-hover);
+  --color-slider-track: var(--po-accent);
+  padding-top: 6px;
+  padding-bottom: 20px;
+}
+
+.whiteboard-editor .excalidraw .range-input {
+  height: 3px;
+}
+
+.whiteboard-editor .excalidraw .range-input::-webkit-slider-thumb {
+  background: var(--po-panel-raised);
+  box-shadow: 0 0 0 1px var(--po-border-strong), var(--po-elevation-low);
+}
+
+.whiteboard-editor .excalidraw :is(.zero-label, .value-bubble) {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.whiteboard-editor .excalidraw .reset-zoom-button {
+  width: 48px !important;
+  padding: 0 !important;
+  font-size: var(--po-type-ui-caption) !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--po-text-muted);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-container {
+  padding: var(--po-menu-padding);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  box-shadow: var(--po-menu-shadow);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu :is(.dropdown-menu-item, .dropdown-menu-item-bare) {
+  height: var(--po-menu-item-height);
+  margin: 0;
+  width: 100%;
+  padding: 0 var(--po-menu-item-padding-inline);
+  border: 0;
+  border-radius: var(--po-menu-item-radius);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item-base {
+  column-gap: var(--po-menu-item-gap);
+  font-size: var(--po-type-ui-control);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item:hover {
+  background-color: var(--po-hover);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item svg {
+  color: var(--po-text-muted);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu div:has(> [data-testid="canvas-background-label"]) {
+  margin-top: 4px !important;
+  padding-top: 8px;
+  border-top: 1px solid var(--po-divider);
+}
+
+/* Excalidraw sets this label's size inline. */
+.whiteboard-editor .excalidraw .dropdown-menu [data-testid="canvas-background-label"] {
+  padding: 0 var(--po-menu-item-padding-inline);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro) !important;
+  font-weight: var(--po-text-weight-medium);
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item__shortcut {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption);
+  opacity: 1;
 }
 
 /* Dark mode inverts the stored light scene; 90% maps the default white page to
