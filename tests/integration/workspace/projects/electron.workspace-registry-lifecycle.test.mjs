@@ -39,7 +39,7 @@ describe("workspace registry lifecycle", () => {
     expect(result.items).toHaveLength(12);
     expect(new Set(result.items.map((item) => item.workspace.workspaceInstanceId)).size).toBe(12);
     const raw = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(raw.version).toBe(7);
+    expect(raw.version).toBe(8);
     expect(raw.recentWorkspaces).toHaveLength(12);
   });
 
@@ -93,7 +93,7 @@ describe("workspace registry lifecycle", () => {
 
     expect(first.workspaceId).toMatch(/^workbench:/);
     expect(second.workspaceId).toBe(first.workspaceId);
-    expect(persisted.version).toBe(7);
+    expect(persisted.version).toBe(8);
     expect(persisted.lastActiveWorkbenchWorkspaceId).toBe(first.workspaceId);
   });
 
@@ -153,6 +153,44 @@ describe("workspace registry lifecycle", () => {
       path: persistedPath,
     });
     await expect(store.getRecentWorkspacesResult()).resolves.toMatchObject({ items: [] });
+  });
+
+  it("points a project at its folder's new place, keeping who it is but not its sharing", async () => {
+    const store = createStore();
+    const [kept, moved] = await createFolders("relocate", 2);
+    await store.rememberWorkspaceComposition([createWorkspace(kept), createWorkspace(moved)]);
+    const movedPath = await fs.promises.realpath(moved);
+    await store.renameRecentWorkspacePath(movedPath, "Ambassadors");
+    await store.setRecentWorkspaceHostFolder(movedPath, "11111111-1111-4111-8111-111111111111");
+    const before = (await store.getRecentWorkspacesResult()).items.find((item) => item.workspace.path === movedPath);
+    const destination = path.join(root, "relocate-moved-here");
+    await fs.promises.rename(moved, destination);
+    const destinationPath = await fs.promises.realpath(destination);
+
+    await expect(store.relocateRecentWorkspacePath(movedPath, destination)).resolves.toEqual({
+      relocated: true, from: movedPath, path: destinationPath, wasShared: true,
+    });
+    const after = (await store.getRecentWorkspacesResult()).items;
+    expect(new Set(after.map((item) => item.workspace.path))).toEqual(new Set([await fs.promises.realpath(kept), destinationPath]));
+    const relocated = after.find((item) => item.workspace.path === destinationPath);
+    expect(relocated.workspace).toMatchObject({ name: "Ambassadors", workspaceInstanceId: before.workspace.workspaceInstanceId });
+    expect(relocated.workspace).not.toHaveProperty("hostFolderId");
+    expect(relocated.lastOpenedAt).toBe(before.lastOpenedAt);
+    expect(await store.readLastActiveWorkspacePaths()).toContain(destinationPath);
+    expect(await store.readLastActiveWorkspacePaths()).not.toContain(movedPath);
+  });
+
+  it("never lists one folder twice when the new place is already a recent project", async () => {
+    const store = createStore();
+    const [gone, existing] = await createFolders("merge", 2);
+    await store.rememberRecentWorkspacePath(gone);
+    await store.rememberRecentWorkspacePath(existing);
+    const gonePath = await fs.promises.realpath(gone);
+    await fs.promises.rm(gone, { recursive: true });
+
+    await store.relocateRecentWorkspacePath(gonePath, existing);
+    expect((await store.getRecentWorkspacesResult()).items.map((item) => item.workspace.path))
+      .toEqual([await fs.promises.realpath(existing)]);
   });
 
   it("persists a Project display name without renaming its local folder", async () => {
@@ -293,7 +331,7 @@ describe("workspace registry lifecycle", () => {
 
     await store.rememberRecentWorkspacePath(folder, beforeRewrite.items[0].workspace);
     const persisted = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(persisted.version).toBe(7);
+    expect(persisted.version).toBe(8);
     expect(persisted.recentWorkspaces[0]).not.toHaveProperty("projectId");
   });
 

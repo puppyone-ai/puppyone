@@ -197,6 +197,23 @@ describe("Markdown editor layout", () => {
     expect(indicatorRule).toContain("pointer-events: none;");
     expect(markdownEditorCss).not.toMatch(/cm-md-task-checkbox-widget:hover/);
   });
+
+  it("keeps the visible dash separate from its pointer target without expandable chrome", () => {
+    const css = markdownEditorCss;
+    expect(css).toContain(".cm-md-heading-outline-layer");
+    expect(css).toContain(".cm-md-heading-outline-tick::before");
+    expect(css).toContain(".cm-md-heading-outline-tick.is-active::before");
+    expect(css).toContain(".cm-md-heading-outline-popover");
+    expect(css).toContain(".cm-md-heading-outline-item");
+    expect(css).toContain(".cm-md-heading-outline-layer.is-popover-open");
+    expect(css).toContain("left: 22px");
+    expect(css).toContain("height: 2px");
+    expect(css).not.toContain(".cm-md-heading-outline-panel");
+    expect(css).not.toContain(".cm-md-heading-outline-grip");
+    expect(css).not.toContain(".cm-md-heading-outline-spine");
+    expect(css).not.toContain(".cm-md-heading-outline-layer.is-expanded");
+    expect(css).not.toContain("font-family: revert");
+  });
 });
 
 describe("Markdown HTML media layout", () => {

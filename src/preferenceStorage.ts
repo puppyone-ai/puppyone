@@ -12,6 +12,7 @@ import {
 AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY,
 AI_EDIT_ASSIST_STORAGE_KEY,
 CREATE_NEW_MENU_STORAGE_KEY,
+DEFAULT_EXPERIMENTAL_SETTINGS,
 DIFF_MARKERS_STORAGE_KEY,
 EXPERIMENTAL_SETTINGS_STORAGE_KEY,
 FILES_VISIBILITY_STORAGE_KEY,
@@ -54,7 +55,8 @@ export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPrefer
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
 export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferredModel";
 export type RightSidebarSurface = "chat" | "changes" | "history";
-export const HOMEPAGE_PROJECT_LAYOUTS = ["list", "grid"] as const;
+/** In the order the layout menu offers them: the Grid, the default, first. */
+export const HOMEPAGE_PROJECT_LAYOUTS = ["grid", "list"] as const;
 export type HomepageProjectLayout = typeof HOMEPAGE_PROJECT_LAYOUTS[number];
 export const HOMEPAGE_PROJECT_SORTS = ["modified", "name"] as const;
 export type HomepageProjectSort = typeof HOMEPAGE_PROJECT_SORTS[number];
@@ -108,7 +110,10 @@ export function readInitialAiEditAssistEnabled(storage: Pick<Storage, "getItem">
 
 export function readInitialExperimentalSettings(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): ExperimentalSettings {
   if (typeof window === "undefined") return parseExperimentalSettings(null);
-  return parseExperimentalSettings(storage.getItem(EXPERIMENTAL_SETTINGS_STORAGE_KEY));
+  return parseExperimentalSettings(storage.getItem(EXPERIMENTAL_SETTINGS_STORAGE_KEY), {
+    ...DEFAULT_EXPERIMENTAL_SETTINGS,
+    enableHostDevices: import.meta.env?.VITE_HOST_DEVICES_ENABLED === "true",
+  });
 }
 
 export function readInitialExplorerWidth(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): number {

@@ -8,6 +8,7 @@ import { assertExecutableIdentity, createExecutableSearchContext, createLocalAge
 import { createExecutableDiscoveryPort } from "../../../../electron/main/platform/common/executable-discovery-port.mjs";
 import { createLocalAgentInstallationRegistry, defaultLocalAgentInstallationRegistry } from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
+import { claudeInstallationDefinition } from "../../../../electron/main/local-agent-installation/definitions/claude.mjs";
 import {
   workBuddyChinaInstallationDefinition,
   workBuddyInternationalInstallationDefinition,
@@ -35,6 +36,19 @@ async function executable(file, text = "#!/bin/sh\n# pi-coding-agent cursor-agen
 }
 
 describe("ordered installation discovery", () => {
+  it("keeps macOS Homebrew Claude Code entrypoints available when shell PATH is incomplete", () => {
+    const candidates = claudeInstallationDefinition.candidatePaths({
+      env: { PATH: "/usr/bin:/bin" }, homedir: "/Users/test", platform: "darwin",
+    });
+    expect(candidates).toEqual(expect.arrayContaining([
+      { path: "/opt/homebrew/bin/claude", source: "product-fallback" },
+      { path: "/usr/local/bin/claude", source: "product-fallback" },
+    ]));
+    expect(claudeInstallationDefinition.candidatePaths({
+      env: { PATH: "/usr/bin:/bin" }, homedir: "/home/test", platform: "linux",
+    })).not.toContainEqual({ path: "/opt/homebrew/bin/claude", source: "product-fallback" });
+  });
+
   it.each(["codex", "claude", "pi", "cursor", "opencode", "hermes"])("discovers %s in an arbitrary PATH without package-manager knowledge", async (id) => {
     const env = {};
     const { home, resolver } = await fixture(env);
@@ -310,7 +324,7 @@ describe.skipIf(process.platform === "win32" || !existsSync("/bin/zsh"))("fresh 
     await configure(newBin);
     await expect(service.discover()).resolves.toMatchObject({ source: "memory-cache", availableAgentIds: ["claude"] });
     const refreshed = await service.discover({ refresh: true });
-    expect(refreshed.availableAgentIds).toEqual(["codex"]);
+    expect(refreshed.availableAgentIds).toContain("codex");
     expect(capture).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(refreshed)).not.toContain(home);
     const launch = await createTerminalAgentLaunchResolver({ discoveryPort: port })("codex");

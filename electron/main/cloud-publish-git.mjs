@@ -421,22 +421,24 @@ export async function inspectCloudRemote(rootPath, execGitCommand = execGit) {
   return { kind: "exact", url: fetchUrls[0] };
 }
 
+/**
+ * Content the Cloud repository cannot represent, checked before any Cloud
+ * mutation so a refusal never leaves an empty Project behind.
+ *
+ * The native Version Engine stores ordinary Git objects and accepts any commit
+ * graph, merge commits included, so commit shape is not checked here. Only Git
+ * LFS remains unsupported: its pointer files would arrive without the content
+ * they stand for.
+ */
 export async function assertVersionEnginePreflight(rootPath, expectedCommitId, {
   execGitCommand = execGit,
   execGitBufferCommand = execGitBuffer,
 } = {}) {
-  const parentLine = await execGitCommand(rootPath, ["rev-list", "--parents", "-n", "1", expectedCommitId], {
+  await execGitCommand(rootPath, ["cat-file", "-e", `${expectedCommitId}^{commit}`], {
     optionalLocks: false,
-  }).then(({ stdout }) => stdout.trim()).catch((error) => {
+  }).catch((error) => {
     throw createPublishError("COMMIT_REQUIRED", "Unable to inspect the expected Git commit.", false, error);
   });
-  if (parentLine.split(/\s+/).filter(Boolean).length > 2) {
-    throw createPublishError(
-      "MERGE_TIP_UNSUPPORTED",
-      "The current merge commit cannot be the initial Puppyone Cloud tip. Publish a linearized tip.",
-      false,
-    );
-  }
 
   let matches;
   try {

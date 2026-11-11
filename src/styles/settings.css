@@ -946,60 +946,405 @@
 
 }
 
-/* Plan ---------------------------------------------------------------------
-   Built from the shared label/value rows, like every other Settings page. The
-   only thing of its own is the storage bar, which sits under its row. */
-
-.desktop-plan-note {
-  margin: 10px 0 0;
+/* Plan uses one body style, aligned rows and the same controls as Settings. */
+.desktop-plan-note,
+.desktop-plan-error {
+  margin: 0;
   padding-inline: 10px;
   color: var(--po-text-subtle);
-  font-size: var(--po-text-size-caption, 12px);
-  line-height: 1.4;
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .desktop-plan-error {
-  margin: 10px 0 0;
-  padding-inline: 10px;
   color: var(--po-danger);
-  font-size: var(--po-text-size-caption, 12px);
-  line-height: 1.4;
 }
 
-.desktop-plan-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding-inline: 10px;
+.desktop-plan-loading {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
 }
 
-/* A value row that carries a bar on a line of its own beneath it. */
-.desktop-plan-meter-row {
-  flex-wrap: wrap;
-  row-gap: 7px;
-  padding-block: 9px 10px;
-}
-
-.desktop-plan-meter-track {
-  position: relative;
-  flex: 1 0 100%;
-  overflow: hidden;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--po-control);
-}
-
-.desktop-plan-meter-track > span {
+.desktop-plan-placeholder {
   display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--po-accent);
-  transition: width 220ms ease;
+  max-width: 100%;
+  flex: none;
+  border-radius: 4px;
 }
 
-.desktop-plan-meter-track.exhausted > span {
-  background: var(--po-warning);
+.desktop-plan-placeholder.name {
+  width: 108px;
+  height: calc(var(--po-text-size-section-title, 15px) * 1.4);
+}
+
+.desktop-plan-placeholder.detail {
+  width: 168px;
+  height: calc(var(--po-text-size-meta, 12px) * 1.5);
+}
+
+.desktop-plan-placeholder.action {
+  width: 100%;
+}
+
+.desktop-plan-usage-item > .desktop-plan-placeholder.detail {
+  height: 1.5em;
+}
+
+.desktop-plan-placeholder.price {
+  width: 120px;
+  height: calc(var(--po-type-ui-display, 25px) * 1.25);
+}
+
+.desktop-plan-placeholder.reading {
+  width: 84px;
+  color: transparent;
+}
+
+.desktop-plan-placeholder.tagline {
+  width: 90%;
+  height: 1.5em;
+}
+
+.desktop-plan-placeholder.spec {
+  width: 100%;
+  min-height: 1.5em;
+}
+
+.desktop-plan-spec-row > .desktop-plan-placeholder.reading { height: 1.5em; }
+
+.desktop-plan-loading .desktop-plan-card-details {
+  min-height: 64px;
+}
+
+.desktop-plan-placeholder.action {
+  height: calc(var(--po-control-size-compact) + 6px);
+}
+
+.desktop-plan-card-head > .desktop-plan-placeholder.name { height: 1.5em; }
+
+.desktop-plan-load-error {
+  min-height: 44px;
+  gap: 16px;
+  color: var(--po-text-muted);
+}
+
+.desktop-plan-settings {
+  --desktop-plan-accent: #fa7a22;
+  font-size: var(--po-text-size-label, 13px);
+  line-height: 1.5;
+}
+
+.desktop-plan-overview { container-type: inline-size; display: grid; gap: 12px; }
+.desktop-plan-summary {
+  min-height: 44px;
+  padding: 0 10px;
+  justify-content: flex-start;
+  gap: 16px;
+}
+.desktop-plan-summary > span { flex: none; color: var(--po-text-muted); }
+.desktop-plan-summary-main, .desktop-plan-addon-main { display: grid; min-width: 0; gap: 5px; }
+.desktop-plan-summary-trailing { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-inline-start: auto; color: var(--po-text-muted); }
+.desktop-plan-summary-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.desktop-plan-summary-heading h4, .desktop-plan-card-name {
+  margin: 0;
+  color: var(--po-text);
+  font: inherit;
+}
+.desktop-plan-summary-detail, .desktop-plan-addon-detail {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.desktop-plan-status { color: inherit; font: inherit; }
+.desktop-plan-usage {
+  display: grid;
+  padding: 0 10px 24px;
+  border-block-end: 1px solid var(--po-divider);
+}
+.desktop-plan-usage-item {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+}
+.desktop-plan-usage-heading {
+  color: var(--po-text-muted);
+}
+.desktop-plan-usage-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.desktop-plan-usage-value {
+  color: var(--po-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+.desktop-plan-usage-remaining { color: var(--po-text-muted); font-variant-numeric: tabular-nums; }
+.desktop-plan-meter {
+  --desktop-plan-meter-color: var(--desktop-plan-accent, #f87518);
+  --desktop-plan-meter-track: color-mix(in srgb, var(--po-text) 38%, transparent);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 2px;
+  column-gap: 6px;
+  width: max-content;
+  min-width: 0;
+  height: 18px;
+}
+.desktop-plan-meter-tick { width: 2px; height: 18px; background: var(--desktop-plan-meter-track); }
+.desktop-plan-meter-tick[data-active] { background: var(--desktop-plan-meter-color); }
+.desktop-plan-meter.exhausted { --desktop-plan-meter-color: var(--po-danger); }
+
+.desktop-plan-storage-warning {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0;
+  padding-inline: 10px;
+  color: var(--po-warning);
+  font-variant-numeric: tabular-nums;
+}
+.desktop-plan-storage-warning.is-full { color: var(--po-danger); }
+.desktop-plan-storage-details { margin: 12px 10px 0; color: var(--po-text-muted); }
+.desktop-plan-storage-details > summary { width: fit-content; list-style: none; cursor: var(--po-clickable-cursor, default); }
+.desktop-plan-storage-details > summary::-webkit-details-marker { display: none; }
+.desktop-plan-storage-details > summary::after { content: "+"; margin-inline-start: 10px; }
+.desktop-plan-storage-details[open] > summary::after { content: "−"; }
+.desktop-plan-storage-details > summary:focus-visible { outline: 2px solid var(--desktop-plan-accent); outline-offset: 4px; }
+.desktop-plan-storage-body { display: grid; gap: 4px; padding-block: 12px 0; }
+.desktop-plan-storage-body .desktop-settings-row { padding-inline: 0; }
+.desktop-plan-storage-body .desktop-plan-note { padding-inline: 0; }
+
+.desktop-plan-space-select {
+  max-width: 100%;
+}
+
+.desktop-plan-comparison {
+  container-type: inline-size;
+  min-width: 0;
+  margin-block-start: 10px;
+}
+.desktop-plan-comparison .desktop-settings-subsection-title { font: inherit; color: var(--po-text-muted); }
+.desktop-plan-comparison > .desktop-plan-note { margin-block-start: 16px; font: inherit; color: var(--po-text-muted); }
+
+.desktop-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--desktop-plan-columns, 2), minmax(0, 1fr));
+  gap: 16px;
+  margin: 14px 10px 0;
+}
+
+.desktop-plan-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 280px;
+  padding: 16px;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.desktop-plan-card.current {
+  background: color-mix(in srgb, var(--po-text) 2%, transparent);
+}
+
+.desktop-plan-card-head {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.desktop-plan-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 21px; }
+.desktop-plan-card-heading > svg { color: var(--po-text-muted); flex: none; }
+
+.desktop-plan-card-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-plan-card-amount {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-display, 25px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+}
+
+.desktop-plan-card-per { color: var(--po-text-muted); font: inherit; }
+
+.desktop-plan-card-tagline {
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-meta, 12px);
+}
+
+.desktop-plan-spec {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 20px;
+}
+
+.desktop-plan-spec-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.desktop-plan-spec-row dt {
+  color: var(--po-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.desktop-plan-spec-row dd {
+  margin: 0;
+  color: var(--po-text);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.desktop-plan-card-fit {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  margin: 0;
+  padding-inline-start: 15px;
+  color: var(--po-text-subtle);
+}
+
+.desktop-plan-card-details {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.desktop-plan-card-features {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.desktop-plan-card-features li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.desktop-plan-card-features svg {
+  flex: none;
+  align-self: center;
+  color: var(--po-text-muted);
+}
+
+.desktop-plan-card-action {
+  display: flex;
+  min-height: var(--po-control-size-compact);
+  align-items: center;
+  justify-content: center;
+  margin-block-start: auto;
+}
+
+.desktop-plan-card-action > .desktop-settings-action {
+  width: 100%;
+}
+.desktop-plan-card-action .desktop-settings-action {
+  min-height: calc(var(--po-control-size-compact) + 6px);
+  padding: 6px 12px;
+  border-radius: 5px;
+  font: inherit;
+}
+
+.desktop-plan-card-action .desktop-settings-action.primary {
+  border-color: var(--desktop-plan-accent, #f87518);
+  background: var(--desktop-plan-accent, #f87518);
+  color: #1b1007;
+}
+.desktop-plan-card-action .desktop-settings-action.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--desktop-plan-accent, #f87518) 85%, white);
+}
+
+.desktop-plan-current-badge {
+  display: inline-flex;
+  min-height: calc(var(--po-control-size-compact) + 6px);
+  align-items: center;
+  gap: 6px;
+  color: var(--po-text-muted);
+  font: inherit;
+}
+
+.desktop-plan-team-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.desktop-plan-team-prompt:not([role="status"]) { justify-content: flex-end; }
+
+.desktop-plan-team-prompt > span {
+  flex: 1 1 260px;
+}
+
+.desktop-plan-addon {
+  padding-block: 10px;
+}
+
+.desktop-plan-card-team-action,
+.desktop-plan-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.desktop-plan-card-team-action { width: 100%; gap: 10px; }
+.desktop-plan-card-team-action > .desktop-settings-action { flex: 1; }
+
+.desktop-plan-stepper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--po-divider);
+  border-radius: 5px;
+  min-height: calc(var(--po-control-size-compact) + 6px);
+}
+
+.desktop-plan-stepper .desktop-settings-action {
+  width: var(--po-control-size-small);
+  min-height: calc(var(--po-control-size-compact) + 2px);
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.desktop-plan-stepper-value {
+  min-width: 28px;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+@container (max-width: 900px) {
+  .desktop-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (max-width: 600px) {
+  .desktop-plan-grid { grid-template-columns: minmax(0, 1fr); }
+  .desktop-plan-summary { flex-wrap: wrap; gap: 8px 16px; }
+  .desktop-plan-summary-trailing { gap: 8px; }
 }
 
 /* Account ------------------------------------------------------------------
@@ -1093,69 +1438,6 @@
 .desktop-account-signout:disabled {
   color: var(--po-text-disabled);
   cursor: default;
-}
-
-.desktop-account-usage {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 2px 10px 6px;
-}
-
-.desktop-account-meter {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.desktop-account-meter-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.desktop-account-meter-label {
-  color: var(--po-text);
-  font-size: var(--po-text-size-label, 13px);
-}
-
-.desktop-account-meter-value {
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  font-variant-numeric: tabular-nums;
-}
-
-.desktop-account-meter-track {
-  position: relative;
-  overflow: hidden;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--po-control);
-}
-
-.desktop-account-meter-track > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--po-accent);
-  transition: width 220ms ease;
-}
-
-.desktop-account-meter-track.exhausted > span {
-  background: var(--po-warning);
-}
-
-.desktop-account-usage-note,
-.desktop-account-allowance {
-  margin: 0;
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.4;
-}
-
-.desktop-account-allowance {
-  color: var(--po-text-muted);
 }
 
 .desktop-account-signin {

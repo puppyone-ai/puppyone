@@ -2,6 +2,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
+import { IMPORT_SOURCE_REGISTRY } from "../../../../src/features/project-import/importSourceRegistry";
 import { OtherAppImportsSettingsView } from "../../../../src/features/settings/main/OtherAppImportsSettingsView";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -15,7 +16,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("lists all four import sources and opens the existing import flow", () => {
+it("lists every experimental source by its registered brand name and opens the existing import flow", () => {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -25,8 +26,8 @@ it("lists all four import sources and opens the existing import flow", () => {
     <OtherAppImportsSettingsView onOpenImport={onOpenImport} />,
   )));
 
-  for (const source of ["Notion", "Google Drive", "Airtable", "Obsidian"]) {
-    expect(host.textContent).toContain(source);
+  for (const { label } of IMPORT_SOURCE_REGISTRY.filter((source) => source.availability === "experimental")) {
+    expect(host.textContent).toContain(label);
   }
   const button = host.querySelector<HTMLButtonElement>("button");
   expect(button?.textContent).toBe("Import");

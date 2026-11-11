@@ -16,6 +16,7 @@ import { getCloudPublishProgressLabel } from "./CloudPublishProgressIndicator";
 export function CloudGitPrerequisite({
   activeSection,
   projectName,
+  hasHeadCommit = true,
   publishBusy,
   publishEnabled,
   publishError,
@@ -30,6 +31,7 @@ export function CloudGitPrerequisite({
 }: {
   activeSection: CloudWorkspaceSection;
   projectName?: string | null;
+  hasHeadCommit?: boolean;
   publishBusy: boolean;
   publishEnabled: boolean;
   publishError: { code: CloudPublishErrorCode; retryable: boolean } | null;
@@ -51,7 +53,8 @@ export function CloudGitPrerequisite({
     "none",
     "error",
   ].includes(organizationStatus);
-  const supplemental = publishError || showOrganizationSupplemental ? (
+  const destination = organizations.find((org) => org.id === selectedOrganizationId);
+  const supplemental = publishError || showOrganizationSupplemental || destination ? (
     <>
       {publishError && (
         <div className="desktop-cloud-git-prerequisite-error" role="alert">
@@ -59,6 +62,9 @@ export function CloudGitPrerequisite({
         </div>
       )}
 
+      {destination && <p data-cloud-publish-destination={destination.id}>
+        {t("cloud.initialize.destinationNote", { name: bidiIsolate(destination.name) })}
+      </p>}
       {showOrganizationSupplemental && (
         <div className="desktop-cloud-git-prerequisite-organization">
           {organizationStatus === "none" ? (
@@ -134,10 +140,15 @@ export function CloudGitPrerequisite({
           description={projectName
             ? t("cloud.initialize.separateProjectNote", { name: bidiIsolate(projectName) })
             : undefined}
+          details={<>
+            {destination && <p>{t("cloud.initialize.destinationNote", { name: bidiIsolate(destination.name) })}</p>}
+            <p>{t(hasHeadCommit ? "cloud.initialize.committedScopeNote" : "cloud.initialize.initialScopeNote")}</p>
+            <p>{t("cloud.initialize.spaceVisibilityNote")}</p>
+          </>}
           onCancel={() => setConfirmationOpen(false)}
           onConfirm={() => {
             setConfirmationOpen(false);
-            onPublishWorkspace(selectedOrganizationId ?? undefined);
+            if (publishEnabled && !publishBusy && selectedOrganizationId) onPublishWorkspace(selectedOrganizationId);
           }}
         />
       )}

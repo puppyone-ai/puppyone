@@ -1,8 +1,8 @@
-import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { CloudIcon, Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { looksLikeTemplateLink } from "../../shared/desktop/template-link.mjs";
+import type { CloudSpace } from "../lib/workspaceHomeModel";
 import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, WorkspaceProjectLocationGrant } from "../types/electron";
 import {
   DesktopDialogCloseButton,
@@ -14,31 +14,42 @@ const GETTING_STARTED = {
   ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
 } as const;
 
+/** Who can open the new project: the same three audiences as the Homepage's groups. */
+type Audience = "local" | "devices" | "team";
+
 /**
- * Project initialization dialog. The location is prefilled with the built-in
- * projects folder and the project name is prefilled, so the default path is a
- * single Create action. Browse and name editing remain available as escape
- * hatches. A template link is handed to its own card.
+ * Project initialization dialog, the one way to start a project. It asks who can open
+ * the project, and where it is kept follows: this computer and all my devices keep a
+ * folder here, the latter opened to my other computers; a team's project is in the
+ * Cloud. The name and the built-in projects folder are prefilled, so the default path
+ * is a single Create action.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
-  onOpenTemplate,
   onDefaultLocation,
   onChooseLocation,
   onSubmit,
+  cloudSpaces,
+  onCreateCloudProject,
+  onShareWithMyDevices,
 }: {
   onClose: () => void;
-  /** Hands a template link to its card. */
-  onOpenTemplate?: (url: string) => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
+  /** Spaces this account can start projects in. */
+  cloudSpaces?: readonly CloudSpace[];
+  /** `operationId` repeats for a retry of the same project, so the Cloud makes it once. */
+  onCreateCloudProject?: (spaceId: string, name: string, operationId: string) => Promise<void>;
+  /** Offers a project just created and opened here to the owner's other computers. */
+  onShareWithMyDevices?: (path: string) => Promise<void>;
 }) {
   const { t, locale } = useLocalization();
   const [value, setValue] = useState(() => (
     `${t("onboarding.entry.create.defaultName")} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`
   ));
   const requestRef = useRef<WorkspaceCreateProjectRequest | null>(null);
+  const cloudOperationRef = useRef<{ attempt: string; id: string } | null>(null);
   const [created, setCreated] = useState<WorkspaceCreateProjectResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
@@ -48,6 +59,15 @@ export function OnboardingProjectEntryDialog({
   const busy = submitting || choosingLocation;
   const fieldsDisabled = busy || created !== null;
   const title = t("onboarding.entry.create.title");
+
+  const teams = onCreateCloudProject
+    ? (cloudSpaces ?? []).filter((space) => space.canCreateProjects) : [];
+  const audiences: Audience[] = ["local", ...(onShareWithMyDevices ? ["devices" as const] : []), ...(teams.length ? ["team" as const] : [])];
+  const [audience, setAudience] = useState<Audience>("local");
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const team = teams.find((space) => space.id === teamId) ?? teams[0];
+  const inCloud = audience === "team";
+  const cloudSpace = inCloud ? team : undefined;
 
   useEffect(() => {
     if (!onDefaultLocation) return;
@@ -65,12 +85,31 @@ export function OnboardingProjectEntryDialog({
     };
   }, [onDefaultLocation]);
 
+  const createInCloud = async (name: string) => {
+    if (!cloudSpace || !onCreateCloudProject) return;
+    const attempt = `${cloudSpace.id}\n${name}`;
+    if (cloudOperationRef.current?.attempt !== attempt) cloudOperationRef.current = { attempt, id: crypto.randomUUID() };
+    try {
+      await onCreateCloudProject(cloudSpace.id, name, cloudOperationRef.current.id);
+      onClose();
+      return;
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
+    setSubmitting(false);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
-    if (!name || busy || !location) return;
+    if (!name || busy || (!inCloud && !location)) return;
     setError(null);
     setSubmitting(true);
+    if (inCloud) {
+      await createInCloud(name);
+      return;
+    }
+    if (!location) return;
     try {
       requestRef.current ??= {
         name,
@@ -82,6 +121,10 @@ export function OnboardingProjectEntryDialog({
       const result = await onSubmit(requestRef.current);
       if (result.opening.status === "opened") {
         onClose();
+        // Offered from this window only, as the folder it now shows.
+        const opened = result.opening.result;
+        const openedPath = opened.workspace?.path ?? opened.path;
+        if (audience === "devices" && opened.status === "opened-current" && openedPath) void onShareWithMyDevices?.(openedPath);
         return;
       }
       setCreated(result);
@@ -90,14 +133,6 @@ export function OnboardingProjectEntryDialog({
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
     setSubmitting(false);
-  };
-
-  // The clipboard is read only here, when the user asks for it.
-  const pasteTemplateLink = async () => {
-    setError(null);
-    const link = await navigator.clipboard.readText().catch(() => "");
-    if (looksLikeTemplateLink(link)) onOpenTemplate?.(link.trim());
-    else setError(t("onboarding.template.noLink"));
   };
 
   const chooseLocation = async () => {
@@ -116,6 +151,18 @@ export function OnboardingProjectEntryDialog({
       setChoosingLocation(false);
     }
   };
+
+  const audienceLabels: Record<Audience, string> = {
+    local: t("onboarding.entry.create.audience.local"),
+    devices: t("onboarding.entry.create.audience.devices"),
+    team: t("onboarding.entry.create.audience.team"),
+  };
+  let locationAction = "onboarding.entry.create.browse";
+  if (location) locationAction = "onboarding.entry.create.change";
+  if (choosingLocation) locationAction = "onboarding.entry.create.browsing";
+  let submitLabel = "onboarding.entry.create.submit";
+  if (created) submitLabel = "onboarding.entry.create.retryOpen";
+  if (submitting) submitLabel = "onboarding.entry.create.submitting";
 
   return (
     <DesktopDialogRoot
@@ -171,33 +218,54 @@ export function OnboardingProjectEntryDialog({
                 }}
               />
             </label>
+            {audiences.length > 1 && (
+              <fieldset className="onboarding-entry-create-field onboarding-entry-choice-field" disabled={fieldsDisabled}>
+                <legend className="onboarding-entry-create-label">{t("onboarding.entry.create.audienceLabel")}</legend>
+                <div className="onboarding-entry-choices" role="radiogroup">
+                  {audiences.map((option) => (
+                    <label key={option} className="onboarding-entry-choice" data-checked={audience === option || undefined}>
+                      <input type="radio" name="onboarding-entry-audience" value={option} checked={audience === option}
+                        onChange={() => { setAudience(option); setError(null); }} />
+                      <span className="onboarding-entry-choice-label">{audienceLabels[option]}</span>
+                      {option === "team" && teams.length > 1 && (
+                        <select className="onboarding-entry-team-select" aria-label={t("onboarding.sharing.selectTeam")}
+                          value={team?.id} onChange={(event) => { setTeamId(event.target.value); setAudience("team"); }}>
+                          {teams.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                        </select>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div className="onboarding-entry-create-field">
               <span className="onboarding-entry-create-label">
-                {t("onboarding.entry.create.locationLabel")}
+                {t(audiences.length > 1 ? "onboarding.entry.create.storedLabel" : "onboarding.entry.create.locationLabel")}
               </span>
-              <button
-                className="onboarding-entry-location-picker onboarding-entry-browse-button"
-                type="button"
-                disabled={fieldsDisabled || !onChooseLocation}
-                aria-label={t("onboarding.entry.create.locationLabel")}
-                onClick={() => void chooseLocation()}
-              >
-                <FolderIcon aria-hidden="true" />
-                <bdi
-                  className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
-                  dir="ltr"
-                  aria-live="polite"
+              {!inCloud ? (
+                <button
+                  className="onboarding-entry-location-picker onboarding-entry-browse-button"
+                  type="button"
+                  disabled={fieldsDisabled || !onChooseLocation}
+                  aria-label={t("onboarding.entry.create.locationLabel")}
+                  onClick={() => void chooseLocation()}
                 >
-                  {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
-                </bdi>
-                <span className="onboarding-entry-location-action">
-                  {t(choosingLocation
-                    ? "onboarding.entry.create.browsing"
-                    : location
-                      ? "onboarding.entry.create.change"
-                      : "onboarding.entry.create.browse")}
-                </span>
-              </button>
+                  <FolderIcon aria-hidden="true" />
+                  <bdi
+                    className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
+                    dir="ltr"
+                    aria-live="polite"
+                  >
+                    {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
+                  </bdi>
+                  <span className="onboarding-entry-location-action">{t(locationAction)}</span>
+                </button>
+              ) : (
+                <div className="onboarding-entry-location-picker is-fixed" aria-live="polite">
+                  <CloudIcon aria-hidden="true" />
+                  <span className="onboarding-entry-location-path is-selected">{t("onboarding.entry.create.stored.cloud")}</span>
+                </div>
+              )}
             </div>
           </div>
           {created && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.entry.create.createdNote", { path: created.initialization.path })}</p>}
@@ -205,14 +273,6 @@ export function OnboardingProjectEntryDialog({
         </div>
 
         <footer className="desktop-dialog-footer">
-          {onOpenTemplate && <button
-            className="desktop-dialog-button onboarding-entry-paste-template"
-            type="button"
-            disabled={fieldsDisabled}
-            onClick={() => void pasteTemplateLink()}
-          >
-            {t("onboarding.template.paste")}
-          </button>}
           <button
             className="desktop-dialog-button"
             type="button"
@@ -224,11 +284,9 @@ export function OnboardingProjectEntryDialog({
           <button
             className="desktop-dialog-button primary file"
             type="submit"
-            disabled={busy || !value.trim() || !location}
+            disabled={busy || !value.trim() || (inCloud ? !cloudSpace : !location)}
           >
-            {t(submitting
-              ? "onboarding.entry.create.submitting"
-              : created ? "onboarding.entry.create.retryOpen" : "onboarding.entry.create.submit")}
+            {t(submitLabel)}
           </button>
         </footer>
       </form>

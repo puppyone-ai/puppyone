@@ -217,12 +217,16 @@ function Probe({
   organizationId = "org-a",
   enabled = true,
   deps,
+  readSnapshot,
+  onSnapshotChange,
 }: {
   activeSession?: DesktopCloudSession;
   apiBaseUrl?: string | null;
   organizationId?: string | null;
   enabled?: boolean;
   deps: CloudBillingControllerDependencies;
+  readSnapshot?: { catalog: DesktopBillingCatalog | null; summary: DesktopBillingSummary | null; usage: DesktopBillingUsage | null };
+  onSnapshotChange?: () => void;
 }) {
   const billing = useCloudBillingController({
     session: activeSession,
@@ -231,6 +235,8 @@ function Probe({
     enabled,
     onSessionChange: React.useCallback(() => undefined, []),
     t: testT,
+    readSnapshot,
+    onSnapshotChange,
   }, deps);
   return (
     <div
@@ -272,6 +278,50 @@ afterEach(() => {
 });
 
 describe("useCloudBillingController", () => {
+  it("resumes provider confirmation without refetching the supplied Settings reading", async () => {
+    vi.useFakeTimers();
+    const deps = dependencies();
+    vi.mocked(deps.listOperations).mockResolvedValue([operation("org-a")]);
+    await act(async () => root?.render(<Probe deps={deps} readSnapshot={{ catalog, summary: summary("org-a"), usage: usage("org-a") }} />));
+    expect(container.firstElementChild?.getAttribute("data-polling")).toBe("true");
+    await act(async () => vi.advanceTimersByTimeAsync(BILLING_POLL_BACKOFF_MS[0]));
+    expect(deps.getOperation).toHaveBeenCalledOnce();
+    expect(deps.getSummary).not.toHaveBeenCalled();
+  });
+
+  it("delegates explicit snapshot refresh to Settings and refreshes operations independently", async () => {
+    const deps = dependencies();
+    const changed = vi.fn();
+    const readSnapshot = { catalog, summary: summary("org-a"), usage: usage("org-a") };
+    await act(async () => root?.render(<Probe deps={deps} readSnapshot={readSnapshot} onSnapshotChange={changed} />));
+    expect(container.firstElementChild?.getAttribute("data-org")).toBe("org-a");
+    expect(deps.listOperations).toHaveBeenCalledTimes(1);
+    expect(deps.getCatalog).not.toHaveBeenCalled();
+    expect(deps.getSummary).not.toHaveBeenCalled();
+    expect(deps.getUsage).not.toHaveBeenCalled();
+    const newerSnapshot = { ...readSnapshot, summary: summary("org-a", 5) };
+    await act(async () => root?.render(<Probe deps={deps} readSnapshot={newerSnapshot} onSnapshotChange={changed} />));
+    expect(container.firstElementChild?.getAttribute("data-revision")).toBe("5");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-action="refresh"]')?.click());
+    expect(deps.getSummary).not.toHaveBeenCalled();
+    expect(deps.listOperations).toHaveBeenCalledTimes(2);
+    expect(changed).toHaveBeenCalledExactlyOnceWith(true);
+    // Quotes use the supplied summary even though it was never fetched twice.
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-action="quote"]')?.click());
+    expect(deps.quotePlan).toHaveBeenCalledOnce();
+  });
+
+  it("requests a new Settings snapshot even when the operation list cannot be refreshed", async () => {
+    const deps = dependencies();
+    const changed = vi.fn();
+    const readSnapshot = { catalog, summary: summary("org-a"), usage: usage("org-a") };
+    await act(async () => root?.render(<Probe deps={deps} readSnapshot={readSnapshot} onSnapshotChange={changed} />));
+    vi.mocked(deps.listOperations).mockRejectedValue(new Error("operations unavailable"));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-action="refresh"]')?.click());
+    expect(changed).toHaveBeenCalledExactlyOnceWith(true);
+    expect(deps.getSummary).not.toHaveBeenCalled();
+  });
+
   it("never lets a delayed operation response regress an observed terminal state", () => {
     const contextKey = "billing-context";
     const succeeded = operation("org-a", "succeeded");
@@ -298,6 +348,9 @@ describe("useCloudBillingController", () => {
 
     expect(next.operations).toEqual([succeeded]);
     expect(next.polling).toBeNull();
+    expect(billingReducer(next, {
+      type: "operationsLoaded", contextKey, operations: [operation("org-a", "processing")],
+    }).operations).toEqual([succeeded]);
   });
 
   it("discards an old account response and resets quote/idempotency state on context change", async () => {

@@ -55,8 +55,8 @@ app.whenReady().then(async () => {
   await openProject("alpha");
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_CLOUD_BODY')");
   assert(await evaluate("document.querySelector('.desktop-titlebar-workspace-name').textContent === 'Hosted alpha'"), "Header must identify the selected Cloud project");
-  // The Cloud mark says which kind of place; the words name the organization that holds the project.
-  await waitFor("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-place-button[data-project-place=cloud]')?.textContent === 'Fixture team'");
+  // The place leads the Header; until the account's Spaces name it, the Cloud mark and the organization say where.
+  await waitFor("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-place-button[data-project-place=cloud] .desktop-titlebar-place-address')?.textContent === 'Fixture team'");
   const geometry = await evaluate(`(() => {
     const shell = document.querySelector('.desktop-account-cloud-workspace');
     const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { x:r.x, width:r.width, height:r.height }; };

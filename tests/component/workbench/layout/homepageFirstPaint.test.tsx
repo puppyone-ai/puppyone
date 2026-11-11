@@ -45,7 +45,8 @@ const cloudProjects = [
 ];
 const metadataLocal = [metadata("alpha"), metadata("gamma")];
 const hydratedLocal = [hydrated("gamma", "2026-10-29T00:00:00Z"), hydrated("alpha", "2026-09-01T00:00:00Z")];
-const finalOrder = ["gamma", "cloud-old", "alpha", "cloud-new"];
+// Newest first within each place, and the Cloud's projects lead the page.
+const finalOrder = ["gamma", "alpha", "cloud-old", "cloud-new"];
 
 function Harness({ local, localSettled, restoring = false, sessionRestoring = false, session = alice, listHeld = false }: {
   local: RecentWorkspaceHomeItem[]; localSettled: boolean; restoring?: boolean; sessionRestoring?: boolean; session?: DesktopCloudSession | null; listHeld?: boolean;

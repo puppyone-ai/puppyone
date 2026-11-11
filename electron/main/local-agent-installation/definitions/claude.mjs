@@ -12,6 +12,10 @@ export const claudeInstallationDefinition = Object.freeze({
         : null,
       { path: path.join(homedir, ".local", "bin", executable), source: "product-fallback" },
       { path: path.join(homedir, ".claude", "local", executable), source: "product-fallback" },
+      ...(platform === "darwin" ? [
+        { path: path.join("/opt/homebrew", "bin", executable), source: "product-fallback" },
+        { path: path.join("/usr/local", "bin", executable), source: "product-fallback" },
+      ] : []),
     ].filter(Boolean);
   },
 });

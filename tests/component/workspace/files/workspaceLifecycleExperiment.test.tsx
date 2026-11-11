@@ -34,6 +34,7 @@ const localFiles = vi.hoisted(() => ({
   getRecentWorkspaces: vi.fn(),
   hydrateRecentWorkspaces: vi.fn(),
   listImportResources: vi.fn(),
+  listAppFolders: vi.fn(),
   onImportSourceProgress: vi.fn(),
   openDroppedWorkspaceInCurrentWindow: vi.fn(),
   openWorkspaceInCurrentWindow: vi.fn(),
@@ -63,6 +64,7 @@ beforeEach(() => {
   });
   localFiles.getRecentWorkspaces.mockResolvedValue({ workspaces: [], errors: [] });
   localFiles.hydrateRecentWorkspaces.mockResolvedValue({ workspaces: [], errors: [], hydrated: true });
+  localFiles.listAppFolders.mockResolvedValue([]);
 });
 
 afterEach(async () => {

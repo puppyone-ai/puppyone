@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import {
   GIT_METADATA_REARM_MIN_DELAY_MS,
+  GIT_METADATA_RECONCILE_MS,
   createGitMetadataWatchService,
 } from "../../../../electron/main/git-metadata-watch-service.mjs";
 
@@ -62,6 +63,25 @@ function repo(root) {
 describe("git metadata watch recovery", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("stops metadata reconciliation after the last subscriber leaves", async () => {
+    vi.useFakeTimers();
+    const { fsModule, watchCalls } = createFakeFs();
+    const root = "/repo";
+    const readMetadataSnapshot = vi.fn(async () => "initial");
+    const service = createGitMetadataWatchService({ fsModule, readMetadataSnapshot,
+      logger: { warn() {}, info() {} }, resolveIdentity: async () => repo(root) });
+    const first = await service.start(createSender(1), root);
+    const second = await service.start(createSender(2), root);
+    service.stop(first.subscriptionId);
+    await vi.advanceTimersByTimeAsync(GIT_METADATA_RECONCILE_MS + 1);
+    expect(readMetadataSnapshot).toHaveBeenCalledTimes(2);
+    service.stop(second.subscriptionId);
+    await vi.advanceTimersByTimeAsync(GIT_METADATA_RECONCILE_MS * 2);
+    expect(readMetadataSnapshot).toHaveBeenCalledTimes(2);
+    expect(watchCalls.every(({ watcher }) => watcher.closed)).toBe(true);
+    service.closeAll();
   });
 
   it("detaches renderer lifecycle listeners when subscriptions stop", async () => {

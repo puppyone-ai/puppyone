@@ -1,10 +1,12 @@
 import {
   canonicalizeResourcePath,
   createDocumentAssetImportPort,
+  isHtmlFolderFileName,
   type AiEditRequest,
   type DataNode,
   type DataNodeKind,
   type DataPort,
+  type HtmlFolderAccessSession,
   type Workspace,
 } from "@puppyone/shared-ui";
 import type {
@@ -27,7 +29,9 @@ import type {
   PuppyoneWorkspaceConfig,
   RecentWorkspacesResult,
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceImportResourcePage,
+  WorkspaceAppFolder,
   WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
@@ -49,6 +53,7 @@ import {
 } from "../features/data-workspace/appPreviewCreation";
 import { parseAppPreviewManifest } from "../../shared/appPreviewManifest.js";
 import { createDatabasePreviewPort } from "../platform/databasePreviewClient";
+import { requestHtmlFolderAccessConsent } from "./htmlFolderAccessConsent";
 
 export type { Workspace };
 export type FileKind = DataNodeKind;
@@ -67,11 +72,15 @@ export function createLocalDataPort(rootPath: string): DataPort {
       database: createDatabasePreviewPort(rootPath, getDesktopBridge),
       documentProjection: { async create(path, content, signal, options) {
         signal.throwIfAborted();
-        const { url } = await getDesktopBridge().createPreviewDocument({ rootPath, path, content, interactive: options?.interactive });
+        const { url } = await getDesktopBridge().createPreviewDocument({ rootPath, path, content, interactive: options?.interactive, offline: options?.offline });
         const close = async () => { await getDesktopBridge().revokeFileUrl({ url }); };
         if (signal.aborted) { await close(); signal.throwIfAborted(); }
         return { url, close };
       } },
+      htmlFolderAccess: {
+        open: (documentPath) => openHtmlFolderAccess(rootPath, documentPath),
+        confirm: requestHtmlFolderAccessConsent,
+      },
     },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
@@ -190,6 +199,46 @@ export function createLocalDataPort(rootPath: string): DataPort {
       ...options,
     }),
     deleteNode: (path) => getDesktopBridge().deleteEntry({ rootPath, path }).then(() => undefined),
+  };
+}
+
+/** The folder holding the page, never a project root, and only its own text files. */
+function openHtmlFolderAccess(rootPath: string, documentPath: string): HtmlFolderAccessSession | null {
+  const { parentPath: folderPath } = splitDataPath(canonicalizeResourcePath(documentPath));
+  if (!folderPath) return null;
+  const folderName = folderPath.slice(folderPath.lastIndexOf("/") + 1);
+  const filePath = (name: string) => {
+    if (!isHtmlFolderFileName(name)) throw new Error("This page can only use text files directly in its folder.");
+    return `${folderPath}/${name}`;
+  };
+  const modifiedOf = (node: FileNode) => {
+    const seconds = Number(node.modified);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
+  };
+  return {
+    folderName,
+    list: async () => (await loadFolderChildren(rootPath, folderPath))
+      .filter((node) => node.type !== "folder" && isHtmlFolderFileName(node.name))
+      .map((node) => ({ name: node.name, modified: modifiedOf(node) })),
+    read: async (name) => {
+      const path = filePath(name);
+      const [file, node] = await Promise.all([
+        getDesktopBridge().readFile({ rootPath, path }),
+        getDesktopBridge().resolveNode({ rootPath, path }),
+      ]);
+      if (typeof file.content !== "string" || (file.encoding && file.encoding !== "utf-8")) {
+        throw new Error(`${name} is not a UTF-8 text file.`);
+      }
+      return { content: file.content, version: file.version ?? null, modified: modifiedOf(node) };
+    },
+    write: async (name, content, expectedVersion) => {
+      const result = await getDesktopBridge().writeFile({ rootPath, path: filePath(name), content, expectedVersion });
+      return { version: requireWorkspaceWriteSuccess(result).version };
+    },
+    create: async (name) => {
+      filePath(name);
+      await getDesktopBridge().createEntry({ rootPath, parentPath: folderPath, name, kind: "file", content: "" });
+    },
   };
 }
 
@@ -416,7 +465,15 @@ export async function listImportResources(request: {
   return getDesktopBridge().listImportResources(request);
 }
 
-export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceOpenResult | null> {
+export async function listAppFolders(app: string): Promise<WorkspaceAppFolder[]> {
+  return (await getDesktopBridge().listAppFolders(app)).folders;
+}
+
+export async function addAppFolders(request: { app: string; paths: string[] }): Promise<{ added: number }> {
+  return getDesktopBridge().addAppFolders(request);
+}
+
+export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceImportSourceResult | null> {
   return getDesktopBridge().importSource(request);
 }
 

@@ -2,6 +2,7 @@
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WindowNavigationProvider, type WindowNavigation } from "../../../../src/components/WindowNavigation";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import {
   cloudProjectAddress,
@@ -10,8 +11,11 @@ import {
   type ProjectPlaceMenu,
 } from "../../../../src/features/app-shell/project-place/projectPlaceMenuState";
 import type { LocalFolderCloudNotice } from "../../../../src/features/cloud/project/localFolderCloudNoticeState";
+import type { CloudSpace } from "../../../../src/lib/workspaceHomeModel";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { accessibleName, getByRole, queryAllByRole, queryByRole } from "../../../support/react/queries";
 import { withTestLocalization } from "../../../support/react/localization";
+import { session } from "../../../fixtures/platform/ui-copy/billing";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
@@ -24,10 +28,8 @@ const projectProps = {
   open: false, refObject: createRef<HTMLDivElement>(), workspace, titlebarLabel: workspace.name,
   workspaceFolders: [], multiRootWorkspacesEnabled: false, onClose: noOp, onToggle: noOp, availableProjects: [workspace],
 };
-const handlers = { onPutInCloud: vi.fn(), onOpenCloudProject: vi.fn(), onSignIn: vi.fn(),
-  onRetryCloudLink: vi.fn(), onDisconnectCloudLink: vi.fn(), onOpenLocalFolder: vi.fn() };
-const local = (input: Partial<Parameters<typeof resolveProjectPlaceMenu>[0]> = {}) => resolveProjectPlaceMenu({
-  place: "local", unhosted: false, publishPending: false, notice: null, disconnectable: false, ...input });
+const linked: LocalFolderCloudNotice = { kind: "linked", projectId: "p1", projectName: "Vault", openable: true };
+const local = (input: Partial<Parameters<typeof resolveProjectPlaceMenu>[0]> = {}) => resolveProjectPlaceMenu({ place: "local", ...input });
 
 let root: Root;
 let container: HTMLDivElement;
@@ -37,144 +39,111 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
-async function renderHeader(menu: ProjectPlaceMenu) {
-  await act(async () => root.render(withTestLocalization(<DesktopTitlebarContext {...projectProps} placeMenu={{ menu, handlers }} />)));
-}
-function openMenu(selector = ".desktop-titlebar-place-button") {
-  act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
-}
-const rows = () => [...document.querySelectorAll<HTMLButtonElement>(".desktop-project-place-row")].map((row) => [
-  row.dataset.projectPlaceRow, row.querySelector(".desktop-menu-item-label")?.textContent,
-  row.querySelector(".desktop-menu-item-detail")?.textContent ?? null]);
-function click(kind: string) {
-  act(() => document.querySelector<HTMLButtonElement>(`.desktop-project-place-row[data-project-place-row="${kind}"]`)!.click());
-}
+const spaces: CloudSpace[] = [
+  { id: "mine", name: "guanqun's Workspace", kind: "space", isDefault: true, canCreateProjects: true },
+  { id: "acme", name: "Acme", kind: "space", role: "owner", canCreateProjects: true, planId: "team_v2" },
+];
+const navigation = (overrides: Partial<WindowNavigation> = {}): WindowNavigation => ({
+  account: { session, apiBaseUrl: "https://cloud.fixture", onOpenAccount: vi.fn(), onOpenSettings: vi.fn(), onCreateSpace: vi.fn() },
+  spaces, onShowPlace: vi.fn(), ...overrides,
+});
 
-describe("the Header place menu (ADR-001)", () => {
-  it("puts an unlinked folder in the Cloud, and shows a linked folder's Cloud link instead", () => {
-    const linked: LocalFolderCloudNotice = { kind: "linked", projectId: "p1", projectName: "Vault", openable: true };
-    expect(local({ unhosted: true })).toMatchObject({ action: { kind: "put-in-cloud", continuing: false } });
-    expect(local({ unhosted: true }).link).toBeUndefined();
-    // A running first publish owns the folder's link until it ends.
-    expect(local({ publishPending: true, notice: linked, disconnectable: true }))
-      .toEqual({ place: "local", address: null, action: { kind: "put-in-cloud", continuing: true } });
-    for (const notice of [linked, { kind: "sign-in" }, { kind: "missing" }, { kind: "other-environment", origin: null },
-      { kind: "no-access" }, { kind: "ambiguous" }, { kind: "unreachable", cause: null }] as LocalFolderCloudNotice[]) {
-      expect(local({ notice, disconnectable: true })).toMatchObject({ action: null, link: { notice, disconnectable: true } });
-    }
-    expect(local().link).toBeNull();
-    expect(resolveProjectPlaceMenu({ place: "cloud", unhosted: false, publishPending: false, notice: linked,
-      disconnectable: true, linkedFolder: { path: "/tmp/one", name: "One" } }))
-      .toEqual({ place: "cloud", address: null, action: { kind: "open-local-folder", path: "/tmp/one", name: "One" } });
+async function renderHeader(menu: ProjectPlaceMenu, nav: WindowNavigation | null = null, extra: Record<string, unknown> = {}) {
+  await act(async () => root.render(withTestLocalization(<WindowNavigationProvider value={nav}>
+    <DesktopTitlebarContext {...projectProps} {...extra} placeMenu={{ menu }} />
+  </WindowNavigationProvider>)));
+}
+const placeButton = () => getByRole(container, "button", { name: /Places and account$/ });
+const openMenu = () => act(() => placeButton().click());
+const menu = () => queryByRole(document, "menu", { name: "Places and account" });
+/** The menu as it reads, row by row; a rule between sections reads as "—". */
+const rows = () => [...menu()!.querySelectorAll(".desktop-menu-item, .desktop-menu-separator")]
+  .map((row) => row.classList.contains("desktop-menu-separator") ? "—" : row.textContent);
+
+describe("the Header's place, and the way to every other place", () => {
+  it("offers Home, the places with a new Space, then the account, and nothing about the folder", async () => {
+    const nav = navigation();
+    await renderHeader(local({ address: localProjectAddress("/Users/example/project/puppyone-qubits") }), nav, { onHome: noOp });
+    openMenu();
+    expect(rows()).toEqual(["Home", "—", "This Mac", "GPersonal", "AAcme", "Create space", "—", "Account", "Settings"]);
+    expect(menu()!.textContent).not.toMatch(/Who can open it|~\/project|Sign out/);
+    expect(menu()!.textContent).not.toContain(session.user_email);
+    expect(getByRole(menu()!, "menuitem", { name: "This Mac" }).getAttribute("aria-current")).toBe("true");
+    act(() => getByRole(menu()!, "menuitem", { name: "Acme" }).click());
+    expect(nav.onShowPlace).toHaveBeenCalledWith("acme");
+    expect(menu()).toBeNull();
   });
 
-  it("puts an unhosted folder in the Cloud from the This Mac menu, the conversion entry", async () => {
-    await renderHeader(local({ unhosted: true }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
+  it("goes Home from the place, and leaves the folder menu to switching and starting folders", async () => {
+    const home = vi.fn();
+    await renderHeader(local(), navigation(), { open: true, onHome: home, onCreateProject: noOp });
+    expect(document.querySelector(".desktop-project-menu")?.textContent).not.toContain("Home");
+    await renderHeader(local(), navigation(), { onHome: home });
+    openMenu();
+    act(() => getByRole(menu()!, "menuitem", { name: "Home" }).click());
+    expect(home).toHaveBeenCalledOnce();
+  });
+
+  it("asks to sign in where no account is signed in", async () => {
+    await renderHeader(local(), navigation({ account: { session: null, apiBaseUrl: "https://cloud.fixture", onOpenAccount: vi.fn() }, spaces: [] }));
+    openMenu();
+    expect(rows()).toEqual(["This Mac", "—", "Sign in"]);
+  });
+
+  it("keeps the place alone in the Header while the Project rail names the project", async () => {
+    await renderHeader(local(), null, { projectHidden: true });
+    const context = container.querySelector(".desktop-titlebar-context")!;
+    expect([...context.children].map((child) => child.className)).toEqual(["desktop-titlebar-place-wrap"]);
+  });
+
+  it("keeps a local folder's link only as its Cloud copy", () => {
+    expect(local()).toEqual({ place: "local", address: null, link: null });
+    expect(local({ notice: linked, disconnectable: true })).toEqual({
+      place: "local", address: null, link: { notice: linked, disconnectable: true } });
+    expect(local({ cloudEnabled: false, notice: linked })).toEqual({ place: "local", address: null });
+    expect(resolveProjectPlaceMenu({ place: "cloud", notice: linked })).toEqual({ place: "cloud", address: null });
+  });
+
+  it("states a local folder by this computer, before the folder, and speaks its path", async () => {
+    await renderHeader(local({ address: localProjectAddress("/Users/example/project/puppyone-qubits") }));
+    const button = placeButton();
     expect(button.textContent).toBe("This Mac");
-    openMenu();
-    expect(rows()).toEqual([
-      ["current", "This Mac", null],
-      ["put-in-cloud", "Put in the Cloud", null],
-    ]);
-    click("put-in-cloud");
-    expect(handlers.onPutInCloud).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-project-place-menu")).toBeNull();
+    const context = container.querySelector(".desktop-titlebar-context")!;
+    expect([...context.children].map((child) => child.className)).toEqual([
+      "desktop-titlebar-place-wrap", "desktop-titlebar-context-separator", "desktop-titlebar-workspace-wrap"]);
+    expect(accessibleName(button)).toBe("This Mac, ~/project/puppyone-qubits, Places and account");
   });
 
-  it.each([true, false])("never restores local invitations from the retired preference (%s)", async enabled => {
-    localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableShareOnboarding: enabled, enableProjectReach: true }));
-    initializeDesktopPreferences();
-    await renderHeader(local({ unhosted: true }));
-    openMenu();
-    expect(rows().map(([kind]) => kind)).toEqual(["current", "put-in-cloud"]);
-    expect(document.querySelector(".desktop-project-place-subrow, .desktop-titlebar-reach-button")).toBeNull();
+  it("states a Cloud folder by its organization until its Space is known", async () => {
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme") }));
+    expect(placeButton().textContent).toBe("Acme");
+    expect(accessibleName(placeButton())).toBe("Cloud project, Acme, Places and account");
   });
 
-  it("offers no sharing for a folder whose Cloud project needs a sign-in, only signing in", async () => {
-    await renderHeader(local({ notice: { kind: "sign-in" } }));
+  it("states a Cloud folder by the Space that holds it, with its square and the account's role, and marks it among the places", async () => {
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme org"), space: spaces[1] }), navigation());
+    const button = placeButton();
+    expect(button.querySelector(".po-space-mark")?.textContent).toBe("A");
+    expect(button.querySelector(".desktop-titlebar-place-address")?.textContent).toBe("Acme");
+    expect(accessibleName(button)).toBe("Acme, Owner, Places and account");
     openMenu();
-    expect(rows()).toEqual([["current", "This Mac", null], ["cloud-link", "Cloud project", "Sign in to open"]]);
-    click("cloud-link");
-    expect(handlers.onSignIn).toHaveBeenCalledOnce();
+    expect(queryAllByRole(menu()!, "menuitem").filter((row) => row.getAttribute("aria-current") === "true")
+      .map((row) => row.textContent)).toEqual(["AAcme"]);
   });
 
-  it("marks a linked folder in the Header and opens its Cloud project as another project", async () => {
-    await renderHeader(local({ address: localProjectAddress("/tmp/one"), disconnectable: true,
-      notice: { kind: "linked", projectId: "p1", projectName: "Vault", openable: true } }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
-    expect(button.dataset.cloudLink).toBe("linked");
-    expect(button.querySelector(".desktop-titlebar-place-link")).not.toBeNull();
-    expect(button.getAttribute("aria-label")).toBe("This Mac, /tmp/one, Linked to a Cloud project, Where this project is");
-    openMenu();
-    expect(rows()).toEqual([["current", "This Mac", "/tmp/one"], ["cloud-link", "⁨Vault⁩", null],
-      ["disconnect", "Disconnect from Cloud…", null]]);
-    click("cloud-link");
-    expect(handlers.onOpenCloudProject).toHaveBeenCalledWith("p1");
+  it("names the account's own Space Personal, never the server's generated name", async () => {
+    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", space: spaces[0] }));
+    expect(placeButton().querySelector(".desktop-titlebar-place-address")?.textContent).toBe("Personal");
+    expect(placeButton().querySelector(".po-space-mark")?.textContent).toBe("G");
   });
 
-  it("ends a link that cannot be used from here, and says why it cannot", async () => {
-    await renderHeader(local({ notice: { kind: "other-environment", origin: "http://localhost:9090" }, disconnectable: true }));
-    expect(container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!.dataset.cloudLink).toBe("problem");
-    openMenu();
-    expect(rows()).toEqual([["current", "This Mac", null], ["cloud-link", "Cloud project", "In another environment: localhost:9090"],
-      ["disconnect", "Disconnect from Cloud…", null]]);
-    const link = document.querySelector<HTMLButtonElement>('[data-project-place-row="cloud-link"]')!;
-    expect(link.getAttribute("aria-disabled")).toBe("true");
-    expect(link.dataset.cloudLink).toBe("problem");
-    act(() => link.click());
-    expect(handlers.onOpenCloudProject).not.toHaveBeenCalled();
-    expect(document.querySelector(".desktop-project-place-menu")).not.toBeNull();
-    click("disconnect");
-    expect(handlers.onDisconnectCloudLink).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-project-place-menu")).toBeNull();
-  });
-
-  it.each([
-    [{ kind: "missing" }, "No longer in the Cloud"],
-    [{ kind: "no-access" }, "This account can’t open it"],
-    [{ kind: "ambiguous" }, "Points to more than one Cloud project"],
-    [{ kind: "unreachable", cause: null }, "Can’t be reached right now"],
-  ] as [LocalFolderCloudNotice, string][])("says why a %o link cannot be opened", async (notice, detail) => {
-    await renderHeader(local({ notice }));
-    openMenu();
-    // A link this app cannot end by itself offers no way to end it.
-    expect(rows()).toEqual([["current", "This Mac", null], ["cloud-link", "Cloud project", detail]]);
-    if (notice.kind === "unreachable") {
-      click("cloud-link");
-      expect(handlers.onRetryCloudLink).toHaveBeenCalledOnce();
-    }
-  });
-
-  it("states a Cloud project and opens its linked folder as another project", async () => {
-    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", unhosted: false, publishPending: false, notice: null,
-      disconnectable: false, linkedFolder: { path: "/tmp/one", name: "One" } }));
-    expect(container.querySelector(".desktop-titlebar-place-button")?.textContent).toBe("Cloud project");
-    openMenu();
-    expect(rows()).toEqual([["current", "Cloud project", null], ["open-local-folder", "Open folder on this Mac", "⁨One⁩"]]);
-    click("open-local-folder");
-    expect(handlers.onOpenLocalFolder).toHaveBeenCalledWith("/tmp/one");
-  });
-
-  it("states a local project by the folder that holds it, and a Cloud project by its organization", async () => {
-    await renderHeader(local({ unhosted: true, address: localProjectAddress("/Users/example/project/puppyone-qubits") }));
-    const button = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
-    expect(button.textContent).toBe("~/project");
-    expect(button.querySelector("bdi")?.getAttribute("dir")).toBe("ltr");
-    // The words name the place; the kind of place stays in the accessible name and the menu.
-    expect(button.getAttribute("aria-label")).toBe("This Mac, ~/project/puppyone-qubits, Where this project is");
-    openMenu();
-    expect(rows()[0]).toEqual(["current", "This Mac", "~/project/puppyone-qubits"]);
-    act(() => button.click());
-
-    await renderHeader(resolveProjectPlaceMenu({ place: "cloud", address: cloudProjectAddress("Acme"), unhosted: false,
-      publishPending: false, notice: null, disconnectable: false }));
-    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-place-button")!;
-    expect(cloud.dataset.projectPlace).toBe("cloud");
-    expect(cloud.textContent).toBe("Acme");
-    expect(cloud.getAttribute("aria-label")).toBe("Cloud project, Acme, Where this project is");
-    openMenu();
-    expect(rows()).toEqual([["current", "Cloud project", "Acme"]]);
+  it("says a folder has a Cloud copy, and says what is wrong with one that cannot be used", async () => {
+    await renderHeader(local({ address: localProjectAddress("/tmp/one"), notice: linked }));
+    expect(accessibleName(placeButton())).toBe("This Mac, /tmp/one, Linked to a Cloud project, Places and account");
+    await renderHeader(local({ notice: { kind: "missing" } }));
+    expect(accessibleName(placeButton())).toBe("This Mac, No longer in the Cloud, Places and account");
+    await renderHeader(local({ notice: { kind: "other-environment", origin: "http://localhost:9090" } }));
+    expect(accessibleName(placeButton())).toBe("This Mac, In another environment: localhost:9090, Places and account");
   });
 
   it("shortens a local project's place to its root and last folders, and knows no Cloud place without a name", () => {
@@ -190,12 +159,4 @@ describe("the Header place menu (ADR-001)", () => {
     expect(cloudProjectAddress("  ")).toBeNull();
     expect(cloudProjectAddress(null)).toBeNull();
   });
-
-  it("offers nothing that cannot work, and never a switch of one project's place", async () => {
-    await renderHeader(local({ notice: { kind: "other-environment", origin: "http://api.puppyone.ai" } }));
-    openMenu();
-    expect(rows().map(([kind]) => kind)).toEqual(["current", "cloud-link"]);
-    expect(document.querySelector(".desktop-titlebar-location-button, .desktop-project-location-controls")).toBeNull();
-  });
-
 });

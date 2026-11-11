@@ -11,7 +11,7 @@ import { CloudLocalGitStatusError } from "./CloudLocalGitStatusError";
 
 type Props = Pick<CloudProjectPreparationProps, "workspace" | "status" | "loading" | "error"
   | "cloudBackupLoading" | "cloudBackupPending" | "cloudPublishError" | "cloudPublishNotice"
-  | "cloudPublishProgress" | "cloudPublishState" | "cloudPublishStateLoading"> & {
+  | "cloudPublishProgress" | "cloudPublishState" | "cloudPublishStateLoading" | "publishOrganizationId"> & {
   activeSection: CloudWorkspaceSection;
   session: DesktopCloudSession;
   apiBaseUrl: string | null;
@@ -76,16 +76,22 @@ function AuthenticatedCloudInitialize(props: ReadyProps) {
     { loadTeamDetails: false, selectionPolicy: "explicit" });
   useEffect(() => {
     const organizationId = organizationData.selectedOrganizationId;
-    if (!cloudBackupPending || cloudBackupLoading || organizationData.status !== "ready"
+    if (props.publishOrganizationId || !cloudBackupPending || cloudBackupLoading || organizationData.status !== "ready"
       || organizationData.organizations.length !== 1 || !organizationId
       || autoStartedOrganizationRef.current === organizationId) return;
     autoStartedOrganizationRef.current = organizationId;
     onPublishWorkspace(organizationId);
-  }, [cloudBackupLoading, cloudBackupPending, onPublishWorkspace,
+  }, [cloudBackupLoading, cloudBackupPending, onPublishWorkspace, props.publishOrganizationId,
     organizationData.organizations.length, organizationData.selectedOrganizationId, organizationData.status]);
+  const target = props.publishOrganizationId;
+  const destination = target ? organizationData.organizations.find((org) => org.id === target && org.can_create_projects === true) : null;
+  const loaded = ["ready", "selection-required", "none", "partial"].includes(organizationData.status);
+  const resolvedTargetStatus = destination ? "ready" : "error";
+  const targetStatus = target && loaded ? resolvedTargetStatus : null;
+  const organizationError = organizationData.error ? formatCloudMessage(organizationData.error, t) : null;
   return <PublishWorkspace {...props} organizations={organizationData.organizations}
-    selectedOrganizationId={organizationData.selectedOrganizationId}
-    organizationStatus={organizationData.status === "partial" ? "ready" : organizationData.status}
-    organizationError={organizationData.error ? formatCloudMessage(organizationData.error, t) : null}
-    onSelectOrganization={organizationData.selectOrganization} onRetryOrganizations={organizationData.refresh} />;
+    selectedOrganizationId={target ? destination?.id ?? null : organizationData.selectedOrganizationId}
+    organizationStatus={targetStatus ?? (organizationData.status === "partial" ? "ready" : organizationData.status)}
+    organizationError={target && loaded && !destination ? t("onboarding.spaces.unavailable") : organizationError}
+    onSelectOrganization={target ? undefined : organizationData.selectOrganization} onRetryOrganizations={organizationData.refresh} />;
 }

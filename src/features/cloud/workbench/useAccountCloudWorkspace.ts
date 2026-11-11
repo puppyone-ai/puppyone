@@ -60,37 +60,48 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl, shown, 
   }, []);
   const openTarget = useCallback(async (target: RepositoryTarget, canCommit: () => boolean = () => true, reportFailure = false) => {
     const captured = current.current;
-    if (!captured.authority || !captured.session) return;
+    const { authority: capturedAuthority, session: capturedSession } = captured;
+    if (!capturedAuthority || !capturedSession) return;
     lastAttempt.current = target;
     const id = ++requestId.current;
     const isCurrent = () => requestId.current === id && current.current.authority === captured.authority && canCommit();
     setOpeningTarget(target);
     setPreparation(null);
     setFailure(null);
-    let stage: "project" | "workspace" = "project";
-    try {
-      const result = await getCloudRepositoryContext(captured.session, target.project_id, target, undefined, apiBaseUrl);
-      if (!isCurrent()) return;
-      if (result.project.id !== target.project_id || result.target.project_id !== target.project_id
-        || result.target.kind !== target.kind
-        || (target.kind === "scope" && (result.target.kind !== "scope" || result.target.scope_id !== target.scope_id))) {
-        throw Object.assign(new Error("Cloud returned a different repository target."), { code: "repository_target_mismatch" });
+    const attempt = async () => {
+      let stage: "project" | "workspace" = "project";
+      try {
+        const result = await getCloudRepositoryContext(capturedSession, target.project_id, target, undefined, apiBaseUrl);
+        if (!isCurrent()) return null;
+        if (result.project.id !== target.project_id || result.target.project_id !== target.project_id
+          || result.target.kind !== target.kind
+          || (target.kind === "scope" && (result.target.kind !== "scope" || result.target.scope_id !== target.scope_id))) {
+          throw Object.assign(new Error("Cloud returned a different repository target."), { code: "repository_target_mismatch" });
+        }
+        const resolved: ResolvedContext = { status: "resolved", projectId: result.project.id,
+          projectName: result.project.name, target: result.target, scopePath: result.scope_path,
+          capabilities: result.project.capabilities ?? [] };
+        stage = "workspace";
+        const provider = createCloudDataService({ context: resolved, session: capturedSession, apiBaseUrl, isCurrent });
+        setPreparation({ projectName: resolved.projectName || resolved.projectId, progress: provider.openingProgress });
+        await provider.dataPort.listChildren(null);
+        if (!isCurrent()) return null;
+        // The window renders what it shows at once, so the project must be here first.
+        const selection = { authority: capturedAuthority, context: resolved, prepared: provider.handoff?.() };
+        flushSync(() => setSelection(selection));
+        current.current.onShow("cloud");
+        return null;
+      } catch (cause) {
+        return describeCloudOpeningFailure(cause, stage);
       }
-      const resolved: ResolvedContext = { status: "resolved", projectId: result.project.id,
-        projectName: result.project.name, target: result.target, scopePath: result.scope_path,
-        capabilities: result.project.capabilities ?? [] };
-      stage = "workspace";
-      const provider = createCloudDataService({ context: resolved, session: captured.session, apiBaseUrl, isCurrent });
-      setPreparation({ projectName: resolved.projectName || resolved.projectId, progress: provider.openingProgress });
-      await provider.dataPort.listChildren(null);
-      if (!isCurrent()) return;
-      // The window renders what it shows at once, so the project must be here first.
-      const selection = { authority: captured.authority, context: resolved, prepared: provider.handoff?.() };
-      flushSync(() => setSelection(selection));
-      current.current.onShow("cloud");
-    } catch (cause) {
-      if (isCurrent()) {
-        const openingFailure = describeCloudOpeningFailure(cause, stage);
+    };
+    try {
+      let openingFailure = await attempt();
+      // A workspace that moved while opening (replaced, paused, fenced, or its
+      // authorization revision changed) is opened again once before the user
+      // hears about it; a second move is reported.
+      if (openingFailure?.reopen && isCurrent()) openingFailure = await attempt();
+      if (openingFailure && isCurrent()) {
         setFailure(openingFailure);
         if (reportFailure) throw new CloudOpeningError(openingFailure);
       }

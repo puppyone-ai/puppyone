@@ -1,0 +1,70 @@
+@layer features {
+  /* Six quiet tones, never the accent blue, so a Space never reads as a
+     selection or a link. The light theme lifts each one a little. */
+  .po-space-mark {
+    --po-space-mark-size: 16px;
+    display: inline-grid;
+    box-sizing: border-box;
+    width: var(--po-space-mark-size);
+    height: var(--po-space-mark-size);
+    flex: 0 0 var(--po-space-mark-size);
+    place-items: center;
+    border-radius: 4px;
+    background: var(--po-space-mark-bg, #6b7480);
+    color: #ffffff;
+    font-family: var(--po-font-sans);
+    font-size: var(--po-text-size-micro, 10px);
+    font-weight: var(--po-text-weight-semibold, 600);
+    line-height: 1;
+    user-select: none;
+  }
+
+  .po-space-mark[data-size="sm"] {
+    --po-space-mark-size: 12px;
+    border-radius: 3px;
+    font-size: var(--po-text-size-glyph, 8px);
+  }
+
+  .po-space-mark[data-size="lg"] {
+    --po-space-mark-size: 22px;
+    border-radius: 6px;
+    font-size: var(--po-text-size-meta, 12px);
+  }
+
+  .po-space-mark[data-tone="0"] { --po-space-mark-bg: #5d7d9c; }
+  .po-space-mark[data-tone="1"] { --po-space-mark-bg: #8c71a8; }
+  .po-space-mark[data-tone="2"] { --po-space-mark-bg: #618f78; }
+  .po-space-mark[data-tone="3"] { --po-space-mark-bg: #9c7c57; }
+  .po-space-mark[data-tone="4"] { --po-space-mark-bg: #9c616e; }
+  .po-space-mark[data-tone="5"] { --po-space-mark-bg: #6e7682; }
+
+  .dark .po-space-mark[data-tone="0"] { --po-space-mark-bg: #4b6b8a; }
+  .dark .po-space-mark[data-tone="1"] { --po-space-mark-bg: #7a5f96; }
+  .dark .po-space-mark[data-tone="2"] { --po-space-mark-bg: #4f7d66; }
+  .dark .po-space-mark[data-tone="3"] { --po-space-mark-bg: #8a6a45; }
+  .dark .po-space-mark[data-tone="4"] { --po-space-mark-bg: #8a4f5c; }
+  .dark .po-space-mark[data-tone="5"] { --po-space-mark-bg: #5c6470; }
+
+  .po-space-plan {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 17px;
+    padding: 0 6px;
+    border: 1px solid var(--po-divider);
+    border-radius: 999px;
+    color: var(--po-text-subtle);
+    font-family: var(--po-font-mono);
+    font-size: var(--po-text-size-micro, 10px);
+    font-weight: var(--po-text-weight-regular, 400);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .po-space-plan:not([data-plan="free"]) {
+    border-color: color-mix(in srgb, var(--po-accent) 32%, transparent);
+    color: color-mix(in srgb, var(--po-accent) 78%, var(--po-text));
+  }
+}

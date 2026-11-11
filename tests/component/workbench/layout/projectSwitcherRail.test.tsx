@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { buildHomepageProjects } from "../../../../src/features/cloud/workbench/homepageCloudProjects";
-import type { ProjectAppearance } from "../../../../src/types/electron";
+import { importProjectResult } from "../../../support/react/onboardingHome";
+import type { WorkspaceImportSourceResult, ProjectAppearance } from "../../../../src/types/electron";
 import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
@@ -313,7 +314,7 @@ describe("Project switcher rail", () => {
 
   it("exports a Project row as a Finder-compatible native folder drag", async () => {
     const active = workspace("active", "Alpha", "/projects/alpha folder");
-    const startProjectRootDrag = vi.fn(async () => true);
+    const startProjectRootDrag = vi.fn(importProjectResult);
     window.puppyoneDesktop = {
       resourceDragSessionSupported: true,
       startProjectRootDrag,
@@ -509,7 +510,7 @@ describe("Project switcher rail", () => {
       const buttons = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-button")];
       expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
         "Project: ⁨Alpha⁩ · Local folder",
-        "New workspace",
+        "New folder",
       ]);
       expect(host.querySelector(".desktop-project-switcher-rail-home")).toBeNull();
       expect(host.querySelector(".po-directional-icon")).toBeNull();
@@ -597,7 +598,7 @@ describe("Project switcher rail", () => {
     expect(compactRow?.hasAttribute("data-tooltip")).toBe(false);
     expect(compactRow?.hasAttribute("title")).toBe(false);
     const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
-    expect(create?.dataset.tooltip).toBe("New workspace");
+    expect(create?.dataset.tooltip).toBe("New folder");
     expect(create?.dataset.tooltipPlacement).toBe("right");
     expect(create?.hasAttribute("title")).toBe(false);
 
@@ -856,7 +857,7 @@ describe("Project switcher rail", () => {
   });
 
   it("hands the in-project launcher off to the shared Import flow", async () => {
-    const onImportSource = vi.fn(async () => true);
+    const onImportSource = vi.fn(importProjectResult);
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -882,7 +883,7 @@ describe("Project switcher rail", () => {
 function ProjectEntryFlowHarness({
   onImportSource,
 }: {
-  onImportSource: () => Promise<boolean>;
+  onImportSource: () => Promise<WorkspaceImportSourceResult | null>;
 }) {
   const controller = useProjectEntryFlow();
   return (

@@ -20,6 +20,9 @@ export function registerWorkspaceNavigationIpcHandlers({
   selectWorkspaceForNewWindow,
   attachWorkspaceToCurrentWindow,
   detachWorkspaceFromCurrentWindow,
+  folderRelocation,
+  getDialogOwnerWindow,
+  appFolders,
 }) {
   ipcMain.handle("window:get-restoring-project", (event) => getRestoringProjectForWindow(event.sender));
 
@@ -98,6 +101,22 @@ export function registerWorkspaceNavigationIpcHandlers({
     return getDefaultProjectLocationForCurrentWindow(event.sender);
   });
 
+  // Folders another app already records. Adding re-reads that app's own record
+  // and accepts only folders still on it, so no arbitrary path gets through.
+  ipcMain.handle("workspace:app-folders-list", async (_event, app) => {
+    const folders = await appFolders.list(app);
+    const listed = new Set((await workspaceStateStore.getRecentWorkspacesResult()).workspaces.map((workspace) => workspace.path));
+    return { folders: folders.map((folder) => ({ ...folder, added: listed.has(folder.path) })) };
+  });
+
+  ipcMain.handle("workspace:app-folders-add", async (_event, request) => {
+    const offered = new Set((await appFolders.list(request?.app)).map((folder) => folder.path));
+    const paths = Array.isArray(request?.paths) ? request.paths.filter((folderPath) => offered.has(folderPath)) : [];
+    if (paths.length === 0) throw new Error("Choose a folder that this app still lists.");
+    const added = await workspaceStateStore.addRecentWorkspacePaths(paths);
+    return { added: added.length };
+  });
+
   ipcMain.handle("workspace:import-source-connect", async (event, request) => {
     return connectImportSourceForCurrentWindow(event.sender, request);
   });
@@ -134,6 +153,20 @@ export function registerWorkspaceNavigationIpcHandlers({
   ipcMain.handle("workspace:detach-current", async (event, folderPath) => {
     return detachWorkspaceFromCurrentWindow(event.sender, folderPath);
   });
+
+  // A project whose folder moved, was renamed or whose disk is away: what is known,
+  // finding where it went, and using that place from now on.
+  ipcMain.handle("workspace:folder-status", async (event, request) => (
+    folderRelocation.status(event.sender, request?.paths)
+  ));
+
+  ipcMain.handle("workspace:locate-folder", async (event, request) => (
+    folderRelocation.locate(event.sender, request?.path, getDialogOwnerWindow(event.sender))
+  ));
+
+  ipcMain.handle("workspace:relocate-folder", async (_event, request) => (
+    folderRelocation.relocate(request?.token)
+  ));
 
   ipcMain.handle("workspace:select-folder-new-window", async (event) => {
     return selectWorkspaceForNewWindow(event.sender);

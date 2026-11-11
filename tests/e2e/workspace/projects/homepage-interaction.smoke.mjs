@@ -86,7 +86,7 @@ const focusIsIn = (selector) => `!!document.activeElement?.closest(${JSON.string
 const activeTile = `[...document.querySelectorAll(${JSON.stringify(TILE)})].indexOf(document.activeElement)`;
 
 async function openCreateDialog() {
-  await click(await pointAt(".onboarding-entry-menu-root .onboarding-entry-action-default"));
+  await click(await pointAt('.onboarding-entry-menu-root [data-onboarding-action="create"]'));
   await until("!!document.querySelector('[role=dialog]')", "the create dialog");
   await until("!!document.querySelector('[role=dialog] button[type=submit]:not(:disabled)')", "the default location");
   await wait(220);
@@ -136,7 +136,7 @@ async function aClosedDialogLightsNothing() {
   await openCreateDialog();
   const inert = await evaluate("document.getElementById('root').hasAttribute('inert')");
   check("The page behind an open dialog is inert", inert);
-  const cancel = await pointAt("[role=dialog] .desktop-dialog-footer .desktop-dialog-button:not(.primary):not(.onboarding-entry-paste-template)");
+  const cancel = await pointAt("[role=dialog] .desktop-dialog-footer .desktop-dialog-button:not(.primary)");
   await click(cancel);
   await until("!document.querySelector('[role=dialog]')", "the dialog to close");
   check("The page comes back when the dialog closes", !await evaluate("document.getElementById('root').hasAttribute('inert')"));
@@ -218,10 +218,10 @@ async function focusComesBackToTheProject() {
 
   const lighting = () => evaluate(`(() => {
     const row = document.querySelector('.onboarding-project-row-wrap');
-    return { actions: getComputedStyle(row.querySelector(${JSON.stringify(ACTIONS)})).opacity,
-      tile: getComputedStyle(row.querySelector(${JSON.stringify(TILE)})).backgroundColor };
+    return { actions: getComputedStyle(row.querySelector(${JSON.stringify(ACTIONS)})).opacity };
   })()`);
-  const unlit = ({ actions, tile }) => actions === "0" && tile === "rgba(0, 0, 0, 0)";
+  // A lit project shows its actions; its tile has no box of its own to fill.
+  const unlit = ({ actions }) => actions === "0";
 
   // Closed from the keyboard, the lit row is how someone on the keyboard sees where they are.
   await move(AWAY);

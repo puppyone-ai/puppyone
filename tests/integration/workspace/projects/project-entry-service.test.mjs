@@ -10,6 +10,7 @@ import {
 } from "../../../../electron/main/project-entry-service.mjs";
 import { createLocalProjectImportService } from "../../../../electron/main/project-import/service.mjs";
 import { createImportSourceRegistry } from "../../../../electron/main/project-import/registry.mjs";
+import { createFolderImportSource } from "../../../../electron/main/project-import/sources/folder.mjs";
 import { LOCAL_IMPORT_SOURCES } from "../../../../shared/project-import/sources.mjs";
 
 let parentPath;
@@ -31,9 +32,10 @@ describe("project entry service", () => {
         return module.createImportSource({ cloneGit: vi.fn(), requireGitRepository, requireProjectName });
       },
     });
-    for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational)) {
+    for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational && source.mode !== "app")) {
       await expect(registry.require(descriptor.id)).resolves.toMatchObject({ descriptor });
     }
+    await expect(registry.require("obsidian")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
     await expect(registry.require("notion")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
   });
 
@@ -225,21 +227,25 @@ describe("project entry service", () => {
     });
   });
 
-  it("copies an exported folder into a new local project and leaves the source independent", async () => {
+  it("copies a registered folder source into a new local project and leaves the source independent", async () => {
     const sourcePath = path.join(parentPath, "notion-export");
     const destination = path.join(parentPath, "projects");
     await mkdir(path.join(sourcePath, "pages"), { recursive: true });
     await mkdir(destination);
     await writeFile(path.join(sourcePath, "pages", "note.md"), "source\n");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).resolves.toMatchObject({
       path: path.join(destination, "notion-export"),
       name: "notion-export",
-      provider: "obsidian",
+      provider: "test-folder",
     });
     await writeFile(path.join(destination, "notion-export", "pages", "note.md"), "local\n");
     expect(await readFile(path.join(sourcePath, "pages", "note.md"), "utf8")).toBe("source\n");
@@ -255,10 +261,14 @@ describe("project entry service", () => {
     await writeFile(path.join(sourcePath, "note.md"), "source");
     await writeFile(path.join(destination, "vault", "note.md"), "existing");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
     expect(await readFile(path.join(destination, "vault", "note.md"), "utf8")).toBe("existing");
     expect(await readdir(destination)).toEqual(["vault"]);
@@ -272,10 +282,14 @@ describe("project entry service", () => {
     await writeFile(path.join(parentPath, "outside.txt"), "private");
     await symlink(path.join(parentPath, "outside.txt"), path.join(sourcePath, "linked.txt"));
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toThrow(/symbolic link/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(parentPath, "outside.txt"), "utf8")).toBe("private");
@@ -287,10 +301,14 @@ describe("project entry service", () => {
     await mkdir(destination, { recursive: true });
     await writeFile(path.join(sourcePath, "note.md"), "source");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toThrow(/outside the source folder/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(sourcePath, "note.md"), "utf8")).toBe("source");

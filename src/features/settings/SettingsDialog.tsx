@@ -19,6 +19,7 @@ export type SettingsDialogProps = SettingsWorkspaceSurfaceProps & {
  * Settings is a temporary application task, not a Workspace destination.
  * Its existing navigation and content stay feature-owned while the dialog
  * shell preserves the Explorer, editors, and auxiliary sidebar underneath.
+ * It manages exactly the Space its opener chose and never switches to another.
  */
 export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
   const { t } = useLocalization();

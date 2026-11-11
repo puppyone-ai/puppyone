@@ -101,6 +101,14 @@ It checks moved-content identity, the full structural outline, absent cell
 editing focus, heading-free menus and Escape dismissal. This is a component
 fixture, with no filesystem save or OS pointer injection.
 
+`npm run smoke:project-import` launches the production Electron Main, preload
+and renderer with an isolated temporary profile. Real Git clones a local fixture
+through a process-local URL rewrite. The test makes the published folder
+unavailable, restores it and retries opening, verifying one publication and
+preserved edits. It also checks Main's recorded-app allowlist, in-place folder
+addition and preservation of the active project. This does not certify live
+GitHub/GitLab authentication or installed Windows/Linux packages.
+
 `smoke:item-lifecycle` is the `item-lifecycle` app gate: the production Main
 supervisor and utility runtime face blocked initialization, uncooperative
 disposal and a real child process group. It verifies bounded outer termination,

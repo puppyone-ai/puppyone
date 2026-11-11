@@ -4,15 +4,13 @@ import { DesktopMenuSurface } from "../DesktopMenu";
 import { useOnboardingMenu } from "./useOnboardingMenu";
 
 /** A quiet control in the projects' toolbar that opens a menu of its own. */
-export function OnboardingToolbarMenu({ label, triggerLabel, trigger, active = false, multiple = false, disabled, children }: {
+export function OnboardingToolbarMenu({ label, triggerLabel, trigger, active = false, disabled, children }: {
   /** What the menu does, given to the menu itself. */
   label: string;
   /** What the control does and is set to, for its tooltip and assistive technology. */
   triggerLabel: string;
   trigger: ReactNode;
   active?: boolean;
-  /** Choices stay open and accumulate, so the menu must hold its width and place. */
-  multiple?: boolean;
   disabled: boolean;
   /** The menu's items; `close` dismisses it, for items that finish the choice. */
   children: (close: () => void) => ReactNode;
@@ -36,7 +34,7 @@ export function OnboardingToolbarMenu({ label, triggerLabel, trigger, active = f
       {menu.open && (
         <DesktopMenuSurface
           ref={menu.menuRef}
-          className={`onboarding-view-menu ${multiple ? "is-multiple" : ""}`}
+          className="onboarding-view-menu"
           ariaLabel={label}
           elevation="compact"
           onKeyDown={menu.onKeyDown}

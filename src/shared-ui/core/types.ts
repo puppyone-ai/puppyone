@@ -11,6 +11,7 @@ export type DataNodeStatus = "clean" | "modified" | "created" | "deleted" | "mov
 export type DataSourceKind =
   | "local"
   | "cloud"
+  | "device"
   | "github"
   | "notion"
   | "google_drive"
@@ -34,6 +35,8 @@ export type Workspace = {
   projectId?: string | null;
   workspaceInstanceId?: string;
   fsIdentity?: string;
+  /** Set when the owner opened this folder on their other computers (host folder id). */
+  hostFolderId?: string;
   hydrationState?: "metadata" | "loading" | "ready" | "error";
   configError?: string;
   /** Host-resolved Markdown grammar; never inferred from document contents. */

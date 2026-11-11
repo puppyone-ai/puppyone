@@ -23,14 +23,3 @@ export function HomeProjectIcon({ item, filled = false }: { item: ProjectHomeIte
     </span>
   );
 }
-
-/** The same three places as a whole folder, told apart by shape alone. */
-export function ProjectFolder({ item }: { item: ProjectHomeItem }) {
-  const location = projectIconLocation(item);
-  return (
-    <span className={`onboarding-project-folder is-${location}`} data-project-location={location} aria-hidden="true">
-      <ProjectFolderGlyph cloud={location === "cloud"} />
-      {location === "linked" && <CloudIcon className="onboarding-project-cloud-badge" size={16} backplate />}
-    </span>
-  );
-}

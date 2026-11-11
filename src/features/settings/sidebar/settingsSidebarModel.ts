@@ -14,8 +14,10 @@ import {
   ShieldCheck,
   Type,
   UserRound,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import { LocalIcon } from "@puppyone/shared-ui";
 import type { SettingsSection } from "../types";
 
 export type SettingsSidebarItem = {
@@ -26,7 +28,9 @@ export type SettingsSidebarItem = {
   requiresLocalWorkspace?: boolean;
   requiresCloud?: boolean;
   requiresAccount?: boolean;
+  requiresSpace?: boolean;
   requiresOtherAppImports?: boolean;
+  requiresHostDevices?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
@@ -41,43 +45,32 @@ export type SettingsSidebarGroupModel = {
 
 export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
+  currentSpaceAvailable?: boolean;
   /** The build offers a PuppyOne account, with or without Cloud. */
   accountAvailable: boolean;
   otherAppImportsEnabled?: boolean;
   localWorkspaceAvailable?: boolean;
+  /** Sharing folders with the owner's other computers is on for this account. */
+  hostDevicesEnabled?: boolean;
 };
 
-/**
- * Cloud leads the list.
- *
- * Two reasons, and neither is promotion. The nav scrolls: on a short window
- * the last group is below the fold, and the account a user came to find is the
- * one thing that must never need scrolling to. And this is where money is
- * decided — identity, plan and price — so it sits where a user looks first
- * rather than after seven rows of application preferences.
- *
- * Settings still opens on General (`App.tsx`); first in the list is not the
- * default page, it is the first thing visible.
- */
+/** Identity, current Space and application preferences stay at the same navigation level. */
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "cloud",
-    labelId: "settings.sidebar.cloud",
-    labelWithoutCloudId: "settings.sidebar.puppyone",
+    labelId: "settings.sidebar.accountGroup",
     items: [
-      // An account is not Cloud: people buy PuppyOne compute on the website and
-      // use it here with Cloud off, so Account is always offered where the
-      // build has accounts. Plan sells storage and the Cloud Computer, so it
-      // waits for Cloud. Who you are, then what you pay. Account reports identity and nothing
-      // that costs money; Plan (section id "seats": the product is priced per
-      // person) is the only place a price appears or a charge begins. The split that failed before was "Account / Plan", where both
-      // pages answered what you hold.
-      //
-      // Invoices are deliberately absent: they are documents, card forms and
-      // tax fields, which belong in a browser rather than a settings pane, so
-      // Plan links out to them instead of hosting a third entry here.
       { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresAccount: true },
-      { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false, requiresCloud: true },
+    ],
+  },
+  {
+    id: "space",
+    labelId: "settings.space.group",
+    requiresCloud: true,
+    items: [
+      { id: "space", labelId: "settings.space.membersAndSettings", icon: UsersRound, disabled: false, requiresSpace: true },
+      // Keep the historical route for billing links and the standalone Plan preview.
+      { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false },
     ],
   },
   {
@@ -90,6 +83,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "other-app-imports", labelId: "settings.sidebar.otherAppImports", icon: FolderInput, disabled: false, requiresOtherAppImports: true },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
+      { id: "other-computers", labelId: "settings.sidebar.otherComputers", icon: LocalIcon, disabled: false, requiresHostDevices: true },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
     ],
   },
@@ -120,9 +114,11 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
 
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
+  currentSpaceAvailable = false,
   accountAvailable,
   otherAppImportsEnabled = false,
   localWorkspaceAvailable = true,
+  hostDevicesEnabled = false,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
   return SETTINGS_SIDEBAR_GROUPS
     .filter((group) => (!group.requiresCloud || cloudEnabled)
@@ -133,8 +129,10 @@ export function resolveSettingsSidebarGroups({
       items: group.items.filter((item) => (
         (!item.requiresCloud || cloudEnabled)
         && (!item.requiresAccount || accountAvailable)
+        && (!item.requiresSpace || currentSpaceAvailable)
         && (!item.requiresLocalWorkspace || localWorkspaceAvailable)
         && (!item.requiresOtherAppImports || otherAppImportsEnabled)
+        && (!item.requiresHostDevices || hostDevicesEnabled)
       )),
     }))
     .filter((group) => group.items.length > 0);

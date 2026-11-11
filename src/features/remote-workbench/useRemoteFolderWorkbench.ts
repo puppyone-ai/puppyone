@@ -1,0 +1,171 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  closeDocumentWorkingCopy,
+  appendWorkspaceContentChange,
+  isDocumentDataNode,
+  withEditorDocumentOperations,
+  type DataNode,
+  type WorkspaceContentChange,
+} from "@puppyone/shared-ui";
+import type { DataPort, ResourceUri, Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
+import type { FilesVisibilitySettings } from "../../preferences";
+import { createExplorerDataPort, useDataNodeActions, useProjectExplorerSelection } from "../data-workspace";
+import { useDesktopEditorWorkbench } from "../editor-workbench";
+
+/** What any remote folder provider gives the shared workbench: Cloud project or another computer. */
+export type RemoteFolderService = {
+  workspace: Workspace;
+  folder: WorkspaceFolder;
+  dataPort: DataPort;
+  writable: boolean;
+  invalidateReads: () => void;
+  resolveResource: (resource: string | null) => { folder: WorkspaceFolder; providerPath: string | null; resourceUri: ResourceUri } | null;
+  getPathForCopy: (resource: string) => string;
+  watch?: (changed: () => void, failed: (error: Error) => void) => () => void;
+  resume?: () => Promise<unknown> | unknown;
+};
+
+const noop = () => undefined;
+
+/**
+ * The provider-neutral remote workbench: explorer, editors, node actions, watch
+ * and shortcuts for one remote folder. `serviceKey` is the full authority
+ * contract; a new key builds a new provider and fences the old one.
+ */
+export function useRemoteFolderWorkbench<S extends RemoteFolderService>({ serviceKey, dependency, createService,
+  pendingService, active, filesVisibilitySettings }: {
+  serviceKey: string | null;
+  /** A second identity input besides the key (for example a Cloud handoff). */
+  dependency?: unknown;
+  createService: (isCurrent: () => boolean) => S | null;
+  pendingService: S;
+  active: boolean;
+  filesVisibilitySettings: FilesVisibilitySettings;
+}) {
+  const lease = useMemo(() => ({ key: serviceKey, dependency }), [serviceKey, dependency]);
+  const currentLeaseRef = useRef<typeof lease | null>(lease);
+  currentLeaseRef.current = lease;
+  // Child explorer effects read immediately. Restore admission before passive
+  // effects replay, and revoke it synchronously when the folder really leaves.
+  useLayoutEffect(() => {
+    currentLeaseRef.current = lease;
+    return () => { if (currentLeaseRef.current === lease) currentLeaseRef.current = null; };
+  }, [lease]);
+  const { service, error } = useMemo((): { service: S | null; error: string | null } => {
+    if (!serviceKey) return { service: null, error: null };
+    try {
+      return { service: createService(() => currentLeaseRef.current === lease), error: null };
+    } catch (cause) {
+      return { service: null, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+    // The key is the complete authority/scope/session contract. Object identity
+    // from an auth snapshot or a context render must not rebuild the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceKey, dependency]);
+  const dataPort = useMemo(() => service
+    ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
+    : null, [service, filesVisibilitySettings]);
+  const surfaceService = service ?? pendingService;
+  const [surfaceVisitedKey, setSurfaceVisitedKey] = useState<string | null>(null);
+  useEffect(() => { if (active) setSurfaceVisitedKey(pendingService.workspace.id); }, [active, pendingService]);
+  const surfaceVisited = active || surfaceVisitedKey === pendingService.workspace.id;
+  const [visitedKey, setVisitedKey] = useState<string | null>(null);
+  useEffect(() => { if (active && service) setVisitedKey(service.workspace.id); }, [active, service]);
+  const visited = Boolean(service && (active || visitedKey === service.workspace.id));
+  const resolveEditorResource = useCallback((path: string) => {
+    const resource = service?.resolveResource(path);
+    return resource?.providerPath ? {
+      rootUri: resource.folder.uri, resourcePath: resource.providerPath, hostPath: resource.resourceUri,
+    } : null;
+  }, [service]);
+  const editorWorkbench = useDesktopEditorWorkbench(visited ? service?.workspace ?? null : null,
+    dataPort?.resolveNode ?? null, service?.folder.uri ?? null, resolveEditorResource, service?.workspace.id ?? null);
+  const [activeNode, setActiveNode] = useProjectExplorerSelection(service?.workspace ?? null);
+  // A tab/pane switch owns the current document; do not retain a prior folder
+  // selection as the Share target after the visible document changes.
+  useEffect(() => { setActiveNode(null); }, [editorWorkbench.activePath, setActiveNode]);
+  const selectionAwareEditorWorkbench = useMemo(() => ({ ...editorWorkbench,
+    activate: (editorId: string) => { setActiveNode(null); editorWorkbench.activate(editorId); },
+    focusPane: (paneId: string) => { setActiveNode(null); editorWorkbench.focusPane(paneId); },
+  }), [editorWorkbench, setActiveNode]);
+  const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
+  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const navigationRequest = useRef(0);
+  const revalidate = useCallback(() => {
+    if (service) setRefreshToken(current => appendWorkspaceContentChange(current, { rootUri: service.folder.uri, paths: null }));
+  }, [service]);
+  const refresh = useCallback(() => { service?.invalidateReads(); revalidate(); }, [service, revalidate]);
+  const activateNode = useCallback((node: DataNode) => {
+    if (!service?.resolveResource(node.path)) return;
+    setActiveNode(node);
+    if (isDocumentDataNode(node)) editorWorkbench.openDocument(node);
+  }, [editorWorkbench, service, setActiveNode]);
+  const onActivePathChange = useCallback(async (path: string | null, node?: DataNode | null) => {
+    const requestId = ++navigationRequest.current;
+    try {
+      if (!path) { setActiveNode(null); return; }
+      const target = node ?? await dataPort?.resolveNode?.(path);
+      if (requestId !== navigationRequest.current) return;
+      if (target) activateNode(target);
+      setNavigationError(null);
+    } catch (cause) {
+      if (requestId === navigationRequest.current) setNavigationError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [activateNode, dataPort, setActiveNode]);
+  const actions = useDataNodeActions({
+    dataPort, getPathForCopy: service?.getPathForCopy, workspace: service?.workspace ?? null, setActiveExplorerNode: setActiveNode,
+    onEnterDataView: noop, onLocalWorkspaceContentChanged: noop,
+    onWorkspaceContentChanged: refresh, onActivateNode: activateNode,
+    onResourceMoved: editorWorkbench.rebaseResource, onResourceDeleted: editorWorkbench.closeUnderResource,
+  });
+  const closeEditor = useCallback(async (editorId: string) => {
+    try {
+      const resourcePath = editorWorkbench.state.editors.find((editor) => editor.id === editorId)?.resource;
+      if (!resourcePath) return;
+      const storageIdentity = dataPort?.documentPersistence?.storageIdentity;
+      if (storageIdentity) await closeDocumentWorkingCopy({ storageIdentity, resourcePath });
+      editorWorkbench.close(editorId);
+      setNavigationError(null);
+    } catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+  }, [dataPort, editorWorkbench]);
+  const resetActions = actions.resetDataNodeActions;
+  useEffect(() => {
+    if (!active) { navigationRequest.current++; resetActions(); }
+  }, [active, resetActions]);
+  useEffect(() => {
+    navigationRequest.current++;
+    resetActions();
+    setNavigationError(null);
+  }, [serviceKey, resetActions]);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const resumeWorkspace = useCallback(async () => {
+    try { await service?.resume?.(); setNavigationError(null); refresh(); setConnectionAttempt(value => value + 1); }
+    catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+  }, [service, refresh]);
+  useEffect(() => {
+    if (!active || !service?.watch) return;
+    return service.watch(() => { setNavigationError(null); revalidate(); }, failure => setNavigationError(failure.message));
+  }, [active, service, revalidate, connectionAttempt]);
+  useEffect(() => {
+    if (!active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "w" && editorWorkbench.activeEditorId) {
+        event.preventDefault(); void closeEditor(editorWorkbench.activeEditorId);
+      } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "Tab") {
+        const editors = editorWorkbench.state.editors;
+        if (!editors.length) return;
+        event.preventDefault();
+        const index = editors.findIndex(({ id }) => id === editorWorkbench.activeEditorId);
+        editorWorkbench.activate(editors[(index + (event.shiftKey ? -1 : 1) + editors.length) % editors.length]!.id);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [active, closeEditor, editorWorkbench]);
+  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench: selectionAwareEditorWorkbench, activeNode, actions, refreshToken, refresh,
+    onActivePathChange, setActiveNode, closeEditor, resumeWorkspace, error: navigationError ?? error };
+}
+
+export type RemoteFolderWorkbench<S extends RemoteFolderService = RemoteFolderService> =
+  ReturnType<typeof useRemoteFolderWorkbench<S>>;

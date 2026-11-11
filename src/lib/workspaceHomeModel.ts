@@ -2,6 +2,18 @@ import type { HomepageProjectSort } from "../preferenceStorage";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { getRecentWorkspaces } from "./localFiles";
 
+export type CloudSpace = Readonly<{
+  id: string;
+  name: string;
+  kind: "space";
+  isDefault?: boolean;
+  role?: string | null;
+  canManageSpace?: boolean;
+  canCreateProjects: boolean;
+  /** The plan this space is on, when billing has published one; projects here use it. */
+  planId?: string | null;
+}>;
+
 export type RecentWorkspaceHomeItem = {
   workspace: Workspace;
   lastOpenedAt?: string | null;
@@ -31,18 +43,15 @@ export type ProjectHomeItem = {
   cloudActions?: Readonly<{ rename: boolean; delete: boolean }>;
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
+  /**
+   * The id this local folder was opened to the owner's other computers under, as
+   * recorded when it was shared. Whether it still is comes from this computer's catalog.
+   */
+  hostFolderId?: string;
 };
 
 export function projectHomeItemLocation(item: ProjectHomeItem): "local" | "cloud" {
   return item.localPath ? "local" : "cloud";
-}
-
-export const PROJECT_HOME_PLACES = ["local", "cloud"] as const;
-export type ProjectHomePlace = typeof PROJECT_HOME_PLACES[number];
-
-/** The places that hold at least one of these projects. */
-export function projectHomeLocations(items: readonly ProjectHomeItem[]) {
-  return new Set(items.map(projectHomeItemLocation));
 }
 
 function modificationTime(item: ProjectHomeItem) {
@@ -50,15 +59,13 @@ function modificationTime(item: ProjectHomeItem) {
   return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
 }
 
-/** Narrows and orders projects, leaving equals in the order the catalog gave them. */
-export function viewProjectHomeItems(items: readonly ProjectHomeItem[], { places, sort, locale, untitled }: {
-  /** The places to show, any of them; none chosen means every place. */
-  places: ReadonlySet<ProjectHomePlace>;
+/** Orders projects, leaving equals in the order the catalog gave them. */
+export function viewProjectHomeItems(items: readonly ProjectHomeItem[], { sort, locale, untitled }: {
   sort: HomepageProjectSort;
   locale: string;
   untitled: string;
 }) {
-  const shown = items.filter((item) => places.size === 0 || places.has(projectHomeItemLocation(item)));
+  const shown = [...items];
   if (sort === "name") {
     const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
     return shown.sort((a, b) => collator.compare(getProjectName(a, untitled), getProjectName(b, untitled)));

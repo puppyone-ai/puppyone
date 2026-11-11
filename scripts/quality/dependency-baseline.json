@@ -1617,42 +1617,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/explorer.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/useDataNodeActions.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/data-workspace/useProjectExplorerSession.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
-    "to": "src/features/editor-workbench/controller/useDesktopEditorWorkbench.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/workspace/workspaceCloudResolutionKey.ts",
     "to": "src/features/source-control/remotes.ts",
     "rule": {

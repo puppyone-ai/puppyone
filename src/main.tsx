@@ -14,6 +14,7 @@ import { LocalizationProvider } from "@puppyone/localization/react";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
 import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
+import { HtmlFolderAccessDialog } from "./components/HtmlFolderAccessDialog";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
@@ -145,6 +146,26 @@ const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
     const { WorkspaceMenuVisualSmokeHarness } = await import("./features/app-shell/WorkspaceMenuVisualSmokeHarness");
     return <WorkspaceMenuVisualSmokeHarness />;
   }],
+  ["#import-dialog-visual-smoke", async () => {
+    const { ImportDialogVisualSmokeHarness } = await import("./app/smoke/ImportDialogVisualSmokeHarness");
+    return <ImportDialogVisualSmokeHarness />;
+  }],
+  ["#cloud-plans-visual-smoke", async () => {
+    const { CloudPlansVisualSmokeHarness } = await import("./app/smoke/CloudPlansVisualSmokeHarness");
+    return <CloudPlansVisualSmokeHarness />;
+  }],
+  ["#unified-spaces-visual-smoke", async () => {
+    const { UnifiedSpacesVisualSmokeHarness } = await import("./app/smoke/UnifiedSpacesVisualSmokeHarness");
+    return <UnifiedSpacesVisualSmokeHarness />;
+  }],
+  ["#homepage-computers-visual-smoke", async () => {
+    const { HomepageComputersVisualSmokeHarness } = await import("./app/smoke/HomepageComputersVisualSmokeHarness");
+    return <HomepageComputersVisualSmokeHarness />;
+  }],
+  ["#computer-access-visual-smoke", async () => {
+    const { ComputerAccessVisualSmokeHarness } = await import("./app/smoke/ComputerAccessVisualSmokeHarness");
+    return <ComputerAccessVisualSmokeHarness />;
+  }],
   ["#header-coachmark-visual-smoke", async () => {
     const { HeaderCoachmarkVisualSmokeHarness } = await import("./features/app-shell/HeaderCoachmarkVisualSmokeHarness");
     return <HeaderCoachmarkVisualSmokeHarness />;
@@ -191,6 +212,7 @@ async function renderApplication() {
           <ScrollbarActivity />
           {surface}
           <DesktopTooltipLayer />
+          <HtmlFolderAccessDialog />
         </ApplicationRenderBoundary>
       </LocalizationProvider>
     </React.StrictMode>,

@@ -413,6 +413,10 @@
   "html.finishComposition": "Finish the current text composition before leaving.",
   "html.editFailed": "This change could not be applied. Select the element again or edit the source.",
   "html.unsupported": "Direct editing is unavailable for this document. Use Source to edit it.",
+  "html.linkFailure.unavailable": "This link cannot be opened in this view.",
+  "html.linkFailure.missing": "Linked file not found.",
+  "html.linkFailure.offline": "Turn off folder access in the page menu to open links.",
+  "html.linkFailure.failed": "Could not open this link.",
   "html.bridgeFailed": "The editing preview could not connect. Return to Preview and try again.",
   "html.unsupportedBase": "This page uses a resource base that cannot reference imported workspace images.",
   "html.importUnattached": "The image was imported to {path}, but the page changed before it could be attached.",
@@ -442,5 +446,12 @@
   "html.align.center": "Align center",
   "html.align.right": "Align right",
   "html.chooseColor": "Choose {color}",
-  "html.customColor": "Custom"
+  "html.customColor": "Custom",
+  "html.folderAccessTitle": "Let this page use its folder?",
+  "html.folderAccessChangedTitle": "This page changed. Still let it use its folder?",
+  "html.folderAccessDescription": "“{page}” wants to read and edit text files, such as .md, in the “{folder}” folder. If you allow it, the page runs offline and can't reach anything outside that folder. Only allow pages you trust.",
+  "html.folderAccessAllow": "Allow",
+  "html.folderAccessDecline": "Don't allow, just view",
+  "html.folderAccessToggle": "Let this page use its folder",
+  "html.folderAccessUnavailable": "This page can't use its folder here. Open it from a project on this computer."
 }

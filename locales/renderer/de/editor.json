@@ -413,6 +413,10 @@
   "html.finishComposition": "Beenden Sie zuerst die aktuelle Texteingabe.",
   "html.editFailed": "Die Änderung konnte nicht angewendet werden. Wählen Sie das Element erneut aus oder bearbeiten Sie den Quelltext.",
   "html.unsupported": "Dieses Dokument lässt sich nur im Quelltext bearbeiten.",
+  "html.linkFailure.unavailable": "Dieser Link kann in dieser Ansicht nicht geöffnet werden.",
+  "html.linkFailure.missing": "Verknüpfte Datei nicht gefunden.",
+  "html.linkFailure.offline": "Deaktiviere den Ordnerzugriff im Seitenmenü, um Links zu öffnen.",
+  "html.linkFailure.failed": "Dieser Link konnte nicht geöffnet werden.",
   "html.bridgeFailed": "Die Bearbeitungsansicht konnte nicht verbunden werden. Öffnen Sie die Vorschau und versuchen Sie es erneut.",
   "html.unsupportedBase": "Die Ressourcenbasis dieser Seite unterstützt keine importierten Projektbilder.",
   "html.importUnattached": "Das Bild wurde unter {path} importiert. Die Seite wurde inzwischen geändert; das Bild wurde nicht verknüpft.",
@@ -442,5 +446,12 @@
   "html.align.center": "Zentriert",
   "html.align.right": "Rechtsbündig",
   "html.chooseColor": "{color} wählen",
-  "html.customColor": "Benutzerdefiniert"
+  "html.customColor": "Benutzerdefiniert",
+  "html.folderAccessTitle": "Dieser Seite ihren Ordner erlauben?",
+  "html.folderAccessChangedTitle": "Diese Seite wurde geändert. Ihren Ordner weiterhin erlauben?",
+  "html.folderAccessDescription": "„{page}“ möchte Textdateien wie .md im Ordner „{folder}“ lesen und bearbeiten. Wenn du es erlaubst, läuft die Seite offline und erreicht nichts außerhalb dieses Ordners. Erlaube nur Seiten, denen du vertraust.",
+  "html.folderAccessAllow": "Erlauben",
+  "html.folderAccessDecline": "Nicht erlauben, nur ansehen",
+  "html.folderAccessToggle": "Dieser Seite ihren Ordner erlauben",
+  "html.folderAccessUnavailable": "Diese Seite kann ihren Ordner hier nicht verwenden. Öffne sie aus einem Projekt auf diesem Computer."
 }

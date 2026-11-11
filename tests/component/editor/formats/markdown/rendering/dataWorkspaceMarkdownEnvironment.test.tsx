@@ -27,6 +27,32 @@ afterEach(() => {
 });
 
 describe("DataWorkspace Markdown environment", () => {
+  it.each(["puppyone-local://workspace/folder-a", "puppyone-cloud://organization/project/folder-a"])("opens an unexpanded file without treating %s scope segments as Explorer folders", async (workspaceRoot) => {
+    const page = `${workspaceRoot}/page.html`, folder = `${workspaceRoot}/unexpanded`, target = `${folder}/other.html`;
+    const dataPort: DataPort = {
+      listChildren: vi.fn(async (path: string | null): Promise<DataNode[]> => path === folder
+        ? [{ id: target, path: target, name: "other.html", type: "html", source: "local" }]
+        : [{ id: page, path: page, name: "page.html", type: "html", source: "local" },
+          { id: folder, path: folder, name: "unexpanded", type: "folder", source: "local" }]),
+    };
+    let latestState: DataWorkspaceState | null = null;
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    await act(async () => root?.render(withTestLocalization(<DataWorkspace
+      dataPort={dataPort} enableMarkdownLinkContentIndexing={false} loadActiveFileSource={false} showHeader={false}
+      workspace={{ id: "workspace", name: "Workspace", path: workspaceRoot, status: "recording" }}
+      mainSlot={(state) => { latestState = state; return null; }}
+    />)));
+    await waitForCondition(() => latestState?.tree.length === 2);
+    const navigation = latestState!.documentNavigation;
+    const reference = navigation.resolveReference(page, "./unexpanded/other.html");
+    expect(reference).toMatchObject({ kind: "workspace", status: "unresolved" });
+    if (!reference) throw new Error("Expected an unexpanded file reference.");
+    await act(async () => navigation.openReference(reference));
+    expect(latestState!.activePath).toBe(target);
+    expect(dataPort.listChildren).toHaveBeenCalledWith(folder);
+    expect(dataPort.listChildren).not.toHaveBeenCalledWith(workspaceRoot);
+  });
+
   it("retains the open Markdown table when an unloaded parent folder first loads children", async () => {
     const folder: DataNode = { id: "notes", path: "notes", name: "notes", type: "folder", source: "local" };
     const file: DataNode = { id: "notes/open.md", path: "notes/open.md", name: "open.md", type: "markdown", source: "local" };

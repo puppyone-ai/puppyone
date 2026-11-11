@@ -25,6 +25,7 @@ export function buildHomepageProjects({ local, cloud, apiBaseUrl, activity = new
       && isTrustedCloudGitOrigin(remote.origin, apiBaseUrl) ? catalog.get(remote.projectId) : undefined;
     return { id: `local:${workspace.path}`, label: workspace.name, localPath: workspace.path,
       lastModifiedAt: workspace.lastModifiedAt ?? null,
+      ...(workspace.hostFolderId ? { hostFolderId: workspace.hostFolderId } : {}),
       ...(linked ? { linkedCloudProject: { id: linked.id, name: linked.name } } : {}) };
   });
   for (const project of cloud) {

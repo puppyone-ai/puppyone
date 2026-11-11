@@ -1,4 +1,4 @@
-import { LoadingMark, Tooltip } from "@puppyone/shared-ui";
+import { CloudIcon, LoadingMark, LocalIcon, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
@@ -9,8 +9,9 @@ import {
 } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
+import { hasProjectAudience, type ProjectAudience } from "../project-audience";
 import { DesktopMenuItem } from "../DesktopMenu";
-import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
+import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 import { useProjectListNavigation } from "./useProjectListNavigation";
 
@@ -21,7 +22,20 @@ type ProjectChanges = {
   onDeleteCloudProject?: (projectId: string) => Promise<void>;
 };
 
+/** Which of this computer's folders its owner's other computers can open, and where that is changed. */
+export type ProjectListSharing = Readonly<{
+  sharedFolderIds: ReadonlySet<string>;
+  onSharingSettings: (folder: Readonly<{ folderId: string; name: string; rootPath: string }>) => void;
+  /** Keeps the folder to this computer again, as moving it to On this computer. */
+  onStopSharing?: (folder: Readonly<{ folderId: string; rootPath: string }>) => void;
+  /** The owner's other computers, by name, that a shared folder is open to. */
+  otherComputers?: readonly string[];
+}>;
+
 type OnboardingProjectListProps = ProjectChanges & {
+  sharing?: ProjectListSharing;
+  /** Who can open each project, and the way to change it, in its menu. */
+  audience?: (item: ProjectHomeItem) => ProjectAudience | null;
   /** The rows are not settled yet, so the mark stands in for them. */
   held?: boolean;
   items: ProjectHomeItem[];
@@ -31,6 +45,10 @@ type OnboardingProjectListProps = ProjectChanges & {
   openingPath: string | null;
   draggingPath: string | null;
   onOpen: (path: string) => void;
+  /** Local projects whose folder cannot be opened now, with the few words that say why. */
+  unavailable?: ReadonlyMap<string, string>;
+  /** Asks what to do about such a project, instead of opening it. */
+  onOpenUnavailable?: (path: string) => void;
   onDragStart: (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => void;
   onDragEnd: () => void;
 };
@@ -44,8 +62,12 @@ export function OnboardingProjectList({
   openingPath,
   draggingPath,
   onOpen,
+  unavailable,
+  onOpenUnavailable,
   onDragStart,
   onDragEnd,
+  sharing,
+  audience,
   ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
@@ -62,6 +84,7 @@ export function OnboardingProjectList({
   return (
     <ul
       ref={navigation.listRef}
+      role="list"
       className="onboarding-project-list"
       data-project-layout={layout}
       data-po-scrollbar="menu"
@@ -76,32 +99,44 @@ export function OnboardingProjectList({
         const dragging = draggingPath === item.localPath;
         const linked = item.linkedCloudProject;
         const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+        const sharedId = item.localPath && item.hostFolderId && sharing?.sharedFolderIds.has(item.hostFolderId)
+          ? item.hostFolderId : null;
         const tabIndex = item.id === navigation.stopId ? 0 : -1;
+        const unavailableCaption = location === "local" && item.localPath ? unavailable?.get(item.localPath) ?? null : null;
+        let rowDetail = <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>;
+        if (location === "cloud") rowDetail = <ProjectHomeItemCaption item={item} />;
+        else if (unavailableCaption) rowDetail = <span className="onboarding-project-status">{unavailableCaption}</span>;
         const open = {
           "data-project-open": true,
           tabIndex,
           disabled: busy,
           "aria-busy": openingPath === item.localPath || undefined,
           "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
-          draggable: !busy && Boolean(item.localPath),
-          onClick: () => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath),
+          "aria-description": unavailableCaption ?? undefined,
+          draggable: !busy && Boolean(item.localPath) && !unavailableCaption,
+          onClick: () => {
+            if (location === "cloud" && item.cloudProjectId) onOpenCloudProject?.(item.cloudProjectId);
+            else if (unavailableCaption && onOpenUnavailable) onOpenUnavailable(item.localPath);
+            else onOpen(item.localPath);
+          },
           onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => onDragStart(event, item),
           onDragEnd,
         };
         return (
           <li key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
             data-menu-open={surface === "menu" ? "true" : undefined}
+            data-unavailable={unavailableCaption ? "true" : undefined}
             data-project-location={location}
             data-cloud-project-id={item.cloudProjectId}
             data-linked-cloud-project-id={linked?.id}
             onFocus={() => navigation.setFocusedId(item.id)}>
-            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} {...open} /> : <DesktopMenuItem
+            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)}
+              status={unavailableCaption} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<HomeProjectIcon item={item} filled />}
-              label={<bdi>{name}</bdi>}
-              detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
-                : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
+              icon={<span className="onboarding-project-icon" aria-hidden="true"><ProjectFolderGlyph /></span>}
+              label={<><bdi>{name}</bdi><ProjectPlaceMark cloud={location === "cloud"} /></>}
+              detail={rowDetail}
               trailing={modified}
               {...open}
             />}
@@ -109,6 +144,7 @@ export function OnboardingProjectList({
               className="onboarding-project-cloud-link" tabIndex={tabIndex}
               onOpen={() => onOpenCloudProject(linked.id)} />}
             <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
+              audience={audience?.(item)}
               onSurfaceChange={(next) => {
                 if (!next) navigation.handOffFocusIfGone(item.id);
                 setActions(next && { id: item.id, surface: next });
@@ -139,8 +175,9 @@ function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: Proj
 }
 
 /** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
-function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, ...changes }: ProjectChanges & {
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, audience, ...changes }: ProjectChanges & {
   item: ProjectHomeItem;
+  audience?: ProjectAudience | null;
   name: string;
   busy: boolean;
   surface: ProjectActionSurface;
@@ -148,7 +185,7 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
   onSurfaceChange: (surface: ProjectActionSurface) => void;
 }) {
   const offered = offeredProjectChanges(item, changes);
-  if (!Object.values(offered).some(Boolean)) return null;
+  if (!Object.values(offered).some(Boolean) && !hasProjectAudience(audience)) return null;
   return (
     <ProjectRowActions
       project={{ name, path: item.localPath || undefined }}
@@ -158,20 +195,35 @@ function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, 
       triggerClassName="desktop-menu-icon-button onboarding-project-actions"
       triggerTabIndex={tabIndex}
       menuPlacement="beside"
+      audience={audience}
       {...offered}
     />
   );
 }
 
 /**
- * One project on the Grid: a folder and one line of name. The tooltip adds where it
- * lives and when it last changed, and the name itself only when the line has cut it.
+ * Where a shared project lives, as one small mark after its name: the Cloud, or a
+ * computer. Shown only in the shared groups; the local group needs no mark.
  */
-function ProjectTile({ item, name, modified, ...button }: {
+export function ProjectPlaceMark({ cloud }: { cloud: boolean }) {
+  const Icon = cloud ? CloudIcon : LocalIcon;
+  return <span className="onboarding-project-place-mark" aria-hidden="true"><Icon size={12} strokeWidth={1.85} /></span>;
+}
+
+/**
+ * One project on the Grid: a folder and one line of name. Every project is the same
+ * folder. The tooltip adds where it lives and when it last changed, and the name
+ * itself only when the line has cut it.
+ */
+function ProjectTile({ item, name, modified, shared, status, ...button }: {
   item: ProjectHomeItem;
   name: string;
   modified: string | null;
+  shared: boolean;
+  /** Why its folder cannot be opened now, said under its name. */
+  status?: string | null;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { t } = useLocalization();
   const caption = useProjectHomeItemCaption(item);
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
   const nameRef = useRef<HTMLElement>(null);
@@ -181,10 +233,14 @@ function ProjectTile({ item, name, modified, ...button }: {
     setNameCut(Boolean(shown && shown.scrollWidth > shown.clientWidth));
   };
   return (
-    <Tooltip content={[nameCut && name, place, modified].filter(Boolean).join(" · ")}>
+    <Tooltip content={[nameCut && name, place, shared && t("hosts.home.shared"), modified].filter(Boolean).join(" · ")}>
       <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
-        <ProjectFolder item={item} />
-        <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
+        <span className="onboarding-project-folder" aria-hidden="true"><ProjectFolderGlyph /></span>
+        <span className="onboarding-project-tile-label">
+          <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
+          <ProjectPlaceMark cloud={projectHomeItemLocation(item) === "cloud"} />
+        </span>
+        {status && <span className="onboarding-project-status">{status}</span>}
       </button>
     </Tooltip>
   );

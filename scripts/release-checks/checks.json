@@ -85,7 +85,7 @@
         "win32"
       ],
       "dependsOn": [],
-      "timeoutSeconds": 900,
+      "timeoutSeconds": 1200,
       "runtime": "node",
       "artifacts": [
         "{checkDir}/vitest/invocation.json",
@@ -249,6 +249,42 @@
       "environment": {
         "PUPPYONE_TABLE_MOVE_ARTIFACT_DIR": "{checkDir}/table-move-selection"
       }
+    },
+    {
+      "id": "homepage-interaction",
+      "name": "Homepage pointer, keyboard and focus through real Main",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-interaction"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "homepage-visual",
+      "name": "Homepage geometry, type and scrolling in both themes",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-visual"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 240,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "missing-project-folder",
+      "name": "A project folder renamed on disk, on the Homepage and in its window",
+      "group": "app",
+      "command": ["npm", "run", "smoke:missing-project-folder"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
       "id": "native-resize-cursor",
@@ -500,6 +536,32 @@
       "attempts": 2,
       "runtime": "electron",
       "artifacts": []
+    },
+    {
+      "id": "html-app",
+      "name": "HTML links, CSP, real project editing and document lifecycle",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-app/result.json"],
+      "environment": { "PUPPYONE_HTML_APP_ARTIFACT_DIR": "{checkDir}/html-app" }
+    },
+    {
+      "id": "html-editor",
+      "name": "HTML visual editing, acknowledged scroll, geometry and safe cleanup",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-editor"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-editor/result.json"],
+      "environment": { "PUPPYONE_HTML_VISUAL_ARTIFACT_DIR": "{checkDir}/html-editor" }
     },
     {
       "id": "editor-panes",

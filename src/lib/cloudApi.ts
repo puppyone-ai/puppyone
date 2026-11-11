@@ -87,6 +87,12 @@ export type DesktopCloudRepositoryContext = {
 
 export type DesktopCloudOrganization = {
   id: string;
+  /** Absent on older deployments: never infer personal identity from a name. */
+  kind?: "space" | "personal" | "team";
+  is_default?: boolean;
+  role?: string | null;
+  can_manage_space?: boolean;
+  can_create_projects?: boolean;
   name: string;
   slug: string;
   avatar_url?: string | null;
@@ -94,6 +100,8 @@ export type DesktopCloudOrganization = {
   seat_limit: number;
   created_at: string;
   member_count?: number | null;
+  /** The plan billing published for this space; absent from older servers. */
+  billing_plan_id?: string | null;
 };
 
 export type DesktopCloudOrgMember = {
@@ -164,6 +172,24 @@ export type DesktopBillingPlan = {
     fixed_units: number;
     units_per_seat: number;
   };
+  /** Which kinds of space may hold this plan; empty or absent means any. */
+  space_kinds?: Array<"personal" | "team">;
+};
+
+/** A monthly add-on sold on top of a paid plan, such as extra agent hours. */
+export type DesktopBillingAddOn = {
+  id: string;
+  name: string;
+  description: string;
+  price_cents: number;
+  currency: string;
+  interval: "month";
+  available_on_plans: string[];
+  max_quantity: number;
+  /** Runtime units each pack adds every period. */
+  runtime_units: number;
+  /** Limits each pack raises, by limit key. */
+  limit_increments: Record<string, number>;
 };
 
 export type DesktopBillingCatalog = {
@@ -172,12 +198,16 @@ export type DesktopBillingCatalog = {
   effective_at: string;
   currency: string;
   plans: DesktopBillingPlan[];
+  /** Absent from catalogs published before add-ons existed. */
+  add_ons?: DesktopBillingAddOn[];
   runtime: {
     top_ups_enabled: boolean;
     overage_enabled: boolean;
     unit_seconds: number;
     minimum_units: number;
     overage_price_cents_per_unit: number;
+    /** Runtime kinds that spend the organization's agent hours; `null` means every kind. */
+    charged_sources?: string[] | null;
     profiles: Array<{
       id: string;
       vcpu: number;
@@ -208,6 +238,9 @@ export type DesktopBillingSummary = {
     | "disputed";
   seat_quantity: number;
   pending_plan_id: string | null;
+  /** A downgrade or seat decrease waiting for renewal; absent from older servers. */
+  pending_seat_quantity?: number | null;
+  pending_effective_at?: string | null;
   cancel_at_period_end: boolean;
   current_period_end: string | null;
   catalog_version: string;
@@ -218,6 +251,37 @@ export type DesktopBillingSummary = {
   runtime_reserved_units: number;
   runtime_overage_enabled: boolean;
   runtime_monthly_limit_cents: number;
+  /** Add-ons held right now. Absent from older billing services. */
+  add_ons?: DesktopBillingAddOnHolding[];
+};
+
+export type DesktopBillingAddOnHolding = {
+  add_on_id: string;
+  quantity: number;
+  status: string;
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
+};
+
+export type DesktopBillingAddOnChange = {
+  org_id: string;
+  add_on_id: string;
+  current_quantity: number;
+  target_quantity: number;
+  monthly_amount_cents: number;
+  currency: string;
+  outcome: "checkout" | "pending_provider_confirmation" | "unchanged";
+  checkout_url: string | null;
+  effective: "now" | "next_period";
+};
+
+/** This period's included agent time, in runtime units. */
+export type DesktopRuntimeAllowance = {
+  granted_units: number;
+  consumed_units: number;
+  reserved_units: number;
+  resets_at: string | null;
+  unit_seconds: number;
 };
 
 export type DesktopRuntimeBalance = {
@@ -228,6 +292,8 @@ export type DesktopRuntimeBalance = {
   consumed_units: number;
   postpaid_available_units: number;
   postpaid_consumed_units: number;
+  /** Absent from older billing services. */
+  allowance?: DesktopRuntimeAllowance | null;
   buckets: Array<Record<string, unknown>>;
 };
 
@@ -255,6 +321,8 @@ export type DesktopBillingQuote = {
   target_amount_cents: number;
   delta_amount_cents: number;
   application_mode: "checkout" | "plan_change" | "seat_change";
+  /** Downgrades and seat decreases wait for renewal; absent from older servers. */
+  effective?: "now" | "next_period";
   requires_confirmation: boolean;
   catalog_version: string;
   expires_at: string;
@@ -739,8 +807,37 @@ export function listCloudOrganizations(
   session: DesktopCloudSession,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopCloudOrganization[]> {
-  return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, {}, apiBaseUrl);
+  return cloudApiRequest<DesktopCloudOrganization[]>("/organizations/", session, onSessionChange, { signal }, apiBaseUrl);
+}
+
+/** Starts a team the signed-in person owns. It begins on Free; its plan is its own. */
+export function createCloudTeam(
+  session: DesktopCloudSession,
+  name: string,
+  onSessionChange?: MutableSessionHandler,
+  apiBaseUrl?: string | null,
+): Promise<DesktopCloudOrganization> {
+  return cloudApiRequest<DesktopCloudOrganization>("/organizations/", session, onSessionChange, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  }, apiBaseUrl);
+}
+
+export async function ensurePersonalCloudSpace(
+  session: DesktopCloudSession,
+  apiBaseUrl: string,
+): Promise<DesktopCloudOrganization> {
+  try {
+    return await cloudApiRequest<DesktopCloudOrganization>("/auth/default-space", session, undefined, { method: "POST" }, apiBaseUrl);
+  } catch (error) {
+    // Bounded rollout compatibility: only a missing new route permits the old
+    // authenticated provisioner. Authentication and network failures never retry.
+    if (!(error instanceof Error) || (error as Error & { status?: number }).status !== 404) throw error;
+    const space = await cloudApiRequest<DesktopCloudOrganization>("/auth/personal-space", session, undefined, { method: "POST" }, apiBaseUrl);
+    return { ...space, is_default: true };
+  }
 }
 
 export function listCloudOrganizationMembers(
@@ -750,6 +847,36 @@ export function listCloudOrganizationMembers(
   apiBaseUrl?: string | null,
 ): Promise<DesktopCloudOrgMember[]> {
   return cloudApiRequest<DesktopCloudOrgMember[]>(`/organizations/${encodeURIComponent(orgId)}/members`, session, onSessionChange, {}, apiBaseUrl);
+}
+
+export function updateCloudSpace(session: DesktopCloudSession, orgId: string, name: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<DesktopCloudOrganization> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}`, session, onSessionChange,
+    { method: "PUT", body: JSON.stringify({ name }) }, apiBaseUrl);
+}
+
+export function inviteCloudSpaceMember(session: DesktopCloudSession, orgId: string, email: string, role: "member" | "viewer",
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<{ invite_url?: string | null; email_sent?: boolean }> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/invite`, session, onSessionChange,
+    { method: "POST", body: JSON.stringify({ email, role }) }, apiBaseUrl);
+}
+
+export function updateCloudSpaceMemberRole(session: DesktopCloudSession, orgId: string, userId: string, role: "member" | "viewer",
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/role`, session, onSessionChange,
+    { method: "PUT", body: JSON.stringify({ role }) }, apiBaseUrl);
+}
+
+export function removeCloudSpaceMember(session: DesktopCloudSession, orgId: string, userId: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`, session, onSessionChange,
+    { method: "DELETE" }, apiBaseUrl);
+}
+
+export function transferCloudSpaceOwnership(session: DesktopCloudSession, orgId: string, userId: string,
+  onSessionChange?: MutableSessionHandler, apiBaseUrl?: string | null): Promise<void> {
+  return cloudApiRequest(`/organizations/${encodeURIComponent(orgId)}/ownership/transfer`, session, onSessionChange,
+    { method: "POST", body: JSON.stringify({ user_id: userId }) }, apiBaseUrl);
 }
 
 export function getCloudOrganizationEntitlements(
@@ -781,12 +908,13 @@ export function getCloudOrganizationAccess(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopCloudOrganizationAccess> {
   return cloudApiRequest<unknown>(
     `/organizations/${encodeURIComponent(orgId)}/access`,
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopCloudOrganizationAccess);
 }
@@ -855,8 +983,9 @@ export function getCloudBillingCatalog(
   session: DesktopCloudSession,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingCatalog> {
-  return cloudApiRequest<unknown>("/billing/catalog", session, onSessionChange, {}, apiBaseUrl)
+  return cloudApiRequest<unknown>("/billing/catalog", session, onSessionChange, { signal }, apiBaseUrl)
     .then(validateDesktopBillingCatalog);
 }
 
@@ -915,6 +1044,12 @@ export function validateDesktopBillingCatalog(value: unknown): DesktopBillingCat
     requireBillingLimitRecord(plan.fixed_limits, "plan.fixed_limits", true);
     requireBillingLimitRecord(plan.per_seat_limits, "plan.per_seat_limits", false);
     requireBillingAllowRecord(plan.allow, "plan.allow");
+    if (plan.space_kinds !== undefined) {
+      if (!Array.isArray(plan.space_kinds)
+        || plan.space_kinds.some((kind) => kind !== "personal" && kind !== "team")) {
+        throw new Error("Cloud returned invalid billing plan.space_kinds.");
+      }
+    }
   }
   const catalogRuntime = requireBillingRecord(catalog.runtime, "runtime");
   const topUpsEnabled = requireBillingBoolean(
@@ -958,6 +1093,25 @@ export function validateDesktopBillingCatalog(value: unknown): DesktopBillingCat
     requireBillingString(pack.currency, "runtime.top_up_pack.currency");
     requireBillingInteger(pack.runtime_units, "runtime.top_up_pack.runtime_units", 1);
     requireBillingInteger(pack.price_cents, "runtime.top_up_pack.price_cents", 1);
+  }
+  if (catalog.add_ons !== undefined) {
+    if (!Array.isArray(catalog.add_ons)) {
+      throw new Error("Cloud returned invalid billing add-ons.");
+    }
+    for (const rawAddOn of catalog.add_ons) {
+      const addOn = requireBillingRecord(rawAddOn, "add_on");
+      if (Object.prototype.hasOwnProperty.call(addOn, "provider")) {
+        throw new Error("Cloud returned private provider data in the public billing catalog.");
+      }
+      requireBillingString(addOn.id, "add_on.id");
+      requireBillingString(addOn.name, "add_on.name");
+      requireBillingString(addOn.currency, "add_on.currency");
+      requireBillingInteger(addOn.price_cents, "add_on.price_cents", 1);
+      requireBillingInteger(addOn.max_quantity, "add_on.max_quantity", 1);
+      requireBillingInteger(addOn.runtime_units, "add_on.runtime_units", 0);
+      requireBillingStringArray(addOn.available_on_plans, "add_on.available_on_plans");
+      requireBillingLimitRecord(addOn.limit_increments, "add_on.limit_increments", false);
+    }
   }
   return catalog as unknown as DesktopBillingCatalog;
 }
@@ -1092,7 +1246,29 @@ export function validateDesktopBillingSummary(value: unknown): DesktopBillingSum
     0,
   );
   requireBillingOptionalString(summary.pending_plan_id, "summary.pending_plan_id");
+  if (summary.pending_seat_quantity !== undefined && summary.pending_seat_quantity !== null) {
+    requireBillingInteger(summary.pending_seat_quantity, "summary.pending_seat_quantity", 1);
+  }
+  requireBillingOptionalTimestamp(
+    summary.pending_effective_at ?? null,
+    "summary.pending_effective_at",
+  );
   requireBillingOptionalTimestamp(summary.current_period_end, "summary.current_period_end");
+  if (summary.add_ons !== undefined) {
+    if (!Array.isArray(summary.add_ons)) {
+      throw new Error("Cloud returned invalid billing summary.add_ons.");
+    }
+    for (const rawHolding of summary.add_ons) {
+      const holding = requireBillingRecord(rawHolding, "summary.add_on");
+      requireBillingString(holding.add_on_id, "summary.add_on.add_on_id");
+      requireBillingInteger(holding.quantity, "summary.add_on.quantity", 0);
+      requireBillingBoolean(holding.cancel_at_period_end, "summary.add_on.cancel_at_period_end");
+      requireBillingOptionalTimestamp(
+        holding.current_period_end ?? null,
+        "summary.add_on.current_period_end",
+      );
+    }
+  }
   return summary as unknown as DesktopBillingSummary;
 }
 
@@ -1125,6 +1301,9 @@ export function validateDesktopBillingQuote(value: unknown): DesktopBillingQuote
   if (!["checkout", "plan_change", "seat_change"].includes(String(quote.application_mode))) {
     throw new Error("Cloud returned an invalid billing quote.application_mode.");
   }
+  if (quote.effective !== undefined) {
+    requireBillingEnum(quote.effective, ["now", "next_period"] as const, "quote.effective");
+  }
   requireBillingRecord(quote.details, "quote.details");
   return quote as unknown as DesktopBillingQuote;
 }
@@ -1134,12 +1313,13 @@ export function getCloudBillingSummary(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingSummary> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "summary"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingSummary);
 }
@@ -1149,12 +1329,13 @@ export function getCloudBillingUsage(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingUsage> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "usage"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingUsage);
 }
@@ -1175,6 +1356,17 @@ export function validateDesktopBillingUsage(value: unknown): DesktopBillingUsage
   }
   if (!Array.isArray(runtime.buckets) || runtime.buckets.some((item) => !isRecord(item))) {
     throw new Error("Cloud returned an invalid billing usage.runtime.buckets.");
+  }
+  if (runtime.allowance !== undefined && runtime.allowance !== null) {
+    const allowance = requireBillingRecord(runtime.allowance, "usage.runtime.allowance");
+    for (const key of ["granted_units", "consumed_units", "reserved_units"]) {
+      requireBillingInteger(allowance[key], `usage.runtime.allowance.${key}`, 0);
+    }
+    requireBillingInteger(allowance.unit_seconds, "usage.runtime.allowance.unit_seconds", 1);
+    requireBillingOptionalTimestamp(
+      allowance.resets_at ?? null,
+      "usage.runtime.allowance.resets_at",
+    );
   }
   const storage = requireBillingRecord(usage.storage, "usage.storage");
   requireBillingInteger(storage.logical_bytes, "usage.storage.logical_bytes", 0);
@@ -1204,12 +1396,13 @@ export function listCloudBillingOperations(
   orgId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingOperation[]> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, "operations"),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingOperations);
 }
@@ -1220,12 +1413,13 @@ export function getCloudBillingOperation(
   operationId: string,
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
+  signal?: AbortSignal,
 ): Promise<DesktopBillingOperation> {
   return cloudApiRequest<unknown>(
     billingOrganizationPath(orgId, `operations/${encodeURIComponent(operationId)}`),
     session,
     onSessionChange,
-    {},
+    { signal },
     apiBaseUrl,
   ).then(validateDesktopBillingOperation);
 }
@@ -1457,6 +1651,45 @@ export function createCloudBillingPortal(
     billingMutationInit("POST", idempotencyKey),
     apiBaseUrl,
   ).then(validateDesktopBillingPortal);
+}
+
+/** Hold `quantity` packs of one add-on; zero cancels at the period end. */
+export function changeCloudBillingAddOn(
+  session: DesktopCloudSession,
+  orgId: string,
+  addOnId: string,
+  quantity: number,
+  idempotencyKey: string,
+  onSessionChange?: MutableSessionHandler,
+  apiBaseUrl?: string | null,
+): Promise<DesktopBillingAddOnChange> {
+  return cloudApiRequest<unknown>(
+    billingOrganizationPath(orgId, `add-ons/${encodeURIComponent(addOnId)}`),
+    session,
+    onSessionChange,
+    billingMutationInit("PUT", idempotencyKey, { quantity }),
+    apiBaseUrl,
+  ).then(validateDesktopBillingAddOnChange);
+}
+
+export function validateDesktopBillingAddOnChange(value: unknown): DesktopBillingAddOnChange {
+  const change = requireBillingRecord(value, "add_on_change");
+  requireBillingString(change.org_id, "add_on_change.org_id");
+  requireBillingString(change.add_on_id, "add_on_change.add_on_id");
+  requireBillingInteger(change.current_quantity, "add_on_change.current_quantity", 0);
+  requireBillingInteger(change.target_quantity, "add_on_change.target_quantity", 0);
+  requireBillingInteger(change.monthly_amount_cents, "add_on_change.monthly_amount_cents", 0);
+  requireBillingString(change.currency, "add_on_change.currency");
+  requireBillingEnum(
+    change.outcome,
+    ["checkout", "pending_provider_confirmation", "unchanged"] as const,
+    "add_on_change.outcome",
+  );
+  requireBillingEnum(change.effective, ["now", "next_period"] as const, "add_on_change.effective");
+  if (change.outcome === "checkout") {
+    requireBillingString(change.checkout_url, "add_on_change.checkout_url");
+  }
+  return change as unknown as DesktopBillingAddOnChange;
 }
 
 export function validateDesktopBillingPortal(
@@ -1852,6 +2085,14 @@ function unwrapCloudIpcEnvelope<T>(value: unknown): T {
   }
   if (typeof transported.code === "string" && transported.code) {
     (normalized as Error & { code?: string }).code = transported.code;
+  }
+  // The server decides whether the same request can later succeed; the request
+  // id lets a user's report be found in the server log.
+  if (typeof transported.retryable === "boolean") {
+    (normalized as Error & { retryable?: boolean }).retryable = transported.retryable;
+  }
+  if (typeof transported.requestId === "string" && transported.requestId) {
+    (normalized as Error & { requestId?: string }).requestId = transported.requestId;
   }
   throw normalized;
 }

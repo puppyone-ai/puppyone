@@ -54,11 +54,11 @@
     height: 100%;
   }
 
-  /* The address is already shortened to its root and last folders; a long
-     folder or organization name still ends in an ellipsis on one line. */
+  /* The place gives way before the project: a long Space or computer name
+     ends in an ellipsis on one line, and the square still says which Space. */
   .desktop-titlebar-place-address {
     min-width: 0;
-    max-width: 240px;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -140,6 +140,13 @@
     margin-block: 2px;
   }
 
+  /* Each place in the list carries its own mark: a Space's square, or this computer. */
+  .desktop-window-place-mark {
+    display: grid;
+    place-items: center;
+    color: inherit;
+  }
+
   /* An action with a second line stacks it under its name. */
   .desktop-project-place-row:has(.desktop-menu-item-detail) {
     height: auto;
@@ -160,5 +167,41 @@
     text-wrap: pretty;
     /* A long folder path breaks where it must rather than widening the menu. */
     overflow-wrap: anywhere;
+  }
+
+  /* A Space heads the menu as a card: its larger square, its name and plan,
+     and the account's role under them. */
+  .desktop-project-place-row[data-place-space] .desktop-menu-item-icon {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    margin-block-start: 1px;
+  }
+
+  .desktop-project-place-row[data-place-space] {
+    padding-block: 7px;
+  }
+
+  .desktop-project-place-space-name {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .desktop-project-place-space-name > bdi {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Where the project is, as a fact at the head of the menu: read, not chosen. */
+  .desktop-project-place-row[data-project-place-row="current"],
+  .desktop-project-place-row[data-project-place-row="current"]:hover {
+    background: transparent;
+    color: var(--po-text);
+    cursor: default;
+    opacity: 1;
   }
 }

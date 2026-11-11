@@ -18,10 +18,7 @@ export function FirstRunSignInScreen({ appearance, apiBaseUrl, onContinueLocally
 
   return <main className={`onboarding-shell first-run-sign-in-shell ${resolvedTheme === "dark" ? "dark" : ""}`}
     {...appearance.rootProps}>
-    <DesktopWindowChrome actions={<button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
-      aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
-      {t("cloud.auth.signIn")}
-    </button>} />
+    <DesktopWindowChrome />
     <section className="first-run-sign-in" aria-label={t("cloud.auth.signInToCloud")}>
       <PuppyBrandMark className="first-run-sign-in-mark" tone={resolvedTheme === "dark" ? "dark" : "lite"} />
       <h1>{t("shell.brand.name")}</h1>

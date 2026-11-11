@@ -61,9 +61,10 @@ describe("HTML interaction and editing", () => {
     let resolve!: (lease: DocumentProjectionLease) => void;
     const close = vi.fn(async () => undefined);
     const services = { documentProjection: { create: vi.fn(() => new Promise<DocumentProjectionLease>((done) => { resolve = done; })) } };
-    await act(async () => root?.render(<EditorPreviewServicesBoundary services={services}>
+    // The frame names its folder-access request in the user's language, so it renders inside localization.
+    await act(async () => root?.render(withTestLocalization(<EditorPreviewServicesBoundary services={services}>
       <HtmlPreviewFrame path="page.html" title="Page" content="<p>Page</p>" htmlTrustMode="safe" interactive />
-    </EditorPreviewServicesBoundary>));
+    </EditorPreviewServicesBoundary>)));
     const blank = container.querySelector("iframe")!;
     await act(async () => {
       blank.dispatchEvent(new Event("load"));

@@ -2,13 +2,14 @@ import type { ExperimentalSettings } from "../../preferences";
 import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs";
 
 export type RepositoryImportSource = "github" | "gitlab";
-export type ExperimentalImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
-export type LocalFolderImportSource = "obsidian";
+export type ExperimentalImportSource = "notion" | "google-drive" | "airtable" | AppFolderSource;
+/** Apps whose recorded folders can be listed on the Homepage in place. */
+export type AppFolderSource = "obsidian" | "vscode" | "cursor" | "typora";
 export type ImportSourceBrand = string;
 export type ImportSourceDescriptor = Readonly<{
   id: ImportSourceBrand;
   label: string;
-  mode: "repository" | "remote" | "folder";
+  mode: "repository" | "remote" | "folder" | "app";
   availability: "ready" | "experimental";
   operational: boolean;
   preview: boolean;

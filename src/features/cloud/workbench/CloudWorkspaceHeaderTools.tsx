@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { LoaderCircle, Plus } from "lucide-react";
+import { History, LoaderCircle, Plus } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -29,6 +29,8 @@ type Props = {
   onSessionChange: (session: DesktopCloudSession | null) => void;
   agentOpen?: boolean;
   onToggleAgent?: () => void;
+  /** The project's own record; absent where it has none to show. */
+  onOpenHistory?: () => void;
   /** The Header's marks belong to the shell; this feature only supplies who is there. */
   renderPeople?: (people: CloudWorkspacePeople) => ReactNode;
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
@@ -53,7 +55,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOpen = false, onToggleAgent, onOpenHistory, renderPeople, renderAgentMark }: Props) {
   const [panel, setPanel] = useState<"agents" | null>(null);
   const [opener, setOpener] = useState<string | null>(null);
   /** The Agents already here when the last invite was copied, so a newcomer ends the wait. */
@@ -105,6 +107,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOp
           onOpen={() => openAgents(INVITE)} />}
       </div>}
       {agentsShown && <span className="desktop-titlebar-action-divider" aria-hidden="true" />}
+      {onOpenHistory && <HistoryTool onOpen={onOpenHistory} />}
       <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
     {pending && control && <CloudWorkspaceAgentRequestCard key={pending.id} request={pending} count={requests.length}
@@ -130,6 +133,17 @@ function InviteAgentTool({ checking, open, onOpen }: { checking: boolean; open: 
           ? <LoaderCircle className="animate-spin" size={13} strokeWidth={2} />
           : <Plus size={13} strokeWidth={2} />}
       </span>
+    </button>
+  </Tooltip>;
+}
+
+function HistoryTool({ onOpen }: { onOpen: () => void }) {
+  const { t } = useLocalization();
+  const label = t("source-control.history.title");
+  return <Tooltip content={label}>
+    <button type="button" className="desktop-titlebar-action" data-cloud-workspace-tool="history"
+      aria-label={label} onClick={onOpen}>
+      <History size={15} strokeWidth={1.75} aria-hidden="true" />
     </button>
   </Tooltip>;
 }

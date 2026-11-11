@@ -6,7 +6,7 @@ import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/work
 import { formatFileOperationNotice } from "../../data-workspace/useFileClipboard";
 import { DesktopCreateEntryMenu, DesktopNodeActionMenu, toDesktopNodeActionError } from "../../data-workspace/nodeActions";
 import { resolveVisibleCreateNewMenuItems } from "../../../preferences";
-import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
+import type { RemoteFolderWorkbench } from "../../remote-workbench";
 import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
@@ -19,9 +19,9 @@ const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
 export type CloudFileSurfaceProps = Pick<DesktopDataWorkspaceSurfaceProps,
   "showSaveStatus" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation">;
 
-/** Bind Cloud data/actions to the existing workbench; no alternate file UI. */
+/** Bind a remote folder (a Cloud project or another computer's folder) to the existing workbench. */
 export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerStateContent }: {
-  workbench: NativeCloudWorkbench;
+  workbench: RemoteFolderWorkbench;
   surfaceProps: CloudFileSurfaceProps;
   providerStateContent: ReactNode;
 }) {
@@ -32,7 +32,7 @@ export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerSta
 }
 
 function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
-  workbench: NativeCloudWorkbench;
+  workbench: RemoteFolderWorkbench;
   surfaceProps: CloudFileSurfaceProps;
   providerStateContent: ReactNode;
 }) {

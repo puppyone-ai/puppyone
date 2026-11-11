@@ -1,7 +1,9 @@
 import type { DesktopCloudProject } from "../../../lib/cloudApi";
+import type { CloudSpace } from "../../../lib/workspaceHomeModel";
 
 const CATALOG_CACHE_KEY = "puppyone.desktop.cloud-project-catalog.v1";
 const ORGANIZATION_NAMES_CACHE_KEY = "puppyone.desktop.cloud-organization-names.v1";
+const SPACES_CACHE_KEY = "puppyone.desktop.cloud-spaces.v1";
 
 /**
  * The list an account last saw, so its Homepage can appear whole at once. It only
@@ -65,10 +67,37 @@ export function writeCachedOrganizationNames(scope: string, names: ReadonlyMap<s
   }
 }
 
+/**
+ * The spaces an account last saw. They decide which Homepage group each Cloud project
+ * is in, so they stand in with the cached catalog: a list shown before its spaces would
+ * be grouped once provisionally and then again. Names only; signing out removes them.
+ */
+export function readCachedSpaces(scope: string): CloudSpace[] | undefined {
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(SPACES_CACHE_KEY) ?? "null") as
+      { scope?: unknown; spaces?: unknown } | null;
+    if (cached?.scope !== scope || !Array.isArray(cached.spaces)) return undefined;
+    return cached.spaces.filter((space): space is CloudSpace => typeof space?.id === "string"
+      && typeof space?.name === "string" && (["space", "personal", "team"].includes(space.kind))
+      && typeof space.canCreateProjects === "boolean").map((space) => ({ ...space, kind: "space" as const }));
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedSpaces(scope: string, spaces: readonly CloudSpace[]) {
+  try {
+    window.localStorage.setItem(SPACES_CACHE_KEY, JSON.stringify({ scope, spaces }));
+  } catch {
+    // Without the cache the next launch waits for the spaces before grouping the list.
+  }
+}
+
 export function clearCachedCatalog() {
   try {
     window.localStorage.removeItem(CATALOG_CACHE_KEY);
     window.localStorage.removeItem(ORGANIZATION_NAMES_CACHE_KEY);
+    window.localStorage.removeItem(SPACES_CACHE_KEY);
   } catch {
     // Nothing was readable either, so nothing can be shown from it.
   }

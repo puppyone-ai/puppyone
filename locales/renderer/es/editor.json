@@ -413,6 +413,10 @@
   "html.finishComposition": "Termina la composición de texto antes de salir.",
   "html.editFailed": "No se pudo aplicar el cambio. Selecciona el elemento de nuevo o edita el código.",
   "html.unsupported": "Este documento solo puede editarse desde el código.",
+  "html.linkFailure.unavailable": "Este enlace no se puede abrir en esta vista.",
+  "html.linkFailure.missing": "No se encontró el archivo enlazado.",
+  "html.linkFailure.offline": "Desactiva el acceso a la carpeta en el menú de la página para abrir enlaces.",
+  "html.linkFailure.failed": "No se pudo abrir este enlace.",
   "html.bridgeFailed": "No se pudo conectar la vista de edición. Vuelve a la vista previa e inténtalo de nuevo.",
   "html.unsupportedBase": "La base de recursos de esta página no admite imágenes importadas del proyecto.",
   "html.importUnattached": "La imagen se importó en {path}, pero la página cambió antes de poder vincularla.",
@@ -442,5 +446,12 @@
   "html.align.center": "Centrar",
   "html.align.right": "Alinear a la derecha",
   "html.chooseColor": "Elegir {color}",
-  "html.customColor": "Personalizado"
+  "html.customColor": "Personalizado",
+  "html.folderAccessTitle": "¿Permitir que esta página use su carpeta?",
+  "html.folderAccessChangedTitle": "Esta página cambió. ¿Seguir permitiendo que use su carpeta?",
+  "html.folderAccessDescription": "«{page}» quiere leer y editar archivos de texto, como .md, en la carpeta «{folder}». Si lo permites, la página funciona sin conexión y no puede llegar a nada fuera de esa carpeta. Permite solo páginas de confianza.",
+  "html.folderAccessAllow": "Permitir",
+  "html.folderAccessDecline": "No permitir, solo ver",
+  "html.folderAccessToggle": "Permitir que esta página use su carpeta",
+  "html.folderAccessUnavailable": "Esta página no puede usar su carpeta aquí. Ábrela desde un proyecto en este equipo."
 }

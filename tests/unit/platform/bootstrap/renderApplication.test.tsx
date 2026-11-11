@@ -17,6 +17,7 @@ vi.mock("../../../../src/App", () => ({ App: "App" }));
 vi.mock("../../../../src/components/ScrollbarActivity", () => ({ ScrollbarActivity: "ScrollbarActivity" }));
 vi.mock("../../../../src/components/ApplicationRenderBoundary", () => ({ ApplicationRenderBoundary: "ApplicationRenderBoundary" }));
 vi.mock("../../../../src/components/DesktopTooltipLayer", () => ({ DesktopTooltipLayer: "DesktopTooltipLayer" }));
+vi.mock("../../../../src/components/HtmlFolderAccessDialog", () => ({ HtmlFolderAccessDialog: "HtmlFolderAccessDialog" }));
 vi.mock("../../../../src/features/flags", () => ({ FeatureFlagsProvider: "FeatureFlagsProvider" }));
 vi.mock("../../../../src/features/typography", () => ({ TypographyCatalogProvider: "TypographyCatalogProvider" }));
 vi.mock("../../../../src/features/appearance/AuxiliaryAppearanceSmokeHarness", () => ({ AuxiliaryAppearanceSmokeHarness: "AuxiliaryAppearanceSmokeHarness" }));
@@ -82,7 +83,8 @@ describe("renderer entry-point route characterization", () => {
   ])("renders %s with the shared providers", async (hash, name) => {
     const tree = await renderHash(hash);
     expect(elementTypes(tree)).toEqual(["Symbol(react.strict_mode)", [["LocalizationProvider", [
-      ["ApplicationRenderBoundary", [["ScrollbarActivity", []], [name, []], ["DesktopTooltipLayer", []]]],
+      ["ApplicationRenderBoundary", [["ScrollbarActivity", []], [name, []], ["DesktopTooltipLayer", []],
+        ["HtmlFolderAccessDialog", []]]],
     ]]]]);
     expect(tree.props.children.props).toMatchObject({
       initialState: localization.state, initialCatalog: localization.catalog,
@@ -95,7 +97,8 @@ describe("renderer entry-point route characterization", () => {
     const tree = await renderHash(hash);
     expect(elementTypes(tree)).toEqual(["Symbol(react.strict_mode)", [["LocalizationProvider", [
       ["ApplicationRenderBoundary", [["ScrollbarActivity", []],
-        ["TypographyCatalogProvider", [["FeatureFlagsProvider", [["App", []]]]]], ["DesktopTooltipLayer", []]]],
+        ["TypographyCatalogProvider", [["FeatureFlagsProvider", [["App", []]]]]], ["DesktopTooltipLayer", []],
+        ["HtmlFolderAccessDialog", []]]],
     ]]]]);
   });
 

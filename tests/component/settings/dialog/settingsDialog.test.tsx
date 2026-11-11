@@ -8,9 +8,9 @@ import { SettingsDialog, type SettingsDialogProps } from "../../../../src/featur
 import { renderWithTestLocalization } from "../../../support/react/localization";
 
 vi.mock("../../../../src/features/settings/SettingsWorkspaceSurface", () => ({
-  createSettingsWorkspaceSurface: () => ({
+  createSettingsWorkspaceSurface: ({ cloud }: SettingsDialogProps) => ({
     sidebar: <div data-testid="settings-navigation">Navigation</div>,
-    main: <div data-testid="settings-content">Content</div>,
+    main: <div data-testid="settings-content" data-space-id={cloud.spaceId}>Content</div>,
   }),
 }));
 
@@ -26,6 +26,20 @@ afterEach(() => {
 });
 
 describe("SettingsDialog", () => {
+  it("manages only the Space it was opened on and offers no way to switch", () => {
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    const props = { onClose: vi.fn(), activeSection: "seats", cloud: { enabled: true,
+      spaceId: "a", spaceName: "Studio", session: { user_id: "owner", session_generation: "one" },
+      apiBaseUrl: "https://example.test" } } as unknown as SettingsDialogProps;
+    const render = (value: SettingsDialogProps) => act(() => renderWithTestLocalization(root!, <SettingsDialog {...value} />));
+    render(props);
+    expect(host.querySelector("select")).toBeNull();
+    expect(host.querySelector('[data-testid="settings-content"]')?.getAttribute("data-space-id")).toBe("a");
+    render({ ...props, cloud: { ...props.cloud, spaceId: "b", spaceName: "Research" } });
+    expect(host.querySelector('[data-testid="settings-content"]')?.getAttribute("data-space-id")).toBe("b");
+    expect(host.querySelector("select")).toBeNull();
+  });
+
   it("hosts Settings in a dismissible, two-column dialog", () => {
     const host = document.createElement("div");
     const onClose = vi.fn();
@@ -33,7 +47,7 @@ describe("SettingsDialog", () => {
     root = createRoot(host);
 
     act(() => renderWithTestLocalization(root,
-      <SettingsDialog {...({ onClose } as unknown as SettingsDialogProps)} />,
+      <SettingsDialog {...({ onClose, cloud: { session: null } } as unknown as SettingsDialogProps)} />,
     ));
 
     const dialog = host.querySelector<HTMLElement>(".desktop-settings-dialog");

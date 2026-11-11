@@ -1,119 +1,102 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  getCloudBillingCatalog,
-  getCloudBillingSummary,
-  getCloudBillingUsage,
-  listCloudOrganizations,
-  type DesktopBillingCatalog,
-  type DesktopBillingSummary,
-  type DesktopBillingUsage,
-  type DesktopCloudSession,
-} from "../../../lib/cloudApi";
+import { getCloudOrganizationAccess, type DesktopBillingCatalog, type DesktopBillingSummary,
+  type DesktopBillingUsage, type DesktopCloudSession } from "../../../lib/cloudApi";
+import { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillingUsage,
+  readBillingResource, createCloudBillingContextKey, type BillingReadScope } from "../../cloud";
 
-/**
- * Account-level subscription state.
- *
- * Unlike `useCloudBillingController` (the organization console: quotes, seats,
- * checkout confirmation) this hook answers only "what plan is this account on,
- * and what is it using". It is safe to mount anywhere, including signed-out
- * and with no project open.
- *
- * `enabled` carries the payments experiment. With payments off this hook makes
- * no request at all, which keeps the `src/features/payments/README.md`
- * guarantee that a switched-off install never reads a wallet or a price.
- *
- * Every remote read degrades on its own: a billing outage must not blank the
- * pricing surface, it should fall back to published pricing.
- */
-
+/** Cached readings belong to the window's explicit Space; personal wallets are separate. */
 export type AccountPlanSnapshot = {
   catalog: DesktopBillingCatalog | null;
   summary: DesktopBillingSummary | null;
   usage: DesktopBillingUsage | null;
   organizationId: string | null;
+  canManageBilling: boolean | null;
   loading: boolean;
+  error: boolean;
+  catalogUnavailable: boolean;
 };
-
 const EMPTY: AccountPlanSnapshot = {
-  catalog: null,
-  summary: null,
-  usage: null,
-  organizationId: null,
-  loading: false,
+  catalog: null, summary: null, usage: null, organizationId: null,
+  canManageBilling: null, loading: false, error: false, catalogUnavailable: false,
 };
-
-export function useAccountPlan({
-  session,
-  apiBaseUrl,
-  onSessionChange,
-  enabled,
-}: {
+function cachedSnapshot(scope: BillingReadScope): AccountPlanSnapshot {
+  return {
+    catalog: readBillingResource({ ...scope, organizationId: null }, "catalog") ?? null,
+    summary: readBillingResource(scope, "summary") ?? null,
+    usage: readBillingResource(scope, "usage") ?? null,
+    organizationId: scope.organizationId ?? null,
+    canManageBilling: readBillingResource(scope, "access")?.can_manage_billing ?? null,
+    loading: true, error: false, catalogUnavailable: false,
+  };
+}
+export function useAccountPlan({ session, apiBaseUrl, onSessionChange, enabled, organizationId = null }: {
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
   onSessionChange: (session: DesktopCloudSession | null) => void;
-  /** The payments experiment. Off means no wallet or billing read happens. */
   enabled: boolean;
-}): AccountPlanSnapshot & { refresh: () => void } {
-  const [snapshot, setSnapshot] = useState<AccountPlanSnapshot>(EMPTY);
+  organizationId?: string | null;
+}): AccountPlanSnapshot & { refresh: (force?: boolean) => void } {
+  const contextKey = enabled && session && organizationId
+    ? createCloudBillingContextKey(session, apiBaseUrl, organizationId) : "";
+  const scope = contextKey && session ? { session, apiBaseUrl, organizationId } : null;
+  const [stored, setStored] = useState(() => ({ contextKey, snapshot: scope ? cachedSnapshot(scope) : EMPTY }));
+  let snapshot = scope ? cachedSnapshot(scope) : EMPTY;
+  if (stored.contextKey === contextKey) snapshot = stored.snapshot;
   const [revision, setRevision] = useState(0);
   const epochRef = useRef(0);
-  const onSessionChangeRef = useRef(onSessionChange);
-  useLayoutEffect(() => {
-    onSessionChangeRef.current = onSessionChange;
-  }, [onSessionChange]);
-
-  // Session identity, not object identity: the session object is recreated on
-  // every refresh and would otherwise restart the load loop forever.
-  const sessionKey = session
-    ? `${session.user_id}${session.session_generation}${session.api_base_url}`
-    : "";
+  const refreshRef = useRef(false);
+  const latest = useRef({ session, onSessionChange });
+  useLayoutEffect(() => { latest.current = { session, onSessionChange }; }, [session, onSessionChange]);
 
   useEffect(() => {
     const epoch = ++epochRef.current;
-    if (!enabled || !session) {
-      setSnapshot(EMPTY);
-      return;
-    }
-    setSnapshot((current) => ({ ...current, loading: true }));
-
+    const currentSession = latest.current.session;
+    if (!contextKey || !currentSession || !organizationId) { setStored({ contextKey, snapshot: EMPTY }); return; }
+    const selected = { session: currentSession, apiBaseUrl, organizationId };
+    const force = refreshRef.current;
+    refreshRef.current = false;
+    setStored((current) => ({ contextKey, snapshot: current.contextKey === contextKey && current.snapshot.summary
+      ? { ...current.snapshot, loading: true, error: false } : cachedSnapshot(selected) }));
     const handleSessionChange = (next: DesktopCloudSession | null) => {
-      onSessionChangeRef.current(next);
+      if (epoch === epochRef.current) latest.current.onSessionChange(next);
     };
-
-    const load = async () => {
-      const [catalog, organizations] = await Promise.all([
-        getCloudBillingCatalog(session, handleSessionChange, apiBaseUrl).catch(() => null),
-        listCloudOrganizations(session, handleSessionChange, apiBaseUrl).catch(() => []),
-      ]);
+    let failed = false;
+    let catalogUnavailable = false;
+    const fallback = <T,>(promise: Promise<T>, cached: T | null): Promise<T | null> => promise.catch(() => {
+      failed = true; return cached;
+    });
+    void Promise.all([
+      loadBillingCatalog(currentSession, handleSessionChange, apiBaseUrl, force).catch((error: unknown) => {
+        const cause = error as Error & { status?: number; code?: string };
+        catalogUnavailable = cause?.status === 404 && (cause.code === "hosting_billing_disabled"
+          || /Hosting subscriptions are not available|Billing is not enabled/i.test(cause.message));
+        if (!catalogUnavailable) failed = true;
+        return catalogUnavailable ? null : readBillingResource({ ...selected, organizationId: null }, "catalog") ?? null;
+      }),
+      fallback(loadBillingSummary(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
+        readBillingResource(selected, "summary") ?? null),
+      fallback(loadBillingUsage(currentSession, organizationId, handleSessionChange, apiBaseUrl, force),
+        readBillingResource(selected, "usage") ?? null),
+      fallback(loadBillingResource(selected, "access", async (signal) => {
+        const access = await getCloudOrganizationAccess(currentSession, organizationId, handleSessionChange, apiBaseUrl, signal);
+        if (access.org_id !== organizationId) throw new Error("Billing access space mismatch.");
+        return access;
+      }, force), readBillingResource(selected, "access") ?? null),
+    ]).then(([catalog, summary, usage, access]) => {
       if (epoch !== epochRef.current) return;
+      setStored({ contextKey, snapshot: { catalog, summary, usage, organizationId,
+        canManageBilling: access?.can_manage_billing ?? null, loading: false, error: failed || summary === null, catalogUnavailable } });
+    });
+    return () => { epochRef.current += 1; };
+  }, [apiBaseUrl, contextKey, organizationId, revision]);
 
-      const organizationId = organizations[0]?.id ?? null;
-      const [summary, usage] = organizationId
-        ? await Promise.all([
-          getCloudBillingSummary(session, organizationId, handleSessionChange, apiBaseUrl)
-            .catch(() => null),
-          getCloudBillingUsage(session, organizationId, handleSessionChange, apiBaseUrl)
-            .catch(() => null),
-        ])
-        : [null, null];
-      if (epoch !== epochRef.current) return;
-
-      // Never show one organization's money under another's name.
-      setSnapshot({
-        catalog,
-        summary: summary && summary.org_id === organizationId ? summary : null,
-        usage: usage && usage.runtime.org_id === organizationId ? usage : null,
-        organizationId,
-        loading: false,
-      });
-    };
-    void load();
-
-    return () => {
-      epochRef.current += 1;
-    };
-  }, [apiBaseUrl, enabled, revision, session, sessionKey]);
-
-  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  useEffect(() => {
+    if (!contextKey) return;
+    const revalidate = () => { if (!document.hidden) setRevision((value) => value + 1); };
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => { window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
+  }, [contextKey]);
+  const refresh = useCallback((force = true) => { refreshRef.current = refreshRef.current || force; setRevision((value) => value + 1); }, []);
   return { ...snapshot, refresh };
 }

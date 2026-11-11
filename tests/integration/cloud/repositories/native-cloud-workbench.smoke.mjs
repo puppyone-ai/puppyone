@@ -148,7 +148,7 @@ async function headerPresentation(location) {
       return [...canvas.getImageData(0,0,1,1).data].slice(0,3);
     };
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
-      x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
+      x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, projectButtonLeft:button.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       themeText:rgb(themeText),
       place:place ? { location:place.dataset.projectPlace ?? null, cloudOutline:Boolean(placeOutline),
@@ -182,9 +182,11 @@ async function headerPresentation(location) {
   assert(sample.location === location, `Header place must follow the committed ${location} provider`);
   assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Both places must keep the theme's Header color: ${JSON.stringify(sample)}`);
   // The mark says which kind of place; the words say where it is.
-  assert(sample.place?.location === location && sample.place.text === (location === 'cloud' ? 'Fixture team' : '~/Documents/Clients')
-    && sample.place.addressFits && sample.place.right <= sample.viewport,
-    `The Header must state the ${location} project's place by its address, whole and on screen: ${JSON.stringify(sample.place)}`);
+  // The place leads the Header: the organization until its Space is known, or this computer.
+  assert(sample.place?.location === location
+    && (location === 'cloud' ? sample.place.text === 'Fixture team' : ['This Mac', 'This computer'].includes(sample.place.text))
+    && sample.place.addressFits && sample.place.right <= sample.viewport && sample.place.right <= sample.projectButtonLeft,
+    `The Header must state the ${location} project's place before the project, whole and on screen: ${JSON.stringify(sample.place)}`);
   if (location === 'cloud') {
     assert(sample.place?.location === 'cloud' && sample.place.cloudOutline, `The Cloud project must show its Cloud place mark: ${JSON.stringify(sample.place)}`);
     assert(JSON.stringify(sample.place.color) === JSON.stringify(sample.accent)
@@ -202,8 +204,8 @@ async function headerPresentation(location) {
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   const expectedIcon = sample.buttonColor;
   assert(JSON.stringify(sample.icon.color) === JSON.stringify(sample.labelColor), 'The project mark must match the project name, open or closed');
-  assert(sample.icon.product === 'home' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
-    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'The project mark must share readable Header ink');
+  assert(sample.icon.product === 'folder' && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
+    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), `The project folder mark must share readable Header ink: ${JSON.stringify(sample.icon)}`);
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'The Cloud mark must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
@@ -314,20 +316,21 @@ async function closeProjectMenu() {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor("!document.querySelector('.desktop-project-menu')");
 }
-// A local folder and its Cloud project are two projects (puppy-issues ADR-001):
-// moving between them is choosing the other project's row in the project menu.
+// This format harness retains both file surfaces but omits Home. Use the same
+// project-selection callbacks at that boundary; the Header's folder menu is
+// scoped to the current place and must not offer a cross-place switch.
 async function selectLocation(location) {
-  if (filesOnly) {
-    await evaluate(`window.__nativeCloudWorkbenchSmoke.selectLocation('${location}')`);
-    await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
-    return;
-  }
+  await closeProjectMenu();
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.selectLocation('${location}')`);
+  await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
+  if (filesOnly) return;
   await openProjectMenu();
   const row = `.desktop-project-menu .desktop-project-switcher-row[data-project-location="${location}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  await evaluate(`document.querySelector('${row}').querySelector('button').click()`);
-  await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
-  await waitFor("!document.querySelector('.desktop-project-menu')");
+  assert(await evaluate(`document.querySelector('${row} button')?.getAttribute('aria-current') === 'page'
+    && !document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location="${location === 'local' ? 'cloud' : 'local'}"]')`),
+    'The folder menu must select this project and list only its current place');
+  await closeProjectMenu();
 }
 async function clickNoticeAction(label) {
   await waitFor(`[...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].some(button => button.textContent === ${JSON.stringify(label)})`);
@@ -774,9 +777,9 @@ app.whenReady().then(async () => {
   // The fixture's own Agent comes back, as the steps after this expect.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setAgentLinks({ connections: [{ id: 'smoke-agent', name: 'Claude Code', admission: 'sign_in', grant_id: 'smoke-grant', connected_at: '2026-10-30T00:00:00Z', expires_at: '2099-01-01T00:00:00Z' }], pending: [] })");
   await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents [data-cloud-workspace-agent]'))");
-  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
-  await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
-  await evaluate("document.querySelector('[data-project-place-row=history]').click()");
+  // History's renderer/controller contract is independent of a Header menu
+  // entry. This harness does not include the contextual navigation owner.
+  await evaluate("window.__nativeCloudWorkbenchSmoke.openHistory()");
   await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
   const beforeDetail = (await workspaceRequests()).length;
   await evaluate("document.querySelector('.desktop-cloud-workspace-history .desktop-history-row').click()");
@@ -1046,7 +1049,7 @@ app.whenReady().then(async () => {
     await evaluate("Promise.all(document.querySelector('.desktop-local-folder-cloud-notice').getAnimations({subtree:true}).map(animation => animation.finished.catch(() => {})))");
     await writeFile(path.join(artifacts, `other-environment-${theme}.png`), (await window.webContents.capturePage()).toPNG());
   }
-  // A folder whose Cloud project disappeared ends its link, from the notice or the Header.
+  // A folder whose Cloud project disappeared ends its link from the notice.
   await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryWrongHost(false)");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryMissing(true)");
   await waitFor("Boolean(document.querySelector('.desktop-local-folder-cloud-notice.is-missing'))");
@@ -1064,15 +1067,9 @@ app.whenReady().then(async () => {
   await evaluate("[...document.querySelectorAll('.desktop-cloud-disconnect-dialog button')].find(button => button.textContent === 'Cancel').click()");
   await waitFor("!document.querySelector('.desktop-cloud-disconnect-dialog')");
   assert((await state()).detachRequests.length === 0, 'Cancelling must keep the link');
-  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
-  await waitFor("Boolean(document.querySelector('[data-project-place-row=disconnect]'))");
-  for (const theme of ['light', 'dark']) {
-    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
-    await captureSettledDialog(`cloud-link-menu-${theme}`, '.desktop-project-place-menu');
-  }
-  assert(await evaluate("document.querySelector('[data-project-place-row=cloud-link]').textContent.includes('No longer in the Cloud')"),
-    'The Header must say why the link cannot be opened');
-  await evaluate("document.querySelector('[data-project-place-row=disconnect]').click()");
+  assert(await evaluate("document.querySelector('.desktop-titlebar-place-button').dataset.cloudLink === 'problem'"),
+    'The Header must mark the unavailable link while the notice owns Disconnect');
+  await clickNoticeAction('Disconnect');
   await waitFor("Boolean(document.querySelector('.desktop-cloud-disconnect-dialog'))");
   await evaluate("document.querySelector('.desktop-cloud-disconnect-dialog .desktop-dialog-button.destructive').click()");
   await waitFor("!document.querySelector('.desktop-cloud-disconnect-dialog') && !document.querySelector('.desktop-local-folder-cloud-notice')");
@@ -1082,9 +1079,7 @@ app.whenReady().then(async () => {
   assert(await evaluate("!document.querySelector('.desktop-titlebar-place-button').dataset.cloudLink && !document.querySelector('.desktop-titlebar-place-link')"),
     'An unlinked folder carries no Cloud mark');
   // Afterwards the folder is an ordinary local project that can be put in the Cloud again.
-  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
-  await waitFor("Boolean(document.querySelector('[data-project-place-row=put-in-cloud]'))");
-  await evaluate("document.querySelector('[data-project-place-row=put-in-cloud]').click()");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.requestCloud()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-dialog [data-cloud-publish-action]'))");
   assert((await state()).publishRequests.length === 1,
     'Putting the folder in the Cloud again must start with explicit organization-scoped publication, never uploading automatically');
@@ -1096,7 +1091,7 @@ app.whenReady().then(async () => {
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations,  nativeCornerCaptures, authGeometry, loginPresentations, publishPresentations, snapshot, errors }, null, 2));
-  console.log("Native Cloud workbench smoke passed: a local folder and its Cloud project as two projects in one retained shell, identical native layout/styles, Cloud tree/data/edit/save, folder notices, Cloud dialog sign-in across themes and eight locales, first publish, other-environment and missing-project folders and ending their Cloud links from the Header, isolated drafts and retained hosts.");
+  console.log("Native Cloud workbench smoke passed: a local folder and its Cloud project as two projects in one retained shell, identical native layout/styles, Cloud tree/data/edit/save, folder notices, Cloud dialog sign-in across themes and eight locales, first publish, other-environment and missing-project folders and ending their Cloud links from the notice, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {
   console.error(error);

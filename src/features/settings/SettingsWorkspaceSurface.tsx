@@ -1,5 +1,6 @@
 import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
+import type { CloudSpace } from "../../lib/workspaceHomeModel";
 import type {
   DesktopUpdateState,
   GitStatusSnapshot,
@@ -24,6 +25,12 @@ export type SettingsWorkspaceSurfaceProps = {
     refresh: () => void;
   };
   cloud: {
+    /** The one Space Settings manages; its id and display name follow it. */
+    space?: CloudSpace | null;
+    spaceId?: string | null;
+    spaceName?: string | null;
+    onSpaceChange?: () => void;
+    focusSpaceInvite?: boolean;
     enabled: boolean;
     session: DesktopCloudSession | null;
     sessionRestoring: boolean;
@@ -64,6 +71,9 @@ export function createSettingsWorkspaceSurface({
   return {
     sidebar: (
       <SettingsSidebar
+        currentSpace={cloud.space}
+        currentSpaceId={cloud.spaceId}
+        currentSpaceName={cloud.spaceName}
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
         localWorkspaceAvailable={workspace !== null}
@@ -80,6 +90,11 @@ export function createSettingsWorkspaceSurface({
         gitStatusError={git.error}
         subThemeCatalog={subThemeCatalog}
         cloudEnabled={cloud.enabled}
+        currentSpaceId={cloud.spaceId}
+        currentSpaceName={cloud.spaceName}
+        currentSpacePersonal={cloud.space?.isDefault === true}
+        onSpaceChange={cloud.onSpaceChange}
+        focusSpaceInvite={cloud.focusSpaceInvite}
         cloudSession={cloud.session}
         cloudSessionRestoring={cloud.sessionRestoring}
         cloudApiBaseUrl={cloud.apiBaseUrl}

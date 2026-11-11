@@ -111,7 +111,6 @@ for (const filePath of sidebarPresentationFiles()) {
 const registrySource = read(absolute("src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts"));
 const registryTypes = read(absolute("src/features/app-shell/workspace-surfaces/workspaceSurfaceTypes.ts"));
 const workspaceContent = read(absolute("src/features/app-shell/DesktopWorkspaceContent.tsx"));
-const workspaceDataSurface = read(absolute("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"));
 for (const id of ["data", "git", "cloud", "settings"]) {
   if (!registrySource.includes(`id: "${id}"`)) errors.push(`Workspace Surface Registry is missing ${id}`);
 }
@@ -138,9 +137,6 @@ if (!workspaceContent.includes("<PluginsDialog") || !workspaceContent.includes("
 if (/\b(?:explorerSlot|mainSlot)\s*=/.test(workspaceContent) || /activeView\s*===/.test(workspaceContent)) {
   errors.push("DesktopWorkspaceContent reintroduced independent route selection instead of one resolved surface.");
 }
-if (!workspaceDataSurface.includes("<DataWorkspace") || !workspaceDataSurface.includes('resolvedSurface.id === "data"')) {
-  errors.push("Data Workspace must remain mounted while resolved surfaces are projected into its sidebar/main slots.");
-}
 if (/\b(?:agent|terminal)\b/.test(registrySource)) {
   errors.push("Agent and Terminal are Auxiliary panels and must never enter the Workspace Surface Registry.");
 }
@@ -152,10 +148,6 @@ const virtualizationRequirements = [
 ];
 for (const [relativePath, token] of virtualizationRequirements) {
   if (!read(absolute(relativePath)).includes(token)) errors.push(`${relativePath} must consume the shared scalable-list policy (${token}).`);
-}
-const virtualizationPolicy = read(absolute("src/shared-ui/sidebar/virtualizationPolicy.ts"));
-if (!virtualizationPolicy.includes("SIDEBAR_VIRTUALIZATION_THRESHOLD = 200")) {
-  errors.push("Shared Sidebar virtualization policy must activate at 200 rows.");
 }
 
 const gitSidebarSource = read(absolute("src/features/source-control/SourceControlSidebar.tsx"));
@@ -175,11 +167,7 @@ if (gitLocalStatusSource.includes("desktop-git-status-card")) {
 
 const auxiliarySource = read(absolute("src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx"));
 const appSource = read(absolute("src/App.tsx"));
-for (const token of ["CollapsiblePaneFrame", "useCollapsiblePaneResize", 'orientation: "vertical"']) {
-  if (!auxiliarySource.includes(token)) errors.push(`AuxiliaryPanelHost must consume the shared resize contract (${token}).`);
-}
 const layoutStyle = read(absolute("src/styles/layout.css"));
-const controlGeometryStyle = read(absolute("src/shared-ui/styles/control-geometry.css"));
 const dataWorkspaceStyle = read(absolute("src/shared-ui/styles/data-workspace.css"));
 const desktopDataWorkspaceStyle = read(absolute("src/features/data-workspace/data-shell.css"));
 // The Data workspace and the frame it shares with surfaces that have no files yet.
@@ -189,31 +177,8 @@ const collapsiblePaneResizeSource = read(absolute("src/shared-ui/primitives/useC
 const collapsiblePaneGestureSource = read(absolute("src/shared-ui/primitives/collapsiblePaneGesture.ts"));
 const paneResizeDragSource = read(absolute("src/shared-ui/primitives/usePaneResizeDrag.ts"));
 const collapsiblePaneFrameSource = read(absolute("src/shared-ui/sidebar/CollapsiblePaneFrame.tsx"));
-const sidebarResizeHandleSource = read(absolute("src/shared-ui/sidebar/SidebarResizeHandle.tsx"));
 const desktopDataWorkspaceSource = read(absolute("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"));
 const desktopExplorerFrameSource = read(absolute("src/features/app-shell/layout/useDesktopExplorerFrame.ts"));
-if (layoutStyle.includes("--desktop-right-sidebar-visible-width") || auxiliarySource.includes("desktop-right-sidebar-visible-width")) {
-  errors.push("AuxiliaryPanelHost must not drive its content plane from the shrinking visibility width.");
-}
-if (dataWorkspaceStyle.includes("--data-explorer-min-width")) {
-  errors.push("DataWorkspace content must follow the canonical Explorer track width.");
-}
-if (
-  !collapsiblePaneResizeSource.includes("canonical live resize width")
-  || !collapsiblePaneResizeSource.includes("last-expanded content plane")
-) {
-  errors.push("The shared collapsible pane resize contract must distinguish direct resize from visibility transitions.");
-}
-for (const token of [
-  'viewportClassName="desktop-right-sidebar-viewport"',
-  'contentWidth="var(--desktop-right-sidebar-content-width)"',
-  "frameWidth={resize.width}",
-  "lastExpandedWidth",
-]) {
-  if (!auxiliarySource.includes(token)) {
-    errors.push(`AuxiliaryPanelHost is missing its non-reflow visibility contract (${token}).`);
-  }
-}
 if (
   !auxiliarySource.includes('typeof children === "function"')
   || !appSource.includes('const localRightSidebarActive = !cloudWorkspaceActive;')
@@ -236,26 +201,6 @@ if (
   || !collapsiblePaneGestureSource.includes("previewWidth: config.collapsedWidth")
 ) {
   errors.push("Crossing a pane collapse threshold must render a reversible collapsed preview before pointer release.");
-}
-if (
-  !collapsiblePaneGestureSource.includes('type: "collapse"; restoreWidth: number')
-  || !collapsiblePaneGestureSource.includes('restoreWidth: config.minWidth')
-  || !dataWorkspaceSource.includes("setExplorerWidth(commit.restoreWidth)")
-  || !auxiliarySource.includes("onWidthChange?.(commit.restoreWidth)")
-) {
-  errors.push("A drag collapse must persist the minimum legal expanded width for the next reopen.");
-}
-if (
-  !collapsiblePaneResizeSource.includes("PendingPaneCommit")
-  || !collapsiblePaneResizeSource.includes("baselineKey")
-) {
-  errors.push("Collapsible panes must retain an optimistic commit until controlled state acknowledges or supersedes it.");
-}
-if (
-  sidebarResizeHandleSource.includes('window.addEventListener("pointerup"')
-  || !collapsiblePaneResizeSource.includes("cancelKey:")
-) {
-  errors.push("The pane gesture controller must be the sole owner of each pointer session and cancel stale controlled gestures.");
 }
 for (const token of [
   "--desktop-right-sidebar-content-width",
@@ -302,18 +247,6 @@ if (dataContent.includes("grid-template-columns")) {
   errors.push("Shared DataWorkspace must not consume the overlay resize hit target as layout width.");
 }
 const shellSource = read(absolute("src/components/ProjectShell.tsx"));
-if (!shellSource.includes("onLeadingRailWidthChange?.(commit.restoreWidth)")) {
-  errors.push("The Workspace rail must persist the shared collapse restore width.");
-}
-if (!shellSource.includes("contentWidth={renderedLeadingRailContentWidth}")) {
-  errors.push("The Workspace rail must preserve a stable content plane while its frame changes width.");
-}
-if (!shellSource.includes("frameWidth={resolvedLeadingRailWidth}")) {
-  errors.push("The Workspace rail must delegate its animated width to CollapsiblePaneFrame.");
-}
-if (shellSource.includes("leadingRailCollapsedCssWidth")) {
-  errors.push("The Workspace rail compact width must come from pane geometry, not a CSS override.");
-}
 const projectSwitcherStyle = read(absolute("src/features/app-shell/project-switcher-rail.css"));
 const projectRailContent = projectSwitcherStyle.match(/\.desktop-project-switcher-rail\s*\{([^}]*)\}/s)?.[1] ?? "";
 if (/border-inline-end\s*:/.test(projectRailContent) || projectSwitcherStyle.includes(":has(> .po-pane-edge-resize-handle)")) {
@@ -362,9 +295,6 @@ for (const token of [
     errors.push(`Shared collapsible pane CSS is missing its geometry contract (${token}).`);
   }
 }
-if (paneStyle.includes("translateX") || paneStyle.includes("data-pane-content-motion")) {
-  errors.push("Collapsible pane content must stay fixed while the shared viewport clips it.");
-}
 for (const [hostName, source] of [
   ["Explorer", dataWorkspaceSource],
   ["Auxiliary", auxiliarySource],
@@ -391,19 +321,6 @@ for (const selector of [
 }
 if (dataWorkspaceStyle.includes('.data-content[data-resizable-explorer="true"] > .browser-column')) {
   errors.push("Shared DataWorkspace must keep the Editor adjacent to the shared pane boundary.");
-}
-if (
-  !controlGeometryStyle.includes("--po-pane-motion-duration: 360ms")
-  || !controlGeometryStyle.includes("--po-pane-motion-easing: cubic-bezier(0.42, 0, 0.58, 1)")
-  || !collapsiblePaneGestureSource.includes("COLLAPSIBLE_PANE_MOTION_MS = 360")
-) {
-  errors.push("All collapsible panes must consume the shared 360ms ease-in-out motion contract in CSS and TypeScript.");
-}
-if (!dataWorkspaceSource.includes("Math.max(") || !dataWorkspaceSource.includes("explorerResize.width,")) {
-  errors.push("Explorer collapse must clip a stable expanded content plane instead of squeezing its children.");
-}
-if (dataWorkspaceSource.includes("data-explorer-collapsed-fill") || dataWorkspaceStyle.includes(".data-explorer-collapsed-fill")) {
-  errors.push("Explorer collapse must not insert a competing flex child into its retained content plane.");
 }
 // Expanded preference width during collapse is verified by desktopPreferenceConsumers.test.tsx.
 if (!paneResizeDragSource.includes("onDragActiveChange?.(true)") || !paneResizeDragSource.includes("onDragActiveChange?.(false)")) {

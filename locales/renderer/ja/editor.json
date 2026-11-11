@@ -413,6 +413,10 @@
   "html.finishComposition": "移動する前に入力中の文字を確定してください。",
   "html.editFailed": "変更を適用できません。要素を再選択するか、ソースを編集してください。",
   "html.unsupported": "この文書は直接編集できません。ソースから編集してください。",
+  "html.linkFailure.unavailable": "このビューではリンクを開けません。",
+  "html.linkFailure.missing": "リンク先のファイルが見つかりません。",
+  "html.linkFailure.offline": "リンクを開くには、ページメニューでフォルダーへのアクセスをオフにしてください。",
+  "html.linkFailure.failed": "リンクを開けませんでした。",
   "html.bridgeFailed": "編集プレビューに接続できません。プレビューに戻って再試行してください。",
   "html.unsupportedBase": "このページのリソース基準 URL では、インポートした画像を参照できません。",
   "html.importUnattached": "画像を {path} にインポートしましたが、ページが変更されたため関連付けできませんでした。",
@@ -442,5 +446,12 @@
   "html.align.center": "中央揃え",
   "html.align.right": "右揃え",
   "html.chooseColor": "{color} を選択",
-  "html.customColor": "カスタム"
+  "html.customColor": "カスタム",
+  "html.folderAccessTitle": "このページにフォルダの使用を許可しますか？",
+  "html.folderAccessChangedTitle": "このページは変更されました。引き続きフォルダの使用を許可しますか？",
+  "html.folderAccessDescription": "「{page}」が「{folder}」フォルダ内のテキストファイル（.md など）の読み書きを求めています。許可すると、ページはオフラインで動作し、このフォルダ以外にはアクセスできません。信頼できるページだけを許可してください。",
+  "html.folderAccessAllow": "許可",
+  "html.folderAccessDecline": "許可せず表示のみ",
+  "html.folderAccessToggle": "このページにフォルダの使用を許可",
+  "html.folderAccessUnavailable": "ここではこのページはフォルダを使えません。このコンピュータ上のプロジェクトから開いてください。"
 }

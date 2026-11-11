@@ -31,6 +31,28 @@ export type DatabasePreviewPort = Readonly<{
 /** Narrow format service ports, not a DataPort or arbitrary IPC locator. */
 export type DocumentProjectionLease = Readonly<{ url: string; close: () => Promise<void> }>;
 export type DocumentProjectionPort = Readonly<{
-  create: (path: string, content: string, signal: AbortSignal, options?: { interactive: boolean; baseHref?: string | null }) => Promise<DocumentProjectionLease>;
+  /** `offline` projections are served with a no-network policy and may not navigate away. */
+  create: (path: string, content: string, signal: AbortSignal, options?: { interactive: boolean; baseHref?: string | null; offline?: boolean }) => Promise<DocumentProjectionLease>;
 }>;
-export type EditorPreviewServices = Readonly<{ database?: DatabasePreviewPort; documentProjection?: DocumentProjectionPort }>;
+export type HtmlFolderFile = Readonly<{ name: string; modified: number | null }>;
+/**
+ * Text files directly inside the folder that holds one HTML page. Callers pass
+ * bare file names; the folder itself is fixed when the session is opened.
+ */
+export type HtmlFolderAccessSession = Readonly<{
+  folderName: string;
+  list: () => Promise<readonly HtmlFolderFile[]>;
+  read: (name: string) => Promise<{ content: string; version: string | null; modified: number | null }>;
+  write: (name: string, content: string, expectedVersion: string | null) => Promise<{ version: string | null }>;
+  create: (name: string) => Promise<void>;
+}>;
+export type HtmlFolderAccessConsentRequest = Readonly<{ pageName: string; folderName: string; changed: boolean }>;
+export type HtmlFolderAccessPort = Readonly<{
+  /** Null for a page at a project root or a provider without folder access. */
+  open: (documentPath: string) => HtmlFolderAccessSession | null;
+  /** The host's own dialog; resolves false when the person declines or dismisses it. */
+  confirm: (request: HtmlFolderAccessConsentRequest, signal: AbortSignal) => Promise<boolean>;
+}>;
+export type EditorPreviewServices = Readonly<{
+  database?: DatabasePreviewPort; documentProjection?: DocumentProjectionPort; htmlFolderAccess?: HtmlFolderAccessPort;
+}>;

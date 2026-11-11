@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow } from "electron";
 import { createAppPreviewRuntime } from "../../../../../electron/app-preview-runtime.mjs";
 import { createAppPreviewService } from "../../../../../electron/main/app-preview-service.mjs";
 
@@ -58,7 +58,7 @@ async function runSmoke() {
   const processRuntime = createAppPreviewRuntime({
     app,
     dialog: { showMessageBox: async () => ({ response: 0 }) },
-    shell,
+    externalNavigation: { open: async () => assert.fail("Embedded preview must not open an external browser") },
     readWorkspaceTextFile: async (rootPath, relativePath) => ({
       content: await fs.promises.readFile(path.join(rootPath, relativePath), "utf8"),
     }),
@@ -120,16 +120,17 @@ async function run() {
     process.exitCode = 1;
   } finally {
     await runtime?.closeAll();
-    if (ownerWindow && !ownerWindow.isDestroyed()) ownerWindow.destroy();
+    // Closing the last window before async cleanup can quit Electron with 0.
+    // Keep it alive until the explicit success/failure exit closes the app.
     await fs.promises.rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
-    app.quit();
+    app.exit(process.exitCode ?? 0);
   }
 }
 
 app.whenReady().then(run).catch((error) => {
   console.error(error);
   process.exitCode = 1;
-  app.quit();
+  app.exit(1);
 });
 
 async function waitFor(predicate, timeoutMs) {

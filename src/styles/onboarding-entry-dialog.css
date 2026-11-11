@@ -15,7 +15,7 @@
 
 .onboarding-entry-dialog.is-import-sources {
   --onboarding-entry-inset: 20px;
-  width: min(360px, calc(100vw - 32px));
+  width: min(460px, calc(100vw - 32px));
 }
 
 .onboarding-entry-dialog.is-import-sources .desktop-dialog-header {
@@ -124,9 +124,12 @@
   line-height: 18px;
 }
 
+/* Sources are tiles: the product's own mark on a quiet plate, then its name.
+   Nothing to read; a source that is still coming says only that. */
 .onboarding-import-sources {
   display: grid;
-  gap: 2px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -137,33 +140,60 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  min-height: 36px;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  min-height: 52px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border: 0;
-  border-radius: 6px;
+  gap: 10px;
+  padding: 9px 12px 9px 10px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
   background: transparent;
   color: var(--po-text);
   font: inherit;
   text-align: start;
   cursor: var(--po-clickable-cursor, default);
-  transition: background 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .onboarding-import-source:not(:disabled):hover {
+  border-color: var(--po-border-strong);
   background: var(--po-hover);
 }
 
+/* A source that is still coming keeps its whole name; the note sits under it. */
 .onboarding-import-source:disabled {
+  grid-template-areas:
+    "icon label"
+    "icon status";
+  grid-template-columns: 32px minmax(0, 1fr);
+  row-gap: 0;
+  border-style: dashed;
   cursor: default;
-  opacity: 0.6;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-icon {
+  grid-area: icon;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-label {
+  grid-area: label;
+  line-height: 18px;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-icon,
+.onboarding-import-source:disabled > .onboarding-import-source-label {
+  opacity: 0.5;
 }
 
 .onboarding-import-source-status {
-  color: var(--po-text-muted);
+  grid-area: status;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
   font-size: var(--po-type-ui-caption, 12px);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-import-source:focus-visible {
@@ -173,9 +203,13 @@
 
 .onboarding-import-source-icon {
   display: grid;
-  width: 36px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--po-text) 6%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
   color: var(--po-text-muted);
 }
 
@@ -192,10 +226,13 @@
 
 .onboarding-import-source-label {
   min-width: 0;
+  overflow: hidden;
   color: var(--po-text);
   font-size: var(--po-type-ui-body, 14px);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-import-back {
@@ -221,27 +258,84 @@
   outline-offset: 1px;
 }
 
-/* Import: guided export → open-folder steps */
+/* Import from an app: which source, and what happens to it. */
 
-.onboarding-import-steps {
+.onboarding-import-source-summary {
   display: grid;
-  margin: 0;
-  padding-inline-start: 22px;
-  gap: 8px;
-  color: var(--po-text);
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+}
+
+.onboarding-import-source-summary .onboarding-import-source-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.onboarding-import-source-summary .onboarding-import-mark {
+  width: 22px;
+  height: 22px;
+}
+
+.onboarding-import-source-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.onboarding-import-source-summary-copy > strong {
+  color: var(--po-text-strong, var(--po-text));
   font-size: var(--po-type-ui-body, 14px);
+  font-weight: 600;
   line-height: 20px;
 }
 
 .onboarding-import-outcome {
-  margin: 14px 0 0;
-  color: var(--po-text-subtle);
+  color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
-  line-height: 17px;
+  line-height: 18px;
+}
+
+/* Export steps, when a source has them: numbered in small plates. */
+.onboarding-import-steps {
+  display: grid;
+  margin: 16px 0 0;
+  padding: 0;
+  gap: 10px;
+  list-style: none;
+  counter-reset: import-step;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 20px;
+}
+
+.onboarding-import-steps > li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  counter-increment: import-step;
+}
+
+.onboarding-import-steps > li::before {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+  color: var(--po-text-muted);
+  content: counter(import-step);
+  font-size: var(--po-text-size-caption, 11px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
 }
 
 .onboarding-import-location {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .onboarding-entry-create-fields {
@@ -345,6 +439,86 @@
   stroke-width: 1.8;
 }
 
+/* Who can open the new project: plain choices, a dot and words. No box or fill:
+   those belong to the fields one types in. */
+.onboarding-entry-choice-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.onboarding-entry-choice-field > legend {
+  margin-block-end: 8px;
+  padding: 0;
+}
+
+.onboarding-entry-choices {
+  display: grid;
+  gap: 6px;
+}
+
+.onboarding-entry-choice {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 20px;
+  transition: color 120ms ease;
+}
+
+.onboarding-entry-choice:hover,
+.onboarding-entry-choice[data-checked] {
+  color: var(--po-text);
+}
+
+.onboarding-entry-choice > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-entry-choice-label {
+  flex: none;
+}
+
+.onboarding-entry-choice-detail,
+.onboarding-entry-team-select {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-team-select {
+  max-width: 180px;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: transparent;
+  font-family: inherit;
+}
+
+.onboarding-entry-team-select:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+/* A place that follows from the audience: shown, not chosen. */
+.onboarding-entry-location-picker.is-fixed,
+.onboarding-entry-location-picker.is-fixed:hover {
+  height: auto;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
 .onboarding-entry-location-action {
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
@@ -375,10 +549,6 @@
 .onboarding-entry-dialog .desktop-dialog-error {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.onboarding-entry-paste-template {
-  margin-inline-end: auto;
 }
 
 .onboarding-entry-template {
@@ -469,4 +639,79 @@
 
 .onboarding-entry-template-destination button:hover:not(:disabled) {
   color: var(--po-text-strong);
+}
+
+/* Folders another app records: a quiet checklist, name first, place beneath. */
+.onboarding-import-app-folders {
+  display: grid;
+  max-height: min(320px, 50vh);
+  margin: 14px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  list-style: none;
+}
+
+.onboarding-import-app-folder {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.onboarding-import-app-folder:hover:not([data-added]) {
+  background: var(--po-hover);
+}
+
+.onboarding-import-app-folder > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-import-app-folder[data-added] {
+  cursor: default;
+}
+
+.onboarding-import-app-folder[data-added] > .onboarding-import-app-folder-copy {
+  opacity: 0.55;
+}
+
+.onboarding-import-app-folder-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.onboarding-import-app-folder-name {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-path {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-status {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.onboarding-import-app-empty {
+  margin: 14px 0 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 18px;
 }

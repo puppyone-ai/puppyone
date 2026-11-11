@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
 import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
 import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
@@ -8,7 +7,7 @@ import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
 import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
@@ -51,8 +50,12 @@ import {
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
-import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
+import { resolveTemplateStoreOrigin } from "../shared/desktop/template-link.mjs";
+import { createTemplateIntentStore } from "./main/template-intent-store.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
+import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
+import { createHostServiceLauncher } from "./host-service/launcher.mjs";
+import { hostServiceStateDir } from "./host-service/paths.mjs";
 import {
   createApplicationQuitIntent,
   createDocumentSessionCloseCoordinator,
@@ -76,6 +79,7 @@ import { SETTINGS_OPEN_REQUESTED_CHANNEL } from "./main/ipc/settings-ipc.mjs";
 import { registerAppPreviewIpcHandlers } from "./main/ipc/app-preview-ipc.mjs";
 import { registerBuildInfoIpcHandlers } from "./main/ipc/build-info-ipc.mjs";
 import { registerPlatformIpcHandlers } from "./main/ipc/platform-ipc.mjs";
+import cloudOpeningLog from "electron-log";
 import { registerCloudIpcHandlers } from "./main/ipc/cloud-ipc.mjs";
 import { registerCloudPublishIpcHandlers } from "./main/ipc/cloud-publish-ipc.mjs";
 import { registerMarkdownWebEmbedIpcHandlers } from "./main/ipc/markdown-web-embed-ipc.mjs";
@@ -110,11 +114,13 @@ import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agen
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
+import { createImportOpeningRecovery } from "./main/project-import/opening.mjs";
+import { createAppFolderDiscovery } from "./main/project-import/app-folders.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
-import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { parseLocalFileUrl, registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
 import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "./main/preview-document-service.mjs";
 import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
@@ -138,6 +144,7 @@ import { createSenderWorkspaceAuthorization } from "./main/workspace-authorizati
 import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
+import { createFolderRelocation } from "./main/folder-relocation.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
 import { createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
 import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
@@ -212,12 +219,10 @@ const desktopPlatformHost = createDesktopPlatformHost({
 });
 const appName = desktopApplicationIdentity.applicationName;
 const templateStoreOrigin = resolveTemplateStoreOrigin({ isPackaged: app.isPackaged, override: process.env.PUPPYONE_TEMPLATE_STORE_ORIGIN });
-let pendingTemplateIntent = null;
-const templateLinkOptions = { origin: templateStoreOrigin, channel: desktopBuildInfo.channel };
+const templateIntents = createTemplateIntentStore({ origin: templateStoreOrigin, channel: desktopBuildInfo.channel });
 for (const argument of process.argv) {
-  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
-    try { pendingTemplateIntent = { id: randomUUID(), url: templateShareLink(parseTemplateLink(argument, templateLinkOptions), templateStoreOrigin), ownerId: null }; } catch { /* Invalid external intents are ignored. */ }
-  }
+  // Invalid external intents are ignored.
+  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) templateIntents.receive(argument);
 }
 
 // Resolve only core launch data before the single-instance boundary. A
@@ -309,6 +314,18 @@ const windowsById = new Map();
 const windowStateById = new Map();
 const workspaceWindows = new WorkspaceWindowIndex();
 const localFileCapabilities = createLocalFileCapabilityStore();
+/** True while a frame shows a projection of a page allowed to use its folder. */
+function isOfflineDocumentFrame(frameUrl) {
+  try {
+    const url = new URL(frameUrl);
+    url.hash = "";
+    const { token, purpose, requestPath } = parseLocalFileUrl(url.toString());
+    return purpose === "document-projection"
+      && localFileCapabilities.resolve({ token, purpose, requestPath })?.snapshot?.offline === true;
+  } catch {
+    return false;
+  }
+}
 const previewDocumentService = createPreviewDocumentService();
 let lastFocusedWindowId = null;
 let initialWindowReady = false;
@@ -538,6 +555,10 @@ const projectEntryService = createProjectEntryService({
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
+const importOpeningRecovery = createImportOpeningRecovery({
+  remember: (projectPath) => workspaceStateStore.addRecentWorkspacePaths([projectPath]),
+  open: openWorkspaceInCurrentWindow,
+});
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
 const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
@@ -677,6 +698,7 @@ async function createWindow(options = {}) {
     applicationUrl: rendererApplicationUrl,
     externalNavigation,
     isAuthorizedCloudResource: cloudPreviewResourceService.allowed,
+    isOfflineDocumentFrame,
   });
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {
@@ -914,14 +936,11 @@ function resolveAppIconPath() {
 }
 
 async function queueTemplateIntent(value) {
-  let parsed;
-  try { parsed = parseTemplateLink(value, templateLinkOptions); } catch { return false; }
-  const intent = { id: randomUUID(), url: templateShareLink(parsed, templateStoreOrigin), ownerId: null };
-  pendingTemplateIntent = intent;
+  const intent = templateIntents.receive(value);
+  if (!intent) return false;
   if (initialWindowReady) {
     const window = await createOrRevealWindow();
-    if (pendingTemplateIntent === intent && !window.isDestroyed()) {
-      intent.ownerId = window.webContents.id;
+    if (!window.isDestroyed() && templateIntents.assign(intent, window.webContents.id)) {
       window.webContents.send("template:import-requested");
     }
   }
@@ -1189,10 +1208,10 @@ app.whenReady().then(async () => {
   initialWindowReady = true;
   // Files that arrived while the first window was opening were queued behind it.
   await openPendingPaths();
-  if (pendingTemplateIntent) {
+  const launchTemplate = templateIntents.pending;
+  if (launchTemplate) {
     const window = await createOrRevealWindow();
-    if (pendingTemplateIntent && !window.isDestroyed()) {
-      pendingTemplateIntent.ownerId = window.webContents.id;
+    if (!window.isDestroyed() && templateIntents.assign(launchTemplate, window.webContents.id)) {
       window.webContents.send("template:import-requested");
     }
   }
@@ -1359,18 +1378,51 @@ function registerIpcHandlers() {
     selectWorkspaceForNewWindow,
     attachWorkspaceToCurrentWindow,
     detachWorkspaceFromCurrentWindow,
+    folderRelocation: createFolderRelocation({
+      listRecentWorkspaces: async () => (await workspaceStateStore.getRecentWorkspacesResult()).items
+        .map((item) => item.workspace),
+      windowFolderPaths: (sender) => {
+        const window = BrowserWindow.fromWebContents(sender);
+        return window && !window.isDestroyed() ? getOrCreateWindowState(window).folderPaths : [];
+      },
+      resolveIdentity: resolveLocalWorkspaceIdentity,
+      showOpenDialog: (window, options) => (window && !window.isDestroyed()
+        ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options)),
+      relocateRecent: (from, to) => workspaceStateStore.relocateRecentWorkspacePath(from, to),
+      // Registered below; only called once a person has confirmed a new place.
+      retireSharesAtMissingRoot: (rootPath) => hostIpc.retireSharesAtMissingRoot(rootPath),
+      // The gone place's sessions can do nothing more; the same folder reopens at its new place.
+      closeSessionsAt: async (rootPath) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) await projectSessions.closeRoot(window.webContents.id, rootPath);
+        }
+      },
+      home: app.getPath("home"),
+    }),
+    getDialogOwnerWindow,
+    appFolders: createAppFolderDiscovery({ home: app.getPath("home") }),
   });
-  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  // Failed Cloud Computer openings go to the app log file so a report can be
+  // matched to the server log by request id.
+  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService, diagnostics: cloudOpeningLog });
+  // Sharing this computer's folders runs in the Puppyone Host service, which
+  // keeps sharing after this App quits; Desktop reaches it over a local channel.
+  const hostService = createHostServiceLauncher({ stateDir: hostServiceStateDir(app.getPath("userData")),
+    execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged });
+  const hostIpc = registerHostIpcHandlers({ ipcMain: trustedIpcMain, app, auth: cloudAuthService,
+    apiBase: desktopCloudConfiguration?.apiBase, hostService,
+    authorizeWorkspaceRoot, dialog, BrowserWindow,
+    markWorkspaceShared: (rootPath, hostFolderId) =>
+      workspaceStateStore.setRecentWorkspaceHostFolder(rootPath, hostFolderId),
+    t: (id, values) => localeService.t(id, values) });
+  app.once("will-quit", () => hostIpc.dispose());
   trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
-  trustedIpcMain.handle("template:read-intent", (event) => {
-    if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
-    if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
-    pendingTemplateIntent.ownerId = event.sender.id;
-    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url };
-  });
-  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
-    if (pendingTemplateIntent?.id === id && pendingTemplateIntent.ownerId === event.sender.id) pendingTemplateIntent = null;
-  });
+  trustedIpcMain.handle("template:read-intent", (event) => templateIntents.read(event.sender.id,
+    (ownerId) => BrowserWindow.getAllWindows().some(window => window.webContents.id === ownerId)));
+  // A first launch after installing from the store looks once for the link the
+  // store page copied. A link that arrived from the store itself goes first.
+  trustedIpcMain.handle("template:claim-copied-link", (event) => templateIntents.claimCopied(() => clipboard.readText(), event.sender.id));
+  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => templateIntents.acknowledge(id, event.sender.id));
   registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
   registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({
@@ -1759,6 +1811,8 @@ async function importSourceForCurrentWindow(sender, request) {
     throw new Error("An import task ID is required.");
   }
   return runProjectEntryOperation(sender, async () => {
+    const completed = importOpeningRecovery.get(sender, taskId);
+    if (completed) return importOpeningRecovery.open(sender, taskId, completed);
     let source;
     if (descriptor.mode === "folder") {
       const ownerWindow = getDialogOwnerWindow(sender);
@@ -1809,7 +1863,7 @@ async function importSourceForCurrentWindow(sender, request) {
       });
       importSourceTasks.delete(sender.id);
       if (grantId) projectLocationGrants.revoke(sender, grantId);
-      return openWorkspaceInCurrentWindow(sender, project.path);
+      return importOpeningRecovery.open(sender, taskId, project);
     } finally {
       importSourceTasks.delete(sender.id);
     }

@@ -177,9 +177,9 @@ async function run() {
   assert.equal(report.restore.sizes.length, 1, `the mark changed size: ${report.restore.sizes.join(" -> ")}`);
   assert.equal(report.restore.centers.length, 1, `the mark moved: ${report.restore.centers.join(" -> ")}`);
 
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
-  await until("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].some(item => item.textContent.includes('Home'))", "project menu");
-  await evaluate("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes('Home')).click()");
+  await evaluate("document.querySelector('.desktop-titlebar-place-wrap > button').click()");
+  await until("!!document.querySelector('[data-window-place=\"home\"]')", "the place menu");
+  await evaluate("document.querySelector('[data-window-place=\"home\"]').click()");
   await until("!!document.querySelector('.onboarding-homepage button[aria-label*=\"Project B\"]')", "Homepage");
 
   // A chosen project, from the click until its document is on screen.

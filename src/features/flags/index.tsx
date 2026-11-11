@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useDesktopPreference } from "../../preferencesStore";
+import { HOST_DEVICES_AVAILABLE } from "../../../shared/host-contract/rollout.mjs";
 import localFlags from "./flags.json";
 
 const FEATURE_FLAG_DEFAULTS = {
@@ -69,5 +70,18 @@ export function useAccountAvailable(): boolean {
 export function useCloudEnabled(): boolean {
   const available = useAccountAvailable();
   const enabled = useDesktopPreference((state) => state.experimentalSettings.enableCloudWorkspace);
+  return available && enabled;
+}
+
+/** The release gate is independent of a saved experiment choice. */
+export function useHostDevicesAvailable(): boolean {
+  const accountAvailable = useAccountAvailable();
+  return accountAvailable && HOST_DEVICES_AVAILABLE;
+}
+
+/** Shows the owner's other computers and per-folder sharing controls; it grants no folder access. */
+export function useHostDevicesEnabled(): boolean {
+  const available = useHostDevicesAvailable();
+  const enabled = useDesktopPreference((state) => state.experimentalSettings.enableHostDevices);
   return available && enabled;
 }

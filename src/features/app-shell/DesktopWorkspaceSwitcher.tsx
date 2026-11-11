@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { createWorkspaceFolder, HomeIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
+import { CloudIcon, createWorkspaceFolder, FolderIcon, LocalIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
   Plus,
@@ -12,10 +12,15 @@ import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { getWorkspaceParentPathForDisplay, type CloudSpace, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { useDesktopPlatformCapabilities } from "../../platform";
+import { SpaceMark, useSpaceName } from "../cloud";
 import { projectMatchesTarget } from "./window-project/projectNavigation";
 import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
+import { groupProjectsByPlace, projectMenuGroupsInPlace, projectMenuGroupsNeedHeadings, type ProjectMenuGroup, type ProjectMenuPlace } from "./projectMenuGroups";
+
+const NO_SPACES: readonly CloudSpace[] = [];
 
 export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -26,6 +31,10 @@ export type DesktopWorkspaceSwitcherProps = {
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
   projectItems?: readonly ProjectHomeItem[];
+  /** Every Space this account reaches; the menu lists Cloud projects under the Space that holds them. */
+  spaces?: readonly CloudSpace[];
+  /** The open folder's place; the menu then lists only its folders. Absent, it lists every place's. */
+  place?: ProjectMenuPlace;
   pendingProject?: ProjectTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
@@ -46,6 +55,8 @@ export function DesktopWorkspaceSwitcher({
   multiRootWorkspacesEnabled,
   availableProjects = [],
   projectItems,
+  spaces = NO_SPACES,
+  place,
   pendingProject,
   onAddExistingProject,
   onOpenFolder,
@@ -78,6 +89,19 @@ export function DesktopWorkspaceSwitcher({
         ...(hosted && project.projectId ? { cloudProjectId: project.projectId } : {}) };
     }), [availableProjects, projectItems]);
   const currentCloudProjectId = workspace.path.startsWith("puppyone-cloud:") ? workspace.projectId : null;
+  const groups = useMemo(() => {
+    const all = groupProjectsByPlace(projects, spaces);
+    return place ? projectMenuGroupsInPlace(all, place) : all;
+  }, [place, projects, spaces]);
+  const headings = !place && projectMenuGroupsNeedHeadings(groups);
+  const listed = groups.some((group) => group.items.length > 0);
+  const platform = useDesktopPlatformCapabilities();
+  const spaceName = useSpaceName();
+  const groupName = (group: ProjectMenuGroup) => {
+    if (group.kind === "space") return spaceName(group.space);
+    if (group.kind === "cloud") return t("cloud.home.location.cloud");
+    return t(platform?.platform === "macos" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.thisComputer");
+  };
   useEffect(() => {
     if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
   }, [multiRootWorkspacesEnabled, open, view]);
@@ -90,7 +114,7 @@ export function DesktopWorkspaceSwitcher({
         type="button" ref={triggerRef} className="desktop-titlebar-workspace-button"
         aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) })}
         aria-expanded={open} aria-haspopup="menu" onClick={() => { setView("projects"); onToggle(); }}>
-        <HomeIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
+        <FolderIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button>
       <DesktopTitlebarMenuLayer
@@ -111,25 +135,40 @@ export function DesktopWorkspaceSwitcher({
             {onHome && <>
               <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
                 onClick={() => { onClose(); onHome(); }} />
-              {projects.length > 0 && <DesktopMenuSeparator />}
+              {listed && <DesktopMenuSeparator />}
             </>}
             <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
-              {projects.map(project => {
-                const selected = project.localPath === workspace.path
-                  || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
-                return <DesktopProjectMenuItem key={`${project.id}:${project.localPath}`}
-                  project={project} selected={selected}
-                  pending={projectMatchesTarget(project, pendingProject ?? null)}
-                  onSelect={() => {
-                    onClose();
-                    if (selected && !pendingProject) return;
-                    if (project.localPath) onSelectProject?.(project.localPath);
-                    else if (project.cloudProjectId) onSelectCloudProject?.(project.cloudProjectId);
-                  }} />;
+              {groups.map(group => {
+                const rows = group.items.map(project => {
+                  const selected = project.localPath === workspace.path
+                    || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
+                  return <DesktopProjectMenuItem key={`${project.id}:${project.localPath}`}
+                    project={project} selected={selected}
+                    pending={projectMatchesTarget(project, pendingProject ?? null)}
+                    onSelect={() => {
+                      onClose();
+                      if (selected && !pendingProject) return;
+                      if (project.localPath) onSelectProject?.(project.localPath);
+                      else if (project.cloudProjectId) onSelectCloudProject?.(project.cloudProjectId);
+                    }} />;
+                });
+                if (!headings) return rows;
+                const key = group.kind === "space" ? `space:${group.space.id}` : group.kind;
+                const name = groupName(group);
+                return <div key={key} className="desktop-project-menu-group" role="group" aria-label={name}
+                  data-project-menu-group={group.kind}>
+                  <div className="desktop-project-menu-group-label" aria-hidden="true">
+                    {group.kind === "space" && <SpaceMark space={group.space} size="sm" />}
+                    {group.kind === "local" && <LocalIcon size={12} strokeWidth={1.8} />}
+                    {group.kind === "cloud" && <CloudIcon size={12} strokeWidth={1.8} />}
+                    <bdi>{name}</bdi>
+                  </div>
+                  {rows}
+                </div>;
               })}
             </div>
             {onCreateProject && <>
-              {projects.length > 0 && <DesktopMenuSeparator />}
+              {listed && <DesktopMenuSeparator />}
               <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
                 onClick={() => { onClose(); onCreateProject(); }} />
             </>}

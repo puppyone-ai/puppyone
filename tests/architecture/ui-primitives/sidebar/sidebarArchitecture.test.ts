@@ -169,9 +169,11 @@ describe("Sidebar architecture", () => {
     expect(appSource).toContain('const railOwnsProject = useProjectSwitcherSurface() === "rail"');
     expect(appSource.match(/enableProjectSwitcherRail/g)).toBeNull();
 
-    // The Header states nothing about a Project the rail owns, in either shell.
-    expect(appSource).toContain("const titlebarContext = railOwnsProject ? null : (");
-    expect(hostedCloudSurfaceSource).toContain("const projectContext = !active || projectRail ? null : <DesktopTitlebarContext");
+    // The Header names no Project the rail owns, in either shell; it keeps the place,
+    // which holds the way to Home and the account.
+    expect(appSource).toContain("projectHidden={railOwnsProject}");
+    expect(hostedCloudSurfaceSource).toContain("projectHidden={Boolean(projectRail)}");
+    expect(titlebarContextSource).toContain("{!projectHidden && <DesktopWorkspaceSwitcher");
     for (const source of [titlebarContextSource, workspaceSwitcherSource, hostedCloudSurfaceSource, appSource]) {
       expect(source).not.toContain("projectMenuEnabled");
     }

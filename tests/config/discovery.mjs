@@ -1,7 +1,7 @@
 // Both Vitest and the repository layout check consume this contract.
 export const testLayers = ["unit", "component", "integration", "architecture"];
 export const testDomains = [
-  "agent", "appearance", "automation", "cloud", "editor", "extensions",
+  "agent", "appearance", "automation", "cloud", "editor", "extensions", "hosts",
   "localization", "model-connections", "platform", "release", "settings", "source-control",
   "telemetry", "terminal", "ui-primitives", "updates", "workbench", "workspace",
 ];

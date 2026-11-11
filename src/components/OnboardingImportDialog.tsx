@@ -10,7 +10,9 @@ import {
   type RepositoryImportSource,
 } from "../features/project-import/importSourceRegistry";
 import type {
+  WorkspaceAppFolder,
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceImportResourcePage,
   WorkspaceImportResource,
   WorkspaceImportProgress,
@@ -74,13 +76,17 @@ export type OnboardingImportDialogProps = {
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   /** Opens the native picker and issues a grant for the chosen folder. */
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onImportSource: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
+  onImportSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
   onConnectSource: (provider: string) => Promise<{ connectionId: string }>;
   onListResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
   onCancelImport: (taskId: string) => Promise<{ cancelled: boolean }>;
   onImportProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   /** Sources resolved from the shared capability and experiment registry. */
   visibleSources?: readonly ImportSourceDescriptor[];
+  /** Folders another app already records, read by Main from that app's own record. */
+  onListAppFolders?: (app: string) => Promise<WorkspaceAppFolder[]>;
+  /** Lists chosen folders on the Homepage in place; nothing is copied or opened. */
+  onAddAppFolders?: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
 };
 
 export function OnboardingImportDialog({
@@ -93,14 +99,18 @@ export function OnboardingImportDialog({
   onCancelImport,
   onImportProgress,
   visibleSources = DEFAULT_VISIBLE_IMPORT_SOURCES,
+  onListAppFolders,
+  onAddAppFolders,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
   const [source, setSource] = useState<OnboardingImportSource | null>(null);
   const [busy, setBusy] = useState(false);
+  const { folders: appFolders, retry: retryAppFolders } = useAppFolders(visibleSources, onListAppFolders);
   const selectedDescriptor = visibleSources.find((entry) => entry.id === source);
   const title = source === null
     ? t("onboarding.entry.import.title")
-    : t("onboarding.entry.import.repository.title", { provider: selectedDescriptor?.label ?? source });
+    : t(selectedDescriptor?.mode === "app" ? "onboarding.entry.import.app.title" : "onboarding.entry.import.repository.title",
+      { provider: selectedDescriptor?.label ?? source });
 
   const selectSource = (nextSource: OnboardingImportSource) => {
     setSource(nextSource);
@@ -146,6 +156,8 @@ export function OnboardingImportDialog({
           <ImportSourceList
             onSelect={selectSource}
             visibleSources={visibleSources}
+            appFolders={appFolders}
+            canAddAppFolders={Boolean(onListAppFolders && onAddAppFolders)}
           />
         )}
         {selectedDescriptor?.mode === "repository" && (
@@ -158,6 +170,16 @@ export function OnboardingImportDialog({
             onImportSource={onImportSource}
             onCancelImport={onCancelImport}
             onImportProgress={onImportProgress}
+          />
+        )}
+        {selectedDescriptor?.mode === "app" && onAddAppFolders && (
+          <AppFoldersStep
+            app={selectedDescriptor}
+            folders={appFolders[selectedDescriptor.id]}
+            onRetry={retryAppFolders}
+            onBusyChange={setBusy}
+            onClose={onClose}
+            onAddAppFolders={onAddAppFolders}
           />
         )}
         {selectedDescriptor?.mode === "folder" && (
@@ -191,27 +213,69 @@ export function OnboardingImportDialog({
   );
 }
 
+/** Each app's folders, asked once when the picker opens; `undefined` while asking. */
+function useAppFolders(
+  visibleSources: readonly ImportSourceDescriptor[],
+  onListAppFolders: OnboardingImportDialogProps["onListAppFolders"],
+) {
+  const [folders, setFolders] = useState<Record<string, WorkspaceAppFolder[] | null | undefined>>({});
+  const [attempt, setAttempt] = useState(0);
+  const apps = visibleSources.filter(({ mode }) => mode === "app").map(({ id }) => id).join(",");
+  useEffect(() => {
+    if (!onListAppFolders || !apps) return;
+    let cancelled = false;
+    setFolders({});
+    for (const app of apps.split(",")) {
+      void onListAppFolders(app)
+        .catch(() => null)
+        .then((list) => { if (!cancelled) setFolders((current) => ({ ...current, [app]: list })); });
+    }
+    return () => { cancelled = true; };
+  }, [apps, onListAppFolders, attempt]);
+  return { folders, retry: () => setAttempt((current) => current + 1) };
+}
+
 function ImportSourceList({
   onSelect,
   visibleSources,
+  appFolders,
+  canAddAppFolders,
 }: {
   onSelect: (source: OnboardingImportSource) => void;
   visibleSources: readonly ImportSourceDescriptor[];
+  appFolders: Record<string, WorkspaceAppFolder[] | null | undefined>;
+  canAddAppFolders: boolean;
 }) {
   const { t } = useLocalization();
+  // An app with no folders on this computer has nothing to offer yet.
+  const statusOf = ({ id, mode, operational }: ImportSourceDescriptor) => {
+    if (!operational) return t("onboarding.entry.import.directUnavailable");
+    if (mode !== "app") return null;
+    if (!canAddAppFolders || appFolders[id]?.length === 0) return t("onboarding.entry.import.app.notFound");
+    if (appFolders[id] === undefined) return t("onboarding.entry.import.app.loading");
+    if (appFolders[id] === null) return t("onboarding.entry.import.app.readFailed");
+    return null;
+  };
+  // What can be imported now comes first; what is still coming follows it.
+  const orderedSources = [
+    ...visibleSources.filter((source) => statusOf(source) === null),
+    ...visibleSources.filter((source) => statusOf(source) !== null),
+  ];
   return (
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
       <ul className="onboarding-import-sources">
-        {visibleSources.map(({ id, label, mode, operational }, index) => (
+        {orderedSources.map((source, index) => (
           <ImportSourceRow
-            key={id}
-            source={id}
-            mode={mode}
-            icon={<ImportSourceMark brand={id} decorative />}
-            title={label}
+            key={source.id}
+            source={source.id}
+            mode={source.mode}
+            icon={<ImportSourceMark brand={source.id} decorative />}
+            title={source.label}
             initialFocus={index === 0}
-            operational={operational}
-            unavailableLabel={t("onboarding.entry.import.directUnavailable")}
+            unavailableLabel={statusOf(source)}
+            disabled={!source.operational || (source.mode === "app" && (
+              !canAddAppFolders || appFolders[source.id] === undefined || appFolders[source.id]?.length === 0
+            ))}
             onSelect={onSelect}
           />
         ))}
@@ -226,17 +290,18 @@ function ImportSourceRow({
   icon,
   title,
   initialFocus = false,
-  operational,
   unavailableLabel,
+  disabled,
   onSelect,
 }: {
   source: OnboardingImportSource;
-  mode: "repository" | "remote" | "folder";
+  mode: ImportSourceDescriptor["mode"];
   icon: ReactNode;
   title: string;
   initialFocus?: boolean;
-  operational: boolean;
-  unavailableLabel: string;
+  /** Loading, empty, or read-failure status; failed reads remain retryable. */
+  unavailableLabel: string | null;
+  disabled: boolean;
   onSelect: (source: OnboardingImportSource) => void;
 }) {
   return (
@@ -247,14 +312,106 @@ function ImportSourceRow({
         data-import-source={source}
         data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
-        disabled={!operational}
+        disabled={disabled}
         onClick={() => onSelect(source)}
       >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
-        {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
+        {unavailableLabel !== null && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
       </button>
     </li>
+  );
+}
+
+function AppFoldersStep({
+  app,
+  folders,
+  onRetry,
+  onBusyChange,
+  onClose,
+  onAddAppFolders,
+}: {
+  app: ImportSourceDescriptor;
+  folders: WorkspaceAppFolder[] | null | undefined;
+  onRetry: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onClose: () => void;
+  onAddAppFolders: NonNullable<OnboardingImportDialogProps["onAddAppFolders"]>;
+}) {
+  const { t } = useLocalization();
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => onBusyChange(adding), [adding, onBusyChange]);
+  const selectedPaths = folders?.filter((folder) => !folder.added && chosen.has(folder.path)).map((folder) => folder.path) ?? [];
+
+  const toggle = (folderPath: string) => setChosen((current) => {
+    const next = new Set(current);
+    if (!next.delete(folderPath)) next.add(folderPath);
+    return next;
+  });
+  const add = async () => {
+    setAdding(true);
+    setError(null);
+    try {
+      await onAddAppFolders({ app: app.id, paths: selectedPaths });
+      onClose();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setAdding(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
+        <p className="onboarding-import-outcome">{t("onboarding.entry.import.app.outcome")}</p>
+        {folders === undefined && <p role="status">{t("onboarding.entry.import.app.loading")}</p>}
+        {folders === null && <>
+          <p className="desktop-dialog-error" role="alert">{t("onboarding.entry.import.app.readFailed")}</p>
+          <button className="desktop-dialog-button" type="button" onClick={onRetry}>{t("cloud.common.retry")}</button>
+        </>}
+        {folders?.length === 0 && (
+          <p className="onboarding-import-app-empty">{t("onboarding.entry.import.app.empty", { provider: app.label })}</p>
+        )}
+        {folders && folders.length > 0 && (
+          <ul className="onboarding-import-app-folders" aria-label={t("onboarding.entry.import.app.title", { provider: app.label })}>
+            {folders.map((folder, index) => (
+              <li key={folder.path}>
+                <label className="onboarding-import-app-folder" data-added={folder.added || undefined}>
+                  <input
+                    type="checkbox"
+                    checked={folder.added || chosen.has(folder.path)}
+                    disabled={folder.added || adding}
+                    data-desktop-dialog-initial-focus={index === 0 ? "true" : undefined}
+                    onChange={() => toggle(folder.path)}
+                  />
+                  <span className="onboarding-import-app-folder-copy">
+                    <span className="onboarding-import-app-folder-name">{folder.name}</span>
+                    <bdi className="onboarding-import-app-folder-path" dir="ltr">{folder.path}</bdi>
+                  </span>
+                  {folder.added && <span className="onboarding-import-app-folder-status">{t("onboarding.entry.import.app.added")}</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+      </div>
+      <footer className="desktop-dialog-footer">
+        <button className="desktop-dialog-button" type="button" disabled={adding} onClick={onClose}>
+          {t("common.action.cancel")}
+        </button>
+        <button
+          className="desktop-dialog-button primary file"
+          type="button"
+          disabled={adding || selectedPaths.length === 0}
+          onClick={() => void add()}
+        >
+          {t("onboarding.entry.import.app.submit", { count: selectedPaths.length })}
+        </button>
+      </footer>
+    </>
   );
 }
 
@@ -282,18 +439,28 @@ function LocalFolderImportStep({
   const task = useImportTask({ onImportSource, onCancelImport, onImportProgress, onClose });
   const busy = task.submitting || destination.choosing || destination.resolvingDefault;
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
-  const stepCount = IMPORT_SOURCE_REGISTRY.find((entry) => entry.id === source)?.stepCount ?? 0;
-  const steps = Array.from({ length: stepCount }, (_, index) => (
+  const descriptor = IMPORT_SOURCE_REGISTRY.find((entry) => entry.id === source);
+  const steps = Array.from({ length: descriptor?.stepCount ?? 0 }, (_, index) => (
     t(`onboarding.entry.import.${source}.step${index + 1}`)
   ));
 
   return (
     <>
       <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
-        <ol className="onboarding-import-steps">
-          {steps.map((step, index) => <li key={index}>{step}</li>)}
-        </ol>
-        <p className="onboarding-import-outcome">{t(`onboarding.entry.import.${source}.outcome`)}</p>
+        <div className="onboarding-import-source-summary">
+          <span className="onboarding-import-source-icon" aria-hidden="true">
+            <ImportSourceMark brand={source} decorative />
+          </span>
+          <span className="onboarding-import-source-summary-copy">
+            <strong>{descriptor?.label ?? source}</strong>
+            <span className="onboarding-import-outcome">{t(`onboarding.entry.import.${source}.outcome`)}</span>
+          </span>
+        </div>
+        {steps.length > 0 && (
+          <ol className="onboarding-import-steps">
+            {steps.map((step, index) => <li key={index}>{step}</li>)}
+          </ol>
+        )}
         <ImportLocationField
           location={destination.location}
           choosing={destination.choosing}
@@ -301,7 +468,7 @@ function LocalFolderImportStep({
           canChoose={destination.canChoose}
           onChoose={() => void destination.choose()}
         />
-        {task.progress && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
+        {task.progress && !task.imported && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
         {(task.error || destination.error) && <p className="desktop-dialog-error" role="alert">{task.error || destination.error}</p>}
       </div>
       <footer className="desktop-dialog-footer">
@@ -313,7 +480,7 @@ function LocalFolderImportStep({
           disabled={busy}
           onClick={() => void task.submit({ provider: source, locationGrantId: destination.location?.grantId ?? null })}
         >
-          {t(task.submitting ? "onboarding.entry.clone.submitting" : `onboarding.entry.import.${source}.action`)}
+          {t(task.submitting || task.imported ? task.submitLabel : `onboarding.entry.import.${source}.action`)}
         </button>
       </footer>
     </>
@@ -381,7 +548,7 @@ function RepositoryImportStep({
               autoCorrect="off"
               autoComplete="off"
               spellCheck={false}
-              disabled={busy}
+              disabled={busy || task.imported}
               aria-invalid={unsupportedUrl ? "true" : undefined}
               aria-describedby={unsupportedUrl ? "onboarding-clone-hint" : undefined}
               data-desktop-dialog-initial-focus="true"
@@ -398,12 +565,12 @@ function RepositoryImportStep({
           <ImportLocationField
             location={destination.location}
             choosing={destination.choosing}
-            disabled={busy}
+            disabled={busy || task.imported}
             canChoose={destination.canChoose}
             onChoose={() => void destination.choose()}
           />
         </div>
-        {task.progress && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
+        {task.progress && !task.imported && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
         {(task.error || destination.error) && <p className="desktop-dialog-error" role="alert">{task.error || destination.error}</p>}
       </div>
 
@@ -421,9 +588,7 @@ function RepositoryImportStep({
           type="submit"
           disabled={busy || !value.trim() || detectedProvider !== provider}
         >
-          {t(task.submitting
-            ? "onboarding.entry.clone.submitting"
-            : "onboarding.entry.clone.submit")}
+          {t(task.submitLabel)}
         </button>
       </footer>
     </form>
@@ -512,18 +677,18 @@ function RemoteImportStep({
     <>
       <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
         {!connectionId ? (
-          <button className="desktop-dialog-button primary file" type="button" disabled={busy} onClick={() => void connect()}>
+          <button className="desktop-dialog-button primary file" type="button" disabled={busy || task.imported} onClick={() => void connect()}>
             {t("onboarding.entry.import.connect", { provider: source.label })}
           </button>
         ) : (
           <div className="onboarding-import-resources">
             {(error || task.error) && (
-              <button className="desktop-dialog-button" type="button" disabled={busy} onClick={() => { task.clearError(); void connect(); }}>
+              <button className="desktop-dialog-button" type="button" disabled={busy || task.imported} onClick={() => { task.clearError(); void connect(); }}>
                 {t("onboarding.entry.import.connect", { provider: source.label })}
               </button>
             )}
             {parents.length > 0 && (
-              <button className="desktop-dialog-button" type="button" disabled={busy} onClick={goBack}>
+              <button className="desktop-dialog-button" type="button" disabled={busy || task.imported} onClick={goBack}>
                 {t("onboarding.entry.import.back")}: {parents.at(-1)?.name}
               </button>
             )}
@@ -533,26 +698,26 @@ function RemoteImportStep({
                 <li key={resource.id}>
                   <label>
                     <input type="radio" name="import-resource" value={resource.id} checked={selectedId === resource.id}
-                      disabled={busy} onChange={() => setSelectedId(resource.id)} />
+                      disabled={busy || task.imported} onChange={() => setSelectedId(resource.id)} />
                     {resource.name}
                   </label>
                   {resource.kind === "folder" && (
-                    <button className="desktop-dialog-button" type="button" disabled={busy} onClick={() => browse(resource)}>
+                    <button className="desktop-dialog-button" type="button" disabled={busy || task.imported} onClick={() => browse(resource)}>
                       {t("onboarding.entry.import.browse")}
                     </button>
                   )}
                 </li>
               ))}
             </ul>
-            {cursor && <button className="desktop-dialog-button" type="button" disabled={busy}
+            {cursor && <button className="desktop-dialog-button" type="button" disabled={busy || task.imported}
               onClick={() => void load(connectionId, parents.at(-1)?.id ?? null, cursor)}>
               {t("onboarding.entry.import.loadMore")}
             </button>}
           </div>
         )}
-        <ImportLocationField location={destination.location} choosing={destination.choosing} disabled={busy}
+        <ImportLocationField location={destination.location} choosing={destination.choosing} disabled={busy || task.imported}
           canChoose={destination.canChoose} onChoose={() => void destination.choose()} />
-        {task.progress && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
+        {task.progress && !task.imported && <p className="onboarding-entry-dialog-note" role="status">{t(`onboarding.entry.import.phase.${task.progress.phase}`)}</p>}
         {(error || task.error || destination.error) && <p className="desktop-dialog-error" role="alert">{error || task.error || destination.error}</p>}
       </div>
       <footer className="desktop-dialog-footer">
@@ -561,7 +726,7 @@ function RemoteImportStep({
           onClick={() => void task.submit({ provider: source.id,
             selection: { connectionId: connectionId!, resourceId: selectedId! },
             locationGrantId: destination.location?.grantId ?? null })}>
-          {t(task.submitting ? "onboarding.entry.clone.submitting" : "onboarding.entry.clone.submit")}
+          {t(task.submitLabel)}
         </button>
       </footer>
     </>
@@ -574,8 +739,11 @@ function useImportTask({ onImportSource, onCancelImport, onImportProgress, onClo
   onImportProgress: OnboardingImportDialogProps["onImportProgress"];
   onClose: () => void;
 }) {
+  const { t } = useLocalization();
   const taskId = useRef<string | null>(null);
+  const retryRequest = useRef<WorkspaceImportSourceRequest | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [imported, setImported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<WorkspaceImportProgress | null>(null);
   useEffect(() => onImportProgress((next) => {
@@ -584,13 +752,21 @@ function useImportTask({ onImportSource, onCancelImport, onImportProgress, onClo
 
   const submit = async (request: Omit<WorkspaceImportSourceRequest, "taskId">) => {
     if (taskId.current) return;
-    const nextTaskId = crypto.randomUUID();
-    taskId.current = nextTaskId;
+    const attempt = retryRequest.current ?? { ...request, taskId: crypto.randomUUID() };
+    taskId.current = attempt.taskId;
     setError(null);
-    setProgress(null);
+    if (!retryRequest.current) setProgress(null);
     setSubmitting(true);
     try {
-      if (await onImportSource({ ...request, taskId: nextTaskId })) onClose();
+      const result = await onImportSource(attempt);
+      if (result?.opening.status === "opened") {
+        retryRequest.current = null;
+        onClose();
+      } else if (result?.opening.status === "failed") {
+        retryRequest.current = attempt;
+        setImported(true);
+        setError(t("onboarding.entry.import.openFailed"));
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -599,8 +775,15 @@ function useImportTask({ onImportSource, onCancelImport, onImportProgress, onClo
     }
   };
   const cancel = async () => {
-    if (taskId.current) await onCancelImport(taskId.current);
+    try {
+      if (taskId.current) await onCancelImport(taskId.current);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
   };
-  const canCancel = submitting && progress?.phase !== "publishing" && progress?.phase !== "complete";
-  return { submitting, canCancel, error, progress, submit, cancel, clearError: () => setError(null) };
+  const canCancel = submitting && !imported && progress?.phase !== "publishing" && progress?.phase !== "complete";
+  let submitLabel = imported ? "onboarding.entry.import.retryOpen" : "onboarding.entry.clone.submit";
+  if (submitting) submitLabel = "onboarding.entry.clone.submitting";
+  if (submitting && imported) submitLabel = "onboarding.status.opening";
+  return { submitting, imported, submitLabel, canCancel, error, progress, submit, cancel, clearError: () => setError(null) };
 }

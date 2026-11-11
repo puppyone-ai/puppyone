@@ -183,10 +183,10 @@ async function verifyHeaderAndWindows() {
   await until("document.querySelector('.desktop-titlebar-workspace-name')?.textContent === 'Project C'", "retry switch");
   report.failureAndRetry = true;
   report.latestIntent = true;
-  // Both surfaces hand New workspace to the same create/open/import launcher.
+  // Both surfaces hand New folder to the same create/open/import launcher.
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await until("!!document.querySelector('.desktop-project-menu')", "Header menu");
-  await evaluate("[...document.querySelectorAll('.desktop-project-menu button')].find(button => button.textContent.trim() === 'New workspace').click()");
+  await evaluate("[...document.querySelectorAll('.desktop-project-menu button')].find(button => button.textContent.trim() === 'New folder').click()");
   await until("!!document.querySelector('.desktop-project-entry-launcher')", "shared launcher");
   await evaluate("document.querySelector('.desktop-project-entry-launcher .desktop-dialog-icon-button').click()");
   const firstWindow = window;

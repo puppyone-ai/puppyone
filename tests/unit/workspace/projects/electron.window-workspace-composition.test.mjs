@@ -100,6 +100,26 @@ describe("window Workspace composition service", () => {
     expect(indexedPaths.has("/b")).toBe(false);
   });
 
+  it("removes a Folder that has gone from disk by the path the window holds for it", async () => {
+    const window = { id: "window-a" };
+    const state = stateWith("a", "b");
+    const indexedPaths = new Map([["/a", window], ["/b", window]]);
+    const service = createService({
+      state,
+      indexedPaths,
+      canonicalizeWorkspacePath: async (folderPath) => {
+        if (folderPath === "/b") throw Object.assign(new Error("ENOENT: no such file or directory, realpath '/b'"), { code: "ENOENT" });
+        return folderPath;
+      },
+    });
+
+    const result = await service.detach(window, "/b");
+
+    expect(result).toMatchObject({ status: "detached-current", path: "/b" });
+    expect(state.folderPaths).toEqual(["/a"]);
+    expect(indexedPaths.has("/b")).toBe(false);
+  });
+
   it("does not publish a detach when persistence fails", async () => {
     const window = { id: "window-a" };
     const state = stateWith("a", "b");
@@ -138,9 +158,10 @@ function createService({
   onIndex = () => undefined,
   onUnindex = () => undefined,
   cleanupDetachedWorkspace = vi.fn(async () => undefined),
+  canonicalizeWorkspacePath = async (folderPath) => folderPath,
 }) {
   return createWindowWorkspaceCompositionService({
-    canonicalizeWorkspacePath: async (folderPath) => folderPath,
+    canonicalizeWorkspacePath,
     getWindowState: () => state,
     indexWorkspacePath: (folderPath, window) => {
       indexedPaths.set(folderPath, window);

@@ -20,6 +20,24 @@ describe("Electron Cloud API error transport", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the server's code, retry decision and request id on an error response", async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      code: 5000, message: "Request failed", data: { code: "workbench_connection_timeout", retryable: true },
+    }), { status: 503, headers: { "Content-Type": "application/json", "X-Request-Id": "req-123" } }));
+    await expect(requestCloudApi("https://api.example", "/projects/p/workbench", { method: "GET" }))
+      .rejects.toMatchObject({ status: 503, code: "workbench_connection_timeout", retryable: true, requestId: "req-123" });
+  });
+
+  it("ignores a request id that is not a plain token", async () => {
+    globalThis.fetch = vi.fn(async () => new Response("{}", {
+      status: 500, headers: { "X-Request-Id": "two words" },
+    }));
+    const error = await requestCloudApi("https://api.example", "/projects/p/workbench", {}).catch((value) => value);
+    expect(error.status).toBe(500);
+    expect(error.requestId).toBeUndefined();
+    expect(error.retryable).toBeUndefined();
+  });
+
   it("preserves timeout semantics when the response body aborts after headers", async () => {
     const controller = new AbortController();
     controller.abort(new DOMException("expired", "TimeoutError"));

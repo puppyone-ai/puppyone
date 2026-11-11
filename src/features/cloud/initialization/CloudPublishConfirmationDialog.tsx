@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Tooltip, CloudUploadIcon } from "@puppyone/shared-ui";
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -13,6 +14,7 @@ export function CloudPublishConfirmationDialog({
   onConfirm,
   title: customTitle,
   description,
+  details,
   confirmLabel,
   busy = false,
   error,
@@ -21,6 +23,7 @@ export function CloudPublishConfirmationDialog({
   onConfirm: () => void;
   title?: string;
   description?: string;
+  details?: ReactNode;
   confirmLabel?: string;
   busy?: boolean;
   error?: string | null;
@@ -51,6 +54,7 @@ export function CloudPublishConfirmationDialog({
 
         <div className="desktop-dialog-body">
           <p>{description ?? t("cloud.initialize.gitIgnoreNote")}</p>
+          {details}
           {error && <p role="alert">{error}</p>}
         </div>
 

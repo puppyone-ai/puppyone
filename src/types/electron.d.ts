@@ -7,6 +7,8 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
+  HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
@@ -724,6 +726,17 @@ export type WorkspaceOpenResult = {
   workspaces?: Workspace[];
 };
 
+/** Why a project's folder cannot be opened now, in terms a person can act on. */
+export type FolderAvailability = "available" | "missing" | "disconnected" | "denied" | "not-a-folder";
+/** "same-folder": the very folder, moved or renamed; "same-cloud-project": a copy linked to the same Cloud project. */
+export type FolderMatch = "same-folder" | "same-cloud-project" | "different";
+export type FolderCandidate = { token: string; path: string; name: string; match: FolderMatch };
+export type FolderStatus = { path: string; state: FolderAvailability; suggestion?: FolderCandidate };
+export type FolderLocateResult =
+  | { status: "cancelled" | "unchanged" }
+  | ({ status: "selected" } & FolderCandidate);
+export type FolderRelocation = { from: string; path: string; wasShared: boolean };
+
 export type WorkspaceAttachResult = {
   status: "attached-current" | "already-attached";
   workspaceId: string;
@@ -785,9 +798,24 @@ export type WorkspaceImportSourceRequest = {
   locationGrantId?: string | null;
 };
 
+/** Import publication and workspace opening are separate outcomes. */
+export type WorkspaceImportSourceResult = {
+  project: { path: string; name: string; provider: string };
+  opening: WorkspaceCreateProjectResult["opening"];
+};
+
 export type WorkspaceImportResource = ImportResource;
 export type WorkspaceImportResourcePage = ImportResourcePage;
 export type WorkspaceImportProgress = ImportProgress & { taskId: string };
+
+/** A folder another app (Obsidian, VS Code, Cursor, Typora) already records. */
+export type WorkspaceAppFolder = {
+  path: string;
+  name: string;
+  lastUsedAt: number | null;
+  /** Already listed on the Homepage. */
+  added: boolean;
+};
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
 
@@ -1127,6 +1155,43 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      listHostDevices: (expectedSession: HostSession) => Promise<{ devices: HostCatalogDevice[] }>;
+      registerHostFolder: (request: { rootPath: string; writable?: boolean; expectedSession?: HostSession }) => Promise<
+        { deviceId: string; folderId: string } | { cancelled: true }>;
+      connectHostDevice: (expectedSession: HostSession) => Promise<{ deviceId: string | null; paused?: boolean }>;
+      disconnectHostDevice: () => Promise<{ disconnected: true }>;
+      removeHostFolder: (request: { deviceId: string; folderId: string;
+        expectedSession: HostSession }) => Promise<{ removed: boolean } | { cancelled: true }>;
+      updateHostFolder: (request: { deviceId: string; folderId: string; name: string; writable: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      revokeHostDevice: (request: { deviceId: string; expectedSession: HostSession }) => Promise<
+        { revoked: boolean } | { cancelled: true }>;
+      getHostStatus: () => Promise<HostSharingStatus>;
+      setHostSharingPaused: (request: { paused: boolean; expectedSession: HostSession }) => Promise<{ paused: boolean }>;
+      getHostAutostart?: () => Promise<{ supported: boolean; enabled: boolean }>;
+      setHostAutostart?: (request: { enabled: boolean }) => Promise<{ supported: boolean; enabled: boolean }>;
+      onHostStatus: (callback: (status: HostSharingStatus) => void) => () => void;
+      requestHostFolder: <T>(request: { folderId: string; operation: HostFileOperation;
+        expectedSession: HostSession }) => Promise<HostFolderResult<T>>;
+      watchHostFolder: (request: { id: string; folderId: string; expectedSession: HostSession }) => Promise<{ id: string }>;
+      stopHostFolderWatch: (request: { id: string }) => Promise<void>;
+      onHostFolderEvent: (callback: (event: HostFolderEvent) => void) => () => void;
+      listRecentHostFolders: (expectedSession: HostSession) => Promise<{ folders: RecentHostFolder[];
+        lastActive: RecentHostFolder | null }>;
+      recordRecentHostFolder: (request: { deviceId: string; folderId: string; name: string; hostName: string;
+        writable: boolean; expectedSession: HostSession }) => Promise<RecentHostFolder>;
+      closeRecentHostFolder: (request: { expectedSession: HostSession }) => Promise<boolean>;
+      forgetRecentHostFolder: (request: { folderId: string; expectedSession: HostSession }) => Promise<boolean>;
+      setHostExecution: (request: { deviceId: string; folderId: string; terminal: boolean; git: boolean; agent: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      stopRemoteHostSessions: () => Promise<{ stopped: true }>;
+      openHostTerminal: (request: { id: string; folderId: string; kind: "shell" | "agent"; launcher: HostLauncher;
+        cols: number; rows: number; expectedSession: HostSession }) => Promise<{ id: string }>;
+      writeHostTerminal: (request: { id: string; data: string }) => Promise<boolean>;
+      resizeHostTerminal: (request: { id: string; cols: number; rows: number }) => Promise<boolean>;
+      interruptHostTerminal: (request: { id: string }) => Promise<boolean>;
+      closeHostTerminal: (request: { id: string }) => Promise<boolean>;
+      onHostTerminalEvent: (callback: (event: HostTerminalEvent) => void) => () => void;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;
@@ -1245,19 +1310,30 @@ declare global {
       selectFolderToAttach: () => Promise<WorkspaceAttachResult | null>;
       attachFolder: (folderPath: string) => Promise<WorkspaceAttachResult>;
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
+      /** Whether each known project folder can be opened now; a renamed one comes with where it is. */
+      getFolderStatus: (paths: readonly string[]) => Promise<FolderStatus[]>;
+      /** The person points at where a project's folder is now, in the system dialog. */
+      locateFolder: (folderPath: string) => Promise<FolderLocateResult>;
+      /** Use a confirmed new place for the project from now on. */
+      relocateFolder: (token: string) => Promise<FolderRelocation>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
-      readTemplateImportIntent: () => Promise<{ id: string; url: string } | null>;
+      /** `copied` marks a link found in the clipboard rather than sent by the store. */
+      readTemplateImportIntent: () => Promise<{ id: string; url: string; copied?: boolean } | null>;
       acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
+      /** Looks once for a copied store link; true when one is now waiting to be read. */
+      claimCopiedTemplateLink: () => Promise<boolean>;
       onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceCreateProjectResult>;
       connectImportSource: (request: { provider: string }) => Promise<{ connectionId: string }>;
       listImportResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
-      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceOpenResult | null>;
+      listAppFolders: (app: string) => Promise<{ folders: WorkspaceAppFolder[] }>;
+      addAppFolders: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
+      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
       cancelImportSource: (request: { taskId: string }) => Promise<{ cancelled: boolean }>;
       onImportSourceProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
       getPathForFile: (file: File) => string;
@@ -1314,7 +1390,7 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
-      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean; offline?: boolean }) => Promise<{ url: string }>;
       createSandboxedPreviewDocument: (request: { content: string; interactive?: boolean }) => Promise<{ url: string }>;
       revokeSandboxedPreviewDocument: (request: { url: string }) => Promise<{ revoked: boolean }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];

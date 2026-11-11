@@ -6,7 +6,7 @@ import {
 export const CLAUDE_RUNTIME_MANIFEST = defineAgentRuntimeManifest({
   id: "claude",
   displayName: "Claude Agent",
-  description: "Anthropic's official Agent SDK runtime using separately configured API or supported cloud credentials.",
+  description: "Anthropic's official Agent SDK runtime using Claude Code's native authentication and billing.",
   iconKey: "claude",
   priority: 40,
   execution: {

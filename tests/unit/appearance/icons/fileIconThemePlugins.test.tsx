@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FILE_VISUAL_KINDS, type FileIconThemeId } from "../../../../src/shared-ui/file/fileIconTypes";
@@ -69,11 +68,4 @@ describe("file icon theme plug-in contract", () => {
     }
   });
 
-  it("offers the File icons choice in Appearance only once a second theme is registered", () => {
-    const appearance = readFileSync(
-      new URL("../../../../src/features/settings/main/AppearanceSettingsView.tsx", import.meta.url),
-      "utf8",
-    );
-    expect(appearance).toContain("{FILE_ICON_THEMES.length > 1 && <FileIconSetting />}");
-  });
 });

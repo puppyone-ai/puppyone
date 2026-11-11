@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { HomeIcon } from "@puppyone/shared-ui";
+import { FolderIcon } from "@puppyone/shared-ui";
 import type { ProjectShell } from "../components/ProjectShell";
 import { ProjectOpeningLoading } from "../components/loading";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
@@ -24,7 +24,7 @@ function ProjectOpeningTitle({ projectName }: { projectName: string }) {
   return <div className="desktop-titlebar-context">
     <div className="desktop-titlebar-workspace-wrap">
       <span className="desktop-titlebar-workspace-button" data-project-opening="true">
-        <HomeIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
+        <FolderIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{projectName}</bdi>
       </span>
     </div>

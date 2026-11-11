@@ -44,6 +44,15 @@ export function looksLikeTemplateLink(value) {
   return /^(?:https?:\/\/[^\s/]+\/t\/[a-f0-9-]{36}(?:\?release=[a-f0-9-]{36})?|[a-z-]+:\/\/templates\/import\?\S+)$/i.test(value.trim());
 }
 
+/**
+ * The store link in text someone copied, or null. Anything that is not a whole
+ * template link, alone, is someone else's text and is left as it was found.
+ */
+export function templateLinkFromCopiedText(value, { origin = TEMPLATE_STORE_ORIGIN, channel = 'stable' } = {}) {
+  if (!looksLikeTemplateLink(value)) return null;
+  try { return templateShareLink(parseTemplateLink(value, { origin, channel }), origin); } catch { return null; }
+}
+
 function hasInvalidLinkParts(url) {
   return Boolean(url.username || url.password || url.hash || url.searchParams.getAll('release').length > 1);
 }

@@ -99,9 +99,9 @@ async function main() {
   // A window keeps what it launched with, so leaving a project must not leave it expecting one.
   await evaluate("document.querySelector('.onboarding-project-row-wrap button[aria-label*=\"Project A\"]').click()");
   await until("!!document.querySelector('.cm-content')", "Project A");
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
-  await until("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].some(item => item.textContent.includes('Home'))", "Home in the menu");
-  await evaluate("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes('Home')).click()");
+  await evaluate("document.querySelector('.desktop-titlebar-place-wrap > button').click()");
+  await until("!!document.querySelector('[data-window-place=\"home\"]')", "Home in the menu");
+  await evaluate("document.querySelector('[data-window-place=\"home\"]').click()");
   await until("!!document.querySelector('.onboarding-project-row-wrap')", "the Homepage again");
   window.webContents.reload();
   await assertCentred("reloading on the Homepage");

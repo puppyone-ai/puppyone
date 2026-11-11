@@ -413,6 +413,10 @@
   "html.finishComposition": "请先完成当前输入法组词，再离开编辑。",
   "html.editFailed": "无法应用修改，请重新选择元素或编辑源码。",
   "html.unsupported": "此文档暂不支持直接编辑，请切换到源码编辑。",
+  "html.linkFailure.unavailable": "无法在此视图中打开此链接。",
+  "html.linkFailure.missing": "未找到链接的文件。",
+  "html.linkFailure.offline": "请在页面菜单中关闭文件夹访问后打开链接。",
+  "html.linkFailure.failed": "无法打开此链接。",
   "html.bridgeFailed": "无法连接编辑预览，请返回预览后重试。",
   "html.unsupportedBase": "页面的资源基址无法引用导入的项目图片。",
   "html.importUnattached": "图片已导入到 {path}，但页面发生变化，尚未替换引用。",
@@ -442,5 +446,12 @@
   "html.align.center": "居中",
   "html.align.right": "右对齐",
   "html.chooseColor": "选择 {color}",
-  "html.customColor": "自定义"
+  "html.customColor": "自定义",
+  "html.folderAccessTitle": "允许这个页面读写它所在的文件夹？",
+  "html.folderAccessChangedTitle": "这个页面被修改过，仍允许它读写所在文件夹？",
+  "html.folderAccessDescription": "「{page}」想读写「{folder}」文件夹里的文本文件（如 .md）。允许后，它会在断网状态下运行，也碰不到这个文件夹以外的内容。只允许你信任的页面。",
+  "html.folderAccessAllow": "允许",
+  "html.folderAccessDecline": "不允许，仅查看",
+  "html.folderAccessToggle": "允许此页面读写所在文件夹",
+  "html.folderAccessUnavailable": "这里无法让页面读写文件夹。请从这台电脑上的项目中打开它。"
 }

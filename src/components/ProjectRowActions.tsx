@@ -17,6 +17,7 @@ import {
   DesktopMenuItem,
   DesktopMenuSeparator,
 } from "./DesktopMenu";
+import { hasProjectAudience, ProjectAudienceRows, type ProjectAudience } from "./project-audience";
 import {
   DesktopSidebarActionMenu,
   resolveDesktopActionMenuPositionBeside,
@@ -28,8 +29,8 @@ import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
 
-/** The local menu carries the folder's path; a Cloud project has only its commands. */
-const PROJECT_ACTION_MENU_WIDTH = { local: 224, cloud: 184 } as const;
+/** The local menu has room for its folder's commands and where it can move. */
+const PROJECT_ACTION_MENU_WIDTH = { local: 260, cloud: 184 } as const;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 const PROJECT_NAME_MAX_LENGTH = { local: 120, cloud: 200 } as const;
 const PROJECT_ACTION_MENU_POSITION = {
@@ -60,6 +61,8 @@ export type ProjectRowActionsProps = Readonly<{
   onRename?: (name: string) => Promise<void>;
   onUnlink?: () => Promise<void>;
   onDelete?: () => Promise<void>;
+  /** Who can open this project, and the way to change it, as the Header's place menu says. */
+  audience?: ProjectAudience | null;
   disabled?: boolean;
   triggerClassName?: string;
   /** For a list that keeps its rows out of the way of the Tab key. */
@@ -74,6 +77,7 @@ export function ProjectRowActions({
   onRename,
   onUnlink,
   onDelete,
+  audience,
   disabled = false,
   triggerClassName = "desktop-project-switcher-row-action",
   triggerTabIndex,
@@ -247,7 +251,11 @@ export function ProjectRowActions({
                 }}
               />
             )}
-            {onRename && (onUnlink || onDelete) && <DesktopMenuSeparator />}
+            {hasProjectAudience(audience) && <>
+              <DesktopMenuSeparator />
+              <ProjectAudienceRows audience={audience} onDismiss={() => onSurfaceChange(null)} />
+            </>}
+            {(onRename || hasProjectAudience(audience)) && (onUnlink || onDelete) && <DesktopMenuSeparator />}
             {onUnlink && (
               <DesktopMenuItem
                 destructive

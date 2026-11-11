@@ -53,13 +53,5 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
 
   return <div className="homepage-cloud-account">
     {feedback}
-    {!restoring && (session ? <button type="button" className="desktop-titlebar-action homepage-cloud-avatar"
-      aria-label={`${t("settings.sidebar.account")}: ${session.user_email}`} onClick={onOpenAccount}>
-      <span aria-hidden="true">{Array.from(session.user_email.trim())[0]?.toLocaleUpperCase() || "P"}</span>
-    </button> : <button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
-      // Stays available while waiting: asking again reopens the browser page.
-      aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
-      {t("cloud.auth.signIn")}
-    </button>)}
   </div>;
 }

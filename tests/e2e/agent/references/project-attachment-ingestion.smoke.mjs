@@ -83,7 +83,9 @@ app.whenReady().then(async () => {
     await until(() => (window = BrowserWindow.getAllWindows()[0]), "main window");
     window.webContents.setBackgroundThrottling(false);
     window.setSize(1200, 850); window.show(); window.webContents.focus();
-    await until(() => evaluate("Boolean(document.querySelector('.app-shell'))"), "application mounted");
+    // The startup skeleton already has .app-shell; wait for the project control
+    // this test actually uses before attempting to open the sidebar.
+    await until(() => evaluate("Boolean(document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal'))"), "project toolbar mounted");
     await evaluate("if (!document.querySelector('.desktop-right-sidebar')?.classList.contains('is-open')) document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
     await until(() => evaluate("document.querySelector('.desktop-right-sidebar')?.dataset.panePresentation === 'expanded'"), "Agent sidebar expanded");
     const codexLauncher = '.desktop-terminal-launcher-tool:not(:disabled)[aria-label*="Codex"]';

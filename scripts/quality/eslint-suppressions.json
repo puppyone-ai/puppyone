@@ -129,11 +129,6 @@
       "count": 1
     }
   },
-  "electron/main/agent/runtimes/claude/claude-native-values.mjs": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "electron/main/agent/runtimes/codex/codex-events.mjs": {
     "no-nested-ternary": {
       "count": 5
@@ -337,11 +332,6 @@
   "src/components/DesktopTooltipLayer.tsx": {
     "no-nested-ternary": {
       "count": 3
-    }
-  },
-  "src/components/OnboardingProjectEntryDialog.tsx": {
-    "no-nested-ternary": {
-      "count": 2
     }
   },
   "src/components/ProjectShell.tsx": {
@@ -909,11 +899,6 @@
       "count": 1
     }
   },
-  "src/shared-ui/editor/navigation/documentNavigation.ts": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/shared-ui/editor/registry/editorProviderPolicy.ts": {
     "no-nested-ternary": {
       "count": 1
@@ -970,11 +955,6 @@
     }
   },
   "src/shared-ui/editor/viewers/html/HtmlFloatingToolbar.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/shared-ui/editor/viewers/html/HtmlViewer.tsx": {
     "no-nested-ternary": {
       "count": 1
     }

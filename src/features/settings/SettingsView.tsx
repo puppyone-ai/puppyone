@@ -5,6 +5,7 @@ import { LocalAgentsSettingsView } from "../local-agents";
 import { ModelConnectionsSettings } from "../model-connections";
 import { AccountSettingsView } from "./main/AccountSettingsView";
 import { SeatsSettingsView } from "./main/SeatsSettingsView";
+import { SpaceSettingsView } from "./main/SpaceSettingsView";
 import { ExperimentalSettingsView } from "./main/ExperimentalSettingsView";
 import { FilesSettingsView } from "./main/FileSettingsViews";
 import { GeneralSettingsView } from "./main/GeneralSettingsView";
@@ -14,7 +15,8 @@ import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
 import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
 import { usePaymentsExperience } from "../payments";
-import { useAccountAvailable } from "../flags";
+import { useAccountAvailable, useHostDevicesEnabled } from "../flags";
+import { OtherComputersSettings } from "../hosts";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
 import type { SettingsViewProps } from "./types";
 import { writeClipboardText } from "./utils";
@@ -43,6 +45,11 @@ export function SettingsView({
   gitStatusError,
   subThemeCatalog,
   cloudEnabled,
+  currentSpaceId,
+  currentSpaceName,
+  currentSpacePersonal = false,
+  onSpaceChange,
+  focusSpaceInvite,
   cloudSession,
   cloudSessionRestoring,
   cloudApiBaseUrl,
@@ -71,12 +78,15 @@ export function SettingsView({
   // hands the answer down, so no payment surface reads the flag itself.
   const paymentsEnabled = usePaymentsExperience();
   const accountAvailable = useAccountAvailable();
+  const hostDevicesEnabled = useHostDevicesEnabled();
 
   if (!isSettingsSectionAvailable(activeSection, {
     cloudEnabled,
     accountAvailable,
     otherAppImportsEnabled,
     localWorkspaceAvailable: workspace !== null,
+    hostDevicesEnabled,
+    currentSpaceAvailable: Boolean(currentSpaceId),
   })) {
     return (
       <GeneralSettingsView
@@ -126,9 +136,16 @@ export function SettingsView({
     );
   }
 
+  if (activeSection === "other-computers") {
+    return <OtherComputersSettings session={cloudSession} restoring={cloudSessionRestoring}
+      onSignIn={() => onSelectSection("account")} />;
+  }
+
   if (activeSection === "account") {
     return (
       <AccountSettingsView
+        organizationId={currentSpaceId}
+        spaceName={currentSpaceName}
         cloudSession={cloudSession}
         cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
@@ -139,10 +156,28 @@ export function SettingsView({
     );
   }
 
+  if (activeSection === "space") {
+    return <SpaceSettingsView
+      organizationId={currentSpaceId}
+      spaceName={currentSpaceName}
+      personal={currentSpacePersonal}
+      onSpaceChange={onSpaceChange}
+      focusInvite={focusSpaceInvite}
+      cloudSession={cloudSession}
+      cloudSessionRestoring={cloudSessionRestoring}
+      cloudApiBaseUrl={cloudApiBaseUrl}
+      onCloudSessionChange={onCloudSessionChange}
+      onSignIn={() => onSelectSection("account")}
+    />;
+  }
+
   if (activeSection === "seats") {
     return (
       <SeatsSettingsView
+        organizationId={currentSpaceId}
+        spaceName={currentSpaceName}
         cloudSession={cloudSession}
+        cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
         onCloudSessionChange={onCloudSessionChange}
         // Buying needs an account, and Account owns the one sign-in flow.

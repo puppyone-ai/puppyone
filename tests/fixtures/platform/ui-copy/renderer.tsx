@@ -175,7 +175,7 @@ function surface() {
     case 'recovery': return <><LocalFolderCloudNotice notice={{ kind: 'unreachable', cause: null }} onOpenCloudProject={noop} onSignIn={noop}
       onRetry={noop} onDismiss={noop} /><CloudProjectRecoveryState message="Access was denied." remoteLabel="https://fixture.example/git/project" onRetry={noop} onUseAnotherAccount={noop} onOpenGitDetails={noop} /><CloudServiceUnavailable title="Connect" onRetry={noop} /></>;
     case 'git': return variant === 'error' ? <GitOperationErrorDialog error={{ operation: 'push', workspacePath: '/fixture', code: 'push', detail: 'Push rejected', raw: 'fixture: permission denied' }} onClose={noop} /> : <VersionControlSetupState enabling={variant === 'pending'} operationError={null} onEnable={noop} />;
-    case 'import': return <OnboardingImportDialog onClose={noop} onImportSource={async () => false} onConnectSource={async () => ({ connectionId: 'fixture' })} onListResources={async () => ({ items: [], nextCursor: null })} onCancelImport={async () => ({ cancelled: true })} onImportProgress={() => noop} />;
+    case 'import': return <OnboardingImportDialog onClose={noop} onImportSource={async () => null} onConnectSource={async () => ({ connectionId: 'fixture' })} onListResources={async () => ({ items: [], nextCursor: null })} onCancelImport={async () => ({ cancelled: true })} onImportProgress={() => noop} />;
     case 'publish': return <CloudPublishDialog onClose={noop}><CloudSignedOutRoute activeSection="initialize"
       authState={{ status: 'signed-out', apiBaseUrl: session.api_base_url }} apiBaseUrl={session.api_base_url} loadingLabel="Restoring…" /></CloudPublishDialog>;
     case 'progress': return <Progress />;

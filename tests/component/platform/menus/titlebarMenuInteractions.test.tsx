@@ -57,7 +57,7 @@ describe("combined Home and project menu", () => {
     await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second, second]}
       onClose={close} onHome={home} onCreateProject={create} onSelectProject={select} />);
     const trigger = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
-    expect(trigger.querySelector('[data-product-icon="home"]')).not.toBeNull();
+    expect(trigger.querySelector('[data-product-icon="folder"]')).not.toBeNull();
     expect(trigger.textContent).toBe(workspace.name);
     expect(container.querySelectorAll("button")).toHaveLength(1);
     expect(container.contains(menu())).toBe(false);
@@ -67,7 +67,7 @@ describe("combined Home and project menu", () => {
     clickText(workspace.name); expect(select).not.toHaveBeenCalled();
     clickText(second.name); expect(select).toHaveBeenCalledExactlyOnceWith(second.path);
     clickText("Home"); expect(home).toHaveBeenCalledOnce();
-    clickText("New workspace"); expect(create).toHaveBeenCalledOnce();
+    clickText("New folder"); expect(create).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledTimes(4);
   });
 
@@ -107,6 +107,33 @@ describe("combined Home and project menu", () => {
     expect(select).not.toHaveBeenCalled();
     expect(selectCloud).not.toHaveBeenCalled();
     expect(menu()).toBe(popup);
+  });
+
+  it("lists projects under the place that holds them, so opening one in another Space is how the window gets there", async () => {
+    const selectCloud = vi.fn();
+    const spaces = [
+      { id: "mine", name: "guanqun's Workspace", kind: "space" as const, isDefault: true, canCreateProjects: true },
+      { id: "acme", name: "Acme", kind: "space" as const, canCreateProjects: true },
+    ];
+    await render(<DesktopWorkspaceSwitcher {...projectProps} spaces={spaces} onSelectCloudProject={selectCloud}
+      projectItems={[
+        { id: "acme-notes", label: "Research notes", localPath: "", cloudProjectId: "notes", cloudOrganizationId: "acme" },
+        { id: workspace.id, label: workspace.name, localPath: workspace.path },
+        { id: "todo", label: "To-Do", localPath: "", cloudProjectId: "todo", cloudOrganizationId: "mine" },
+        { id: "lost", label: "Unplaced", localPath: "", cloudProjectId: "lost", cloudOrganizationId: "gone" },
+      ]} />);
+    const groups = [...menu().querySelectorAll<HTMLElement>(".desktop-project-menu-group")];
+    expect(groups.map((group) => [group.getAttribute("aria-label"),
+      [...group.querySelectorAll(".desktop-menu-item-label")].map((label) => label.textContent)]))
+      .toEqual([["This Mac", [workspace.name]], ["Personal", ["To-Do"]], ["Acme", ["Research notes"]], ["Cloud project", ["Unplaced"]]]);
+    expect(groups[2].querySelector(".po-space-mark")?.textContent).toBe("A");
+    clickText("Research notes");
+    expect(selectCloud).toHaveBeenCalledWith("notes");
+  });
+
+  it("needs no heading when every project is on this computer", async () => {
+    await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second]} />);
+    expect(menu().querySelector(".desktop-project-menu-group")).toBeNull();
   });
 
   it("keeps a failed copy retryable without switching the selected project", async () => {
@@ -168,6 +195,30 @@ describe("combined Home and project menu", () => {
   });
 });
 
+describe("one place's folders in the project menu", () => {
+  const spaces = [{ id: "acme", name: "Acme", kind: "space" as const, canCreateProjects: true }];
+  const items = [
+    { id: "local", label: "Local notes", localPath: "/tmp/notes" },
+    { id: "acme", label: "Acme notes", localPath: "", cloudProjectId: "acme-notes", cloudOrganizationId: "acme" },
+    { id: "other", label: "Other notes", localPath: "", cloudProjectId: "other-notes", cloudOrganizationId: "other" },
+  ];
+  const listed = () => [...menu().querySelectorAll(".desktop-project-switcher-row")].map((row) => row.textContent);
+
+  it("lists only this computer's folders, without headings, inside a local folder", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} projectItems={items} spaces={spaces}
+      placeMenu={{ menu: { place: "local" } }} onCreateProject={noOp} />);
+    expect(listed()).toEqual(["Local notes"]);
+    expect(menu().querySelector(".desktop-project-menu-group-label")).toBeNull();
+    expect(menu().textContent).toContain("New folder");
+  });
+
+  it("lists only the Space's folders inside a Space", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} projectItems={items} spaces={spaces}
+      placeMenu={{ menu: { place: "cloud", space: spaces[0] } }} />);
+    expect(listed()).toEqual(["Acme notes"]);
+  });
+});
+
 describe("a local folder and its Cloud project in the project menu (ADR-001)", () => {
   const linkedItems = [
     { id: "local:one", label: workspace.name, localPath: workspace.path, linkedCloudProject: { id: "cloud-one", name: workspace.name } },
@@ -181,8 +232,10 @@ describe("a local folder and its Cloud project in the project menu (ADR-001)", (
     const rows = [...menu().querySelectorAll<HTMLElement>(".desktop-project-switcher-row")];
     expect(rows.map((row) => row.dataset.projectLocation)).toEqual(["local", "cloud"]);
     expect(rows[0]!.dataset.linkedCloudProjectId).toBe("cloud-one");
+    // Every row is a folder; a small cloud marks the local one that has a Cloud copy.
+    expect(rows.map((row) => Boolean(row.querySelector('[data-product-icon="folder"]')))).toEqual([true, true]);
     expect(rows[0]!.querySelector('.onboarding-project-icon[data-project-location="linked"]')).not.toBeNull();
-    expect(rows[1]!.querySelector('.onboarding-project-icon[data-project-location="cloud"]')).not.toBeNull();
+    expect(rows[1]!.querySelector('.onboarding-project-icon[data-project-location="linked"]')).toBeNull();
     expect(menu().querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     act(() => rows[1]!.querySelector<HTMLButtonElement>("button")!.click());
     expect(selectCloud).toHaveBeenCalledExactlyOnceWith("cloud-one");

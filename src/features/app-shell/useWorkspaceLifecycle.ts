@@ -18,6 +18,8 @@ import {
   selectWorkspaceFolderToAttach,
   connectImportSource,
   listImportResources,
+  listAppFolders,
+  addAppFolders as addAppFoldersToRecents,
   cancelImportSource,
   onImportSourceProgress,
 } from "../../lib/localFiles";
@@ -330,8 +332,10 @@ export function useWorkspaceLifecycle({
   const importSource = useCallback(async (request: WorkspaceImportSourceRequest) => {
     const navigation = ++navigationRequestRef.current;
     const result = await importSourceTarget(request);
-    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "imported");
-    return result !== null;
+    if (navigation === navigationRequestRef.current && result?.opening.status === "opened") {
+      handleWorkspaceOpenResult(result.opening.result, "imported");
+    }
+    return result;
   }, [handleWorkspaceOpenResult]);
 
   const removeWorkspaceFromRecents = useCallback(async (folderPath: string) => {
@@ -464,6 +468,13 @@ export function useWorkspaceLifecycle({
     };
   }, [activateWorkspaceComposition]);
 
+  // Folders from another app join the Homepage list without opening any of them.
+  const addAppFolders = useCallback(async (request: { app: string; paths: string[] }) => {
+    const result = await addAppFoldersToRecents(request);
+    await refreshRecentWorkspaceList();
+    return result;
+  }, [refreshRecentWorkspaceList]);
+
   return {
     addProject,
     addExistingProject,
@@ -475,6 +486,8 @@ export function useWorkspaceLifecycle({
     importSource,
     connectImportSource,
     listImportResources,
+    listAppFolders,
+    addAppFolders,
     cancelImportSource,
     onImportSourceProgress,
     createProject,

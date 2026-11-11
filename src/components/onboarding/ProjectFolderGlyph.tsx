@@ -1,15 +1,12 @@
-import { CLOUD_ICON_PATH } from "@puppyone/shared-ui";
-
 /**
  * The website's folder in its monochrome form, the same soft folder as the Puppy
  * mark: a back with its tall tab and a lighter front, both mixed from the page and
  * drawn in fill alone. The back stops behind the front so that only the front's edge
  * meets the page: where two fills share an edge, the darker one shows through the
- * anti-aliasing as a faint outline. A Cloud project is the same folder with the
- * product's cloud outlined on its front, the way macOS marks Documents and Downloads.
- * The mark says where it lives. A sheet waits behind the front.
+ * anti-aliasing as a faint outline. Every project is this same folder, wherever it
+ * lives: the Homepage says where in words. A sheet waits behind the front.
  */
-export function ProjectFolderGlyph({ cloud = false }: { cloud?: boolean }) {
+export function ProjectFolderGlyph() {
   return (
     <svg className="project-folder-glyph" viewBox="0 0 48 38" aria-hidden="true" focusable="false">
       <path
@@ -25,7 +22,6 @@ export function ProjectFolderGlyph({ cloud = false }: { cloud?: boolean }) {
         className="project-folder-front"
         d="M4 14.5A3.5 3.5 0 0 1 7.5 11h33a3.5 3.5 0 0 1 3.5 3.5v17a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
       />
-      {cloud && <path className="project-folder-cloud" d={CLOUD_ICON_PATH} transform="translate(15.36 13.93) scale(0.72)" />}
     </svg>
   );
 }

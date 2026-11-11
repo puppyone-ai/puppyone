@@ -413,6 +413,10 @@
   "html.finishComposition": "Conclua a composição do texto antes de sair.",
   "html.editFailed": "Não foi possível aplicar a alteração. Selecione o elemento novamente ou edite o código.",
   "html.unsupported": "Este documento só pode ser editado pelo código-fonte.",
+  "html.linkFailure.unavailable": "Não é possível abrir este link nesta visualização.",
+  "html.linkFailure.missing": "Arquivo vinculado não encontrado.",
+  "html.linkFailure.offline": "Desative o acesso à pasta no menu da página para abrir links.",
+  "html.linkFailure.failed": "Não foi possível abrir este link.",
   "html.bridgeFailed": "Não foi possível conectar a visualização de edição. Volte à prévia e tente novamente.",
   "html.unsupportedBase": "A base de recursos desta página não permite referenciar imagens importadas do projeto.",
   "html.importUnattached": "A imagem foi importada para {path}, mas a página mudou antes de ser vinculada.",
@@ -442,5 +446,12 @@
   "html.align.center": "Centralizar",
   "html.align.right": "Alinhar à direita",
   "html.chooseColor": "Escolher {color}",
-  "html.customColor": "Personalizado"
+  "html.customColor": "Personalizado",
+  "html.folderAccessTitle": "Permitir que esta página use a pasta dela?",
+  "html.folderAccessChangedTitle": "Esta página mudou. Continuar permitindo que ela use a pasta?",
+  "html.folderAccessDescription": "“{page}” quer ler e editar arquivos de texto, como .md, na pasta “{folder}”. Se você permitir, a página funciona offline e não alcança nada fora dessa pasta. Permita apenas páginas confiáveis.",
+  "html.folderAccessAllow": "Permitir",
+  "html.folderAccessDecline": "Não permitir, só ver",
+  "html.folderAccessToggle": "Permitir que esta página use a pasta dela",
+  "html.folderAccessUnavailable": "Esta página não pode usar a pasta aqui. Abra-a a partir de um projeto neste computador."
 }
