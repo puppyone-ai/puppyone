@@ -98,7 +98,12 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["@excalidraw/excalidraw"],
-    include: ["docx-preview"],
+    // The SDK stays unbundled so its host/font adapters can run. Its CommonJS
+    // dependencies still need ESM interop on a cold development-server cache.
+    include: ["docx-preview", ...[
+      "@braintree/sanitize-url", "es6-promise-pool", "fuzzy", "image-blob-reduce",
+      "lodash.debounce", "lodash.throttle", "png-chunk-text", "png-chunks-encode", "png-chunks-extract",
+    ].map(dependency => `@excalidraw/excalidraw > ${dependency}`)],
   },
   worker: {
     format: "es",
