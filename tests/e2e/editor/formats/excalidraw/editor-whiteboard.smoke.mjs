@@ -94,13 +94,19 @@ app.whenReady().then(async () => {
     const boardWidth = () => evaluate("document.querySelector('.whiteboard-editor').getBoundingClientRect().width");
     const chrome = 1400 - await boardWidth();
     const isMobile = "document.querySelector('.excalidraw').classList.contains('excalidraw--mobile')";
-    const box = selector => evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();return r&&{top:r.top,bottom:r.bottom,height:r.height}})()`);
+    const box = selector => evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();return r&&{top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height}})()`);
+    const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const assertBottomToolbar = async label => {
+      const [toolbar, footer, properties, board] = await Promise.all([".excalidraw .App-toolbar", ".excalidraw .layer-ui__wrapper__footer-left", ".excalidraw .App-menu__left", ".whiteboard-editor"].map(box));
+      assert.ok(board.bottom - toolbar.bottom < 24 && toolbar.top > board.top + board.height / 2, `${label}: the shape toolbar sits on the bottom edge`);
+      assert.ok(!overlaps(toolbar, footer) && !overlaps(toolbar, properties), `${label}: the toolbar clears the zoom footer and properties panel`);
+    };
+    await assertBottomToolbar("wide pane");
     window.setSize(Math.round(chrome + 560), 950);
     await until(async () => Math.abs(await boardWidth() - 560) < 2, "narrow desktop whiteboard");
     await wait(300);
     assert.equal(await evaluate(isMobile), false, "a narrow mouse-driven pane keeps the desktop layout");
-    const toolbar = await box(".excalidraw .App-toolbar"), properties = await box(".excalidraw .App-menu__left");
-    assert.ok(properties.top >= toolbar.bottom, "the properties panel sits below the toolbar in a narrow pane");
+    await assertBottomToolbar("narrow pane");
     await fs.writeFile(path.join(output, "whiteboard-narrow.png"), (await window.webContents.capturePage()).toPNG());
     window.setSize(Math.round(chrome + 440), 950);
     await until(() => evaluate(isMobile), "phone layout below 500px");
@@ -113,7 +119,8 @@ app.whenReady().then(async () => {
     await click('.excalidraw .App-bottom-bar button[aria-label="Edit"]');
     window.setSize(1400, 950);
     await until(async () => !(await evaluate(isMobile)), "desktop layout restored");
-    steps.push("narrow desktop panes keep the desktop layout; the phone sheet stays partial");
+    await assertBottomToolbar("restored pane");
+    steps.push("the shape toolbar sits at the bottom without overlap; narrow panes keep the desktop layout; the phone sheet stays partial");
     await wait(300);
     for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type, x: x + 75, y: y + 45, button: "right", buttons: type === "mousePressed" ? 2 : 0, clickCount: 1 });
     await until(() => evaluate("!!document.querySelector('.excalidraw .context-menu')"), "element context menu");

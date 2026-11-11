@@ -14,6 +14,7 @@ describe("Excalidraw Desktop host integration", () => {
       expect(result.source).toContain('matchMedia?.("(pointer: coarse)")');
       expect(result.source.split('getElementById("desktop-overlay-root")').length - 1).toBe(2);
       expect(result.source.split("Puppyone container coordinates").length - 1).toBe(2);
+      expect(result.source.split("Puppyone measured offsets").length - 1).toBe(1);
       expect(unpatch(result.source, build)).toBe(source);
     });
     it(`is idempotent and fails closed when ${build} changes`, () => {

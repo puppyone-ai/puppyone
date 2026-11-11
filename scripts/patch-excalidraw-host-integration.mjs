@@ -28,8 +28,15 @@ const overlayHost = 'document.getElementById("desktop-overlay-root")/* Puppyone 
  * titlebar and beside the sidebar, a menu near the bottom or right edge was not
  * pulled back, and focusing it scrolled the whole overflow-hidden editor.
  * Upstream: packages/excalidraw/components/Popover.tsx, fitInViewport.
+ *
+ * UI offsets: zoom-to-fit and scroll-to-content keep content clear of the
+ * chrome by assuming a top toolbar and a left properties panel. The Desktop
+ * layout puts the toolbar at the bottom and the panel at the right, so the
+ * offsets are measured from wherever each piece of chrome actually sits.
+ * Upstream: packages/excalidraw/components/App.tsx, getEditorUIOffsets.
  */
 const fitted = "/* Puppyone container coordinates */";
+const measuredOffsets = "{ /* Puppyone measured offsets */ const host = this.excalidrawContainerRef?.current, box = host?.getBoundingClientRect(); if (box) { const edge = (selector) => host.querySelector(selector)?.getBoundingClientRect(), menu = edge(\".main-menu-trigger\"), toolbar = edge(\".App-toolbar\"), right = Math.min(edge(\".App-menu__left\")?.left ?? box.right, edge(\".sidebar\")?.left ?? box.right), gap = 16; return { top: (menu && menu.bottom < box.top + box.height / 2 ? menu.bottom - box.top : 0) + gap, right: Math.max(box.right - right, 0) + gap, bottom: (toolbar && toolbar.top > box.top + box.height / 2 ? box.bottom - toolbar.top : 0) + gap, left: gap }; } }";
 export const excalidrawHostPatches = {
   dev: [
     {
@@ -52,6 +59,10 @@ export const excalidrawHostPatches = {
       before: "} else if (top + height - offsetTop > viewportHeight) {",
       after: `} else if (top + height ${fitted} > viewportHeight) {`,
     },
+    {
+      before: '__publicField(this, "getEditorUIOffsets", () => {',
+      after: `__publicField(this, "getEditorUIOffsets", () => {\n      ${measuredOffsets}`,
+    },
   ],
   prod: [
     {
@@ -73,6 +84,10 @@ export const excalidrawHostPatches = {
     {
       before: "t+u-a>s?d.style.top",
       after: `t+u${fitted}>s?d.style.top`,
+    },
+    {
+      before: 'C(this,"getEditorUIOffsets",()=>{',
+      after: `C(this,"getEditorUIOffsets",()=>{${measuredOffsets}`,
     },
   ],
 };

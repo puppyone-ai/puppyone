@@ -107,21 +107,45 @@
   padding: 10px;
 }
 
+/* The shape toolbar shares the bottom edge with the zoom and history footer.
+ * The top-side container spans the whole editor, so the section anchors to its
+ * bottom; Excalidraw caps the properties panel 166px short of the editor height,
+ * which keeps it clear of this row. */
+.whiteboard-editor .excalidraw {
+  --whiteboard-bottom-row: calc(var(--editor-container-padding) + var(--lg-button-size) + 8px);
+}
+
+.whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar__extra-tools-dropdown {
+  top: auto;
+  bottom: calc(100% + 8px);
+  margin-top: 0;
+}
+
+.whiteboard-editor .excalidraw :is(.scroll-back-to-content, .Toast) {
+  bottom: calc(var(--whiteboard-bottom-row) + 12px);
+}
+
 /* Desktop layout persists down to 500px (see scripts/patch-excalidraw-host-integration.mjs). */
-@container whiteboard (max-width: 840px) {
-  .whiteboard-editor .excalidraw .App-menu__left {
-    top: calc(var(--lg-button-size) + 16px);
+@container whiteboard (max-width: 860px) {
+  .whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+    justify-content: flex-end;
   }
 }
 
-@container whiteboard (max-width: 620px) {
-  .whiteboard-editor .excalidraw .App-menu_top {
-    grid-template-columns: auto 1fr 0;
-    column-gap: 8px;
+@container whiteboard (max-width: 660px) {
+  .whiteboard-editor .excalidraw .App-menu_top .shapes-section {
+    justify-content: center;
   }
 
-  .whiteboard-editor .excalidraw .shapes-section {
-    justify-content: flex-start;
+  .whiteboard-editor .excalidraw .App-menu_bottom {
+    bottom: calc(var(--whiteboard-bottom-row) + 8px);
   }
 }
 
@@ -251,6 +275,16 @@
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-micro) !important;
   font-weight: var(--po-text-weight-medium);
+}
+
+/* The extra-tools "Generate" heading is an unclassed div with inline type. */
+.whiteboard-editor .excalidraw .App-toolbar__extra-tools-dropdown .dropdown-menu-container > div:not([class]) {
+  margin: 4px 0 0 !important;
+  padding: 8px var(--po-menu-item-padding-inline) 4px;
+  border-top: 1px solid var(--po-divider);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro) !important;
+  font-weight: var(--po-text-weight-medium) !important;
 }
 
 .whiteboard-editor .excalidraw .dropdown-menu .dropdown-menu-item__shortcut {
