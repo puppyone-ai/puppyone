@@ -5,6 +5,19 @@ import {
 import { readCloudWorkspaceEvents } from "./cloud-workspace-events.mjs";
 import { readCloudAgentEventBatch } from "./cloud-agent-event-reader.mjs";
 
+export function createCloudNetwork({ fetchImpl }) {
+  if (typeof fetchImpl !== "function") throw new TypeError("Cloud network transport is required.");
+  // Main uses Chromium networking for system proxy/PAC support. Authentication
+  // stays bearer-based and must not inherit a renderer's session cookies.
+  const fetch = (input, init) => fetchImpl(input, {
+    ...init, credentials: "omit", bypassCustomProtocolHandlers: true,
+  });
+  return {
+    fetch,
+    requestCloudApi: (apiBase, apiPath, init) => performCloudApiRequest(apiBase, apiPath, init, fetch),
+  };
+}
+
 export function buildCloudApiBaseCandidates(remoteUrl, apiBaseUrl) {
   const candidates = [];
   addUniqueCloudApiBase(candidates, cloudApiBaseFromRemote(remoteUrl));
@@ -76,13 +89,17 @@ export async function fetchCloudAccessPointSemantics({ accessKey, userEmail, api
 }
 
 export async function requestCloudApi(apiBase, apiPath, init) {
+  return performCloudApiRequest(apiBase, apiPath, init, globalThis.fetch);
+}
+
+async function performCloudApiRequest(apiBase, apiPath, init, fetchImpl) {
   const responseType = init?.responseType;
   const fetchInit = { ...init };
   delete fetchInit.responseType;
   delete fetchInit.onWorkspaceEvent;
   let response;
   try {
-    response = await fetch(`${apiBase}${apiPath}`, fetchInit);
+    response = await fetchImpl(`${apiBase}${apiPath}`, fetchInit);
   } catch (error) {
     throw cloudTransportError(error, apiBase, fetchInit.signal);
   }

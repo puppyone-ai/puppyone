@@ -46,8 +46,8 @@ import { createAgentAttachmentStore } from "./main/agent/infrastructure/attachme
 import { createLocalAgentInventory } from "./main/agent/connections/local-agent-inventory.mjs";
 import { createDefaultAgentRuntimeHost } from "./main/agent/bootstrap/create-agent-runtime-host.mjs";
 import {
+  createCloudNetwork,
   getCloudApiErrorMessage,
-  requestCloudApi,
 } from "./main/cloud-api-client.mjs";
 import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
 import { resolveTemplateStoreOrigin } from "../shared/desktop/template-link.mjs";
@@ -201,6 +201,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const packageMetadata = require("../package.json");
 const projectRoot = path.resolve(__dirname, "..");
+const cloudNetwork = createCloudNetwork({ fetchImpl: (input, init) => net.fetch(input, init) });
+const requestCloudApi = cloudNetwork.requestCloudApi;
 const preloadPath = path.join(__dirname, "preload.cjs");
 const rendererDistPath = path.join(projectRoot, "dist", "index.html");
 const desktopBuildInfo = loadDesktopBuildInfo({
@@ -565,6 +567,7 @@ const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
 const cloudAuthService = createCloudAuthService({
   app,
   requestCloudApi,
+  fetchImpl: cloudNetwork.fetch,
   getCloudApiErrorMessage,
   secureStorage: safeStorage,
   externalNavigation,
