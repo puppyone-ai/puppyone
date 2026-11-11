@@ -48,3 +48,4 @@ export { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillin
   readBillingResource } from "./billing/billingReadCache";
 export type { BillingReadScope } from "./billing/billingReadCache";
 export { createCloudBillingContextKey } from "./billing/cloudBillingState";
+export { SpaceMark, SpacePlanBadge, useSpaceName } from "./spaces/SpaceMark";

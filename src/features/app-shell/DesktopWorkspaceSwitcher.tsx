@@ -14,7 +14,7 @@ import {
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay, type CloudSpace, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import { useDesktopPlatformCapabilities } from "../../platform";
-import { SpaceMark, useSpaceName } from "../cloud/spaces/SpaceMark";
+import { SpaceMark, useSpaceName } from "../cloud";
 import { projectMatchesTarget } from "./window-project/projectNavigation";
 import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";

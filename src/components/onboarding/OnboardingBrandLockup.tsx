@@ -1,6 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
 import { useRef, useState, type ReactNode } from "react";
-import { WindowNavigationRows, windowNavigationHasRows } from "../../features/app-shell/project-place/WindowNavigationRows";
+import { WindowNavigationRows, windowNavigationHasRows } from "../WindowNavigationRows";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import { PuppyBrandMark } from "../brand/PuppyBrandMark";
 import { useWindowNavigation } from "../WindowNavigation";

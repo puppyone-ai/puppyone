@@ -3,7 +3,7 @@ import { useAccountAvailable, useHostDevicesEnabled } from "../../flags";
 import { SidebarRoot, SidebarRow, SidebarScrollArea } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { SidebarGroup } from "../../../components/sidebar";
-import { SpaceMark, SpacePlanBadge } from "../../cloud/spaces/SpaceMark";
+import { SpaceMark, SpacePlanBadge } from "../../cloud";
 import type { SettingsSidebarProps } from "../types";
 import { resolveSettingsSidebarGroups } from "./settingsSidebarModel";
 

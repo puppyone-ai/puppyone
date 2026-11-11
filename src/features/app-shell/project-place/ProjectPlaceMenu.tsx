@@ -3,9 +3,9 @@ import { useLocalization } from "@puppyone/localization";
 import { CloudIcon, LocalIcon } from "@puppyone/shared-ui";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import { useDesktopPlatformCapabilities } from "../../../platform";
-import { SpaceMark, useSpaceName } from "../../cloud/spaces/SpaceMark";
+import { SpaceMark, useSpaceName } from "../../cloud";
 import { cloudLinkHasProblem, cloudLinkProblemMessage, type ProjectPlaceCloudLink, type ProjectPlaceMenu } from "./projectPlaceMenuState";
-import { LOCAL_PLACE, WindowNavigationRows } from "./WindowNavigationRows";
+import { LOCAL_PLACE, WindowNavigationRows } from "../../../components/WindowNavigationRows";
 import "./project-place.css";
 
 export type ProjectPlaceMenuProps = Readonly<{

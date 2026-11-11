@@ -1,11 +1,10 @@
 import { ArrowLeft, Check, LogIn, Plus, Settings, UserRound } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { LocalIcon } from "@puppyone/shared-ui";
-import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
-import { useWindowNavigation, type WindowNavigation } from "../../../components/WindowNavigation";
-import { useDesktopPlatformCapabilities } from "../../../platform";
-import { SpaceMark, useSpaceName } from "../../cloud/spaces/SpaceMark";
-import { useCloudAuthController } from "../../cloud";
+import { DesktopMenuItem, DesktopMenuSeparator } from "./DesktopMenu";
+import { useWindowNavigation, type WindowNavigation } from "./WindowNavigation";
+import { useDesktopPlatformCapabilities } from "../platform";
+import { SpaceMark, useSpaceName, useCloudAuthController } from "../features/cloud";
 
 /** This computer's key among the places; a Space's is its id. */
 export const LOCAL_PLACE = "local";
