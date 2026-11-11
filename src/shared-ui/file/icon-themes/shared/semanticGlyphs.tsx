@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Database, Workflow, Presentation } from "lucide-react";
+import { Database, Workflow } from "lucide-react";
 import type { FileIconRenderContext } from "../iconThemeTypes";
 import { glyphLine } from "./glyphLine";
 
@@ -334,6 +334,25 @@ export function DocumentLinesSymbol({ color }: { color: string }) {
   );
 }
 
+/** A board holding a connected square and circle, on the same 11-unit frame as the HTML window. */
 export function WhiteboardGlyph({ color, size }: FileIconRenderContext): ReactNode {
-  return <Presentation size={size} color={color} strokeWidth={glyphLine(size, 24)} aria-hidden="true" />;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      fill="none"
+      stroke={color}
+      strokeWidth={glyphLine(size)}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      data-file-icon-shape="whiteboard-diagram"
+    >
+      <rect x="3.5" y="3.5" width="11" height="11" rx="1.5" />
+      <rect x="5.75" y="5.75" width="2.9" height="2.9" rx="0.5" />
+      <circle cx="11.15" cy="11.15" r="1.5" />
+      <path d="m8.65 8.65 1.45 1.45" />
+    </svg>
+  );
 }
