@@ -1,6 +1,6 @@
 #!/usr/bin/env electron
 // Full production Main/preload/App, with disposable local repository/userData.
-// Authentication and backend persistence/Provider execution are isolated facts.
+// Authentication and backend facts are isolated; Automation is intentionally unregistered.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -21,7 +21,7 @@ if (process.env.PUPPYONE_ENTRYPOINT_TEST_WORKSPACE) await fs.mkdir(temporaryRoot
 const artifactDirectory = path.join(root, "artifacts/tests/cloud-entrypoints", new Date().toISOString().replaceAll(":", "-"));
 await fs.mkdir(artifactDirectory, { recursive: true });
 const report = { ok: false, source: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
-  window_reloads: 0, document_ids: [], binding_id: null, run_ids: [], blocked_network: [], console_errors: [], error: null,
+  window_reloads: 0, document_ids: [], blocked_network: [], console_errors: [], error: null,
   evidence_scope: "production Main/preload/App and real BrowserWindow; isolated auth/storage/Provider/queue, no PostgreSQL or installer acceptance" };
 let window, server;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -63,20 +63,6 @@ async function until(expression, description = expression) {
   }
   throw new Error(`Timed out: ${description}`);
 }
-async function click(selector) {
-  await until(`!!document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`, selector);
-  assert.equal(await evaluate(`(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(e.disabled) return false; e.click(); return true; })()`), true, `${selector} disabled`);
-}
-async function clickText(text, selector = "button") {
-  const match = `[...document.querySelectorAll(${JSON.stringify(selector)})].find(e => e.textContent.trim() === ${JSON.stringify(text)} || e.getAttribute('aria-label') === ${JSON.stringify(text)})`;
-  await until(`!!(${match}) && !(${match}).disabled`, `enabled ${text}`);
-  await evaluate(`(${match}).click()`);
-}
-async function input(selector, value) {
-  await click(selector);
-  await evaluate(`document.querySelector(${JSON.stringify(selector)}).select()`);
-  await window.webContents.insertText(value);
-}
 async function capture(name) {
   await fs.writeFile(path.join(artifactDirectory, `${name}.png`), (await window.webContents.capturePage()).toPNG());
 }
@@ -91,18 +77,6 @@ async function reload() {
   report.window_reloads++;
   await until("!!document.querySelector('.app-shell')", "App after real window reload");
 }
-async function openAutomation({ waitForInventory = true } = {}) {
-  // Navigation is through the actual shell, not an injected component or React state.
-  if (!await evaluate("!!document.querySelector('.desktop-cloud-automation-page') || document.querySelector('h1')?.textContent === 'Automations'")) {
-    await evaluate("[...document.querySelectorAll('.desktop-header-coachmark-button')].find(e=>e.textContent==='Later')?.click()");
-    // Share opens the existing Cloud management dialog. The workspace Cloud
-    // toggle opens the file workbench, not the Automation management surface.
-    await clickText("Share");
-    await clickText("Automation", ".desktop-cloud-service-sidebar button");
-  }
-  if (waitForInventory) await until("!!document.querySelector('.desktop-cloud-automation-template-card') || !!document.querySelector('.desktop-cloud-automation-connection-card')", "Automation inventory/catalog");
-}
-
 async function initialize() {
   await fs.writeFile(path.join(app.getPath("userData"), "desktop-cloud-session.json"), JSON.stringify({
     version: 2, storage: "plaintext-dev", data: { version: 2, user_id: "user-1", user_email: "window@example.test",
@@ -152,52 +126,25 @@ async function run() {
   await until("!!document.querySelector('.app-shell')", "App mount");
   await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: true }));");
   await reload();
-  await openAutomation();
-  await capture("01-before-create");
-  await click(".desktop-cloud-automation-template-card .desktop-cloud-automation-template-add");
-  await until("!!document.querySelector('.desktop-cloud-automation-source-editor input[type=url]')", "URL source form");
-  await input(".desktop-cloud-automation-source-editor input[type=url]", "https://window.example.test/source");
-  await input(".desktop-cloud-automation-destination-editor input", "window-evidence");
-  await click(".desktop-cloud-automation-dialog .desktop-dialog-button.primary");
-  await until("document.querySelectorAll('.desktop-cloud-automation-connection-card').length === 1", "created resource rediscovered");
-  const created = await control("state");
-  assert.equal(created.bindings.length, 1); assert.equal(created.runs.length, 1);
-  report.binding_id = created.bindings[0].id;
-  await control("fail-run", "POST");
+  // Automation was explicitly unregistered on 2026-11-01. Stored legacy
+  // flags must not resurrect a route or issue writes to retired services.
+  const noRetiredControls = `!document.querySelector('.desktop-cloud-service-sidebar, .desktop-cloud-automation-page')
+    && ![...document.querySelectorAll('button')].some(e => ['Share', 'Automation'].includes(e.textContent.trim()))`;
+  await until("document.body.textContent.includes('Open Cloud project')", "current linked-folder notice");
+  assert.ok(await evaluate(noRetiredControls), 'retired Automation is absent');
+  await capture("01-current-project");
   await reload();
-  await openAutomation();
-  await until("document.querySelectorAll('.desktop-cloud-automation-connection-card').length === 1", "binding after reload");
-  await click(".desktop-cloud-automation-connection-card");
-  await until("document.querySelector('.desktop-cloud-automation-run-history')?.textContent.includes('Window first run failed')", "persisted failed history");
-  await capture("02-reloaded-failed-run");
-  await clickText("Run now", ".desktop-cloud-automation-dialog button");
-  await until("document.querySelectorAll('.desktop-cloud-automation-run-list article').length === 2", "retry history contains both runs");
-  await capture("03-retry-history");
-  const retried = await control("state");
-  assert.equal(retried.bindings.length, 1);
-  assert.equal(retried.bindings[0].id, report.binding_id);
-  assert.ok(retried.runs.every(run => run.synchronize_binding_id === report.binding_id));
-  report.run_ids = retried.runs.map(run => run.id);
-  await control("inventory/down", "POST");
-  await reload();
-  // This scenario intentionally has no inventory: assert the error below.
-  await openAutomation({ waitForInventory: false });
-  await until("document.body.textContent.includes('Automations is unavailable')", "inventory failure is visible");
-  await capture("04-inventory-error");
-  await control("inventory/up", "POST");
-  await clickText("Retry");
-  await until("document.querySelectorAll('.desktop-cloud-automation-connection-card').length === 1", "retry reloads the same stored binding");
-  await click(".desktop-cloud-automation-connection-card");
-  await until("document.querySelectorAll('.desktop-cloud-automation-run-list article').length === 2", "history survives window and inventory retry");
-  await capture("05-recovered");
-  assert.equal(window.isVisible(), true);
+  await until("document.body.textContent.includes('Open Cloud project')", "linked-folder notice after reload");
+  assert.ok(await evaluate(noRetiredControls), 'reload cannot restore retired routes');
+  await capture("02-after-reload");
+  const final = await control("state");
+  assert.deepEqual(final.bindings, []);
+  assert.deepEqual(final.runs, []);
+  assert.ok(!final.requests.some(r => /\/(synchronize|integrations|connectors)(\/|$)/.test(r.path)), 'no retired service calls');
+  report.requests = final.requests;
+  report.automation_route_registered = false;
   assert.deepEqual(report.blocked_network, [], "Unexpected external request attempted");
   assert.deepEqual(report.console_errors.filter(message => !message.includes("Electron Security Warning")), [], "Unexpected renderer errors");
-  const final = await control("state");
-  assert.equal(final.bindings[0].id, report.binding_id);
-  assert.ok(final.requests.filter(r => r.path === '/api/v1/synchronize/bindings' && r.method === 'GET').length >= 4);
-  assert.ok(final.requests.some(r => r.path === `/api/v1/synchronize/bindings/${report.binding_id}/refresh`));
-  report.requests = final.requests;
   report.ok = true;
 }
 

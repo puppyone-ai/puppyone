@@ -34,6 +34,8 @@ app.setPath("userData", path.join(temporaryRoot, getDesktopBuildChannelPolicy("d
 await fs.mkdir(app.getPath("userData"), { recursive: true });
 app.on("window-all-closed", () => {});
 app.commandLine.appendSwitch("lang", "en-US");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
 // Fake test tokens only. Never prompt for or modify a user's OS credential store.
 process.env.PUPPYONE_ALLOW_INSECURE_TOKEN_STORAGE = "1";
 process.env.VITE_DESKTOP_CLOUD_API_URL = `${origin}/api/v1`;
@@ -120,7 +122,7 @@ async function run() {
   for (let n = 0; n < 300 && !BrowserWindow.getAllWindows().length; n++) await wait(50);
   window = BrowserWindow.getAllWindows()[0];
   assert.ok(window, "Production Main created a BrowserWindow");
-  window.setContentSize(1280, 900); window.show();
+  window.setContentSize(1280, 900); window.show(); window.focus();
   await until("!!document.querySelector('.desktop-onboarding, .desktop-titlebar')", "Home mount");
   await evaluate("localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableCloudAutomation: true, enableCloudWorkspace: true, enableHostDevices: true }));");
   await new Promise(resolve => { window.webContents.once('did-finish-load', resolve); window.reload(); });
@@ -146,32 +148,24 @@ async function run() {
     }
     throw new Error(`Window did not settle: ${expression}`);
   };
-  const openPlan = async owner => {
-    await owner.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-place-wrap > button').click()", true);
-    await untilOwner(owner, "!!document.querySelector('[data-account-row=\"account\"]')");
-    await owner.webContents.executeJavaScript("document.querySelector('[data-account-row=\"account\"]').click()", true);
-    await untilOwner(owner, "!!document.querySelector('.desktop-settings-dialog')");
+  const selectPlan = async owner => {
     await owner.webContents.executeJavaScript("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Plan').click()", true);
-    await untilOwner(owner, "!!document.querySelector('.desktop-settings-space-picker select')");
+    await untilOwner(owner, "!!document.querySelector('.desktop-plan-settings')");
+    assert.equal(await owner.webContents.executeJavaScript("!!document.querySelector('.desktop-settings-space-picker')"), false, 'Settings cannot switch Space');
   };
-  const pickPlan = async (owner, id) => {
-    await owner.webContents.executeJavaScript(`(() => { const picker=document.querySelector('.desktop-settings-space-picker select'); picker.value=${JSON.stringify(id)}; picker.dispatchEvent(new Event('change',{bubbles:true})); })()`, true);
-    await untilOwner(owner, `document.querySelector('.desktop-settings-space-picker select')?.value === ${JSON.stringify(id)}`);
+  const openPlan = async (owner, spaceId) => {
+    await owner.webContents.executeJavaScript(`document.querySelector('[data-project-group="space:${spaceId}"] .onboarding-space-manage').click()`, true);
+    await untilOwner(owner, "!!document.querySelector('.desktop-settings-dialog')");
+    await selectPlan(owner);
   };
+  const heading = owner => owner.webContents.executeJavaScript("document.querySelector('.desktop-settings-space-heading')?.textContent", true);
   const closeSettings = async owner => {
     await owner.webContents.executeJavaScript("document.querySelector('.desktop-settings-dialog-header button').click()", true);
     await untilOwner(owner, "!document.querySelector('.desktop-settings-dialog')");
   };
-  await openPlan(window);
-  assert.equal(await evaluate("document.querySelectorAll('.desktop-settings-space-picker option').length"), 2);
-  await pickPlan(window, 'org-2');
-  await until("document.querySelector('.desktop-plan-settings').textContent.includes('Research')", 'Plan explicitly targets Research');
-  await capture('01-plan-choose-space');
-  await evaluate("document.querySelector('.desktop-settings-space-picker button').click()");
-  await until("!!document.querySelector('.desktop-dialog-field input')", 'Create space remains available in settings');
-  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true}))");
-  await until("!document.querySelector('.desktop-dialog-field input') && !!document.querySelector('.desktop-settings-dialog')", 'cancel creation retains settings');
-  assert.equal(await evaluate("document.querySelector('.desktop-settings-space-picker select').value"), 'org-2');
+  await openPlan(window, 'org-2');
+  assert.ok((await heading(window)).includes('Research'), 'Home heading explicitly targets Research');
+  await capture('01-plan-named-by-home');
   await closeSettings(window);
   assert.ok(await evaluate(allProjects), 'choosing a bill must not filter Home');
 
@@ -179,8 +173,12 @@ async function run() {
   await until("!!document.querySelector('.desktop-shell') && document.body.textContent.includes('README.md')", 'local project files load');
   assert.equal(await evaluate("!!document.querySelector('.desktop-space-trigger, .desktop-sidebar-space-navigation')"), false, 'no global Space control in the project Sidebar');
   await capture('02-project-without-space-switcher');
-  await openPlan(window);
-  await pickPlan(window, 'org-1');
+  await evaluate("document.querySelector('.desktop-titlebar-place-wrap > button').click()");
+  await until("!!document.querySelector('[data-account-row=\"account\"]')");
+  await evaluate("document.querySelector('[data-account-row=\"account\"]').click()");
+  await until("!!document.querySelector('.desktop-settings-dialog')");
+  await selectPlan(window);
+  assert.ok((await heading(window)).includes('Personal'), 'a local project defaults to the account Space');
   assert.ok(await evaluate("document.querySelector('.desktop-titlebar').textContent.includes('This Mac fixture')"));
   await capture('03-plan-over-local-project');
 
@@ -190,11 +188,11 @@ async function run() {
   assert.ok(second, 'second real window');
   // Discovery fixture only: repository hydration is intentionally unavailable.
   await untilOwner(second, allProjects);
-  await openPlan(second);
-  await pickPlan(second, 'org-2');
-  assert.equal(await evaluate("document.querySelector('.desktop-settings-space-picker select').value"), 'org-1');
-  assert.equal(await second.webContents.executeJavaScript("document.querySelector('.desktop-settings-space-picker select').value"), 'org-2');
-  await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Members & settings').click()");
+  await openPlan(second, 'org-2');
+  assert.ok((await heading(window)).includes('Personal'));
+  assert.ok((await heading(second)).includes('Research'));
+  second.minimize(); window.show(); window.focus();
+  await evaluate("[...document.querySelectorAll('.desktop-settings-sidebar button')].find(button => button.textContent.trim() === 'Members').click()");
   await until("!!document.querySelector('.desktop-space-member-form input:not(:disabled)')", 'members of the chosen Space');
   await capture('04-space-members');
   await closeSettings(window);
@@ -208,7 +206,8 @@ async function run() {
   await capture('05-account-with-cloud-off');
   report.all_spaces_on_home = true;
   report.no_global_space_switcher = true;
-  report.plan_explicit_space_selection = true;
+  report.plan_opener_names_space = true;
+  report.settings_has_no_space_switcher = true;
   report.local_projects_always_visible = true;
   report.other_computers_rollout_disabled = true;
   report.account_available_without_cloud = true;
