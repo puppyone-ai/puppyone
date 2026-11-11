@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { requestCloudApi } from "../../../../electron/main/cloud-api-client.mjs";
+import { createCloudNetwork, requestCloudApi } from "../../../../electron/main/cloud-api-client.mjs";
 
 const originalFetch = globalThis.fetch;
 
@@ -8,7 +8,40 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("Main Cloud network composition", () => {
+  it("routes both configuration and credential requests through the supplied native transport", async () => {
+    globalThis.fetch = vi.fn(() => { throw new Error("Node transport must not be used"); });
+    const fetchImpl = vi.fn(async () => Response.json({ data: { ok: true } }));
+    const network = createCloudNetwork({ fetchImpl });
+    const controller = new AbortController();
+    expect(await network.requestCloudApi("https://api.example.test", "/auth/config", { method: "GET" })).toEqual({ ok: true });
+    await network.fetch("https://auth.example.test/auth/v1/token", {
+      method: "POST", body: "fixture-body", headers: { apikey: "public-fixture" },
+      signal: controller.signal, redirect: "error", credentials: "include",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ credentials: "omit", bypassCustomProtocolHandlers: true });
+    expect(fetchImpl.mock.calls[1][1]).toMatchObject({
+      method: "POST", body: "fixture-body", headers: { apikey: "public-fixture" },
+      signal: controller.signal, redirect: "error", credentials: "omit", bypassCustomProtocolHandlers: true,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit runtime transport", () => {
+    expect(() => createCloudNetwork({ fetchImpl: null })).toThrow("transport is required");
+  });
+});
+
 describe("Electron Cloud API error transport", () => {
+  it("does not treat the session guard forwarded by a DataPort as a fetch transport", async () => {
+    globalThis.fetch = vi.fn(async () => Response.json({ data: { ok: true } }));
+    await expect(requestCloudApi("https://api.example.test", "/profile", {}, {
+      userId: "user-1", generation: "generation-1",
+    })).resolves.toEqual({ ok: true });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     [new TypeError("fetch failed"), "CLOUD_TRANSPORT_UNAVAILABLE"],
     [new DOMException("expired", "TimeoutError"), "CLOUD_REQUEST_TIMEOUT"],
