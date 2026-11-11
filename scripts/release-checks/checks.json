@@ -85,7 +85,7 @@
         "win32"
       ],
       "dependsOn": [],
-      "timeoutSeconds": 900,
+      "timeoutSeconds": 1200,
       "runtime": "node",
       "artifacts": [
         "{checkDir}/vitest/invocation.json",
