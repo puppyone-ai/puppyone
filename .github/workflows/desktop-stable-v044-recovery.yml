@@ -1,0 +1,68 @@
+name: Desktop v0.4.4 Upload Recovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: desktop-release-publish
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    name: Restore only missing original v0.4.4 immutable objects
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: desktop-stable
+    steps:
+      - name: Checkout protected recovery code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Verify original run and immutable tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/puppyone-ai/puppyone/actions/runs/43074642375 > "${RUNNER_TEMP}/source-run.json"
+          gh api repos/puppyone-ai/puppyone/actions/runs/43074642375/jobs > "${RUNNER_TEMP}/source-jobs.json"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const run = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/source-run.json`));
+          const { jobs } = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/source-jobs.json`));
+          const names = ['Build signed and notarized macOS release once', 'Build Windows x64 NSIS release once'];
+          if (run.workflow_id !== 314909188 || run.head_sha !== '5e87974efcfae0c9a83801ccc9add2f2deceb395'
+            || run.head_branch !== 'v0.4.4' || run.conclusion !== 'failure'
+            || !names.every(name => jobs.some(job => job.name === name && job.conclusion === 'success'))) {
+            throw new Error('Recovery requires the exact failed publisher and both successful original builders.');
+          }
+          NODE
+          test "$(gh api repos/puppyone-ai/puppyone/commits/v0.4.4 --jq .sha)" = 5e87974efcfae0c9a83801ccc9add2f2deceb395
+      - name: Install verification dependencies without deployment secrets
+        run: npm ci --ignore-scripts
+      - name: Download original build-once artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          github-token: ${{ github.token }}
+          repository: puppyone-ai/puppyone
+          run-id: 43074642375
+          artifact-ids: 13881892403,13882177496
+          path: artifacts/recovery
+      - name: Verify release has not published or advanced its feeds
+        run: node scripts/verify-desktop-release-version.mjs --channel stable --candidate-version 0.4.4
+      - name: Verify every existing object and conditionally restore missing bytes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_PAGER: ""
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/recover-stable-v044-upload.mjs
