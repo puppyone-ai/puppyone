@@ -73,12 +73,21 @@ async function history(direction) {
 }
 const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc" || frame.url.includes("/document-projection/"));
 async function clickElement(selector, hover = false) {
+  // Acknowledged projection readiness precedes compositor paint. Measure only
+  // after a frame, then check both coordinate spaces before native input.
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   const child = preview(); assert.ok(child, "preview frame exists");
   const rect = await child.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   const outer = await evaluate(`(()=>{const r=document.querySelector('iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()`);
   const x = Math.round(rect.x + outer.x), y = Math.round(rect.y + outer.y);
   await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
   if (hover) return;
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  await win.webContents.capturePage();
+  await until(async () => await child.executeJavaScript(
+    `Boolean(document.elementFromPoint(${rect.x},${rect.y})?.closest(${JSON.stringify(selector)}))`)
+    && await evaluate(`document.elementFromPoint(${x},${y})===document.querySelector('iframe')`),
+  `painted native hit target ${selector}`);
   await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
   await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
 }
