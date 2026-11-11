@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Excalidraw, MainMenu, FONT_FAMILY, THEME, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, CaptureUpdateAction, FONT_FAMILY, THEME, restoreAppState, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
+import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { useLocalization } from "@puppyone/localization/react";
 import { useEditorAppearanceRevision } from "../../../core/appearance/EditorAppearanceContext";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
@@ -11,6 +12,18 @@ import "@excalidraw/excalidraw/index.css";
 import "./whiteboard.css";
 
 const LANGUAGES: Record<string, string> = { en: "en", "zh-Hans": "zh-CN", de: "de-DE", es: "es-ES", fr: "fr-FR", ja: "ja-JP", ko: "ko-KR", "pt-BR": "pt-BR" };
+
+const DRAWING_DEFAULTS = {
+  currentItemRoughness: 0,
+  currentItemFillStyle: "solid",
+  currentItemStrokeWidth: 1,
+  currentItemRoundness: "sharp",
+  currentItemArrowType: "sharp",
+  currentItemFontFamily: FONT_FAMILY["Liberation Sans"],
+} as const satisfies Partial<AppState>;
+const SDK_DRAWING_DEFAULTS = restoreAppState(null, null);
+const DRAWING_KEYS = Object.keys(DRAWING_DEFAULTS) as (keyof typeof DRAWING_DEFAULTS)[];
+const hasSdkDrawingDefaults = (state: AppState) => DRAWING_KEYS.every((key) => state[key] === SDK_DRAWING_DEFAULTS[key]);
 
 export function ExcalidrawViewer(props: PresetViewerRenderContext) {
   const { t, locale } = useLocalization();
@@ -24,6 +37,8 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [owner, props.document.path]);
   const lastChange = useRef<{ model: ExcalidrawDocumentModel; generation: number; version: number; state: string; files: unknown } | null>(null);
+  const api = useRef<ExcalidrawImperativeAPI | null>(null);
+  const hadSdkDrawingDefaults = useRef(false);
   const generation = useSyncExternalStore(model.subscribe, model.getGeneration, model.getGeneration);
   const scene = model.getScene();
   const appearanceRevision = useEditorAppearanceRevision();
@@ -64,14 +79,7 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
       key={generation}
       initialData={{
         ...scene,
-        appState: {
-          currentItemRoughness: 0,
-          currentItemFillStyle: "solid",
-          currentItemStrokeWidth: 1,
-          currentItemArrowType: "sharp",
-          currentItemFontFamily: FONT_FAMILY["Liberation Sans"],
-          ...scene.appState,
-        },
+        appState: { ...DRAWING_DEFAULTS, ...scene.appState },
         scrollToContent: true,
       }}
       theme={theme}
@@ -82,7 +90,14 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
       autoFocus={false}
       aiEnabled={false}
       UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false, export: false, toggleTheme: false } }}
+      excalidrawAPI={(instance) => { api.current = instance; }}
       onChange={(elements, state, files) => {
+        // Reset canvas restores every SDK drawing default at once; a user edit changes one at a time.
+        const sdkDefaults = hasSdkDrawingDefaults(state);
+        if (sdkDefaults && !hadSdkDrawingDefaults.current && elements.every((element) => element.isDeleted)) {
+          queueMicrotask(() => api.current?.updateScene({ appState: DRAWING_DEFAULTS, captureUpdate: CaptureUpdateAction.NEVER }));
+        }
+        hadSdkDrawingDefaults.current = sdkDefaults;
         // Pointer motion, selection and zoom must not repeatedly serialize embedded images.
         const version = hashElementsVersion(elements);
         const persistedState = serializeAsJSON([], state, {}, "local");

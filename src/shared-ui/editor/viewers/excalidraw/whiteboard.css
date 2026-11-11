@@ -243,11 +243,3 @@
 .whiteboard-editor .excalidraw .HintViewer {
   display: none;
 }
-
-/* Hand-drawn styling stays readable in existing files but is not offered for new edits.
- * Font list values are Excalidraw font IDs: 1 Virgil, 5 Excalifont. */
-.whiteboard-editor .excalidraw .panelColumn fieldset:has(input[name="sloppiness"]),
-.whiteboard-editor .excalidraw button[data-testid="font-family-hand-drawn"],
-.whiteboard-editor .excalidraw .dropdown-menu.fonts :is(button[value="1"], button[value="5"]):not(.dropdown-menu-item--selected) {
-  display: none;
-}

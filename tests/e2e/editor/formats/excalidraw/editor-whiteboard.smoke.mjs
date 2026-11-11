@@ -86,8 +86,9 @@ app.whenReady().then(async () => {
     assert.equal(rectangle.roughness, 0, "first-use shapes default to clean lines");
     assert.equal(rectangle.fillStyle, "solid", "first-use shapes avoid hachure fill");
     assert.equal(rectangle.strokeWidth, 1, "first-use shapes default to thin strokes");
+    assert.equal(rectangle.roundness, null, "first-use shapes default to sharp corners");
     const display = selector => evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});return el?getComputedStyle(el).display:"missing"})()`);
-    assert.equal(await display('.excalidraw .panelColumn fieldset:has(input[name="sloppiness"])'), "none", "sloppiness is not offered");
+    assert.ok(!["none", "missing"].includes(await display('.excalidraw .panelColumn fieldset:has(input[name="sloppiness"])')), "sloppiness remains available");
     assert.equal(await display(".excalidraw .HintViewer"), "none", "canvas hints stay hidden");
     steps.push("standard file opens without writes; pointer drawing saves through document session");
     const isDark = "document.querySelector('.excalidraw').classList.contains('theme--dark')";
@@ -103,7 +104,7 @@ app.whenReady().then(async () => {
     await pointer("mouseReleased", x + 200, y + 150);
     await until(() => evaluate("!!document.querySelector('.excalidraw-wysiwyg')"), "text input");
     await window.webContents.debugger.sendCommand("Input.insertText", { text: "Whiteboard 中文" });
-    assert.equal(await display('.excalidraw [data-testid="font-family-hand-drawn"]'), "none", "hand-drawn font is not offered");
+    assert.ok(!["none", "missing"].includes(await display('.excalidraw [data-testid="font-family-hand-drawn"]')), "hand-drawn font remains available");
     // Switching directly, without an explicit save, must flush the in-progress textarea.
     await click('.tree-row.file[aria-label="note.md"]');
     saved = await until(async () => { const data = JSON.parse(await disk()); return data.elements.some(el => el.text === "Whiteboard 中文") ? data : null; }, "text commits on file switch");
@@ -114,6 +115,19 @@ app.whenReady().then(async () => {
     assert.equal(JSON.parse(await disk()).elements.length, saved.elements.length);
     await fs.writeFile(path.join(output, "whiteboard.png"), (await window.webContents.capturePage()).toPNG());
     steps.push("saved scene reopens");
+    await click(".excalidraw .main-menu-trigger");
+    await click('.excalidraw [data-testid="clear-canvas-button"]');
+    await click(".confirm-dialog-buttons button:last-child");
+    await key("s", process.platform === "darwin" ? 4 : 2, "KeyS");
+    await until(async () => JSON.parse(await disk()).elements.length === 0, "reset canvas saves an empty scene");
+    await click('.excalidraw [data-testid="toolbar-rectangle"]');
+    await pointer("mousePressed", x, y);
+    for (let i = 1; i <= 10; i++) await pointer("mouseMoved", x + i * 15, y + i * 9);
+    await pointer("mouseReleased", x + 150, y + 90);
+    await key("s", process.platform === "darwin" ? 4 : 2, "KeyS");
+    const afterReset = (await until(async () => JSON.parse(await disk()).elements.find(el => el.type === "rectangle"), "draw after reset"));
+    assert.deepEqual([afterReset.roughness, afterReset.strokeWidth, afterReset.roundness], [0, 1, null], "reset canvas restores clean drawing defaults");
+    steps.push("reset canvas keeps clean drawing defaults");
     const embed = { ...saved.elements[0], id: "html-demo", type: "embeddable", x: 0, y: 0, width: 400, height: 260, link: "./demo.html", version: 1, versionNonce: 1234, boundElements: null };
     const replacement = { ...saved, elements: [embed], appState: { ...saved.appState, viewBackgroundColor: "#fff4e6" } };
     const replacementText = JSON.stringify(replacement);
