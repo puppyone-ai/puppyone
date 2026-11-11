@@ -1,6 +1,7 @@
 #!/usr/bin/env electron
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import nativeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,19 @@ async function until(check, label) {
   throw new Error(`Timed out: ${label}`);
 }
 const disk = async () => await fs.readFile(path.join(root, "board.excalidraw"), "utf8");
+const watchAudit = [];
+const originalWatch = nativeFs.watch;
+nativeFs.watch = (location, options, listener) => {
+  if (String(location) !== root) return originalWatch.call(nativeFs, location, options, listener);
+  watchAudit.push({ type: "start", location });
+  const watcher = originalWatch.call(nativeFs, location, options, (event, name) => {
+    watchAudit.push({ type: "event", event, name: String(name) });
+    listener(event, name);
+  });
+  const close = watcher.close.bind(watcher);
+  watcher.close = () => { watchAudit.push({ type: "close" }); return close(); };
+  return watcher;
+};
 async function click(selector) {
   await until(() => evaluate(`!!document.querySelector(${JSON.stringify(selector)})`), selector);
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -63,6 +77,12 @@ app.whenReady().then(async () => {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window");
     window.setSize(1400, 950);
     window.webContents.setBackgroundThrottling(false);
+    const prototype = Object.getPrototypeOf(window.webContents);
+    const send = prototype.send;
+    prototype.send = function(channel, ...args) {
+      if (channel === "workspace:changed") watchAudit.push({ type: "delivery", args });
+      return send.call(this, channel, ...args);
+    };
     window.hide();
     window.webContents.on("console-message", (_event, level, message) => { if (level >= 2) errors.push(message); });
     await until(() => evaluate("!!document.querySelector('.app-shell')"), "app ready");
@@ -226,6 +246,9 @@ app.whenReady().then(async () => {
         url: frame.url, content: await frame.executeJavaScript("document.documentElement.outerHTML").catch(() => "unavailable"),
       })));
       await fs.writeFile(path.join(output, "failure-frames.json"), JSON.stringify(frames, null, 2));
+      await fs.writeFile(path.join(output, "failure-watch-audit.json"), JSON.stringify(watchAudit, null, 2));
+      await fs.writeFile(path.join(output, "failure-board.excalidraw"), await disk());
+      await fs.writeFile(path.join(output, "failure-demo.html"), await fs.readFile(path.join(root, "demo.html"), "utf8"));
     }
   } finally {
     clearTimeout(deadline);
