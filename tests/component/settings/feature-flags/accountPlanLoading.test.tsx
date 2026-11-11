@@ -292,6 +292,26 @@ it("shows the real plan and balance when the service disables only its sales cat
   expect(host.querySelector('.desktop-plan-summary')?.textContent).not.toContain("$20");
 });
 
+it("shows a readable price catalog and balance without enabling non-purchasable offers", async () => {
+  const base = fixtureCatalog.plans[0]!;
+  api.getCloudBillingCatalog.mockResolvedValue({ ...fixtureCatalog, plans: [
+    { ...base, id: "free", price_per_seat_cents: 0, purchasable: false },
+    { ...base, id: "team_v2", price_per_seat_cents: 2000, purchasable: false },
+    { ...base, id: "enterprise_v2", price_per_seat_cents: 4000, purchasable: false },
+  ] });
+  api.getCloudBillingSummary.mockResolvedValue({ ...summary(), plan_id: "free", status: "free" });
+  api.getCloudBillingUsage.mockResolvedValue(fixtureUsage("personal"));
+  await mount(withTestLocalization(<PlanPageProbe />));
+  expect(host.querySelector('.desktop-plan-summary h4')?.textContent).toBe("Free");
+  expect(host.querySelectorAll('.desktop-plan-card')).toHaveLength(3);
+  expect(host.textContent).toContain("$20");
+  expect(host.textContent).toContain("$40");
+  const buttons = [...host.querySelectorAll<HTMLButtonElement>('.desktop-plan-card button')];
+  expect(buttons.length).toBeGreaterThan(0);
+  expect(buttons.every(button => button.disabled)).toBe(true);
+  expect(host.textContent).not.toContain("Billing details unavailable");
+});
+
 it("keeps an unavailable catalog distinct from an unknown current holding", async () => {
   const disabled = Object.assign(new Error("Billing is not enabled"), { status: 404 });
   api.getCloudBillingCatalog.mockRejectedValue(disabled);

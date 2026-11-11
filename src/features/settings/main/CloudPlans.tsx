@@ -171,7 +171,7 @@ function ConnectedPlans({
   }, [controller]);
 
   const choose = (plan: PlanOffer) => {
-    if (!plan.catalogPlan) return;
+    if (!plan.catalogPlan || !plan.purchasable) return;
     if (plan.catalogPlan.id === effectiveSummary?.plan_id && onTeam) {
       void controller.quoteSeats();
       return;
@@ -181,6 +181,7 @@ function ConnectedPlans({
 
   const renderAction = (plan: PlanOffer): ReactNode => {
     const isCurrent = plan.id === current.id;
+    const canPurchase = sellable && plan.purchasable;
     if (plan.id === "free") {
       if (isCurrent) return <CurrentBadge localization={localization} />;
       // Leaving a paid plan is a cancellation, which lives with invoices.
@@ -206,7 +207,7 @@ function ConnectedPlans({
             value={seatTarget}
             minimum={onTeam ? 1 : teamMinimum}
             maximum={500}
-            disabled={busy || !sellable}
+            disabled={busy || !canPurchase}
             onChange={setSeats}
             localization={localization}
             unit={t("settings.plan.peopleUnit", { count: seatTarget })}
@@ -215,10 +216,10 @@ function ConnectedPlans({
             <button
               type="button"
               className="desktop-settings-action primary"
-              disabled={busy || !sellable || !plan.catalogPlan}
+              disabled={busy || !canPurchase || !plan.catalogPlan}
               onClick={() => choose(plan)}
             >
-              {t(teamActionLabel(isCurrent, sellable))}
+              {t(teamActionLabel(isCurrent, canPurchase))}
             </button>
           )}
         </div>
@@ -229,10 +230,10 @@ function ConnectedPlans({
       <button
         type="button"
         className={`desktop-settings-action${holding.subscribed ? "" : " primary"}`}
-        disabled={busy || !sellable || !plan.catalogPlan}
+        disabled={busy || !canPurchase || !plan.catalogPlan}
         onClick={() => choose(plan)}
       >
-        {t(planActionLabel(holding.subscribed, sellable))}
+        {t(planActionLabel(holding.subscribed, canPurchase))}
       </button>
     );
   };
@@ -250,7 +251,7 @@ function ConnectedPlans({
           <button
             type="button"
             className="desktop-settings-action"
-            disabled={busy || !sellable}
+            disabled={busy || !sellable || !current.purchasable}
             onClick={() => void controller.quotePlan(current.catalogPlan!, holding.seats)}
           >
             {t("settings.plan.keepCurrent")}
