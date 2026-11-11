@@ -11,3 +11,131 @@
   height: 100%;
   border: 0;
 }
+
+/* Excalidraw declares its palette on .excalidraw and .excalidraw.theme--dark;
+ * both selectors are listed so the host tokens win in either color mode. */
+.whiteboard-editor .excalidraw,
+.whiteboard-editor .excalidraw.theme--dark {
+  --ui-font: var(--po-font-ui);
+  --border-radius-md: var(--desktop-control-radius);
+  --border-radius-lg: var(--po-menu-radius);
+
+  --color-primary: var(--po-accent);
+  --color-primary-darker: color-mix(in srgb, var(--po-accent) 88%, var(--po-text));
+  --color-primary-darkest: color-mix(in srgb, var(--po-accent) 76%, var(--po-text));
+  --color-primary-hover: var(--color-primary-darker);
+  --color-primary-light: color-mix(in srgb, var(--po-accent) 14%, var(--po-panel-raised));
+  --color-primary-light-darker: color-mix(in srgb, var(--po-accent) 22%, var(--po-panel-raised));
+  --color-brand-hover: var(--color-primary-darker);
+  --color-brand-active: var(--color-primary-darkest);
+  --color-selection: var(--po-accent);
+  --select-highlight-color: var(--po-accent);
+  --focus-highlight-color: var(--po-focus-ring);
+  --link-color: var(--po-accent-text);
+  --color-surface-primary-container: color-mix(in srgb, var(--po-accent) 14%, transparent);
+  --color-on-primary-container: var(--po-accent-text);
+  --color-slider-track: color-mix(in srgb, var(--po-accent) 28%, transparent);
+  --color-slider-thumb: var(--po-text-muted);
+
+  --default-bg-color: var(--po-editor-bg);
+  --island-bg-color: var(--po-menu-bg);
+  --popup-bg-color: var(--po-menu-bg);
+  --sidebar-bg-color: var(--po-menu-bg);
+  --popup-secondary-bg-color: var(--po-panel);
+  --overlay-bg-color: color-mix(in srgb, var(--po-canvas) 88%, transparent);
+  --shadow-island: var(--po-menu-shadow), 0 0 0 1px var(--po-menu-border);
+  --sidebar-shadow: var(--po-menu-shadow);
+  --modal-shadow: var(--po-menu-shadow);
+  --sidebar-border-color: var(--po-border);
+  --dialog-border-color: var(--po-border);
+  --default-border-color: var(--po-border);
+  --avatar-border-color: var(--po-border);
+
+  --color-surface-lowest: var(--po-panel-raised);
+  --color-surface-low: var(--po-hover);
+  --color-surface-mid: var(--po-panel);
+  --color-surface-high: var(--po-control-hover);
+  --color-on-surface: var(--po-text);
+  --text-primary-color: var(--po-text);
+  --popup-text-color: var(--po-text);
+  --keybinding-color: var(--po-text-subtle);
+  --color-disabled: var(--po-text-disabled);
+  --color-border-outline: var(--po-border-strong);
+  --color-border-outline-variant: var(--po-border);
+  --button-hover-bg: var(--po-hover);
+  --button-active-bg: var(--po-selected);
+  --input-bg-color: var(--po-control);
+  --input-border-color: var(--po-border);
+  --input-hover-bg-color: var(--po-control-hover);
+  --input-label-color: var(--po-text-muted);
+  --scrollbar-thumb: var(--po-scrollbar-presentation-thumb);
+  --scrollbar-thumb-hover: var(--po-scrollbar-presentation-thumb-hover);
+}
+
+.whiteboard-editor .excalidraw {
+  --default-button-size: var(--po-control-size-compact);
+  --lg-button-size: var(--po-control-size-compact);
+  --default-icon-size: 15px;
+  --lg-icon-size: 16px;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar-content {
+  padding: 4px;
+}
+
+.whiteboard-editor .excalidraw .App-toolbar__divider {
+  height: 16px;
+  margin: 0 2px;
+}
+
+/* Shortcuts remain in each tool's tooltip; the corner digits crowd compact buttons. */
+.whiteboard-editor .excalidraw .App-toolbar .ToolIcon__keybinding {
+  display: none;
+}
+
+.whiteboard-editor .excalidraw .App-menu__left {
+  width: 184px;
+  padding: 10px;
+}
+
+.whiteboard-editor .excalidraw .panelColumn {
+  row-gap: 10px;
+}
+
+.whiteboard-editor .excalidraw .panelColumn .buttonList {
+  gap: 4px;
+}
+
+.whiteboard-editor .excalidraw .App-menu__left .buttonList {
+  padding: 2px 0;
+}
+
+.whiteboard-editor .excalidraw .dropdown-menu-button,
+.whiteboard-editor .excalidraw .buttonList :is(label, button, .zIndexButton) {
+  padding: 0;
+}
+
+.whiteboard-editor .excalidraw .color-picker__button--large {
+  width: 24px;
+  height: 24px;
+}
+
+/* Dark mode inverts the stored light scene; 90% maps the default white page to
+ * the dark editor material instead of Excalidraw's near-black. */
+.whiteboard-editor .excalidraw.theme--dark {
+  --theme-filter: invert(90%) hue-rotate(180deg);
+}
+
+.whiteboard-editor .excalidraw .help-icon,
+.whiteboard-editor .excalidraw .default-sidebar-trigger,
+.whiteboard-editor .excalidraw .HintViewer {
+  display: none;
+}
+
+/* Hand-drawn styling stays readable in existing files but is not offered for new edits.
+ * Font list values are Excalidraw font IDs: 1 Virgil, 5 Excalifont. */
+.whiteboard-editor .excalidraw .panelColumn fieldset:has(input[name="sloppiness"]),
+.whiteboard-editor .excalidraw button[data-testid="font-family-hand-drawn"],
+.whiteboard-editor .excalidraw .dropdown-menu.fonts :is(button[value="1"], button[value="5"]):not(.dropdown-menu-item--selected) {
+  display: none;
+}

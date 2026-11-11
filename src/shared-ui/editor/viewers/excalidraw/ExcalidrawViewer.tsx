@@ -1,6 +1,7 @@
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { Excalidraw, MainMenu, FONT_FAMILY, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Excalidraw, MainMenu, FONT_FAMILY, THEME, serializeAsJSON, hashElementsVersion } from "@excalidraw/excalidraw";
 import { useLocalization } from "@puppyone/localization/react";
+import { useEditorAppearanceRevision } from "../../../core/appearance/EditorAppearanceContext";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
@@ -25,6 +26,17 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
   const lastChange = useRef<{ model: ExcalidrawDocumentModel; generation: number; version: number; state: string; files: unknown } | null>(null);
   const generation = useSyncExternalStore(model.subscribe, model.getGeneration, model.getGeneration);
   const scene = model.getScene();
+  const appearanceRevision = useEditorAppearanceRevision();
+  const [theme, setTheme] = useState<typeof THEME[keyof typeof THEME]>(THEME.LIGHT);
+  useLayoutEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const read = () => setTheme(getComputedStyle(element).colorScheme.includes("dark") ? THEME.DARK : THEME.LIGHT);
+    read();
+    // Ancestor hosts may apply their color-scheme in their own effects, which run after this one.
+    const frame = requestAnimationFrame(read);
+    return () => cancelAnimationFrame(frame);
+  }, [appearanceRevision]);
   useLayoutEffect(() => {
     owner?.activate(model);
     if (!source) return;
@@ -54,11 +66,15 @@ export function ExcalidrawViewer(props: PresetViewerRenderContext) {
         ...scene,
         appState: {
           currentItemRoughness: 0,
-          currentItemFontFamily: FONT_FAMILY.Nunito,
+          currentItemFillStyle: "solid",
+          currentItemStrokeWidth: 1,
+          currentItemArrowType: "sharp",
+          currentItemFontFamily: FONT_FAMILY["Liberation Sans"],
           ...scene.appState,
         },
         scrollToContent: true,
       }}
+      theme={theme}
       name={props.document.name}
       langCode={LANGUAGES[locale] ?? "en"}
       viewModeEnabled={!props.canEdit}
