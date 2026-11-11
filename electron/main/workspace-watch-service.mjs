@@ -8,6 +8,7 @@ import {
   noteWorkspaceEditReviewPath,
 } from "../local-api/edit-review.mjs";
 import { getWorkspaceTextVersion } from "../local-api/workspace.mjs";
+import { watchDirectoryTree } from "./directory-tree-watch.mjs";
 
 export const WORKSPACE_WATCH_REARM_MIN_DELAY_MS = 250;
 export const WORKSPACE_WATCH_REARM_MAX_DELAY_MS = 30_000;
@@ -20,6 +21,8 @@ let workspaceWatchSubscriptionSequence = 0;
  * @typedef {object} WorkspaceWatchFileSystem
  * @property {(rootPath: string, options: { recursive: boolean }, listener: (eventType: string, filename: string | null) => void) => import("node:events").EventEmitter & { close(): void }} watch
  * @property {{ readFile(path: string): Promise<Uint8Array> }} promises
+ * @property {typeof fs.readdirSync} readdirSync
+ * @property {(path: string) => { ino: number | bigint, dev: number | bigint }} statSync
  */
 /** @param {{ logger?: Pick<Console, "warn" | "info">, fsModule?: WorkspaceWatchFileSystem }} [options] */
 export function createWorkspaceWatchService({ logger = console, fsModule = fs } = {}) {
@@ -212,7 +215,10 @@ function armWorkspaceWatcher(entry) {
   }
 
   try {
-    entry.watcher = entry.fsModule.watch(entry.rootPath, { recursive: true }, (eventType, filename) => {
+    const watch = process.platform === "linux"
+      ? (root, _options, listener) => watchDirectoryTree(root, listener, entry.fsModule)
+      : entry.fsModule.watch.bind(entry.fsModule);
+    entry.watcher = watch(entry.rootPath, { recursive: true }, (eventType, filename) => {
       if (entry.disposed) return;
       if (shouldIgnoreWorkspaceChange(filename)) return;
 
