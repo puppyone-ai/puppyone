@@ -345,6 +345,7 @@ function getMimeTypeOverride(name) {
 }
 
 function getSemanticKindForFormat(format) {
+  if (format.id === "excalidraw") return "whiteboard";
   if (format.id === "puppyflow") return "workflow";
   if (format.id === "json" || format.id === "jsonl") return "json";
 
@@ -397,6 +398,7 @@ function getSemanticKindForFormat(format) {
 }
 
 function isTextLikeFormat(format) {
+  if (format.id === "excalidraw") return true;
   return (
     format.category === "markdown" ||
     format.category === "text" ||

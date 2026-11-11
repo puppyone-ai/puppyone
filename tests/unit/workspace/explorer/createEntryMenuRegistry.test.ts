@@ -12,7 +12,7 @@ describe("create entry menu registry", () => {
       .toEqual(CREATE_NEW_ITEM_IDS);
     expect(getCreateEntryMenuItem("contextMap").experimentalSetting).toBeUndefined();
     expect(getDefaultCreateNewMenuLayout()).toEqual({
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow"],
     });

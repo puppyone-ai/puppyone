@@ -34,6 +34,7 @@ const KIND_ACCENT = {
   app: "var(--po-accent)",
   "context-map": "var(--po-accent)",
   workflow: "var(--po-accent)",
+  whiteboard: "var(--po-accent)",
   json: "var(--po-file-accent-json)",
   markdown: LABEL_INK,
   html: "var(--po-file-accent-html)",

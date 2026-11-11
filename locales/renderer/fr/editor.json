@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "Autoriser",
   "html.folderAccessDecline": "Ne pas autoriser, afficher seulement",
   "html.folderAccessToggle": "Autoriser cette page à utiliser son dossier",
-  "html.folderAccessUnavailable": "Cette page ne peut pas utiliser son dossier ici. Ouvrez-la depuis un projet sur cet ordinateur."
+  "html.folderAccessUnavailable": "Cette page ne peut pas utiliser son dossier ici. Ouvrez-la depuis un projet sur cet ordinateur.",
+  "whiteboard.label": "Tableau blanc",
+  "whiteboard.invalidFile": "Fichier Excalidraw invalide. Ouvrez la source pour le réparer.",
+  "whiteboard.embedUnavailable": "Intégrez un fichier HTML du projet avec un chemin relatif, comme ./demo.html."
 }

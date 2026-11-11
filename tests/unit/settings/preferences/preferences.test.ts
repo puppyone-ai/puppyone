@@ -20,7 +20,7 @@ describe("create new menu preferences", () => {
     expect(parseCreateNewMenuSettings(null)).toEqual(DEFAULT_CREATE_NEW_MENU_SETTINGS);
     expect(DEFAULT_CREATE_NEW_MENU_SETTINGS).toEqual({
       version: 5,
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow"],
     });
@@ -28,7 +28,7 @@ describe("create new menu preferences", () => {
       DEFAULT_CREATE_NEW_MENU_SETTINGS,
       DEFAULT_EXPERIMENTAL_SETTINGS,
     )).toEqual({
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
     });
   });
@@ -42,7 +42,7 @@ describe("create new menu preferences", () => {
       ],
     }))).toEqual({
       version: 5,
-      main: ["customFiles"],
+      main: ["whiteboard", "customFiles"],
       submenu: ["text"],
       hidden: ["json", "markdown", "contextMap", "csv", "html", "slides", "app", "puppyflow"],
     });
@@ -73,7 +73,7 @@ describe("create new menu preferences", () => {
       ],
     }))).toEqual({
       version: 5,
-      main: ["json", "customFiles"],
+      main: ["json", "whiteboard", "customFiles"],
       submenu: [],
       hidden: ["text", "markdown", "contextMap", "csv", "html", "slides", "app", "puppyflow"],
     });
@@ -87,7 +87,7 @@ describe("create new menu preferences", () => {
       hidden: ["text", "json"],
     }))).toEqual({
       version: 5,
-      main: ["html", "customFiles", "markdown"],
+      main: ["html", "whiteboard", "customFiles", "markdown"],
       submenu: ["json"],
       hidden: ["text", "contextMap", "csv", "slides", "app", "puppyflow"],
     });
@@ -99,7 +99,7 @@ describe("create new menu preferences", () => {
     }))).toEqual(DEFAULT_CREATE_NEW_MENU_SETTINGS);
     expect(parseCreateNewMenuSettings(JSON.stringify({ items: [] }))).toEqual({
       version: 5,
-      main: ["customFiles"],
+      main: ["whiteboard", "customFiles"],
       submenu: [],
       hidden: ["markdown", "contextMap", "text", "json", "csv", "html", "slides", "app", "puppyflow"],
     });

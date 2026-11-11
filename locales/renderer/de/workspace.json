@@ -198,5 +198,9 @@
   "relationships.openFile": "{name} öffnen",
   "relationships.linkCount": "{count, plural, =0 {Keine Links} one {# Link} other {# Links}}",
   "relationships.noLinks": "Auf dieser Ebene sind keine Elemente verknüpft",
-  "node.shareWith": "Teilen mit…"
+  "node.shareWith": "Teilen mit…",
+  "node.fileType.whiteboard": "Whiteboard",
+  "node.create.kind.whiteboard.label": "Whiteboard",
+  "node.create.kind.whiteboard.defaultName": "Unbenanntes Whiteboard",
+  "node.create.kind.whiteboard.extensionNote": ".excalidraw"
 }

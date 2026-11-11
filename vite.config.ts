@@ -1,3 +1,4 @@
+import { excalidrawAssetsPlugin } from "./scripts/desktop/build/excalidraw-assets-plugin.mjs";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -43,7 +44,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
+  plugins: [excalidrawAssetsPlugin(), rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {
@@ -96,6 +97,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
+    exclude: ["@excalidraw/excalidraw"],
     include: ["docx-preview"],
   },
   worker: {

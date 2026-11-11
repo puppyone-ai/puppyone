@@ -47,7 +47,7 @@ for (const relativePath of retiredPaths) {
   }
 }
 
-const allowedLicenseEntries = new Set(["THIRD_PARTY_NOTICES.md", "claude-agent-sdk", "claudian", "pi-kernel"]);
+const allowedLicenseEntries = new Set(["THIRD_PARTY_NOTICES.md", "claude-agent-sdk", "claudian", "pi-kernel", "excalidraw"]);
 for (const entry of readdirSync(path.join(repoRoot, "licenses"), { withFileTypes: true })) {
   if (entry.name.startsWith(".")) continue;
   if (!allowedLicenseEntries.has(entry.name)) {

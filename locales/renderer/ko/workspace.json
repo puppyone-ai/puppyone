@@ -198,5 +198,9 @@
   "relationships.openFile": "{name} 열기",
   "relationships.linkCount": "링크 {count}개",
   "relationships.noLinks": "현재 단계의 항목 사이에 링크가 없습니다",
-  "node.shareWith": "공유 대상…"
+  "node.shareWith": "공유 대상…",
+  "node.fileType.whiteboard": "화이트보드",
+  "node.create.kind.whiteboard.label": "화이트보드",
+  "node.create.kind.whiteboard.defaultName": "제목 없는 보드",
+  "node.create.kind.whiteboard.extensionNote": ".excalidraw"
 }

@@ -117,6 +117,8 @@ describe("preset viewer contribution contract", () => {
   });
 
   it.each([
+    [document("Board.excalidraw"), "excalidraw", "content", "edit"],
+    [document("Board.excalidraw.json"), "excalidraw", "content", "edit"],
     [document("Knowledge.contextmap"), "context-map", "content", "edit"],
     [document("notes.md"), "markdown", "content", "edit"],
     [document("settings.json", "text"), "json", "content", "edit"],

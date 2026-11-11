@@ -13,6 +13,7 @@ import {
   TreasureMapGlyph,
   WordDocumentGlyph,
   WorkflowGlyph,
+  WhiteboardGlyph,
 } from "../shared/semanticGlyphs";
 import { FOLDER_ICON_PATHS } from "../../../icons/productIcons";
 import { glyphLine } from "../shared/glyphLine";
@@ -22,6 +23,7 @@ export const defaultGlyphRenderers = {
   app: AppGlyph,
   "context-map": TreasureMapGlyph,
   workflow: WorkflowGlyph,
+  whiteboard: WhiteboardGlyph,
   markdown: renderDefaultDocumentGlyph,
   json: renderDefaultJsonGlyph,
   html: HtmlDocumentGlyph,

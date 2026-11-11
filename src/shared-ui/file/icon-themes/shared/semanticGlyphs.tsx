@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Database, Workflow } from "lucide-react";
+import { Database, Workflow, Presentation } from "lucide-react";
 import type { FileIconRenderContext } from "../iconThemeTypes";
 import { glyphLine } from "./glyphLine";
 
@@ -332,4 +332,8 @@ export function DocumentLinesSymbol({ color }: { color: string }) {
       opacity="0.9"
     />
   );
+}
+
+export function WhiteboardGlyph({ color, size }: FileIconRenderContext): ReactNode {
+  return <Presentation size={size} color={color} strokeWidth={glyphLine(size, 24)} aria-hidden="true" />;
 }

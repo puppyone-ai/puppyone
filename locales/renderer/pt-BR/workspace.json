@@ -198,5 +198,9 @@
   "relationships.openFile": "Abrir {name}",
   "relationships.linkCount": "{count, plural, =0 {Nenhum link} one {# link} other {# links}}",
   "relationships.noLinks": "Nenhum link conecta os itens neste nível",
-  "node.shareWith": "Compartilhar com…"
+  "node.shareWith": "Compartilhar com…",
+  "node.fileType.whiteboard": "Quadro branco",
+  "node.create.kind.whiteboard.label": "Quadro branco",
+  "node.create.kind.whiteboard.defaultName": "Quadro sem título",
+  "node.create.kind.whiteboard.extensionNote": ".excalidraw"
 }

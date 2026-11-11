@@ -3,6 +3,35 @@
   "fallbackViewerId": "document-placeholder",
   "viewers": [
     {
+      "id": "excalidraw",
+      "formatViewerIds": [
+        "excalidraw-editor"
+      ],
+      "capability": "edit",
+      "source": "content",
+      "runtime": "lazy",
+      "surfaceIsolation": "inline",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "resourcePolicy": {
+        "memoryClass": "medium",
+        "maxSourceBytes": 16777216,
+        "maxCanvasPixels": 16777216,
+        "maxActiveCanvases": 3,
+        "maxWorkers": 0
+      },
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false
+      },
+      "surfacePreparation": "requires-visible",
+      "readinessSignal": "dom-stable",
+      "surfaceFamily": "canvas",
+      "surfaceTraits": [
+        "zoomable", "sandboxed"
+      ]
+    },
+    {
       "id": "context-map",
       "formatViewerIds": ["context-map-viewer"],
       "capability": "edit",

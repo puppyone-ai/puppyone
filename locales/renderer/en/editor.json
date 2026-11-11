@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "Allow",
   "html.folderAccessDecline": "Don't allow, just view",
   "html.folderAccessToggle": "Let this page use its folder",
-  "html.folderAccessUnavailable": "This page can't use its folder here. Open it from a project on this computer."
+  "html.folderAccessUnavailable": "This page can't use its folder here. Open it from a project on this computer.",
+  "whiteboard.label": "Whiteboard",
+  "whiteboard.invalidFile": "Invalid Excalidraw file. Open the source to repair it.",
+  "whiteboard.embedUnavailable": "Embed an HTML file from this project using a relative path, such as ./demo.html."
 }

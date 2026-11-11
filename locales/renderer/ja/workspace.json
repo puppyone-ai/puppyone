@@ -198,5 +198,9 @@
   "relationships.openFile": "{name}を開く",
   "relationships.linkCount": "{count}リンク",
   "relationships.noLinks": "この階層の項目間にリンクはありません",
-  "node.shareWith": "共有先…"
+  "node.shareWith": "共有先…",
+  "node.fileType.whiteboard": "ホワイトボード",
+  "node.create.kind.whiteboard.label": "ホワイトボード",
+  "node.create.kind.whiteboard.defaultName": "名称未設定のボード",
+  "node.create.kind.whiteboard.extensionNote": ".excalidraw"
 }

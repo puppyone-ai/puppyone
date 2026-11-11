@@ -1,3 +1,4 @@
+import { excalidrawViewerContribution } from "../viewers/excalidraw/contribution";
 import type { PresetViewerContribution } from "./viewerTypes";
 import { contextMapViewerContribution } from "../viewers/context-map/contribution";
 import { markdownViewerContribution } from "../markdown/contribution";
@@ -21,6 +22,7 @@ export const BUILTIN_VIEWER_CONTRIBUTIONS: readonly PresetViewerContribution[] =
   appPreviewViewerContribution,
   markdownViewerContribution,
   puppyFlowViewerContribution,
+  excalidrawViewerContribution,
   jsonViewerContribution,
   csvTableViewerContribution,
   htmlViewerContribution,

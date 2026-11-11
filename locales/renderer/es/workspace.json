@@ -198,5 +198,9 @@
   "relationships.openFile": "Abrir {name}",
   "relationships.linkCount": "{count, plural, =0 {Sin enlaces} one {# enlace} other {# enlaces}}",
   "relationships.noLinks": "No hay enlaces entre los elementos de este nivel",
-  "node.shareWith": "Compartir con…"
+  "node.shareWith": "Compartir con…",
+  "node.fileType.whiteboard": "Pizarra",
+  "node.create.kind.whiteboard.label": "Pizarra",
+  "node.create.kind.whiteboard.defaultName": "Pizarra sin título",
+  "node.create.kind.whiteboard.extensionNote": ".excalidraw"
 }

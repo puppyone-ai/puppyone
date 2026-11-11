@@ -453,5 +453,8 @@
   "html.folderAccessAllow": "許可",
   "html.folderAccessDecline": "許可せず表示のみ",
   "html.folderAccessToggle": "このページにフォルダの使用を許可",
-  "html.folderAccessUnavailable": "ここではこのページはフォルダを使えません。このコンピュータ上のプロジェクトから開いてください。"
+  "html.folderAccessUnavailable": "ここではこのページはフォルダを使えません。このコンピュータ上のプロジェクトから開いてください。",
+  "whiteboard.label": "ホワイトボード",
+  "whiteboard.invalidFile": "Excalidraw ファイルが無効です。ソースを開いて修正してください。",
+  "whiteboard.embedUnavailable": "./demo.html のような相対パスでローカル HTML ファイルを埋め込みます。"
 }
