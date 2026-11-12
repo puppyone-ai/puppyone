@@ -688,5 +688,7 @@
   "plan.storageUsed": "Seu armazenamento",
   "plan.storageNearLimit": "O armazenamento está quase cheio",
   "plan.storageFull": "O armazenamento está cheio",
-  "plan.storagePolicy": "Quando encher, libere espaço ou amplie o armazenamento. Os arquivos existentes continuam disponíveis."
+  "plan.storagePolicy": "Quando encher, libere espaço ou amplie o armazenamento. Os arquivos existentes continuam disponíveis.",
+  "experimental.cloudComputerScreen.title": "Cloud Computer screen",
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
 }

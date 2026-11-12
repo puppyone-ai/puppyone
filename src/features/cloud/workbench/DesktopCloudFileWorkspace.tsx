@@ -61,10 +61,13 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
   // Read on every render: the row is accepted when the data port becomes ready.
+  const screenEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
   const sandbox = readCloudSandbox((surfaceService as Partial<NativeCloudDataService>).sandbox?.());
-  const screen = dataPort ? cloudSandboxContributions(sandbox, "sidebar-footer")
-    .find(item => item.feature === "desktop_screen") : undefined;
-  const screenPreview = sandbox.features.some(item => item.id === "desktop_screen" && item.preview);
+  const reported = cloudSandboxContributions(sandbox, "sidebar-footer").some(item => item.feature === "desktop_screen");
+  // The experiment gates the entry; until the machine provides a screen it is a preview.
+  const screen = Boolean(screenEnabled && dataPort && surfaceService.workspace.projectId);
+  const screenPreview = !reported
+    || sandbox.features.some(item => item.id === "desktop_screen" && item.preview);
   const [screenOpen, setScreenOpen] = useState(false);
   const showScreen = Boolean(screen && screenOpen);
   const openPath = (path: string | null) => { setScreenOpen(false); workbench.onActivePathChange(path); };

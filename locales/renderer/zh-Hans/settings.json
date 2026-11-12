@@ -688,5 +688,7 @@
   "plan.storageUsed": "当前占用",
   "plan.storageNearLimit": "存储空间即将用满",
   "plan.storageFull": "存储空间已满",
-  "plan.storagePolicy": "空间用满后，可清理内容或扩容。已有文件仍可读取、导出和删除。"
+  "plan.storagePolicy": "空间用满后，可清理内容或扩容。已有文件仍可读取、导出和删除。",
+  "experimental.cloudComputerScreen.title": "云电脑屏幕",
+  "experimental.cloudComputerScreen.detail": "在云端项目的文件列表下方显示云电脑屏幕。桌面就绪前显示为预览。"
 }

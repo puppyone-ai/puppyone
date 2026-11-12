@@ -688,5 +688,7 @@
   "plan.storageUsed": "Votre stockage",
   "plan.storageNearLimit": "Le stockage est presque plein",
   "plan.storageFull": "Le stockage est plein",
-  "plan.storagePolicy": "Si le stockage est plein, libérez de l’espace ou augmentez la capacité. Les fichiers existants restent accessibles."
+  "plan.storagePolicy": "Si le stockage est plein, libérez de l’espace ou augmentez la capacité. Les fichiers existants restent accessibles.",
+  "experimental.cloudComputerScreen.title": "Cloud Computer screen",
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
 }

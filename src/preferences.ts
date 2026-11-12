@@ -107,6 +107,8 @@ export type ExperimentalSettings = {
   enableOtherAppImports: boolean;
   enablePayments: boolean;
   enablePuppyFlowFiles: boolean;
+  /** Show the Cloud Computer screen under the explorer of Cloud projects. */
+  enableCloudComputerScreen: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
 };
@@ -209,6 +211,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
    */
   enablePayments: true,
   enablePuppyFlowFiles: false,
+  enableCloudComputerScreen: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
 };
@@ -458,6 +461,7 @@ export function parseExperimentalSettings(value: string | null | undefined, defa
       // key keeps the prices rather than silently losing them.
       enablePayments: parsed.enablePayments !== false,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
+      enableCloudComputerScreen: parsed.enableCloudComputerScreen === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,
     };
