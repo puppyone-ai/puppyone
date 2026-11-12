@@ -5,7 +5,7 @@ import type { CloudEntry } from "./contracts";
 import { cloudWorkspaceOpeningPhase, createCloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
-import type { CloudWorkbench } from "./contracts";
+import type { CloudSandboxSettings, CloudScreenSession, CloudWorkbench } from "./contracts";
 import { readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
 export type { CloudWorkbench } from "./contracts";
 export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
@@ -285,6 +285,23 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     peekDirectory: (path: string) => directories.get(path),
     /** Sandbox Profile and Features of the last accepted workspace row. */
     sandbox: () => readCloudSandbox(workspace?.sandbox),
+    /** Store the owner's choices; returns the resolved sandbox view. */
+    setSandboxSettings: async (settings: CloudSandboxSettings) => {
+      const value = await request<unknown>("/sandbox", { method: "PUT", body: JSON.stringify(settings),
+        headers: { "Content-Type": "application/json" } });
+      const sandbox = readCloudSandbox(value);
+      if (workspace) workspace = { ...workspace, sandbox };
+      return sandbox;
+    },
+    /** A one-time ticket for the screen WebSocket; the session token never leaves the main process. */
+    screenSession: async (): Promise<CloudScreenSession> => {
+      const value = await request<{ ticket: string; protocol: string; ticket_protocol_prefix: string;
+        transport: string }>("/screen/session", { method: "POST" });
+      const url = new URL(`${apiBaseUrl.replace(/\/+$/, "")}${endpoint}/screen/stream`);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      return { url: url.toString(), transport: value.transport,
+        protocols: [value.protocol, value.ticket_protocol_prefix + value.ticket] };
+    },
     resume: async () => { const row = await prepare(true); invalidate(); return row; },
     readText: async (path: string) => { const result = await read(path); return { ...result, content: new TextDecoder("utf-8", { fatal: true }).decode(result.bytes) }; },
   };

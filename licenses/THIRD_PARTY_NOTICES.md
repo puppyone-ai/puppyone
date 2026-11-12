@@ -285,3 +285,10 @@ Upstream: https://github.com/excalidraw/excalidraw/tree/v0.18.1
 
 The build redirects the SDK font CDN fallback to the bundled font directory
 and makes scene-listener cleanup idempotent when a text editor is unmounted.
+
+## noVNC
+
+The Cloud Computer screen renders the remote desktop with noVNC
+(`@novnc/novnc` 1.7.0), bundled unmodified. noVNC is licensed under the
+Mozilla Public License 2.0 (https://www.mozilla.org/MPL/2.0/); its source is
+available at https://github.com/novnc/noVNC.

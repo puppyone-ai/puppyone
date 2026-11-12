@@ -89,3 +89,57 @@
   text-align: center;
   text-wrap: balance;
 }
+
+.cloud-screen-view-action {
+  appearance: none;
+  padding: 4px 12px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text);
+  font: var(--po-type-ui-meta);
+  cursor: var(--po-clickable-cursor, default);
+  transition: background-color 140ms ease;
+}
+
+.cloud-screen-view-action:hover:not(:disabled) {
+  background: var(--po-hover);
+}
+
+.cloud-screen-view-action:disabled {
+  color: var(--po-text-disabled);
+}
+
+.cloud-screen-view-action:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 1px;
+}
+
+/* The remote display fills the editor area; noVNC scales its canvas inside. */
+.cloud-screen-live {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.cloud-screen-viewer {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.cloud-screen-live-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  margin: 0;
+  place-items: center;
+  color: var(--po-text-subtle);
+  font: var(--po-type-ui-meta);
+  pointer-events: none;
+}

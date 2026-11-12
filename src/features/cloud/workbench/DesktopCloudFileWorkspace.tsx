@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../settings";
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
 import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
@@ -11,7 +11,8 @@ import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { NativeCloudDataService } from "../files/cloudDataPort";
-import { cloudSandboxContributions, readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
+import { readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
+import type { CloudSandbox, CloudSandboxSettings } from "../files/contracts";
 import { CloudScreenThumbnail, CloudScreenView } from "../sandbox/CloudComputerScreen";
 
 const noop = () => undefined;
@@ -62,29 +63,36 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
   // Read on every render: the row is accepted when the data port becomes ready.
   const screenEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
-  const sandbox = readCloudSandbox((surfaceService as Partial<NativeCloudDataService>).sandbox?.());
-  const reported = cloudSandboxContributions(sandbox, "sidebar-footer").some(item => item.feature === "desktop_screen");
-  // The experiment gates the entry; until the machine provides a screen it is a preview.
-  const screen = Boolean(screenEnabled && dataPort && surfaceService.workspace.projectId);
-  const screenPreview = !reported
-    || sandbox.features.some(item => item.id === "desktop_screen" && item.preview);
+  const cloud = surfaceService as Partial<NativeCloudDataService>;
+  // Read on every render: the row is accepted when the data port becomes ready.
+  // A settings change answers with the resolved view, which then wins.
+  const [changedSandbox, setChangedSandbox] = useState<CloudSandbox | null>(null);
+  const sandbox = changedSandbox ?? readCloudSandbox(cloud.sandbox?.());
+  // The experiment gates the entry; the screen view explains anything unavailable.
+  const screen = Boolean(screenEnabled && dataPort && surfaceService.workspace.projectId && cloud.screenSession);
   const [screenOpen, setScreenOpen] = useState(false);
-  const showScreen = Boolean(screen && screenOpen);
+  const showScreen = screen && screenOpen;
+  const connectScreen = useCallback(() => cloud.screenSession!(), [cloud]);
+  const changeSandbox = useCallback(async (settings: CloudSandboxSettings) => {
+    if (cloud.setSandboxSettings) setChangedSandbox(await cloud.setSandboxSettings(settings));
+  }, [cloud]);
   const openPath = (path: string | null) => { setScreenOpen(false); workbench.onActivePathChange(path); };
   const createItems = useMemo(() => {
     const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles });
     return { main: items.main.filter((item) => item !== "slides"), submenu: items.submenu.filter((item) => item !== "slides") };
   }, [createNewMenuSettings, enablePuppyFlowFiles]);
+  const workspaceState = dataPort ? undefined : workbench.error
+    ? <div className="empty-preview" role="alert" dir="auto">{workbench.error}</div>
+    : providerStateContent;
   return <>
     <DesktopDataWorkspaceSurface {...surfaceProps}
       sidebarCompanion={screen ? <>
         {surfaceProps.sidebarCompanion}
-        <CloudScreenThumbnail preview={screenPreview} active={showScreen} onOpen={() => setScreenOpen(true)} />
+        <CloudScreenThumbnail active={showScreen} onOpen={() => setScreenOpen(true)} />
       </> : surfaceProps.sidebarCompanion}
       dataPort={dataPort ?? surfaceService.dataPort} documentSourceKind="cloud"
-      providerStateContent={showScreen ? <CloudScreenView preview={screenPreview} /> : dataPort ? undefined : workbench.error
-        ? <div className="empty-preview" role="alert" dir="auto">{workbench.error}</div>
-        : providerStateContent}
+      providerStateContent={showScreen ? <CloudScreenView sandbox={sandbox} connect={connectScreen}
+        onSettings={changeSandbox} onWake={() => { void workbench.resumeWorkspace(); }} /> : workspaceState}
       activeAiEditRequest={null} activeDocumentPath={editorWorkbench.activePath}
       activeExplorerPath={workbench.activeNode?.path ?? editorWorkbench.activePath}
       workspace={surfaceService.workspace} workspaceFolders={folders}

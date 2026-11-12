@@ -22,7 +22,7 @@ import type { ResolvedWorkbenchDataResource } from "../../data-workspace";
 import { createCloudNativePreviewPorts } from "../../../platform";
 import { waitForCloudRead } from "./cloudFileReads";
 import { createCloudWorkspaceClient, encodeWorkspaceBytes } from "./cloudWorkspaceClient";
-import { statusOf, type CloudEntry, type CloudSandbox } from "./contracts";
+import { statusOf, type CloudEntry, type CloudSandbox, type CloudSandboxSettings, type CloudScreenSession } from "./contracts";
 import type { CloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import type { CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
@@ -42,6 +42,8 @@ export type NativeCloudDataService = Readonly<{
   getCachedFileContent?: (path: string) => FileContent | null;
   /** Sandbox Profile and Features of the opened workspace. */
   sandbox?: () => CloudSandbox;
+  setSandboxSettings?: (settings: CloudSandboxSettings) => Promise<CloudSandbox>;
+  screenSession?: () => Promise<CloudScreenSession>;
 }>;
 
 /** Cloud owns the bytes. The renderer never mirrors them into a local checkout. */
@@ -296,7 +298,7 @@ export function createCloudDataService({
     } : {}),
   };
   return { workspace, folder, dataPort, writable, openingProgress: files.openingProgress, watch: files.watch, resume: files.resume, handoff: files.handoff,
-    sandbox: files.sandbox,
+    sandbox: files.sandbox, setSandboxSettings: files.setSandboxSettings, screenSession: files.screenSession,
     getCachedFileContent: (path) => {
       assertCurrent();
       const versions = snapshots.get(remotePath(path));

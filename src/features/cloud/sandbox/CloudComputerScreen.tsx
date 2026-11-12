@@ -1,27 +1,138 @@
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
+import { statusOf, type CloudSandbox, type CloudSandboxSettings, type CloudScreenSession } from "../files/contracts";
+import { CLOUD_SCREEN_RECONNECTS, cloudScreenAvailability, type CloudScreenAvailability } from "./cloudScreenState";
+import { cloudScreenViewer, type CloudScreenViewerStatus } from "./screenTransports";
 import "./cloud-computer-screen.css";
 
 /** A small screen under the explorer; opening it shows the screen in the editor area. */
-export function CloudScreenThumbnail({ preview, active, onOpen }: {
-  preview: boolean;
+export function CloudScreenThumbnail({ active, onOpen }: {
   active: boolean;
   onOpen: () => void;
 }) {
   const { t } = useLocalization();
-  const label = preview
-    ? `${t("cloud.sandbox.screen.open")} (${t("cloud.sandbox.screen.preview")})`
-    : t("cloud.sandbox.screen.open");
+  const label = t("cloud.sandbox.screen.open");
   return <button type="button" className="cloud-screen-thumbnail" data-active={active || undefined}
     aria-pressed={active} aria-label={label} title={label} onClick={onOpen}>
     <ScreenGlyph className="cloud-screen-thumbnail-glyph" />
   </button>;
 }
 
-export function CloudScreenView({ preview }: { preview: boolean }) {
+type ScreenConnection =
+  | { state: "requesting" }
+  | { state: "open"; session: CloudScreenSession; status: CloudScreenViewerStatus }
+  | { state: "asleep" }
+  | { state: "failed" };
+
+/** The Cloud Computer's screen in the editor area, or one quiet line saying why not. */
+export function CloudScreenView({ sandbox, connect, onSettings, onWake }: {
+  sandbox: CloudSandbox;
+  connect: () => Promise<CloudScreenSession>;
+  onSettings: (settings: CloudSandboxSettings) => Promise<void>;
+  onWake: () => void;
+}) {
+  const { t } = useLocalization();
+  const availability = cloudScreenAvailability(sandbox);
+  const [saving, setSaving] = useState(false);
+  const change = (settings: CloudSandboxSettings) => {
+    setSaving(true);
+    void onSettings(settings).finally(() => setSaving(false));
+  };
+  if (availability.kind === "stream") {
+    return <ScreenStream transport={availability.transport} connect={connect} onWake={onWake} />;
+  }
+  const { notice, action } = screenNotice(availability);
+  return <ScreenNotice notice={t(notice)}>
+    {action && <button type="button" className="cloud-screen-view-action" disabled={saving}
+      onClick={() => change(action.settings)}>{t(action.label)}</button>}
+  </ScreenNotice>;
+}
+
+/** Message keys for a screen that cannot stream, and the one change that would help. */
+function screenNotice(availability: Exclude<CloudScreenAvailability, { kind: "stream" }>): {
+  notice: string;
+  action: { label: string; settings: CloudSandboxSettings } | null;
+} {
+  switch (availability.kind) {
+    case "preview":
+      return { notice: "cloud.sandbox.screen.preview-note", action: null };
+    case "install":
+      return availability.pending
+        ? { notice: "cloud.sandbox.screen.install-pending", action: null }
+        : { notice: "cloud.sandbox.screen.not-installed",
+          action: { label: "cloud.sandbox.screen.install", settings: { desktop: true } } };
+    case "stream_off":
+      return { notice: "cloud.sandbox.screen.stream-off",
+        action: { label: "cloud.sandbox.screen.stream-on", settings: { screen_stream: true } } };
+    default:
+      return { notice: "cloud.sandbox.screen.unavailable", action: null };
+  }
+}
+
+function ScreenNotice({ notice, children }: { notice: string; children?: ReactNode }) {
   const { t } = useLocalization();
   return <section className="cloud-screen-view" aria-label={t("cloud.sandbox.screen.label")}>
     <ScreenGlyph className="cloud-screen-view-glyph" />
-    {preview && <p className="cloud-screen-view-note" dir="auto">{t("cloud.sandbox.screen.preview-note")}</p>}
+    <p className="cloud-screen-view-note" dir="auto">{notice}</p>
+    {children}
+  </section>;
+}
+
+function ScreenStream({ transport, connect, onWake }: {
+  transport: string;
+  connect: () => Promise<CloudScreenSession>;
+  onWake: () => void;
+}) {
+  const { t } = useLocalization();
+  const Viewer = cloudScreenViewer(transport);
+  const [connection, setConnection] = useState<ScreenConnection>({ state: "requesting" });
+  const [attempt, setAttempt] = useState(0);
+  const drops = useRef(0);
+
+  useEffect(() => {
+    let current = true;
+    setConnection({ state: "requesting" });
+    connect().then(
+      session => { if (current) setConnection({ state: "open", session, status: "connecting" }); },
+      error => { if (current) setConnection({ state: statusOf(error) === 409 ? "asleep" : "failed" }); },
+    );
+    return () => { current = false; };
+  }, [connect, attempt]);
+
+  const onStatus = useCallback((status: CloudScreenViewerStatus) => {
+    if (status === "connected") drops.current = 0;
+    if (status === "disconnected" && drops.current < CLOUD_SCREEN_RECONNECTS) {
+      drops.current += 1;
+      window.setTimeout(() => setAttempt(value => value + 1), 1_000);
+      return;
+    }
+    setConnection(value => {
+      if (value.state !== "open") return value;
+      return status === "disconnected" ? { state: "failed" } : { ...value, status };
+    });
+  }, []);
+
+  const retry = () => { drops.current = 0; setAttempt(value => value + 1); };
+  if (!Viewer) return <ScreenNotice notice={t("cloud.sandbox.screen.unavailable")} />;
+  if (connection.state === "asleep") {
+    return <ScreenNotice notice={t("cloud.sandbox.screen.asleep")}>
+      <button type="button" className="cloud-screen-view-action" onClick={() => { onWake(); retry(); }}>
+        {t("cloud.sandbox.screen.wake")}</button>
+    </ScreenNotice>;
+  }
+  if (connection.state === "failed") {
+    return <ScreenNotice notice={t("cloud.sandbox.screen.disconnected")}>
+      <button type="button" className="cloud-screen-view-action" onClick={retry}>
+        {t("cloud.sandbox.screen.retry")}</button>
+    </ScreenNotice>;
+  }
+  const connecting = connection.state === "requesting" || connection.status !== "connected";
+  return <section className="cloud-screen-live" aria-label={t("cloud.sandbox.screen.label")}
+    aria-busy={connecting}>
+    {connection.state === "open" && <Suspense fallback={null}>
+      <Viewer session={connection.session} onStatus={onStatus} />
+    </Suspense>}
+    {connecting && <p className="cloud-screen-live-status" role="status">{t("cloud.sandbox.screen.connecting")}</p>}
   </section>;
 }
 
