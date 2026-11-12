@@ -1127,5 +1127,9 @@
   "disconnect.unsent": "{count, plural, other {まだ Cloud に送信していないコミットが # 件あります。}}",
   "disconnect.confirm": "解除",
   "disconnect.progress": "解除しています…",
-  "disconnect.failed": "接続を解除できませんでした。更新してもう一度お試しください。"
+  "disconnect.failed": "接続を解除できませんでした。更新してもう一度お試しください。",
+  "sandbox.screen.label": "Computer screen",
+  "sandbox.screen.open": "Open the Cloud Computer screen",
+  "sandbox.screen.preview": "Preview",
+  "sandbox.screen.preview-note": "Preview: the Cloud Computer's screen will appear here once its desktop is ready."
 }

@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../settings";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
 import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
@@ -10,6 +10,9 @@ import type { RemoteFolderWorkbench } from "../../remote-workbench";
 import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
+import type { NativeCloudDataService } from "../files/cloudDataPort";
+import { cloudSandboxContributions, readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
+import { CloudScreenThumbnail, CloudScreenView } from "../sandbox/CloudComputerScreen";
 
 const noop = () => undefined;
 const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true }, requestedId: "data",
@@ -57,26 +60,38 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
   const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
+  // Read on every render: the row is accepted when the data port becomes ready.
+  const sandbox = readCloudSandbox((surfaceService as Partial<NativeCloudDataService>).sandbox?.());
+  const screen = dataPort ? cloudSandboxContributions(sandbox, "sidebar-footer")
+    .find(item => item.feature === "desktop_screen") : undefined;
+  const screenPreview = sandbox.features.some(item => item.id === "desktop_screen" && item.preview);
+  const [screenOpen, setScreenOpen] = useState(false);
+  const showScreen = Boolean(screen && screenOpen);
+  const openPath = (path: string | null) => { setScreenOpen(false); workbench.onActivePathChange(path); };
   const createItems = useMemo(() => {
     const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles });
     return { main: items.main.filter((item) => item !== "slides"), submenu: items.submenu.filter((item) => item !== "slides") };
   }, [createNewMenuSettings, enablePuppyFlowFiles]);
   return <>
     <DesktopDataWorkspaceSurface {...surfaceProps}
+      sidebarCompanion={screen ? <>
+        {surfaceProps.sidebarCompanion}
+        <CloudScreenThumbnail preview={screenPreview} active={showScreen} onOpen={() => setScreenOpen(true)} />
+      </> : surfaceProps.sidebarCompanion}
       dataPort={dataPort ?? surfaceService.dataPort} documentSourceKind="cloud"
-      providerStateContent={dataPort ? undefined : workbench.error
+      providerStateContent={showScreen ? <CloudScreenView preview={screenPreview} /> : dataPort ? undefined : workbench.error
         ? <div className="empty-preview" role="alert" dir="auto">{workbench.error}</div>
         : providerStateContent}
       activeAiEditRequest={null} activeDocumentPath={editorWorkbench.activePath}
       activeExplorerPath={workbench.activeNode?.path ?? editorWorkbench.activePath}
       workspace={surfaceService.workspace} workspaceFolders={folders}
       resolveWorkspaceResource={surfaceService.resolveResource} editorWorkbench={editorWorkbench}
-      externalOpen={{ open: (path) => workbench.onActivePathChange(path) }}
+      externalOpen={{ open: openPath }}
       resolvedSurface={dataSurface}
       navigation={{ ...surfaceProps.navigation, activeView: "data", gitEnabled: false,
         gitIncomingCount: 0, gitOperationLoading: null, gitStatus: null, workspaceChangeCount: 0 }}
       fileClipboardController={clipboard} fileOperationNotice={formatFileOperationNotice(clipboard.notice, t)}
-      onActiveDataPathChange={workbench.onActivePathChange} onActiveDataNodeChange={workbench.setActiveNode}
+      onActiveDataPathChange={openPath} onActiveDataNodeChange={workbench.setActiveNode}
       onResourceMove={editorWorkbench.rebaseResource} onRemoveProject={noop}
       onCreateEntryMenu={(parent, anchor) => { if (surfaceService.writable) actions.openCreateEntryMenu(parent ?? surfaceService.folder.uri, anchor); }}
       onDismissCreateEntryMenu={() => actions.setCreateEntryDraft(null)}

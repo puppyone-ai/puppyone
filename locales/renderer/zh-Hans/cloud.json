@@ -1127,5 +1127,9 @@
   "disconnect.unsent": "{count, plural, other {还有 # 个提交没有发送到 Cloud。}}",
   "disconnect.confirm": "断开",
   "disconnect.progress": "正在断开…",
-  "disconnect.failed": "无法断开。请刷新后重试。"
+  "disconnect.failed": "无法断开。请刷新后重试。",
+  "sandbox.screen.label": "电脑屏幕",
+  "sandbox.screen.open": "打开云电脑屏幕",
+  "sandbox.screen.preview": "预览",
+  "sandbox.screen.preview-note": "预览：云电脑桌面就绪后，屏幕画面会显示在这里。"
 }

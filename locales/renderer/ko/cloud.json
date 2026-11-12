@@ -1127,5 +1127,9 @@
   "disconnect.unsent": "{count, plural, other {아직 Cloud로 보내지 않은 커밋이 #개 있습니다.}}",
   "disconnect.confirm": "해제",
   "disconnect.progress": "해제하는 중…",
-  "disconnect.failed": "연결을 해제할 수 없습니다. 새로 고친 후 다시 시도하세요."
+  "disconnect.failed": "연결을 해제할 수 없습니다. 새로 고친 후 다시 시도하세요.",
+  "sandbox.screen.label": "Computer screen",
+  "sandbox.screen.open": "Open the Cloud Computer screen",
+  "sandbox.screen.preview": "Preview",
+  "sandbox.screen.preview-note": "Preview: the Cloud Computer's screen will appear here once its desktop is ready."
 }

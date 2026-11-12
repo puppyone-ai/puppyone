@@ -90,7 +90,9 @@ export function statusOf(error: unknown): number {
 
 /** A sandbox Feature as the backend catalog resolves it for one workspace. */
 export type CloudSandboxFeature = { id: string; surface: string | null; enabled: boolean;
-  reason: "disabled" | "not_entitled" | null };
+  reason: "disabled" | "not_entitled" | null;
+  /** Reported for layout before the machine provides it; nothing runs behind it. */
+  preview?: boolean };
 
 /** The workspace's sandbox Profile and Features; servers before Profiles omit it. */
 export type CloudSandbox = { profile: string | null; features: CloudSandboxFeature[] };

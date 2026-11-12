@@ -1127,5 +1127,9 @@
   "disconnect.unsent": "{count, plural, one {# commit aún no se ha enviado a Cloud.} other {# commits aún no se han enviado a Cloud.}}",
   "disconnect.confirm": "Desconectar",
   "disconnect.progress": "Desconectando…",
-  "disconnect.failed": "No se pudo desconectar. Actualiza e inténtalo de nuevo."
+  "disconnect.failed": "No se pudo desconectar. Actualiza e inténtalo de nuevo.",
+  "sandbox.screen.label": "Computer screen",
+  "sandbox.screen.open": "Open the Cloud Computer screen",
+  "sandbox.screen.preview": "Preview",
+  "sandbox.screen.preview-note": "Preview: the Cloud Computer's screen will appear here once its desktop is ready."
 }
