@@ -153,7 +153,7 @@ import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions
 import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
 import { useWorkbenchWorkspaceContentWatch } from "./features/data-workspace/useWorkbenchWorkspaceContentWatch";
-import { appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
+import { appendWorkbenchResourceContentChange, appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
 import {
   BranchSwitchConflictDialog,
   GitOperationErrorDialog,
@@ -600,6 +600,9 @@ function AppContent() {
       setWorkspaceAtomicRefreshToken((current) => current + 1);
     }
   }, [workbenchWorkspace]);
+  const refreshWorkspaceResources = useCallback((resources?: readonly string[]) => {
+    setWorkspaceRefreshToken((current) => appendWorkbenchResourceContentChange(current, workbenchWorkspace, resources));
+  }, [workbenchWorkspace]);
   const refreshWorkspaceContentFromGit = useCallback((
     presentation: "incremental" | "atomic" = "incremental",
   ) => {
@@ -767,7 +770,7 @@ function AppContent() {
     getPathForCopy: workbenchDataService?.getPathForCopy,
     onEnterDataView: enterDataView,
     onLocalWorkspaceContentChanged: refreshGitStatus,
-    onWorkspaceContentChanged: refreshWorkspaceContent,
+    onWorkspaceContentChanged: refreshWorkspaceResources,
     onResourceDeleted: handleResourceDeleted,
     onResourceMoved: handleResourceMoved,
     onActivateNode: activateDataNode,
@@ -1975,7 +1978,7 @@ function AppContent() {
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
     agent={cloudAgent} context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
     active={active} title={nativeCloudWorkbench.service?.workspace.name ?? ""}
-    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession}
+    revisionKey={nativeCloudWorkbench.contentSettledKey} onSessionChange={updateCloudSession}
     workbenchPanel={AuxiliaryWorkbenchPanel} />;
   const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (

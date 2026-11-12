@@ -156,7 +156,10 @@ export class DocumentInputRuntime {
     const controller = new AbortController();
     this.read = controller;
     const current = () => !this.disposed && generation === this.generation && !controller.signal.aborted;
-    this.publish({ loading: this.needsContent, error: null, fileUrlLoading: this.needsResource, fileUrlError: null });
+    // Revalidating content that is already shown (for example the echo of an
+    // own save) stays silent; only a first read presents a loading state.
+    this.publish({ loading: this.needsContent && !this.state.content, error: null,
+      fileUrlLoading: this.needsResource && !this.state.fileUrl, fileUrlError: null });
     // Staging happens inside the read fence: an own-save receipt cannot slip
     // between validating text and publishing its matching resource capability.
     try {
@@ -171,7 +174,9 @@ export class DocumentInputRuntime {
         this.resourceUnsubscribe = accepted?.subscribe((url) => {
           if (!this.disposed && this.resource === accepted) this.publish({ fileUrl: url, fileUrlError: url ? null : "The resource is no longer available." });
         }) ?? null;
-        this.publish({ content, loading: false, fileUrl: accepted?.url ?? null, fileUrlLoading: false, generation });
+        const stable = sameFileContent(this.state.content, content) ? this.state.content : content;
+        this.publish({ content: stable, loading: false, fileUrl: accepted?.url ?? null, fileUrlLoading: false,
+          generation: stable === this.state.content && !accepted ? this.state.generation : generation });
         previous?.revoke();
       };
       if (this.needsContent && this.port.readFile) {
@@ -209,9 +214,17 @@ export class DocumentInputRuntime {
   }
 
   private publish(patch: Partial<DocumentInputState>): void {
+    const keys = Object.keys(patch) as (keyof DocumentInputState)[];
+    if (keys.every((key) => Object.is(this.state[key], patch[key]))) return;
     this.state = Object.freeze({ ...this.state, ...patch });
     this.listeners.forEach((listener) => listener());
   }
 }
 
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+
+function sameFileContent(previous: FileContent | null, next: FileContent | null): boolean {
+  if (!previous || !next) return previous === next;
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]) as Set<keyof FileContent>;
+  return [...keys].every((key) => Object.is(previous[key], next[key]));
+}

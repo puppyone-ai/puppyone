@@ -129,7 +129,7 @@ export function DeviceFolderWorkbenchSurface({ selection, session, apiBase, appe
         {shownTool === "agent" && <RemoteTerminalPanel key={`agent:${launcher}`} folderId={selection.ref.folderId} kind="agent"
           launcher={launcher} session={session} hostName={selection.hostName} />}
         {shownTool === "git" && <RemoteGitPanel folderId={selection.ref.folderId} session={session}
-          hostName={selection.hostName} refreshKey={workbench.refreshToken.sequence} />}
+          hostName={selection.hostName} refreshKey={workbench.contentSettledKey} />}
       </div>
     </div> : null}>
     {presentation.content}

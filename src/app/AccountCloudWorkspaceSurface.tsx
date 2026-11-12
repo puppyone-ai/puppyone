@@ -133,7 +133,7 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
       onRightSidebarOpenChange={sidebar.setOpen} onRightSidebarWidthChange={setRightSidebarWidth}
       rightSidebar={pane => <CloudWorkspaceSidebar sidebar={sidebar} agent={agent} context={context}
         session={session} apiBaseUrl={apiBaseUrl} active={active && pane.contentVisible} title={service.workspace.name}
-        revisionKey={String(workbench.refreshToken.sequence)} onSessionChange={onSessionChange}
+        revisionKey={workbench.contentSettledKey} onSessionChange={onSessionChange}
         workbenchPanel={AuxiliaryWorkbenchPanel} />}>
       {presentation.content}
   </ProjectWindow>;
