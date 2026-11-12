@@ -65,6 +65,8 @@ export type DocumentEditingSessionHandle = EditableDocumentSource & {
   readonly documentId: string;
   reconcileExternalBaseline: (content: string, version?: string | null) => ExternalBaselineResult;
   requestSave: () => Promise<void>;
+  /** Run a scheduled automatic save now; no-op when none is pending. */
+  flushPendingAutoSave?: () => void;
   /** Read and durably drain the current source before navigation or host close. */
   flushCurrent: (reason?: DocumentSessionDrainReason) => Promise<void>;
   hasUnpersistedChanges: () => boolean;
