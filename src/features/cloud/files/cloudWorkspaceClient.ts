@@ -6,6 +6,7 @@ import { cloudWorkspaceOpeningPhase, createCloudWorkspaceOpeningProgress } from 
 import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 import type { CloudWorkbench } from "./contracts";
+import { readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
 export type { CloudWorkbench } from "./contracts";
 export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
 type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
@@ -282,6 +283,8 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
         isValid: () => epoch === cacheEpoch };
     },
     peekDirectory: (path: string) => directories.get(path),
+    /** Sandbox Profile and Features of the last accepted workspace row. */
+    sandbox: () => readCloudSandbox(workspace?.sandbox),
     resume: async () => { const row = await prepare(true); invalidate(); return row; },
     readText: async (path: string) => { const result = await read(path); return { ...result, content: new TextDecoder("utf-8", { fatal: true }).decode(result.bytes) }; },
   };

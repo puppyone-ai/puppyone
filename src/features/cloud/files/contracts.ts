@@ -88,6 +88,14 @@ export function statusOf(error: unknown): number {
   return error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
 }
 
+/** A sandbox Feature as the backend catalog resolves it for one workspace. */
+export type CloudSandboxFeature = { id: string; surface: string | null; enabled: boolean;
+  reason: "disabled" | "not_entitled" | null };
+
+/** The workspace's sandbox Profile and Features; servers before Profiles omit it. */
+export type CloudSandbox = { profile: string | null; features: CloudSandboxFeature[] };
+
 /** A Cloud workspace row as the workbench API reports it. */
 export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
-  operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean } };
+  operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean };
+  sandbox?: CloudSandbox };
