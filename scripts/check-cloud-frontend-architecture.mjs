@@ -10,8 +10,12 @@ const productionRoots = [resolve("src"), resolve("electron")];
 
 const lineBudgets = new Map([
   ["src/features/cloud/files/cloudDataPort.ts", 390],
-  ["src/features/cloud/files/cloudFileClient.ts", 230],
   ["src/features/cloud/files/cloudFileReads.ts", 100],
+  ["src/features/cloud/files/cloudWorkspaceClient.ts", 80],
+  ["src/features/cloud/files/cloudWorkspaceSession.ts", 220],
+  ["src/features/cloud/files/cloudWorkspaceFiles.ts", 180],
+  ["src/features/cloud/files/cloudWorkspaceWatch.ts", 80],
+  ["src/features/cloud/files/cloudWorkspaceProtocol.ts", 80],
   ["src/features/cloud/files/contracts.ts", 150],
   ["src/features/cloud/initialization/CloudPublishTask.tsx", 80],
   ["src/features/cloud/initialization/CloudPublishDialog.tsx", 60],
@@ -376,6 +380,20 @@ const cloudFiles = "src/features/cloud/files/";
 const dataPort = read(`${cloudFiles}cloudDataPort.ts`);
 if (!dataPort.includes('from "./cloudWorkspaceClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
   errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
+}
+// One provider-wide mutation chain made new files wait behind every save.
+if (/mutationTail|serializeMutation/.test(dataPort) || !dataPort.includes("ResourceOperationQueue")) {
+  errors.push("Cloud DataPort must order mutations by overlapping path, not through one provider-wide chain.");
+}
+// Only the pinned session talks HTTP; file I/O and change events go through it.
+for (const name of ["cloudWorkspaceFiles.ts", "cloudWorkspaceWatch.ts", "cloudWorkspaceClient.ts"]) {
+  if (/cloudApiRequest|requestCloudSessionApi/.test(read(`${cloudFiles}${name}`))) {
+    errors.push(`${cloudFiles}${name} must issue requests through cloudWorkspaceSession`);
+  }
+}
+// Change events name paths; dropping them forces a whole-workspace refresh.
+if (!read(`${cloudFiles}cloudWorkspaceWatch.ts`).includes("invalidatePaths")) {
+  errors.push("Cloud file events must invalidate caches by the paths they name.");
 }
 for (const { filePath, source } of productionCode) {
   const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");

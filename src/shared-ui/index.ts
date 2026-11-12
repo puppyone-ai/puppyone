@@ -344,6 +344,10 @@ export {
 } from "./editor/find/editorFind";
 export { useFileResourceLease } from "./editor/resource/useFileResourceLease";
 export { readDocumentStorageSnapshot } from "./editor/document-session/documentStorageReads";
+// Providers order their own mutations with the same overlap rule as documents:
+// equal, ancestor and descendant resources wait; unrelated resources run concurrently.
+export { ResourceOperationQueue } from "./editor/document-session/ResourceOperationQueue";
+export type { DocumentOperationScope } from "./editor/document-session/ResourceOperationQueue";
 export type {
   EditorFindAdapter,
   EditorFindCommand,
