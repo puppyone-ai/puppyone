@@ -1131,5 +1131,5 @@
   "sandbox.screen.label": "Computer screen",
   "sandbox.screen.open": "Open the Cloud Computer screen",
   "sandbox.screen.preview": "Preview",
-  "sandbox.screen.preview-note": "Preview: the Cloud Computer's screen will appear here once its desktop is ready."
+  "sandbox.screen.preview-note": "The screen will appear here once the Cloud Computer's desktop is ready."
 }

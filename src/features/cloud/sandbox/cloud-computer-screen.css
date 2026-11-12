@@ -61,62 +61,31 @@
   fill: color-mix(in srgb, currentColor 22%, transparent);
 }
 
-.cloud-screen-placeholder {
-  position: relative;
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  background: linear-gradient(135deg, var(--po-panel-raised), var(--po-canvas));
-  color: var(--po-text-subtle);
-}
-
-.cloud-screen-placeholder-taskbar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 10%;
-  min-height: 4px;
-  background: var(--po-divider);
-}
-
-.cloud-screen-placeholder-icon {
-  width: 22%;
-  max-width: 96px;
-  height: auto;
-  stroke-width: 1.4;
-}
-
-.cloud-screen-placeholder[data-compact] .cloud-screen-placeholder-icon {
-  width: 28%;
-}
-
 .cloud-screen-view {
-  display: grid;
+  display: flex;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 16px;
-  background: var(--po-canvas);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  color: var(--po-text-subtle);
 }
 
-.cloud-screen-view-display {
-  position: relative;
-  display: grid;
-  overflow: hidden;
-  border: 1px solid var(--po-border-subtle);
-  border-radius: var(--desktop-control-radius);
+.cloud-screen-view-glyph {
+  width: 40px;
+  height: 32px;
+  stroke-width: 1.1;
 }
 
 .cloud-screen-view-note {
-  position: absolute;
-  right: 0;
-  bottom: 12%;
-  left: 0;
+  max-width: 320px;
   margin: 0;
-  color: var(--po-text-muted);
-  font: var(--po-type-ui-body);
+  color: var(--po-text-subtle);
+  font: var(--po-type-ui-meta);
   text-align: center;
+  text-wrap: balance;
 }
