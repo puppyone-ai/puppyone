@@ -136,6 +136,45 @@ pub struct Organization {
     pub seat_limit: u64,
 }
 
+/// `CreateTeamDialog`'s and `SpaceSettings`' name limit.
+pub const SPACE_NAME_MAX: usize = 80;
+/// `DesktopCloudOrgMember`.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct Member {
+    pub user_id: String,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// `owner`, `member`, `viewer` or a role this client does not know.
+    pub role: String,
+}
+impl Member {
+    /// `display_name || email || user_id`.
+    pub fn label(&self) -> &str {
+        [self.display_name.as_deref(), self.email.as_deref()]
+            .into_iter()
+            .flatten()
+            .find(|s| !s.is_empty())
+            .unwrap_or(&self.user_id)
+    }
+}
+/// The two roles an owner gives: a paid seat or a free viewer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MemberRole {
+    #[default]
+    Viewer,
+    Member,
+}
+impl MemberRole {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Viewer => "viewer",
+            Self::Member => "member",
+        }
+    }
+}
+
 /// `{code, data}` yields `data`.
 pub(super) fn unwrap(value: Value) -> Value {
     match value {
@@ -236,6 +275,84 @@ impl Client {
     pub fn delete_project(&self, id: &str) -> Result<()> {
         let path = format!("/projects/{}", segment(id)?);
         self.send(Method::DELETE, path, None, None).map(|_| ())
+    }
+    /// `createCloudTeam`: a new space named `name`, starting on Free.
+    pub fn create_space(&self, name: &str) -> Result<Organization> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > SPACE_NAME_MAX {
+            return Err(Error::Invalid("name"));
+        }
+        decode(
+            self.send(
+                Method::POST,
+                "/organizations/".into(),
+                Some(json!({ "name": name })),
+                None,
+            )?,
+            "space",
+        )
+    }
+    /// `updateCloudSpace`: the space's name, by its owner.
+    pub fn rename_space(&self, org: &str, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > SPACE_NAME_MAX {
+            return Err(Error::Invalid("name"));
+        }
+        let path = format!("/organizations/{}", segment(org)?);
+        self.send(Method::PUT, path, Some(json!({ "name": name })), None)
+            .map(|_| ())
+    }
+    /// `listCloudOrganizationMembers`.
+    pub fn members(&self, org: &str) -> Result<Vec<Member>> {
+        decode(
+            self.get(format!("/organizations/{}/members", segment(org)?))?,
+            "members",
+        )
+    }
+    /// `inviteCloudSpaceMember`: the invitation link, when the server made one.
+    pub fn invite(&self, org: &str, email: &str, role: MemberRole) -> Result<Option<String>> {
+        let email = email.trim();
+        if email.is_empty() {
+            return Err(Error::Invalid("email"));
+        }
+        let path = format!("/organizations/{}/invite", segment(org)?);
+        let value = unwrap(self.send(
+            Method::POST,
+            path,
+            Some(json!({ "email": email, "role": role.key() })),
+            None,
+        )?);
+        Ok(value["invite_url"].as_str().map(str::to_owned))
+    }
+    /// `updateCloudSpaceMemberRole`.
+    pub fn set_member_role(&self, org: &str, user: &str, role: MemberRole) -> Result<()> {
+        let path = format!(
+            "/organizations/{}/members/{}/role",
+            segment(org)?,
+            segment(user)?
+        );
+        self.send(Method::PUT, path, Some(json!({ "role": role.key() })), None)
+            .map(|_| ())
+    }
+    /// `removeCloudSpaceMember`.
+    pub fn remove_member(&self, org: &str, user: &str) -> Result<()> {
+        let path = format!(
+            "/organizations/{}/members/{}",
+            segment(org)?,
+            segment(user)?
+        );
+        self.send(Method::DELETE, path, None, None).map(|_| ())
+    }
+    /// `transferCloudSpaceOwnership`.
+    pub fn transfer_ownership(&self, org: &str, user: &str) -> Result<()> {
+        let path = format!("/organizations/{}/ownership/transfer", segment(org)?);
+        self.send(
+            Method::POST,
+            path,
+            Some(json!({ "user_id": segment(user)? })),
+            None,
+        )
+        .map(|_| ())
     }
     /// `listCloudOrganizations`: the spaces this account belongs to.
     pub fn organizations(&self) -> Result<Vec<Organization>> {
@@ -346,6 +463,68 @@ mod tests {
             Some(json!({"name": "Plan", "org_id": "org-1"}))
         );
         assert_eq!(sent[0].idempotency_key.as_deref(), Some("op-1"));
+    }
+
+    /// `SpaceSettings`: every change names its space and member in the path
+    /// and nothing else; names are trimmed and bounded.
+    #[test]
+    fn member_changes_are_shaped_as_the_product_sends_them() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"invite_url": "https://puppyone.ai/invite/x"}),
+        ));
+        let client = Client::new(transport.clone());
+        assert_eq!(
+            client
+                .invite("org-1", " a@b.co ", MemberRole::Member)
+                .unwrap()
+                .as_deref(),
+            Some("https://puppyone.ai/invite/x")
+        );
+        client
+            .set_member_role("org-1", "u-2", MemberRole::Viewer)
+            .unwrap();
+        client.remove_member("org-1", "u-2").unwrap();
+        client.transfer_ownership("org-1", "u-2").unwrap();
+        client.rename_space("org-1", " Design ").unwrap();
+        let sent = transport.0.lock().unwrap();
+        let shape: Vec<(String, String, Option<Value>)> = sent
+            .iter()
+            .map(|r| (r.method.to_string(), r.path.clone(), r.body.clone()))
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                (
+                    "POST".into(),
+                    "/organizations/org-1/invite".into(),
+                    Some(json!({"email": "a@b.co", "role": "member"}))
+                ),
+                (
+                    "PUT".into(),
+                    "/organizations/org-1/members/u-2/role".into(),
+                    Some(json!({"role": "viewer"}))
+                ),
+                (
+                    "DELETE".into(),
+                    "/organizations/org-1/members/u-2".into(),
+                    None
+                ),
+                (
+                    "POST".into(),
+                    "/organizations/org-1/ownership/transfer".into(),
+                    Some(json!({"user_id": "u-2"}))
+                ),
+                (
+                    "PUT".into(),
+                    "/organizations/org-1".into(),
+                    Some(json!({"name": "Design"}))
+                ),
+            ]
+        );
+        assert!(client.rename_space("org-1", &"x".repeat(81)).is_err());
+        assert!(client.create_space("  ").is_err());
+        assert!(client.remove_member("org-1", "../x").is_err());
     }
 
     #[test]

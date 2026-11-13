@@ -279,9 +279,15 @@ pub struct Operation {
     #[serde(default)]
     pub error_code: Option<String>,
 }
+/// `DesktopCloudOrganizationAccess`: who this account is in a space. Only
+/// its owner manages billing, and an answer that says otherwise is refused.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Access {
     pub org_id: String,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub role: String,
     pub can_manage_billing: bool,
 }
 
@@ -564,7 +570,11 @@ impl Client {
     pub fn access(&self, org: &str) -> Result<Access> {
         let path = format!("/organizations/{}/access", segment(org)?);
         let access: Access = decode(self.send(Method::GET, path, None, None)?)?;
-        if access.org_id != org {
+        if access.org_id != org
+            || !filled(&access.user_id)
+            || !filled(&access.role)
+            || access.can_manage_billing != (access.role == "owner")
+        {
             return Err(Error::Invalid("billing"));
         }
         Ok(access)
