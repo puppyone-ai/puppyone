@@ -34,6 +34,7 @@ commands = [
     ('navigation-reference', ['node', 'tools/reference-navigation.mjs', '--check']),
     ('code-reference', ['node', 'tools/reference-code.mjs', '--check']),
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
+    ('native-vocabulary', ['node', 'tools/check-native-vocabulary.mjs']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),
     ('ui-assets', ['node', 'tools/import-ui-assets.mjs', '--check']),

@@ -1,0 +1,13 @@
+{
+  "comment": "Pre-existing assets/native-locales.json strings exempted from tools/check-native-vocabulary.mjs (2026-11-14, v0.4.4 rules). This list may only shrink.",
+  "violations": [
+    "assets/native-locales.json#en native.git.discardTrackedOnly Conflict",
+    "assets/native-locales.json#en native.git.pullConfirm Pull",
+    "assets/native-locales.json#en native.git.pushConfirm Local",
+    "assets/native-locales.json#en native.git.pushConfirm Push",
+    "assets/native-locales.json#es native.git.pushConfirm Local",
+    "assets/native-locales.json#zh-Hans native.git.nonUtf8Paths 仓库",
+    "assets/native-locales.json#zh-Hans native.git.subdirectory 仓库",
+    "assets/native-locales.json#zh-Hans native.workspace.foreignDocument 授权"
+  ]
+}
