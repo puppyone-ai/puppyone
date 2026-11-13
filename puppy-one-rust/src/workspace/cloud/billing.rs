@@ -23,9 +23,20 @@ pub struct SeatPolicy {
     #[serde(default)]
     pub maximum: Option<u64>,
 }
+/// `DesktopBillingPlan.runtime`: agent time included, in runtime units.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct PlanRuntime {
+    #[serde(default)]
+    pub fixed_units: u64,
+    #[serde(default)]
+    pub units_per_seat: u64,
+}
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Plan {
     pub id: String,
+    /// Earlier ids that name this plan (`plus`, `personal`, …).
+    #[serde(default)]
+    pub aliases: Vec<String>,
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -43,6 +54,14 @@ pub struct Plan {
     pub per_seat_limits: HashMap<String, Value>,
     #[serde(default)]
     pub fixed_limits: HashMap<String, Value>,
+    #[serde(default)]
+    pub features: HashMap<String, bool>,
+    #[serde(default)]
+    pub runtime: PlanRuntime,
+    /// Which kinds of space may hold this plan; empty or absent means any.
+    /// Validated, never used to filter (v0.4.4).
+    #[serde(default)]
+    pub space_kinds: Option<Vec<String>>,
 }
 impl Plan {
     /// `planStorageBytes`: what one person gets, if the plan says.
@@ -53,10 +72,50 @@ impl Plan {
             .and_then(Value::as_u64)
     }
 }
+/// `DesktopBillingAddOn`: a monthly pack sold on top of a paid plan.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct AddOn {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub price_cents: i64,
+    pub currency: String,
+    pub available_on_plans: Vec<String>,
+    pub max_quantity: i64,
+    /// Runtime units each pack adds every period.
+    pub runtime_units: i64,
+    /// Limits each pack raises, by limit key.
+    pub limit_increments: HashMap<String, Value>,
+}
+impl AddOn {
+    /// Bytes of storage each pack adds.
+    pub fn storage_bytes(&self) -> u64 {
+        self.limit_increments
+            .get("storage.max_bytes")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    }
+}
+/// `DesktopBillingCatalog.runtime`, as far as Desktop reads it.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct CatalogRuntime {
+    #[serde(default)]
+    pub unit_seconds: u64,
+    /// Runtime kinds that spend the organization's agent hours; `None`
+    /// means every kind.
+    #[serde(default)]
+    pub charged_sources: Option<Vec<String>>,
+}
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Catalog {
     pub schema_version: String,
     pub plans: Vec<Plan>,
+    /// Absent from catalogs published before add-ons existed.
+    #[serde(default)]
+    pub add_ons: Option<Vec<AddOn>>,
+    #[serde(default)]
+    pub runtime: CatalogRuntime,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Summary {
@@ -66,6 +125,12 @@ pub struct Summary {
     pub seat_quantity: u64,
     #[serde(default)]
     pub pending_plan_id: Option<String>,
+    /// A downgrade or seat decrease waiting for renewal; absent from older
+    /// servers.
+    #[serde(default)]
+    pub pending_seat_quantity: Option<u64>,
+    #[serde(default)]
+    pub pending_effective_at: Option<String>,
     #[serde(default)]
     pub cancel_at_period_end: bool,
     #[serde(default)]
@@ -78,6 +143,20 @@ pub struct Summary {
     pub catalog_version: Option<String>,
     #[serde(default)]
     pub source_revision: Option<u64>,
+    /// Add-ons held right now; absent from older billing services.
+    #[serde(default)]
+    pub add_ons: Option<Vec<AddOnHolding>>,
+}
+/// `DesktopBillingAddOnHolding`.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct AddOnHolding {
+    pub add_on_id: String,
+    pub quantity: u64,
+    #[serde(default)]
+    pub status: String,
+    pub cancel_at_period_end: bool,
+    #[serde(default)]
+    pub current_period_end: Option<String>,
 }
 impl Summary {
     /// `NOT_HELD`: free, a checkout not yet paid, or revoked.
@@ -94,6 +173,21 @@ pub struct Storage {
     pub logical_bytes: u64,
     #[serde(default)]
     pub limit_bytes: Option<u64>,
+    #[serde(default)]
+    pub percent: Option<u64>,
+    /// `0`, `80`, `95` or `100`: the warning the server has reached.
+    #[serde(default)]
+    pub threshold_percent: u64,
+}
+/// `DesktopRuntimeAllowance`: this period's included agent time.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Allowance {
+    pub granted_units: u64,
+    pub consumed_units: u64,
+    pub reserved_units: u64,
+    #[serde(default)]
+    pub resets_at: Option<String>,
+    pub unit_seconds: u64,
 }
 /// `DesktopRuntimeBalance`: amounts the server counted, shown as they are.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -106,6 +200,11 @@ pub struct Runtime {
     pub reserved_units: i64,
     #[serde(default)]
     pub consumed_units: i64,
+    #[serde(default)]
+    pub granted_units: i64,
+    /// Absent from older billing services.
+    #[serde(default)]
+    pub allowance: Option<Allowance>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Usage {
@@ -138,9 +237,29 @@ pub struct Quote {
     pub target_amount_cents: i64,
     /// `checkout | plan_change | seat_change`.
     pub application_mode: String,
+    /// Downgrades and seat decreases wait for renewal (`next_period`);
+    /// absent from older servers.
+    #[serde(default)]
+    pub effective: Option<String>,
     pub expires_at: String,
     #[serde(default)]
     pub details: Value,
+}
+/// `DesktopBillingAddOnChange`.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct AddOnChange {
+    pub org_id: String,
+    pub add_on_id: String,
+    pub current_quantity: u64,
+    pub target_quantity: u64,
+    pub monthly_amount_cents: u64,
+    pub currency: String,
+    /// `checkout`, `pending_provider_confirmation` or `unchanged`.
+    pub outcome: String,
+    #[serde(default)]
+    pub checkout_url: Option<String>,
+    /// `now` or `next_period`.
+    pub effective: String,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Operation {
@@ -308,6 +427,87 @@ fn payload(value: Value) -> Value {
 fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T> {
     serde_json::from_value(payload(value)).map_err(|_| Error::Invalid("billing"))
 }
+/// `requireBillingString`.
+fn filled(value: &str) -> bool {
+    !value.trim().is_empty()
+}
+/// `requireBillingOptionalTimestamp`.
+fn timestamp(value: Option<&str>) -> bool {
+    value.is_none_or(|at| chrono::DateTime::parse_from_rfc3339(at).is_ok())
+}
+fn check(valid: bool) -> Result<()> {
+    if valid {
+        Ok(())
+    } else {
+        Err(Error::Invalid("billing"))
+    }
+}
+/// `validateDesktopBillingCatalog`'s v0.4.4 additions: a plan's space kinds
+/// and the add-ons, which never carry the provider's private data.
+fn check_catalog_additions(raw: &Value, catalog: &Catalog) -> Result<()> {
+    for plan in &catalog.plans {
+        check(plan.space_kinds.as_ref().is_none_or(|kinds| {
+            kinds
+                .iter()
+                .all(|kind| kind == "personal" || kind == "team")
+        }))?;
+    }
+    if let Some(add_ons) = &catalog.add_ons {
+        check(
+            raw["add_ons"]
+                .as_array()
+                .is_some_and(|rows| rows.iter().all(|row| row.get("provider").is_none())),
+        )?;
+        for add_on in add_ons {
+            check(
+                filled(&add_on.id)
+                    && filled(&add_on.name)
+                    && filled(&add_on.currency)
+                    && add_on.price_cents >= 1
+                    && add_on.max_quantity >= 1
+                    && add_on.runtime_units >= 0
+                    && add_on.available_on_plans.iter().all(|p| filled(p))
+                    && add_on
+                        .limit_increments
+                        .values()
+                        .all(|v| v.as_u64().is_some()),
+            )?;
+        }
+    }
+    Ok(())
+}
+/// `validateDesktopBillingSummary`'s v0.4.4 additions.
+fn check_summary_additions(summary: &Summary) -> Result<()> {
+    check(
+        summary.pending_seat_quantity.is_none_or(|n| n >= 1)
+            && timestamp(summary.pending_effective_at.as_deref())
+            && summary.add_ons.iter().flatten().all(|held| {
+                filled(&held.add_on_id) && timestamp(held.current_period_end.as_deref())
+            }),
+    )
+}
+/// `validateDesktopBillingUsage`'s allowance and storage reading.
+fn check_usage(usage: &Usage) -> Result<()> {
+    check(
+        usage
+            .runtime
+            .allowance
+            .as_ref()
+            .is_none_or(|a| a.unit_seconds >= 1 && timestamp(a.resets_at.as_deref()))
+            && [0, 80, 95, 100].contains(&usage.storage.threshold_percent)
+            && usage.storage.limit_bytes.is_none_or(|b| b >= 1)
+            && usage.storage.percent.is_none_or(|p| p <= 100),
+    )
+}
+/// `quote.effective`, when the server states it.
+fn check_quote(quote: &Quote) -> Result<()> {
+    check(
+        quote
+            .effective
+            .as_deref()
+            .is_none_or(|e| e == "now" || e == "next_period"),
+    )
+}
 fn segment(id: &str) -> Result<&str> {
     if !id.is_empty()
         && id.len() <= 128
@@ -349,8 +549,9 @@ impl Client {
     }
     /// `validateDesktopBillingCatalog`: a supported schema with unique plans.
     pub fn catalog(&self) -> Result<Catalog> {
-        let catalog: Catalog =
-            decode(self.send(Method::GET, "/billing/catalog".into(), None, None)?)?;
+        let raw = payload(self.send(Method::GET, "/billing/catalog".into(), None, None)?);
+        let catalog: Catalog = decode(raw.clone())?;
+        check_catalog_additions(&raw, &catalog)?;
         let mut ids = std::collections::HashSet::new();
         if catalog.schema_version.split('.').next() != Some("1")
             || catalog.plans.is_empty()
@@ -374,10 +575,42 @@ impl Client {
         if summary.org_id != org {
             return Err(Error::Invalid("billing"));
         }
+        check_summary_additions(&summary)?;
         Ok(summary)
     }
     pub fn usage(&self, org: &str) -> Result<Usage> {
-        decode(self.send(Method::GET, Self::path(org, "usage")?, None, None)?)
+        let usage: Usage =
+            decode(self.send(Method::GET, Self::path(org, "usage")?, None, None)?)?;
+        check_usage(&usage)?;
+        Ok(usage)
+    }
+    /// `changeCloudBillingAddOn`: hold `quantity` packs of one add-on; zero
+    /// cancels at the period end. A checkout outcome must carry a safe URL.
+    pub fn change_add_on(
+        &self,
+        org: &str,
+        add_on: &str,
+        quantity: u64,
+        key: String,
+    ) -> Result<AddOnChange> {
+        let path = Self::path(org, &format!("add-ons/{}", segment(add_on)?))?;
+        let change: AddOnChange = decode(self.send(
+            Method::PUT,
+            path,
+            Some(json!({"quantity": quantity})),
+            Some(key),
+        )?)?;
+        check(
+            change.org_id == org
+                && change.add_on_id == add_on
+                && filled(&change.currency)
+                && ["checkout", "pending_provider_confirmation", "unchanged"]
+                    .contains(&change.outcome.as_str())
+                && (change.effective == "now" || change.effective == "next_period")
+                && (change.outcome != "checkout"
+                    || change.checkout_url.as_deref().and_then(safe_url).is_some()),
+        )?;
+        Ok(change)
     }
     pub fn organizations(&self) -> Result<Vec<String>> {
         let rows: Vec<Value> =
@@ -414,6 +647,7 @@ impl Client {
         if quote.org_id != org {
             return Err(Error::Invalid("billing"));
         }
+        check_quote(&quote)?;
         Ok(quote)
     }
     /// `quoteCloudBillingSeats`, tied to the member change it settles.
@@ -437,6 +671,7 @@ impl Client {
         if quote.org_id != org {
             return Err(Error::Invalid("billing"));
         }
+        check_quote(&quote)?;
         Ok(quote)
     }
     /// The URL is checked before it is returned; only then may it open.
@@ -518,6 +753,129 @@ mod tests {
         serde_json::from_value(json!({"id": id, "org_id": "o", "kind": "checkout",
             "state": if terminal { "succeeded" } else { "processing" }, "terminal": terminal}))
         .unwrap()
+    }
+    fn catalog(add_ons: Value) -> Value {
+        json!({"schema_version": "1.0", "runtime": {"unit_seconds": 60},
+            "plans": [{"id": "free", "name": "Free", "space_kinds": ["personal", "team"]}],
+            "add_ons": add_ons})
+    }
+    fn add_on() -> Value {
+        json!({"id": "agent_hours_100", "name": "Hours", "price_cents": 500, "currency": "USD",
+            "available_on_plans": ["team_v2"], "max_quantity": 20, "runtime_units": 6000,
+            "limit_increments": {}})
+    }
+    /// `validateDesktopBillingCatalog` (v0.4.4): add-ons are read, and one
+    /// that carries the provider's data, or breaks its bounds, fails the
+    /// whole catalog.
+    #[test]
+    fn the_catalog_reads_add_ons_and_refuses_private_or_broken_ones() {
+        let read = client(catalog(json!([add_on()]))).catalog().unwrap();
+        let add_ons = read.add_ons.unwrap();
+        assert_eq!(add_ons[0].runtime_units, 6000);
+        assert_eq!(read.runtime.unit_seconds, 60);
+        let mut private = add_on();
+        private["provider"] = json!({"price": "price_123"});
+        assert!(client(catalog(json!([private]))).catalog().is_err());
+        for (field, value) in [
+            ("price_cents", json!(0)),
+            ("max_quantity", json!(0)),
+            ("runtime_units", json!(-1)),
+            ("name", json!(" ")),
+            ("limit_increments", json!({"storage.max_bytes": -1})),
+        ] {
+            let mut broken = add_on();
+            broken[field] = value;
+            assert!(
+                client(catalog(json!([broken]))).catalog().is_err(),
+                "{field}"
+            );
+        }
+        let mut kinds = catalog(json!([]));
+        kinds["plans"][0]["space_kinds"] = json!(["company"]);
+        assert!(client(kinds).catalog().is_err());
+    }
+    fn summary(extra: Value) -> Value {
+        let mut summary = json!({"org_id": "o", "plan_id": "team_v2", "status": "active",
+            "seat_quantity": 3});
+        summary
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        summary
+    }
+    #[test]
+    fn a_summary_states_a_change_that_waits_for_renewal_and_the_add_ons_held() {
+        let read = client(summary(json!({"pending_seat_quantity": 2,
+            "pending_effective_at": "2026-12-01T00:00:00Z",
+            "add_ons": [{"add_on_id": "storage_10gb", "quantity": 2, "status": "active",
+                "cancel_at_period_end": false, "current_period_end": null}]})))
+        .summary("o")
+        .unwrap();
+        assert_eq!(read.pending_seat_quantity, Some(2));
+        assert_eq!(read.add_ons.unwrap()[0].quantity, 2);
+        assert!(
+            client(summary(json!({"pending_seat_quantity": 0})))
+                .summary("o")
+                .is_err()
+        );
+        assert!(
+            client(summary(json!({"pending_effective_at": "soon"})))
+                .summary("o")
+                .is_err()
+        );
+    }
+    #[test]
+    fn usage_reads_the_allowance_and_refuses_impossible_storage() {
+        let usage = |storage: Value| {
+            json!({"runtime": {"org_id": "o", "allowance": {"granted_units": 2400,
+                "consumed_units": 600, "reserved_units": 60, "resets_at": null,
+                "unit_seconds": 60}}, "storage": storage})
+        };
+        let read = client(usage(json!({"logical_bytes": 5, "threshold_percent": 80,
+            "percent": 81, "limit_bytes": 10})))
+        .usage("o")
+        .unwrap();
+        assert_eq!(read.runtime.allowance.unwrap().consumed_units, 600);
+        for storage in [
+            json!({"logical_bytes": 5, "threshold_percent": 50}),
+            json!({"logical_bytes": 5, "threshold_percent": 0, "percent": 101}),
+            json!({"logical_bytes": 5, "threshold_percent": 0, "limit_bytes": 0}),
+        ] {
+            assert!(client(usage(storage)).usage("o").is_err());
+        }
+    }
+    #[test]
+    fn an_add_on_change_is_held_to_its_space_pack_and_outcome() {
+        let change = |outcome: &str, url: Value| {
+            json!({"org_id": "o", "add_on_id": "storage_10gb", "current_quantity": 0,
+                "target_quantity": 1, "monthly_amount_cents": 500, "currency": "USD",
+                "outcome": outcome, "checkout_url": url, "effective": "now"})
+        };
+        let key = || "k".to_owned();
+        let read = client(change("checkout", json!("https://checkout.stripe.com/c/1")))
+            .change_add_on("o", "storage_10gb", 1, key())
+            .unwrap();
+        assert_eq!(read.target_quantity, 1);
+        assert!(
+            client(change("pending_provider_confirmation", Value::Null))
+                .change_add_on("o", "storage_10gb", 1, key())
+                .is_ok()
+        );
+        assert!(
+            client(change("checkout", Value::Null))
+                .change_add_on("o", "storage_10gb", 1, key())
+                .is_err()
+        );
+        assert!(
+            client(change("unchanged", Value::Null))
+                .change_add_on("other", "storage_10gb", 1, key())
+                .is_err()
+        );
+        assert!(
+            client(change("refunded", Value::Null))
+                .change_add_on("o", "storage_10gb", 1, key())
+                .is_err()
+        );
     }
     #[test]
     fn a_lagging_list_does_not_reopen_what_ended() {
