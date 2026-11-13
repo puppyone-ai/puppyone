@@ -13,6 +13,7 @@ pub mod history;
 pub mod locator;
 mod model;
 pub mod opening;
+pub mod pricing;
 pub mod publish;
 pub mod recovery;
 pub mod repository;
