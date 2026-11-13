@@ -73,13 +73,13 @@ struct Subscription<T: 'static> {
 }
 /// One resource kind of [`Repository`]: snapshots and flights.
 struct Store<T: 'static> {
-    cache: model::Cache<T>,
+    cache: crate::workspace::cloud::cache::Cache<T>,
     flights: HashMap<String, Flight<T>>,
 }
 impl<T: Clone + 'static> Store<T> {
     fn new() -> Self {
         Self {
-            cache: model::Cache::new(CACHE_ENTRIES),
+            cache: crate::workspace::cloud::cache::Cache::new(CACHE_ENTRIES, model::TTL),
             flights: HashMap::new(),
         }
     }

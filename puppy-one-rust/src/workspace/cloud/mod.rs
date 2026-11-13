@@ -4,6 +4,7 @@
 pub mod agent;
 pub mod agents;
 pub mod billing;
+pub mod cache;
 pub mod catalog;
 mod client;
 mod events;
