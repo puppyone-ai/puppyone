@@ -220,8 +220,13 @@ impl Homepage {
         // Coming back to the window reads the spaces and the computers
         // again while the page shows.
         cx.observe_window_activation(window, |h, window, cx| {
-            if window.is_window_active() && h.session.home {
+            if !window.is_window_active() {
+                return;
+            }
+            if !h.session.restoring {
                 h.read_spaces(true, cx);
+            }
+            if h.session.home {
                 h.read_hosts(true, cx);
             }
         })
@@ -653,11 +658,12 @@ impl Homepage {
         // A re-read even of an unchanged list, as the product refreshes it.
         self.read_for = None;
     }
-    /// `useCloudSpaces`: the spaces of the signed-in account, while Cloud is
-    /// on and the page shows.
+    /// `useCloudSpaces` (`App.tsx`): the spaces of the signed-in account,
+    /// while Cloud is on and no project is being restored: the Header,
+    /// Settings and the Homepage all name them, inside a project too.
     fn read_spaces(&mut self, retry: bool, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
-        let visible = self.session.home;
+        let visible = !self.session.restoring;
         self.spaces
             .update(cx, |s, cx| s.ensure(enabled, visible, retry, cx));
     }

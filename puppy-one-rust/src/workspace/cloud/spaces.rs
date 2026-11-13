@@ -6,6 +6,7 @@
 //! this account may create projects in each; an old server that does not
 //! say the latter is unavailable for grouping, never guessed from a name or
 //! a member count.
+use super::catalog::Item;
 use super::services::{Client, Error, Organization, Result};
 use crate::text::locale_compare;
 
@@ -62,6 +63,42 @@ pub fn discover(client: &Client) -> Result<Vec<Space>> {
         organizations.push(own);
     }
     from_organizations(organizations)
+}
+
+/// `resolveProjectSpace`: the space that holds an open Cloud project, once
+/// the account's catalog names it.
+pub fn project_space<'a>(
+    spaces: &'a [Space],
+    project: Option<&str>,
+    items: &[Item],
+) -> Option<&'a Space> {
+    let project = project?;
+    let owner = items
+        .iter()
+        .find(|item| item.cloud_project.as_deref() == Some(project))?
+        .cloud_organization
+        .as_deref()?;
+    spaces.iter().find(|space| space.id == owner)
+}
+
+/// `resolveSettingsSpace`: the one space Settings manages: the space its
+/// opener named, else the open project's, else the account's own. It never
+/// filters navigation or keeps a global choice.
+pub fn settings_space<'a>(
+    signed_in: bool,
+    spaces: &'a [Space],
+    project: Option<&str>,
+    items: &[Item],
+    requested: Option<&str>,
+) -> Option<&'a Space> {
+    if !signed_in {
+        return None;
+    }
+    requested
+        .and_then(|id| spaces.iter().find(|space| space.id == id))
+        .or_else(|| project_space(spaces, project, items))
+        .or_else(|| spaces.iter().find(|space| space.is_default))
+        .or_else(|| spaces.first())
 }
 
 /// `SpacePlanKey`: the three plans people choose between.
@@ -269,6 +306,66 @@ mod tests {
         .unwrap();
         // `localeCompare`: lower case before upper case of the same letter.
         assert_eq!(ids(&spaces), ["p", "a", "c", "b"]);
+    }
+
+    /// `settingsSpace.test.ts`.
+    fn settings_fixture() -> (Vec<Space>, Vec<Item>) {
+        let space = |id: &str, own| Space {
+            id: id.into(),
+            name: id.to_uppercase(),
+            is_default: own,
+            can_create_projects: true,
+            ..Default::default()
+        };
+        let item = |id: &str, local: Option<&str>, project: Option<&str>, org: Option<&str>| Item {
+            id: id.into(),
+            label: id.into(),
+            local_path: local.map(str::to_owned),
+            cloud_project: project.map(str::to_owned),
+            linked: None,
+            actions: None,
+            modified: None,
+            cloud_organization: org.map(str::to_owned),
+            host_folder: None,
+            remote: None,
+        };
+        (
+            vec![space("a", true), space("b", false)],
+            vec![
+                item("a1", None, Some("pa"), Some("a")),
+                item("b1", None, Some("pb"), Some("b")),
+                item("clone", Some("/b"), None, None),
+                item("local", Some("/local"), None, None),
+            ],
+        )
+    }
+    #[test]
+    fn settings_manage_the_named_space_else_the_open_projects_else_the_own() {
+        let (spaces, items) = settings_fixture();
+        let id = |space: Option<&Space>| space.map(|s| s.id.clone());
+        let resolve =
+            |project, requested| id(settings_space(true, &spaces, project, &items, requested));
+        assert_eq!(resolve(Some("pb"), None).as_deref(), Some("b"));
+        assert_eq!(resolve(None, None).as_deref(), Some("a"));
+        assert_eq!(resolve(Some("pa"), Some("b")).as_deref(), Some("b"));
+        // A requested space the account cannot reach is not chosen.
+        assert_eq!(resolve(Some("pb"), Some("gone")).as_deref(), Some("b"));
+        assert_eq!(
+            settings_space(false, &spaces, None, &items, Some("b")),
+            None
+        );
+        // The open project's space only once the account lists it.
+        assert_eq!(
+            id(settings_space(true, &spaces[..1], Some("pb"), &items, None)).as_deref(),
+            Some("a")
+        );
+        assert_eq!(
+            id(project_space(&spaces, Some("pb"), &items)).as_deref(),
+            Some("b")
+        );
+        assert_eq!(project_space(&spaces[..1], Some("pb"), &items), None);
+        assert_eq!(project_space(&spaces, Some("pb"), &items[2..]), None);
+        assert_eq!(project_space(&spaces, None, &items), None);
     }
 
     /// `spacePresentation.test.ts`.
