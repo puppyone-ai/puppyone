@@ -329,13 +329,13 @@ impl WindowCloud {
                     .find(|i| i.cloud_project.as_deref() == Some(project.as_str()))
                     .and_then(|i| i.cloud_organization.clone())
             })
-            .and_then(|org| spaces.and_then(|s| s.space(&org).map(|s| s.kind)))
-            == Some(crate::workspace::cloud::spaces::Kind::Personal);
+            .and_then(|org| spaces.and_then(|s| s.space(&org).map(|s| s.is_default)))
+            == Some(true);
         let copy_team = spaces
             .and_then(|s| {
-                s.spaces().iter().find(|s| {
-                    s.kind == crate::workspace::cloud::spaces::Kind::Team && s.can_create_projects
-                })
+                s.spaces()
+                    .iter()
+                    .find(|s| !s.is_default && s.can_create_projects)
             })
             .map(|team| (root.clone(), team.id.clone()));
         let unhosted = matches!(self.repository.read(cx).context, Association::LocalOnly);

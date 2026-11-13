@@ -6,10 +6,7 @@
 //! heading. Known sharing survives offline, paused or unreadable states;
 //! empty destinations appear only during an explicit drag.
 use crate::localization::t as tr;
-use crate::workspace::cloud::{
-    catalog::Item,
-    spaces::{Kind, Space},
-};
+use crate::workspace::cloud::{catalog::Item, spaces::Space};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -230,8 +227,8 @@ fn cloud_groups(
             item.local_path.as_deref().map(str::trim) == Some(*path) && item.linked.is_none()
         })
     });
-    let personal = spaces.iter().find(|s| s.kind == Kind::Personal);
-    let teams: Vec<&Space> = spaces.iter().filter(|s| s.kind == Kind::Team).collect();
+    let personal = spaces.iter().find(|s| s.is_default);
+    let teams: Vec<&Space> = spaces.iter().filter(|s| !s.is_default).collect();
     let held_by = |space: &Space| {
         cloud
             .iter()
@@ -249,7 +246,7 @@ fn cloud_groups(
             .cloned()
             .collect();
         let writable = space.can_create_projects && !busy && can_publish;
-        let is_team = space.kind == Kind::Team;
+        let is_team = !space.is_default;
         Group {
             id,
             title,
@@ -369,12 +366,13 @@ mod tests {
             remote: None,
         }
     }
-    fn space(id: &str, kind: Kind, create: bool) -> Space {
+    fn space(id: &str, own: bool, create: bool) -> Space {
         Space {
             id: id.into(),
             name: id.to_uppercase(),
-            kind,
+            is_default: own,
             can_create_projects: create,
+            ..Default::default()
         }
     }
     fn inputs<'a>(spaces: &'a [Space], items: Vec<Item>) -> Inputs<'a> {
@@ -397,10 +395,7 @@ mod tests {
 
     #[test]
     fn shared_projects_group_by_audience_team_first() {
-        let spaces = [
-            space("me", Kind::Personal, true),
-            space("design", Kind::Team, true),
-        ];
+        let spaces = [space("me", true, true), space("design", false, true)];
         let items = vec![
             local("notes"),
             cloud("todo", Some("me")),
@@ -446,9 +441,9 @@ mod tests {
     #[test]
     fn a_writable_team_stays_empty_and_takes_a_dragged_unlinked_folder() {
         let spaces = [
-            space("me", Kind::Personal, true),
-            space("t1", Kind::Team, true),
-            space("t2", Kind::Team, false),
+            space("me", true, true),
+            space("t1", false, true),
+            space("t2", false, false),
         ];
         let mut input = inputs(&spaces, vec![local("notes")]);
         let resting = groups(Inputs { ..input });
@@ -512,7 +507,7 @@ mod tests {
 
     #[test]
     fn without_device_sharing_an_empty_personal_space_offers_no_drop() {
-        let spaces = [space("me", Kind::Personal, true)];
+        let spaces = [space("me", true, true)];
         let mut input = inputs(&spaces, vec![local("notes")]);
         input.dragging_path = Some("/x/notes");
         let shown = groups(input);
@@ -542,7 +537,7 @@ mod tests {
             cloud_project: None,
             ..remote
         };
-        let spaces = [space("me", Kind::Personal, true)];
+        let spaces = [space("me", true, true)];
         let mut input = inputs(&spaces, vec![cloud("p", Some("me")), local("here")]);
         input.remote = vec![remote.clone()];
         let shown = groups(input);

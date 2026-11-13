@@ -80,7 +80,7 @@ pub(in crate::app) fn creatable_teams(
 ) -> Vec<(String, String)> {
     spaces
         .iter()
-        .filter(|s| s.kind == crate::workspace::cloud::spaces::Kind::Team && s.can_create_projects)
+        .filter(|s| !s.is_default && s.can_create_projects)
         .map(|s| (s.id.clone(), s.name.clone()))
         .collect()
 }
@@ -774,22 +774,23 @@ mod tests {
     /// offered; a retry of the same project repeats its operation.
     #[test]
     fn the_audience_decides_where_a_new_project_is_kept() {
-        use crate::workspace::cloud::spaces::{Kind, Space};
+        use crate::workspace::cloud::spaces::Space;
         assert_eq!(audiences(false, 0), vec![Audience::Local]);
         assert_eq!(
             audiences(true, 2),
             vec![Audience::Local, Audience::Devices, Audience::Team]
         );
-        let space = |id: &str, kind, can| Space {
+        let space = |id: &str, own, can| Space {
             id: id.into(),
             name: id.into(),
-            kind,
+            is_default: own,
             can_create_projects: can,
+            ..Default::default()
         };
         let teams = creatable_teams(&[
-            space("me", Kind::Personal, true),
-            space("a", Kind::Team, true),
-            space("b", Kind::Team, false),
+            space("me", true, true),
+            space("a", false, true),
+            space("b", false, false),
         ]);
         assert_eq!(teams, vec![("a".to_owned(), "a".to_owned())]);
         let mut current = None;

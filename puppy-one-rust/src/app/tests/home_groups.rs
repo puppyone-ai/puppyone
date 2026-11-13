@@ -10,8 +10,8 @@ fn with_spaces(fallback: crate::cloud::auth::Responder) -> crate::cloud::auth::R
         let path = request.path.as_str();
         if path == "/organizations/" {
             return Ok(serde_json::json!({"code": 0, "data": [
-                {"id": "me", "name": "Alex", "kind": "personal", "can_create_projects": true},
-                {"id": "team-1", "name": "Design", "kind": "team", "can_create_projects": true}]}));
+                {"id": "me", "name": "Alex", "is_default": true, "can_create_projects": true},
+                {"id": "team-1", "name": "Design", "can_create_projects": true}]}));
         }
         if path == "/projects/" {
             return Ok(serde_json::json!({"code": 0, "data": [

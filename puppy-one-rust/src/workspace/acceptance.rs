@@ -13,7 +13,7 @@ use super::cloud::{
     Target, agents,
     opening::{self, Phase},
     services::{BrokerTransport, Client},
-    spaces::{self, Kind},
+    spaces,
 };
 use crate::cloud::auth::Cancellation;
 use std::{path::Path, sync::Arc, time::Instant};
@@ -43,9 +43,9 @@ fn the_cloud_flows_work_against_the_real_deployment() {
     let found = spaces::discover(&client).unwrap();
     let personal = found
         .iter()
-        .find(|s| s.kind == Kind::Personal)
-        .expect("a personal space");
-    let teams: Vec<_> = found.iter().filter(|s| s.kind == Kind::Team).collect();
+        .find(|s| s.is_default)
+        .expect("the account's own space");
+    let teams: Vec<_> = found.iter().filter(|s| !s.is_default).collect();
     step(&format!("2 spaces: personal + {} team(s)", teams.len()));
     let name = format!("Rust acceptance {}", &uuid::Uuid::new_v4().to_string()[..8]);
     // The operation key is a canonical UUIDv4, as the create dialog makes it.

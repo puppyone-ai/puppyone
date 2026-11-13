@@ -6,5 +6,5 @@ pub mod cloud;
 pub mod workspace;
 
 // The modules below this crate, under the names the sources use.
-pub(crate) use po_contracts::{formats, model};
+pub(crate) use po_contracts::{formats, model, text};
 pub(crate) use po_platform::{localization, platform};

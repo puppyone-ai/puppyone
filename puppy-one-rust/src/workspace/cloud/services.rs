@@ -111,17 +111,25 @@ impl Project {
         self.capabilities.iter().any(|c| c == capability)
     }
 }
-/// `DesktopCloudOrganization`: a space. `kind` and `can_create_projects`
-/// are absent on older deployments; a personal space is never inferred
+/// `DesktopCloudOrganization`: a space. `is_default`, `role`,
+/// `can_manage_space`, `can_create_projects` and `billing_plan_id` are
+/// absent on older deployments; the account's own space is never inferred
 /// from a name.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Organization {
     pub id: String,
     pub name: String,
     #[serde(default)]
-    pub kind: Option<String>,
+    pub is_default: Option<bool>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub can_manage_space: Option<bool>,
     #[serde(default)]
     pub can_create_projects: Option<bool>,
+    /// The plan billing published for this space.
+    #[serde(default)]
+    pub billing_plan_id: Option<String>,
     #[serde(default)]
     pub plan: String,
     #[serde(default)]
@@ -234,12 +242,25 @@ impl Client {
         decode(self.get("/organizations/".into())?, "organizations")
     }
     /// `ensurePersonalCloudSpace`: deliberate provisioning of this account's
-    /// personal space; the server returns the same one on every call.
-    pub fn ensure_personal_space(&self) -> Result<Organization> {
-        decode(
-            self.send(Method::POST, "/auth/personal-space".into(), None, None)?,
-            "personal space",
-        )
+    /// own space; the server returns the same one on every call. Only a
+    /// deployment without the route (404) is asked the older way, and its
+    /// answer is the default space; authentication and network failures are
+    /// never retried.
+    pub fn ensure_default_space(&self) -> Result<Organization> {
+        match self.send(Method::POST, "/auth/default-space".into(), None, None) {
+            Ok(value) => decode(value, "default space"),
+            Err(Error::Status(404)) => {
+                let space: Organization = decode(
+                    self.send(Method::POST, "/auth/personal-space".into(), None, None)?,
+                    "default space",
+                )?;
+                Ok(Organization {
+                    is_default: Some(true),
+                    ..space
+                })
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -330,15 +351,20 @@ mod tests {
     #[test]
     fn spaces_keep_what_the_server_says_and_nothing_more() {
         let orgs = client(json!([
-            {"id": "a", "name": "Alex", "kind": "personal", "can_create_projects": true},
-            {"id": "b", "name": "Design", "kind": "team", "can_create_projects": false},
+            {"id": "a", "name": "Alex", "is_default": true, "role": "owner",
+                "can_manage_space": true, "can_create_projects": true, "billing_plan_id": "team_v2"},
+            {"id": "b", "name": "Design", "role": "viewer", "can_create_projects": false},
             {"id": "c", "name": "Old"}
         ]))
         .organizations()
         .unwrap();
-        assert_eq!(orgs[0].kind.as_deref(), Some("personal"));
+        assert_eq!(orgs[0].is_default, Some(true));
+        assert_eq!(orgs[0].role.as_deref(), Some("owner"));
+        assert_eq!(orgs[0].can_manage_space, Some(true));
+        assert_eq!(orgs[0].billing_plan_id.as_deref(), Some("team_v2"));
         assert_eq!(orgs[1].can_create_projects, Some(false));
-        assert_eq!(orgs[2].kind, None);
+        assert_eq!(orgs[1].is_default, None);
         assert_eq!(orgs[2].can_create_projects, None);
+        assert_eq!(orgs[2].billing_plan_id, None);
     }
 }

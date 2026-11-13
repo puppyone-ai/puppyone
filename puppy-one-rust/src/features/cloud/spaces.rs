@@ -4,7 +4,7 @@
 //! answer for another is dropped. The spaces an account last saw stand in
 //! until it answers (names only; signing out removes them), and a failed
 //! read keeps what the account already answered.
-use crate::workspace::cloud::spaces::{self, Kind, Space};
+use crate::workspace::cloud::spaces::{self, Space};
 use gpui::*;
 
 /// `status` of `useCloudSpaces`.
@@ -31,12 +31,14 @@ pub struct CloudSpaces {
 }
 
 mod cache {
-    use super::{Kind, Space};
+    use super::Space;
     use serde_json::{Value, json};
     use std::path::Path;
 
     const FILE: &str = "cloud-spaces.v1.json";
 
+    /// `readCachedSpaces`: spaces written before v0.4.4 carry a `personal`
+    /// or `team` kind; they read as spaces like any other.
     pub fn read(dir: &Path, scope: &str) -> Option<Vec<Space>> {
         let value: Value = serde_json::from_slice(&std::fs::read(dir.join(FILE)).ok()?).ok()?;
         if value["scope"].as_str() != Some(scope) {
@@ -47,27 +49,30 @@ mod cache {
                 .as_array()?
                 .iter()
                 .filter_map(|s| {
+                    if !matches!(s["kind"].as_str()?, "space" | "personal" | "team") {
+                        return None;
+                    }
                     Some(Space {
                         id: s["id"].as_str()?.to_owned(),
                         name: s["name"].as_str()?.to_owned(),
-                        kind: match s["kind"].as_str()? {
-                            "personal" => Kind::Personal,
-                            "team" => Kind::Team,
-                            _ => return None,
-                        },
+                        is_default: s["isDefault"] == true,
+                        role: s["role"].as_str().map(str::to_owned),
+                        can_manage_space: s["canManageSpace"] == true,
                         can_create_projects: s["canCreateProjects"].as_bool()?,
+                        plan_id: s["planId"].as_str().map(str::to_owned),
                     })
                 })
                 .collect(),
         )
     }
+    /// `writeCachedSpaces`: the `CloudSpace` records as the product keeps them.
     pub fn write(dir: &Path, scope: &str, spaces: &[Space]) {
         let spaces: Vec<Value> = spaces
             .iter()
             .map(|s| {
-                json!({"id": s.id, "name": s.name,
-                    "kind": if s.kind == Kind::Personal { "personal" } else { "team" },
-                    "canCreateProjects": s.can_create_projects})
+                json!({"id": s.id, "name": s.name, "kind": "space",
+                    "canCreateProjects": s.can_create_projects, "isDefault": s.is_default,
+                    "role": s.role, "canManageSpace": s.can_manage_space, "planId": s.plan_id})
             })
             .collect();
         // Without the cache the next launch waits for the spaces.
@@ -79,6 +84,46 @@ mod cache {
     }
     pub fn clear(dir: &Path) {
         let _ = std::fs::remove_file(dir.join(FILE));
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use core::prelude::v1::test;
+
+        /// `settingsSpace.test.ts`: cached legacy kinds read as spaces and
+        /// stay with their account.
+        #[test]
+        fn cached_legacy_spaces_read_as_spaces_for_their_account_only() {
+            let dir = tempfile::tempdir().unwrap();
+            std::fs::write(
+                dir.path().join(FILE),
+                serde_json::to_vec(&json!({"scope": "account-a", "spaces": [
+                    {"id": "a", "name": "A", "kind": "personal", "isDefault": true,
+                        "canCreateProjects": true, "canManageSpace": true},
+                    {"id": "b", "name": "B", "kind": "team", "canCreateProjects": true,
+                        "canManageSpace": false},
+                    {"id": "c", "name": "C", "kind": "other", "canCreateProjects": true},
+                ]}))
+                .unwrap(),
+            )
+            .unwrap();
+            let restored = read(dir.path(), "account-a").unwrap();
+            assert_eq!(
+                restored.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+                ["a", "b"]
+            );
+            assert_eq!(
+                restored
+                    .iter()
+                    .map(|s| s.can_manage_space)
+                    .collect::<Vec<_>>(),
+                [true, false]
+            );
+            assert!(read(dir.path(), "account-b").is_none());
+            write(dir.path(), "account-a", &restored);
+            assert_eq!(read(dir.path(), "account-a").unwrap(), restored);
+        }
     }
 }
 
@@ -196,13 +241,14 @@ impl CloudSpaces {
         .detach();
         cx.notify();
     }
-    /// The spaces to group by: this session's answer, else the account's
+    /// The spaces to group by: this session's answer (a ready one even when
+    /// empty; a failed one only while it keeps spaces), else the account's
     /// last ones, else none.
     pub fn spaces(&self) -> &[Space] {
         let own = self
             .own
             .as_ref()
-            .filter(|o| Some(&o.0) == self.authority.as_ref() && !o.1.is_empty());
+            .filter(|o| Some(&o.0) == self.authority.as_ref() && (!o.2 || !o.1.is_empty()));
         match (own, &self.cached) {
             (Some(own), _) => &own.1,
             (None, Some((_, cached))) if self.authority.is_some() => cached,

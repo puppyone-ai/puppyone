@@ -712,7 +712,6 @@ impl Homepage {
         cx: &App,
     ) -> Option<super::audience::ProjectAudience> {
         use super::audience::{AudienceAction as A, CloudCopy, Devices, ProjectAudience, Team};
-        use crate::workspace::cloud::spaces::Kind;
         let items = self.visible_projects(cx);
         let item = items.iter().find(|i| i.id == id)?;
         let path = PathBuf::from(item.local_path.clone()?);
@@ -739,10 +738,10 @@ impl Homepage {
         let personal_copy = linked
             .as_ref()
             .and_then(|l| space_of(&l.id))
-            .is_some_and(|s| s.kind == Kind::Personal);
+            .is_some_and(|s| s.is_default);
         let first_team = spaces
             .iter()
-            .find(|s| s.kind == Kind::Team && s.can_create_projects);
+            .find(|s| !s.is_default && s.can_create_projects);
         let devices = (self.local_share || (shared && item.host_folder.is_some())).then(|| {
             let folder = item.host_folder.clone().unwrap_or_default();
             Devices {
