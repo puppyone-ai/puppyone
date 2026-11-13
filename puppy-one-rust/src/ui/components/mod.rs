@@ -41,7 +41,7 @@ pub use settings::{
 pub use sidebar::{
     RowActionButton, RowVariant, SectionHeader, SidebarGroup, SidebarRow, selected_gradient,
 };
-pub use space_mark::{SpaceMark, SpaceMarkSize, SpacePlanBadge, space_mark_color};
+pub use space_mark::{SpaceMark, SpaceMarkSize, SpacePlanBadge};
 pub use spinner::Spinner;
 pub use switch::Switch;
 

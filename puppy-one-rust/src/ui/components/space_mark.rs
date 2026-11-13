@@ -3,10 +3,9 @@
 //! Header, the project menu, the Homepage and Settings); a person is a circle
 //! and a computer a line icon, so the shape alone says which kind of thing is
 //! named. Beside a Space's name, its plan says who pays for the projects there.
-use crate::localization::t;
+//! The features layer turns a Space into a tone, a letter and a plan label.
 use crate::theme;
 use crate::ui::appearance::ActiveAppearance as _;
-use crate::workspace::cloud::spaces::{self, PlanKey};
 use gpui::{prelude::*, *};
 
 /// `data-size`.
@@ -18,31 +17,18 @@ pub enum SpaceMarkSize {
     Large,
 }
 
-/// Six quiet tones, never the accent blue, so a Space never reads as a
-/// selection or a link; the light theme lifts each one a little.
-const LIGHT: [u32; spaces::MARK_TONES as usize] =
-    [0x5d7d9c, 0x8c71a8, 0x618f78, 0x9c7c57, 0x9c616e, 0x6e7682];
-const DARK: [u32; spaces::MARK_TONES as usize] =
-    [0x4b6b8a, 0x7a5f96, 0x4f7d66, 0x8a6a45, 0x8a4f5c, 0x5c6470];
-
-/// The tone of `id` in this colour mode.
-pub fn space_mark_color(id: &str, dark: bool) -> Rgba {
-    let tone = spaces::mark_tone(id) as usize;
-    rgb(if dark { DARK[tone] } else { LIGHT[tone] })
-}
-
 #[derive(IntoElement)]
 pub struct SpaceMark {
-    id: SharedString,
-    name: SharedString,
+    tone: usize,
+    initial: SharedString,
     size: SpaceMarkSize,
 }
 impl SpaceMark {
-    /// The Space's id picks its tone; its own name gives the letter.
-    pub fn new(id: impl Into<SharedString>, name: impl Into<SharedString>) -> Self {
+    /// `tone` is the Space's (`spaceMarkTone`), `initial` its letter.
+    pub fn new(tone: usize, initial: impl Into<SharedString>) -> Self {
         Self {
-            id: id.into(),
-            name: name.into(),
+            tone,
+            initial: initial.into(),
             size: SpaceMarkSize::Medium,
         }
     }
@@ -67,45 +53,37 @@ impl RenderOnce for SpaceMark {
             .justify_center()
             .size(px(side))
             .rounded(px(radius))
-            .bg(space_mark_color(&self.id, cx.is_dark()))
-            .text_color(rgb(0xffffff))
+            .bg(theme::space_mark(self.tone, cx.is_dark()))
+            .text_color(theme::space_mark_letter())
             .text_size(px(text))
             .line_height(px(text))
             .font_weight(FontWeight::SEMIBOLD)
-            .child(spaces::mark_initial(&self.name))
+            .child(self.initial)
     }
 }
 
-/// `SpacePlanBadge`: nothing without a published plan.
+/// `SpacePlanBadge`: the plan's name, accent-tinted unless it is Free.
 #[derive(IntoElement)]
 pub struct SpacePlanBadge {
-    plan: Option<PlanKey>,
+    label: SharedString,
+    paid: bool,
 }
 impl SpacePlanBadge {
-    pub fn new(plan_id: Option<&str>) -> Self {
+    pub fn new(label: impl Into<SharedString>, paid: bool) -> Self {
         Self {
-            plan: plan_id.map(PlanKey::of),
+            label: label.into(),
+            paid,
         }
     }
 }
 impl RenderOnce for SpacePlanBadge {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let Some(plan) = self.plan else {
-            return div().into_any_element();
-        };
         let p = cx.palette();
         let size = theme::ty().ui.micro;
-        let paid = plan != PlanKey::Free;
-        let transparent = Rgba {
-            r: 0.,
-            g: 0.,
-            b: 0.,
-            a: 0.,
-        };
         // `.po-space-plan:not([data-plan="free"])`: an accent tint.
-        let (border, color) = if paid {
+        let (border, color) = if self.paid {
             (
-                theme::mix(p.accent, transparent, 0.32),
+                theme::fade(p.accent, 0.32),
                 theme::mix(p.accent, p.text, 0.78),
             )
         } else {
@@ -125,20 +103,6 @@ impl RenderOnce for SpacePlanBadge {
             .text_size(px(size))
             .line_height(px(size))
             .whitespace_nowrap()
-            .child(t(&format!("onboarding.spaces.plan.{}", plan.key())).to_uppercase())
-            .into_any_element()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn each_tone_has_the_products_colour_in_both_modes() {
-        let tone = spaces::mark_tone("b") as usize;
-        assert_eq!(space_mark_color("b", false), rgb(LIGHT[tone]));
-        assert_eq!(space_mark_color("b", true), rgb(DARK[tone]));
+            .child(self.label.to_uppercase())
     }
 }

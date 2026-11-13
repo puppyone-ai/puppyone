@@ -57,6 +57,22 @@ pub fn agent_creature(index: usize) -> Rgba {
     ];
     rgb(COLORS[index % COLORS.len()])
 }
+/// `.po-space-mark[data-tone]`: six quiet tones, never the accent blue, so
+/// a Space never reads as a selection or a link; the light theme lifts each
+/// one a little.
+pub fn space_mark(tone: usize, dark: bool) -> Rgba {
+    const LIGHT: [u32; 6] = [0x5d7d9c, 0x8c71a8, 0x618f78, 0x9c7c57, 0x9c616e, 0x6e7682];
+    const DARK: [u32; 6] = [0x4b6b8a, 0x7a5f96, 0x4f7d66, 0x8a6a45, 0x8a4f5c, 0x5c6470];
+    rgb(if dark { DARK } else { LIGHT }[tone % LIGHT.len()])
+}
+/// `.po-space-mark`'s letter.
+pub fn space_mark_letter() -> Rgba {
+    rgb(0xffffff)
+}
+/// `color-mix(in srgb, c p%, transparent)`.
+pub fn fade(color: Rgba, weight: f32) -> Rgba {
+    mix(color, rgba(0x00000000), weight)
+}
 /// `.desktop-agent-creature-eyes`.
 pub fn agent_creature_eyes() -> Rgba {
     rgb(0x18181b)
