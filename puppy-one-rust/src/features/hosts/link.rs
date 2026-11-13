@@ -95,6 +95,38 @@ pub fn read(cx: &App) -> Option<&HostLink> {
     cx.try_global::<Service>().map(|s| s.0.read(cx))
 }
 
+/// `registerHostIpcHandlers` with the release gate closed: a host an
+/// earlier build left running is paused, its executions stopped and then
+/// shut down, without starting one, deleting registrations or touching
+/// files.
+pub fn suspend_leftover(cx: &App) {
+    if crate::workspace::hosts::AVAILABLE || cfg!(test) {
+        return;
+    }
+    let dir = state_dir(&crate::platform::data_dir());
+    cx.background_executor()
+        .spawn(async move {
+            runtime().block_on(async move {
+                let unavailable: Handler = Arc::new(|_, _| {
+                    Box::pin(async { Err("Other computers is unavailable in this build.".into()) })
+                });
+                let Ok(peer) =
+                    control::connect(&dir, "desktop", unavailable, Arc::new(|_, _| {}), || {})
+                        .await
+                else {
+                    return;
+                };
+                let paused = peer.call("setPaused", json!({"paused": true})).await;
+                let stopped = peer.call("execStopAll", json!({})).await;
+                let shut = peer.call("shutdown", json!({})).await;
+                if let Some(error) = [paused, stopped, shut].into_iter().find_map(Result::err) {
+                    eprintln!("Unable to suspend Host during rollout: {error}");
+                }
+            })
+        })
+        .detach();
+}
+
 /// What the host asks of the App: who is signed in (never a credential),
 /// and its own routes, as that person.
 fn desktop(account: Account) -> Handler {

@@ -36,18 +36,24 @@ macro_rules! setting {
         Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)), native: $native }
     };
 }
-/// `ExperimentalSettingsView`'s groups at the pinned product. `payments`
-/// shows only while accounts are available; `gitAutoCommit` only where the
+/// `ExperimentalSettingsView`'s groups at the pinned product. `hostDevices`
+/// shows only while Other computers passes its release gate, `payments`
+/// only while accounts are available; `gitAutoCommit` only where the
 /// platform exposes it, which the native build never does.
-fn groups(account_available: bool) -> Vec<(&'static str, Vec<Setting>)> {
+fn groups(
+    account_available: bool,
+    host_devices_available: bool,
+) -> Vec<(&'static str, Vec<Setting>)> {
     let mut cloud = vec![setting!(
         "cloudWorkspace",
         experimental.cloud_workspace,
         true
     )];
-    if account_available {
-        // `useHostDevicesEnabled`: the owner's other computers.
+    if host_devices_available {
+        // `useHostDevicesAvailable`: the owner's other computers.
         cloud.push(setting!("hostDevices", experimental.host_devices, true));
+    }
+    if account_available {
         cloud.push(setting!("payments", experimental.payments, true));
     }
     cloud.push(setting!("flowFiles", experimental.puppy_flow_files, true));
@@ -118,7 +124,8 @@ impl SettingsWorkspaceSurface {
         let state = self.preferences.read(cx).state.clone();
         let mut content = SettingsSection::new(tr(Page::Experimental.title()));
         let account = crate::features::flags::account_available(cx);
-        for (index, (group, settings)) in groups(account).into_iter().enumerate() {
+        let hosts = crate::features::flags::host_devices_available(cx);
+        for (index, (group, settings)) in groups(account, hosts).into_iter().enumerate() {
             let rows = settings
                 .into_iter()
                 .map(|setting| {
@@ -184,5 +191,34 @@ impl SettingsWorkspaceSurface {
             );
         }
         content.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::groups;
+    use core::prelude::v1::test;
+
+    fn cloud_keys(account: bool, hosts: bool) -> Vec<&'static str> {
+        groups(account, hosts)
+            .into_iter()
+            .find(|(id, _)| *id == "cloud")
+            .map(|(_, rows)| rows.into_iter().map(|row| row.key).collect())
+            .unwrap()
+    }
+
+    /// HX-1: the Other computers switch follows the release gate, not the
+    /// account; paid compute follows the account.
+    #[test]
+    fn the_other_computers_switch_shows_only_past_the_release_gate() {
+        assert_eq!(
+            cloud_keys(true, false),
+            ["cloudWorkspace", "payments", "flowFiles"]
+        );
+        assert_eq!(
+            cloud_keys(true, true),
+            ["cloudWorkspace", "hostDevices", "payments", "flowFiles"]
+        );
+        assert_eq!(cloud_keys(false, false), ["cloudWorkspace", "flowFiles"]);
     }
 }

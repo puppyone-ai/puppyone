@@ -8,9 +8,12 @@
 //!   sharing, first-run sign-in, the Homepage account status and marketplace
 //!   template links follow this; while it is off nothing contacts Cloud
 //!   except the account session itself.
-//! - `host_devices_enabled`: the account is available and the user turned
-//!   on Other computers: the owner's other computers on the Homepage and
-//!   opening this computer's folders to them.
+//! - `host_devices_available`: the account is available and this build
+//!   passes the Other computers release gate (`hosts::AVAILABLE`, closed in
+//!   v0.4.4); the experiment's switch shows only then.
+//! - `host_devices_enabled`: Other computers is available and the user
+//!   turned it on: the owner's other computers on the Homepage and opening
+//!   this computer's folders to them.
 use crate::features::settings::PreferencesStore;
 use gpui::{App, Entity};
 
@@ -23,8 +26,32 @@ pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
 /// `VITE_HOST_DEVICES_ENABLED`: whether a build offers the owner's other
 /// computers out of the box (the Settings switch can still turn them on).
 pub const HOST_DEVICES_BUILD: bool = option_env!("PUPPYONE_HOST_DEVICES_ENABLED").is_some();
+/// `useHostDevicesAvailable`: the release gate is independent of a saved
+/// experiment choice.
+pub fn host_devices_available(cx: &App) -> bool {
+    account_available(cx) && rollout(cx)
+}
 /// `useHostDevicesEnabled`: shows the owner's other computers and per-folder
 /// sharing controls; it grants no folder access.
 pub fn host_devices_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
-    account_available(cx) && preferences.read(cx).state.experimental.host_devices
+    host_devices_available(cx) && preferences.read(cx).state.experimental.host_devices
+}
+
+#[cfg(not(test))]
+fn rollout(_: &App) -> bool {
+    crate::workspace::hosts::AVAILABLE
+}
+#[cfg(test)]
+fn rollout(cx: &App) -> bool {
+    cx.has_global::<HostDevicesRollout>() || crate::workspace::hosts::AVAILABLE
+}
+/// The release gate as tests open it (`registerHostIpcHandlers({enabled})`);
+/// builds have no way to.
+#[cfg(test)]
+struct HostDevicesRollout;
+#[cfg(test)]
+impl gpui::Global for HostDevicesRollout {}
+#[cfg(test)]
+pub fn open_host_devices_rollout(cx: &mut App) {
+    cx.set_global(HostDevicesRollout);
 }

@@ -10,12 +10,48 @@ use crate::workspace::hosts::{
 };
 use core::prelude::v1::test;
 
+/// HX-1 (`otherComputersExperience.test.tsx`, a0eff5ea4): v0.4.4 ships with
+/// the release gate closed, so a saved choice to show other computers turns
+/// nothing on and Settings offers no switch for it.
+#[gpui::test]
+fn a_saved_choice_cannot_open_other_computers_past_the_release_gate(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.experimental.host_devices = true;
+        });
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| {
+        assert!(crate::features::flags::account_available(cx));
+        assert!(!crate::features::flags::host_devices_available(cx));
+        assert!(!crate::features::flags::host_devices_enabled(
+            &s.prefs.store,
+            cx
+        ));
+    });
+    cx.update(|_, cx| crate::features::flags::open_host_devices_rollout(cx));
+    view.update(cx, |s, cx| {
+        assert!(crate::features::flags::host_devices_enabled(
+            &s.prefs.store,
+            cx
+        ));
+    });
+}
+
 #[gpui::test]
 fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("note.md"), "hello").unwrap();
     let (view, cx) = setup(cx);
+    cx.update(|_, cx| crate::features::flags::open_host_devices_rollout(cx));
     let (broker, browser) =
         crate::cloud::auth::responding_account_fixture(cloud_project_responder());
     view.update(cx, |s, cx| {
@@ -209,6 +245,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
         })
     });
     let (view, cx) = setup(cx);
+    cx.update(|_, cx| crate::features::flags::open_host_devices_rollout(cx));
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     crate::cloud::auth::relogin(&broker, USER);
     view.update(cx, |s, cx| {

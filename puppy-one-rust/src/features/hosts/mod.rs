@@ -8,7 +8,7 @@
 mod link;
 mod recents;
 mod tools;
-pub use link::{HostLink, SharedFolder, global as host_link, read as read_link};
+pub use link::{HostLink, SharedFolder, global as host_link, read as read_link, suspend_leftover};
 pub use recents::Recent;
 pub use tools::{HostTools, Target, Tool};
 

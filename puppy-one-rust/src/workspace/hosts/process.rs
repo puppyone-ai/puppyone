@@ -48,8 +48,13 @@ pub fn keys() -> Keys {
 }
 
 /// Runs the host for the App whose data is at `app_data` until it is asked
-/// to shut down; a second host for the same state leaves at once.
+/// to shut down; a second host for the same state leaves at once, and so
+/// does any host while the release gate is closed (a login entry an earlier
+/// build wrote keeps starting it).
 pub fn run(app_data: &Path, app_version: &str) -> i32 {
+    if !super::AVAILABLE {
+        return 0;
+    }
     let dir = state_dir(app_data);
     let runtime = super::remote::runtime();
     runtime.block_on(async move {

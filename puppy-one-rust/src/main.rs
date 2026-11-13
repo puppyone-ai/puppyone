@@ -216,6 +216,9 @@ fn main() {
             capture::run_in_background();
         }
         features::cloud::account::install(!background, cx);
+        if !background {
+            features::hosts::suspend_leftover(cx);
+        }
         // Captures paint a development build's analytics state without files.
         #[cfg(feature = "dev-capture")]
         if background {
