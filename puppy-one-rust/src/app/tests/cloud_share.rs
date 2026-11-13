@@ -373,6 +373,79 @@ fn settings_manage_one_space_its_members_and_its_plan(cx: &mut TestAppContext) {
     );
 }
 
+/// `CreateTeamDialog`: a space starts from the place menu; once made, the
+/// spaces are read again and Settings opens on its Members, the keyboard in
+/// the invitation field.
+#[gpui::test]
+fn a_space_made_from_the_place_menu_opens_its_members_ready_to_invite(cx: &mut TestAppContext) {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    let created = Arc::new(AtomicBool::new(false));
+    let base = plan_responder("org-1", Default::default(), Default::default());
+    let responder: crate::cloud::auth::Responder = Arc::new({
+        let created = created.clone();
+        move |request| {
+            let made = created.load(Ordering::SeqCst);
+            let studio = serde_json::json!({"id": "org-2", "name": "Studio",
+                "role": "owner", "can_manage_space": true, "can_create_projects": true,
+                "billing_plan_id": "free"});
+            match (request.method.as_str(), request.path.as_str()) {
+                ("POST", "/organizations/") => {
+                    assert_eq!(request.body, Some(serde_json::json!({"name": "Studio"})));
+                    created.store(true, Ordering::SeqCst);
+                    Ok(studio)
+                }
+                ("GET", "/organizations/") if made => Ok(serde_json::json!([
+                    {"id": "org-1", "name": "One", "is_default": true, "role": "owner",
+                        "can_manage_space": true, "can_create_projects": true}, studio])),
+                (_, "/organizations/org-2/access") => Ok(serde_json::json!({"org_id": "org-2",
+                    "user_id": "u1", "role": "owner", "can_manage_billing": true})),
+                (_, "/organizations/org-2/members") => Ok(serde_json::json!([
+                    {"user_id": "u1", "email": "owner@example.com", "role": "owner"}])),
+                _ => base(request),
+            }
+        }
+    });
+    let (view, cx, settings) = plan_window(cx, responder);
+    view.update_in(cx, |s, w, cx| {
+        s.navigate(chrome::navigation::Navigate::CreateSpace, w, cx)
+    });
+    view.read_with(cx, |s, cx| assert!(s.has_dialog("CreateSpace", cx)));
+    view.update(cx, |s, cx| {
+        s.cloud.update(cx, |c, cx| {
+            let name = c.create_space.as_ref().unwrap().name.clone();
+            name.update(cx, |input, cx| input.set_text("Studio", cx));
+            c.confirm_create_space(cx)
+        })
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while settings.read_with(cx, |s, _| s.space_members()) != Some((1, true)) {
+        cx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the space did not open"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!s.has_dialog("CreateSpace", cx));
+        assert!(s.cloud.read(cx).create_space.is_none());
+    });
+    cx.update(|w, cx| {
+        let settings = settings.read(cx);
+        assert_eq!(
+            settings.settings_space(cx).map(|s| s.id),
+            Some("org-2".to_owned())
+        );
+        assert!(settings.invite_focused(w, cx));
+    });
+}
+
 /// qubits `6f896add1`: Share is retired. A folder of a linked checkout
 /// offers no "Share with…", and no Header tool shares the project.
 #[gpui::test]

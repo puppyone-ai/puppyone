@@ -144,7 +144,7 @@ impl SettingsWorkspaceSurface {
             };
         }
     }
-    fn plan_org(&self) -> Option<String> {
+    pub(in crate::features::settings) fn plan_org(&self) -> Option<String> {
         self.plan_page.context.as_ref().map(|c| c.1.clone())
     }
     /// The operations under way for this space; one still in flight is

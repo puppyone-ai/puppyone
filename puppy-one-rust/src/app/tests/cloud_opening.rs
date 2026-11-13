@@ -4,8 +4,9 @@ use super::*;
 use core::prelude::v1::test;
 
 /// ADR-001: a folder and its Cloud project are two projects. The linked
-/// folder's place menu opens the Cloud project, which takes this window's
-/// place (no second window); the Cloud project's menu offers the folder.
+/// folder's "Who can open it" on the Homepage opens the Cloud project, which
+/// takes this window's place (no second window); the Cloud project's menu
+/// offers the folder.
 #[gpui::test]
 fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppContext) {
     use super::audience::AudienceAction;
@@ -36,10 +37,32 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
     let local_key = view.read_with(cx, |s, cx| s.files(cx).workspace_key().unwrap().to_owned());
     let menu = view.read_with(cx, |s, cx| s.place_menu_now(cx).unwrap());
     assert_eq!(menu.place, Place::Local);
+    // On the Homepage the folder is listed, as opening it remembers it, and
+    // linked to its Cloud copy once its remote is read.
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.remember_project(&root, 1))
+    });
+    command(&view, cx, Command::Home);
+    let path = root.to_string_lossy().into_owned();
+    settle_cloud(&view, cx, "the folder's link", &|s, cx| {
+        s.home
+            .read(cx)
+            .project_items(cx)
+            .iter()
+            .any(|i| i.local_path.as_deref() == Some(path.as_str()) && i.linked.is_some())
+    });
     // Who can open it: the Cloud copy hangs under its audience, with Open.
     let audience = view.read_with(cx, |s, cx| {
-        let items = s.home.read(cx).project_items(cx);
-        s.cloud.read(cx).local_audience(&menu, &items, cx).unwrap()
+        let home = s.home.read(cx);
+        let root = root.to_string_lossy();
+        let item = home
+            .project_items(cx)
+            .into_iter()
+            .find(|i| i.local_path.as_deref() == Some(root.as_ref()))
+            .expect("the folder on the Homepage");
+        home.audience_of_id(&item.id, cx).unwrap()
     });
     let action = audience
         .team
@@ -48,16 +71,8 @@ fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppCo
         .and_then(|c| c.open)
         .expect("Open the Cloud copy");
     assert_eq!(action, AudienceAction::OpenCloud("project-a".into()));
-    // ⌘-less: the Header command opens the same menu.
-    command(&view, cx, Command::LocationMenu);
-    view.read_with(cx, |s, cx| {
-        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Place))
-    });
     hold.store(true, Ordering::SeqCst);
-    view.update_in(cx, |s, w, cx| {
-        s.cloud
-            .update(cx, |c, cx| c.run_audience_action(action, w, cx))
-    });
+    view.update_in(cx, |s, w, cx| s.home_audience_action(action, w, cx));
     view.read_with(cx, |s, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
         // The Header names the Cloud project while it opens.
@@ -571,9 +586,13 @@ fn a_vanished_cloud_projects_link_is_ended_from_its_notice(cx: &mut TestAppConte
             crate::workspace::cloud::repository::Context::NotFound { .. }
         )
     });
-    // Nothing is offered to replace it; the link can be ended instead.
+    // The place states the missing link; it can be ended instead.
     view.read_with(cx, |s, cx| {
-        assert_eq!(s.place_menu_now(cx).and_then(|m| m.action), None)
+        let link = s.place_menu_now(cx).and_then(|m| m.link);
+        assert!(matches!(
+            link,
+            Some((super::project_place::Notice::Missing, _))
+        ));
     });
     settle(&view, cx, "the reviewed remote", &|s, cx| {
         s.cloud.read(cx).disconnectable(cx)

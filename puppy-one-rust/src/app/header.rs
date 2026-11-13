@@ -7,8 +7,7 @@
 //!   window controls, the empty space that moves the window, and the
 //!   trailing actions
 //! - [`ChangesButton`]: the Changes entry, showing [`GitTitlebarStatus`]
-//! - [`agent_entry`], [`brand_name`]: the Agent
-//!   entries, and the Homepage's product name
+//! - [`agent_entry`]: the Agent entry
 use crate::{
     features::source_control::SourceControl,
     localization::{t as tr, tf},
@@ -295,32 +294,16 @@ pub(super) fn agent_entry(open: bool) -> Button {
         .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 
-/// `OnboardingHeaderBrand`: the Homepage's Header names the product in
-/// words, in the same muted ink as a project's name there.
-pub(super) fn brand_name(cx: &App) -> Div {
-    let ty = theme::ty().header;
-    div()
-        .flex()
-        .items_center()
-        .h(px(theme::control() - 4.))
-        .px(px(6.))
-        .text_size(px(ty.content))
-        .line_height(px(ty.line_height))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(cx.palette().utility)
-        .child(tr("shell.brand.name"))
-}
-
-/// `HomepageCloudStatus`: the account, never a project row. Loading,
-/// a failure (with what helps) or an empty catalog lead it; then the
-/// account's initial, or Sign in. `opening`: a Cloud project is on its way
-/// in; `empty`: the Homepage lists nothing.
+/// `HomepageCloudStatus`: what the account's catalog is doing, never a
+/// project row and never the account itself (the Header's place menu and
+/// Sign in hold that): loading, a failure with what helps, or an empty
+/// catalog. `opening`: a Cloud project is on its way in; `empty`: the
+/// Homepage lists nothing.
 pub(super) fn cloud_status(
     catalog: &Entity<crate::features::cloud::CloudCatalog>,
     opening: bool,
     empty: bool,
     on_retry: impl Fn(&mut Window, &mut App) + 'static,
-    on_account: impl Fn(&mut Window, &mut App) + 'static,
     cx: &App,
 ) -> AnyElement {
     use crate::features::cloud::CatalogState as State;
@@ -403,49 +386,6 @@ pub(super) fn cloud_status(
     } else {
         None
     };
-    let entry: Option<AnyElement> = (!restoring).then(|| match &email {
-        Some(email) => {
-            let initial = email
-                .trim()
-                .chars()
-                .next()
-                .map(|c| c.to_uppercase().to_string())
-                .unwrap_or_else(|| "P".into());
-            let size = 22.;
-            div()
-                .id("homepage-cloud-avatar")
-                .flex()
-                .flex_none()
-                .items_center()
-                .justify_center()
-                .size(px(size))
-                .mr(px((theme::control() - 4. - size) / 2.))
-                .rounded_full()
-                .bg(t.control)
-                .text_color(t.utility)
-                .text_size(px(ty.content))
-                .line_height(px(ty.line_height))
-                .cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(t.control_hover).text_color(t.text))
-                .tooltip(crate::ui::components::tooltip(format!(
-                    "{}: {email}",
-                    tr("settings.sidebar.account")
-                )))
-                .on_click(move |_, window, cx| on_account(window, cx))
-                .child(initial)
-                .into_any_element()
-        }
-        None => Button::new("homepage-cloud-sign-in")
-            .variant(ButtonVariant::Titlebar)
-            .label(tr("cloud.auth.signIn"))
-            .accessibility_label(tr("cloud.auth.signInToCloud"))
-            .pl(px(7.))
-            .pr(px(8.))
-            .text_size(px(ty.content))
-            .line_height(px(ty.line_height))
-            .on_click(|_, _, cx| crate::features::cloud::account::sign_in(cx))
-            .into_any_element(),
-    });
     h_flex()
         .min_w_0()
         .max_w(px(360.))
@@ -453,6 +393,5 @@ pub(super) fn cloud_status(
         .gap(px(8.))
         .justify_end()
         .children(feedback)
-        .children(entry)
         .into_any_element()
 }

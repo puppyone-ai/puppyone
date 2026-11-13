@@ -30,6 +30,9 @@ pub(in crate::features::settings) struct SpacePage {
     name: Entity<TextInput>,
     email: Entity<TextInput>,
     epoch: u64,
+    /// The window whose keyboard goes to the invitation field once the
+    /// owner's page shows (`focusInvite`).
+    pub(in crate::features::settings) focus_invite: Option<AnyWindowHandle>,
 }
 impl SpacePage {
     pub(in crate::features::settings) fn new(window: &mut Window, cx: &mut App) -> Self {
@@ -47,7 +50,12 @@ impl SpacePage {
             email: cx
                 .new(|cx| TextInput::new(tr("settings.space.inviteEmail"), false, 320, window, cx)),
             epoch: 0,
+            focus_invite: None,
         }
+    }
+    /// The space the page read.
+    pub(in crate::features::settings) fn org(&self) -> Option<&str> {
+        self.context.as_ref().map(|(_, org)| org.as_str())
     }
 }
 
@@ -100,6 +108,16 @@ impl SettingsWorkspaceSurface {
                         page.members = members;
                         page.owner = access.can_manage_billing;
                         page.failed = false;
+                        // The field draws with this read; the keyboard
+                        // reaches it on the next frame.
+                        if let Some(handle) = page.focus_invite.take().filter(|_| page.owner) {
+                            let email = page.email.clone();
+                            cx.defer(move |cx| {
+                                let _ = cx.update_window(handle, |_, window, cx| {
+                                    email.read(cx).focus_handle(cx).focus(window, cx)
+                                });
+                            });
+                        }
                     }
                     Err(_) => {
                         page.owner = false;
@@ -164,6 +182,15 @@ impl SettingsWorkspaceSurface {
     pub fn space_members(&self) -> Option<(usize, bool)> {
         let page = &self.space_page;
         (!page.loading && page.context.is_some()).then_some((page.members.len(), page.owner))
+    }
+    /// The keyboard is in the invitation field.
+    #[cfg(test)]
+    pub fn invite_focused(&self, window: &Window, cx: &App) -> bool {
+        self.space_page
+            .email
+            .read(cx)
+            .focus_handle(cx)
+            .is_focused(window)
     }
     pub(in crate::features::settings) fn space_settings(
         &self,

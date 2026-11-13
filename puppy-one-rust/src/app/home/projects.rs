@@ -48,18 +48,18 @@ impl Render for ProjectDrag {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app) enum HomeMenu {
     Sort,
-    /// The team group's selector.
-    Team,
     Layout,
     Entry,
     /// The create dialog's team selector.
     CreateTeam,
 }
 
-/// `--onboarding-tile-width` and `--onboarding-folder-width`: a group is a
-/// grid of these cells, and the folder is centred in each.
-pub(super) const TILE_WIDTH: f32 = 128.;
-pub(super) const FOLDER_WIDTH: f32 = 72.;
+/// `--onboarding-tile-width` and `--onboarding-tile-gap`: a group is a grid
+/// of these cells with this gutter between them (five and their gutters
+/// fill the column), the folder centred in each. A name may use its whole
+/// cell, so the gutter is what keeps two long names apart.
+pub(super) const TILE_WIDTH: f32 = 120.;
+pub(super) const TILE_GAP: f32 = 10.;
 /// Grid rows are 2px apart.
 const CELL_GAP: f32 = 2.;
 /// `--po-scrollbar-size`: the list's lane hangs outside the column.
@@ -181,7 +181,7 @@ pub(super) fn key_target(
 /// `repeat(auto-fill, var(--onboarding-tile-width))`: how many cells fit
 /// across a group.
 pub(super) fn grid_columns(width: f32) -> usize {
-    ((width / TILE_WIDTH).floor() as usize).max(1)
+    (((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).floor() as usize).max(1)
 }
 
 impl Homepage {

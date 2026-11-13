@@ -138,19 +138,14 @@ impl Homepage {
             )
     }
     /// `OnboardingEntryMenu`: New project, one click away, and the arrow
-    /// holding Open a folder and Import. `narrow` hides New's words.
-    pub(in crate::app::home) fn entry_menu(
-        &self,
-        busy: bool,
-        narrow: bool,
-        cx: &mut Context<Self>,
-    ) -> Div {
+    /// holding Open a folder and Import, both neutral.
+    pub(in crate::app::home) fn entry_menu(&self, busy: bool, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         let open = self.menu == Some(HomeMenu::Entry) && !busy;
         let host = self.weak.clone();
         let more = tr("onboarding.action.moreEntries");
         let trigger = Button::new("home-entry-more")
-            .variant(ButtonVariant::PatternPrimary)
+            .variant(ButtonVariant::PatternDeep)
             .icon(Icon::new("chevron-down").small().stroke(1.85))
             .accessibility_label(more)
             .tooltip(more)
@@ -205,10 +200,7 @@ impl Homepage {
             .flex_none()
             .gap(px(1.))
             .ml_auto()
-            .child(
-                self.create_action_compact(narrow, busy, cx)
-                    .rounded_r(px(0.)),
-            )
+            .child(self.create_action_compact(busy, cx).rounded_r(px(0.)))
             .child(menu)
     }
 }

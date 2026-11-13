@@ -1,51 +1,48 @@
-//! `useCloudProjectGroups`, `onboardingBaseGroups` and the audience half of
-//! `HomepageComputers`: the Homepage's projects by who can open them, not
-//! by where they are stored. Team Share Project, then My Share Project,
-//! then (while ownership is unknown) Shared projects, then On this
-//! computer. A team's name is a selector inside its group, never another
-//! heading. Known sharing survives offline, paused or unreadable states;
-//! empty destinations appear only during an explicit drag.
+//! `OnboardingProjectGroups`, `onboardingBaseGroups`, `useCloudProjectGroups`
+//! and the place half of `HomepageComputers`: the Homepage's projects by the
+//! place that holds them. This computer leads with every registered folder
+//! (shared ones and Cloud checkouts too), then every space the account
+//! reaches, each shown even when empty, then Cloud projects whose space is
+//! unknown, then the owner's other computers. A folder joins a space by
+//! being dragged onto it; New project starts one anywhere.
 use crate::localization::t as tr;
 use crate::workspace::cloud::{catalog::Item, spaces::Space};
-use std::collections::HashSet;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(in crate::app) enum GroupId {
-    TeamShared,
-    PersonalShared,
-    SharedUnresolved,
     LocalOnly,
+    Space(String),
+    SharedUnresolved,
+    OtherComputers,
 }
 impl GroupId {
     /// `data-project-group`.
-    pub fn key(self) -> &'static str {
+    pub fn key(&self) -> String {
         match self {
-            Self::TeamShared => "team-shared",
-            Self::PersonalShared => "personal-shared",
-            Self::SharedUnresolved => "shared-unresolved",
-            Self::LocalOnly => "local-only",
+            Self::LocalOnly => "local-only".into(),
+            Self::Space(id) => format!("space:{id}"),
+            Self::SharedUnresolved => "shared-unresolved".into(),
+            Self::OtherComputers => "other-computers".into(),
         }
     }
-    /// `audienceOrder`.
-    fn order(self) -> u8 {
-        match self {
-            Self::TeamShared => 0,
-            Self::PersonalShared => 1,
-            Self::SharedUnresolved => 2,
-            Self::LocalOnly => 3,
+    /// `placeGroupId`: the group a navigation place brings into view.
+    pub fn of_place(place: &str) -> Self {
+        if place == crate::app::chrome::navigation::LOCAL_PLACE {
+            Self::LocalOnly
+        } else {
+            Self::Space(place.to_owned())
         }
     }
-    /// The shared groups mark where each project lives; the local group
-    /// needs no mark.
-    pub fn marks_places(self) -> bool {
-        self != Self::LocalOnly
+    /// Projects outside this computer's group say where they live.
+    pub fn marks_places(&self) -> bool {
+        *self != Self::LocalOnly
     }
 }
 
 /// What letting go of a dragged folder over a group does.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::app) enum DropAction {
-    /// Copy it to this team's Cloud space (the confirmed first publication).
+    /// Copy it to this space (the confirmed first publication).
     Publish { space: String },
     /// Open it to my other computers (the confirmed Host sharing).
     ShareDevices,
@@ -58,23 +55,51 @@ pub(in crate::app) struct DropTarget {
     pub hint: String,
     pub action: DropAction,
 }
+/// The place's shape before its name.
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::app) enum Mark {
+    Computer,
+    Space(Space),
+}
 /// `OnboardingProjectGroup`.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::app) struct Group {
     pub id: GroupId,
     pub title: String,
+    pub mark: Option<Mark>,
     pub items: Vec<Item>,
     /// The line an empty destination shows in place of projects.
     pub empty_text: Option<String>,
-    /// Empty destinations appear only during an explicit publication gesture.
     pub empty: bool,
     pub keep_empty: bool,
     pub drop: Option<DropTarget>,
-    /// Several teams: which one the group shows (`id`, name), and the chosen.
-    pub teams: Option<(Vec<(String, String)>, String)>,
-    /// This computer's sharing, said at the end of My Share Project's
-    /// heading (`ThisComputerDetail`), and whether it offers Resume.
+    /// A space's heading: the plan its projects use, and whether this
+    /// account owns a shared space.
+    pub plan: Option<String>,
+    pub owner: bool,
+    /// "Members & plan" opens Settings on this space.
+    pub manage: Option<String>,
+    /// This computer's sharing, said at the end of its heading
+    /// (`ThisComputerDetail`), and whether it offers Resume.
     pub presence: Option<(String, bool)>,
+}
+impl Group {
+    fn new(id: GroupId, title: String) -> Self {
+        Self {
+            id,
+            title,
+            mark: None,
+            items: vec![],
+            empty_text: None,
+            empty: false,
+            keep_empty: false,
+            drop: None,
+            plan: None,
+            owner: false,
+            manage: None,
+            presence: None,
+        }
+    }
 }
 
 /// What the groups are made from.
@@ -87,11 +112,10 @@ pub(in crate::app) struct Inputs<'a> {
     pub busy: bool,
     /// Publishing to a space is offered (signed in, Cloud on).
     pub can_publish: bool,
-    /// The team chosen in the selector, if any.
-    pub chosen_team: Option<&'a str>,
-    /// This computer's shared folder ids, when its sharing state is known;
-    /// `None` keeps every recorded offer (a failed or absent read).
-    pub shared_ids: Option<&'a HashSet<String>>,
+    /// Each space's heading opens its members and plan.
+    pub can_manage: bool,
+    /// Folders this computer already offers its other computers.
+    pub shared: &'a dyn Fn(&Item) -> bool,
     /// Opening a folder to my other computers is offered.
     pub local_share: bool,
     /// The folders my other computers offer, each computer's by name.
@@ -107,230 +131,107 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
         .into_iter()
         .partition(|item| item.local_path.is_some());
     let dragging = inputs.dragging_path.map(str::trim);
-    let mut groups = cloud_groups(
-        inputs.spaces,
-        &cloud,
-        &local,
-        dragging,
-        inputs.busy,
-        inputs.can_publish,
-        inputs.chosen_team,
-    );
-    // `onboardingBaseGroups`: offered folders join the personal audience.
-    let shared = |item: &Item| {
-        item.host_folder
-            .as_ref()
-            .is_some_and(|id| inputs.shared_ids.is_none_or(|ids| ids.contains(id)))
-    };
-    let (mut offered, local_only): (Vec<Item>, Vec<Item>) =
-        local.iter().cloned().partition(|item| shared(item));
-    // `HomepageComputers`: my other computers' folders join the same
-    // personal audience, after what this computer offers.
-    offered.extend(inputs.remote);
-    let personal_title = tr("onboarding.sharing.personal").to_owned();
-    if !offered.is_empty() {
-        match groups.iter_mut().find(|g| g.id == GroupId::PersonalShared) {
-            Some(personal) => {
-                if personal.empty {
-                    personal.items.clear();
-                }
-                personal.items.extend(offered);
-                personal.empty = false;
-                personal.empty_text = None;
-            }
-            None => groups.insert(
-                0,
-                Group {
-                    id: GroupId::PersonalShared,
-                    title: personal_title.clone(),
-                    items: offered,
-                    empty_text: None,
-                    empty: false,
-                    keep_empty: false,
-                    drop: None,
-                    teams: None,
-                    presence: None,
-                },
-            ),
-        }
-    }
-    if !local_only.is_empty() {
-        groups.push(Group {
-            id: GroupId::LocalOnly,
-            title: tr("onboarding.sharing.localOnly").to_owned(),
-            items: local_only,
-            empty_text: None,
-            empty: false,
-            keep_empty: false,
-            drop: None,
-            teams: None,
-            presence: None,
-        });
-    }
-    // `HomepageComputers`' local share: the personal area is always there
-    // to drop into, since dragging a folder in is how it is shared.
-    if inputs.local_share {
-        let source = dragging.filter(|path| {
-            local.iter().any(|item| {
-                item.local_path.as_deref().map(str::trim) == Some(*path) && !shared(item)
+    let mut groups = vec![];
+    // Every registered local folder stays on this computer.
+    if !local.is_empty() {
+        let mut group = Group::new(
+            GroupId::LocalOnly,
+            tr(if cfg!(target_os = "macos") {
+                "onboarding.sharing.thisMac"
+            } else {
+                "onboarding.sharing.localOnly"
             })
-        });
-        let drop = dragging.map(|_| DropTarget {
-            enabled: source.is_some() && !inputs.busy,
-            hint: tr("onboarding.drop.personal").to_owned(),
-            action: DropAction::ShareDevices,
-        });
-        match groups.iter_mut().find(|g| g.id == GroupId::PersonalShared) {
-            Some(personal) => {
-                personal.drop = drop;
-                if personal.empty {
-                    personal.empty = false;
-                    personal.empty_text = Some(tr("onboarding.spaces.empty").to_owned());
-                }
-            }
-            None => groups.push(Group {
-                id: GroupId::PersonalShared,
-                title: personal_title,
-                items: vec![],
-                empty_text: Some(tr("onboarding.spaces.empty").to_owned()),
-                empty: false,
-                keep_empty: false,
-                drop,
-                teams: None,
-                presence: None,
-            }),
-        }
+            .to_owned(),
+        );
+        group.mark = Some(Mark::Computer);
+        group.items = local.clone();
+        group.presence = inputs.presence;
+        groups.push(group);
     }
-    if let Some(personal) = groups.iter_mut().find(|g| g.id == GroupId::PersonalShared) {
-        personal.presence = inputs.presence;
-    }
-    let mut groups: Vec<Group> = groups
-        .into_iter()
-        .filter(|g| !g.empty || g.keep_empty)
-        .collect();
-    groups.sort_by_key(|g| g.id.order());
-    groups
-}
-
-/// `useCloudProjectGroups`: space identity chooses the audience.
-fn cloud_groups(
-    spaces: &[Space],
-    cloud: &[Item],
-    local: &[Item],
-    dragging: Option<&str>,
-    busy: bool,
-    can_publish: bool,
-    chosen_team: Option<&str>,
-) -> Vec<Group> {
+    // `useCloudProjectGroups`: one group per space, always shown.
     let source = dragging.filter(|path| {
         local.iter().any(|item| {
             item.local_path.as_deref().map(str::trim) == Some(*path) && item.linked.is_none()
         })
     });
-    let personal = spaces.iter().find(|s| s.is_default);
-    let teams: Vec<&Space> = spaces.iter().filter(|s| !s.is_default).collect();
-    let held_by = |space: &Space| {
-        cloud
-            .iter()
-            .any(|item| item.cloud_organization.as_deref() == Some(space.id.as_str()))
-    };
-    let team = chosen_team
-        .and_then(|id| teams.iter().find(|s| s.id == id))
-        .or_else(|| teams.iter().find(|s| held_by(s)))
-        .or_else(|| teams.first())
-        .copied();
-    let destination = |space: &Space, id: GroupId, title: String| {
+    for space in inputs.spaces {
         let items: Vec<Item> = cloud
             .iter()
             .filter(|item| item.cloud_organization.as_deref() == Some(space.id.as_str()))
             .cloned()
             .collect();
-        let writable = space.can_create_projects && !busy && can_publish;
-        let is_team = !space.is_default;
-        Group {
-            id,
-            title,
-            empty: items.is_empty(),
-            empty_text: items.is_empty().then(|| {
-                tr(if space.can_create_projects {
-                    "onboarding.spaces.empty"
-                } else {
-                    "onboarding.spaces.readOnly"
-                })
-                .to_owned()
-            }),
-            items,
-            // A team one can add projects to stays, empty or not; an empty
-            // personal space takes no drop here (only device sharing).
-            keep_empty: is_team && (space.can_create_projects || (source.is_some() && can_publish)),
-            drop: dragging.map(|_| DropTarget {
-                enabled: is_team && writable && source.is_some(),
-                hint: tr("onboarding.drop.team").to_owned(),
-                action: DropAction::Publish {
-                    space: space.id.clone(),
-                },
-            }),
-            teams: None,
-            presence: None,
-        }
-    };
-    let mut groups = vec![];
-    if let Some(personal) = personal {
-        groups.push(destination(
-            personal,
-            GroupId::PersonalShared,
-            tr("onboarding.sharing.personal").to_owned(),
-        ));
-    }
-    if let Some(team) = team {
-        let mut group = destination(
-            team,
-            GroupId::TeamShared,
-            tr("onboarding.sharing.team").to_owned(),
+        let writable = space.can_create_projects && !inputs.busy && inputs.can_publish;
+        let mut group = Group::new(
+            GroupId::Space(space.id.clone()),
+            crate::features::cloud::space_name(space),
         );
-        group.keep_empty |= cloud
-            .iter()
-            .any(|item| teams.iter().any(|s| held_by_id(item, s)));
-        // One team needs no name beside the heading; several need choosing.
-        if teams.len() > 1 {
-            group.teams = Some((
-                teams
-                    .iter()
-                    .map(|s| (s.id.clone(), s.name.clone()))
-                    .collect(),
-                team.id.clone(),
-            ));
-        }
+        group.mark = Some(Mark::Space(space.clone()));
+        group.empty = items.is_empty();
+        group.empty_text = group.empty.then(|| {
+            tr(if space.can_create_projects {
+                "onboarding.spaces.empty"
+            } else {
+                "onboarding.spaces.readOnly"
+            })
+            .to_owned()
+        });
+        group.items = items;
+        group.keep_empty = true;
+        group.drop = dragging.map(|_| DropTarget {
+            enabled: writable && source.is_some(),
+            hint: tr("onboarding.drop.team").to_owned(),
+            action: DropAction::Publish {
+                space: space.id.clone(),
+            },
+        });
+        group.plan = space.plan_id.clone();
+        group.owner = !space.is_default && space.role.as_deref() == Some("owner");
+        group.manage = inputs.can_manage.then(|| space.id.clone());
         groups.push(group);
     }
-    // Unresolved ownership is not evidence of an audience: keep it
-    // reachable without guessing.
+    // Unresolved ownership is not evidence of a place: keep it reachable
+    // without guessing.
     let unknown: Vec<Item> = cloud
-        .iter()
+        .into_iter()
         .filter(|item| {
-            !spaces
+            !inputs
+                .spaces
                 .iter()
                 .any(|s| item.cloud_organization.as_deref() == Some(s.id.as_str()))
         })
-        .cloned()
         .collect();
     if !unknown.is_empty() {
-        groups.push(Group {
-            id: GroupId::SharedUnresolved,
-            title: tr("onboarding.sharing.unresolved").to_owned(),
-            items: unknown,
-            empty_text: None,
-            empty: false,
-            keep_empty: false,
-            drop: None,
-            teams: None,
-            presence: None,
+        let mut group = Group::new(
+            GroupId::SharedUnresolved,
+            tr("onboarding.sharing.unresolved").to_owned(),
+        );
+        group.items = unknown;
+        groups.push(group);
+    }
+    // `HomepageComputers`: my other computers' folders, and the place a
+    // folder is dragged to open it to them.
+    if !inputs.remote.is_empty() || inputs.local_share {
+        let source = dragging.filter(|path| {
+            local.iter().any(|item| {
+                item.local_path.as_deref().map(str::trim) == Some(*path) && !(inputs.shared)(item)
+            })
         });
+        let mut group = Group::new(
+            GroupId::OtherComputers,
+            tr("hosts.settings.others").to_owned(),
+        );
+        group.items = inputs.remote;
+        group.drop = dragging.filter(|_| inputs.local_share).map(|_| DropTarget {
+            enabled: source.is_some() && !inputs.busy,
+            hint: tr("onboarding.drop.personal").to_owned(),
+            action: DropAction::ShareDevices,
+        });
+        groups.push(group);
     }
     groups
-}
-fn held_by_id(item: &Item, space: &Space) -> bool {
-    item.cloud_organization.as_deref() == Some(space.id.as_str())
+        .into_iter()
+        .filter(|g| !g.empty || g.keep_empty)
+        .collect()
 }
 
 #[cfg(test)]
@@ -338,26 +239,12 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
 
-    fn local(id: &str) -> Item {
+    fn item(id: &str, local: Option<&str>, project: Option<&str>, org: Option<&str>) -> Item {
         Item {
-            id: format!("local:{id}"),
+            id: id.into(),
             label: id.into(),
-            local_path: Some(format!("/x/{id}")),
-            cloud_project: None,
-            linked: None,
-            actions: None,
-            modified: None,
-            cloud_organization: None,
-            host_folder: None,
-            remote: None,
-        }
-    }
-    fn cloud(id: &str, org: Option<&str>) -> Item {
-        Item {
-            id: format!("cloud:{id}"),
-            label: id.into(),
-            local_path: None,
-            cloud_project: Some(id.into()),
+            local_path: local.map(Into::into),
+            cloud_project: project.map(Into::into),
             linked: None,
             actions: None,
             modified: None,
@@ -366,194 +253,161 @@ mod tests {
             remote: None,
         }
     }
-    fn space(id: &str, own: bool, create: bool) -> Space {
+    fn space(id: &str, name: &str, create: bool) -> Space {
         Space {
             id: id.into(),
-            name: id.to_uppercase(),
-            is_default: own,
+            name: name.into(),
             can_create_projects: create,
             ..Default::default()
         }
     }
-    fn inputs<'a>(spaces: &'a [Space], items: Vec<Item>) -> Inputs<'a> {
+    fn spaces() -> Vec<Space> {
+        vec![
+            space("personal", "Alex", true),
+            space("team", "Design", true),
+            space("read", "Guests", false),
+        ]
+    }
+    fn items() -> Vec<Item> {
+        let mut linked = item("linked", Some("/fixture/linked"), None, None);
+        linked.linked = Some(crate::workspace::cloud::catalog::Linked {
+            id: "remote".into(),
+            name: "Remote".into(),
+        });
+        vec![
+            item("local", Some("/fixture/draft"), None, None),
+            linked,
+            item("cloud", None, Some("remote"), Some("team")),
+        ]
+    }
+    fn inputs<'a>(spaces: &'a [Space], items: Vec<Item>, dragging: Option<&'a str>) -> Inputs<'a> {
         Inputs {
             spaces,
             items,
-            dragging_path: None,
+            dragging_path: dragging,
             busy: false,
             can_publish: true,
-            chosen_team: None,
-            shared_ids: None,
+            can_manage: false,
+            shared: &|_| false,
             local_share: false,
             remote: vec![],
             presence: None,
         }
     }
-    fn ids(groups: &[Group]) -> Vec<&'static str> {
+    fn keys(groups: &[Group]) -> Vec<String> {
         groups.iter().map(|g| g.id.key()).collect()
     }
 
+    /// `homepageCloudSpaces.test.tsx`: every space together, empty and
+    /// read-only ones included, after this computer.
     #[test]
-    fn shared_projects_group_by_audience_team_first() {
-        let spaces = [space("me", true, true), space("design", false, true)];
-        let items = vec![
-            local("notes"),
-            cloud("todo", Some("me")),
-            cloud("issues", Some("design")),
-        ];
-        let shown = groups(inputs(&spaces, items));
+    fn every_space_shows_after_this_computer_even_empty_or_read_only() {
+        crate::localization::set_current("en");
+        let spaces = spaces();
+        let groups = groups(inputs(&spaces, items(), None));
         assert_eq!(
-            ids(&shown),
-            ["team-shared", "personal-shared", "local-only"]
+            keys(&groups),
+            ["local-only", "space:personal", "space:team", "space:read"]
         );
-        assert_eq!(shown[0].items[0].label, "issues");
-        assert_eq!(shown[1].items[0].label, "todo");
-        assert_eq!(shown[2].items[0].label, "notes");
-        assert!(shown[0].teams.is_none(), "a lone team is not named");
-    }
-
-    #[test]
-    fn unresolved_ownership_stays_reachable_and_folders_stay_local() {
-        let mut linked = local("site");
-        linked.linked = Some(crate::workspace::cloud::catalog::Linked {
-            id: "cloud-site".into(),
-            name: "site".into(),
-        });
-        let shown = groups(inputs(
-            &[],
-            vec![local("notes"), linked, cloud("shared", None)],
-        ));
-        assert_eq!(ids(&shown), ["shared-unresolved", "local-only"]);
+        assert_eq!(groups[0].items.len(), 2);
+        assert_eq!(groups[2].items[0].id, "cloud");
         assert_eq!(
-            shown[1].items.len(),
-            2,
-            "a linked folder is still a folder here"
+            groups[3].empty_text.as_deref(),
+            Some(tr("onboarding.spaces.readOnly"))
         );
+        // No projects at all: the spaces still stand.
+        assert_eq!(keys(&super::groups(inputs(&spaces, vec![], None))).len(), 3);
     }
 
     #[test]
-    fn the_local_audience_is_stated_even_alone() {
-        let shown = groups(inputs(&[], vec![local("notes")]));
-        assert_eq!(ids(&shown), ["local-only"]);
-        assert_eq!(shown[0].title, tr("onboarding.sharing.localOnly"));
-    }
-
-    #[test]
-    fn a_writable_team_stays_empty_and_takes_a_dragged_unlinked_folder() {
-        let spaces = [
-            space("me", true, true),
-            space("t1", false, true),
-            space("t2", false, false),
-        ];
-        let mut input = inputs(&spaces, vec![local("notes")]);
-        let resting = groups(Inputs { ..input });
-        // An empty writable team stays to drop into; the empty personal
-        // space does not.
-        assert_eq!(ids(&resting), ["team-shared", "local-only"]);
-        assert_eq!(resting[0].teams.as_ref().unwrap().0.len(), 2);
-        input = inputs(&spaces, vec![local("notes")]);
-        input.dragging_path = Some("/x/notes");
-        let dragging = groups(input);
-        let team = &dragging[0];
-        assert!(team.drop.as_ref().unwrap().enabled);
+    fn a_space_heading_names_its_plan_and_says_which_shared_spaces_this_account_owns() {
+        crate::localization::set_current("en");
+        let mut spaces = spaces();
+        spaces[0].is_default = true;
+        spaces[0].role = Some("owner".into());
+        spaces[0].plan_id = Some("free".into());
+        spaces[1].role = Some("owner".into());
+        spaces[1].plan_id = Some("team_v2".into());
+        spaces[2].role = Some("viewer".into());
+        let mut input = inputs(&spaces, vec![], None);
+        input.can_manage = true;
+        let groups = groups(input);
         assert_eq!(
-            team.drop.as_ref().unwrap().action,
-            DropAction::Publish { space: "t1".into() }
-        );
-        // A chosen team that cannot take projects refuses the drop.
-        let mut input = inputs(&spaces, vec![local("notes")]);
-        input.dragging_path = Some("/x/notes");
-        input.chosen_team = Some("t2");
-        let refused = groups(input);
-        assert!(!refused[0].drop.as_ref().unwrap().enabled);
-    }
-
-    #[test]
-    fn known_sharing_survives_and_the_personal_area_takes_a_drop() {
-        let mut shared = local("vault");
-        shared.host_folder = Some("f1".into());
-        // No sharing state read: a recorded offer still counts.
-        let shown = groups(inputs(&[], vec![shared.clone(), local("notes")]));
-        assert_eq!(ids(&shown), ["personal-shared", "local-only"]);
-        // Read, and the folder is no longer offered: local again.
-        let none = HashSet::new();
-        let mut input = inputs(&[], vec![shared.clone(), local("notes")]);
-        input.shared_ids = Some(&none);
-        assert_eq!(ids(&groups(input)), ["local-only"]);
-        // With device sharing, the personal area is a drop target for an
-        // unshared folder, never for one already shared.
-        let mut input = inputs(&[], vec![shared, local("notes")]);
-        input.local_share = true;
-        input.dragging_path = Some("/x/notes");
-        let dragging = groups(input);
-        let personal = dragging
-            .iter()
-            .find(|g| g.id == GroupId::PersonalShared)
-            .unwrap();
-        assert!(personal.drop.as_ref().unwrap().enabled);
-        assert_eq!(
-            personal.drop.as_ref().unwrap().action,
-            DropAction::ShareDevices
-        );
-        let mut input = inputs(&[], vec![local("notes")]);
-        input.local_share = true;
-        input.dragging_path = Some("/x/vault-missing");
-        let personal = groups(input)
-            .into_iter()
-            .find(|g| g.id == GroupId::PersonalShared)
-            .unwrap();
-        assert!(!personal.drop.unwrap().enabled);
-    }
-
-    #[test]
-    fn without_device_sharing_an_empty_personal_space_offers_no_drop() {
-        let spaces = [space("me", true, true)];
-        let mut input = inputs(&spaces, vec![local("notes")]);
-        input.dragging_path = Some("/x/notes");
-        let shown = groups(input);
-        assert_eq!(ids(&shown), ["local-only"]);
-    }
-
-    /// `HomepageComputers`: another computer's folders are in My Share
-    /// Project after its Cloud projects, never a group of their own.
-    #[test]
-    fn other_computers_folders_join_my_share_project() {
-        use crate::workspace::cloud::catalog::RemoteFolder;
-        let remote = Item {
-            id: "device-folder:f".into(),
-            label: "notes".into(),
-            remote: Some(RemoteFolder {
-                device: "d".into(),
-                host: "Studio Mac".into(),
-                folder: "f".into(),
-                writable: true,
-                capabilities: vec![],
-                online: true,
-                paused: false,
-            }),
-            ..cloud("unused", None)
-        };
-        let remote = Item {
-            cloud_project: None,
-            ..remote
-        };
-        let spaces = [space("me", true, true)];
-        let mut input = inputs(&spaces, vec![cloud("p", Some("me")), local("here")]);
-        input.remote = vec![remote.clone()];
-        let shown = groups(input);
-        assert_eq!(ids(&shown), ["personal-shared", "local-only"]);
-        let personal = &shown[0];
-        assert_eq!(
-            personal
-                .items
+            groups
                 .iter()
-                .map(|i| i.id.as_str())
+                .map(|g| (g.title.clone(), g.owner, g.plan.clone()))
                 .collect::<Vec<_>>(),
-            ["cloud:p", "device-folder:f"]
+            [
+                ("Personal".to_owned(), false, Some("free".to_owned())),
+                ("Design".to_owned(), true, Some("team_v2".to_owned())),
+                ("Guests".to_owned(), false, None)
+            ]
         );
-        // Alone, it still makes the group.
-        let mut input = inputs(&[], vec![]);
+        assert_eq!(groups[1].manage.as_deref(), Some("team"));
+    }
+
+    /// A trusted local drag takes the exact space; a read-only space, a
+    /// folder that already has a Cloud copy and a foreign path do not.
+    #[test]
+    fn a_dragged_folder_publishes_to_the_writable_space_it_is_dropped_on() {
+        let spaces = spaces();
+        let groups = groups(inputs(&spaces, items(), Some("/fixture/draft")));
+        let drop = |key: &str| {
+            groups
+                .iter()
+                .find(|g| g.id.key() == key)
+                .and_then(|g| g.drop.clone())
+                .unwrap()
+        };
+        assert!(drop("space:team").enabled);
+        assert_eq!(
+            drop("space:team").action,
+            DropAction::Publish {
+                space: "team".into()
+            }
+        );
+        assert!(drop("space:personal").enabled);
+        assert!(!drop("space:read").enabled);
+        let linked = super::groups(inputs(&spaces, items(), Some("/fixture/linked")));
+        assert!(
+            linked
+                .iter()
+                .filter_map(|g| g.drop.as_ref())
+                .all(|d| !d.enabled)
+        );
+        let foreign = super::groups(inputs(&spaces, items(), Some("/forged/path")));
+        assert!(
+            foreign
+                .iter()
+                .filter_map(|g| g.drop.as_ref())
+                .all(|d| !d.enabled)
+        );
+    }
+
+    /// Unresolved ownership stays reachable without a guessed destination.
+    #[test]
+    fn unresolved_cloud_projects_keep_their_own_group() {
+        let groups = groups(inputs(&[], items(), None));
+        assert_eq!(keys(&groups), ["local-only", "shared-unresolved"]);
+        assert!(groups[1].drop.is_none());
+    }
+
+    /// `homepageHostGroups.test.tsx`: shared folders stay on this computer;
+    /// the other computers' folders and the place to share to follow.
+    #[test]
+    fn shared_folders_stay_here_and_other_computers_follow() {
+        let mut shared = item("shared", Some("/fixture/shared"), None, None);
+        shared.host_folder = Some("f1".into());
+        let mut remote = item("remote-folder", None, None, None);
+        remote.id = "device:f2".into();
+        let mut input = inputs(&[], vec![shared], Some("/fixture/shared"));
+        input.shared = &|i: &Item| i.host_folder.is_some();
+        input.local_share = true;
         input.remote = vec![remote];
-        assert_eq!(ids(&groups(input)), ["personal-shared"]);
+        let groups = groups(input);
+        assert_eq!(keys(&groups), ["local-only", "other-computers"]);
+        assert_eq!(groups[0].items[0].id, "shared");
+        // Already offered: the drag is not taken again.
+        assert!(!groups[1].drop.as_ref().unwrap().enabled);
     }
 }

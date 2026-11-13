@@ -301,8 +301,4 @@ impl CloudSpaces {
     pub fn authority(&self) -> Option<&str> {
         self.authority.as_deref()
     }
-    /// The space with `id`, when it is one of these.
-    pub fn space(&self, id: &str) -> Option<&Space> {
-        self.spaces().iter().find(|s| s.id == id)
-    }
 }

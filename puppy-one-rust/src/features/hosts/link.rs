@@ -353,13 +353,6 @@ impl HostLink {
             .flatten()
             .or_else(|| status.active.as_ref().map(|a| a.device_id.clone()))
     }
-    pub fn folder_of(&self, root: &std::path::Path) -> Option<&SharedFolder> {
-        self.status
-            .as_ref()?
-            .folders
-            .iter()
-            .find(|f| f.root_path == root)
-    }
     pub fn take_marks(&mut self) -> Vec<(PathBuf, Option<String>)> {
         std::mem::take(&mut self.marks)
     }

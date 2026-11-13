@@ -73,6 +73,8 @@ pub(super) enum DialogKey {
     Agents,
     /// `HostFolderSharingDialog`: a folder here, for my other computers.
     HostSharing,
+    /// `CreateTeamDialog`: start a space.
+    CreateSpace,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;

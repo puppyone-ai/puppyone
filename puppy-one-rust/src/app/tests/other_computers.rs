@@ -1,4 +1,4 @@
-//! Folders on the owner's other computers: listed in My Share Project,
+//! Folders on the owner's other computers: listed under those computers,
 //! opened here through the Cloud's tunnel (an in-memory one, ending at a
 //! real host SSH server), named by their computer in the Header, and run on
 //! that computer.
@@ -73,12 +73,12 @@ fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
         crate::features::hosts::global(cx).update(cx, |c, cx| c.install(hosts, devices, cx))
     });
     command(&view, cx, Command::Home);
-    // Listed with its computer, in My Share Project.
+    // Listed with its computer, among my other computers.
     let item = |s: &Shell, cx: &App| {
         let home = s.home.read(cx);
         home.project_groups_now(home.visible_projects(cx), cx)
             .into_iter()
-            .find(|g| g.id == crate::app::home::groups::GroupId::PersonalShared)
+            .find(|g| g.id == crate::app::home::groups::GroupId::OtherComputers)
             .and_then(|g| g.items.into_iter().find(|i| i.remote.is_some()))
     };
     settle_cloud(&view, cx, "the other computer's folder", &|s, cx| {
@@ -343,8 +343,15 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             s.cloud.read(cx).sharing_state().is_none(),
             "the dialog closed"
         );
-        let audience = s.cloud.read(cx).devices_audience(&folder, cx).unwrap();
-        assert!(audience.on);
+        let home = s.home.read(cx);
+        let path = folder.to_string_lossy();
+        let item = home
+            .project_items(cx)
+            .into_iter()
+            .find(|i| i.local_path.as_deref() == Some(path.as_ref()))
+            .unwrap();
+        let audience = home.audience_of_id(&item.id, cx).unwrap();
+        assert!(audience.devices.unwrap().on);
     });
     assert!(
         asked

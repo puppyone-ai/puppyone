@@ -1,6 +1,6 @@
-//! The Homepage's audience groups (qubits `d21029000`, `80a49d147`,
-//! `83322da3d`): projects by who can open them, and a folder dropped on a
-//! team's group opening its confirmed publication to that team.
+//! The Homepage's place groups (v0.4.4 `OnboardingProjectGroups`): projects
+//! by the place that holds them, and a folder dropped on a space opening its
+//! confirmed publication to that space.
 use super::*;
 use core::prelude::v1::test;
 
@@ -55,22 +55,21 @@ fn home_with_spaces<'a>(
 }
 
 #[gpui::test]
-fn the_homepage_groups_projects_by_who_can_open_them(cx: &mut TestAppContext) {
+fn the_homepage_groups_projects_by_the_place_that_holds_them(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let folder = temp.path().canonicalize().unwrap().join("Notes");
     std::fs::create_dir(&folder).unwrap();
     let (_view, cx) = home_with_spaces(cx, &folder);
-    let team = cx
-        .debug_bounds("home-group:team-shared")
-        .expect("Team Share Project");
+    let local = cx.debug_bounds("home-group:local-only").expect("This Mac");
     let personal = cx
-        .debug_bounds("home-group:personal-shared")
-        .expect("My Share Project");
-    let local = cx
-        .debug_bounds("home-group:local-only")
-        .expect("On this computer");
-    assert!(team.origin.y < personal.origin.y && personal.origin.y < local.origin.y);
-    // Each project sits in its audience's group.
+        .debug_bounds("home-group:space:me")
+        .expect("the account's own space");
+    let team = cx
+        .debug_bounds("home-group:space:team-1")
+        .expect("the shared space");
+    // This computer, then the default space, then the others by name.
+    assert!(local.origin.y < personal.origin.y && personal.origin.y < team.origin.y);
+    // Each project sits in its place's group.
     let issues = cx.debug_bounds("home-project:cloud:p-issues").unwrap();
     let todo = cx.debug_bounds("home-project:cloud:p-todo").unwrap();
     assert!(team.contains(&issues.center()));
@@ -97,15 +96,15 @@ fn a_folder_dropped_on_a_team_opens_its_publication_to_that_team(cx: &mut TestAp
         Modifiers::default(),
     );
     draw(cx);
-    // While it is dragged, the team takes it and says what letting go does.
-    let team = cx.debug_bounds("home-group:team-shared").unwrap();
+    // While it is dragged, the space takes it and says what letting go does.
+    let team = cx.debug_bounds("home-group:space:team-1").unwrap();
     let over = point(team.center().x, team.origin.y + px(6.));
     cx.simulate_mouse_move(over, Some(MouseButton::Left), Modifiers::default());
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert_eq!(
             s.home.read(cx).drop_over,
-            Some(super::home::groups::GroupId::TeamShared)
+            Some(super::home::groups::GroupId::Space("team-1".into()))
         )
     });
     cx.simulate_mouse_up(over, MouseButton::Left, Modifiers::default());
@@ -185,18 +184,20 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
     view.update_in(cx, |s, w, cx| {
         s.home.update(cx, |h, cx| {
             h.begin_create_project(w, cx);
-            // One team: Team names no team; Only this computer and Team.
+            // Both spaces take projects: Only this computer and Team, the
+            // space named in Team's menu.
             assert_eq!(
                 h.create_audiences(cx),
                 vec![Audience::Local, Audience::Team]
             );
+            assert_eq!(h.creatable_teams(cx).len(), 2);
             h.create
                 .as_ref()
                 .unwrap()
                 .destination
                 .name
                 .update(cx, |input, cx| input.set_text("Plans".to_owned(), cx));
-            h.choose_create_audience(Audience::Team, None, cx);
+            h.choose_create_audience(Audience::Team, Some("team-1".into()), cx);
         })
     });
     draw(cx);
@@ -227,4 +228,28 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
     // The retry is the same operation.
     assert!(posts[0].1.is_some());
     assert_eq!(posts[0].1, posts[1].1);
+}
+
+/// `onManageSpace`: a space's "Members & plan" opens Settings on that one
+/// space's Members, whatever space a project on screen belongs to.
+#[gpui::test]
+fn members_and_plan_open_settings_on_that_space(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |_, cx| {
+            cx.emit(home::HomeEvent::ManageSpace("team-1".into()))
+        })
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("Task(Settings)", cx));
+        let settings = s.dialogs.read(cx).settings.read(cx);
+        assert_eq!(
+            settings.settings_space(cx).map(|s| s.id),
+            Some("team-1".to_owned())
+        );
+        assert!(settings.page_shown(crate::features::settings::Page::Space));
+    });
 }

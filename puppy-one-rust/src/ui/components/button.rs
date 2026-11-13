@@ -62,6 +62,10 @@ pub enum ButtonVariant {
     Pattern,
     /// `.po-button.po-button--primary` (`.desktop-header-coachmark-button`).
     PatternPrimary,
+    /// `.onboarding-entry-menu-root`'s neutral button: a shade deeper than
+    /// the usual fill, so it is found beside the toolbar's icons without
+    /// becoming the page's one colour; compact, meta type at semibold.
+    PatternDeep,
     /// `.file-mode-window__action`: the title's muted ink a shade lighter at
     /// rest, the full ink touched; the fill says hover or open.
     TitlebarInk,
@@ -211,6 +215,13 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             hover_fg: t.text,
         },
         // `.onboarding-entry-action:disabled`.
+        ButtonVariant::PatternDeep => Paint {
+            border: None,
+            bg: theme::alpha(t.text, 0.10),
+            fg: if disabled { t.text_disabled } else { t.text },
+            hover_bg: theme::alpha(t.text, if disabled { 0.10 } else { 0.15 }),
+            hover_fg: if disabled { t.text_disabled } else { t.text },
+        },
         ButtonVariant::Pattern | ButtonVariant::PatternPrimary if disabled => Paint {
             border: None,
             bg: t.control,
@@ -452,10 +463,11 @@ impl RenderOnce for Button {
             ButtonVariant::GitAction | ButtonVariant::GitActionDanger
         );
         let raised = variant == ButtonVariant::Raised;
+        let deep = variant == ButtonVariant::PatternDeep;
         let pattern = matches!(
             variant,
             ButtonVariant::Pattern | ButtonVariant::PatternPrimary
-        );
+        ) || deep;
         let quiet = variant == ButtonVariant::Quiet;
         let plan_card = variant.plan_card();
         // Outline and Git file actions: 13px icon at stroke 2; filled Git
@@ -502,7 +514,7 @@ impl RenderOnce for Button {
                 _ => 6.,
             }))
             .h(height(
-                if (dialog || raised || pattern) && self.size == Size::Medium {
+                if (dialog || raised || pattern) && !deep && self.size == Size::Medium {
                     Size::Large
                 } else if git && self.size == Size::Medium {
                     Size::Small
@@ -554,8 +566,11 @@ impl RenderOnce for Button {
             })
             // `.po-button`: meta type at 650.
             .when(pattern, |b| {
-                b.text_size(px(theme::ty().ui.meta))
-                    .font_weight(FontWeight(650.))
+                b.text_size(px(theme::ty().ui.meta)).font_weight(if deep {
+                    FontWeight::SEMIBOLD
+                } else {
+                    FontWeight(650.)
+                })
             })
             // `padding: 4px 6px` around the hint line.
             .when(quiet, |b| {

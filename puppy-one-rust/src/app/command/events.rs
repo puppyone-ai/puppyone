@@ -31,7 +31,7 @@ impl Shell {
                 self.sidebar
                     .update(cx, |s, cx| s.toggle_host_tool(tool, window, cx));
             }
-            ChromeEvent::OpenSettings(page) => self.open_settings(*page, window, cx),
+            ChromeEvent::Navigate(navigate) => self.navigate(navigate.clone(), window, cx),
             // The project rail takes room from the panes.
             ChromeEvent::RailChanged => {
                 self.constrain_window(window, cx);
@@ -52,10 +52,16 @@ impl Shell {
                 return self.open_project(path.clone(), window, cx);
             }
             CloudEvent::OpenCloud(project) => self.open_cloud(project.clone(), cx),
-            CloudEvent::Command(command) => return self.command(*command, window, cx),
             CloudEvent::OpenSettings(page) => return self.open_settings(*page, window, cx),
             CloudEvent::Popover(popover) => return self.set_popover(*popover, cx),
             CloudEvent::Error(error) => self.show_error(error.clone(), cx),
+            // `onCreated`: the spaces read again, then the new one's
+            // Members, ready for an invitation.
+            CloudEvent::SpaceCreated(space) => {
+                crate::features::cloud::global_spaces(cx)
+                    .update(cx, |spaces, cx| spaces.ensure(true, true, true, cx));
+                return self.open_space_settings(space.clone(), true, window, cx);
+            }
         }
         self.receive(window, cx);
         cx.notify();
@@ -146,6 +152,9 @@ impl Shell {
                     .update(cx, |c, cx| c.request_device_sharing(path, window, cx));
             }
             home::HomeEvent::Command(command) => return self.command(*command, window, cx),
+            home::HomeEvent::ManageSpace(space) => {
+                return self.open_space_settings(space.clone(), false, window, cx);
+            }
         }
         self.receive(window, cx);
         cx.notify();
@@ -197,15 +206,67 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // `resolveSettingsSpace`: the hosted Project on screen names the
-        // space Settings manages.
+        self.show_settings(page, None, false, window, cx);
+    }
+    /// `openSpaceSettings`: Settings › Members of one space; `invite` puts
+    /// the keyboard in its invitation field.
+    pub(in crate::app) fn open_space_settings(
+        &mut self,
+        space: String,
+        invite: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let page = crate::features::settings::Page::Space;
+        self.show_settings(page, Some(space), invite, window, cx);
+    }
+    fn show_settings(
+        &mut self,
+        page: crate::features::settings::Page,
+        space: Option<String>,
+        invite: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // `resolveSettingsSpace`: the space the opener named, else the
+        // hosted Project's on screen.
         let hosted = self.hosted_project(cx);
+        let handle = invite.then(|| window.window_handle());
         let settings = self.dialogs.read(cx).settings.clone();
         settings.update(cx, |settings, cx| {
-            settings.set_space_context(hosted, None);
+            settings.set_space_context(hosted, space, handle);
             settings.select_page(page, cx)
         });
         self.command(Command::Settings, window, cx);
+    }
+    /// `WindowNavigationRows`: what a row of the place menu asks.
+    pub(in crate::app) fn navigate(
+        &mut self,
+        navigate: chrome::navigation::Navigate,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::features::settings::Page;
+        use chrome::navigation::Navigate;
+        self.set_popover(None, cx);
+        match navigate {
+            Navigate::Home => self.command(Command::Home, window, cx),
+            // `showHomepagePlace`: the Homepage scrolls to the place, from
+            // wherever the window was.
+            Navigate::ShowPlace(place) => {
+                self.home.update(cx, |h, cx| h.focus_place(&place, cx));
+                if !self.home_visible(cx) {
+                    self.command(Command::Home, window, cx);
+                }
+            }
+            Navigate::CreateSpace => self
+                .cloud
+                .update(cx, |c, cx| c.open_create_space(window, cx)),
+            Navigate::OpenAccount => self.open_settings(Page::Account, window, cx),
+            Navigate::OpenSettings => self.open_settings(Page::General, window, cx),
+            Navigate::SignIn => crate::features::cloud::account::sign_in(cx),
+        }
+        cx.notify();
     }
     /// What the dialog layer asks of the window.
     pub(in crate::app) fn dialog_event(

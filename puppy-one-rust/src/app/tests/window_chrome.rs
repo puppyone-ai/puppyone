@@ -60,10 +60,11 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
         assert!(s.chrome.read(cx).project_focus.is_focused(w));
     });
 }
-/// `ProjectPlaceRows`: the current place is a fact, not a choice; the
-/// menu stays until Escape, which returns to the Header.
+/// `WindowNavigationRows`: the current place is checked; choosing a place
+/// closes the menu and opens the Homepage on it. Escape closes the menu
+/// and returns to the Header.
 #[gpui::test]
-fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext) {
+fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // The place menu shows only with an account service and Cloud on.
     let (broker, browser) = crate::cloud::auth::account_fixture();
@@ -85,15 +86,29 @@ fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext)
         "shell.workspaceSwitcher.location.thisComputer"
     });
     let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
-    let row = cx.debug_bounds(selector).expect("the place menu is open");
-    cx.simulate_click(row.center(), Modifiers::none());
-    view.read_with(cx, |s, cx| {
-        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Place))
-    });
+    assert!(
+        cx.debug_bounds(selector).is_some(),
+        "the place menu is open"
+    );
     command(&view, cx, Command::Escape);
     view.update_in(cx, |s, w, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
         assert!(s.chrome.read(cx).project_focus.is_focused(w));
+    });
+    command(&view, cx, Command::LocationMenu);
+    draw(cx);
+    draw(cx);
+    let row = cx
+        .debug_bounds(selector)
+        .expect("the place menu opens again");
+    cx.simulate_click(row.center(), Modifiers::none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.chrome.read(cx).popover.is_none());
+        assert!(s.session.project.read(cx).home);
+        assert_eq!(
+            s.home.read(cx).place_focus.as_ref().map(|f| f.0.clone()),
+            Some(super::home::groups::GroupId::LocalOnly)
+        );
     });
 }
 #[gpui::test]

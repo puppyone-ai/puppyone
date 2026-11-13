@@ -4,7 +4,7 @@ use super::*;
 
 impl Homepage {
     // -------------------------------------------------------- the groups
-    /// `OnboardingProjectGroups`: the projects by audience over one scroll,
+    /// `OnboardingProjectGroups`: the projects by place over one scroll,
     /// so no group scrolls on its own or cuts off its last row. While a
     /// project is dragged, each group that takes it is filled faintly in
     /// its own bounds (more deeply under the pointer) and says what letting
@@ -50,17 +50,18 @@ impl Homepage {
         let layout = self.preferences.read(cx).state.homepage_project_layout;
         let grid = layout == HomepageLayout::Grid;
         let columns = if grid { grid_columns(width) } else { 1 };
-        // On the Grid a group's edges are its folders' edges.
-        let inset = if grid {
-            (TILE_WIDTH - FOLDER_WIDTH) / 2.
-        } else {
-            8.
-        };
+        // On the Grid a group's edges are its cells' outer edges, so the
+        // rules end where the toolbar does; an empty space keeps them too.
+        let inset = if grid { 0. } else { 8. };
         let dragging = groups.iter().any(|g| g.drop.is_some());
+        // `useProjectGroupFocus`: a place asked for from the Header is
+        // brought to the top once its group is on the page, and marked.
+        let focused = self.settle_place_focus(&groups, cx);
         let mut views = Vec::with_capacity(groups.len());
         for (index, group) in groups.into_iter().enumerate() {
+            let lit = focused.as_ref() == Some(&group.id);
             let view = self.project_group(
-                index, group, columns, inset, dragging, narrow, busy, window, cx,
+                index, group, columns, inset, dragging, lit, narrow, busy, window, cx,
             );
             views.push(view);
         }
@@ -69,8 +70,9 @@ impl Homepage {
             .w(px(width + SCROLLBAR_SIZE))
             .min_h_0()
             .flex_shrink(1.)
+            // Scrolled to its end, the last row stands clear of the edge.
             .pt(px(4.))
-            .pb(px(24.))
+            .pb(px(40.))
             .pr(px(SCROLLBAR_SIZE))
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
@@ -79,20 +81,21 @@ impl Homepage {
                     cx.notify();
                 }
             }))
-            .child(
-                v_flex()
-                    .w(px(width))
-                    .gap(px(20.))
-                    .children(views)
-                    .children(note),
-            );
-        // `mask-image`: the page fades over 8px at its top and 20px at its end.
+            // The groups are the scroller's own children, so one can be
+            // brought to its top.
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .children(views.into_iter().map(|view| div().w(px(width)).child(view)))
+            .children(note.map(|note| div().w(px(width)).child(note)));
+        // `mask-image`: the list fades over 8px at its top and 16px at its
+        // end, where it runs to the window's edge.
         let fade = |top: bool| {
             div()
                 .absolute()
                 .left_0()
                 .w(px(width))
-                .h(px(if top { 8. } else { 20. }))
+                .h(px(if top { 8. } else { 16. }))
                 .when(top, |d| d.top_0())
                 .when(!top, |d| d.bottom_0())
                 .bg(linear_gradient(
@@ -125,6 +128,7 @@ impl Homepage {
         columns: usize,
         inset: f32,
         dragging: bool,
+        lit: bool,
         narrow: bool,
         busy: bool,
         window: &mut Window,
@@ -134,9 +138,9 @@ impl Homepage {
         let t = cx.palette();
         let layout = self.preferences.read(cx).state.homepage_project_layout;
         let grid = layout == HomepageLayout::Grid;
-        let id = group.id;
+        let id = group.id.clone();
         let available = group.drop.as_ref().is_some_and(|d| d.enabled);
-        let over = available && self.drop_over == Some(id);
+        let over = available && self.drop_over.as_ref() == Some(&id);
         let marks = id.marks_places();
         // The group's own keyboard: its projects, one Tab stop.
         let ids: Vec<String> = group.items.iter().map(|i| i.id.clone()).collect();
@@ -212,7 +216,7 @@ impl Homepage {
             let mut rows = Vec::new();
             while cells.peek().is_some() {
                 rows.push(
-                    h_flex().items_start().children(
+                    h_flex().items_start().gap(px(TILE_GAP)).children(
                         cells
                             .by_ref()
                             .take(columns)
@@ -240,10 +244,6 @@ impl Homepage {
             ),
             _ => None,
         };
-        let detail = group
-            .teams
-            .clone()
-            .map(|(teams, chosen)| self.team_selector(teams, chosen, busy, cx));
         let presence = group.presence.clone().map(|(text, resume)| {
             h_flex()
                 .debug_selector(|| "home-this-computer".into())
@@ -264,6 +264,52 @@ impl Homepage {
                     )
                 })
         });
+        // `.onboarding-project-group-mark`: a space's square or a computer.
+        let mark: Option<AnyElement> = group.mark.as_ref().map(|mark| match mark {
+            super::super::groups::Mark::Space(space) => {
+                crate::features::cloud::space_mark(space).into_any_element()
+            }
+            super::super::groups::Mark::Computer => Icon::product(ProductIcon::Local)
+                .with_size(px(16.))
+                .stroke(1.75)
+                .color(t.subtle)
+                .into_any_element(),
+        });
+        // `.onboarding-project-group-detail`: the plan its projects use, and
+        // owning a shared space.
+        let badge = group.plan.as_deref().and_then(|plan| {
+            group.mark.as_ref().and_then(|m| match m {
+                super::super::groups::Mark::Space(space) => {
+                    let mut space = space.clone();
+                    space.plan_id = Some(plan.to_owned());
+                    crate::features::cloud::space_plan_badge(&space)
+                }
+                _ => None,
+            })
+        });
+        let owner = group.owner.then(|| {
+            div()
+                .text_color(t.subtle)
+                .child(tr("settings.space.role.owner"))
+        });
+        // `.onboarding-space-manage`: Settings on this one space.
+        let manage = group
+            .manage
+            .clone()
+            .filter(|_| head_end.is_none())
+            .map(|space| {
+                Button::new(SharedString::from(format!("home-manage-{space}")))
+                    .variant(ButtonVariant::Ghost)
+                    .label(tr("settings.space.manage"))
+                    .h(px(18.))
+                    .px(px(6.))
+                    .text_size(px(theme::ty().ui.caption))
+                    .text_color(t.subtle)
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        cx.emit(HomeEvent::ManageSpace(space.clone()))
+                    }))
+            });
+        let caption = theme::ty().ui.caption;
         let head = h_flex()
             .min_w_0()
             .items_center()
@@ -271,11 +317,12 @@ impl Homepage {
             .mx(px(inset))
             .pb(px(4.))
             .when(index > 0, |d| {
-                d.pt(px(12.)).border_t_1().border_color(t.divider)
+                d.pt(px(20.)).border_t_1().border_color(t.divider)
             })
-            .text_size(px(11.))
-            .line_height(px(16.))
-            .text_color(if over { t.text } else { t.subtle })
+            .text_size(px(caption))
+            .line_height(px(18.))
+            .text_color(if over || lit { t.text } else { t.subtle })
+            .children(mark)
             .child(
                 div()
                     .min_w_0()
@@ -283,21 +330,26 @@ impl Homepage {
                     .font_weight(FontWeight::MEDIUM)
                     .child(group.title.clone()),
             )
-            .children(detail)
+            .children(badge)
+            .children(owner)
             .children(presence)
             .child(div().flex_1())
-            .children(head_end);
+            .children(head_end)
+            .children(manage);
         let drop_action = group.drop.clone().filter(|d| d.enabled).map(|d| d.action);
         div()
             .id(("home-group", index))
-            .debug_selector(move || format!("home-group:{}", id.key()))
+            .debug_selector({
+                let key = id.key();
+                move || format!("home-group:{key}")
+            })
             .relative()
             .flex()
             .flex_col()
             .gap(px(2.))
             .when(dragging && !available, |d| d.opacity(0.38))
             // `::before`: the fill of a group that takes the drag.
-            .when(available, |d| {
+            .when(available || lit, |d| {
                 d.child(
                     div()
                         .absolute()
@@ -306,7 +358,16 @@ impl Homepage {
                         .right_0()
                         .bottom(px(-6.))
                         .rounded(px(10.))
-                        .bg(theme::alpha(t.text, if over { 0.09 } else { 0.04 })),
+                        .bg(theme::alpha(
+                            t.text,
+                            if over {
+                                0.09
+                            } else if available {
+                                0.04
+                            } else {
+                                0.06
+                            },
+                        )),
                 )
             })
             .child(head)
@@ -314,10 +375,10 @@ impl Homepage {
             .on_drag_move::<ProjectDrag>(cx.listener(
                 move |s, event: &DragMoveEvent<ProjectDrag>, _, cx| {
                     let inside = event.bounds.contains(&event.event.position);
-                    if inside && available && s.drop_over != Some(id) {
-                        s.drop_over = Some(id);
+                    if inside && available && s.drop_over.as_ref() != Some(&id) {
+                        s.drop_over = Some(id.clone());
                         cx.notify();
-                    } else if !inside && s.drop_over == Some(id) {
+                    } else if !inside && s.drop_over.as_ref() == Some(&id) {
                         s.drop_over = None;
                         cx.notify();
                     }
@@ -338,67 +399,6 @@ impl Homepage {
                     }
                     cx.notify();
                 }))
-            })
-            .into_any_element()
-    }
-    /// `.onboarding-team-selector`: several teams are chosen between inside
-    /// the team group, never set out as headings of their own.
-    fn team_selector(
-        &self,
-        teams: Vec<(String, String)>,
-        chosen: String,
-        busy: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let t = cx.palette();
-        let open = self.menu == Some(HomeMenu::Team) && !busy;
-        let name = teams
-            .iter()
-            .find(|(id, _)| *id == chosen)
-            .map(|(_, name)| name.clone())
-            .unwrap_or_default();
-        let host = self.weak.clone();
-        let trigger = Button::new("home-team-selector")
-            .variant(ButtonVariant::Ghost)
-            .label(name)
-            .trailing(Icon::new("chevron-down").with_size(px(11.)).stroke(1.85))
-            .accessibility_label(tr("onboarding.sharing.selectTeam"))
-            .disabled(busy)
-            .h(px(18.))
-            .px(px(4.))
-            .text_size(px(11.))
-            .text_color(t.subtle);
-        PopoverMenu::new("home-team-selector-menu")
-            .anchor(Anchor::TopLeft)
-            .offset(px(metric::MENU_PADDING))
-            .open(open)
-            .on_open_change(move |opened, _, cx| {
-                let _ = host.update(cx, |s, cx| {
-                    let is = s.menu == Some(HomeMenu::Team);
-                    if *opened != is {
-                        s.menu = opened.then_some(HomeMenu::Team);
-                        cx.notify();
-                    }
-                });
-            })
-            .trigger(trigger)
-            .menu({
-                let host = self.weak.clone();
-                move |surface, _, _| {
-                    surface.items(teams.iter().map(|(id, name)| {
-                        let host = host.clone();
-                        let id = id.clone();
-                        checked_item(MenuItem::new(name.clone()), id == chosen).on_click(
-                            move |_, cx| {
-                                let _ = host.update(cx, |s, cx| {
-                                    s.chosen_team = Some(id.clone());
-                                    s.dragging_path = None;
-                                    cx.notify();
-                                });
-                            },
-                        )
-                    }))
-                }
             })
             .into_any_element()
     }

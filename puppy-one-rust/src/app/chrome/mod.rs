@@ -9,6 +9,7 @@
 //! owners while it draws, takes what the window shows as a
 //! [`SessionView`], and asks the window for everything else
 //! ([`ChromeEvent`]).
+pub(super) mod navigation;
 mod project_menu;
 mod rail;
 
@@ -37,8 +38,10 @@ use std::path::PathBuf;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
     Project,
-    /// `ProjectPlaceMenu`: where the open project is.
+    /// `ProjectPlaceMenu`: the places and the account.
     Place,
+    /// The Homepage brand's navigation (`OnboardingBrandLockup`).
+    Brand,
 }
 /// What the chrome asks of the window.
 pub(super) enum ChromeEvent {
@@ -51,11 +54,12 @@ pub(super) enum ChromeEvent {
     OpenProject(PathBuf),
     /// The account's catalog, loaded again (`Retry`).
     RefreshCatalog,
-    OpenSettings(crate::features::settings::Page),
     /// The project rail came or went: the panes share another width.
     RailChanged,
     /// A tool of the other computer's folder, shown or hidden.
     HostTool(crate::features::hosts::Tool),
+    /// A place, the account or Home, from a navigation menu.
+    Navigate(navigation::Navigate),
 }
 
 /// The window's other owners, read while the chrome draws.
@@ -219,11 +223,12 @@ impl WindowChrome {
             let mut bar = header::TitleBar::new();
             let home = o.home.read(cx);
             let empty = home.project_items(cx).is_empty();
-            if !empty || home.list_held() {
-                bar = bar.leading(header::brand_name(cx));
+            // `hasProjects || navigation.account`.
+            if home.has_projects(cx) || navigation::account_rows(cx) {
+                bar = bar.leading(self.brand(cx));
             }
             if crate::features::flags::cloud_enabled(&o.preferences, cx) {
-                let (retry, account) = (self.weak.clone(), self.weak.clone());
+                let retry = self.weak.clone();
                 bar = bar.action(header::cloud_status(
                     &o.cloud.read(cx).catalog,
                     session.cloud_opening,
@@ -231,17 +236,10 @@ impl WindowChrome {
                     move |_, cx| {
                         let _ = retry.update(cx, |_, cx| cx.emit(ChromeEvent::RefreshCatalog));
                     },
-                    move |_, cx| {
-                        let _ = account.update(cx, |_, cx| {
-                            cx.emit(ChromeEvent::OpenSettings(
-                                crate::features::settings::Page::Account,
-                            ))
-                        });
-                    },
                     cx,
                 ));
             }
-            return bar;
+            return self.sign_in(bar, cx);
         }
         // `ProjectWindow` while another project is on its way in: the
         // Header states that project and its location, and what belongs to
@@ -260,7 +258,8 @@ impl WindowChrome {
                 p.experimental.editor_tabs_in_header,
             )
         };
-        let project = !self.rail && (session.workspace || session.fixture || opening);
+        // With the rail on, the Header keeps the place alone.
+        let project = session.workspace || session.fixture || opening;
         let mut bar = header::TitleBar::new();
         if !o.panes.read(cx).explorer().open {
             bar = bar.leading(
@@ -272,10 +271,10 @@ impl WindowChrome {
             );
         }
         if project {
-            bar = bar.leading(self.project_context(cx));
+            bar = bar.leading(self.project_context(self.rail, cx));
         }
         if opening {
-            return bar;
+            return self.sign_in(bar, cx);
         }
         // `enableEditorTabsInHeader`: the editor's tabs move into the Header.
         if tabs && o.docs.read(cx).state().is_some() {
@@ -306,13 +305,26 @@ impl WindowChrome {
                         ),
                 );
             }
-            return bar;
+            return self.sign_in(bar, cx);
         }
         let coachmarks = self.coachmarks.read(cx);
         if hosted {
             let cloud = o.cloud.read(cx);
             if let Some(agents) = cloud.agents_control(cx) {
                 bar = bar.action(agents).divider(cx);
+            }
+            // `HistoryTool`: the hosted Project's own record.
+            if crate::features::cloud::account::has_account(cx) {
+                let label = tr("source-control.history.title");
+                bar = bar.action(
+                    Button::new("cloud-history")
+                        .variant(ButtonVariant::Titlebar)
+                        .icon(crate::ui::components::Icon::new("history").stroke(1.75))
+                        .accessibility_label(label)
+                        .tooltip(label)
+                        .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                        .on_click(cx.listener(|s, _, _, cx| s.command(Command::CloudHistory, cx))),
+                );
             }
         } else {
             if changes {
@@ -338,7 +350,29 @@ impl WindowChrome {
                 .into_any_element();
             bar = bar.action(coachmarks.anchor(Coachmark::Agent, button));
         }
-        bar
+        self.sign_in(bar, cx)
+    }
+    /// `windowNavigation.trailing`: Sign in at the Header's end while the
+    /// account is available and no one is signed in (`HeaderSignInButton`).
+    fn sign_in(&self, bar: header::TitleBar, cx: &mut Context<Self>) -> header::TitleBar {
+        use crate::localization::t as tr;
+        if !navigation::signs_in(cx) {
+            return bar;
+        }
+        let ty = theme::ty().header;
+        bar.action(
+            div().ml(px(4.)).child(
+                Button::new("header-sign-in")
+                    .variant(ButtonVariant::Titlebar)
+                    .label(tr("cloud.auth.signIn"))
+                    .accessibility_label(tr("cloud.auth.signInToCloud"))
+                    .pl(px(7.))
+                    .pr(px(8.))
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .on_click(|_, _, cx| crate::features::cloud::account::sign_in(cx)),
+            ),
+        )
     }
 }
 

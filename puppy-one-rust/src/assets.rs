@@ -134,6 +134,7 @@ embedded! {
     "icons" / "list-tree.svg",
     "icons" / "loader-circle.svg",
     "icons" / "lock-keyhole.svg",
+    "icons" / "log-in.svg",
     "icons" / "mail.svg",
     "icons" / "mcp-logo.svg",
     "icons" / "message-circle.svg",

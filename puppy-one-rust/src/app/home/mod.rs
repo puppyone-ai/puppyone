@@ -5,7 +5,7 @@
 //!
 //! With projects, the page is their area: a quiet head (sort and layout,
 //! then New project with the other ways to start behind its arrow) and the
-//! projects by who can open them ([`groups`]), each group as the Grid or the
+//! projects by the place that holds them ([`groups`]), each group as the Grid or the
 //! List ([`projects`]), from the head to the page's end. First run greets
 //! with the Puppy and the ways to start.
 //!
@@ -99,11 +99,13 @@ pub(in crate::app) enum HomeEvent {
         path: PathBuf,
         space: String,
     },
-    /// A folder dropped on My Share Project: open it to my other computers,
+    /// A folder dropped on Other computers: open it to my other computers,
     /// after the owner's confirmation.
     ShareFolder {
         path: PathBuf,
     },
+    /// A space's "Members & plan": Settings on that one space.
+    ManageSpace(String),
     Command(Command),
 }
 
@@ -146,8 +148,9 @@ pub(in crate::app) struct Homepage {
     released_for: Option<Option<String>>,
     /// `useHomepageListHold`: after Home only the list waits.
     pub list_held_since: Option<Instant>,
-    /// The team the team group shows, when several could.
-    pub chosen_team: Option<String>,
+    /// A place asked for from the Header (`HomepagePlaceFocus`): its group,
+    /// when asked, and when it was brought into view.
+    pub place_focus: Option<(groups::GroupId, Instant, Option<Instant>)>,
     /// The group a dragged project is over.
     pub drop_over: Option<groups::GroupId>,
     /// Since when a first visit waits for the spaces.
@@ -159,7 +162,7 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) local_share: bool,
     /// The owner's other computers, by name (`OtherComputersLabel`).
     pub(in crate::app) other_computers: Vec<String>,
-    /// This computer's sharing, for My Share Project's heading.
+    /// This computer's sharing, for its place's heading.
     presence: Option<(String, bool)>,
     /// `settleShownDates`: each project's date as first shown this visit.
     shown_dates: HashMap<String, i64>,
@@ -293,7 +296,7 @@ impl Homepage {
             first_paint: None,
             released_for: None,
             list_held_since: None,
-            chosen_team: None,
+            place_focus: None,
             drop_over: None,
             spaces_wait: None,
             shared_ids: None,
@@ -342,6 +345,14 @@ impl Homepage {
     }
     pub fn list_held(&self) -> bool {
         self.list_held_since.is_some()
+    }
+    /// `hasProjects`: something to list, a list held over, or a space to
+    /// show (an empty space is still a place).
+    pub fn has_projects(&self, cx: &App) -> bool {
+        !self.project_items(cx).is_empty()
+            || self.list_held()
+            || (crate::features::flags::cloud_enabled(&self.preferences, cx)
+                && !self.spaces.read(cx).spaces().is_empty())
     }
     fn recent<'a>(&self, cx: &'a App) -> &'a [RecentProject] {
         &self.preferences.read(cx).state.recent_projects
@@ -607,9 +618,6 @@ impl Homepage {
     fn refresh_activity(&mut self, cx: &mut Context<Self>) {
         let shown = self.session.listing;
         let appeared = shown && !self.shown;
-        if !self.session.home {
-            self.chosen_team = None;
-        }
         if appeared && self.session.home {
             self.shown_dates.clear();
             self.menu = None;
@@ -684,7 +692,58 @@ impl Homepage {
         }
         held
     }
-    /// The audience groups for the visible projects.
+    /// The Header asked to show `place` (`showHomepagePlace`): its group is
+    /// brought to the top once on the page, and marked for a moment.
+    pub(in crate::app) fn focus_place(&mut self, place: &str, cx: &mut Context<Self>) {
+        self.place_focus = Some((groups::GroupId::of_place(place), Instant::now(), None));
+        cx.notify();
+    }
+    /// `useProjectGroupFocus`: the group asked for, scrolled to once it is
+    /// there (the page may still be arranging its groups for up to 2s), and
+    /// lit for 1.6s; `None` once that has passed or the place has no group.
+    pub(in crate::app::home) fn settle_place_focus(
+        &mut self,
+        groups: &[groups::Group],
+        cx: &mut Context<Self>,
+    ) -> Option<groups::GroupId> {
+        const FOCUS: std::time::Duration = std::time::Duration::from_millis(1600);
+        const WAIT: std::time::Duration = std::time::Duration::from_millis(2000);
+        let (id, asked, shown) = self.place_focus.clone()?;
+        match shown {
+            Some(at) if at.elapsed() < FOCUS => Some(id),
+            Some(_) => {
+                self.place_focus = None;
+                None
+            }
+            None => match groups.iter().position(|g| g.id == id) {
+                Some(index) => {
+                    self.scroll.scroll_to_top_of_item(index);
+                    self.place_focus = Some((id.clone(), asked, Some(Instant::now())));
+                    cx.spawn(async move |this, cx| {
+                        cx.background_executor().timer(FOCUS).await;
+                        let _ = this.update(cx, |_, cx| cx.notify());
+                    })
+                    .detach();
+                    Some(id)
+                }
+                None if asked.elapsed() < WAIT => {
+                    cx.spawn(async move |this, cx| {
+                        cx.background_executor()
+                            .timer(std::time::Duration::from_millis(100))
+                            .await;
+                        let _ = this.update(cx, |_, cx| cx.notify());
+                    })
+                    .detach();
+                    None
+                }
+                None => {
+                    self.place_focus = None;
+                    None
+                }
+            },
+        }
+    }
+    /// The place groups for the visible projects.
     pub(in crate::app) fn project_groups_now(
         &self,
         items: Vec<Item>,
@@ -702,8 +761,12 @@ impl Homepage {
                 .filter(|_| cx.has_active_drag()),
             busy: self.session.busy,
             can_publish: cloud,
-            chosen_team: self.chosen_team.as_deref(),
-            shared_ids: self.shared_ids.as_ref(),
+            can_manage: cloud,
+            shared: &|item: &Item| {
+                item.host_folder
+                    .as_ref()
+                    .is_some_and(|id| self.shared_ids.as_ref().is_none_or(|ids| ids.contains(id)))
+            },
             local_share: self.local_share,
             remote: self.remote_items(cx),
             presence: self.presence.clone(),
@@ -711,7 +774,7 @@ impl Homepage {
     }
     /// `projectAudience` of `MinimalOnboarding`: who can open a local folder
     /// listed here, and how its menu changes that — opened to my devices
-    /// directly, or copied to a team's Cloud space.
+    /// directly, or copied to a Cloud space.
     pub(in crate::app) fn audience_of_id(
         &self,
         id: &str,
@@ -734,20 +797,8 @@ impl Homepage {
             open: Some(A::OpenCloud(l.id.clone())),
             ..Default::default()
         });
-        let space_of = |project: &str| {
-            items
-                .iter()
-                .find(|i| i.cloud_project.as_deref() == Some(project))
-                .and_then(|i| i.cloud_organization.clone())
-                .and_then(|org| spaces.iter().find(|s| s.id == org))
-        };
-        let personal_copy = linked
-            .as_ref()
-            .and_then(|l| space_of(&l.id))
-            .is_some_and(|s| s.is_default);
-        let first_team = spaces
-            .iter()
-            .find(|s| !s.is_default && s.can_create_projects);
+        // A folder is copied to the first space this account can add to.
+        let first_space = spaces.iter().find(|s| s.can_create_projects);
         let devices = (self.local_share || (shared && item.host_folder.is_some())).then(|| {
             let folder = item.host_folder.clone().unwrap_or_default();
             Devices {
@@ -767,18 +818,18 @@ impl Homepage {
                 }),
             }
         });
-        let team = (first_team.is_some() || (copy.is_some() && !personal_copy)).then(|| Team {
-            copy: if personal_copy { None } else { copy.clone() },
-            on_copy: first_team
+        let team = (first_space.is_some() || copy.is_some()).then(|| Team {
+            copy: copy.clone(),
+            on_copy: first_space
                 .filter(|_| linked.is_none() && cloud)
-                .map(|team| A::CopyToTeam {
+                .map(|space| A::CopyToTeam {
                     path: path.clone(),
-                    space: team.id.clone(),
+                    space: space.id.clone(),
                 }),
         });
         Some(ProjectAudience {
             devices,
-            devices_copy: if personal_copy { copy } else { None },
+            devices_copy: None,
             team,
         })
         .filter(|a| a.any())
@@ -986,8 +1037,7 @@ impl Homepage {
             Some(_) => {}
         }
         let t = cx.palette();
-        let all = self.project_items(cx);
-        let has_projects = !all.is_empty() || self.list_held();
+        let has_projects = self.has_projects(cx);
         let busy = self.session.busy;
         let pad = metric::UTILITY_PADDING_INLINE;
         let page_w = PAGE_WIDTH.min(w - pad * 2.).max(0.);
@@ -1038,7 +1088,7 @@ impl Homepage {
                 .mb(px(8.))
                 .text_color(t.muted)
                 .child(self.project_toolbar(busy, cx))
-                .child(self.entry_menu(busy, w <= 696., cx));
+                .child(self.entry_menu(busy, cx));
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
                 && self.spaces.read(cx).status() == SpacesStatus::Error)
                 .then(|| {
@@ -1164,10 +1214,9 @@ impl Homepage {
             .flex()
             .flex_col()
             .items_center()
+            // The list runs to the window's edge (`padding-block-end: 0`).
             .when(has_projects, |d| {
-                d.justify_start()
-                    .pt(px(metric::CHROME_HEIGHT + 32.))
-                    .pb(px(20.))
+                d.justify_start().pt(px(metric::CHROME_HEIGHT + 32.))
             })
             .when(!has_projects, |d| d.justify_center().py(px(48.)))
             .px(px(pad))
@@ -1258,23 +1307,16 @@ impl Homepage {
             .font_weight(FontWeight::NORMAL)
             .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
     }
-    /// New project at the head of a page with projects; below the column's
-    /// width it keeps its key and gives its words to assistive technology.
-    fn create_action_compact(&self, narrow: bool, busy: bool, cx: &mut Context<Self>) -> Button {
-        let label = tr("onboarding.action.createLocalProject");
-        let button = Button::new("home-create-project")
-            .variant(ButtonVariant::PatternPrimary)
-            .icon(Icon::new("file-plus-2").small().stroke(1.85))
-            .accessibility_label(label)
+    /// New project at the head of a page with projects: in words alone, a
+    /// quiet control of the toolbar's own weight; the folders are the page.
+    /// (v0.4.4 also hides the words below the column's width, which leaves
+    /// the button blank now that it has no icon; the words stay here.)
+    fn create_action_compact(&self, busy: bool, cx: &mut Context<Self>) -> Button {
+        Button::new("home-create-project")
+            .variant(ButtonVariant::PatternDeep)
+            .label(tr("onboarding.action.createLocalProject"))
             .disabled(busy)
-            .text_size(px(theme::ty().ui.body))
-            .font_weight(FontWeight::NORMAL)
-            .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)));
-        if narrow {
-            button.tooltip(label).px(px(11.))
-        } else {
-            button.label(label)
-        }
+            .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
     }
     /// `ImportAction` with its GitHub and GitLab preview: clone a repository
     /// into a new local project.

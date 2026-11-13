@@ -80,7 +80,7 @@ pub(in crate::app) fn creatable_teams(
 ) -> Vec<(String, String)> {
     spaces
         .iter()
-        .filter(|s| !s.is_default && s.can_create_projects)
+        .filter(|s| s.can_create_projects)
         .map(|s| (s.id.clone(), s.name.clone()))
         .collect()
 }
@@ -794,7 +794,14 @@ mod tests {
             space("a", false, true),
             space("b", false, false),
         ]);
-        assert_eq!(teams, vec![("a".to_owned(), "a".to_owned())]);
+        // Every space this account can add to, its own included (v0.4.4).
+        assert_eq!(
+            teams,
+            vec![
+                ("me".to_owned(), "me".to_owned()),
+                ("a".to_owned(), "a".to_owned())
+            ]
+        );
         let mut current = None;
         let first = operation(&mut current, "a", "Notes");
         assert_eq!(operation(&mut current, "a", "Notes"), first);

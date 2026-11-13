@@ -83,10 +83,30 @@ impl SettingsWorkspaceSurface {
         cx.notify();
     }
     /// What the window opening Settings shows and which space, if any, the
-    /// control that opened it named.
-    pub fn set_space_context(&mut self, cloud_project: Option<String>, requested: Option<String>) {
+    /// control that opened it named; `invite` (a space just made) puts the
+    /// keyboard in Members' invitation field once it shows.
+    pub fn set_space_context(
+        &mut self,
+        cloud_project: Option<String>,
+        requested: Option<String>,
+        invite: Option<AnyWindowHandle>,
+    ) {
         self.cloud_project = cloud_project;
         self.requested_space = requested;
+        self.space_page.focus_invite = invite;
+    }
+    /// The spaces were read again: a page on a space that is no longer the
+    /// one Settings manages (a space just made, a project's space now
+    /// known) reads the right one.
+    fn follow_space(&mut self, cx: &mut Context<Self>) {
+        let space = self.settings_space(cx).map(|space| space.id);
+        if self.page == Page::Space && self.space_page.org() != space.as_deref() {
+            self.load_space(cx);
+        }
+        if matches!(self.page, Page::Plan | Page::Account) && self.plan_org() != space {
+            self.load_plan(false, cx);
+        }
+        cx.notify();
     }
     /// `resolveSettingsSpace`: the one space Settings manages, while the
     /// account is signed in and its spaces are known.
@@ -198,7 +218,7 @@ impl SettingsWorkspaceSurface {
         })
         .detach();
         let spaces = crate::features::cloud::global_spaces(cx);
-        cx.observe(&spaces, |_, _, cx| cx.notify()).detach();
+        cx.observe(&spaces, |s, _, cx| s.follow_space(cx)).detach();
         let space_page = super::main::SpacePage::new(window, cx);
         let mut s = Self {
             plan_page: Default::default(),
@@ -302,6 +322,10 @@ impl SettingsWorkspaceSurface {
                 input.set_text(saved, cx)
             }
         });
+    }
+    #[cfg(test)]
+    pub fn page_shown(&self, page: Page) -> bool {
+        self.page == page
     }
     #[cfg(test)]
     pub fn page_available(&self, page: Page, cx: &App) -> bool {

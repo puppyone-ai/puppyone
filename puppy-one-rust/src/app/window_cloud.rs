@@ -11,7 +11,7 @@
 //! from a read (`cloud.read(cx).agents_control(..)`), its dialogs on the
 //! dialog layer.
 use super::{
-    Command, Popover,
+    Popover,
     cloud_agents_ui::{AgentCards, AgentsAnchor},
     dialogs::{DialogKey, DialogLayer},
     project_place::Disconnect,
@@ -31,11 +31,12 @@ use std::path::{Path, PathBuf};
 pub(super) enum CloudEvent {
     OpenProject(PathBuf),
     OpenCloud(String),
-    Command(Command),
     OpenSettings(Page),
     /// A Header card opened or closed.
     Popover(Option<Popover>),
     Error(String),
+    /// `CreateTeamDialog` made this space.
+    SpaceCreated(String),
 }
 
 pub(super) struct WindowCloud {
@@ -91,6 +92,8 @@ pub(super) struct WindowCloud {
     pub recovery: Option<(String, Failure)>,
     /// Copy details was pressed on the failure that shows.
     pub(super) recovery_copied: bool,
+    /// `CreateTeamDialog`, while it is open.
+    pub(super) create_space: Option<super::create_space::CreateSpace>,
 }
 impl EventEmitter<CloudEvent> for WindowCloud {}
 
@@ -180,6 +183,7 @@ impl WindowCloud {
             pending_publish: None,
             recovery: None,
             recovery_copied: false,
+            create_space: None,
         }
     }
     /// What the window shows changed.
@@ -209,7 +213,7 @@ impl WindowCloud {
         self.pending_publish = Some((path.clone(), space, authority));
         cx.emit(CloudEvent::OpenProject(path));
     }
-    /// A drop on My Share Project: open that exact folder to my other
+    /// A folder's "Who can open it": open that exact folder to my other
     /// computers, after the owner's confirmation (the other computers'
     /// sharing, `useHomepageFolderSharing`).
     pub fn request_device_sharing(
@@ -437,6 +441,10 @@ impl WindowCloud {
                 .host_sharing
                 .is_some()
                 .then(|| self.host_sharing_dialog(cx).into_any_element()),
+            DialogKey::CreateSpace => self
+                .create_space
+                .as_ref()
+                .map(|state| self.create_space_dialog(state, cx).into_any_element()),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
@@ -456,6 +464,7 @@ impl WindowCloud {
             DialogKey::CloudRecovery => self.close_cloud_recovery(cx),
             DialogKey::Agents => self.close_agents_dialog(window, cx),
             DialogKey::HostSharing => self.close_host_sharing(cx),
+            DialogKey::CreateSpace => self.close_create_space(cx),
             _ => {}
         }
         cx.notify();

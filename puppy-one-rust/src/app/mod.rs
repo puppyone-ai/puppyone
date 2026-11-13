@@ -17,6 +17,7 @@ mod cloud_authority;
 mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
+mod create_space;
 mod dialogs;
 mod editor_area;
 mod editor_workbench;
