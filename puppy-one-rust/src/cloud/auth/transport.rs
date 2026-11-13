@@ -107,6 +107,9 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
     if status == 403 {
         return Error::Http(403);
     }
+    if status == 404 && billing_disabled(value) {
+        return Error::Response(404, Some(BILLING_DISABLED), Default::default());
+    }
     // Allowlisted reason codes survive for recovery copy (`cloudOpeningFailure`).
     let reason = [
         "/detail/code",
@@ -137,6 +140,35 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
     Error::Service(status, code)
 }
 
+/// `billingUnavailable` (`CloudPlans.tsx`): hosted subscriptions switched off
+/// answer 404 with this code, or with one of two fixed messages (the BFF's
+/// "Billing is not enabled", PuppyPay's "Hosting subscriptions are not
+/// available"). It is a product state, not a fault; only the fixed reason
+/// travels on, never the server's prose.
+pub const BILLING_DISABLED: &str = "hosting_billing_disabled";
+fn billing_disabled(value: &serde_json::Value) -> bool {
+    let code = [
+        "/detail/code",
+        "/data/code",
+        "/error/code",
+        "/code",
+        "/error_code",
+    ]
+    .iter()
+    .any(|pointer| {
+        value.pointer(pointer).and_then(serde_json::Value::as_str) == Some(BILLING_DISABLED)
+    });
+    let message = ["/message", "/detail", "/detail/message", "/error/message"]
+        .iter()
+        .filter_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
+        .any(|m| {
+            let m = m.to_ascii_lowercase();
+            m.contains("hosting subscriptions are not available")
+                || m.contains("billing is not enabled")
+        });
+    code || message
+}
+
 #[cfg(test)]
 mod refusal_tests {
     use super::*;
@@ -149,5 +181,22 @@ mod refusal_tests {
         assert_eq!(response_error(400, &grant), Error::InvalidCredentials);
         assert_eq!(refresh_error(400, &grant), Error::Http(400));
         assert_eq!(refresh_error(401, &grant), Error::InvalidCredentials);
+    }
+    /// PL-3: switched-off billing is told apart from any other 404, by its
+    /// code or the two fixed messages, and nothing else of the body survives.
+    #[test]
+    fn switched_off_billing_is_a_fixed_reason() {
+        let disabled = Error::Response(404, Some(BILLING_DISABLED), Default::default());
+        for body in [
+            serde_json::json!({"code": 1004, "message": "Billing is not enabled", "data": null}),
+            serde_json::json!({"detail": "Hosting subscriptions are not available."}),
+            serde_json::json!({"detail": {"code": "hosting_billing_disabled"}}),
+        ] {
+            assert_eq!(response_error(404, &body), disabled);
+        }
+        let other = serde_json::json!({"code": 1004, "message": "Organization not found"});
+        assert_eq!(response_error(404, &other), Error::Http(404));
+        let wrong_status = serde_json::json!({"message": "Billing is not enabled"});
+        assert_ne!(response_error(500, &wrong_status), disabled);
     }
 }

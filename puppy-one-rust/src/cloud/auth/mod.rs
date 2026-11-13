@@ -15,7 +15,7 @@ pub use fixtures::{
     Responder, account_fixture, protocol_fixture, refresh_token_broker, relogin,
     responding_account_fixture,
 };
-pub use transport::{Cancellation, HostTunnel, ServiceCode, StreamEvent};
+pub use transport::{BILLING_DISABLED, Cancellation, HostTunnel, ServiceCode, StreamEvent};
 #[cfg(test)]
 mod http_tests;
 #[cfg(test)]

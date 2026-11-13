@@ -20,10 +20,13 @@ pub enum Error {
     /// The response broke the contract.
     Invalid(&'static str),
     Unavailable,
+    /// Hosted subscriptions are switched off: readings stay, selling stops.
+    BillingDisabled,
 }
 impl Error {
     fn from_auth(error: auth::Error) -> Self {
         match error {
+            auth::Error::Response(404, Some(auth::BILLING_DISABLED), _) => Self::BillingDisabled,
             auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _, _) => {
                 Self::Status(s)
             }
