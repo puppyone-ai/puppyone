@@ -1,0 +1,3669 @@
+{
+ "icu": "78.2",
+ "cases": [
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12.5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12.5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1,235"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9,999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9,999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9,999"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12,346"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12,345.7"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12,345.68"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0.1"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0.05"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0.3"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0.25"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9.95"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99.96"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3.2"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3.2"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "en",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0.04"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$0"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$5"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$19.50"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$20"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$40"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$120"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$1,234.56"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$10,000"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$999.99"
+  },
+  {
+   "locale": "en",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-$5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12,5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12,5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1235"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1234,5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1234,5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9999"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12.346"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12.345,7"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12.345,68"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0,1"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0,05"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0,3"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0,25"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9,95"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99,96"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3,2"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3,2"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "es",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0,04"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "0 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "5 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "19,50 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "20 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "40 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "120 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "1234,56 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "10.000 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "999,99 $"
+  },
+  {
+   "locale": "es",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-5 $"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12,5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12,5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1.235"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1.234,5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1.234,5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9.999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9.999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9.999"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12.346"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12.345,7"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12.345,68"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0,1"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0,05"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0,3"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0,25"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9,95"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99,96"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3,2"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3,2"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0,04"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 0"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 5"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$ 19,50"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 20"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 40"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 120"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$ 1.234,56"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$ 10.000"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$ 999,99"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-$ 5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12,5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12,5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1 235"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1 234,5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1 234,5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9 999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9 999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9 999"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12 346"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12 345,7"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12 345,68"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1 000 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1 000 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1 000 000"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0,1"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0,05"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0,3"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0,25"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9,95"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99,96"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3,2"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3,2"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "fr",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0,04"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "0 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "5 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "19,50 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "20 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "40 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "120 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "1 234,56 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "10 000 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "999,99 $"
+  },
+  {
+   "locale": "fr",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-5 $"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12,5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12,5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1.235"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1.234,5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1.234,5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9.999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9.999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9.999"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12.346"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12.345,7"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12.345,68"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1.000.000"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0,1"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0,05"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0,3"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0,25"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9,95"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99,96"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3,2"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3,2"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "de",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0,04"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "0 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "5 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "19,50 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "20 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "40 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "120 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "1.234,56 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "10.000 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "999,99 $"
+  },
+  {
+   "locale": "de",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-5 $"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12.5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12.5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1,235"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12,346"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12,345.7"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12,345.68"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0.1"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0.05"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0.3"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0.25"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9.95"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99.96"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3.2"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3.2"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "ja",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0.04"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$0"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$5"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$19.50"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$20"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$40"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$120"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$1,234.56"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$10,000"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$999.99"
+  },
+  {
+   "locale": "ja",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-$5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12.5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12.5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1,235"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9,999"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12,346"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12,345.7"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12,345.68"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0.1"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0.05"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0.3"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0.25"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9.95"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99.96"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3.2"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3.2"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "ko",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0.04"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$0"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$5"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$19.50"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$20"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$40"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$120"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$1,234.56"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$10,000"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$999.99"
+  },
+  {
+   "locale": "ko",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-$5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0,
+   "max": 1,
+   "expected": "0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0,
+   "max": 2,
+   "expected": "0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 7,
+   "max": 0,
+   "expected": "7"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 7,
+   "max": 1,
+   "expected": "7"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 7,
+   "max": 2,
+   "expected": "7"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 0,
+   "expected": "13"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 1,
+   "expected": "12.5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12.5,
+   "max": 2,
+   "expected": "12.5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 999,
+   "max": 0,
+   "expected": "999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 999,
+   "max": 1,
+   "expected": "999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 999,
+   "max": 2,
+   "expected": "999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 0,
+   "expected": "1,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 1,
+   "expected": "1,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000,
+   "max": 2,
+   "expected": "1,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 0,
+   "expected": "1,235"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 1,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1234.5,
+   "max": 2,
+   "expected": "1,234.5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 0,
+   "expected": "9,999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 1,
+   "expected": "9,999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9999,
+   "max": 2,
+   "expected": "9,999"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 0,
+   "expected": "10,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 1,
+   "expected": "10,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 10000,
+   "max": 2,
+   "expected": "10,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 0,
+   "expected": "12,346"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 1,
+   "expected": "12,345.7"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 12345.678,
+   "max": 2,
+   "expected": "12,345.68"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 0,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 1,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 1000000,
+   "max": 2,
+   "expected": "1,000,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 1,
+   "expected": "0.1"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.05,
+   "max": 2,
+   "expected": "0.05"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 0,
+   "expected": "0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 1,
+   "expected": "0.3"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 0.25,
+   "max": 2,
+   "expected": "0.25"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 0,
+   "expected": "10"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 1,
+   "expected": "10"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 9.95,
+   "max": 2,
+   "expected": "9.95"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 0,
+   "expected": "100"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 1,
+   "expected": "100"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 99.96,
+   "max": 2,
+   "expected": "99.96"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 220,
+   "max": 0,
+   "expected": "220"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 220,
+   "max": 1,
+   "expected": "220"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 220,
+   "max": 2,
+   "expected": "220"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 0,
+   "expected": "3"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 1,
+   "expected": "3.2"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": 3.2,
+   "max": 2,
+   "expected": "3.2"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -5,
+   "max": 0,
+   "expected": "-5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -5,
+   "max": 1,
+   "expected": "-5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -5,
+   "max": 2,
+   "expected": "-5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 0,
+   "expected": "-0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 1,
+   "expected": "-0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "decimal",
+   "value": -0.04,
+   "max": 2,
+   "expected": "-0.04"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 0,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$0"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$5"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 19.5,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$19.50"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 20,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$20"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 40,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$40"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 120,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$120"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 1234.56,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$1,234.56"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 10000,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "$10,000"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": 999.99,
+   "currency": "USD",
+   "fraction": 2,
+   "expected": "$999.99"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "currency",
+   "value": -5,
+   "currency": "USD",
+   "fraction": 0,
+   "expected": "-$5"
+  }
+ ]
+}

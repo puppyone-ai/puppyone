@@ -131,34 +131,133 @@ pub fn bidi_isolate(value: &str) -> String {
     format!("\u{2068}{value}\u{2069}")
 }
 
+/// How `Intl.NumberFormat` writes numbers in each product language: decimal
+/// mark, group separator, the fewest integer digits that are grouped, and
+/// where a currency symbol stands. `fixtures/ui/number-format-oracle.json`
+/// (`tools/reference-number-format.mjs`, from Intl itself) pins them.
+struct NumberStyle {
+    decimal: char,
+    group: char,
+    min_grouped: usize,
+    currency: CurrencyPosition,
+}
+enum CurrencyPosition {
+    /// `$20`
+    Before,
+    /// `$ 20` (no-break space)
+    BeforeSpaced,
+    /// `20 $` (no-break space)
+    After,
+}
+fn number_style(code: &str) -> NumberStyle {
+    let (decimal, group, min_grouped, currency) = match code {
+        // Spanish groups only five digits and more.
+        "es" => (',', '.', 5, CurrencyPosition::After),
+        "pt-BR" => (',', '.', 4, CurrencyPosition::BeforeSpaced),
+        // A narrow no-break space.
+        "fr" => (',', '\u{202f}', 4, CurrencyPosition::After),
+        "de" => (',', '.', 4, CurrencyPosition::After),
+        _ => ('.', ',', 4, CurrencyPosition::Before),
+    };
+    NumberStyle {
+        decimal,
+        group,
+        min_grouped,
+        currency,
+    }
+}
+/// `value` at most `max` and at least `min` fraction digits, rounded half
+/// away from zero on its shortest decimal form, as Intl's `halfExpand` does.
+fn decimal_digits(value: f64, min: usize, max: usize) -> (bool, String, String) {
+    let text = format!("{}", value.abs());
+    let (int, frac) = text.split_once('.').unwrap_or((&text, ""));
+    let mut digits: Vec<u8> = int.bytes().chain(frac.bytes().take(max)).collect();
+    let mut int_len = int.len();
+    if frac.as_bytes().get(max).is_some_and(|d| *d >= b'5') {
+        let mut i = digits.len();
+        loop {
+            if i == 0 {
+                digits.insert(0, b'1');
+                int_len += 1;
+                break;
+            }
+            i -= 1;
+            if digits[i] == b'9' {
+                digits[i] = b'0';
+            } else {
+                digits[i] += 1;
+                break;
+            }
+        }
+    }
+    let int = String::from_utf8(digits[..int_len].to_vec()).unwrap_or_default();
+    let mut frac = String::from_utf8(digits[int_len..].to_vec()).unwrap_or_default();
+    while frac.len() > min && frac.ends_with('0') {
+        frac.pop();
+    }
+    while frac.len() < min {
+        frac.push('0');
+    }
+    (value.is_sign_negative(), int, frac)
+}
+fn grouped(int: &str, style: &NumberStyle) -> String {
+    if int.len() < style.min_grouped {
+        return int.to_owned();
+    }
+    let mut out = String::new();
+    for (index, digit) in int.chars().enumerate() {
+        if index > 0 && (int.len() - index).is_multiple_of(3) {
+            out.push(style.group);
+        }
+        out.push(digit);
+    }
+    out
+}
+fn number_in(code: &str, value: f64, min: usize, max: usize) -> (bool, String) {
+    let style = number_style(code);
+    let (negative, int, frac) = decimal_digits(value, min, max);
+    let mut text = grouped(&int, &style);
+    if !frac.is_empty() {
+        text.push(style.decimal);
+        text.push_str(&frac);
+    }
+    (negative, text)
+}
+/// `formatNumber(value, {maximumFractionDigits})` in `code`.
+pub fn format_decimal_in(code: &str, value: f64, max_fraction: usize) -> String {
+    let (negative, text) = number_in(code, value, 0, max_fraction);
+    if negative { format!("-{text}") } else { text }
+}
 /// `formatNumber(value)` (`Intl.NumberFormat`) for an integer in the current
 /// locale.
 pub fn format_number(value: i64) -> String {
-    let code = current_code();
-    let digits = value.unsigned_abs().to_string();
-    let (separator, minimum) = match code.as_str() {
-        "en" => (',', 4),
-        // Spanish groups only five digits and more.
-        "es" => ('.', 5),
-        _ => ('.', 4),
+    format_decimal_in(&current_code(), value as f64, 0)
+}
+/// `formatNumber(value, {maximumFractionDigits})` in the current locale.
+pub fn format_decimal(value: f64, max_fraction: usize) -> String {
+    format_decimal_in(&current_code(), value, max_fraction)
+}
+/// `formatNumber(amount, {style: "currency", currencyDisplay: "narrowSymbol",
+/// maximumFractionDigits: fraction})` in `code`; the currency's minor digits
+/// are shown when `fraction` is 2.
+pub fn format_currency_in(code: &str, amount: f64, currency: &str, fraction: usize) -> String {
+    let (negative, number) = number_in(code, amount, fraction, fraction);
+    let symbol = match currency.to_ascii_uppercase().as_str() {
+        "USD" => "$".to_owned(),
+        "EUR" => "€".to_owned(),
+        "GBP" => "£".to_owned(),
+        other => other.to_owned(),
     };
-    let grouped = if digits.len() < minimum {
-        digits
-    } else {
-        let mut grouped = String::new();
-        for (index, digit) in digits.chars().enumerate() {
-            if index > 0 && (digits.len() - index).is_multiple_of(3) {
-                grouped.push(separator);
-            }
-            grouped.push(digit);
-        }
-        grouped
-    };
-    if value < 0 {
-        format!("-{grouped}")
-    } else {
-        grouped
+    let sign = if negative { "-" } else { "" };
+    match number_style(code).currency {
+        CurrencyPosition::Before => format!("{sign}{symbol}{number}"),
+        CurrencyPosition::BeforeSpaced => format!("{sign}{symbol}\u{a0}{number}"),
+        CurrencyPosition::After => format!("{sign}{number}\u{a0}{symbol}"),
     }
+}
+/// `format_currency_in` in the current locale.
+pub fn format_currency(amount: f64, currency: &str, fraction: usize) -> String {
+    format_currency_in(&current_code(), amount, currency, fraction)
 }
 
 /// Parameter-free message in the current locale.
@@ -582,6 +681,32 @@ fn month_day_in(code: &str, year: Option<i32>, month: u32, day: u32) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// `fixtures/ui/number-format-oracle.json`: Intl itself, in every
+    /// product language.
+    #[test]
+    fn numbers_and_money_read_as_intl_writes_them() {
+        let oracle: serde_json::Value =
+            serde_json::from_str(include_str!("../fixtures/ui/number-format-oracle.json")).unwrap();
+        let mut wrong = Vec::new();
+        for case in oracle["cases"].as_array().unwrap() {
+            let locale = case["locale"].as_str().unwrap();
+            let value = case["value"].as_f64().unwrap();
+            let actual = if case["kind"] == "currency" {
+                super::format_currency_in(
+                    locale,
+                    value,
+                    case["currency"].as_str().unwrap(),
+                    case["fraction"].as_u64().unwrap() as usize,
+                )
+            } else {
+                super::format_decimal_in(locale, value, case["max"].as_u64().unwrap() as usize)
+            };
+            if actual != case["expected"].as_str().unwrap() {
+                wrong.push(format!("{case} -> {actual:?}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
     #[test]
     fn days_and_dates_follow_intl() {
         use super::{month_day_in, relative_day_in};

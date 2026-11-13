@@ -35,6 +35,7 @@ commands = [
     ('code-reference', ['node', 'tools/reference-code.mjs', '--check']),
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('native-vocabulary', ['node', 'tools/check-native-vocabulary.mjs']),
+    ('number-format', ['node', 'tools/reference-number-format.mjs', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),
     ('ui-assets', ['node', 'tools/import-ui-assets.mjs', '--check']),
