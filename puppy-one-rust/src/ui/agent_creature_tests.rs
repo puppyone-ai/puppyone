@@ -3,7 +3,7 @@ use super::*;
 use core::prelude::v1::test;
 
 /// The same name makes the same creature as in the product
-/// (`agentCreatureFor`, read off qubits@686d41c49 in node).
+/// (`agentCreatureFor`, read off v0.4.4 in node; unchanged since qubits@686d41c49).
 #[test]
 fn a_name_makes_the_products_creature() {
     // Colours by index: #57B96A is 3, #D9B23A is 7, #E8489A is 4.

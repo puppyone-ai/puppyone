@@ -3,8 +3,8 @@
   "sources": {
     "desktop": {
       "repository": "puppyone",
-      "head": "686d41c49ffd80734617e3b66061e615b5848e7b",
-      "checkout": "../../puppyone-baseline-686d41c49",
+      "head": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
+      "checkout": "../../puppyone-baseline-5e87974ef",
       "inputs": {
         "src/features/cloud/files/cloudWorkspaceClient.ts": "d3259c01d7c2269560894d46c8515dac45c24b31b994a42cdbe71ae2b51e9538",
         "src/features/cloud/files/cloudDataPort.ts": "171b55e43ea6b9df7d9e3f7cd4a3e5a537f39167ca19084cf8f22e38ae4d8176",
@@ -19,22 +19,24 @@
       },
       "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
       "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift: cloudWorkspaceClient.ts/cloudWorkspaceOpening.ts follow operation.phase while waiting (c8bbc26bc, ported natively as N-7); projectCloudContext.ts drops getProjectCloudLocationState with the Local/Cloud switch (f4e4c79c6, ADR-001 two projects; removed natively as C-2); cloud-workspace-file.mjs import path only (7cbdf8389).",
-      "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: cloudOpeningFailure.ts classifies workspace failures by the next step, reopens a moved workspace once and keeps the code and request id (7902421c0, ported natively as CF-1/CF-2); cloudWorkspaceClient.ts gives its own replaced/not-running refusals those codes (7902421c0); projectCloudContext.ts drops the services Hub section helpers (6f896add1, removed natively). Added the cloud-git-acceptance-v1.json contract, pinned byte for byte at contracts/ (a67557765, CF-3)."
+      "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: cloudOpeningFailure.ts classifies workspace failures by the next step, reopens a moved workspace once and keeps the code and request id (7902421c0, ported natively as CF-1/CF-2); cloudWorkspaceClient.ts gives its own replaced/not-running refusals those codes (7902421c0); projectCloudContext.ts drops the services Hub section helpers (6f896add1, removed natively). Added the cloud-git-acceptance-v1.json contract, pinned byte for byte at contracts/ (a67557765, CF-3).",
+      "review20261114": "Repinned 2026-11-14 to v0.4.4 (5e87974ef); every input is byte-identical to 686d41c49."
     },
     "cloud": {
       "repository": "puppyone-cloud",
-      "head": "6a50faa806ad901d06a25b6fa05e0376e41ca0b4",
+      "head": "3e973a21a5e903f2b1398854c0b09007518dd45f",
       "checkout": "../../puppyone-cloud-qubits",
       "inputs": {
-        "backend/src/platform/access/adapters/api/workbench_router.py": "3297e721716148f964838d7c9d6fb45a9f10e2160673625abdb62b4a3cbdbefb",
-        "backend/src/platform/workspace/service.py": "c126a0cddb2d67511d40f44944df221a91f235d1fbe92bd243d6e2d5f7133255",
+        "backend/src/platform/access/adapters/api/workbench_router.py": "2d494119e4619b00dc3b4c1174727381d1b13320977707e753d88e1f79622965",
+        "backend/src/platform/workspace/service.py": "00a36867cb1a8cd7aa37a1572532b7f0f71fefd6b836e63bef84c3d4afd14a09",
         "backend/agent-worker/workbench-files.py": "e2020dab526e543ab2af32e4ac7ea2701c81d747394ee19a1afb49f6ff121b3a",
         "backend/src/platform/repository_context/router.py": "fd38fe7721617c4784b4d8657371d9f08b303ddaebd0d9f331e2544a8e9b22a6",
         "backend/src/platform/repository_context/schemas.py": "270d31207d4060233c14dc4d1b1d56ff4bf4b77b44f89398e067693bc9126c07",
         "backend/src/platform/repository_target/schemas.py": "f3f820ab85faaa83f0bb46a7faefdeda4ea8f7383c1175a1e9fb3eb14edf224f",
         "backend/src/exception_handler.py": "ef51d0b4c3b8e1b89e802f312fb05a514620a8cb204da87ec2be06df3e60968a"
       },
-      "review20261104": "Repinned 2026-11-04 to puppyone-cloud qubits 6a50faa8. Reviewed drift: workbench_router.py adds /workbench/sync, /sync/finish, /sync/abort and /publish, which the Desktop product does not call at 671143f2a; service.py wires them; repository_context/router.py and repository_target/schemas.py move imports to src.shared_types only. The live file and event contract is unchanged."
+      "review20261104": "Repinned 2026-11-04 to puppyone-cloud qubits 6a50faa8. Reviewed drift: workbench_router.py adds /workbench/sync, /sync/finish, /sync/abort and /publish, which the Desktop product does not call at 671143f2a; service.py wires them; repository_context/router.py and repository_target/schemas.py move imports to src.shared_types only. The live file and event contract is unchanged.",
+      "review20261114": "Repinned 2026-11-14 to puppyone-cloud qubits 3e973a21. Reviewed drift: workbench_router.py adds the sandbox settings route and the screen session and stream (90af015d, 1fd0a48e) for the Cloud Computer screen, which v0.4.4 does not call; every way an opening stops now answers with a code, \"unclassified\" for an unknown 5xx (25bd59a1), which the client classifies like any unrecognized reason, by status. service.py runs the revision fence, billing check and intent audit concurrently and skips final re-authorization for mutation receipts (3e973a21); request and response shapes are unchanged. The live file and event contract is unchanged."
     }
   }
 }

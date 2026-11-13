@@ -1,10 +1,10 @@
 {
-  "commit": "686d41c49ffd80734617e3b66061e615b5848e7b",
-  "checkout": "../../puppyone-baseline-686d41c49",
+  "commit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
+  "checkout": "../../puppyone-baseline-5e87974ef",
   "note": "Actual dirty working-tree inputs, read-only reference. No claim that recorded HEAD alone reproduces these bytes.",
   "inputs": {
-    "src/styles/titlebar.css": "6015d4e1cff18b5f883881f68293f5c21001b7423e917790b9bfdeb830b9fe2e",
-    "src/components/DesktopWindowChrome.tsx": "88e57610acb07993097e077685db7da8b20660a45ee8430151d3bb7fbaaf7271",
+    "src/styles/titlebar.css": "817eac32e7115c085441635217e570cc0badc0360a8d86963e5ae1e56f91fe98",
+    "src/components/DesktopWindowChrome.tsx": "77289b293464312fd3fe1ab624e65ab54cbdbfb0c5e72d6a20cde594e477fc50",
     "src/shared-ui/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
     "src/shared-ui/core/resourcePath.ts": "d25dc64fe07471bd736bb98f5798929d530b74222813e5fb9a8c587f2de7d118",
     "src/shared-ui/core/resourceUri.ts": "168b6997c30e39a348d7c8540fb2fdf88fe8e6b43aff491ff221121f99fe43e4",
@@ -64,7 +64,7 @@
     "tests/unit/workbench/layout/editorWorkbenchPersistence.test.ts": "7e1d41fd32e8a109febbcc0f35a5c9ffdc2be18c106f7545ba56390b523d575a",
     "tests/unit/workbench/layout/workbenchSplitTreeModel.test.ts": "91696e90edd09aa8ce2f08334a8ff5de5639d6d39b0fb88b81de3a6670f11d1d",
     "tests/unit/workbench/tabs/editorGroupModel.test.ts": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
-    "src/shared-ui/data/DataWorkspace.tsx": "63c53706647d57aed2c360d74bc47f6cc3ebb0fb3fee912282dd55f13efb4d70",
+    "src/shared-ui/data/DataWorkspace.tsx": "c6ae534c520686d3fb7d83813a45a0f7580ba1437ed7e34af6802cae78bbedb6",
     "src/features/data-workspace/fileClipboard.ts": "cb4c5d290cf83ce890bc40abf7227d67c58fc23079491ea10b9e90bb6cc3e513"
   },
   "additionalInputReview": "Titlebar CSS/chrome added after inspecting their actual bytes for Editor tab metrics; existing 59 input hashes unchanged.",
@@ -74,5 +74,6 @@
   ],
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
   "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx drop the centered-project Header and add the place menu, Share and Agents cards (C-1, C-3, C-6, C-10); EditorPaneActionsMenu.tsx moves to src/components and gains the view-mode menu used by file windows (W-2); DocumentEditingSession.ts/activeDocumentSessions.ts let a closing window give up unsaved edits (W-2, W-14); EditorPaneShell/DesktopEditorSplitView add the entering pane that shows the opening mark until the first document arrives (W-3); DataWorkspace.tsx adds pinned files (O-1). editorPaneLayoutModel and editorGroupModel tests change only imports; the pane-layout oracle output is unchanged.",
-  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx retire the Share card and the Cloud Header tint (6f896add1, 343998d0c) and restyle the Agents in the Header (00b7bad94, c104a863e, 34b2ace7c, 57df194bb, ba74bd20d) — RM-2, RM-4, CA-1; EditorPaneActionsMenu.tsx only names its key target (4dee95fdb, no behaviour); EditorPaneShell.tsx and useEditorPaneChromeReveal.ts (moved to src/components) show the file window's controls only near the top, a shade lighter (b012ce39e) — FM-3. The pane-layout oracle output is unchanged."
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: titlebar.css and DesktopWindowChrome.tsx retire the Share card and the Cloud Header tint (6f896add1, 343998d0c) and restyle the Agents in the Header (00b7bad94, c104a863e, 34b2ace7c, 57df194bb, ba74bd20d) — RM-2, RM-4, CA-1; EditorPaneActionsMenu.tsx only names its key target (4dee95fdb, no behaviour); EditorPaneShell.tsx and useEditorPaneChromeReveal.ts (moved to src/components) show the file window's controls only near the top, a shade lighter (b012ce39e) — FM-3. The pane-layout oracle output is unchanged.",
+  "review20261114": "Repinned 2026-11-14 to v0.4.4 (5e87974ef). Reviewed drift: titlebar.css adds the place segment before the folder (7dba45dbd) and DesktopWindowChrome.tsx passes the signed-out Sign in as the navigation's trailing end (26823b01f, 3545cf4ba, 64eacb553, d974e5af7); both are the Header, ported as TB-1/TB-4, and move no pane. DataWorkspace.tsx keeps URI scope segments out of the Explorer ancestors and reports whether a linked node opened (2132a145f), ported as HT-3. No pane transition changes; the 600 transitions are unchanged."
 }

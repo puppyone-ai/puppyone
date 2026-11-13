@@ -1,6 +1,6 @@
 {
   "repository": "puppyone",
-  "head": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "head": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "note": "Dirty reference; hashes identify actual inputs. Native implementation does not import existing credentials. Hosted acceptance is separate.",
   "inputs": {
     "electron/cloud-auth-service.mjs": "2a6c09355a8303247c93951a85dc2feeb3ca0c03ca9582b1dda0cd0a853a4d11",
@@ -14,5 +14,6 @@
   },
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
   "review20261104": "Repinned 2026-11-04 to qubits 671143f2a. Reviewed drift (565439f04): a browser handoff whose form carries this attempt's state but fails the origin or refresh-token check now fails the sign-in at once and closes the listener; a failed handoff releases the attempt; rejection reasons are logged without secrets. Ported natively as N-5.",
-  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: openHostTunnelSocket (a session request to /hosts first, then the folder tunnel's WebSocket in the PuppyOne host family with the token offered only as the version.bearer subprotocol). Ported natively as Broker::host_tunnel."
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: openHostTunnelSocket (a session request to /hosts first, then the folder tunnel's WebSocket in the PuppyOne host family with the token offered only as the version.bearer subprotocol). Ported natively as Broker::host_tunnel.",
+  "review20261114": "Repinned 2026-11-14 to v0.4.4 (5e87974ef); every input is byte-identical to 686d41c49. ea0b2800c moves Electron's cloud and sign-in requests onto Chromium networking (cloud-api-client.mjs createCloudNetwork, system proxy and PAC); that is Electron transport, not one of these inputs. The native broker keeps reqwest; the system proxy is checked under GW-2 (Desktop TODO 2026-11-14)."
 }

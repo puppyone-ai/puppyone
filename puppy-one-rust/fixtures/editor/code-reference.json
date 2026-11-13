@@ -1,6 +1,6 @@
 {
-  "checkout": "../../puppyone-baseline-686d41c49",
-  "commit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "checkout": "../../puppyone-baseline-5e87974ef",
+  "commit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "inputs": {
     "node_modules/@codemirror/autocomplete/dist/index.js": "2796fb2771a559ee9fbaa65367b96105368dd9ded1bb686df0e005be48801dcd",
     "node_modules/@codemirror/lang-css/dist/index.js": "0a7e271ad65f99f43f34a7169acf67ec3ad016f4c7818904b3e34a5c89f40916",
@@ -36,5 +36,6 @@
   },
   "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
   "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; only paths changed (packages→src/shared-ui), every input is byte-identical to v0.4.0.",
-  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: code-editor.css keeps the bar's row above the code under the floating file-window bar (68ab98d83) — FM-2, followed by the chrome inset of the Markdown and CSV surfaces."
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49. Reviewed drift: code-editor.css keeps the bar's row above the code under the floating file-window bar (68ab98d83) — FM-2, followed by the chrome inset of the Markdown and CSV surfaces.",
+  "review20261114": "Repinned 2026-11-14 to v0.4.4 (5e87974ef); every input is byte-identical to 686d41c49."
 }
