@@ -147,11 +147,16 @@ if (/\b(?:idleDelayMs|maxDelayMs)\b/.test(coreTypesSource)) {
 
 const markdownSnapshotTestPath = path.join(repoRoot, "tests/component/editor/formats/markdown/rendering/markdownSourceSnapshot.test.tsx");
 const markdownSnapshotTestSource = readFileSync(markdownSnapshotTestPath, "utf8");
-if (!/starts frontend Markdown persistence immediately after an edit transaction/.test(markdownSnapshotTestSource)) {
-  errors.push(`${relative(markdownSnapshotTestPath)} does not cover immediate frontend Markdown persistence`);
+if (!/starts frontend Markdown persistence once typing pauses after an edit transaction/.test(markdownSnapshotTestSource)) {
+  errors.push(`${relative(markdownSnapshotTestPath)} does not cover frontend Markdown persistence after a typing pause`);
 }
-if (!/keeps an immediate-save failure visible and retryable in auto mode/.test(markdownSnapshotTestSource)) {
-  errors.push(`${relative(markdownSnapshotTestPath)} does not cover visible immediate-save failure state`);
+if (!/keeps an auto-save failure visible and retryable in auto mode/.test(markdownSnapshotTestSource)) {
+  errors.push(`${relative(markdownSnapshotTestPath)} does not cover visible auto-save failure state`);
+}
+// Save timing is one host policy with its own cases; adapters never see it.
+const autoSavePolicyTestPath = path.join(repoRoot, "tests/unit/editor/document-session/autoSavePolicy.test.ts");
+if (!/bounds the wait from the first unsaved edit/.test(readFileSync(autoSavePolicyTestPath, "utf8"))) {
+  errors.push(`${relative(autoSavePolicyTestPath)} does not cover the idle delay and its upper bound`);
 }
 
 const dataWorkspacePath = path.join(repoRoot, "src/shared-ui/data/DataWorkspace.tsx");

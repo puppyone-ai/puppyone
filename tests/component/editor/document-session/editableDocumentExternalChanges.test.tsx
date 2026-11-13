@@ -4,6 +4,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterTypingPause } from "../../../support/editor/autoSave";
 import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
 import { TextEditorFrame } from "../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -99,9 +100,9 @@ describe("editable document external changes", () => {
 
     await act(async () => harness.render("one", "v1"));
     act(() => harness.change("two"));
-    await act(async () => Promise.resolve());
+    await afterTypingPause();
     act(() => harness.change("three"));
-    await act(async () => Promise.resolve());
+    await afterTypingPause();
 
     await act(async () => harness.render("two", "v2"));
     expect(harness.value()).toBe("three");

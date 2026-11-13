@@ -293,9 +293,15 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ currentSession: { ...session, session_generation: "two" } }); await open("a");
     const nextPort = workbench.dataPort!;
     const reopened = getDocumentInputRuntime(nextPort, node as Parameters<typeof getDocumentInputRuntime>[1]);
+    const readsBefore = bridge.mock.calls.length;
     const stopAgain = reopened.subscribe(() => {});
-    await vi.waitFor(() => expect(reopened.getSnapshot().generation).toBeGreaterThan(1)); stopAgain();
+    // Reattaching re-reads through the new session's port. Identical bytes are
+    // accepted silently: the retained input keeps its content and generation.
+    await vi.waitFor(() => expect(bridge.mock.calls.slice(readsBefore).some(([request]) => request.method === "GET"
+      && request.path.includes("/workbench/file?") && request.expectedSession.generation === "two")).toBe(true));
+    await vi.waitFor(() => expect(reopened.getSnapshot().loading).toBe(false)); stopAgain();
     expect(reopened.getSnapshot().error).toBeNull();
+    expect(reopened.getSnapshot().content?.content).toBe("Cloud content");
     const nextCopy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: fileVersion("Cloud content", "a"), saveMode: "manual", persistence: nextPort.documentPersistence! });
     expect(nextCopy).toBe(copy);
     let text = "Cloud content";

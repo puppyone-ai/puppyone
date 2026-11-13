@@ -129,6 +129,63 @@ describe("device DataPort", () => {
     expect(availabilityOf(error)).toBe("offline");
   });
 
+  it("hands the workbench the paths a change names and drops only their listings", async () => {
+    requestHostFolder.mockImplementation(async ({ operation }) => ({ ok: true, result: { entries: operation.path === ""
+      ? [{ name: "docs", kind: "directory", size: 0, modified_ns: "1" }, { name: "other", kind: "directory", size: 0, modified_ns: "1" }]
+      : [{ name: "a.md", kind: "file", size: 1, modified_ns: "1" }] } }));
+    const source = service();
+    await source.dataPort.listChildren(null);
+    await source.dataPort.listChildren("docs");
+    await source.dataPort.listChildren("other");
+    const changed = vi.fn(), failed = vi.fn();
+    const stop = source.watch(changed, failed);
+    const id = watchHostFolder.mock.calls.at(-1)![0].id;
+
+    eventListener?.({ id, type: "change", paths: ["docs/a.md"], reset: false });
+    expect(changed).toHaveBeenLastCalledWith(["docs/a.md"]);
+    expect(source.dataPort.getCachedChildren!("docs")).toBeUndefined();
+    expect(source.dataPort.getCachedChildren!(null)).toHaveLength(2);
+    expect(source.dataPort.getCachedChildren!("other")).toHaveLength(1);
+
+    eventListener?.({ id, type: "change", paths: ["other"], reset: false });
+    expect(source.dataPort.getCachedChildren!("other")).toBeUndefined();
+    expect(source.dataPort.getCachedChildren!(null)).toBeUndefined();
+
+    await source.dataPort.listChildren(null);
+    eventListener?.({ id, type: "change", paths: [], reset: true });
+    expect(changed).toHaveBeenLastCalledWith(null);
+    expect(source.dataPort.getCachedChildren!(null)).toBeUndefined();
+    expect(failed).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("runs changes to unrelated paths concurrently and keeps overlapping ones in order", async () => {
+    const pending = new Map<string, () => void>();
+    const started: string[] = [];
+    requestHostFolder.mockImplementation(({ operation }) => {
+      const key = `${operation.action}:${operation.path}`;
+      started.push(key);
+      return new Promise((resolve) => pending.set(key, () => resolve({ ok: true, result: {} })));
+    });
+    const source = service();
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const createA = source.dataPort.createFile!("docs/a.md", "a");
+    const createB = source.dataPort.createFile!("other/b.md", "b");
+    const removeDocs = source.dataPort.deleteNode!("docs");
+    await settle();
+    expect(started).toEqual(["write:docs/a.md", "write:other/b.md"]);
+
+    pending.get("write:other/b.md")!();
+    await createB;
+    expect(started).not.toContain("remove:docs");
+    pending.get("write:docs/a.md")!();
+    await createA;
+    await settle();
+    expect(started).toContain("remove:docs");
+    pending.get("remove:docs")!();
+    await removeDocs;
+  });
+
   it("invalidates old admission on session change", async () => {
     let valid = true;
     const source = service(false, () => valid);
