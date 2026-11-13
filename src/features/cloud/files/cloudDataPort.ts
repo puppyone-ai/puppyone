@@ -287,7 +287,7 @@ export function createCloudDataService({
         try {
           await files.write(remotePath(path), content, null);
         } catch (error) {
-          if (statusOf(error) === 409) throw new Error("A Cloud file already exists at this path.");
+          if (statusOf(error) === 409) throw Object.assign(new Error("A Cloud file already exists at this path."), { status: 409 });
           throw error;
         }
       }),

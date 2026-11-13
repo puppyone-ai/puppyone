@@ -19,9 +19,11 @@ export function planExplorerRefresh(
   afterSequence: number,
   tree: readonly DataNode[],
 ): ExplorerRefreshScope {
+  if (change.sequence === afterSequence) return { kind: "none" };
   if (change.sequence < afterSequence) return { kind: "all" };
+  // A newer sequence without a retained entry names nothing: the scope is unknown.
   const entries = change.entries.filter((entry) => entry.sequence > afterSequence);
-  if (entries.length === 0) return { kind: "none" };
+  if (entries.length === 0) return { kind: "all" };
   const oldestRetained = change.entries[0]?.sequence ?? change.sequence;
   if (change.entries.length >= MAX_WORKSPACE_CONTENT_CHANGE_ENTRIES && afterSequence < oldestRetained - 1) {
     return { kind: "all" };
