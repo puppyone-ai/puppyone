@@ -182,6 +182,9 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
         this.detachedSnapshot = source.readSnapshot();
       }
       this.source = source.retainedSource ?? null;
+      // Leaving the view is a pause: write pending typing now, before an
+      // external update can be adopted over it while the document is hidden.
+      this.autoSave.flush();
     };
   };
 
