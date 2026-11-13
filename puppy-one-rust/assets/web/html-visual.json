@@ -1,16 +1,16 @@
 {
-  "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "entry": "tools/html-visual-entry.tsx",
   "entryHash": "82a5e948e4e8948f30817a7d3637780c52b7d92ed469cfed2b0f65c8f89a8ff7",
   "outputs": {
-    "html-visual.js": "09183f9dd52f6f58b73ec3ec896d5b32acfaa2d9d6d355a9961f9c9f693a0f87",
+    "html-visual.js": "2b11f498946f872c11bdf9d4e039dd3884c9dd5f4ba8719db7c76c7ed39631de",
     "html-visual.css": "138ae729f9e6040c454d7bf0f6de177b2927a27e42a7a086dc4d815aac7f59e3",
     "html-visual-geist.woff2": "e24cec106619c03f0b3519e31b9bc55e0d5e926b6a95b8d798cd8cef215b1505"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
     "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",
-    "shared/presetViewerManifest.json": "01bc9156314667db790c9f5a5136748c8432d50a053ccd48bd33031bd06cb479",
+    "shared/presetViewerManifest.json": "cb8e72b15201cb670fe365a3c701dcdbb267493d4e2a48d5747a4ea96c12c53a",
     "src/components/DesktopTooltipLayer.tsx": "7dcda870cc79c1fae1f76e46dfb502c4a67c0f253d3fa274ca8a02f665262c73",
     "src/lib/localization/core/bidi.ts": "3188ceb523ef1bdbdd2af35b739652c69aacf273c7c6feeaa09651f85e3a5f4a",
     "src/lib/localization/core/catalog.ts": "4f7d2a54e4557acb0c5a43e1660ff066eeb8a9b3a1e1dd69050ac15700a5d595",
@@ -48,7 +48,7 @@
     "src/shared-ui/editor/viewers/html/htmlEditCompiler.ts": "c40a4c2fec367880949f3476e41b48fe9006f151b02fec384a74b9f0dc1d655c",
     "src/shared-ui/editor/viewers/html/htmlFrameBridge.ts": "85063c1c858cfde90ea558e9f03c7eb0f03fc27b3f4e07700cfc42accf596786",
     "src/shared-ui/editor/viewers/html/htmlImageReference.ts": "d933cd88294facc54852acce04f36426de58993f848feb6bb6dfc48c5d8b1f8f",
-    "src/shared-ui/editor/viewers/html/htmlPageViewport.ts": "755b014e65cbff895161c2af0cd664b4f8c4618e3a6d1c8d776290eba929ce12",
+    "src/shared-ui/editor/viewers/html/htmlPageViewport.ts": "6291bd54d519052402ea61f1626986d79ac5ff1b8b565ecb72c1e4df5e1c94ab",
     "src/shared-ui/editor/viewers/html/htmlPreviewProjection.ts": "ab47d819ad69c9c82c1030a762586ca9871a466b52ee434f7cf424d7b5fe2edc",
     "src/shared-ui/editor/viewers/html/htmlSourceIndex.ts": "3812dc550c9926cafde5d96791c805903ecec9f31bc7995c468971ea5256e624",
     "src/shared-ui/editor/viewers/html/useHtmlEditPresence.ts": "f95c31b5b6f761c7c83d36823c432a1414186ff0d2bdc7116968b4a13e3073d9",

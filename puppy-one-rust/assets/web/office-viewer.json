@@ -1,9 +1,9 @@
 {
-  "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "entry": "tools/office-viewer-entry.tsx",
   "entryHash": "26b78596f25f5d20164ac26ec09f734020c9022248fd3ee7397a0c4158ac81ef",
   "outputs": {
-    "office-viewer.js": "8d7f4b34c27b72911a4c04ba2b4901260161fe5141d474d45bbbccf481b8cc97",
+    "office-viewer.js": "f0b1cab83d2528b93bb6a21b0008443e624f53e6ac2fbd364fa54699c215f97e",
     "office-validation.worker.js": "6468f088fc639db7e310b7a7d659b19d5079ff820ae2f03263de833373f4e6ba",
     "office-spreadsheet.worker.js": "590841773edcd640c2e74af3eebeddba38c81a36f3748a3f146e600a8fda2179",
     "office-text.worker.js": "2a10c81e4ca4c7875648f767ca87e3dc4fc646a76cb600efede3bcc4739c233c",
@@ -12,7 +12,7 @@
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
     "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",
-    "shared/presetViewerManifest.json": "01bc9156314667db790c9f5a5136748c8432d50a053ccd48bd33031bd06cb479",
+    "shared/presetViewerManifest.json": "cb8e72b15201cb670fe365a3c701dcdbb267493d4e2a48d5747a4ea96c12c53a",
     "src/components/DesktopTooltipLayer.tsx": "7dcda870cc79c1fae1f76e46dfb502c4a67c0f253d3fa274ca8a02f665262c73",
     "src/lib/localization/core/bidi.ts": "3188ceb523ef1bdbdd2af35b739652c69aacf273c7c6feeaa09651f85e3a5f4a",
     "src/lib/localization/core/catalog.ts": "4f7d2a54e4557acb0c5a43e1660ff066eeb8a9b3a1e1dd69050ac15700a5d595",
