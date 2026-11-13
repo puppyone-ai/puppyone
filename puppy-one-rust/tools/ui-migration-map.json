@@ -421,8 +421,6 @@
         "src/features/settings/main/AccountSettingsView.tsx",
         "src/features/settings/main/AccountIdentity.tsx",
         "src/features/settings/main/AccountAICredits.tsx",
-        "src/features/settings/main/AccountUsageMeters.tsx",
-        "src/features/settings/main/PersonalPlan.tsx",
         "src/features/settings/main/SeatsSettingsView.tsx",
         "src/features/settings/main/planPricing.ts",
         "src/features/settings/main/useAccountPlan.ts"
@@ -2435,7 +2433,7 @@
     }
   ],
   "retired_sources": {
-    "note": "Product files deleted with no replacement since v0.4.0. Their native counterparts are removed or rewritten with the checklist items named in each group (qubits@686d41c49: Desktop TODO 2026-11-08 RM).",
+    "note": "Product files deleted with no replacement since v0.4.0. Their native counterparts are removed or rewritten with the checklist items named in each group (qubits@686d41c49: Desktop TODO 2026-11-08 RM; v0.4.4: Desktop TODO 2026-11-14 RT).",
     "files": [
       {
         "source": "src/components/DesktopProjectLocationSwitcher.tsx",
@@ -2681,6 +2679,21 @@
         "source": "src/features/cloud/share/CloudWorkspaceAgentsPanel.tsx",
         "deletedBy": "ba74bd20d",
         "group": "Cloud workspace Agents (agent links)"
+      },
+      {
+        "source": "src/features/settings/main/AccountUsageMeters.tsx",
+        "deletedBy": "0f311664f",
+        "group": "Account and plan settings pages"
+      },
+      {
+        "source": "src/features/settings/main/PersonalPlan.tsx",
+        "deletedBy": "1461dbb45",
+        "group": "Account and plan settings pages"
+      },
+      {
+        "source": "src/features/app-shell/project-place/useLocalProjectAudience.ts",
+        "deletedBy": "176d9b16c",
+        "group": "Project place menu and local Cloud notice"
       }
     ]
   }
