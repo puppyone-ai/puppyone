@@ -147,49 +147,56 @@ impl SettingsWorkspaceSurface {
         if let Some(error) = unavailable.or_else(|| snapshot.as_ref().and_then(|s| s.error)) {
             session_details = session_details.child(error.to_string());
         }
-        let upgrade = Button::new("account-upgrade")
-            .label(tr("settings.account.upgrade"))
-            .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx)));
-        // `.desktop-plan-note`: 12px at 1.4, 10px below the plan row.
-        let note = div()
-            .mt(px(10.))
-            .px(px(10.))
-            .text_size(px(m.ui.caption))
-            .line_height(px(m.ui.caption * 1.4))
-            .text_color(t.subtle)
-            .child(tr("settings.account.localFreeNote"));
         let prefs = &self.preferences.read(cx).state.experimental;
         let payments = prefs.payments;
         let cloud_on = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        // The balance belongs to the account, so it is topped up here, the
+        // page the account entry in every Header opens.
         let credits = (payments && account.is_some() && status == Status::Authenticated)
-            .then(|| self.compute_credits(!cloud_on, t, cx));
+            .then(|| self.compute_credits(true, t, cx));
+        // A compact reading of the Settings space's plan; Plan owns usage,
+        // prices and changes.
+        let space = self.settings_space(cx).filter(|_| payments && cloud_on);
+        let plan = space.map(|space| {
+            let (reading, billing) =
+                self.plan_reading(&space.id, status == Status::Restoring, account.is_some());
+            SettingsSubsection::new().lead(true).child(
+                ValueRow::new(
+                    tr("settings.account.plan"),
+                    format!("{} · {reading}", crate::features::cloud::space_name(&space)),
+                )
+                .action(
+                    Button::new("account-open-plan")
+                        .label(tr(if billing {
+                            "settings.account.openBilling"
+                        } else {
+                            "settings.account.upgrade"
+                        }))
+                        .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx))),
+                ),
+            )
+        });
         SettingsSection::new(tr(Page::Account.title()))
             .child(identity)
             .child(sign_in)
             .when(self.cloud.is_some(), |section| {
                 section.child(session_details)
             })
-            // The Plan line describes the Cloud Computer plan: Payments and
-            // Cloud both on.
-            .when(payments && cloud_on && account.is_none(), |section| {
-                section.child(
-                    SettingsSubsection::new()
-                        .lead(true)
-                        .child(
-                            ValueRow::new(
-                                tr("settings.account.plan"),
-                                tr("settings.plan.freePrice"),
-                            )
-                            .action(upgrade),
-                        )
-                        .child(note),
-                )
-            })
+            .children(plan)
             .children(credits)
             .into_any_element()
     }
-    /// `AccountAICredits`: the available balance; without Cloud (no Plan
-    /// page) Account also sells the top-up packs.
+    /// Account's Plan row as it reads now.
+    #[cfg(test)]
+    pub fn account_plan_reading(&self, cx: &App) -> Option<String> {
+        let space = self.settings_space(cx)?;
+        let (reading, _) = self.plan_reading(&space.id, false, true);
+        Some(format!(
+            "{} · {reading}",
+            crate::features::cloud::space_name(&space)
+        ))
+    }
+    /// `AccountAICredits`: the available balance and the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         use crate::features::cloud::{ComputeReason as Reason, global_compute, money};
         let compute = global_compute(cx);

@@ -73,6 +73,19 @@ pub fn space_mark_letter() -> Rgba {
 pub fn fade(color: Rgba, weight: f32) -> Rgba {
     mix(color, rgba(0x00000000), weight)
 }
+/// `.desktop-plan-settings { --desktop-plan-accent }`: Plan's own orange,
+/// on its primary card actions and its usage rail.
+pub fn plan_accent() -> Rgba {
+    rgb(0xfa7a22)
+}
+/// `.desktop-plan-card-action .desktop-settings-action.primary`'s ink.
+pub fn plan_accent_ink() -> Rgba {
+    rgb(0x1b1007)
+}
+/// `color-mix(in srgb, c p%, white)`.
+pub fn lift(color: Rgba, weight: f32) -> Rgba {
+    mix(color, rgb(0xffffff), weight)
+}
 /// `.desktop-agent-creature-eyes`.
 pub fn agent_creature_eyes() -> Rgba {
     rgb(0x18181b)

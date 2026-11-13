@@ -7,11 +7,14 @@ mod file_settings_views;
 mod general_settings_view;
 mod local_project_settings_view;
 mod other_app_imports_settings_view;
-pub(super) mod plan_settings_view;
+mod plan;
 mod privacy_settings_view;
 mod repository_settings_views;
+mod space_settings_view;
 mod typography_settings_view;
 pub(super) use create_new_settings_view::CreateNewMenu;
+pub(super) use plan::PlanPage;
+pub(super) use space_settings_view::SpacePage;
 
 use super::{
     settings_workspace_surface::SettingsWorkspaceSurface, sidebar::settings_sidebar_model::Page,
@@ -48,6 +51,7 @@ impl SettingsWorkspaceSurface {
             Page::Git => self.git(t, cx),
             Page::Files => self.files(t, cx),
             Page::Account => self.account(t, cx),
+            Page::Space => self.space_settings(t, cx),
             Page::Plan => self.plan(t, cx),
         }
     }

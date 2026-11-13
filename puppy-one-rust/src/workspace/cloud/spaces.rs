@@ -82,21 +82,21 @@ pub fn project_space<'a>(
 }
 
 /// `resolveSettingsSpace`: the one space Settings manages: the space its
-/// opener named, else the open project's, else the account's own. It never
-/// filters navigation or keeps a global choice.
+/// opener named, else the one holding the open Cloud project (`owner`, as
+/// the account's catalog names it), else the account's own. It never filters
+/// navigation or keeps a global choice.
 pub fn settings_space<'a>(
     signed_in: bool,
     spaces: &'a [Space],
-    project: Option<&str>,
-    items: &[Item],
+    owner: Option<&str>,
     requested: Option<&str>,
 ) -> Option<&'a Space> {
     if !signed_in {
         return None;
     }
-    requested
-        .and_then(|id| spaces.iter().find(|space| space.id == id))
-        .or_else(|| project_space(spaces, project, items))
+    let find = |id: Option<&str>| id.and_then(|id| spaces.iter().find(|space| space.id == id));
+    find(requested)
+        .or_else(|| find(owner))
         .or_else(|| spaces.iter().find(|space| space.is_default))
         .or_else(|| spaces.first())
 }
@@ -342,21 +342,31 @@ mod tests {
     #[test]
     fn settings_manage_the_named_space_else_the_open_projects_else_the_own() {
         let (spaces, items) = settings_fixture();
+        fn owner_in<'a>(items: &'a [Item], project: &str) -> Option<&'a str> {
+            items
+                .iter()
+                .find(|i| i.cloud_project.as_deref() == Some(project))
+                .and_then(|i| i.cloud_organization.as_deref())
+        }
+        let owner = |project: &str| owner_in(&items, project);
         let id = |space: Option<&Space>| space.map(|s| s.id.clone());
-        let resolve =
-            |project, requested| id(settings_space(true, &spaces, project, &items, requested));
+        let resolve = |project: Option<&str>, requested| {
+            id(settings_space(
+                true,
+                &spaces,
+                project.and_then(owner),
+                requested,
+            ))
+        };
         assert_eq!(resolve(Some("pb"), None).as_deref(), Some("b"));
         assert_eq!(resolve(None, None).as_deref(), Some("a"));
         assert_eq!(resolve(Some("pa"), Some("b")).as_deref(), Some("b"));
         // A requested space the account cannot reach is not chosen.
         assert_eq!(resolve(Some("pb"), Some("gone")).as_deref(), Some("b"));
-        assert_eq!(
-            settings_space(false, &spaces, None, &items, Some("b")),
-            None
-        );
+        assert_eq!(settings_space(false, &spaces, None, Some("b")), None);
         // The open project's space only once the account lists it.
         assert_eq!(
-            id(settings_space(true, &spaces[..1], Some("pb"), &items, None)).as_deref(),
+            id(settings_space(true, &spaces[..1], owner("pb"), None)).as_deref(),
             Some("a")
         );
         assert_eq!(

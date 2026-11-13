@@ -65,6 +65,11 @@ pub enum ButtonVariant {
     /// `.file-mode-window__action`: the title's muted ink a shade lighter at
     /// rest, the full ink touched; the fill says hover or open.
     TitlebarInk,
+    /// `.desktop-plan-card-action .desktop-settings-action`: a Plan card's
+    /// command in the page's own type, compact plus 6px tall.
+    PlanCard,
+    /// Its primary form, filled with Plan's orange.
+    PlanCardPrimary,
 }
 impl ButtonVariant {
     fn outlined(self) -> bool {
@@ -72,6 +77,9 @@ impl ButtonVariant {
             self,
             Self::Outline | Self::OutlinePrimary | Self::OutlineDanger | Self::Success
         )
+    }
+    fn plan_card(self) -> bool {
+        matches!(self, Self::PlanCard | Self::PlanCardPrimary)
     }
     fn dialog(self) -> bool {
         matches!(self, Self::Secondary | Self::Solid | Self::SolidDanger)
@@ -97,7 +105,18 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             hover_bg: theme::shade(t.success, 0.88),
             hover_fg: theme::on_solid(),
         },
-        ButtonVariant::Outline | ButtonVariant::Success => Paint {
+        ButtonVariant::PlanCardPrimary => Paint {
+            border: Some(theme::plan_accent()),
+            bg: theme::plan_accent(),
+            fg: theme::plan_accent_ink(),
+            hover_bg: if disabled {
+                theme::plan_accent()
+            } else {
+                theme::lift(theme::plan_accent(), 0.85)
+            },
+            hover_fg: theme::plan_accent_ink(),
+        },
+        ButtonVariant::Outline | ButtonVariant::Success | ButtonVariant::PlanCard => Paint {
             border: Some(t.divider),
             bg: clear,
             // `.desktop-settings-action:disabled` only fades (62%).
@@ -438,6 +457,7 @@ impl RenderOnce for Button {
             ButtonVariant::Pattern | ButtonVariant::PatternPrimary
         );
         let quiet = variant == ButtonVariant::Quiet;
+        let plan_card = variant.plan_card();
         // Outline and Git file actions: 13px icon at stroke 2; filled Git
         // actions: 15px at 2.25; entries: 14px at 1.85.
         let icon = self.icon.map(|icon| {
@@ -550,6 +570,16 @@ impl RenderOnce for Button {
                     .line_height(px(ty.control_line_height))
             })
             .when(disabled && outlined, |b| b.opacity(0.62))
+            // `padding: 6px 12px; border-radius: 5px; font: inherit` at
+            // Plan's 13px label size.
+            .when(plan_card, |b| {
+                b.h(px(theme::control_compact() + 6.))
+                    .px(px(12.))
+                    .rounded(px(5.))
+                    .text_size(px(theme::ty().ui.label))
+                    .when(variant == ButtonVariant::PlanCard, |b| b.border_1())
+                    .when(disabled, |b| b.opacity(0.62))
+            })
             // `.desktop-titlebar-action:disabled`.
             .when(
                 disabled && matches!(variant, ButtonVariant::Ghost | ButtonVariant::Titlebar),

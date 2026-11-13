@@ -132,6 +132,19 @@ pub fn global(cx: &mut App) -> Entity<CloudCatalog> {
     catalog
 }
 
+/// The space holding `project`, as the account's catalog names it
+/// (`ProjectHomeItem.cloudOrganizationId`).
+pub fn owner_of(project: &str, cx: &App) -> Option<String> {
+    let catalog = cx.try_global::<Service>()?.0.read(cx);
+    match &catalog.state {
+        State::Ready(entries) => entries
+            .iter()
+            .find(|entry| entry.id == project)
+            .and_then(|entry| entry.org.clone()),
+        _ => None,
+    }
+}
+
 fn parse_time(value: &serde_json::Value) -> Option<i64> {
     let text = value.as_str()?;
     chrono::DateTime::parse_from_rfc3339(text)

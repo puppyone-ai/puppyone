@@ -197,8 +197,14 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // `resolveSettingsSpace`: the hosted Project on screen names the
+        // space Settings manages.
+        let hosted = self.hosted_project(cx);
         let settings = self.dialogs.read(cx).settings.clone();
-        settings.update(cx, |settings, cx| settings.select_page(page, cx));
+        settings.update(cx, |settings, cx| {
+            settings.set_space_context(hosted, None);
+            settings.select_page(page, cx)
+        });
         self.command(Command::Settings, window, cx);
     }
     /// What the dialog layer asks of the window.

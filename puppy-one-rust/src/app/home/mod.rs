@@ -1039,29 +1039,31 @@ impl Homepage {
                 .text_color(t.muted)
                 .child(self.project_toolbar(busy, cx))
                 .child(self.entry_menu(busy, w <= 696., cx));
-            let note = (self.spaces.read(cx).status() == SpacesStatus::Error).then(|| {
-                // `.onboarding-project-groups-note`: the spaces could not be
-                // read; the projects stay where they are.
-                h_flex()
-                    .gap(px(4.))
-                    .px(px(8.))
-                    .pt(px(2.))
-                    .pb(px(6.))
-                    .text_size(px(theme::ty().ui.caption))
-                    .line_height(px(18.))
-                    .text_color(t.subtle)
-                    .child(tr("onboarding.spaces.unavailable"))
-                    .child(
-                        div()
-                            .id("home-spaces-retry")
-                            .cursor(theme::clickable_cursor())
-                            .underline()
-                            .hover(move |s| s.text_color(t.text))
-                            .on_click(cx.listener(|s, _, _, cx| s.read_spaces(true, cx)))
-                            .child(tr("onboarding.spaces.retry")),
-                    )
-                    .into_any_element()
-            });
+            let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
+                && self.spaces.read(cx).status() == SpacesStatus::Error)
+                .then(|| {
+                    // `.onboarding-project-groups-note`: the spaces could not be
+                    // read; the projects stay where they are.
+                    h_flex()
+                        .gap(px(4.))
+                        .px(px(8.))
+                        .pt(px(2.))
+                        .pb(px(6.))
+                        .text_size(px(theme::ty().ui.caption))
+                        .line_height(px(18.))
+                        .text_color(t.subtle)
+                        .child(tr("onboarding.spaces.unavailable"))
+                        .child(
+                            div()
+                                .id("home-spaces-retry")
+                                .cursor(theme::clickable_cursor())
+                                .underline()
+                                .hover(move |s| s.text_color(t.text))
+                                .on_click(cx.listener(|s, _, _, cx| s.read_spaces(true, cx)))
+                                .child(tr("onboarding.spaces.retry")),
+                        )
+                        .into_any_element()
+                });
             let list = self.project_groups(groups, note, held, column, w <= 520., busy, window, cx);
             // `.onboarding-home-primary[data-onboarding-primary="projects"]`:
             // the projects sit on the page; a fill appears only for a drop.

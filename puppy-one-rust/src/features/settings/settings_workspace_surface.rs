@@ -33,7 +33,13 @@ pub struct SettingsWorkspaceSurface {
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
     pub(super) agents: Entity<crate::features::local_agents::AgentSettings>,
     pub(super) cloud: Option<Entity<crate::features::cloud::account::CloudAccount>>,
-    pub(super) plan_page: super::main::plan_settings_view::PlanPage,
+    pub(super) plan_page: super::main::PlanPage,
+    pub(super) space_page: super::main::SpacePage,
+    /// The hosted Project this window shows, whose space Settings manages
+    /// unless its opener named another (`resolveSettingsSpace`).
+    pub(super) cloud_project: Option<String>,
+    /// The space the control that opened Settings named.
+    pub(super) requested_space: Option<String>,
     pub(super) repository: Entity<RepositorySettings>,
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
     /// Transient "Copied" feedback keyed by the copied control.
@@ -67,10 +73,49 @@ impl SettingsWorkspaceSurface {
         if page == Page::Account {
             self.refresh_compute(cx);
         }
-        if page == Page::Plan {
-            self.load_plan(cx);
+        // Account reads the space's plan too (`useAccountPlan`).
+        if matches!(page, Page::Plan | Page::Account) {
+            self.load_plan(false, cx);
+        }
+        if page == Page::Space {
+            self.load_space(cx);
         }
         cx.notify();
+    }
+    /// What the window opening Settings shows and which space, if any, the
+    /// control that opened it named.
+    pub fn set_space_context(&mut self, cloud_project: Option<String>, requested: Option<String>) {
+        self.cloud_project = cloud_project;
+        self.requested_space = requested;
+    }
+    /// `resolveSettingsSpace`: the one space Settings manages, while the
+    /// account is signed in and its spaces are known.
+    pub fn settings_space(&self, cx: &App) -> Option<crate::workspace::cloud::spaces::Space> {
+        // The Space group follows Cloud (`requiresCloud`).
+        if !crate::features::flags::cloud_enabled(&self.preferences, cx) {
+            return None;
+        }
+        let signed_in = crate::features::cloud::account::broker_and_binding(cx).is_some();
+        let spaces = crate::features::cloud::global_spaces_read(cx)?.spaces();
+        let owner = self
+            .cloud_project
+            .as_deref()
+            .and_then(|project| crate::features::cloud::owner_of(project, cx));
+        crate::workspace::cloud::spaces::settings_space(
+            signed_in,
+            spaces,
+            owner.as_deref(),
+            self.requested_space.as_deref(),
+        )
+        .cloned()
+    }
+    /// The page's width at the last layout, as wide as the reading column
+    /// allows (`.desktop-plan-comparison`'s container).
+    pub(super) fn content_width(&self) -> f32 {
+        let viewport = f32::from(self.content_scroll.bounds().size.width);
+        let gutter = if self.content_overflows { 12. } else { 0. };
+        (viewport - 2. * metric::UTILITY_PADDING_INLINE - gutter)
+            .clamp(0., metric::READING_CONTENT_WIDTH)
     }
     /// `AccountAICredits`: read the wallet when Account shows, then every
     /// 30 s while it stays on screen.
@@ -145,8 +190,21 @@ impl SettingsWorkspaceSurface {
         if let Some(cloud) = &cloud {
             cx.observe(cloud, |_, _, cx| cx.notify()).detach();
         }
+        // `useAccountPlan`: coming back to the window reads Plan again.
+        cx.observe_window_activation(window, |s, window, cx| {
+            if window.is_window_active() && matches!(s.page, Page::Plan | Page::Account) {
+                s.load_plan(false, cx);
+            }
+        })
+        .detach();
+        let spaces = crate::features::cloud::global_spaces(cx);
+        cx.observe(&spaces, |_, _, cx| cx.notify()).detach();
+        let space_page = super::main::SpacePage::new(window, cx);
         let mut s = Self {
             plan_page: Default::default(),
+            space_page,
+            cloud_project: None,
+            requested_space: None,
             cloud,
             preferences,
             root: None,
@@ -180,6 +238,7 @@ impl SettingsWorkspaceSurface {
                 other_app_imports: true,
                 cloud_enabled: true,
                 account_available: true,
+                current_space_available: true,
             };
             if let Some(item) = groups(all)
                 .into_iter()
@@ -244,6 +303,10 @@ impl SettingsWorkspaceSurface {
             }
         });
     }
+    #[cfg(test)]
+    pub fn page_available(&self, page: Page, cx: &App) -> bool {
+        available(page, self.visibility(cx))
+    }
     pub(super) fn visibility(&self, cx: &App) -> Visibility {
         Visibility {
             local_workspace: self.root.is_some(),
@@ -255,6 +318,7 @@ impl SettingsWorkspaceSurface {
                 .other_app_imports,
             cloud_enabled: crate::features::flags::cloud_enabled(&self.preferences, cx),
             account_available: crate::features::flags::account_available(cx),
+            current_space_available: self.settings_space(cx).is_some(),
         }
     }
     /// Copy text and show transient feedback on the triggering control.

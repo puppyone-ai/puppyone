@@ -497,6 +497,7 @@ impl RenderOnce for SectionHeader {
 #[derive(IntoElement)]
 pub struct SidebarGroup {
     title: Option<SharedString>,
+    heading: Option<AnyElement>,
     first: bool,
     children: Vec<AnyElement>,
 }
@@ -504,9 +505,16 @@ impl SidebarGroup {
     pub fn new(title: Option<SharedString>) -> Self {
         Self {
             title,
+            heading: None,
             first: false,
             children: vec![],
         }
+    }
+    /// A heading of its own in place of the title text, in the title's row
+    /// and type (Settings' Space group: its mark, name and plan).
+    pub fn heading(mut self, heading: impl IntoElement) -> Self {
+        self.heading = Some(heading.into_any_element());
+        self
     }
     /// The first group has no divider.
     pub fn first(mut self, first: bool) -> Self {
@@ -538,7 +546,7 @@ impl RenderOnce for SidebarGroup {
                         .bg(t.sidebar_divider),
                 )
             })
-            .children(self.title.map(|title| {
+            .children((self.title.is_some() || self.heading.is_some()).then(|| {
                 div()
                     .flex()
                     .items_center()
@@ -550,7 +558,7 @@ impl RenderOnce for SidebarGroup {
                     .line_height(px(theme::ty().left.line_height))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(t.subtle)
-                    .child(title)
+                    .children(self.heading.or(self.title.map(|t| t.into_any_element())))
             }))
             .children(self.children)
     }

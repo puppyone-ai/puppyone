@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::base::{Selectable as _, v_flex};
+use gpui_kit::base::{Selectable as _, h_flex, v_flex};
 impl SettingsWorkspaceSurface {
     pub(in crate::features::settings) fn sidebar(
         &self,
@@ -18,6 +18,7 @@ impl SettingsWorkspaceSurface {
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let t = cx.palette();
+        let space = self.settings_space(cx);
         let nav = v_flex()
             .id("settings-navigation")
             .w(px(width))
@@ -35,7 +36,29 @@ impl SettingsWorkspaceSurface {
                 .into_iter()
                 .enumerate()
                 .map(|(index, group)| {
-                    SidebarGroup::new(Some(tr(group.key).into()))
+                    let mut heading = SidebarGroup::new(Some(tr(group.key).into()));
+                    // The Space group is headed by the space Settings manages:
+                    // its mark, its name and its plan (`SettingsSidebar`).
+                    if group.key == "settings.space.group"
+                        && let Some(space) = &space
+                    {
+                        heading = heading.heading(
+                            h_flex()
+                                .w_full()
+                                .min_w_0()
+                                .gap(px(6.))
+                                .text_color(t.muted)
+                                .child(crate::features::cloud::space_mark(space))
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .truncate()
+                                        .child(crate::features::cloud::space_name(space)),
+                                )
+                                .children(crate::features::cloud::space_plan_badge(space)),
+                        );
+                    }
+                    heading
                         .first(index == 0)
                         .children(group.items.into_iter().map(|item| {
                             SidebarRow::new(item.key)

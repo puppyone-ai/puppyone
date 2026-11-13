@@ -269,7 +269,9 @@ impl Homepage {
     }
     /// The teams this account can start a project in.
     pub(in crate::app) fn creatable_teams(&self, cx: &App) -> Vec<(String, String)> {
-        if !crate::features::cloud::account::has_account(cx) {
+        if !crate::features::cloud::account::has_account(cx)
+            || !crate::features::flags::cloud_enabled(&self.preferences, cx)
+        {
             return vec![];
         }
         creatable_teams(self.spaces.read(cx).spaces())
