@@ -245,6 +245,16 @@ for path in (root / 'src').rglob('*.rs'):
     for token in ("share_onboarding", "ReplaceCloud", "CloudServices", "cloud_header("):
         if token in source:
             errors.append(f"{path.relative_to(root)}: names the retired {token}")
+# Surfaces v0.4.4 retired: the place menu's audience and link rows, the
+# Homepage's audience groups and team selector, and the personal/team space
+# kinds. The place menu navigates; places group the Homepage.
+for path in (root / 'src').rglob('*.rs'):
+    source = path.read_text()
+    for token in ("PersonalShared", "TeamShared", "local_audience(", "devices_audience(",
+                  "HomeMenu::Team", "AudienceAction::Disconnect", "AudienceAction::Send",
+                  "SpaceKind"):
+        if token in source:
+            errors.append(f"{path.relative_to(root)}: names the retired {token} (v0.4.4)")
 # Style system: `theme.rs` is the only colour source (projected from the
 # product theme packs and tokens.css) and `editor/tokens.rs` the editor's
 # (it parses and composites the product's computed editor tokens);
