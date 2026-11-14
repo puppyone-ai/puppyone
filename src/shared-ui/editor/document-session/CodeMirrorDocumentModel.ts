@@ -8,6 +8,8 @@ import type { EditorSourceSnapshot, EditorSourceSnapshotPort } from "../sourceSn
 import { DOCUMENT_HISTORY_POLICY } from "./historyPolicy";
 
 export const externalDocumentUpdate = Annotation.define<boolean>();
+/** Marks an edit a follower view made itself, naming that view, so it does not take the edit twice. */
+export const followerEdit = Annotation.define<object>();
 const localEditGroup = Annotation.define<string>();
 export type DocumentTextEdit = Readonly<{ from: number; to: number; expectedText: string; insert: string }>;
 const revisions = new WeakMap<object, string>();
@@ -88,6 +90,26 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
       effects: StateEffect.reconfigure.of([this.coreExtensions(), extensions]),
     }).state;
     return this.state;
+  }
+
+  /**
+   * A state for a further view of this document, beside its one editable view.
+   * It holds no history: a follower sends its edits through applyFollowerEdit,
+   * into the document's own history.
+   */
+  createFollowerState(extensions: Extension): EditorState {
+    if (this.disposed) throw new Error("The editor model has been retired.");
+    return EditorState.create({ doc: this.editorState.doc,
+      extensions: [this.preserveLineEndings ? EditorState.lineSeparator.of("\n") : [], extensions] });
+  }
+
+  /** Applies an edit a follower made to its copy of this document. False when the document takes no edits. */
+  applyFollowerEdit(transaction: Transaction, follower: object): boolean {
+    if (!this.editable || !transaction.docChanged) return false;
+    const userEvent = transaction.annotation(Transaction.userEvent);
+    this.dispatch({ changes: transaction.changes,
+      annotations: [followerEdit.of(follower), ...(userEvent ? [Transaction.userEvent.of(userEvent)] : [])] });
+    return true;
   }
 
   attachView(view: EditorView): void {
