@@ -60,6 +60,8 @@ enum Step {
     Context(f32, f32),
     Submenu,
     ExplorerDrag(f32),
+    /// A wheel scroll of this many pixels down over the editor's middle.
+    Scroll(f32),
     Command(crate::app::Command),
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
@@ -143,6 +145,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "toggle-explorer" => Step::Command(crate::app::Command::ToggleExplorer),
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
+                "scroll" => Step::Scroll(arg.trim().parse().ok()?),
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
@@ -369,6 +372,18 @@ impl Shell {
                     p.move_drag(to, cx);
                     p.end_drag(true, cx);
                 });
+            }
+            Step::Scroll(by) => {
+                let e = self.frame.layout.editor;
+                window.dispatch_event(
+                    PlatformInput::ScrollWheel(ScrollWheelEvent {
+                        position: point(px(e.x + e.w / 2.), px(e.y + e.h / 2.)),
+                        delta: ScrollDelta::Pixels(point(px(0.), px(-*by))),
+                        modifiers: Modifiers::default(),
+                        touch_phase: TouchPhase::Moved,
+                    }),
+                    cx,
+                );
             }
             Step::GitCommit(index) => {
                 let index = *index;

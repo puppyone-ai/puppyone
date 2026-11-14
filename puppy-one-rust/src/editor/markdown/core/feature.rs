@@ -40,6 +40,8 @@ pub struct WidgetFactoryCx<'a> {
     pub theme: &'a MarkdownTheme,
     /// Where the document's media resolve and load from.
     pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
+    /// How wiki targets resolve (an embed's file by name).
+    pub references: Option<&'a crate::editor::navigation::ReferenceContext>,
     /// The pane's diagram zoom and deferred renders.
     pub diagrams: &'a super::state::DiagramViews,
 }

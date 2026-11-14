@@ -13,3 +13,4 @@ pub mod mermaid;
 pub mod rule;
 pub mod table;
 pub mod task;
+pub mod video;

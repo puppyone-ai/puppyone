@@ -18,6 +18,58 @@ struct HostState {
     view: wry::WebView,
     visible: Cell<bool>,
     bounds: Cell<(f32, f32, f32, f32)>,
+    /// The clipping view a host inside scrolling content sits in
+    /// (`place_clipped`); it, not the WebView, shows and hides.
+    #[cfg(target_os = "macos")]
+    clip: RefCell<Option<objc2::rc::Retained<objc2::runtime::AnyObject>>>,
+}
+impl HostState {
+    fn set_visible(&self, show: bool) {
+        #[cfg(target_os = "macos")]
+        if let Some(clip) = self.clip.borrow().as_ref() {
+            // SAFETY: a live NSView on the main thread.
+            unsafe {
+                let _: () = objc2::msg_send![&**clip, setHidden: !show];
+            }
+            return;
+        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let _ = self.view.set_visible(show);
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let _ = show;
+    }
+}
+#[cfg(target_os = "macos")]
+impl Drop for HostState {
+    fn drop(&mut self) {
+        if let Some(clip) = self.clip.borrow_mut().take() {
+            // SAFETY: a live NSView on the main thread.
+            unsafe {
+                let _: () = objc2::msg_send![&*clip, removeFromSuperview];
+            }
+        }
+    }
+}
+/// CGRect's layout and Objective-C encoding.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CgRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+// SAFETY: the same layout as CGRect.
+#[cfg(target_os = "macos")]
+unsafe impl objc2::Encode for CgRect {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+        "CGRect",
+        &[
+            objc2::Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]),
+            objc2::Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]),
+        ],
+    );
 }
 thread_local! {
     static HOSTS: RefCell<Vec<Weak<HostState>>> = const { RefCell::new(Vec::new()) };
@@ -143,6 +195,8 @@ impl WebHost {
             view,
             visible: Cell::new(false),
             bounds: Cell::new((0., 0., 0., 0.)),
+            #[cfg(target_os = "macos")]
+            clip: RefCell::new(None),
         });
         HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
         Ok(Self { state })
@@ -168,6 +222,102 @@ impl WebHost {
                 size: wry::dpi::LogicalSize::new(rect.2, rect.3).into(),
             });
         }
+    }
+    /// Called from the element's paint inside scrolling content: place the
+    /// view over `bounds`, showing only its part within `clip` (the
+    /// content mask), with `radius` corners while it shows whole. Nothing
+    /// within `clip`, and the view hides.
+    pub fn place_clipped(
+        &self,
+        bounds: gpui::Bounds<gpui::Pixels>,
+        clip: gpui::Bounds<gpui::Pixels>,
+        radius: f32,
+    ) {
+        let visible = bounds.intersect(&clip);
+        if f32::from(visible.size.width) < 1. || f32::from(visible.size.height) < 1. {
+            return;
+        }
+        self.state.painted.set(true);
+        let rect = |b: gpui::Bounds<gpui::Pixels>| {
+            (
+                f32::from(b.origin.x),
+                f32::from(b.origin.y),
+                f32::from(b.size.width),
+                f32::from(b.size.height),
+            )
+        };
+        #[cfg(target_os = "macos")]
+        self.clip_to(
+            rect(bounds),
+            rect(visible),
+            if visible == bounds { radius } else { 0. },
+        );
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (rect, radius);
+            self.place(bounds);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    fn clip_to(&self, view: (f32, f32, f32, f32), shown: (f32, f32, f32, f32), radius: f32) {
+        use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
+        use wry::WebViewExtMacOS;
+        self.state.bounds.set(view);
+        let web = self.state.view.webview();
+        let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
+        let mut slot = self.state.clip.borrow_mut();
+        // SAFETY: live AppKit views on the main thread; the WebView moves
+        // into a plain layer-backed NSView that clips its subviews.
+        unsafe {
+            if slot.is_none() {
+                let parent: *mut AnyObject = msg_send![web, superview];
+                if parent.is_null() {
+                    return;
+                }
+                let clip: Retained<AnyObject> = msg_send![class!(NSView), new];
+                let _: () = msg_send![&*clip, setWantsLayer: true];
+                let layer: *mut AnyObject = msg_send![&*clip, layer];
+                let _: () = msg_send![layer, setMasksToBounds: true];
+                let _: () = msg_send![&*clip, setHidden: !self.state.visible.get()];
+                let _: () = msg_send![parent, addSubview: &*clip];
+                let _: () = msg_send![&*clip, addSubview: web];
+                let _: () = msg_send![web, setHidden: false];
+                *slot = Some(clip);
+            }
+            let Some(clip) = slot.as_ref() else { return };
+            let parent: *mut AnyObject = msg_send![&**clip, superview];
+            if parent.is_null() {
+                return;
+            }
+            let flipped: bool = msg_send![parent, isFlipped];
+            let outer: CgRect = msg_send![parent, bounds];
+            let (x, y, w, h) = shown;
+            let top = if flipped {
+                y as f64
+            } else {
+                outer.height - (y + h) as f64
+            };
+            let _: () = msg_send![&**clip, setFrame: CgRect {
+                x: x as f64,
+                y: top,
+                width: w as f64,
+                height: h as f64,
+            }];
+            // The clip view is not flipped: its origin is bottom-left.
+            let (vx, vy, vw, vh) = view;
+            let _: () = msg_send![web, setFrame: CgRect {
+                x: (vx - x) as f64,
+                y: (h - (vy - y) - vh) as f64,
+                width: vw as f64,
+                height: vh as f64,
+            }];
+            let layer: *mut AnyObject = msg_send![&**clip, layer];
+            let _: () = msg_send![layer, setCornerRadius: radius as f64];
+        }
+    }
+    /// Whether the view showed after the window's last drawn frame.
+    pub fn is_visible(&self) -> bool {
+        self.state.visible.get()
     }
     pub fn reload(&self) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -197,24 +347,6 @@ impl WebHost {
     ) {
         use objc2::{class, msg_send, runtime::AnyObject};
         use wry::WebViewExtMacOS;
-        #[repr(C)]
-        #[derive(Clone, Copy)]
-        struct Rect {
-            x: f64,
-            y: f64,
-            width: f64,
-            height: f64,
-        }
-        // SAFETY: CGRect's layout and Objective-C encoding.
-        unsafe impl objc2::Encode for Rect {
-            const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                "CGRect",
-                &[
-                    objc2::Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]),
-                    objc2::Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]),
-                ],
-            );
-        }
         let done = RefCell::new(Some(done));
         let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
             // SAFETY: WebKit hands back an NSImage (or nil) on the main
@@ -252,7 +384,7 @@ impl WebHost {
         // SAFETY: a live WKWebView and a fresh configuration on the main thread.
         unsafe {
             let configuration: *mut AnyObject = msg_send![class!(WKSnapshotConfiguration), new];
-            let _: () = msg_send![configuration, setRect: Rect {
+            let _: () = msg_send![configuration, setRect: CgRect {
                 x: x as f64,
                 y: y as f64,
                 width: w as f64,
@@ -315,8 +447,7 @@ fn reconcile(key: u64) {
             let show = state.painted.replace(false) && !overlay;
             if state.visible.get() != show {
                 state.visible.set(show);
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
-                let _ = state.view.set_visible(show);
+                state.set_visible(show);
             }
         }
     });

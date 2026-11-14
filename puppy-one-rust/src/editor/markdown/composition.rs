@@ -3,7 +3,9 @@
 //! source (earlier wins).
 use super::{
     core::feature::{Features, MarkdownFeature},
-    features::{callout, code_block, front_matter, html, image, math, mermaid, rule, table, task},
+    features::{
+        callout, code_block, front_matter, html, image, math, mermaid, rule, table, task, video,
+    },
 };
 
 pub static FEATURES: Features = &[
@@ -18,4 +20,5 @@ pub static FEATURES: Features = &[
     &task::FEATURE,
     &callout::FEATURE,
     &image::FEATURE,
+    &video::FEATURE,
 ];

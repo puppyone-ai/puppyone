@@ -343,6 +343,10 @@ pub fn tint(c: Rgba, weight: f32) -> Rgba {
 pub fn shade(c: Rgba, weight: f32) -> Rgba {
     mix(c, rgb(0x000000), weight)
 }
+/// `.cm-md-video-player { background: #000 }`.
+pub fn video_black() -> Rgba {
+    rgb(0x000000)
+}
 /// `#fff` text on a solid status fill (`.desktop-settings-save-action`).
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)

@@ -113,6 +113,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         syntax: cx.syntax,
         theme: cx.theme,
         assets: cx.assets,
+        references: cx.references,
         diagrams: &cx.preview.diagrams,
     };
     let mut line = 0;
