@@ -118,11 +118,11 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/panel/mod.rs",
-        "src/features/desktop_agent/ui/panel/composer.rs",
-        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
         "src/features/desktop_agent/ui/panel/status.rs",
-        "src/features/desktop_agent/ui/panel/docks.rs",
-        "src/features/desktop_agent/ui/agent_conversation_history.rs"
+        "src/features/desktop_agent/ui/docks/mod.rs",
+        "src/features/desktop_agent/ui/agent_conversation_history/mod.rs"
       ],
       "remaining": "AgentChatTabPanel, its transcript, composer, approval and question docks, session-control pickers and the History browser are the native GPUI panel over AgentSessionController (see Native GPUI Agent panel); the legacy native chat view is removed. Mermaid graphics, accessibility and pixel parity remain."
     },
@@ -141,10 +141,10 @@
         "src/features/desktop_agent/workbench/chats.rs",
         "src/features/workbench/mod.rs",
         "src/features/workbench/persistence.rs",
-        "src/features/workbench/history.rs",
+        "src/app/right_sidebar/launcher/history.rs",
         "src/features/desktop_agent/infrastructure/host/agent_host_global.rs",
         "src/features/desktop_agent/ui/panel/mod.rs",
-        "src/features/desktop_agent/ui/agent_conversation_history.rs"
+        "src/features/desktop_agent/ui/agent_conversation_history/mod.rs"
       ],
       "remaining": "Every local Agent chat, the Built-in Agent included, is an AgentChatTabPanel item over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session (one retained before the switch reopens new), close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, chat file links open in the editor, and compute prompts open Account or Model Connections. The process host starts on first use and drains on quit. History is AgentChatHistoryBrowser over the project's ConversationHistoryController (permission gate, catalog plus native pages, exclusions, source notes, load more), and a History target opens as restoreAgentChatWorkbenchItem does: the launcher becomes the chat only once its saved session opened, otherwise a retryable creation failure. Routing preferences and the item-host process service remain; the hosted Agent still uses the native chat view."
     },
@@ -409,12 +409,12 @@
       ],
       "targets": [
         "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
-        "src/features/desktop_agent/ui/agent_markdown.rs",
+        "src/features/desktop_agent/ui/agent_markdown/mod.rs",
         "src/features/desktop_agent/ui/panel/mod.rs",
-        "src/features/desktop_agent/ui/panel/composer.rs",
-        "src/features/desktop_agent/ui/panel/transcript.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
         "src/features/desktop_agent/ui/panel/status.rs",
-        "src/features/desktop_agent/ui/panel/docks.rs"
+        "src/features/desktop_agent/ui/docks/mod.rs"
       ],
       "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. The panel renders them over the display contract. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
     },
@@ -1026,21 +1026,21 @@
         "src/features/desktop-agent/domain/agent-route-preference.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/ui/activity/agent_activity_views.rs",
+        "src/features/desktop_agent/ui/activity/agent_activity_views/mod.rs",
         "src/features/desktop_agent/ui/panel/mod.rs",
-        "src/features/desktop_agent/ui/panel/transcript.rs",
-        "src/features/desktop_agent/ui/panel/elements.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/elements/mod.rs",
         "src/features/desktop_agent/ui/panel/status.rs",
-        "src/features/desktop_agent/ui/panel/docks.rs",
-        "src/features/desktop_agent/ui/panel/composer.rs",
+        "src/features/desktop_agent/ui/docks/mod.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
         "src/features/desktop_agent/ui/panel/fixture.rs",
         "src/features/workbench/mod.rs",
         "src/features/desktop_agent/ui/panel/compute.rs",
         "src/features/desktop_agent/ui/panel/routing.rs",
         "src/features/settings/agent_routing_preferences.rs",
-        "src/features/desktop_agent/ui/panel/hosted.rs",
-        "src/features/desktop_agent/infrastructure/cloud.rs",
-        "src/features/desktop_agent/infrastructure/cloud/projection.rs"
+        "src/features/cloud/agent/conversation.rs",
+        "src/features/cloud/agent/controller.rs",
+        "src/features/cloud/agent/projection.rs"
       ],
       "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain. The hosted Agent (CloudAgentConversation over CloudAgentController and cloudAgentProjection) renders through the same panel with its own status; its History reads the target's locators. The pixel lab's chat scenarios run on the panel fixture."
     },
@@ -1081,12 +1081,12 @@
         "src/features/desktop-agent/ui/agent-runtime-geometry.ts"
       ],
       "targets": [
-        "src/features/desktop_agent/ui/panel/transcript.rs",
-        "src/features/desktop_agent/ui/panel/composer.rs",
-        "src/features/desktop_agent/ui/panel/elements.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/elements/mod.rs",
         "src/features/desktop_agent/ui/panel/status.rs",
         "src/features/desktop_agent/ui/panel/compute.rs",
-        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/ui/agent_brand_mark.rs",
         "src/features/desktop_agent/ui/agent_theme.rs",
         "src/ui/form_input.rs"
       ],

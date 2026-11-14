@@ -333,6 +333,21 @@ for name, crates in sorted(mounted.items()):
     if parent and re.search(rf'^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{child}\s*;',
                             (root / 'src' / parent / 'mod.rs').read_text(), re.M):
         errors.append(f'src/{name}: declared again by src/{parent}/mod.rs')
+# Views stay readable: a view file over 500 lines (its tests aside) is
+# reported, not refused; split it along the product's components.
+large_views = []
+view_roots = [*(root / 'src/features').glob('*/ui'), root / 'src/features/workbench',
+              root / 'src/app/right_sidebar']
+view_files = [path for base in view_roots for path in base.rglob('*.rs')]
+view_files += [root / 'src/features/cloud/agent' / name for name in ('conversation.rs', 'item.rs')]
+for path in view_files:
+    if fixture(path):
+        continue
+    lines = len(path.read_text().split('#[cfg(test)]')[0].splitlines())
+    if lines > 500:
+        large_views.append(f'{path.relative_to(root)} ({lines})')
+if large_views:
+    print('Views over 500 lines: ' + ', '.join(sorted(large_views)))
 if errors:
     raise SystemExit("\n".join(errors))
 print("Native UI boundary guard passed (GPUI primitives, Markdown layers and retired framework guard)")

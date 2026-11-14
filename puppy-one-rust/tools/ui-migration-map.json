@@ -981,10 +981,10 @@
         "src/components/brand/agent-launcher-icon.css"
       ],
       "targets": [
-        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/app/right_sidebar/launcher/view.rs",
         "src/assets.rs",
         "assets/agents",
-        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/ui/agent_brand_mark.rs",
         "tools/import-agent-marks.py"
       ],
       "evidence": [
@@ -1655,7 +1655,7 @@
         "src/features/workbench/mod.rs",
         "src/features/workbench/menus.rs",
         "src/features/workbench/close_dialog.rs",
-        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/app/right_sidebar/launcher/view.rs",
         "src/features/terminal/view/mod.rs",
         "src/platform/terminal.rs"
       ],
@@ -1766,7 +1766,7 @@
       ],
       "targets": [
         "src/workspace/cloud/agent.rs",
-        "src/features/desktop_agent/infrastructure/cloud.rs",
+        "src/features/cloud/agent/controller.rs",
         "src/features/workbench/mod.rs"
       ],
       "evidence": [
@@ -2055,7 +2055,7 @@
       "targets": [
         "src/workspace/cloud/events.rs",
         "src/workspace/cloud/mod.rs",
-        "src/features/desktop_agent/infrastructure/cloud.rs"
+        "src/features/cloud/agent/controller.rs"
       ],
       "evidence": [
         "test:live_files_share_the_facade_without_a_local_root_or_git_fallback",
@@ -2551,7 +2551,7 @@
         "src/app/home/projects/list.rs",
         "src/app/project_place.rs",
         "src/app/chrome/mod.rs",
-        "src/app/right_sidebar.rs",
+        "src/app/right_sidebar/mod.rs",
         "src/theme.rs"
       ],
       "evidence": [
