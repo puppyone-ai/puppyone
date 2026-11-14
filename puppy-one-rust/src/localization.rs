@@ -21,6 +21,16 @@ fn data() -> &'static Value {
                 .unwrap()
                 .extend(messages.as_object().unwrap().clone());
         }
+        // `tools/import-sign-in-explainer.py`: CloudSignInDialog copy ahead of
+        // the v0.4.4 pin, projected from qubits with per-file SHA-256 hashes.
+        let sign_in: Value = serde_json::from_str(include_str!("../assets/sign-in-explainer.json"))
+            .expect("sign-in explainer catalogs");
+        for (locale, messages) in sign_in["locales"].as_object().unwrap() {
+            data["catalogs"][locale]
+                .as_object_mut()
+                .unwrap()
+                .extend(messages.as_object().unwrap().clone());
+        }
         data
     })
 }
@@ -848,5 +858,30 @@ mod tests {
             "unknown message keys:\n{}",
             missing.join("\n")
         );
+    }
+    #[test]
+    fn sign_in_explainer_messages_resolve_in_every_product_locale() {
+        let keys = [
+            "cloud.auth.explainer.dots",
+            "cloud.auth.explainer.cloud.label",
+            "cloud.auth.explainer.cloud.title",
+            "cloud.auth.explainer.cloud.body",
+            "cloud.auth.explainer.share.label",
+            "cloud.auth.explainer.share.title",
+            "cloud.auth.explainer.share.body",
+            "cloud.auth.explainer.submit",
+            "cloud.auth.explainer.later",
+            "onboarding.value.folder",
+            "onboarding.value.scene.dashboard",
+            "onboarding.value.scene.changedBy",
+        ];
+        for (code, _) in Locale::choices() {
+            let locale = Locale { code: code.into() };
+            for key in keys {
+                let value = locale.text(key);
+                assert_ne!(value, key, "{code} lacks {key}");
+                assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
     }
 }

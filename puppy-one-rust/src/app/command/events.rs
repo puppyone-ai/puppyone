@@ -279,7 +279,7 @@ impl Shell {
                 .update(cx, |c, cx| c.open_create_space(window, cx)),
             Navigate::OpenAccount => self.open_settings(Page::Account, window, cx),
             Navigate::OpenSettings => self.open_settings(Page::General, window, cx),
-            Navigate::SignIn => crate::features::cloud::account::sign_in(cx),
+            Navigate::SignIn => self.cloud.update(cx, |c, cx| c.open_sign_in(window, cx)),
         }
         cx.notify();
     }

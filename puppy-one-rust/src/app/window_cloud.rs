@@ -27,6 +27,8 @@ use crate::workspace::cloud::opening::Failure;
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
+pub(super) mod sign_in;
+
 /// What the Cloud asks of the window.
 pub(super) enum CloudEvent {
     OpenProject(PathBuf),
@@ -94,6 +96,8 @@ pub(super) struct WindowCloud {
     pub(super) recovery_copied: bool,
     /// `CreateTeamDialog`, while it is open.
     pub(super) create_space: Option<super::create_space::CreateSpace>,
+    /// `CloudSignInDialog`, while it is open.
+    pub(super) sign_in: Option<sign_in::SignInDialog>,
 }
 impl EventEmitter<CloudEvent> for WindowCloud {}
 
@@ -184,6 +188,7 @@ impl WindowCloud {
             recovery: None,
             recovery_copied: false,
             create_space: None,
+            sign_in: None,
         }
     }
     /// What the window shows changed.
@@ -311,6 +316,7 @@ impl WindowCloud {
     /// The association, the publication and the Agents follow the window,
     /// the account and the preferences.
     pub(super) fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.sync_sign_in(cx);
         self.sync_repository_cloud(cx);
         self.sync_cloud_remote(cx);
         self.sync_cloud_publish(cx);
@@ -420,7 +426,7 @@ impl WindowCloud {
     fn render_dialog(
         &mut self,
         key: DialogKey,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         match key {
@@ -445,6 +451,7 @@ impl WindowCloud {
                 .create_space
                 .as_ref()
                 .map(|state| self.create_space_dialog(state, cx).into_any_element()),
+            DialogKey::SignIn => self.sign_in.is_some().then(|| self.sign_in_dialog(window, cx)),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
@@ -465,6 +472,7 @@ impl WindowCloud {
             DialogKey::Agents => self.close_agents_dialog(window, cx),
             DialogKey::HostSharing => self.close_host_sharing(cx),
             DialogKey::CreateSpace => self.close_create_space(cx),
+            DialogKey::SignIn => self.close_sign_in(window, cx),
             _ => {}
         }
         cx.notify();

@@ -44,10 +44,13 @@ pub(super) struct FakeRemote {
     pub refreshes: AtomicU64,
     pub requests: AtomicU64,
     pub inits: AtomicU64,
+    pub providers_calls: AtomicU64,
     pub expires: AtomicU64,
+    pub providers_hook: Mutex<Option<Hook>>,
     pub refresh_hook: Mutex<Option<Hook>>,
     pub request_hook: Mutex<Option<Hook>>,
     pub logout_hook: Mutex<Option<Hook>>,
+    pub providers_error: Mutex<Option<Error>>,
     pub refresh_error: Mutex<Option<Error>>,
     pub request_error: Mutex<Option<Error>>,
     pub reject_access: Mutex<Option<String>>,
@@ -64,9 +67,12 @@ impl Default for FakeRemote {
             refreshes: AtomicU64::new(0),
             requests: AtomicU64::new(0),
             inits: AtomicU64::new(0),
+            providers_calls: AtomicU64::new(0),
             expires: AtomicU64::new(3600),
+            providers_hook: Mutex::default(),
             refresh_hook: Mutex::default(),
             request_hook: Mutex::default(),
+            providers_error: Mutex::default(),
             refresh_error: Mutex::default(),
             request_error: Mutex::default(),
             reject_access: Mutex::default(),
@@ -100,7 +106,16 @@ impl FakeRemote {
 }
 impl Remote for FakeRemote {
     fn providers(&self, _: &Environment, fence: &Fence) -> Result<()> {
-        fence.check()
+        self.providers_calls.fetch_add(1, Ordering::SeqCst);
+        let hook = self.providers_hook.lock().unwrap().clone();
+        if let Some(hook) = hook {
+            hook();
+        }
+        fence.check()?;
+        if let Some(error) = *self.providers_error.lock().unwrap() {
+            return Err(error);
+        }
+        Ok(())
     }
     fn exchange(&self, env: &Environment, code: &Secret, _: &Secret, _: &Fence) -> Result<Session> {
         self.exchanges.fetch_add(1, Ordering::SeqCst);
@@ -200,6 +215,63 @@ pub(super) fn login(broker: &Broker, user: &str) -> Result<()> {
 /// Signs `user` in again on a fixture broker (the browser round trip done).
 pub fn relogin(broker: &Broker, user: &str) {
     login(broker, user).unwrap();
+}
+/// Controls a signed-out fixture broker's browser sign-in without opening a
+/// loopback socket.
+pub struct SignInControl {
+    broker: Arc<Broker>,
+    remote: Arc<FakeRemote>,
+    held: Arc<(Mutex<bool>, std::sync::Condvar)>,
+}
+impl SignInControl {
+    pub fn starts(&self) -> u64 {
+        self.remote.providers_calls.load(Ordering::SeqCst)
+    }
+    /// Holds the next `sign_in` in `Status::SigningIn` until [`Self::fail`] or
+    /// [`Self::complete`].
+    pub fn hold(&self) {
+        *self.held.0.lock().unwrap() = true;
+    }
+    pub fn fail(&self, error: Error) {
+        *self.remote.providers_error.lock().unwrap() = Some(error);
+        *self.held.0.lock().unwrap() = false;
+        self.held.1.notify_all();
+    }
+    pub fn complete(&self, user: &str) {
+        *self.remote.providers_error.lock().unwrap() = None;
+        self.broker.control.advance();
+        *self.held.0.lock().unwrap() = false;
+        self.held.1.notify_all();
+        login(&self.broker, user).unwrap();
+    }
+}
+impl Drop for SignInControl {
+    fn drop(&mut self) {
+        *self.held.0.lock().unwrap() = false;
+        self.held.1.notify_all();
+    }
+}
+pub fn sign_in_fixture() -> (
+    Arc<Broker>,
+    async_channel::Receiver<super::service::BrowserEvent>,
+    Arc<SignInControl>,
+) {
+    let remote = Arc::new(FakeRemote::default());
+    let held = Arc::new((Mutex::new(true), std::sync::Condvar::new()));
+    let gate = held.clone();
+    *remote.providers_hook.lock().unwrap() = Some(Arc::new(move || {
+        let lock = gate.0.lock().unwrap();
+        let _ = gate
+            .1
+            .wait_timeout_while(lock, std::time::Duration::from_secs(5), |v| *v);
+    }));
+    let (broker, browser) = Broker::new(env(), remote.clone(), Arc::new(MemoryStore::default()));
+    let control = Arc::new(SignInControl {
+        broker: broker.clone(),
+        remote,
+        held,
+    });
+    (broker, browser, control)
 }
 pub fn account_fixture() -> (
     Arc<Broker>,

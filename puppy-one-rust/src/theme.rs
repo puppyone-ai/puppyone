@@ -347,6 +347,10 @@ pub fn shade(c: Rgba, weight: f32) -> Rgba {
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)
 }
+/// `.onboarding-scene-qr`'s dark modules on its `#fff` tile.
+pub fn qr_ink() -> Rgba {
+    rgb(0x111111)
+}
 /// `--po-success-contrast`: text on a success fill. Only the fallback layer
 /// and Neutral define it, so every Default theme uses Neutral's values.
 pub fn success_contrast(dark: bool) -> Rgba {

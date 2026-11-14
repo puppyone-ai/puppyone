@@ -363,6 +363,7 @@ impl WindowChrome {
         bar.action(
             div().ml(px(4.)).child(
                 Button::new("header-sign-in")
+                    .debug_selector(|| "header-sign-in".into())
                     .variant(ButtonVariant::Titlebar)
                     .label(tr("cloud.auth.signIn"))
                     .accessibility_label(tr("cloud.auth.signInToCloud"))
@@ -370,7 +371,9 @@ impl WindowChrome {
                     .pr(px(8.))
                     .text_size(px(ty.content))
                     .line_height(px(ty.line_height))
-                    .on_click(|_, _, cx| crate::features::cloud::account::sign_in(cx)),
+                    .on_click(cx.listener(|_, _, _, cx| {
+                        cx.emit(ChromeEvent::Navigate(navigation::Navigate::SignIn))
+                    })),
             ),
         )
     }

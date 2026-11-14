@@ -75,6 +75,8 @@ pub(super) enum DialogKey {
     HostSharing,
     /// `CreateTeamDialog`: start a space.
     CreateSpace,
+    /// `CloudSignInDialog`: explains what signing in unlocks before browser OAuth.
+    SignIn,
     /// A project's folder that cannot be opened (`UnavailableProjectDialog`,
     /// the confirmation of a different folder).
     ProjectFolder,

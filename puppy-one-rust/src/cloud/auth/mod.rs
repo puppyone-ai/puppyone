@@ -12,8 +12,8 @@ pub use service::{Broker, BrowserEvent};
 mod fixtures;
 #[cfg(any(test, feature = "test-support"))]
 pub use fixtures::{
-    Responder, account_fixture, protocol_fixture, refresh_token_broker, relogin,
-    responding_account_fixture,
+    Responder, SignInControl, account_fixture, protocol_fixture, refresh_token_broker, relogin,
+    responding_account_fixture, sign_in_fixture,
 };
 pub use transport::{BILLING_DISABLED, Cancellation, HostTunnel, ServiceCode, StreamEvent};
 #[cfg(test)]

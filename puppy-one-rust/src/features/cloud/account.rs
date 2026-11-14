@@ -247,11 +247,45 @@ pub fn environment(cx: &App) -> Option<Environment> {
     let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
     account.snapshot.as_ref().map(|s| s.environment.clone())
 }
+/// The account's configuration/platform error when native sign-in could not
+/// start (`CloudAccount::unavailable`).
+pub fn unavailable(cx: &App) -> Option<Error> {
+    cx.try_global::<CloudAccountService>()?
+        .0
+        .read(cx)
+        .unavailable
+}
 /// Starts the browser sign-in (`CloudSignedOutRoute`).
 pub fn sign_in(cx: &App) {
     if let Some(service) = cx.try_global::<CloudAccountService>() {
         service.0.read(cx).sign_in();
     }
+}
+/// Starts the browser sign-in or reopens the active browser page
+/// (`CloudSignInDialog`). Returns `false` when no native sign-in service is
+/// installed (e.g. offline capture), so the dialog may close itself.
+pub fn sign_in_or_reopen(cx: &App) -> bool {
+    let Some(service) = cx.try_global::<CloudAccountService>() else {
+        return false;
+    };
+    let account = service.0.read(cx);
+    if account.admitted().is_none() {
+        return account.unavailable.is_some();
+    }
+    if account
+        .snapshot
+        .as_ref()
+        .is_some_and(|s| s.status == Status::SigningIn && s.can_reopen)
+    {
+        account.reopen();
+    } else if account
+        .snapshot
+        .as_ref()
+        .is_none_or(|s| s.status != Status::SigningIn)
+    {
+        account.sign_in();
+    }
+    true
 }
 /// The account's sign-in status, once the Broker has reported one.
 pub fn status(cx: &App) -> Option<crate::cloud::auth::Status> {

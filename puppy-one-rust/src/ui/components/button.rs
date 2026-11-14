@@ -74,6 +74,9 @@ pub enum ButtonVariant {
     PlanCard,
     /// Its primary form, filled with Plan's orange.
     PlanCardPrimary,
+    /// `.cloud-sign-in-primary`: filled with `--po-brand-blue` and `#fff` ink,
+    /// 36px tall at 14px medium.
+    Brand,
 }
 impl ButtonVariant {
     fn outlined(self) -> bool {
@@ -119,6 +122,20 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
                 theme::lift(theme::plan_accent(), 0.85)
             },
             hover_fg: theme::plan_accent_ink(),
+        },
+        ButtonVariant::Brand if disabled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::Brand => Paint {
+            border: None,
+            bg: t.brand_blue,
+            fg: theme::on_solid(),
+            hover_bg: theme::shade(t.brand_blue, 0.9),
+            hover_fg: theme::on_solid(),
         },
         ButtonVariant::Outline | ButtonVariant::Success | ButtonVariant::PlanCard => Paint {
             border: Some(t.divider),
@@ -470,6 +487,7 @@ impl RenderOnce for Button {
         ) || deep;
         let quiet = variant == ButtonVariant::Quiet;
         let plan_card = variant.plan_card();
+        let brand = variant == ButtonVariant::Brand;
         // Outline and Git file actions: 13px icon at stroke 2; filled Git
         // actions: 15px at 2.25; entries: 14px at 1.85.
         let icon = self.icon.map(|icon| {
@@ -506,6 +524,7 @@ impl RenderOnce for Button {
             .items_center()
             .justify_center()
             .gap(px(match variant {
+                ButtonVariant::Brand => 7.,
                 ButtonVariant::FilledPrimary => 5.,
                 ButtonVariant::Filled => 4.,
                 ButtonVariant::GitAction | ButtonVariant::GitActionDanger => 5.,
@@ -594,6 +613,15 @@ impl RenderOnce for Button {
                     .text_size(px(theme::ty().ui.label))
                     .when(variant == ButtonVariant::PlanCard, |b| b.border_1())
                     .when(disabled, |b| b.opacity(0.62))
+            })
+            // `.cloud-sign-in-primary`: `height: 36px; padding: 0 14px; border-radius: 8px; font-size: 14px; font-weight: 500`.
+            .when(brand, |b| {
+                b.h(px(36.))
+                    .px(px(14.))
+                    .rounded(px(8.))
+                    .text_size(px(theme::font_size(14.)))
+                    .line_height(px(theme::font_size(14.)))
+                    .font_weight(FontWeight::MEDIUM)
             })
             // `.desktop-titlebar-action:disabled`.
             .when(
