@@ -25,7 +25,7 @@ notify = { version = "=8.2.0", default-features = false, features = ["macos_fsev
 regex = "1.13.1"
 russh = { version = "0.65.1", default-features = false, features = ["ring"] }
 portable-pty = "0.9"
-reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"

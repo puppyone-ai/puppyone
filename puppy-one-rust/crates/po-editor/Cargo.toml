@@ -27,7 +27,7 @@ icu_normalizer = "=2.3.0"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 pulldown-cmark = "0.13"
 regex = "1.13.1"
-reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

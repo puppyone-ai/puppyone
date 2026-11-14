@@ -75,7 +75,7 @@ tar = { version = "=0.4.46", default-features = false }
 flate2 = "1.1"
 zeroize = "1"
 httparse = "1"
-reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
 tokio-util = "0.7"
 futures-util = "0.3"

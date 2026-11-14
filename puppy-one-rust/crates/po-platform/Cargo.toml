@@ -27,7 +27,7 @@ pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdf
 portable-pty = "0.9"
 raw-window-handle = { version = "0.6", features = ["std"] }
 regex = "1.13.1"
-reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 rusty-leveldb = { version = "=4.0.2" }
 serde = { version = "1", features = ["derive"] }
