@@ -7,6 +7,7 @@ mod file_settings_views;
 mod general_settings_view;
 mod local_project_settings_view;
 mod other_app_imports_settings_view;
+mod other_computers_settings_view;
 mod plan;
 mod privacy_settings_view;
 mod repository_settings_views;
@@ -38,6 +39,7 @@ impl SettingsWorkspaceSurface {
             Page::CreateNew => self.create_new(t, cx),
             Page::OtherAppImports => self.other_app_imports(t, cx),
             Page::Privacy => self.privacy(t, cx),
+            Page::OtherComputers => self.other_computers(t, cx),
             Page::Experimental => self.experimental(t, cx),
             Page::LocalAgents => SettingsSection::new(tr(Page::LocalAgents.title()))
                 .child(self.agents.clone())

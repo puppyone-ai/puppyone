@@ -13,6 +13,8 @@ pub enum Page {
     CreateNew,
     OtherAppImports,
     Privacy,
+    /// Computer access (`other-computers`), behind `HOST_DEVICES_AVAILABLE`.
+    OtherComputers,
     Experimental,
     LocalAgents,
     ModelConnections,
@@ -35,6 +37,8 @@ pub struct Group {
 pub struct Visibility {
     pub local_workspace: bool,
     pub other_app_imports: bool,
+    /// `hostDevicesEnabled`: the other computers' release gate.
+    pub host_devices: bool,
     /// `useCloudEnabled()`: Plan and the "Cloud" heading.
     pub cloud_enabled: bool,
     /// `useAccountAvailable()`: Account, with or without Cloud.
@@ -55,6 +59,7 @@ impl Page {
             Self::CreateNew => "settings.createNew.title",
             Self::OtherAppImports => "settings.experimental.otherAppImports.title",
             Self::Privacy => "settings.privacy.title",
+            Self::OtherComputers => "hosts.settings.title",
             Self::Experimental => "settings.experimental.title",
             Self::LocalAgents => "settings.localAgents.title",
             Self::ModelConnections => "settings.modelConnections.title",
@@ -83,14 +88,19 @@ pub fn groups(visibility: Visibility) -> Vec<Group> {
             "folder-input",
         ));
     }
-    desktop.extend([
-        item(Privacy, "settings.sidebar.privacy", "shield-check"),
-        item(
-            Experimental,
-            "settings.sidebar.experimental",
-            "flask-conical",
-        ),
-    ]);
+    desktop.push(item(Privacy, "settings.sidebar.privacy", "shield-check"));
+    if visibility.host_devices {
+        desktop.push(item(
+            OtherComputers,
+            "settings.sidebar.otherComputers",
+            "product-local",
+        ));
+    }
+    desktop.push(item(
+        Experimental,
+        "settings.sidebar.experimental",
+        "flask-conical",
+    ));
     // Identity, the current space and the application stay at the same
     // level: Account wherever the build has accounts; the space's Members
     // and Plan with Cloud on, Members once a space is chosen.
@@ -188,14 +198,28 @@ mod tests {
         let none = Visibility::default();
         assert!(!available(Page::Git, none));
         assert!(!available(Page::OtherAppImports, none));
+        assert!(!available(Page::OtherComputers, none));
         let all = Visibility {
             local_workspace: true,
             other_app_imports: true,
+            host_devices: true,
             cloud_enabled: true,
             account_available: true,
             current_space_available: true,
         };
         assert!(available(Page::Git, all) && available(Page::OtherAppImports, all));
+        let desktop: Vec<_> = groups(all)
+            .into_iter()
+            .find(|g| g.key == "settings.sidebar.desktopApp")
+            .unwrap()
+            .items
+            .iter()
+            .map(|i| i.page)
+            .collect();
+        assert_eq!(
+            desktop[desktop.len() - 3..],
+            [Page::Privacy, Page::OtherComputers, Page::Experimental]
+        );
         assert_eq!(groups(all)[0].key, "settings.sidebar.accountGroup");
     }
 }

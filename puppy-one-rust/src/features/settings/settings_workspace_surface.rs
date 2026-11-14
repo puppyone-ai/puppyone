@@ -27,6 +27,11 @@ pub enum SettingsEvent {
     ForgetProject(PathBuf),
     /// `onOpenImport`: Settings closes for the import dialog.
     OpenImport,
+    /// Computer access: a folder this computer shares, its settings.
+    FolderSharing {
+        folder: String,
+        name: String,
+    },
 }
 pub struct SettingsWorkspaceSurface {
     pub preferences: Entity<PreferencesStore>,
@@ -48,6 +53,10 @@ pub struct SettingsWorkspaceSurface {
     pub(super) copied: Option<(SharedString, std::time::Instant)>,
     /// The New-menu page's open row context menu.
     pub(super) create_new_menu: Option<super::main::CreateNewMenu>,
+    /// Computer access: the computer whose actions are open (id, name,
+    /// this computer, where), and the catalog and host it follows.
+    pub(super) computer_menu: Option<(String, String, bool, Point<Pixels>)>,
+    pub(super) computers: Vec<Subscription>,
     /// Host Server draft of `.puppyone/config.json`, the saved document it
     /// was derived from, and its branch fields.
     pub(super) hosting_draft: super::workspace_config::WorkspaceConfig,
@@ -81,6 +90,9 @@ impl SettingsWorkspaceSurface {
         }
         if page == Page::Space {
             self.load_space(cx);
+        }
+        if page == Page::OtherComputers {
+            self.read_computers(cx);
         }
         cx.notify();
     }
@@ -237,6 +249,8 @@ impl SettingsWorkspaceSurface {
             patterns,
             copied: None,
             create_new_menu: None,
+            computer_menu: None,
+            computers: Vec::new(),
             hosting_draft: Default::default(),
             hosting_base: None,
             hosting_branch: cx
@@ -258,6 +272,7 @@ impl SettingsWorkspaceSurface {
             let all = Visibility {
                 local_workspace: true,
                 other_app_imports: true,
+                host_devices: crate::workspace::hosts::AVAILABLE,
                 cloud_enabled: true,
                 account_available: true,
                 current_space_available: true,
@@ -342,6 +357,7 @@ impl SettingsWorkspaceSurface {
                 .state
                 .experimental
                 .other_app_imports,
+            host_devices: crate::workspace::hosts::AVAILABLE,
             cloud_enabled: crate::features::flags::cloud_enabled(&self.preferences, cx),
             account_available: crate::features::flags::account_available(cx),
             current_space_available: self.settings_space(cx).is_some(),

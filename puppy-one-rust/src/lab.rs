@@ -67,6 +67,7 @@ fn settings_page(section: &str) -> Option<Page> {
         "new-menu" => Page::CreateNew,
         "other-app-imports" => Page::OtherAppImports,
         "privacy" => Page::Privacy,
+        "other-computers" => Page::OtherComputers,
         "experimental" => Page::Experimental,
         "local-agents" | "agent-hooks" | "agent-activation" => Page::LocalAgents,
         "model-connections" => Page::ModelConnections,

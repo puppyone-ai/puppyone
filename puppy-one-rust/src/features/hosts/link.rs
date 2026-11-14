@@ -567,6 +567,27 @@ impl HostLink {
     pub fn use_dir(&mut self, dir: PathBuf) {
         self.dir = dir;
     }
+    /// The host's status, or sharing off when no host is running.
+    pub fn sharing(&self) -> Option<HostStatus> {
+        self.status.clone().or_else(|| {
+            (!self.connecting && self.peer.as_ref().is_none_or(|p| p.is_closed())).then(|| {
+                HostStatus {
+                    state: "off".into(),
+                    ..Default::default()
+                }
+            })
+        })
+    }
+    /// `host:autostart`: this installation's login entry, where the
+    /// system has one.
+    pub fn autostart() -> Option<crate::workspace::hosts::process::Autostart> {
+        let program = std::env::current_exe().ok()?;
+        let home = crate::platform::paths::home_dir();
+        Some(crate::workspace::hosts::process::Autostart::new(
+            &home, &program,
+        ))
+        .filter(|a| a.supported())
+    }
     pub fn set_paused(&mut self, paused: bool, cx: &mut Context<Self>) {
         self.call("setPaused", json!({"paused": paused}), cx, |s, _, cx| {
             s.refresh(cx)

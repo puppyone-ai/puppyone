@@ -73,6 +73,7 @@ pub struct Fake {
     pub online: Mutex<bool>,
     pub refuse: Mutex<Option<&'static str>>,
     pub tunnels: Mutex<Vec<String>>,
+    pub revoked: Mutex<Vec<String>>,
 }
 impl Cloud for Fake {
     fn catalog(&self) -> Result<Value, HostError> {
@@ -83,6 +84,10 @@ impl Cloud for Fake {
                 "capabilities": ["folder.read", "folder.write", "folder.shell", "folder.git",
                     "folder.someday"]}]
         }, {"id": "not-a-uuid", "name": "x", "folders": []}]}))
+    }
+    fn revoke(&self, device: &str) -> Result<Value, HostError> {
+        self.revoked.lock().unwrap().push(device.to_owned());
+        Ok(json!({ "revoked": true }))
     }
     fn certificate(&self, device: &str, public_key: &str) -> Result<Value, HostError> {
         assert_eq!(device, DEVICE);
@@ -159,5 +164,6 @@ pub fn fake(root: std::path::PathBuf) -> Arc<Fake> {
         online: Mutex::new(true),
         refuse: Mutex::new(None),
         tunnels: Mutex::default(),
+        revoked: Mutex::default(),
     })
 }

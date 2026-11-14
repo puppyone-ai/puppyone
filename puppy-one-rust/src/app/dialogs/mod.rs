@@ -120,6 +120,8 @@ pub(super) enum DialogEvent {
     Command(Command),
     /// Settings › Other app imports: the import dialog.
     OpenImport,
+    /// Settings › Computer access: a shared folder's settings, over it.
+    FolderSharing { folder: String, name: String },
     /// A dialog closed itself: the window takes the focus back.
     Closed,
     /// The create form made an entry in `workspace` (`nodes` is `parent`
@@ -188,6 +190,12 @@ impl DialogLayer {
                 SettingsEvent::OpenImport => {
                     s.close_tasks(cx);
                     cx.emit(DialogEvent::OpenImport);
+                }
+                SettingsEvent::FolderSharing { folder, name } => {
+                    cx.emit(DialogEvent::FolderSharing {
+                        folder: folder.clone(),
+                        name: name.clone(),
+                    });
                 }
             }
         })

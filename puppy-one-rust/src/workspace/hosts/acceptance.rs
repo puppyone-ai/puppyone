@@ -130,6 +130,14 @@ impl Person for App {
 /// Computer B's access side, as the App's broker would do it.
 struct Access(Arc<Account>);
 impl Cloud for Access {
+    fn revoke(&self, device: &str) -> Result<Value, HostError> {
+        self.0
+            .blocking("DELETE", &format!("/hosts/devices/{device}"), None)
+            .map_err(|(s, _)| HostError {
+                status: s,
+                ..HostError::new("folder_unavailable")
+            })
+    }
     fn catalog(&self) -> Result<Value, HostError> {
         self.0
             .blocking("GET", "/hosts", None)

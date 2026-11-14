@@ -295,6 +295,14 @@ impl Shell {
             DialogEvent::OpenImport => {
                 self.home.update(cx, |h, cx| h.begin_import(window, cx));
             }
+            DialogEvent::FolderSharing { folder, name } => {
+                let target = super::super::host_sharing::Target::Settings {
+                    folder: folder.clone(),
+                    name: name.clone(),
+                };
+                self.cloud
+                    .update(cx, |c, cx| c.open_host_sharing(target, false, window, cx));
+            }
             DialogEvent::Closed => self.frame.focus.focus(window, cx),
             DialogEvent::Error(error) => {
                 self.show_error(error.clone(), cx);

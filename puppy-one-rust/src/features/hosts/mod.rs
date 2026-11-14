@@ -5,9 +5,11 @@
 //! account. Opening another computer's folder needs no device key, so it
 //! works where this computer cannot share its own. The folders this
 //! computer opened recently are kept for restoring a window ([`recents`]).
+mod computer_access;
 mod link;
 mod recents;
 mod tools;
+pub use computer_access::{SharedRow, no_folders, presence, shared_rows, sharing_status};
 pub use link::{HostLink, SharedFolder, global as host_link, read as read_link, suspend_leftover};
 pub use recents::Recent;
 pub use tools::{HostTools, Target, Tool};
@@ -53,6 +55,10 @@ pub struct HostCatalog {
     pub this_device: Option<String>,
     /// Captures: a fixed catalog stands in, whatever the account.
     fixture: bool,
+    /// A change on its way (`pending`), and what failed of the last one
+    /// (`actionError`) as its message key.
+    pub pending: bool,
+    pub action_error: Option<&'static str>,
 }
 
 struct Service(Entity<HostCatalog>);
@@ -73,6 +79,8 @@ pub fn global(cx: &mut App) -> Entity<HostCatalog> {
         read_at: None,
         this_device: None,
         fixture: false,
+        pending: false,
+        action_error: None,
     });
     cx.set_global(Service(catalog.clone()));
     catalog
@@ -168,6 +176,41 @@ impl HostCatalog {
     }
     pub fn hosts(&self) -> Option<Arc<Hosts>> {
         self.hosts.clone()
+    }
+    /// Every computer of the owner's, this one too.
+    pub fn devices(&self) -> &[Device] {
+        &self.devices
+    }
+    pub fn loaded(&self) -> bool {
+        self.loaded
+    }
+    pub fn reading(&self) -> bool {
+        self.reading
+    }
+    /// `host:revoke-device` after the owner's confirmation: the computer
+    /// leaves the owner's computers and the catalog is read again.
+    pub fn remove_device(&mut self, device: String, cx: &mut Context<Self>) {
+        let Some(hosts) = self.hosts.clone().filter(|_| !self.pending) else {
+            return;
+        };
+        self.pending = true;
+        self.action_error = None;
+        cx.notify();
+        let task = cx
+            .background_executor()
+            .spawn(async move { runtime().block_on(hosts.revoke(&device)) });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |s, cx| {
+                s.pending = false;
+                match result {
+                    Ok(()) => s.ensure(true, true, true, cx),
+                    Err(_) => s.action_error = Some("hosts.settings.removeFailure"),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
     /// The last read failed (`hosts.catalog.unavailable`).
     pub fn error(&self) -> bool {

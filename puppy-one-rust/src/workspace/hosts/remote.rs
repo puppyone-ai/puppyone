@@ -138,6 +138,8 @@ pub trait Cloud: Send + Sync {
     fn catalog(&self) -> Result<Value, HostError>;
     /// `POST /hosts/devices/{device}/ssh-certificate`.
     fn certificate(&self, device: &str, public_key: &str) -> Result<Value, HostError>;
+    /// `DELETE /hosts/devices/{device}`: one of the owner's computers, removed.
+    fn revoke(&self, device: &str) -> Result<Value, HostError>;
     /// The origin a tunnel uses when the certificate names no gateway.
     fn origin(&self) -> url::Url;
     fn tunnel(&self, url: &url::Url) -> Result<Box<dyn Socket>, HostError>;
@@ -194,6 +196,21 @@ impl Cloud for BrokerCloud {
             path: format!("/hosts/devices/{device}/ssh-certificate"),
             query: vec![],
             body: Some(json!({ "public_key": public_key })),
+        };
+        self.broker
+            .request_scoped(&self.binding, &request, &self.cancel)
+            .map_err(|e| auth_failure(&e))
+    }
+    fn revoke(&self, device: &str) -> Result<Value, HostError> {
+        if !uuid(device) {
+            return Err(HostError::new("invalid_request"));
+        }
+        let request = ApiRequest {
+            idempotency_key: None,
+            method: reqwest::Method::DELETE,
+            path: format!("/hosts/devices/{device}"),
+            query: vec![],
+            body: None,
         };
         self.broker
             .request_scoped(&self.binding, &request, &self.cancel)
@@ -317,6 +334,13 @@ impl Hosts {
     pub async fn catalog(&self) -> Result<Vec<Device>, HostError> {
         let value = self.blocking(|cloud| cloud.catalog()).await?;
         parse_catalog(&value)
+    }
+    /// `host:revoke-device`: the computer leaves the owner's computers.
+    pub async fn revoke(&self, device: &str) -> Result<(), HostError> {
+        let device = device.to_owned();
+        self.blocking(move |cloud| cloud.revoke(&device))
+            .await
+            .map(|_| ())
     }
     async fn connect(&self, folder: &str) -> Result<Access, HostError> {
         let devices = self.catalog().await?;
