@@ -141,12 +141,28 @@ impl Homepage {
                     let next = status.map(|status| (root, status));
                     if s.window_folder != next {
                         s.window_folder = next;
+                        cx.emit(HomeEvent::WindowFolder);
                         cx.notify();
                     }
                 }
             });
         })
         .detach();
+    }
+    /// `unavailableFolderMessage` and `onFolderReadFailed`: a file of the
+    /// open project's folder that can't be opened right now says so in
+    /// place of its read's error, and each new failure asks again whether
+    /// the folder is there.
+    pub(in crate::app) fn file_error(&mut self, error: String, cx: &mut Context<Self>) -> String {
+        if self.read_failed.as_ref() != Some(&error) {
+            self.read_failed = Some(error.clone());
+            self.check_window_folder(cx);
+        }
+        if self.window_folder.is_some() {
+            tf("shell.folderStatus.fileUnavailable", &[])
+        } else {
+            error
+        }
     }
     /// `onOpenUnavailableProject`: what to do instead, read again first.
     pub(in crate::app) fn open_unavailable(&mut self, path: PathBuf, cx: &mut Context<Self>) {

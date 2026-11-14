@@ -56,6 +56,16 @@ impl Shell {
             explorer.update(cx, |e, cx| e.reveal(&relative, cx));
         }
     }
+    /// The Documents error shows above the dialogs while it is set; a file
+    /// of a folder that can't be opened now says so.
+    pub(in crate::app) fn sync_dialog_status(&mut self, cx: &mut Context<Self>) {
+        let files = &self.files(cx);
+        let status = files.error.clone().filter(|_| !files.cloud_conflict());
+        let can_retry = files.can_retry_operation();
+        let status = status.map(|error| self.home.update(cx, |h, cx| h.file_error(error, cx)));
+        self.dialogs
+            .update(cx, |d, cx| d.set_status(status, can_retry, cx));
+    }
     /// A close in flight finishes once no entry is being created, the
     /// preferences drained and the account can let go; the window then
     /// retires its tasks and leaves.

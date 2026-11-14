@@ -92,6 +92,17 @@ fn a_window_whose_folder_moved_says_so_and_follows_it(cx: &mut TestAppContext) {
             .any(|p| p.path == notes && p.fs_identity.is_some())
     });
     command(&view, cx, Command::Escape);
+    let read_error = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.update(cx, |s, cx| {
+            s.home
+                .update(cx, |h, cx| h.file_error("No such file".into(), cx))
+        })
+    };
+    assert_eq!(
+        read_error(&view, cx),
+        "No such file",
+        "a folder that is there"
+    );
     let moved = root.join("Notes (moved)");
     std::fs::rename(&notes, &moved).unwrap();
     view.update(cx, |s, cx| {
@@ -114,6 +125,11 @@ fn a_window_whose_folder_moved_says_so_and_follows_it(cx: &mut TestAppContext) {
             "still open"
         );
     });
+    // Its files say why they don't open.
+    assert_eq!(
+        read_error(&view, cx),
+        "This file’s folder can’t be opened right now."
+    );
     view.update(cx, |s, cx| {
         s.home.update(cx, |h, cx| {
             h.relocate_folder(notes.clone(), moved.clone(), cx)

@@ -490,14 +490,6 @@ impl Shell {
             self.finish_close(window, cx);
         }
     }
-    /// The Documents error shows above the dialogs while it is set.
-    fn sync_dialog_status(&mut self, cx: &mut Context<Self>) {
-        let files = &self.files(cx);
-        let status = files.error.clone().filter(|_| !files.cloud_conflict());
-        let can_retry = files.can_retry_operation();
-        self.dialogs
-            .update(cx, |d, cx| d.set_status(status, can_retry, cx));
-    }
     /// What the window holds over the editors: a dialog (here or in the
     /// Agent workbench), the Homepage, the appearance.
     fn editor_gate(&self, cx: &App) -> editor_area::EditorGate {

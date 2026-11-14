@@ -155,6 +155,8 @@ impl Shell {
             home::HomeEvent::ManageSpace(space) => {
                 return self.open_space_settings(space.clone(), false, window, cx);
             }
+            // A file error of that folder says why.
+            home::HomeEvent::WindowFolder => {}
         }
         self.receive(window, cx);
         cx.notify();

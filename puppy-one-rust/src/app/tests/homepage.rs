@@ -397,6 +397,32 @@ fn import_starts_from_its_sources_and_a_repository_takes_only_its_provider(
             assert!(s.workspace_root(cx).is_none());
         });
     }
+    // Imported, but its folder can't be opened: the dialog stays to open
+    // it again, and opening it again once it is there opens it.
+    let temp = tempfile::tempdir().unwrap();
+    let project = temp.path().canonicalize().unwrap().join("repository");
+    let open_again = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |s, w, cx| {
+            s.home.update(cx, |h, cx| h.submit_import(w, cx))
+        });
+        draw(cx);
+    };
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| {
+            h.import.as_mut().unwrap().imported = Some(project.clone())
+        })
+    });
+    open_again(&view, cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("ImportRepository", cx));
+        assert!(s.workspace_root(cx).is_none());
+    });
+    std::fs::create_dir(&project).unwrap();
+    open_again(&view, cx);
+    settle_cloud(&view, cx, "the imported project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(project.as_path())
+    });
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("ImportRepository", cx)));
 }
 
 /// v0.4.4 app folders: with the experiment on, the folders another app

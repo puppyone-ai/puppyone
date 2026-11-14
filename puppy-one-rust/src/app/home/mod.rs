@@ -108,6 +108,8 @@ pub(in crate::app) enum HomeEvent {
     },
     /// A space's "Members & plan": Settings on that one space.
     ManageSpace(String),
+    /// Whether the open project's folder can be opened changed.
+    WindowFolder,
     Command(Command),
 }
 
@@ -208,6 +210,9 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) unavailable: HashMap<PathBuf, folder_status::FolderStatus>,
     /// The open project's folder, when it cannot be opened now.
     pub(in crate::app) window_folder: Option<(PathBuf, folder_status::FolderStatus)>,
+    /// The last read of the window's files that failed, so the folder is
+    /// asked after once per failure (`onFolderReadFailed`).
+    read_failed: Option<String>,
     /// The folder question on screen, its failure and a relocation on its way.
     pub(in crate::app) folder_question: Option<folder_status::FolderQuestion>,
     folder_error: Option<String>,
@@ -341,6 +346,7 @@ impl Homepage {
             app_places: None,
             unavailable: HashMap::new(),
             window_folder: None,
+            read_failed: None,
             folder_question: None,
             folder_error: None,
             folder_busy: false,

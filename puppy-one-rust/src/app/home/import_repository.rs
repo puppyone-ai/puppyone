@@ -2,7 +2,8 @@
 //! a repository URL of that provider and a location (the same
 //! `Documents/PuppyOne` default as Create); Import clones into the location
 //! and opens the project. The clone runs on a worker and can be cancelled;
-//! nothing is left behind.
+//! nothing is left behind. A project imported whose folder then can't be
+//! opened stays in the dialog to be opened again.
 use super::*;
 use crate::{
     platform::repository_import::{self, Provider},
@@ -20,6 +21,8 @@ pub(in crate::app) struct ImportRepository {
     location: Option<PathBuf>,
     /// The clone in flight and its cancellation.
     cloning: Option<Arc<AtomicBool>>,
+    /// Imported, but its folder could not be opened: Import opens it again.
+    pub(in crate::app) imported: Option<PathBuf>,
     error: Option<String>,
 }
 
@@ -55,6 +58,7 @@ impl Homepage {
             url,
             location: create_project::default_location(),
             cloning: None,
+            imported: None,
             error: None,
         });
         cx.notify();
@@ -78,6 +82,13 @@ impl Homepage {
         cx.notify();
     }
     fn choose_import_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .import
+            .as_ref()
+            .is_none_or(|i| i.cloning.is_some() || i.imported.is_some())
+        {
+            return;
+        }
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -105,6 +116,9 @@ impl Homepage {
         if import.cloning.is_some() {
             return;
         }
+        if let Some(path) = import.imported.clone() {
+            return self.open_imported(path, window, cx);
+        }
         let text = import.url.read(cx).text().to_owned();
         let Some(location) = import.location.clone() else {
             return;
@@ -124,9 +138,34 @@ impl Homepage {
         import.cloning = Some(cancel.clone());
         import.error = None;
         cx.notify();
+        let task = cx.background_executor().spawn(async move {
+            repository_import::clone_into(&location, &repository, &cancel)
+                .map(|path| (opens(&path), path))
+        });
+        self.finish_import(task, window, cx);
+    }
+    /// `retryRequest`: the imported project, opened again.
+    fn open_imported(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(import) = self.import_state() else {
+            return;
+        };
+        import.cloning = Some(Arc::new(AtomicBool::new(false)));
+        import.error = None;
+        cx.notify();
         let task = cx
             .background_executor()
-            .spawn(async move { repository_import::clone_into(&location, &repository, &cancel) });
+            .spawn(async move { Ok((opens(&path), path)) });
+        self.finish_import(task, window, cx);
+    }
+    /// The import's end: its project opened here, the dialog closing; or
+    /// imported but not openable (`opening.status === "failed"`), said and
+    /// kept to try again; or what went wrong.
+    fn finish_import(
+        &mut self,
+        task: gpui::Task<Result<(bool, PathBuf), String>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = this.update_in(cx, |s, _, cx| {
@@ -135,11 +174,15 @@ impl Homepage {
                 };
                 import.cloning = None;
                 match result {
-                    Ok(path) => {
+                    Ok((true, path)) => {
                         s.import = None;
                         s.import_picker = None;
                         s.close_dialog(DialogKey::ImportRepository, cx);
                         s.open_project(path, cx);
+                    }
+                    Ok((false, path)) => {
+                        import.imported = Some(path);
+                        import.error = Some(tr("onboarding.entry.import.openFailed").into());
                     }
                     Err(error) => import.error = Some(error),
                 }
@@ -162,6 +205,7 @@ impl Homepage {
             &[("provider", import.provider.label().into())],
         );
         let busy = import.cloning.is_some();
+        let imported = import.imported.is_some();
         let field = || {
             h_flex()
                 .w_full()
@@ -202,7 +246,7 @@ impl Homepage {
                             .id("import-location")
                             .px(px(11.))
                             .gap(px(10.))
-                            .when(!busy, |d| d.cursor(theme::clickable_cursor()))
+                            .when(!busy && !imported, |d| d.cursor(theme::clickable_cursor()))
                             .on_click(cx.listener(|s, _, w, cx| s.choose_import_location(w, cx)))
                             .child(
                                 Icon::product(crate::ui::components::ProductIcon::Folder)
@@ -220,7 +264,7 @@ impl Homepage {
                             ),
                     ),
             );
-        if busy {
+        if busy && !imported {
             body = body.child(
                 h_flex()
                     .gap(px(8.))
@@ -261,16 +305,24 @@ impl Homepage {
             .footer(
                 Button::new("import-submit")
                     .variant(ButtonVariant::Solid)
-                    .label(tr(if busy {
-                        "onboarding.entry.clone.submitting"
-                    } else {
-                        "onboarding.entry.clone.submit"
+                    .label(tr(match (busy, imported) {
+                        (true, true) => "onboarding.status.opening",
+                        (true, false) => "onboarding.entry.clone.submitting",
+                        (false, true) => "onboarding.entry.import.retryOpen",
+                        (false, false) => "onboarding.entry.clone.submit",
                     }))
                     .disabled(
-                        busy || location.is_none()
-                            || repository_import::detect(&text) != Some(import.provider),
+                        busy || !imported
+                            && (location.is_none()
+                                || repository_import::detect(&text) != Some(import.provider)),
                     )
                     .on_click(cx.listener(|s, _, w, cx| s.submit_import(w, cx))),
             )
     }
+}
+
+/// Whether the imported project's folder can be opened now.
+fn opens(path: &Path) -> bool {
+    crate::platform::folder_availability::probe(path)
+        == crate::platform::folder_availability::State::Available
 }
