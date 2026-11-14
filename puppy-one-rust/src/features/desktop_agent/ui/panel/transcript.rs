@@ -820,6 +820,7 @@ impl AgentChatTabPanel {
                             order,
                             content_width - 24.,
                             window,
+                            cx,
                         ))
                     })
                     .when(!tail.is_empty(), |d| {

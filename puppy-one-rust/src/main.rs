@@ -13,7 +13,7 @@ mod native_window;
 use gpui::*;
 use po_agent::agent;
 use po_contracts::{clock, file_kind, formats, geometry, model, text, wake};
-use po_editor::{documents, editor, web_host};
+use po_editor::{documents, editor, render_service, web_host};
 use po_platform::{localization, platform};
 use po_ui::{assets, theme, typography, ui};
 use po_workspace::{cloud, workspace};
