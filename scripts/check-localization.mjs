@@ -12,6 +12,7 @@ const manifest = await readJson(path.join(localesRoot, "manifest.json"));
 const userFacingJsxAttributes = new Set(["alt", "aria-label", "placeholder", "title"]);
 const allowedUserInterfaceLiterals = new Set([
   // Product/provider brands and protocol vocabulary are proper nouns, not translatable copy.
+  "ChatGPT",
   "Claude",
   "Git",
   "GitHub",

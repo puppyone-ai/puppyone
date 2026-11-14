@@ -29,7 +29,7 @@ import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { useProjectGroupFocus, type HomepagePlaceFocus } from "./onboarding/useProjectGroupFocus";
 import { useWindowNavigation } from "./WindowNavigation";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
-import { OnboardingValueHub } from "./onboarding/OnboardingValueHub";
+import { OnboardingValueCarousel, type ValueSlideIndex } from "./onboarding/OnboardingValueCarousel";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
 import { OtherComputersLabel, type CloudCopy, type ProjectAudience } from "./project-audience";
@@ -227,6 +227,7 @@ export function MinimalOnboarding({
   }, [showEmptyStateIntro]);
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
+  const [valueSlide, setValueSlide] = useState<ValueSlideIndex>(0);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const projectView = useHomepageProjectView(items, listHeld);
   // Which group a Cloud project is in comes from the account's spaces. Until they
@@ -349,7 +350,7 @@ export function MinimalOnboarding({
         {...(showEmptyStateIntro ? { inert: "" } : {})}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} valueSlide={valueSlide} toolbar={(
             <OnboardingProjectToolbar view={projectView} disabled={busy}>
               <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
             </OnboardingProjectToolbar>
@@ -364,7 +365,7 @@ export function MinimalOnboarding({
             />
           )}
           actions={entry.actions}
-          aside={hasProjects ? undefined : <OnboardingValueHub />}
+          aside={hasProjects ? undefined : <OnboardingValueCarousel index={valueSlide} onSelect={setValueSlide} />}
         />
         {!hasProjects && projectGroups?.({ ...groupsBase, cloud: [], local: null })}
 

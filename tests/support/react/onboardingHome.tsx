@@ -99,7 +99,8 @@ export function expectBrandLockup(
     expect(mark?.getAttribute("alt")).toBe("");
     expect(lockup?.querySelector(".onboarding-brand-eyebrow")?.textContent).toBe("puppyone");
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("What your Agents make is yours to keep");
-    expect([...lockup!.querySelectorAll("p")].map((line) => line.className)).toEqual(["onboarding-brand-pitch"]);
+    // One line under each of first run's three moments; only the open one is shown.
+    expect([...lockup!.querySelectorAll("p")].map((line) => line.className)).toEqual(Array(3).fill("onboarding-brand-pitch"));
   }
   expect(lockup?.querySelector(".onboarding-brand-tagline")).toBeNull();
   expect(lockup?.querySelector(".onboarding-brand-version")).toBeNull();

@@ -34,8 +34,8 @@ const GRID_COLUMNS = 5;
 const PROJECT_TYPE = ["12px/400", "12px/500", "13px/600", "14px/400"];
 /** Under a folder a name is a caption, so the Grid has no body type. */
 const GRID_TYPE = ["12px/400", "12px/500", "13px/600"];
-// The product's name in the caption, the promise and keys in the body, the title in display.
-const EMPTY_TYPE = ["12px/500", "14px/400", "25px/600"];
+// The product's name in the caption, each moment's line in the meta, the keys in the body, the title in display.
+const EMPTY_TYPE = ["12px/500", "13px/400", "14px/400", "25px/600"];
 /** The default window: the picture at its full size. */
 const VALUE_WIDTH = 1180;
 const VALUE_HEIGHT = 760;

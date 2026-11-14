@@ -38,28 +38,65 @@ describe("project folder home", () => {
   });
 
   it("localizes the first-run value promise in every renderer locale", () => {
+    const english = JSON.parse(readFileSync("locales/renderer/en/onboarding.json", "utf8")) as Record<string, string>;
+    const valueKeys = Object.keys(english).filter((key) => key.startsWith("value.")).sort();
     for (const [locale, expected] of Object.entries(valueTitles)) {
       const messages = JSON.parse(
         readFileSync(`locales/renderer/${locale}/onboarding.json`, "utf8"),
       ) as Record<string, string>;
-      expect(messages["value.title"], locale).toBe(expected);
-      // The picture names the files and the Agents; the line under the title stays one breath long.
-      expect(messages["value.body"]?.length, locale).toBeLessThanOrEqual(130);
-      expect(messages["value.center"], locale).toBeTruthy();
-      expect(messages["value.folder"], locale).toBeTruthy();
+      expect(messages["value.assets.title"], locale).toBe(expected);
+      expect(Object.keys(messages).filter((key) => key.startsWith("value.")).sort(), locale).toEqual(valueKeys);
+      // The picture shows the files and the Agents; the line under each title stays one breath long.
+      for (const moment of ["assets", "edit", "forward"]) {
+        expect(messages[`value.${moment}.body`]?.length, `${locale} ${moment}`).toBeLessThanOrEqual(130);
+      }
       expect(messages, locale).not.toHaveProperty("brand.agentReadyMessage");
     }
   });
 
   it("pictures every kind of file among the Agents on first run only", () => {
     const empty = renderHome({ projectItems: [] });
-    const hub = empty.querySelector(".onboarding-home-value > .onboarding-value-hub");
-    expect(hub?.getAttribute("aria-hidden")).toBe("true");
-    expect([...hub!.querySelectorAll(".onboarding-value-file > b")].map((tag) => tag.textContent))
+    const carousel = empty.querySelector(".onboarding-home-value > .onboarding-value-carousel");
+    expect(carousel?.nextElementSibling?.classList.contains("onboarding-launcher")).toBe(true);
+    expect(carousel!.querySelector(".onboarding-value-stage")?.getAttribute("aria-hidden")).toBe("true");
+    const hub = carousel!.querySelector(".onboarding-value-slide.is-active .onboarding-value-hub")!;
+    expect([...hub.querySelectorAll(".onboarding-value-file > b")].map((tag) => tag.textContent))
       .toEqual(["Folder", "MD", "CSV", "HTML"]);
-    expect(hub!.querySelectorAll(".onboarding-value-agent")).toHaveLength(8);
-    expect(hub!.querySelector(".onboarding-value-hub-label")?.textContent).toBe("Your project");
-    expect(hub!.nextElementSibling?.classList.contains("onboarding-launcher")).toBe(true);
+    expect(hub.querySelectorAll(".onboarding-value-agent")).toHaveLength(8);
+    expect(hub.querySelector(".onboarding-value-hub-label")?.textContent).toBe("Your project");
+  });
+
+  it("plays the three moments in their order, by its dots or when a moment is over", () => {
+    const container = renderHome({ projectItems: [] });
+    const moment = () => ({
+      picture: container.querySelector(".onboarding-value-slide.is-active")?.getAttribute("data-value-slide"),
+      title: container.querySelector(".onboarding-brand-copy.is-active .onboarding-brand-name")?.textContent,
+      hidden: [...container.querySelectorAll(".onboarding-brand-copy")].map((copy) => copy.getAttribute("aria-hidden")),
+      current: [...container.querySelectorAll(".onboarding-value-dot")].map((dot) => dot.getAttribute("aria-current")),
+    });
+    const dots = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-value-dot")];
+    expect(dots.map((dot) => dot.getAttribute("aria-label"))).toEqual(["Your assets", "Circle to edit", "Send to an Agent"]);
+    expect(moment()).toEqual({ picture: "assets", title: "What your Agents make is yours to keep",
+      hidden: [null, "true", "true"], current: ["true", null, null] });
+
+    act(() => dots[2]!.click());
+    expect(moment()).toEqual({ picture: "forward", title: "Send the QR code to any Agent",
+      hidden: ["true", "true", null], current: [null, null, "true"] });
+
+    // The open dot's fill ending is what moves the story on, and the last moment leads back to the first.
+    const finish = () => act(() => {
+      container.querySelector(".onboarding-value-dot.is-active > i")!.dispatchEvent(new Event("animationend", { bubbles: true }));
+    });
+    finish();
+    expect(moment().picture).toBe("assets");
+    finish();
+    expect(moment()).toMatchObject({ picture: "edit", title: "Circle it, say it, done" });
+  });
+
+  it("leaves the moments out once there are projects", () => {
+    const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/example/Notes" }] });
+    expect(container.querySelector(".onboarding-value-carousel")).toBeNull();
+    expect(container.querySelector(".onboarding-brand-moments")).toBeNull();
   });
 
   it("applies the effective Sub Theme on the real onboarding appearance root", () => {
