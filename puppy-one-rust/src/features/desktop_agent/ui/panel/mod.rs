@@ -7,7 +7,6 @@
 //! from its `CloudAgentController`; it has no Agent-service controller, so an
 //! inert one keeps the local-only controls harmless.
 mod compute;
-mod docks;
 pub mod elements;
 #[cfg(feature = "dev-capture")]
 mod fixture;
@@ -21,8 +20,10 @@ use super::agent_chat_view_model::{
     derive_agent_chat_view_model,
 };
 use super::composer::{ComposerEvent, ComposerInput, ComposerView, can_submit};
+use super::docks::{DockEvent, DocksInput, DocksView};
 use super::pickers::{PickerEvent, SessionPickers};
 use super::transcript::{TranscriptEvent, TranscriptInput, TranscriptView};
+use crate::agent::contract::protocol::ApprovalDecision;
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation,
 };
@@ -30,10 +31,8 @@ use crate::features::desktop_agent::application::agent_session_controller::Agent
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
 use crate::features::desktop_agent::infrastructure::cloud::CloudAgentController;
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::form_input::TextInput;
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 pub use routing::AgentRouting;
@@ -99,10 +98,8 @@ pub struct AgentChatTabPanel {
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
     pending_connection_model: Option<String>,
-    dock_scroll: ScrollHandle,
-    /// `AgentQuestionDock`'s answers per question index, per request.
-    question_answers: HashMap<String, HashMap<usize, Vec<String>>>,
-    question_inputs: HashMap<String, Entity<TextInput>>,
+    /// `AgentApprovalDock` and `AgentQuestionDock`.
+    docks: Entity<DocksView>,
     logo_turns: u32,
     provider_notices_open: bool,
     last_presentation: Option<AgentChatTabPresentation>,
@@ -227,6 +224,9 @@ impl AgentChatTabPanel {
             s.composer_event(event, window, cx)
         })
         .detach();
+        let docks = cx.new(|_| DocksView::default());
+        cx.subscribe(&docks, |s: &mut Self, _, event, cx| s.dock_event(event, cx))
+            .detach();
         let transcript = cx.new(TranscriptView::new);
         cx.subscribe(&transcript, |s: &mut Self, _, event, cx| match event {
             TranscriptEvent::OpenFile(path) => s.open_file(path.clone(), cx),
@@ -245,9 +245,7 @@ impl AgentChatTabPanel {
             diagnostics_open: false,
             recovery_details_open: false,
             pending_connection_model: None,
-            dock_scroll: ScrollHandle::new(),
-            question_answers: HashMap::new(),
-            question_inputs: HashMap::new(),
+            docks,
             logo_turns: 0,
             provider_notices_open: false,
             last_presentation: None,
@@ -348,8 +346,7 @@ impl AgentChatTabPanel {
                 self.last_presentation = Some(presentation.clone());
                 cx.emit(AgentChatPanelEvent::Presentation);
             }
-            let input = TranscriptInput::of(&state, &view);
-            self.transcript.update(cx, |t, cx| t.set_input(input, cx));
+            self.sync_views(&state, &view, cx);
             cx.notify();
             return;
         }
@@ -382,8 +379,7 @@ impl AgentChatTabPanel {
             self.last_presentation = Some(presentation.clone());
             cx.emit(AgentChatPanelEvent::Presentation);
         }
-        let input = TranscriptInput::of(&state, &view);
-        self.transcript.update(cx, |t, cx| t.set_input(input, cx));
+        self.sync_views(&state, &view, cx);
         #[cfg(feature = "dev-capture")]
         self.apply_lab_state(cx);
         cx.notify();
@@ -428,6 +424,42 @@ impl AgentChatTabPanel {
         let input = ComposerInput::of(state, view, |id| controller.get_reference_preview_url(id));
         self.composer
             .update(cx, |c, cx| c.set_input(input, window, cx));
+    }
+
+    /// The transcript's and the docks' part of the chat.
+    fn sync_views(
+        &mut self,
+        state: &AgentControllerState,
+        view: &AgentChatViewModel,
+        cx: &mut Context<Self>,
+    ) {
+        let transcript = TranscriptInput::of(state, view);
+        self.transcript
+            .update(cx, |t, cx| t.set_input(transcript, cx));
+        let docks = DocksInput::of(state, view);
+        self.docks.update(cx, |d, cx| d.set_input(docks, cx));
+    }
+
+    /// `AgentApprovalDock` / `AgentQuestionDock`: the person decided.
+    fn dock_event(&mut self, event: &DockEvent, cx: &mut Context<Self>) {
+        match event {
+            DockEvent::Approve {
+                request_id,
+                decision,
+            } => match self.hosted() {
+                // `controller.approve(approval.requestId, decision === "accept")`.
+                Some(chat) => chat.approve(request_id.clone(), *decision == "accept"),
+                None => {
+                    if let Some(decision) = ApprovalDecision::parse(decision) {
+                        drop(self.controller.resolve_approval(decision));
+                    }
+                }
+            },
+            DockEvent::Answer(resolution) => {
+                drop(self.controller.resolve_question(resolution.clone()))
+            }
+        }
+        cx.notify();
     }
 
     /// The panel's own policy changed what the composer shows.
@@ -497,7 +529,7 @@ impl AgentChatTabPanel {
 }
 
 impl Render for AgentChatTabPanel {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         let state = self.state();
         let view = self.view_model(&state);
@@ -544,7 +576,7 @@ impl Render for AgentChatTabPanel {
             .children(empty);
         // The hosted composer stays while its conversation loads.
         let dock = (!view.startup_loading || hosted.is_some())
-            .then(|| self.render_dock(&state, &view, window, cx));
+            .then(|| self.render_dock(&state, &view, cx));
         panel.children(status).child(conversation).children(dock)
     }
 }

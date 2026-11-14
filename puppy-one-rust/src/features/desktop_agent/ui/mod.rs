@@ -9,6 +9,7 @@ pub mod agent_rich_text;
 pub mod agent_theme;
 pub mod agent_tool_group_presentation;
 pub mod composer;
+pub mod docks;
 pub mod panel;
 pub mod pickers;
 #[cfg(test)]

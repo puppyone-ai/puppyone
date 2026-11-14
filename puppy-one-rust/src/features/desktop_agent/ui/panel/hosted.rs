@@ -2,7 +2,7 @@
 //! shared transcript, approval dock and composer. Its runs are projected by
 //! `cloudAgentProjection`; it has no configuration, attachments or session
 //! preparation, and shows `CloudAgentStatus` instead of the readiness card.
-use super::status::{ButtonTone, agent_button};
+use super::elements::{ButtonTone, agent_button};
 use super::{AgentChatTabPanel, AgentChatTabPresentation};
 use crate::agent::contract::dto::{
     Capabilities, RuntimeCatalogEntry, RuntimeDescriptor, RuntimeInspection, RuntimeReadiness,

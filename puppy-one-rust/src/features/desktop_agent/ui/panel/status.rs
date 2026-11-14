@@ -6,6 +6,7 @@ use super::super::agent_error_presentation::present_agent_error;
 use super::super::agent_panel_presentation::present_runtime_readiness;
 use super::super::agent_theme::AgentTheme;
 use super::AgentChatTabPanel;
+use super::elements::{ButtonTone, agent_button};
 use crate::agent::contract::dto::{Activity, TurnRecovery};
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryPolicy,
@@ -20,83 +21,6 @@ use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
-
-/// `.desktop-agent-button` tones.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum ButtonTone {
-    Quiet,
-    Secondary,
-    Primary,
-}
-
-/// `.desktop-agent-button`.
-pub(super) fn agent_button(
-    id: impl Into<ElementId>,
-    label: SharedString,
-    tone: ButtonTone,
-    disabled: bool,
-    a: &AgentTheme,
-) -> gpui_kit::base::Button {
-    let a = *a;
-    let (border, bg, fg, hover_bg, hover_border) = match tone {
-        ButtonTone::Quiet => (
-            theme::alpha(a.border_subtle, 0.),
-            None,
-            a.text_subtle,
-            Some(a.row_hover),
-            None,
-        ),
-        ButtonTone::Secondary => (
-            a.border_subtle,
-            None,
-            a.text_muted,
-            Some(a.row_hover),
-            Some(a.border),
-        ),
-        ButtonTone::Primary => (
-            a.text,
-            Some(a.text),
-            a.canvas,
-            Some(a.primary_hover),
-            Some(a.primary_hover),
-        ),
-    };
-    gpui_kit::base::Button::new(id)
-        .accessibility_label(label.clone())
-        .h(px(theme::control()))
-        .px(px(10.))
-        .rounded(px(6.))
-        .border_1()
-        .border_color(border)
-        .when_some(bg, |b, bg| b.bg(bg))
-        .text_size(px(theme::ty().left.content))
-        .line_height(relative(1.))
-        .font_weight(if tone == ButtonTone::Primary {
-            FontWeight::MEDIUM
-        } else {
-            FontWeight::NORMAL
-        })
-        .text_color(fg)
-        .whitespace_nowrap()
-        .when(disabled, |b| b.opacity(0.45))
-        .when(!disabled, |b| {
-            b.cursor(theme::clickable_cursor()).hover(move |s| {
-                let s = if let Some(bg) = hover_bg { s.bg(bg) } else { s };
-                let s = if let Some(border) = hover_border {
-                    s.border_color(border)
-                } else {
-                    s
-                };
-                if tone == ButtonTone::Primary {
-                    s
-                } else {
-                    s.text_color(a.text)
-                }
-            })
-        })
-        .disabled(disabled)
-        .child(label)
-}
 
 impl AgentChatTabPanel {
     /// `AgentPanelStatus`.
@@ -609,7 +533,6 @@ impl AgentChatTabPanel {
         &mut self,
         state: &AgentControllerState,
         view: &AgentChatViewModel,
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let palette = cx.palette();
@@ -696,22 +619,8 @@ impl AgentChatTabPanel {
                     ),
             );
         }
-        if let Some(approval) = view.approval.clone() {
-            dock = dock.child(self.render_approval_dock(
-                &approval,
-                state.projection.approvals.len(),
-                view,
-                cx,
-            ));
-        }
-        if let Some(question) = view.question.clone() {
-            dock = dock.child(self.render_question_dock(
-                &question,
-                state.projection.questions.len(),
-                view,
-                window,
-                cx,
-            ));
+        if view.approval.is_some() || view.question.is_some() {
+            dock = dock.child(self.docks.clone());
         }
         if let Some(recovery) = view.degraded_recovery.clone() {
             dock = dock.child(self.render_recovery_surface(
