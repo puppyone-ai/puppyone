@@ -3,7 +3,7 @@
 //! system web engine decodes and draws the video and its controls (as the
 //! video viewer does); the file streams from the workspace. An embed beside
 //! text stays source.
-mod player;
+pub mod player;
 mod widget;
 
 use crate::editor::markdown::{

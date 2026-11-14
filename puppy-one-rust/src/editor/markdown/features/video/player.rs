@@ -26,8 +26,19 @@ const MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const IDLE: Duration = Duration::from_secs(3);
 const LOADING_IDLE: Duration = Duration::from_secs(30);
 
-/// A pane (its editor), the block's start and the video's workspace path.
-pub type Key = (EntityId, usize, PathBuf);
+/// A pane (its editor), the block's start, the element's index in the
+/// block and the file's workspace path.
+pub type Key = (EntityId, usize, usize, PathBuf);
+
+/// What a player plays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Media {
+    Video,
+    Audio,
+}
+
+/// The engine's audio control (`<audio controls>`): 300 × 54.
+pub const AUDIO_SIZE: (f32, f32) = (300., 54.);
 
 pub struct Player {
     host: WebHost,
@@ -74,21 +85,29 @@ impl ResourceSource for Clip {
     }
 }
 
-/// The page: the video filling its frame with the engine's controls. It
-/// reports its natural size (`loadedmetadata`) or `failed` (`error`), and
-/// hands wheel scrolling to the document around it.
-pub fn page(src: &str, title: Option<&str>, black: &str) -> String {
+/// The page: the media element filling its frame with the engine's
+/// controls. It reports its natural size (`loadedmetadata`; audio, its
+/// control's) or `failed` (`error`), and hands wheel scrolling to the
+/// document around it.
+pub fn page(media: Media, src: &str, title: Option<&str>, background: &str) -> String {
     let label = title
         .map(|t| format!(r#" aria-label="{}""#, escape(t)))
         .unwrap_or_default();
+    let (tag, size) = match media {
+        Media::Video => (
+            "video",
+            "video.videoWidth+\":\"+video.videoHeight".to_owned(),
+        ),
+        Media::Audio => ("audio", format!("\"{}:{}\"", AUDIO_SIZE.0, AUDIO_SIZE.1)),
+    };
     format!(
         r#"<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{{margin:0;height:100%;background:{black};overflow:hidden}}
-video{{display:block;width:100%;height:100%;background:{black}}}
-</style></head><body><video controls preload="metadata" playsinline src="{src}"{label}></video><script>
-const video=document.querySelector("video");
+html,body{{margin:0;height:100%;background:{background};overflow:hidden}}
+video,audio{{display:block;width:100%;height:100%;background:{background}}}
+</style></head><body><{tag} controls preload="metadata" playsinline src="{src}"{label}></{tag}><script>
+const video=document.querySelector("{tag}");
 const post=(m)=>window.ipc&&window.ipc.postMessage(m);
-video.addEventListener("loadedmetadata",()=>post("size:"+video.videoWidth+":"+video.videoHeight),{{once:true}});
+video.addEventListener("loadedmetadata",()=>post("size:"+{size}),{{once:true}});
 video.addEventListener("error",()=>post("failed"),{{once:true}});
 addEventListener("wheel",(e)=>{{e.preventDefault();const k=e.deltaMode===1?16:1;post("wheel:"+e.deltaX*k+":"+e.deltaY*k+":"+e.clientX+":"+e.clientY);}},{{passive:false}});
 </script></body></html>"#
@@ -122,35 +141,48 @@ fn parse(message: &str) -> Option<Message> {
     }
 }
 
-/// The player of `key`, starting it the first time it is asked for;
-/// `None` where the engine cannot run.
-pub fn get(
-    key: Key,
-    title: Option<&str>,
-    assets: &DocumentAssets,
-    dark: bool,
-    window: &mut Window,
-    cx: &mut App,
-) -> Option<Rc<Player>> {
+/// What a player is asked for.
+pub struct Request<'a> {
+    pub key: Key,
+    pub media: Media,
+    pub title: Option<&'a str>,
+    /// The page's (and the element's) background.
+    pub background: Rgba,
+    pub assets: &'a DocumentAssets,
+    pub dark: bool,
+}
+
+/// The player of `request.key`, starting it the first time it is asked
+/// for; `None` where the engine cannot run.
+pub fn get(request: Request, window: &mut Window, cx: &mut App) -> Option<Rc<Player>> {
+    let Request {
+        key,
+        media,
+        title,
+        background,
+        assets,
+        dark,
+    } = request;
     if let Some(player) = PLAYERS.with(|p| p.borrow().get(&key).cloned()) {
         player.used.set(Instant::now());
         return Some(player);
     }
-    let name = PathBuf::from(key.2.file_name()?);
+    let name = PathBuf::from(key.3.file_name()?);
     let (tx, rx) = async_channel::unbounded::<String>();
     let content = Content {
         root: None,
         source: Some(Source(Arc::new(Clip {
             name: name.clone(),
-            path: key.2.clone(),
+            path: key.3.clone(),
             read: assets.read.clone(),
         }))),
         entry: Entry::Html(page(
+            media,
             // A media fragment past zero: WebKit then draws the first
             // frame, as Chromium does for `preload="metadata"`.
             &format!("{}#t=0.001", url_for(&name.to_string_lossy())),
             title,
-            &theme::css_hex(theme::video_black()),
+            &theme::css_hex(background),
         )),
         max_bytes: MAX_BYTES,
         assets: vec![],
@@ -236,6 +268,7 @@ mod tests {
     #[test]
     fn the_page_plays_the_served_file_and_reports_back() {
         let html = page(
+            Media::Video,
             "puppyone-preview://local/a%20b.mp4",
             Some("A \"clip\""),
             "BLACK",
@@ -243,6 +276,10 @@ mod tests {
         assert!(html.contains(r#"<video controls preload="metadata" playsinline src="puppyone-preview://local/a%20b.mp4""#));
         assert!(html.contains(r#"aria-label="A &quot;clip&quot;""#));
         assert!(html.contains("background:BLACK"));
+        assert!(html.contains("video.videoWidth"));
+        let audio = page(Media::Audio, "x.mp3", None, "BG");
+        assert!(audio.contains(r#"<audio controls preload="metadata""#));
+        assert!(audio.contains(r#"post("size:"+"300:54")"#));
         assert_eq!(parse("size:1920:1080"), Some(Message::Size(1920., 1080.)));
         assert_eq!(parse("size:0:0"), None, "no picture, no size");
         assert_eq!(parse("failed"), Some(Message::Failed));

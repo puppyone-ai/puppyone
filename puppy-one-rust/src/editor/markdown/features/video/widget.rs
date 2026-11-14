@@ -78,10 +78,14 @@ impl BlockWidget for VideoBlockWidget {
         let editor = cx.render.view.entity_id();
         let player = match (&self.path, &self.assets) {
             (Some(path), Some(assets)) => player::get(
-                (editor, self.block.range.start, path.clone()),
-                self.block.title.as_deref(),
-                assets,
-                self.dark,
+                player::Request {
+                    key: (editor, self.block.range.start, 0, path.clone()),
+                    media: player::Media::Video,
+                    title: self.block.title.as_deref(),
+                    background: theme::video_black(),
+                    assets,
+                    dark: self.dark,
+                },
                 cx.render.window,
                 cx.render.app,
             ),
