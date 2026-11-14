@@ -8,7 +8,7 @@
 //! that is only an `https:` `<iframe>` is a web embed (`embed`).
 pub mod dom;
 mod embed;
-mod render;
+pub(crate) mod render;
 mod widget;
 
 use crate::editor::{
@@ -58,6 +58,15 @@ fn markdown_html(source: &str) -> String {
     let mut out = String::new();
     html::push_html(&mut out, Parser::new_ext(source, options));
     out
+}
+
+/// Markdown as the surface's nodes (`renderMarkdownInlineFromSharedPolicy`:
+/// a tab's or a cell's Markdown, HTML in it as authored).
+pub(crate) fn markdown_nodes(source: &str) -> Vec<dom::Node> {
+    match dom::parse(&markdown_html(source)) {
+        dom::Parsed::Complete(nodes) => nodes,
+        _ => Vec::new(),
+    }
 }
 
 /// The HTML blocks of the document as the surface shows them.

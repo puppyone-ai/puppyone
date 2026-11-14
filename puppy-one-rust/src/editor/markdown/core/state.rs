@@ -29,6 +29,8 @@ pub struct PreviewState {
     /// `markdownRevealedSourceField` (block presentation): a rich block a
     /// widget asked to show as source, while the caret stays inside it.
     pub revealed_source: Option<Range<usize>>,
+    /// MDX tabs shown, by block start (the first until another is chosen).
+    pub tabs: std::collections::BTreeMap<usize, usize>,
 }
 
 /// `calloutFoldField`: foldable callouts folded or opened in this pane, by

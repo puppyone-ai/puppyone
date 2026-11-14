@@ -43,6 +43,9 @@ pub fn open_markdown(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     let mut markdown = MarkdownExtension::new(request.dark, request.scale);
+    if request.name.to_ascii_lowercase().ends_with(".mdx") {
+        markdown = markdown.mdx();
+    }
     markdown.assets = crate::editor::registry::document_assets(request.id);
     open(request, Box::new(markdown), cx)
 }
