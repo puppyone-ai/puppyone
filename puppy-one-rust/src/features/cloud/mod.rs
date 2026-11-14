@@ -8,7 +8,6 @@
 //! and binding); everything else is reached through these exports.
 pub mod account;
 mod agent;
-mod agents;
 mod billing;
 mod catalog;
 mod clients;
@@ -16,13 +15,14 @@ mod managed_compute;
 mod publish;
 mod repository;
 mod spaces;
+mod workspace_agents;
 
 #[cfg(test)]
 pub use agent::{CloudAgentController, CloudAgentConversation, Hub, LABEL as HOSTED_AGENT_LABEL};
 pub use agent::{HostedChats, hosted_installation};
 #[cfg(feature = "dev-capture")]
-pub use agents::lab_client as lab_agents_client;
-pub use agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
+pub use workspace_agents::lab_client as lab_agents_client;
+pub use workspace_agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
 pub use billing::{
     PlanSnapshot, cached as cached_billing, fetch as fetch_billing, namespace as billing_namespace,
     settle as settle_billing,

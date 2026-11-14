@@ -2116,7 +2116,7 @@
       ],
       "targets": [
         "src/workspace/cloud/agents.rs",
-        "src/features/cloud/agents.rs",
+        "src/features/cloud/workspace_agents.rs",
         "src/app/cloud_agents_ui.rs",
         "src/app/cloud_agents_ui/dialog.rs",
         "src/app/cloud_agents_ui/paste_art.rs",
