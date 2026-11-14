@@ -495,6 +495,32 @@ impl Preferences {
     }
     /// Remember an opened folder at the head of the history; a name given
     /// with Rename stays (`withPreservedDisplayName`).
+    /// `addRecentWorkspacePaths`: folders listed where they are, in the
+    /// order given, ahead of the others; a folder already listed keeps its
+    /// place.
+    pub fn add_recent_projects(&mut self, paths: &[std::path::PathBuf], now: u64) {
+        let mut added = Vec::new();
+        for path in paths {
+            if self
+                .recent_projects
+                .iter()
+                .chain(&added)
+                .any(|p: &RecentProject| p.path == *path)
+            {
+                continue;
+            }
+            added.push(RecentProject {
+                path: path.clone(),
+                name: path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string()),
+                opened_at: now,
+                host_folder: None,
+            });
+        }
+        self.recent_projects.splice(0..0, added);
+    }
     pub fn remember_project(&mut self, path: &std::path::Path, now: u64) {
         let name = self
             .recent_projects

@@ -2,3 +2,5 @@
 * text=auto eol=lf
 # Terminal fixtures are raw PTY byte streams; their CRLFs are content.
 *.ansi binary
+# Product marks are imported byte for byte (tools/import-integration-marks.py).
+puppy-one-rust/assets/integrations/* binary

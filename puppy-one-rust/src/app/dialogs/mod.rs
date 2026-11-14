@@ -115,6 +115,8 @@ pub(super) enum Modal {
 pub(super) enum DialogEvent {
     /// A dialog's button: the shell runs the command.
     Command(Command),
+    /// Settings › Other app imports: the import dialog.
+    OpenImport,
     /// A dialog closed itself: the window takes the focus back.
     Closed,
     /// The create form made an entry in `workspace` (`nodes` is `parent`
@@ -179,6 +181,10 @@ impl DialogLayer {
                 SettingsEvent::ForgetProject(path) => {
                     s.close_tasks(cx);
                     cx.emit(DialogEvent::ForgetProject(path.clone()));
+                }
+                SettingsEvent::OpenImport => {
+                    s.close_tasks(cx);
+                    cx.emit(DialogEvent::OpenImport);
                 }
             }
         })

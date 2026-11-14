@@ -57,6 +57,7 @@ mod first_run;
 pub(in crate::app) mod folder;
 pub(in crate::app) mod groups;
 mod import_repository;
+pub(in crate::app) mod import_sources;
 mod intro;
 pub(in crate::app) mod project_entry;
 mod projects;
@@ -198,6 +199,10 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) template: Option<Box<TemplateImport>>,
     /// Cloning a repository into a new project, while its dialog is open.
     pub(in crate::app) import: Option<ImportRepository>,
+    /// The import dialog's source list and app folders.
+    pub(in crate::app) import_picker: Option<import_sources::ImportPicker>,
+    /// Where other apps keep their records; tests set their own.
+    pub(in crate::app) app_places: Option<crate::platform::app_folders::Places>,
 }
 impl EventEmitter<HomeEvent> for Homepage {}
 
@@ -319,6 +324,8 @@ impl Homepage {
             create: None,
             template: None,
             import: None,
+            import_picker: None,
+            app_places: None,
         }
     }
     /// What the window shows changed.
@@ -489,10 +496,15 @@ impl Homepage {
                 .template
                 .as_ref()
                 .map(|t| self.template_import_dialog(t, cx).into_any_element()),
-            DialogKey::ImportRepository => self
-                .import
-                .as_ref()
-                .map(|i| self.import_dialog(i, cx).into_any_element()),
+            // The repository step once a provider is chosen; else the list
+            // or an app's folders.
+            DialogKey::ImportRepository => match (&self.import, &self.import_picker) {
+                (Some(import), _) => Some(self.import_dialog(import, cx).into_any_element()),
+                (None, Some(picker)) => {
+                    Some(self.import_picker_dialog(picker, cx).into_any_element())
+                }
+                (None, None) => None,
+            },
             DialogKey::ProjectEntry => Some(self.project_entry_dialog(cx).into_any_element()),
             _ => None,
         }

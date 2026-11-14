@@ -71,6 +71,7 @@ embedded! {
     "icons" / "clipboard-paste.svg",
     "icons" / "cloud.svg",
     "icons" / "cloud-off.svg",
+    "icons" / "code-xml.svg",
     "icons" / "columns-2.svg",
     "icons" / "columns-3.svg",
     "icons" / "context-map-canvas.svg",
@@ -244,9 +245,13 @@ embedded! {
     "home" / "folder-front.svg",
     "home" / "folder-sheet-ink.svg",
     "home" / "folder-sheet.svg",
+    "integrations" / "airtable.png",
     "integrations" / "github-inverse.svg",
     "integrations" / "github.svg",
     "integrations" / "gitlab.svg",
+    "integrations" / "google-drive.svg",
+    "integrations" / "notion.svg",
+    "integrations" / "obsidian.svg",
 }
 pub struct Assets;
 impl AssetSource for Assets {

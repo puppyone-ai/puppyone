@@ -10,7 +10,16 @@ use gpui::{prelude::*, *};
 pub fn native_checkbox(checked: bool, accent: bool, cx: &App) -> Div {
     let t = cx.palette();
     let size = if accent { 14. } else { 13. };
-    let (fill, mark) = theme::native_checkbox_checked(t.dark, accent.then_some(t.accent));
+    checkbox(checked, size, accent.then_some(t.accent), cx)
+}
+/// The default 13px box with `accent-color: tint` (the import checklist's
+/// `var(--po-text)`).
+pub fn tinted_checkbox(checked: bool, tint: Rgba, cx: &App) -> Div {
+    checkbox(checked, 13., Some(tint), cx)
+}
+fn checkbox(checked: bool, size: f32, accent: Option<Rgba>, cx: &App) -> Div {
+    let t = cx.palette();
+    let (fill, mark) = theme::native_checkbox_checked(t.dark, accent);
     let (unchecked, border) = theme::native_checkbox(t.dark);
     div()
         .flex()

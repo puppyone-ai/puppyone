@@ -25,7 +25,7 @@ mod switch;
 
 pub use agent_presence::{FilePresence, PresenceVariant};
 pub use button::{Button, ButtonVariant, IconButton};
-pub use checkbox::native_checkbox;
+pub use checkbox::{native_checkbox, tinted_checkbox};
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon, ProductIcon};
 pub use menu::{Menu, MenuItem, MenuVariant};

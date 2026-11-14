@@ -354,30 +354,118 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     });
     let _ = account;
 }
+/// v0.4.4 `OnboardingImportDialog`: Import lists its sources first; a
+/// repository source takes only its own provider's URLs, and Back returns
+/// to the list.
 #[gpui::test]
-fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppContext) {
-    let temp = tempfile::tempdir().unwrap();
-    let parent = temp.path().canonicalize().unwrap();
+fn import_starts_from_its_sources_and_a_repository_takes_only_its_provider(
+    cx: &mut TestAppContext,
+) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         s.home.update(cx, |h, cx| h.begin_import(w, cx))
     });
-    // An unsupported URL is refused before anything runs.
-    view.update_in(cx, |s, w, cx| {
-        let Some(url) = s.home.read(cx).import.as_ref().map(|i| i.url.clone()) else {
-            panic!("no import dialog")
-        };
-        url.update(cx, |i, cx| {
-            i.set_text(String::from("https://example.com/a/b"), cx)
-        });
-        s.home.update(cx, |h, cx| h.submit_import(w, cx));
-    });
-    draw(cx);
     view.read_with(cx, |s, cx| {
-        assert!(s.has_dialog("ImportRepository", cx));
+        let home = s.home.read(cx);
+        assert!(home.import.is_none(), "the list comes first");
+        let ids: Vec<_> = home.import_sources(cx).iter().map(|s| s.id).collect();
+        assert_eq!(
+            ids,
+            ["github", "gitlab"],
+            "other apps wait for the experiment"
+        );
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home
+            .update(cx, |h, cx| h.choose_import_source("github", w, cx))
+    });
+    // An unsupported URL, or another provider's, is refused before anything runs.
+    for url in [
+        "https://example.com/a/b",
+        "https://gitlab.com/group/project",
+    ] {
+        view.update_in(cx, |s, w, cx| {
+            let Some(input) = s.home.read(cx).import.as_ref().map(|i| i.url.clone()) else {
+                panic!("no repository step")
+            };
+            input.update(cx, |i, cx| i.set_text(String::from(url), cx));
+            s.home.update(cx, |h, cx| h.submit_import(w, cx));
+        });
+        draw(cx);
+        view.read_with(cx, |s, cx| {
+            assert!(s.has_dialog("ImportRepository", cx));
+            assert!(s.workspace_root(cx).is_none());
+        });
+    }
+}
+
+/// v0.4.4 app folders: with the experiment on, the folders another app
+/// records are listed, and the chosen ones join the Homepage where they are.
+#[gpui::test]
+fn folders_another_app_records_join_the_homepage_in_place(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let vault = root.join("Vault");
+    std::fs::create_dir(&vault).unwrap();
+    std::fs::create_dir_all(root.join("data/obsidian")).unwrap();
+    std::fs::write(
+        root.join("data/obsidian/obsidian.json"),
+        serde_json::json!({ "vaults": { "a": { "path": vault, "ts": 1 } } }).to_string(),
+    )
+    .unwrap();
+    let places = crate::platform::app_folders::Places {
+        home: root.join("home"),
+        app_data: root.join("data"),
+    };
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.other_app_imports = true);
+        s.home.update(cx, |h, cx| {
+            h.app_places = Some(places);
+            h.begin_import(w, cx)
+        })
+    });
+    use super::home::import_sources::Folders;
+    let found = |s: &Shell, cx: &App, app: &str| {
+        s.home
+            .read(cx)
+            .import_picker
+            .as_ref()
+            .and_then(|p| p.folders.get(app).cloned())
+    };
+    settle_cloud(
+        &view,
+        cx,
+        "the vaults",
+        &|s, cx| matches!(found(s, cx, "obsidian"), Some(Folders::Found(f)) if f.len() == 1),
+    );
+    // An app that is not installed has nothing to offer.
+    view.read_with(cx, |s, cx| {
+        assert_eq!(found(s, cx, "vscode"), Some(Folders::Found(vec![])));
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.choose_import_source("obsidian", w, cx);
+            h.toggle_app_folder(vault.clone(), cx);
+            h.add_app_folders(w, cx)
+        })
+    });
+    settle_cloud(&view, cx, "the vault on the Homepage", &|s, cx| {
+        s.prefs
+            .store
+            .read(cx)
+            .state
+            .recent_projects
+            .first()
+            .is_some_and(|p| p.path == vault)
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!s.has_dialog("ImportRepository", cx));
+        // Listed, not opened.
         assert!(s.workspace_root(cx).is_none());
     });
-    let _ = parent;
 }
 #[gpui::test]
 fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppContext) {

@@ -1,7 +1,8 @@
-//! `OnboardingImportDialog` for the ready sources (GitHub, GitLab): a
-//! repository URL and a location (the same `Documents/PuppyOne` default as
-//! Create); Import clones into the location and opens the project. The clone
-//! runs on a worker and can be cancelled; nothing is left behind.
+//! `RepositoryImportStep`, chosen from the import sources (GitHub, GitLab):
+//! a repository URL of that provider and a location (the same
+//! `Documents/PuppyOne` default as Create); Import clones into the location
+//! and opens the project. The clone runs on a worker and can be cancelled;
+//! nothing is left behind.
 use super::*;
 use crate::{
     platform::repository_import::{self, Provider},
@@ -13,6 +14,8 @@ use crate::{
 use std::sync::{Arc, atomic::AtomicBool};
 
 pub(in crate::app) struct ImportRepository {
+    /// The source chosen in the list; the URL must be its.
+    provider: Provider,
     pub(in crate::app) url: Entity<TextInput>,
     location: Option<PathBuf>,
     /// The clone in flight and its cancellation.
@@ -21,15 +24,18 @@ pub(in crate::app) struct ImportRepository {
 }
 
 impl Homepage {
-    pub(in crate::app) fn begin_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::app) fn begin_repository_import(
+        &mut self,
+        provider: Provider,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let placeholder = match provider {
+            Provider::GitHub => "https://github.com/owner/repository",
+            Provider::GitLab => "https://gitlab.com/group/project",
+        };
         let url = cx.new(|cx| {
-            let mut input = TextInput::new(
-                "https://github.com/owner/repository",
-                false,
-                512,
-                window,
-                cx,
-            );
+            let mut input = TextInput::new(placeholder, false, 512, window, cx);
             input.submit_on_enter = true;
             input.appearance = false;
             input.prompt_text = Some((theme::ty().ui.control, 18.));
@@ -45,13 +51,16 @@ impl Homepage {
         .detach();
         url.read(cx).focus_handle(cx).focus(window, cx);
         self.import = Some(ImportRepository {
+            provider,
             url,
             location: create_project::default_location(),
             cloning: None,
             error: None,
         });
-        self.open_dialog(DialogKey::ImportRepository, cx);
         cx.notify();
+    }
+    pub(in crate::app) fn repository_busy(&self) -> bool {
+        self.import.as_ref().is_some_and(|i| i.cloning.is_some())
     }
     fn import_state(&mut self) -> Option<&mut ImportRepository> {
         self.import.as_mut()
@@ -63,6 +72,7 @@ impl Homepage {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         self.import = None;
+        self.import_picker = None;
         self.close_dialog(DialogKey::ImportRepository, cx);
         self.window_focus.focus(window, cx);
         cx.notify();
@@ -99,11 +109,13 @@ impl Homepage {
         let Some(location) = import.location.clone() else {
             return;
         };
-        let Some(repository) = repository_import::parse(&text) else {
-            let provider = repository_import::detect(&text).map_or("GitHub", Provider::label);
+        let provider = import.provider;
+        let Some(repository) = repository_import::parse(&text)
+            .filter(|_| repository_import::detect(&text) == Some(provider))
+        else {
             import.error = Some(tf(
                 "onboarding.entry.clone.unsupportedUrl",
-                &[("provider", provider.into())],
+                &[("provider", provider.label().into())],
             ));
             cx.notify();
             return;
@@ -125,6 +137,7 @@ impl Homepage {
                 match result {
                     Ok(path) => {
                         s.import = None;
+                        s.import_picker = None;
                         s.close_dialog(DialogKey::ImportRepository, cx);
                         s.open_project(path, cx);
                     }
@@ -144,14 +157,10 @@ impl Homepage {
         let ty = theme::ty();
         let host = self.weak.clone();
         let text = import.url.read(cx).text().to_owned();
-        let provider = repository_import::detect(&text);
-        let title = match provider {
-            Some(p) => tf(
-                "onboarding.entry.import.repository.title",
-                &[("provider", p.label().into())],
-            ),
-            None => tr("onboarding.entry.import.title").to_owned(),
-        };
+        let title = tf(
+            "onboarding.entry.import.repository.title",
+            &[("provider", import.provider.label().into())],
+        );
         let busy = import.cloning.is_some();
         let field = || {
             h_flex()
@@ -238,7 +247,7 @@ impl Homepage {
             .inset(24.)
             .body_padding(10., 22.)
             .leading(Icon::new("download").stroke(1.8), t.accent)
-            .title(title)
+            .heading(self.import_heading(title, cx))
             .on_close(move |w, cx| {
                 let _ = host.update(cx, |s, cx| s.close_import(w, cx));
             })
@@ -252,8 +261,15 @@ impl Homepage {
             .footer(
                 Button::new("import-submit")
                     .variant(ButtonVariant::Solid)
-                    .label(tr("onboarding.entry.import.title"))
-                    .disabled(busy || text.trim().is_empty() || location.is_none())
+                    .label(tr(if busy {
+                        "onboarding.entry.clone.submitting"
+                    } else {
+                        "onboarding.entry.clone.submit"
+                    }))
+                    .disabled(
+                        busy || location.is_none()
+                            || repository_import::detect(&text) != Some(import.provider),
+                    )
                     .on_click(cx.listener(|s, _, w, cx| s.submit_import(w, cx))),
             )
     }

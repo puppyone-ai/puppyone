@@ -277,6 +277,9 @@ impl Shell {
     ) {
         match event {
             DialogEvent::Command(command) => return self.command(*command, window, cx),
+            DialogEvent::OpenImport => {
+                self.home.update(cx, |h, cx| h.begin_import(window, cx));
+            }
             DialogEvent::Closed => self.frame.focus.focus(window, cx),
             DialogEvent::Error(error) => {
                 self.show_error(error.clone(), cx);

@@ -1,35 +1,31 @@
 //! Port of `OtherAppImportsSettingsView.tsx` (shown when the Experimental
-//! "Other app imports" switch is on). The import flow itself is not native yet,
-//! so the entry button is disabled rather than routed to a placeholder.
+//! "Other app imports" switch is on): the sources the switch adds, each by
+//! its own name, and Import, which closes Settings for the import dialog.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
-    localization::{t as tr, tf},
+    features::project_import::SOURCES,
+    localization::t as tr,
     theme::Theme,
     ui::components::{Button, ButtonVariant, SettingsList, SettingsSection},
 };
 use gpui::{prelude::*, *};
-use gpui_kit::base::{Disableable as _, h_flex};
-/// `LOCAL_IMPORT_SOURCES` with `availability: "experimental"` (id, operational).
-const SOURCES: [(&str, bool); 4] = [
-    ("notion", false),
-    ("google-drive", false),
-    ("obsidian", true),
-    ("airtable", false),
-];
+use gpui_kit::base::h_flex;
 impl SettingsWorkspaceSurface {
-    pub(super) fn other_app_imports(&self, t: Theme) -> AnyElement {
+    pub(super) fn other_app_imports(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        // `IMPORT_SOURCE_REGISTRY` with `availability: "experimental"`.
         let rows = SOURCES
             .iter()
-            .map(|(id, operational)| {
+            .filter(|source| !source.ready)
+            .map(|source| {
                 h_flex()
                     .w_full()
                     .min_h(px(crate::theme::control()))
                     .justify_between()
                     .px(px(10.))
                     .text_color(t.subtle)
-                    .child(tr(&format!("onboarding.entry.import.source.{id}.title")))
-                    .when(!operational, |d| {
+                    .child(source.label)
+                    .when(!source.operational, |d| {
                         d.child(
                             div()
                                 .text_color(t.subtle)
@@ -47,11 +43,9 @@ impl SettingsWorkspaceSurface {
                     Button::new("open-import")
                         .variant(ButtonVariant::OutlinePrimary)
                         .label(title)
-                        .disabled(true)
-                        .tooltip(tf(
-                            "settings.sidebar.notAvailable",
-                            &[("section", title.into())],
-                        )),
+                        .on_click(cx.listener(|_, _, _, cx| {
+                            cx.emit(super::super::SettingsEvent::OpenImport)
+                        })),
                 ),
             )
             .into_any_element()

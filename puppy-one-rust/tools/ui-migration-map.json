@@ -398,9 +398,35 @@
         "src/features/settings/main/OtherAppImportsSettingsView.tsx"
       ],
       "targets": [
-        "src/features/settings/main/other_app_imports_settings_view.rs"
+        "src/features/settings/main/other_app_imports_settings_view.rs",
+        "src/features/project_import.rs"
       ],
-      "remaining": "Page structure and visibility gate are ported; import actions need the Electron import services and are shown unavailable."
+      "remaining": "The experimental sources are listed by their own names from the shared registry; Import closes Settings for the import dialog (v0.4.4 onOpenImport)."
+    },
+    {
+      "name": "Import dialog (sources, repositories, app folders)",
+      "status": "partial",
+      "sources": [
+        "src/components/OnboardingImportDialog.tsx",
+        "src/components/onboarding/ImportSourceMark.tsx",
+        "src/features/project-import/importSourceRegistry.ts",
+        "src/features/project-import/ImportLocationField.tsx"
+      ],
+      "targets": [
+        "src/app/home/import_sources.rs",
+        "src/app/home/import_repository.rs",
+        "src/features/project_import.rs",
+        "src/platform/app_folders.rs",
+        "tools/import-integration-marks.py"
+      ],
+      "evidence": [
+        "test:import_starts_from_its_sources_and_a_repository_takes_only_its_provider",
+        "test:folders_another_app_records_join_the_homepage_in_place",
+        "test:the_experiment_opens_the_other_apps_and_coming_soon_stays_last",
+        "test:obsidian_offers_its_vaults_that_still_exist_newest_first",
+        "test:vs_code_and_cursor_offer_local_folders_from_their_history"
+      ],
+      "remaining": "Sources as two-column tiles (ready first, what is still coming after), GitHub/GitLab repository clones, and the folders Obsidian, VS Code, Cursor and Typora record, added to the Homepage in place. Remote sources (Notion, Google Drive, Airtable) are not operational in the product either. An imported repository that fails to open shows the window's project-open failure rather than the dialog's Open again. Typora's recent folders are read as one key (the product's whole-file conversion fails on the dates it also keeps)."
     },
     {
       "name": "Privacy settings page",

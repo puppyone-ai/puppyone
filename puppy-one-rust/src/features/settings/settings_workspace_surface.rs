@@ -25,6 +25,8 @@ pub enum SettingsEvent {
     ModelConfigurationChanged,
     /// Remove the project from the open history (`onUnlinkWorkspace`).
     ForgetProject(PathBuf),
+    /// `onOpenImport`: Settings closes for the import dialog.
+    OpenImport,
 }
 pub struct SettingsWorkspaceSurface {
     pub preferences: Entity<PreferencesStore>,

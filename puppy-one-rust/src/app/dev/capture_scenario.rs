@@ -12,7 +12,8 @@
 //! (the create dialog with a fixed name), `git-diff:<path>` /
 //! `git-diff-staged:<path>` (a change's diff in Changes), `git-history`,
 //! `git-commit:<index>` (a History commit), `project-entry` (the Project
-//! entry launcher), `explorer-drag:<x>` (drag the
+//! entry launcher), `import` / `import:other-apps` (the import dialog's
+//! sources), `import-source:<id>` (one source's step), `explorer-drag:<x>` (drag the
 //! Explorer's edge to `x` and release), `home-list` (the Homepage's List
 //! layout), `home-hover:<index>` (a Homepage entry reached for) and
 //! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
@@ -46,6 +47,11 @@ enum Step {
     GitDiff(String, bool),
     GitHistory,
     ProjectEntry,
+    /// `import` / `import:other-apps`: the import dialog's sources, with the
+    /// Other app imports experiment on for the second.
+    Import(bool),
+    /// `import-source:<id>`: one source's step.
+    ImportSource(String),
     GitCommit(usize),
     Open(PathBuf),
     NodeMenu(PathBuf),
@@ -112,6 +118,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "git-diff-staged" => Step::GitDiff(arg.to_string(), true),
                 "git-history" => Step::GitHistory,
                 "project-entry" => Step::ProjectEntry,
+                "import" => Step::Import(arg == "other-apps"),
+                "import-source" => Step::ImportSource(arg.to_string()),
                 "git-commit" => Step::GitCommit(arg.parse().ok()?),
                 "open" => Step::Open(path()),
                 "node-menu" => Step::NodeMenu(path()),
@@ -334,6 +342,18 @@ impl Shell {
                 .clone()
                 .update(cx, |s, cx| s.open_history(cx)),
             Step::ProjectEntry => self.home.update(cx, |h, cx| h.open_project_entry(cx)),
+            Step::Import(other_apps) => {
+                let other_apps = *other_apps;
+                self.prefs.store.update(cx, |p, _| {
+                    p.state.experimental.other_app_imports = other_apps
+                });
+                self.home.update(cx, |h, cx| h.begin_import(window, cx));
+            }
+            Step::ImportSource(id) => {
+                let id = id.clone();
+                self.home
+                    .update(cx, |h, cx| h.choose_import_source(&id, window, cx));
+            }
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
                 let (from, to) = (at(self.frame.layout.editor.x), at(*x));
