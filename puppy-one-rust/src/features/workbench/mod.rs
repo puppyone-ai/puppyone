@@ -1,40 +1,38 @@
 //! `AuxiliaryWorkbench`: the right sidebar's tabbed, splittable
-//! workbench. It owns the topology (groups, tabs, splits), the launcher,
-//! the header chrome and the saved state; each tab's content is a
-//! contribution's [`WorkbenchItem`] (the Agent chat, the terminal).
-mod auxiliary_workbench_launcher;
+//! workbench (`AuxiliaryWorkbenchPanel` over `ProjectWorkbenchStore`). It
+//! owns the topology (groups, tabs, splits), the header chrome and the saved
+//! state; each tab's content is a contribution's [`WorkbenchItem`]. The
+//! launcher and the items it creates come from the shell's
+//! [`WorkbenchHost`]; nothing here names a contribution.
 mod close_dialog;
 mod drag;
 mod header;
 mod header_layout;
-mod history;
+mod host;
 mod item;
 #[cfg(feature = "dev-capture")]
 mod lab;
 mod layout;
 mod menus;
 mod persistence;
+pub use host::{CreationRetry, LauncherContext, WorkbenchHost, WorkbenchView};
 pub use item::{CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, WorkbenchItem};
+#[cfg(feature = "dev-capture")]
+pub use lab::LabTabs;
+pub use layout::Id;
 pub use persistence::RetainedItem;
 
-use super::desktop_agent::{AgentChats, HistoryBrowser, HistoryTarget, hosted_installation};
-use super::local_agents::agent_chat_runtime_id;
-use super::terminal::TerminalItem;
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
 use crate::ui::{
     appearance::ActiveAppearance,
     components::{Button, ButtonVariant, ResizeHandle},
 };
-use crate::{
-    agent::connections::legacy_local_agent_inventory::{self as agents, Installation},
-    theme::Theme,
-    wake::Wake,
-};
+use crate::{theme::Theme, wake::Wake};
 use drag::{DropIntent, Edge};
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
-use layout::{Axis, Id, Layout, Node};
+use layout::{Axis, Layout, Node};
 use persistence::StoredProject;
 use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::mpsc};
 
@@ -124,12 +122,12 @@ impl Render for DragTab {
             .child(self.title.clone())
     }
 }
-/// Requests the workbench cannot fulfil itself (routed by the shell).
+/// Requests the workbench's items make of the window (routed by the shell):
+/// each opens something the workbench does not own.
 #[derive(Clone, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum WorkbenchEvent {
     OpenModelConnections,
-    /// A hosted Agent run's changes were accepted (`onPublication`).
-    CloudPublished,
     /// A chat asked for the account (`onOpenAccount`).
     OpenAccount,
     /// A chat opened `path` of the project at `root` (`onOpenFile`).
@@ -142,16 +140,8 @@ impl EventEmitter<WorkbenchEvent> for Workbench {}
 pub struct Workbench {
     projects: HashMap<PathBuf, Project>,
     root: Option<PathBuf>,
-    installations: Vec<Installation>,
-    /// Local agent ids hidden in Settings → Local Agents.
-    hidden_agents: Vec<String>,
-    /// Appearance → Loading animation preset.
-    scanning: bool,
-    /// When the running discovery began (`useDelayedDiscoveryFeedback`).
-    scan_started: Option<std::time::Instant>,
-    scan_rx: mpsc::Receiver<Vec<Installation>>,
-    scan_tx: mpsc::Sender<Vec<Installation>>,
-    chat_mode: bool,
+    /// The shell's launcher and the contributions behind it.
+    host: Option<Rc<dyn WorkbenchHost>>,
     confirm: Option<Id>,
     /// Close dialog keyboard state: focused action (0 Cancel, 1 confirm),
     /// whether it was reached by keyboard, and a pending initial focus.
@@ -178,62 +168,30 @@ pub struct Workbench {
     /// The tab being dragged and where releasing it would put it.
     dragging: Option<Id>,
     drop_intent: Option<DropIntent>,
-    /// Launcher tabs showing the cross-runtime History browser.
-    history: HashMap<Id, Entity<HistoryBrowser>>,
-    /// The launcher's last refused creation, per group (`launchError`).
-    launch_errors: HashMap<Id, String>,
-    /// Each launcher group's scroller.
-    launcher_scroll: HashMap<Id, ScrollHandle>,
-    /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
-    preferences: Option<Entity<crate::features::settings::PreferencesStore>>,
-    /// The launcher's `LocalAgentSetupSection` (created with the preferences).
-    setup: Option<Entity<crate::features::local_agents::SetupSection>>,
-    /// This window (`agent_presence::owner`).
-    owner: String,
-    /// `creationFailure`: a History conversation that could not be opened.
+    /// `creationFailure`: an item a launcher tab could not become.
     creation_failure: Option<CreationFailure>,
-    /// A hosted Agent run's changes were accepted.
-    cloud_published: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// The close dialog refuses (an unconfirmed Cloud submission).
     close_blocked: bool,
-    /// The Agent chat contribution: this window's Agent bridge, the
-    /// projects' controllers and the hosted location.
-    chats: AgentChats,
     /// Tabs whose item is being released.
     closing: std::collections::HashSet<Id>,
+    /// What the host last heard (it hears only changes).
+    shown: WorkbenchView,
 }
+/// `AuxiliaryWorkbenchCreationFailure`: the tab, the item it was to be
+/// (`label`) and the contribution's retry (`retryCreation`).
 struct CreationFailure {
     tab: Id,
-    /// The History target `retryCreation` opens again.
-    target: HistoryTarget,
+    label: String,
+    retry: CreationRetry,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (wake, rx) = Wake::channel();
-        let (scan_tx, scan_rx) = mpsc::channel();
         let (store_tx, store_rx) = mpsc::sync_channel(64);
-        let tx = scan_tx.clone();
-        let scan_wake = wake.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(agents::discover());
-            scan_wake.notify();
-        });
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this
-                    .update_in(cx, |s, _, cx| {
-                        s.restore_results(cx);
-                        if s.cloud_published
-                            .swap(false, std::sync::atomic::Ordering::SeqCst)
-                        {
-                            cx.emit(WorkbenchEvent::CloudPublished);
-                        }
-                        if let Ok(found) = s.scan_rx.try_recv() {
-                            s.installations = found;
-                            s.scanning = false;
-                            cx.notify();
-                        }
-                    })
+                    .update_in(cx, |s, _, cx| s.restore_results(cx))
                     .is_err()
                 {
                     break;
@@ -248,26 +206,13 @@ impl Workbench {
             cx.observe_in(&this, window, |s, _, window, cx| s.changed(window, cx))
                 .detach();
         });
-        // An activation that installed a CLI rescans the launchers' Agents.
-        let activation = crate::features::local_agents::activation_store(cx);
-        cx.subscribe(
-            &activation,
-            |s, _, _: &crate::features::local_agents::InstallationsChanged, cx| s.rescan(cx),
-        )
-        .detach();
         Self {
             wake,
             store_tx,
             store_rx,
             projects: HashMap::new(),
             root: None,
-            installations: vec![],
-            hidden_agents: vec![],
-            scanning: true,
-            scan_started: Some(std::time::Instant::now()),
-            scan_rx,
-            scan_tx,
-            chat_mode: true,
+            host: None,
             confirm: None,
             close_focus: cx.focus_handle(),
             close_choice: 0,
@@ -284,24 +229,43 @@ impl Workbench {
             overflow_hidden: HashMap::new(),
             dragging: None,
             drop_intent: None,
-            history: HashMap::new(),
-            launch_errors: HashMap::new(),
-            launcher_scroll: HashMap::new(),
-            preferences: None,
-            setup: None,
-            owner: crate::features::agent_presence::owner(window),
             creation_failure: None,
-            cloud_published: Default::default(),
             close_blocked: false,
-            chats: AgentChats::new(window.window_handle().window_id().as_u64()),
             closing: Default::default(),
+            shown: WorkbenchView::default(),
         }
+    }
+    /// The shell's launcher and contributions.
+    pub fn set_host(&mut self, host: Rc<dyn WorkbenchHost>) {
+        self.host = Some(host);
+    }
+    /// A tab's title: a launcher showing something else (History) takes
+    /// the host's.
+    fn tab_title(&self, tab: Id, content: &Content, cx: &App) -> String {
+        if matches!(content, Content::Launcher)
+            && let Some(title) = self.host.as_ref().and_then(|h| h.launcher_title(tab, cx))
+        {
+            return title;
+        }
+        content.title(cx)
     }
     /// After every change: the saved state, then which items are shown.
     fn changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.persist(cx);
         self.sync_presentation(window, cx);
-        self.sync_history(cx);
+        let mut roots: Vec<PathBuf> = self.projects.keys().cloned().collect();
+        roots.sort();
+        let view = WorkbenchView {
+            root: self.root.clone(),
+            roots,
+            open_chats: self.open_resources(ItemKind::Chat, cx),
+        };
+        if view != self.shown {
+            self.shown = view.clone();
+            if let Some(host) = self.host.clone() {
+                host.changed(view, cx);
+            }
+        }
         // The close dialog follows its item: a vanished item takes it down.
         if let Some(tab) = self.confirm
             && self.close_copy(tab, cx).is_none()
@@ -340,129 +304,126 @@ impl Workbench {
         }
     }
     /// The tab's content over `item`, watched.
-    fn content(&mut self, item: impl WorkbenchItem + 'static, cx: &mut Context<Self>) -> Content {
+    fn content(&mut self, item: Rc<dyn WorkbenchItem>, cx: &mut Context<Self>) -> Content {
         let subscription = item.watch(cx);
         Content::Item {
-            item: Rc::new(item),
+            item,
             _watch: subscription,
         }
     }
-    /// The Agent panel over a recorded conversation (`agent-panel*`).
+    /// The project at `root` is shown (a local folder, or a hosted
+    /// Project's Agent location).
+    pub fn show(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.attach(root, cx);
+    }
+    /// The shown project.
+    pub fn root(&self) -> Option<&PathBuf> {
+        self.root.as_ref()
+    }
+    /// Whether the shown project is still restoring its saved tabs.
     #[cfg(feature = "dev-capture")]
-    pub(crate) fn visual_fixture_panel(
+    pub fn loading(&self) -> bool {
+        self.project().is_none_or(|p| p.loading)
+    }
+    /// The shown project's active group.
+    #[cfg(feature = "dev-capture")]
+    pub fn active_group(&self) -> Id {
+        self.project().map_or(0, |p| p.layout.active_group)
+    }
+    /// Whether `tab` of `root` still shows a launcher (a creation that
+    /// finishes later only replaces the launcher it started from).
+    pub fn is_launcher(&self, root: &std::path::Path, tab: Id) -> bool {
+        self.root.as_deref() == Some(root)
+            && matches!(
+                self.project().and_then(|p| p.content.get(&tab)),
+                Some(Content::Launcher)
+            )
+    }
+    /// The group showing `tab`.
+    pub fn group_of(&self, tab: Id) -> Option<Id> {
+        self.project()?
+            .layout
+            .groups
+            .iter()
+            .find(|(_, g)| g.tabs.contains(&tab))
+            .map(|(group, _)| *group)
+    }
+    /// A new launcher tab in `group` (`createLauncher`).
+    pub fn new_launcher_tab(&mut self, group: Id, cx: &mut Context<Self>) -> Option<Id> {
+        let p = self.project_mut()?;
+        let id = p.layout.add(group);
+        p.content.insert(id, Content::Launcher);
+        cx.notify();
+        Some(id)
+    }
+    /// `item` fills the launcher `tab` (or a new tab of `group`), which
+    /// becomes active.
+    pub fn place(
         &mut self,
-        populated: bool,
-        window: &mut Window,
+        group: Id,
+        tab: Option<Id>,
+        item: Rc<dyn WorkbenchItem>,
+        cx: &mut Context<Self>,
+    ) -> Option<Id> {
+        let content = self.content(item, cx);
+        let p = self.project_mut()?;
+        let id = tab.unwrap_or_else(|| p.layout.add(group));
+        p.content.insert(id, content);
+        p.layout.activate(group, id);
+        cx.notify();
+        Some(id)
+    }
+    /// `recordCreationFailure`: `tab` could not become `label`; `retry`
+    /// tries again.
+    pub fn fail_creation(
+        &mut self,
+        tab: Id,
+        label: String,
+        retry: CreationRetry,
         cx: &mut Context<Self>,
     ) {
-        let root = PathBuf::from("/visual-reference-only");
-        let mut project = Project::default();
-        let id = project.layout.add(0);
-        let item =
-            crate::features::desktop_agent::AgentChatItem::visual_fixture(populated, window, cx);
-        let content = self.content(item, cx);
-        project.content.insert(id, content);
-        self.projects.insert(root.clone(), project);
-        self.root = Some(root);
+        self.creation_failure = Some(CreationFailure { tab, label, retry });
         cx.notify();
     }
-    pub fn set_preferences(
-        &mut self,
-        hidden: Vec<String>,
-        routing: crate::features::settings::AgentRoutingPreferences,
-        payments: bool,
-        cx: &mut Context<Self>,
-    ) {
-        self.hidden_agents = hidden.clone();
-        if self.chats.set_preferences(hidden, routing, payments, cx) {
+    /// A saved tab of `item` in the shown project (tests).
+    #[cfg(test)]
+    pub fn lab_retained(&mut self, item: RetainedItem, cx: &mut Context<Self>) {
+        if let Some(p) = self.project_mut() {
+            p.loading = false;
+            let id = p.layout.add(0);
+            p.content.insert(id, Content::Retained(item));
+        }
+        cx.notify();
+    }
+    /// The shown project's tab count (tests).
+    #[cfg(test)]
+    pub fn tab_count(&self) -> usize {
+        self.project().map_or(0, |p| p.content.len())
+    }
+    /// The tab whose creation failure is reported.
+    #[cfg(test)]
+    pub fn creation_failure_tab(&self) -> Option<Id> {
+        self.creation_failure.as_ref().map(|f| f.tab)
+    }
+    /// A new creation replaces the reported failure.
+    pub fn clear_creation_failure(&mut self, cx: &mut Context<Self>) {
+        if self.creation_failure.take().is_some() {
             cx.notify();
         }
     }
-    /// Installations offered by launchers: detected agents the user has not
-    /// hidden, then the bundled Built-in Agent (never hidden).
-    pub(crate) fn visible_installations(&self) -> Vec<Installation> {
-        if self.chats.is_hosted() {
-            return vec![hosted_installation()];
-        }
-        self.installations
-            .iter()
-            .filter(|i| i.bundled() || !self.hidden_agents.iter().any(|h| h == i.id))
-            .cloned()
-            .collect()
-    }
-    /// `discovery.refresh`: rescan local agent installations.
-    fn rescan(&mut self, cx: &mut Context<Self>) {
-        if self.scanning {
-            return;
-        }
-        self.scanning = true;
-        self.scan_started = Some(std::time::Instant::now());
-        let tx = self.scan_tx.clone();
-        let wake = self.wake.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(agents::discover());
-            wake.notify();
-        });
-        cx.notify();
-    }
-    pub fn set_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
-        self.chats.close_hosted();
-        self.attach(root, cx);
-    }
-    /// The hosted Project's Agent (`useCloudAgentWorkspace`).
-    pub fn set_cloud_workspace(
-        &mut self,
-        target: crate::workspace::cloud::agent::AgentTarget,
-        cx: &mut Context<Self>,
-    ) {
-        let (flag, wake) = (self.cloud_published.clone(), self.wake.clone());
-        let root = self.chats.open_hosted(
-            target,
-            Box::new(move || {
-                flag.store(true, std::sync::atomic::Ordering::SeqCst);
-                wake.notify();
-            }),
-        );
-        self.attach(root, cx);
-    }
-    /// Whether the hosted Agent is shown.
-    #[cfg(test)]
-    pub fn cloud_location(&self) -> bool {
-        self.chats.is_hosted()
-    }
-    /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat for `tab`,
-    /// its receipts persisted under the tab id; a History `session` opens it
-    /// unless another tab has it open.
-    fn hosted_chat(
-        &mut self,
-        tab: Id,
-        session: Option<crate::workspace::cloud::agent::Session>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Result<Content, String> {
-        let root = self.root.clone().unwrap_or_default();
-        let item = self
-            .chats
-            .hosted_chat(&root, &format!("tab:{tab}"), session, window, cx)?;
-        Ok(self.content(item, cx))
-    }
-    /// `prepareAgentChatWorkbenchItem(project, itemId, runtimeId)` or, with
-    /// a session, `restoreAgentChatWorkbenchItem`: the tab's content.
-    fn chat_content(
-        &mut self,
-        runtime_id: &str,
-        session_id: Option<String>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Result<Content, String> {
-        let root = self
-            .root
-            .clone()
-            .ok_or_else(|| String::from("This project is closing."))?;
-        let item = self
-            .chats
-            .prepare(&root, runtime_id, session_id, window, cx)?;
-        Ok(self.content(item, cx))
+    /// The resources the shown project's `kind` items have open
+    /// (`excludedHistoryResourceIds`).
+    pub fn open_resources(&self, kind: ItemKind, cx: &App) -> Vec<String> {
+        self.project()
+            .map(|p| {
+                p.content
+                    .values()
+                    .filter_map(Content::item)
+                    .filter(|item| item.kind() == kind)
+                    .filter_map(|item| item.snapshot(cx).resource_id)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
     fn attach(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if !self.projects.contains_key(&root) {
@@ -474,8 +435,6 @@ impl Workbench {
                 },
             );
             ui_state_store::load(root.clone(), self.store_tx.clone(), self.wake.clone());
-            self.chats
-                .set_roots(self.projects.keys().cloned().collect());
         }
         self.root = Some(root);
         self.confirm = None;
@@ -570,6 +529,7 @@ impl Workbench {
             }
         }
     }
+    /// "Reconnect" on a saved tab: the host's contribution reopens it.
     fn reopen(
         &mut self,
         group: Id,
@@ -578,65 +538,27 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let root = self.root.clone().unwrap();
+        let (Some(root), Some(host)) = (self.root.clone(), self.host.clone()) else {
+            return;
+        };
         let content = match item {
-            // The tab's saved receipts reopen its conversation.
-            RetainedItem::Chat { .. } if self.chats.is_hosted() => {
-                match self.hosted_chat(tab, None, window, cx) {
-                    Ok(content) => content,
-                    Err(error) => {
-                        if let Some(p) = self.project_mut() {
-                            p.storage_error = Some(error);
-                        }
-                        cx.notify();
-                        return;
-                    }
-                }
-            }
-            // `restoreAgentChatWorkbenchItem` / `prepareAgentChatWorkbenchItem`.
-            RetainedItem::Chat {
-                runtime,
-                thread,
-                runtime_id,
-                ..
-            } => {
-                // A chat retained before it ran on the Agent service names a
-                // provider thread, not an Agent session: it reopens new.
-                let thread = thread.filter(|_| runtime_id.is_some());
-                let runtime_id = runtime_id.or_else(|| {
-                    self.installations
-                        .iter()
-                        .find(|i| i.runtime == runtime)
-                        .map(agent_chat_runtime_id)
-                });
-                let content = runtime_id
-                    .ok_or_else(|| crate::localization::t("native.agent.uninstalled").to_string())
-                    .and_then(|runtime_id| self.chat_content(&runtime_id, thread, window, cx));
-                match content {
-                    Ok(content) => content,
-                    Err(error) => {
-                        if let Some(p) = self.project_mut() {
-                            p.storage_error = Some(error);
-                        }
-                        cx.notify();
-                        return;
-                    }
-                }
-            }
-            RetainedItem::Terminal { .. } => {
-                let item = TerminalItem::launch(root, None, window, cx);
-                self.content(item, cx)
-            }
             RetainedItem::Launcher => Content::Launcher,
+            item => match host.reopen(&root, tab, &item, window, cx) {
+                Ok(item) => self.content(item, cx),
+                Err(error) => {
+                    if let Some(p) = self.project_mut() {
+                        p.storage_error = Some(error);
+                    }
+                    cx.notify();
+                    return;
+                }
+            },
         };
         if let Some(p) = self.project_mut() {
             p.content.insert(tab, content);
             p.layout.activate(group, tab);
         }
         cx.notify();
-    }
-    pub fn reload_agent_configuration(&mut self, cx: &mut Context<Self>) {
-        self.chats.reload_model_connections(cx);
     }
     pub fn has_running(&self, cx: &App) -> bool {
         self.projects
@@ -646,7 +568,9 @@ impl Workbench {
     pub fn shutdown(&mut self, cx: &mut Context<Self>) {
         self.persist(cx);
         self.projects.clear();
-        self.chats.shutdown();
+        if let Some(host) = self.host.clone() {
+            host.shutdown(cx);
+        }
         self.root = None;
         cx.notify();
     }
@@ -657,7 +581,7 @@ impl Workbench {
         self.root.as_ref().and_then(|r| self.projects.get_mut(r))
     }
     /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`.
-    fn can_create(&self, kind: ItemKind) -> bool {
+    pub fn can_create(&self, kind: ItemKind) -> bool {
         self.project().is_none_or(|p| {
             p.content
                 .values()
@@ -740,93 +664,17 @@ impl Workbench {
             p.layout.remove(id);
             p.content.remove(&id);
         }
-        self.history.remove(&id);
+        if let Some(host) = self.host.clone() {
+            cx.defer(move |cx| host.tab_removed(id, cx));
+        }
+        // A failure reported for a closed tab has nothing left to retry.
+        if self.creation_failure.as_ref().is_some_and(|f| f.tab == id) {
+            self.creation_failure = None;
+        }
         if self.confirm == Some(id) {
             self.confirm = None;
         }
         self.close_blocked = false;
-        cx.notify();
-    }
-    fn launch(
-        &mut self,
-        group: Id,
-        tab: Option<Id>,
-        installation: Option<Installation>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(root) = self.root.clone() else {
-            return;
-        };
-        // Preparation belongs to the exact launcher; a stale click cannot replace an existing session.
-        if let Some(tab) = tab
-            && !matches!(
-                self.project().and_then(|p| p.content.get(&tab)),
-                Some(Content::Launcher)
-            )
-        {
-            return;
-        }
-        // Cloud: the hosted Agent only, no session lease of this machine.
-        if self.chats.is_hosted() {
-            if !installation.as_ref().is_some_and(|i| i.chat) || !self.can_create(ItemKind::Chat) {
-                return;
-            }
-            self.launch_errors.remove(&group);
-            let Some(id) = self
-                .project_mut()
-                .map(|p| tab.unwrap_or_else(|| p.layout.add(group)))
-            else {
-                return;
-            };
-            let content = match self.hosted_chat(id, None, window, cx) {
-                Ok(content) => content,
-                Err(error) => {
-                    self.launch_errors.insert(group, error);
-                    cx.notify();
-                    return;
-                }
-            };
-            if let Some(p) = self.project_mut() {
-                p.content.insert(id, content);
-                p.layout.activate(group, id);
-            }
-            cx.notify();
-            return;
-        }
-        let chat = installation
-            .as_ref()
-            .is_some_and(|i| i.chat && self.chat_mode);
-        let kind = if chat {
-            ItemKind::Chat
-        } else {
-            ItemKind::Terminal
-        };
-        if !self.can_create(kind) {
-            return;
-        }
-        self.launch_errors.remove(&group);
-        let content = if let Some(installation) = installation.clone().filter(|_| chat) {
-            // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`;
-            // `launchError`: a refused creation stays on the launcher with
-            // its reason.
-            match self.chat_content(&agent_chat_runtime_id(&installation), None, window, cx) {
-                Ok(content) => content,
-                Err(error) => {
-                    self.launch_errors.insert(group, error);
-                    cx.notify();
-                    return;
-                }
-            }
-        } else {
-            let item = TerminalItem::launch(root, installation, window, cx);
-            self.content(item, cx)
-        };
-        if let Some(p) = self.project_mut() {
-            let id = tab.unwrap_or_else(|| p.layout.add(group));
-            p.content.insert(id, content);
-            p.layout.activate(group, id);
-        }
         cx.notify();
     }
     fn split(
@@ -907,9 +755,18 @@ impl Workbench {
             Some(Content::Item { item, .. }) => {
                 div().size_full().child(item.view()).into_any_element()
             }
-            _ => match g.active.and_then(|tab| self.render_history(tab)) {
-                Some(history) => history,
-                None => self.launcher(id, g.active, width, cx).into_any_element(),
+            _ => match self.host.clone() {
+                Some(host) => {
+                    let context = LauncherContext {
+                        group: id,
+                        tab: g.active,
+                        width,
+                        can_chat: self.can_create(ItemKind::Chat),
+                        can_terminal: self.can_create(ItemKind::Terminal),
+                    };
+                    host.launcher(context, cx)
+                }
+                None => div().into_any_element(),
             },
         };
         let group = v_flex()
@@ -1139,43 +996,26 @@ impl Workbench {
             self.split(group, axis, Some(tab), after, cx);
         }
     }
-    /// `retryCreation`: open the same conversation in the same tab again.
+    /// `retryCreation`: the contribution tries the same creation again.
     fn retry_creation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(failure) = self.creation_failure.take() else {
             return;
         };
-        let group = self.project().and_then(|p| {
-            p.layout
-                .groups
-                .iter()
-                .find(|(_, g)| g.tabs.contains(&failure.tab))
-                .map(|(group, _)| *group)
-        });
-        let Some(group) = group else {
-            cx.notify();
-            return;
-        };
-        if let Some(browser) = self.history.get(&failure.tab) {
-            let id = failure.target.id.clone();
-            browser.update(cx, |browser, _| browser.opening = Some(id));
-        }
-        self.restore_history_target(group, failure.tab, failure.target, window, cx);
         cx.notify();
+        // The contribution reads the workbench: it retries after this update.
+        let retry = failure.retry.clone();
+        window.defer(cx, move |window, cx| retry(window, cx));
     }
     /// `AuxiliaryWorkbenchCreationFailure` in the panel's top notice stack.
     fn creation_notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         use crate::ui::components::{
             FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
         };
-        self.creation_failure.as_ref()?;
+        let failure = self.creation_failure.as_ref()?;
         let ty = theme::ty();
-        let item = crate::localization::tf(
-            "agent.panel.chat",
-            &[("agent", crate::localization::t("agent.name").into())],
-        );
         let message = crate::localization::tf(
             "terminal.workbench.itemLoadFailed",
-            &[("item", item.into())],
+            &[("item", failure.label.clone().into())],
         );
         let entity = cx.entity();
         let retry = entity.clone();
@@ -1204,50 +1044,6 @@ impl Workbench {
                 )
                 .into_any_element(),
         )
-    }
-    pub fn set_preference_store(
-        &mut self,
-        store: Entity<crate::features::settings::PreferencesStore>,
-    ) {
-        self.chats.set_preference_store(store.clone());
-        self.preferences = Some(store);
-        self.setup = None;
-    }
-    /// The launcher's setup section, narrowed to this launcher's surface and
-    /// the detected Agents.
-    fn setup_section(
-        &mut self,
-        cx: &mut Context<Self>,
-    ) -> Option<Entity<crate::features::local_agents::SetupSection>> {
-        use crate::features::local_agents::{Presentation, SetupSection};
-        use crate::platform::local_agent_setup::Surface;
-        let surface = if self.chat_mode {
-            Surface::Chat
-        } else {
-            Surface::Terminal
-        };
-        if self.setup.is_none() {
-            let preferences = self.preferences.clone()?;
-            let owner = self.owner.clone();
-            let section = cx.new(|cx| {
-                SetupSection::new(Presentation::Launcher, surface, preferences, owner, cx)
-            });
-            cx.observe(&section, |_, _, cx| cx.notify()).detach();
-            self.setup = Some(section);
-        }
-        let section = self.setup.clone()?;
-        let found = (!self.scanning).then(|| {
-            self.installations
-                .iter()
-                .filter(|i| !i.bundled())
-                .map(|i| i.id)
-                .collect()
-        });
-        section.update(cx, |s, cx| {
-            s.set_surface(surface, cx);
-            s.set_found(found, cx);
-        });
-        section.update(cx, |s, cx| s.visible(cx)).then_some(section)
     }
     fn end_drag(&mut self, cx: &mut Context<Self>) {
         if self.drag_split.is_some() || self.drop_intent.is_some() || self.dragging.is_some() {
@@ -1474,14 +1270,15 @@ mod tests {
             Box::new(|| {}),
         );
         let (view, cx) = cx.add_window_view(Workbench::new);
+        // The hosted contribution's chat, placed as its launcher would.
+        let mut chats = crate::features::desktop_agent::AgentChats::new(0);
+        chats.open_hosted_hub(hub);
         view.update_in(cx, |s, w, cx| {
-            s.chats.open_hosted_hub(hub);
-            s.attach(
-                PathBuf::from(format!("cloud-test-{}", uuid::Uuid::new_v4())),
-                cx,
-            );
+            let root = PathBuf::from(format!("cloud-test-{}", uuid::Uuid::new_v4()));
+            s.attach(root.clone(), cx);
             s.project_mut().unwrap().loading = false;
-            s.launch(0, None, Some(hosted_installation()), w, cx);
+            let item = chats.hosted_chat(&root, "tab:0", None, w, cx).unwrap();
+            s.place(0, None, Rc::new(item), cx);
         });
         let (tab, chat) = view.read_with(cx, |s, _| {
             s.project()
@@ -1556,16 +1353,16 @@ mod tests {
         cx.update(gpui_kit::init);
         let (view, cx) = cx.add_window_view(Workbench::new);
         view.update(cx, |s, cx| {
-            s.set_workspace(PathBuf::from("/project-a"), cx);
+            s.show(PathBuf::from("/project-a"), cx);
             s.add(0, cx);
             s.add(0, cx);
             let p = s.project().unwrap();
             assert_eq!(p.content.len(), 2);
             assert!(p.content.values().all(|c| matches!(c, Content::Launcher)));
             assert!(!s.has_running(cx));
-            s.set_workspace(PathBuf::from("/project-b"), cx);
+            s.show(PathBuf::from("/project-b"), cx);
             assert!(s.project().unwrap().content.is_empty());
-            s.set_workspace(PathBuf::from("/project-a"), cx);
+            s.show(PathBuf::from("/project-a"), cx);
             assert_eq!(s.project().unwrap().content.len(), 2);
         });
         cx.update(|w, cx| {
@@ -1584,45 +1381,12 @@ mod tests {
         });
     }
     #[gpui::test]
-    fn a_history_chat_that_cannot_resume_goes_back_to_the_launcher(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        cx.update(gpui_kit::init);
-        let (view, cx) = cx.add_window_view(Workbench::new);
-        view.update_in(cx, |s, window, cx| {
-            s.set_workspace(PathBuf::from("/project"), cx);
-            let p = s.project_mut().unwrap();
-            let tab = p.layout.add(0);
-            p.content.insert(tab, Content::Launcher);
-            let target = HistoryTarget {
-                id: "agent:thread-1".into(),
-                title: "Saved chat".into(),
-                icon_key: None,
-                payload: crate::features::desktop_agent::AgentChatHistoryPayload {
-                    runtime_id: "codex".into(),
-                    session_id: String::new(),
-                },
-            };
-            s.restore_history_target(0, tab, target, window, cx);
-            // The tab stays the launcher; the failure keeps its target to retry.
-            assert!(matches!(
-                s.project().unwrap().content[&tab],
-                Content::Launcher
-            ));
-            let failure = s.creation_failure.as_ref().unwrap();
-            assert_eq!(failure.tab, tab);
-            assert_eq!(failure.target.id, "agent:thread-1");
-            assert!(s.creation_notice(cx).is_some());
-            s.creation_failure = None;
-            assert!(s.creation_notice(cx).is_none());
-        });
-    }
-    #[gpui::test]
     fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
         cx.executor().allow_parking();
         cx.update(gpui_kit::init);
         let (view, cx) = cx.add_window_view(Workbench::new);
-        view.update_in(cx, |s, window, cx| {
-            s.set_workspace(PathBuf::from("/project"), cx);
+        view.update(cx, |s, cx| {
+            s.show(PathBuf::from("/project"), cx);
             let p = s.project_mut().unwrap();
             for n in 0..32 {
                 let id = p.layout.add(0);
@@ -1639,9 +1403,6 @@ mod tests {
                 "32 terminals per project"
             );
             assert!(s.can_create(ItemKind::Chat));
-            // The shell launcher refuses rather than starting a 33rd PTY.
-            s.launch(0, None, None, window, cx);
-            assert_eq!(s.project().unwrap().content.len(), 32);
             let p = s.project_mut().unwrap();
             for n in 0..8 {
                 let id = p.layout.add(0);
@@ -1664,7 +1425,7 @@ mod tests {
         cx.update(gpui_kit::init);
         let (view, cx) = cx.add_window_view(Workbench::new);
         view.update(cx, |s, cx| {
-            s.set_workspace(PathBuf::from("/project"), cx);
+            s.show(PathBuf::from("/project"), cx);
             s.add(0, cx);
             s.add(0, cx);
             s.project_mut().unwrap().loading = false;
@@ -1695,7 +1456,7 @@ mod tests {
         cx.update(gpui_kit::init);
         let (view, cx) = cx.add_window_view(Workbench::new);
         view.update(cx, |s, cx| {
-            s.set_workspace(PathBuf::from("/project"), cx);
+            s.show(PathBuf::from("/project"), cx);
             for _ in 0..12 {
                 s.add(0, cx);
             }

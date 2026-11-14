@@ -30,7 +30,7 @@ mod panes;
 mod project;
 mod project_actions;
 mod project_place;
-mod right_sidebar;
+pub(crate) mod right_sidebar;
 mod session;
 mod sidebar;
 mod window_cloud;

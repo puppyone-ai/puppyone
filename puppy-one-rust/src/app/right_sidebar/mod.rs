@@ -9,6 +9,8 @@
 //! it should be open and sets the pane. Each surface takes its own part of
 //! the preferences; what a surface asks of the window leaves as a
 //! [`SidebarEvent`].
+pub(crate) mod launcher;
+
 use super::panes::PaneLayout;
 use crate::features::settings::{
     Page, Preferences, PreferencesStore, RightSidebarSurface, observe_slice,
@@ -76,6 +78,8 @@ impl Shown {
 
 pub(super) struct RightSidebar {
     pub workbench: Entity<Workbench>,
+    /// The workbench's launcher and the contributions it creates from.
+    pub launcher: Entity<launcher::WorkbenchLauncher>,
     pub source_control: Entity<SourceControl>,
     pub cloud_history: Entity<CloudHistory>,
     pub host_tools: Entity<crate::features::hosts::HostTools>,
@@ -95,13 +99,17 @@ impl RightSidebar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let workbench = cx.new(|cx| Workbench::new(window, cx));
+        let (workbench, launcher) = launcher::compose(window, cx);
         let source_control = cx.new(|cx| SourceControl::new(window, cx));
         let cloud_history = cx.new(CloudHistory::new);
         let host_tools = cx.new(|cx| crate::features::hosts::HostTools::new(window, cx));
         cx.observe(&host_tools, |_, _, cx| cx.notify()).detach();
         let store = preferences.clone();
-        workbench.update(cx, |workbench, _| workbench.set_preference_store(store));
+        launcher.update(cx, |launcher, cx| launcher.set_preference_store(store, cx));
+        cx.subscribe(&launcher, |_, _, event, cx| match event {
+            launcher::LauncherEvent::CloudPublished => cx.emit(SidebarEvent::CloudPublished),
+        })
+        .detach();
         cx.subscribe(&workbench, |_, _, event, cx| {
             cx.emit(match event {
                 WorkbenchEvent::OpenModelConnections => {
@@ -112,7 +120,6 @@ impl RightSidebar {
                     root: root.clone(),
                     path: path.clone(),
                 },
-                WorkbenchEvent::CloudPublished => SidebarEvent::CloudPublished,
             })
         })
         .detach();
@@ -151,6 +158,7 @@ impl RightSidebar {
         .detach();
         let mut sidebar = Self {
             workbench,
+            launcher,
             source_control,
             cloud_history,
             host_tools,
@@ -171,8 +179,8 @@ impl RightSidebar {
             layout,
             icons,
         } = shown.clone();
-        self.workbench
-            .update(cx, |w, cx| w.set_preferences(hidden, routing, payments, cx));
+        self.launcher
+            .update(cx, |l, cx| l.set_preferences(hidden, routing, payments, cx));
         let history_icons = icons.clone();
         self.cloud_history
             .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
@@ -200,14 +208,19 @@ impl RightSidebar {
     pub fn enter(&mut self, workspace: &crate::workspace::Workspace, cx: &mut Context<Self>) {
         if let Some(root) = workspace.local_root() {
             let root = root.to_owned();
-            self.workbench
-                .update(cx, |s, cx| s.set_workspace(root.clone(), cx));
+            self.launcher
+                .update(cx, |s, cx| s.show_local(root.clone(), cx));
             self.source_control
                 .update(cx, |s, cx| s.set_workspace(root, cx));
         } else if let Some(target) = workspace.agent_target() {
-            self.workbench
-                .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
+            self.launcher.update(cx, |s, cx| s.show_hosted(target, cx));
         }
+    }
+
+    /// Model connections changed: every Agent chat rereads them.
+    pub fn reload_agent_configuration(&self, cx: &mut App) {
+        self.launcher
+            .update(cx, |l, cx| l.reload_model_connections(cx));
     }
 
     // ------------------------------------------------------- Header entries

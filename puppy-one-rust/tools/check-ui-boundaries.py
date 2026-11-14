@@ -133,6 +133,17 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
     source = path.read_text().split('#[cfg(test)]')[0]
     if re.search(r'serde_json|\bValue\b|json!|contract::js', source):
         errors.append(f'{path.relative_to(root)}: Agent window code handles JSON instead of the contract types')
+# The right workbench (`AuxiliaryWorkbenchPanel` over `ProjectWorkbenchStore`)
+# hosts contributions' items and never names one: the shell's launcher creates
+# Agent chats, terminals and hosted chats (`renderLauncher`, contributions).
+contribution_feature = re.compile(
+    r'(?:features\s*::\s*|super\s*::\s*)(?:desktop_agent|terminal|cloud|local_agents)\b')
+for path in (root / 'src/features/workbench').rglob('*.rs'):
+    if fixture(path):
+        continue
+    source = re.sub(r'//[^\n]*', '', path.read_text().split('#[cfg(test)]')[0])
+    if contribution_feature.search(source):
+        errors.append(f'{path.relative_to(root)}: the workbench names a contribution; the shell composes it')
 # Provider neutrality (`check-agent-architecture.mjs`): only a runtime
 # implementation, a concrete adapter layer, the composition root or a
 # migration edge names a concrete Agent; the Agent window names none outside

@@ -440,7 +440,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .clone()
                     .update(cx, |w, cx| w.capture_new_chat(runtime_id, window, cx))
                 {
@@ -451,7 +451,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .read(cx)
                     .capture_agent_settled(cx)
                 {
@@ -462,7 +462,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .read(cx)
                     .capture_agent_prompt(text, cx)
                 {
@@ -473,7 +473,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .read(cx)
                     .capture_agent_idle(cx)
                 {
@@ -484,7 +484,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .clone()
                     .update(cx, |w, cx| w.capture_history(window, cx))
                 {
@@ -495,7 +495,7 @@ impl Shell {
                 if !self
                     .sidebar
                     .read(cx)
-                    .workbench
+                    .launcher
                     .clone()
                     .update(cx, |w, cx| w.capture_history_open(window, cx))
                 {
@@ -682,20 +682,20 @@ pub(in crate::app) fn prepare_surface(s: &mut Shell, window: &mut Window, cx: &m
             s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
             s.sidebar
                 .read(cx)
-                .workbench
+                .launcher
                 .clone()
-                .update(cx, |workbench, cx| {
-                    workbench.visual_fixture_panel(surface == "agent-panel", window, cx)
+                .update(cx, |launcher, cx| {
+                    launcher.visual_fixture_panel(surface == "agent-panel", window, cx)
                 });
         }
         if surface == "agent-empty" || surface == "agent-transcript" {
             s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
             s.sidebar
                 .read(cx)
-                .workbench
+                .launcher
                 .clone()
-                .update(cx, |workbench, cx| {
-                    workbench.visual_fixture_panel(surface == "agent-transcript", window, cx)
+                .update(cx, |launcher, cx| {
+                    launcher.visual_fixture_panel(surface == "agent-transcript", window, cx)
                 });
         }
     }

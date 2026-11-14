@@ -28,12 +28,13 @@ impl Workbench {
                 LauncherIdentity::brand(r.icon_key())
             })
         };
+        let launcher_mark = matches!(content, Content::Launcher)
+            .then(|| self.host.as_ref()?.launcher_mark(tab, fg, cx))
+            .flatten();
+        if let Some(mark) = launcher_mark {
+            return mark;
+        }
         match content {
-            Content::Launcher if self.history_open(tab) => Icon::new("history")
-                .small()
-                .stroke(2.)
-                .color(fg)
-                .into_any_element(),
             Content::Launcher | Content::Retained(RetainedItem::Launcher) => {
                 Icon::new("square-dashed")
                     .small()

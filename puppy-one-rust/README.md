@@ -105,7 +105,7 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 父 entity 只在事件处理中调用子 entity；子 entity 只发事件。缓存的面板（Explorer、右侧工作台、Changes）只在自身被 notify 时重新渲染。主线程卡顿日志（`diagnostics/main-thread-stalls.jsonl`）按正在运行的工作打标签（`shell.render`、`shell.command`、`shell.receive`、`explorer.render`、`editor.render`、`workbench.render`，其余为 `foreground`）。测试按 owner 拆在 `app/tests/`。完整的 entity 与事件表见 puppy-issues `platform/rust-native-frontend/architecture.md`。
 
-功能（`src/features/<domain>/`）的 `mod.rs` 是门面：内部模块私有，对外 `pub use`；跨功能深层 import 由检查拒绝。右侧工作台只认 `WorkbenchItem` trait，Agent 对话（`desktop_agent/workbench`）与 Terminal（`terminal/workbench`）各自实现。窗口与 Agent host 之间是有类型的 `AgentRequest` / `AgentResponse` / `AgentEvent`，JSON 只留在线路边界（`agent::contract`、provider 协议、持久化、Cloud API 客户端）。
+功能（`src/features/<domain>/`）的 `mod.rs` 是门面：内部模块私有，对外 `pub use`；跨功能深层 import 由检查拒绝。右侧工作台（`features/workbench`）只托管 `WorkbenchItem`，不认识任何功能：启动器与创建由外壳的 `WorkbenchHost`（`app/right_sidebar/launcher`，对应 `renderLauncher`）提供，Agent 对话（`desktop_agent/workbench`）、Terminal（`terminal/workbench`）与托管对话各自实现条目；`tools/check-ui-boundaries.py` 拒绝工作台导入具体功能。窗口与 Agent host 之间是有类型的 `AgentRequest` / `AgentResponse` / `AgentEvent`；JSON 留在 `agent::contract`、provider 协议、持久化、Cloud API 客户端，以及沿用产品 JSON reducer 的 Agent host（`agent/domain`、`agent/application`，见 PARITY_TODO）。
 
 - 侧栏开合的帧开销：`cargo test --release --locked --no-run` 后运行窗口的测试二进制 `app::dev::bench::pane_motion_frame_cost --exact --ignored --nocapture`（`PUPPYONE_BENCH_FILE` 可换成自己的文档）。
 - 真实窗口的帧节奏：`tools/frame-pacing.py <大目录>`（`PUPPYONE_CAPTURE_LIVE` 前台窗口 + `ZED_MEASUREMENTS` 每帧耗时 + `sample` 主线程采样）。

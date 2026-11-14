@@ -1,6 +1,6 @@
 //! Workbench menus on the product menu surface. A tab's context menu (its
-//! session actions, then Close) and a launcher row's "open in a terminal"
-//! menu are pinned at the pointer; the header's overflow list
+//! session actions, then Close) is pinned at the pointer; the header's
+//! overflow list
 //! (`AuxiliaryWorkbenchOverflowMenu`) hangs from its trigger. GPUI Kit
 //! places and dismisses them; the workbench holds which one is open.
 use super::*;
@@ -13,16 +13,7 @@ const OVERFLOW_MENU_MAX_HEIGHT: f32 = 320.;
 
 /// The open context menu and where it was opened.
 pub(super) enum ContextMenu {
-    Tab {
-        tab: Id,
-        at: Point<Pixels>,
-    },
-    Launcher {
-        group: Id,
-        tab: Option<Id>,
-        installation: Installation,
-        at: Point<Pixels>,
-    },
+    Tab { tab: Id, at: Point<Pixels> },
 }
 
 impl Workbench {
@@ -52,28 +43,6 @@ impl Workbench {
                     surface.item(MenuItem::new(close).on_click(move |_, cx| {
                         let _ = host.update(cx, |s, cx| s.close(tab, false, cx));
                     })),
-                )
-            }
-            ContextMenu::Launcher {
-                group,
-                tab,
-                installation,
-                at,
-            } => {
-                let (group, tab, installation) = (*group, *tab, installation.clone());
-                let host = host.clone();
-                (
-                    *at,
-                    Menu::new("workbench-launcher-menu").min_w(px(180.)).item(
-                        MenuItem::new(crate::localization::t("terminal.title")).on_click(
-                            move |w, cx| {
-                                let _ = host.update(cx, |s, cx| {
-                                    s.chat_mode = false;
-                                    s.launch(group, tab, Some(installation.clone()), w, cx)
-                                });
-                            },
-                        ),
-                    ),
                 )
             }
         };

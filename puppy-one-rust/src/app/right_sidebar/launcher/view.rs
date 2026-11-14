@@ -9,12 +9,9 @@ use crate::{
     localization::t as tr,
     theme,
     ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
-    ui::components::{Icon, IconButton, Spinner},
+    ui::components::{AnchoredMenu, IconButton, Menu, MenuItem, Spinner},
 };
-use gpui_kit::{
-    base::{Disableable as _, h_flex, v_flex},
-    component::Sizable as _,
-};
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 /// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
 fn content_width(container: f32) -> f32 {
@@ -27,7 +24,43 @@ fn content_width(container: f32) -> f32 {
 /// Discovery feedback appears only after 200ms (`useDelayedDiscoveryFeedback`).
 const FEEDBACK_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
-impl Workbench {
+impl WorkbenchLauncher {
+    /// The launcher's setup section, narrowed to this launcher's surface and
+    /// the detected Agents.
+    fn setup_section(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<crate::features::local_agents::SetupSection>> {
+        use crate::features::local_agents::{Presentation, SetupSection};
+        use crate::platform::local_agent_setup::Surface;
+        let surface = if self.chat_mode {
+            Surface::Chat
+        } else {
+            Surface::Terminal
+        };
+        if self.setup.is_none() {
+            let preferences = self.preferences.clone()?;
+            let owner = self.owner.clone();
+            let section = cx.new(|cx| {
+                SetupSection::new(Presentation::Launcher, surface, preferences, owner, cx)
+            });
+            cx.observe(&section, |_, _, cx| cx.notify()).detach();
+            self.setup = Some(section);
+        }
+        let section = self.setup.clone()?;
+        let found = (!self.scanning).then(|| {
+            self.installations
+                .iter()
+                .filter(|i| !i.bundled())
+                .map(|i| i.id)
+                .collect()
+        });
+        section.update(cx, |s, cx| {
+            s.set_surface(surface, cx);
+            s.set_found(found, cx);
+        });
+        section.update(cx, |s, cx| s.visible(cx)).then_some(section)
+    }
     /// `.desktop-terminal-launcher-tool` / `-shell`: a full-width, start-aligned row.
     fn launcher_row(
         &self,
@@ -74,20 +107,59 @@ impl Workbench {
             )
     }
 
-    pub(super) fn launcher(
+    /// The launcher tab `context.tab`: its History browser when open, else
+    /// the launcher (with its row menu when open).
+    pub(super) fn render_launcher(
         &mut self,
-        group: Id,
-        tab: Option<Id>,
-        width: f32,
+        context: LauncherContext,
         cx: &mut Context<Self>,
-    ) -> Stateful<Div> {
+    ) -> AnyElement {
+        if let Some(history) = context.tab.and_then(|tab| self.render_history(tab)) {
+            return history;
+        }
+        let menu = self.render_menu(cx);
+        self.launcher(context, cx).children(menu).into_any_element()
+    }
+    /// A launcher row's "open in a terminal" menu, pinned at the pointer.
+    fn render_menu(&self, cx: &mut Context<Self>) -> Option<AnchoredMenu> {
+        let menu = self.menu.as_ref()?;
+        let (group, tab, installation) = (menu.group, menu.tab, menu.installation.clone());
+        let host = cx.weak_entity();
+        let launch = host.clone();
+        let surface = Menu::new("workbench-launcher-menu").min_w(px(180.)).item(
+            MenuItem::new(crate::localization::t("terminal.title")).on_click(move |w, cx| {
+                let _ = launch.update(cx, |s, cx| {
+                    s.menu = None;
+                    s.chat_mode = false;
+                    s.launch(group, tab, Some(installation.clone()), w, cx)
+                });
+            }),
+        );
+        let close = move |cx: &mut App| {
+            let _ = host.update(cx, |s, cx| {
+                if s.menu.take().is_some() {
+                    cx.notify();
+                }
+            });
+        };
+        let close_after_item = close.clone();
+        Some(
+            AnchoredMenu::new(
+                "workbench-context-menu",
+                menu.at,
+                surface.on_dismiss(move |_, cx| close_after_item(cx)),
+            )
+            .on_dismiss(move |_, cx| close(cx)),
+        )
+    }
+    fn launcher(&mut self, context: LauncherContext, cx: &mut Context<Self>) -> Stateful<Div> {
+        let LauncherContext {
+            group, tab, width, ..
+        } = context;
         let t = cx.palette();
         let m = theme::ty();
         let visible = self.visible_installations();
-        let (chats, terminals) = (
-            self.can_create(ItemKind::Chat),
-            self.can_create(ItemKind::Terminal),
-        );
+        let (chats, terminals) = (context.can_chat, context.can_terminal);
         let mut external = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
             let terminal = installation.clone();
@@ -109,15 +181,13 @@ impl Workbench {
                     MouseButton::Right,
                     cx.listener(move |s, e: &MouseDownEvent, _, cx| {
                         cx.stop_propagation();
-                        s.open_context_menu(
-                            super::menus::ContextMenu::Launcher {
-                                group,
-                                tab,
-                                installation: terminal.clone(),
-                                at: e.position,
-                            },
-                            cx,
-                        );
+                        s.menu = Some(LauncherMenu {
+                            group,
+                            tab,
+                            installation: terminal.clone(),
+                            at: e.position,
+                        });
+                        cx.notify();
                     }),
                 ),
             );
