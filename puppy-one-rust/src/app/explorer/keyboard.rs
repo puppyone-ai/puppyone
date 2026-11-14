@@ -110,7 +110,7 @@ impl Explorer {
         .on_action(cx.listener(|s, _: &CopyItems, _, cx| {
             s.session.update(cx, |session, cx| {
                 let paths = session.tree().selected_roots();
-                session.set_clipboard(FileClipboard::Copy(paths), cx)
+                session.copy(paths, cx)
             })
         }))
         .on_action(cx.listener(|s, _: &CutItems, _, cx| {

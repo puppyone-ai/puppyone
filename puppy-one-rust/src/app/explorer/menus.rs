@@ -456,9 +456,8 @@ impl Explorer {
                     .shortcut(shortcut("C"))
                     .disabled(!capabilities.copy)
                     .on_click(act(Box::new(move |s, _, cx| {
-                        let copy = FileClipboard::Copy(copy.clone());
-                        s.session
-                            .update(cx, |session, cx| session.set_clipboard(copy, cx))
+                        let copy = copy.clone();
+                        s.session.update(cx, |session, cx| session.copy(copy, cx))
                     }))),
             ));
             let cut = paths.clone();

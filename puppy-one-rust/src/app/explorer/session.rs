@@ -516,6 +516,19 @@ impl ExplorerSession {
         self.clipboard = Some(clipboard);
         cx.notify();
     }
+    /// Copy Item: kept for Paste here, and, for a folder on this computer,
+    /// put on the system's file clipboard so Finder pastes the files too.
+    pub fn copy(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
+        if let Some(ws) = self
+            .workspace
+            .as_ref()
+            .filter(|ws| ws.local_root().is_some())
+        {
+            let absolute: Vec<PathBuf> = paths.iter().filter_map(|p| ws.absolute(p).ok()).collect();
+            crate::platform::file_pasteboard::write(&absolute);
+        }
+        self.set_clipboard(FileClipboard::Copy(paths), cx)
+    }
     pub fn run_op(&mut self, op: FileOp, cx: &mut Context<Self>) {
         if self.op || self.workspace.is_none() {
             return;

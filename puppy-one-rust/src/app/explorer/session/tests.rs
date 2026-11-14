@@ -179,3 +179,39 @@ fn external_changes_reread_loaded_folders_through_the_directory_subscription(
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
+#[gpui::test]
+fn copied_items_of_a_local_folder_also_go_to_the_system_file_clipboard(cx: &mut TestAppContext) {
+    use crate::platform::file_pasteboard::take_written;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("folder")).unwrap();
+    std::fs::write(dir.path().join("a.md"), "a").unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    let explorer = cx.new(|cx| ExplorerSession::new(false, preferences.clone(), cx));
+    take_written();
+    explorer.update(cx, |e, cx| {
+        e.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+        let paths = vec![PathBuf::from("a.md"), PathBuf::from("folder")];
+        e.copy(paths.clone(), cx);
+        // Paste here still copies them.
+        assert_eq!(e.clipboard, Some(FileClipboard::Copy(paths)));
+    });
+    let root = ws.local_root().unwrap();
+    assert_eq!(
+        take_written(),
+        Some(vec![root.join("a.md"), root.join("folder")])
+    );
+
+    // Cut stays in the Explorer: Finder has no cut files to paste.
+    explorer.update(cx, |e, cx| {
+        e.set_clipboard(FileClipboard::Cut(vec!["a.md".into()]), cx)
+    });
+    assert_eq!(take_written(), None);
+    // Nothing selected, or no folder on this computer: the system clipboard
+    // keeps what it had.
+    explorer.update(cx, |e, cx| e.copy(vec![], cx));
+    assert_eq!(take_written(), None);
+    let fixture = cx.new(|cx| ExplorerSession::new(true, preferences, cx));
+    fixture.update(cx, |e, cx| e.copy(vec!["a.md".into()], cx));
+    assert_eq!(take_written(), None);
+}
