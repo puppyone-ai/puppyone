@@ -130,7 +130,7 @@ impl AgentChatTabPanel {
                 }
                 s.compute_revision = revision;
                 s.compute = Some(snapshot);
-                s.refresh_composer();
+                s.refresh_views();
                 cx.notify();
             })
             .ok();

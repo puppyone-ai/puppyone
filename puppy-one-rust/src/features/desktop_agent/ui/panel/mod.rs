@@ -21,7 +21,9 @@ use super::agent_chat_view_model::{
 };
 use super::composer::{ComposerEvent, ComposerInput, ComposerView, can_submit};
 use super::docks::{DockEvent, DocksInput, DocksView};
+use super::empty_state::EmptyStateView;
 use super::pickers::{PickerEvent, SessionPickers};
+use super::provider_notices::ProviderNoticesView;
 use super::transcript::{TranscriptEvent, TranscriptInput, TranscriptView};
 use crate::agent::contract::protocol::ApprovalDecision;
 use crate::features::desktop_agent::application::agent_controller_state::{
@@ -100,8 +102,9 @@ pub struct AgentChatTabPanel {
     pending_connection_model: Option<String>,
     /// `AgentApprovalDock` and `AgentQuestionDock`.
     docks: Entity<DocksView>,
-    logo_turns: u32,
-    provider_notices_open: bool,
+    /// `AgentEmptyState` and `AgentProviderActivities`.
+    empty_state: Entity<EmptyStateView>,
+    notices: Entity<ProviderNoticesView>,
     last_presentation: Option<AgentChatTabPresentation>,
     /// `useModelConnections()`'s snapshot, its last revision, and whether a
     /// send asked for compute access (`computeAccessPrompt`).
@@ -206,6 +209,7 @@ impl AgentChatTabPanel {
                     let state = s.state();
                     let view = s.view_model(&state);
                     s.sync_composer(&state, &view, window, cx);
+                    s.sync_views(&state, &view, cx);
                 });
                 if synced.is_err() {
                     break;
@@ -246,8 +250,8 @@ impl AgentChatTabPanel {
             recovery_details_open: false,
             pending_connection_model: None,
             docks,
-            logo_turns: 0,
-            provider_notices_open: false,
+            empty_state: cx.new(|_| EmptyStateView::default()),
+            notices: cx.new(|_| ProviderNoticesView::default()),
             last_presentation: None,
             compute: None,
             compute_revision: None,
@@ -290,7 +294,7 @@ impl AgentChatTabPanel {
     pub fn set_payments(&mut self, payments: bool, cx: &mut Context<Self>) {
         if self.payments != payments {
             self.payments = payments;
-            self.refresh_composer();
+            self.refresh_views();
             cx.notify();
         }
     }
@@ -298,7 +302,7 @@ impl AgentChatTabPanel {
     /// `hiddenRuntimeIds`.
     pub fn set_hidden_runtime_ids(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
         self.hidden_runtime_ids = hidden;
-        self.refresh_composer();
+        self.refresh_views();
         cx.notify();
     }
 
@@ -438,6 +442,14 @@ impl AgentChatTabPanel {
             .update(cx, |t, cx| t.set_input(transcript, cx));
         let docks = DocksInput::of(state, view);
         self.docks.update(cx, |d, cx| d.set_input(docks, cx));
+        let (icon, label) = (
+            view.runtime.runtime_icon_key.clone(),
+            view.runtime.runtime_label.clone(),
+        );
+        self.empty_state
+            .update(cx, |e, cx| e.set_runtime(icon, label, cx));
+        self.notices
+            .update(cx, |n, cx| n.set_projection(&state.projection, cx));
     }
 
     /// `AgentApprovalDock` / `AgentQuestionDock`: the person decided.
@@ -462,8 +474,9 @@ impl AgentChatTabPanel {
         cx.notify();
     }
 
-    /// The panel's own policy changed what the composer shows.
-    fn refresh_composer(&self) {
+    /// The panel's own policy (routing, compute, hidden runtimes, a pending
+    /// model connection) changed what its views show.
+    fn refresh_views(&self) {
         let _ = self.refresh.send(());
     }
 
@@ -520,7 +533,7 @@ impl AgentChatTabPanel {
                 .requires_new_model_connection_session(Some(&value))
         {
             self.pending_connection_model = Some(value);
-            self.refresh_composer();
+            self.refresh_views();
             cx.notify();
             return;
         }
@@ -562,12 +575,9 @@ impl Render for AgentChatTabPanel {
             None => self.render_status(&state, &view, cx),
         });
         // `desktop-agent-conversation-region` and the empty-state overlay.
-        let empty = view.show_ready_empty_state.then(|| {
-            div()
-                .absolute()
-                .inset_0()
-                .child(self.render_empty_state(&view, cx))
-        });
+        let empty = view
+            .show_ready_empty_state
+            .then(|| div().absolute().inset_0().child(self.empty_state.clone()));
         let conversation = div()
             .relative()
             .flex_1()

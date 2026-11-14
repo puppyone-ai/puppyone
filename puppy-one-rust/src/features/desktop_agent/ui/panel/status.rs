@@ -7,15 +7,15 @@ use super::super::agent_panel_presentation::present_runtime_readiness;
 use super::super::agent_theme::AgentTheme;
 use super::AgentChatTabPanel;
 use super::elements::{ButtonTone, agent_button};
-use crate::agent::contract::dto::{Activity, TurnRecovery};
+use crate::agent::contract::dto::TurnRecovery;
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentDisplayRecoveryPolicy,
     AgentDisplayRecoveryStage,
 };
 use crate::features::desktop_agent::domain::agent_backend_routing::is_selectable_agent_backend;
-use crate::localization::{Arg, bidi_isolate, format_number, t, tf};
+use crate::localization::{Arg, bidi_isolate, t, tf};
 use crate::theme;
-use crate::ui::agent_brand_mark::{AgentMark, brand_image, svg_path};
+use crate::ui::agent_brand_mark::{AgentMark, brand_image};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
@@ -340,83 +340,6 @@ impl AgentChatTabPanel {
         region.into_any_element()
     }
 
-    /// `AgentEmptyState`: the runtime's mark and the prompt cue.
-    pub(super) fn render_empty_state(
-        &mut self,
-        view: &AgentChatViewModel,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let palette = cx.palette();
-        let a = AgentTheme::new(&palette);
-        let turns = self.logo_turns;
-        let runtime = view
-            .runtime
-            .runtime_icon_key
-            .as_deref()
-            .and_then(AgentMark::from_icon_key);
-        let label = view.runtime.runtime_label.clone();
-        let mark: AnyElement = match runtime
-            .and_then(|runtime| svg_path(runtime, palette.dark).map(|path| (runtime, path)))
-        {
-            Some((_, path)) => svg()
-                .path(path)
-                .size(px(28.))
-                .text_color(a.empty_brand)
-                .with_animation(
-                    ElementId::NamedInteger("agent-panel-logo-spin".into(), turns as u64),
-                    Animation::new(std::time::Duration::from_millis(780)).with_easing(|x: f32| {
-                        let overshoot = 1. - (1. - x).powi(3);
-                        overshoot + 0.04 * (std::f32::consts::PI * x).sin()
-                    }),
-                    move |el, delta| {
-                        let angle = if turns == 0 {
-                            0.
-                        } else {
-                            delta * std::f32::consts::TAU
-                        };
-                        el.with_transformation(Transformation::rotate(radians(angle)))
-                    },
-                )
-                .into_any_element(),
-            None => match runtime {
-                Some(runtime) => div()
-                    .opacity(0.55)
-                    .child(brand_image(runtime, palette.dark, 28.).grayscale(true))
-                    .into_any_element(),
-                None => Icon::new("bot")
-                    .with_size(px(28.))
-                    .color(a.empty_brand)
-                    .into_any_element(),
-            },
-        };
-        v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .gap(px(12.))
-            .child(
-                div()
-                    .id("agent-panel-empty-logo")
-                    .cursor(theme::clickable_cursor())
-                    .tooltip(crate::ui::components::tooltip(tf(
-                        "agent.empty.spinLogo",
-                        &[("agent", Arg::Text(bidi_isolate(&label)))],
-                    )))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.logo_turns += 1;
-                        cx.notify();
-                    }))
-                    .child(mark),
-            )
-            .child(
-                div()
-                    .text_size(px(theme::ty().left.content))
-                    .text_color(a.text_subtle)
-                    .child(t("agent.empty.prompt")),
-            )
-            .into_any_element()
-    }
-
     /// `AgentRuntimeLauncher`: choosing a row establishes the harness
     /// boundary.
     pub(super) fn render_launcher(
@@ -594,7 +517,7 @@ impl AgentChatTabPanel {
                                 .on_click(cx.listener(
                                     |s, _, _, cx| {
                                         s.pending_connection_model = None;
-                                        s.refresh_composer();
+                                        s.refresh_views();
                                         cx.notify();
                                     },
                                 )),
@@ -610,7 +533,7 @@ impl AgentChatTabPanel {
                                 .on_click(cx.listener(
                                     move |s, _, _, cx| {
                                         s.pending_connection_model = None;
-                                        s.refresh_composer();
+                                        s.refresh_views();
                                         drop(s.controller.start_new_model_connection(&model));
                                         cx.notify();
                                     },
@@ -630,8 +553,8 @@ impl AgentChatTabPanel {
                 cx,
             ));
         }
-        if let Some(activities) = self.render_provider_activities(state, cx) {
-            dock = dock.child(activities);
+        if !self.notices.read(cx).is_empty() {
+            dock = dock.child(self.notices.clone());
         }
         dock.child(self.composer.clone()).into_any_element()
     }
@@ -781,85 +704,5 @@ impl AgentChatTabPanel {
                     ),
             )
             .into_any_element()
-    }
-
-    /// `AgentProviderActivities`: quiet, bounded live notices.
-    fn render_provider_activities(
-        &mut self,
-        state: &AgentControllerState,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let palette = cx.palette();
-        let a = AgentTheme::new(&palette);
-        let m = theme::ty();
-        let notices: Vec<Activity> = state
-            .projection
-            .activities
-            .iter()
-            .filter(|activity| {
-                let label = !activity.label.is_empty();
-                let category = activity.detail.text("category").unwrap_or_default();
-                let status = activity.status.as_str();
-                label
-                    && (activity.kind == "notification"
-                        || (activity.kind == "system"
-                            && category != "compaction"
-                            && !(category == "authentication"
-                                && ["completed", "succeeded"].contains(&status))))
-            })
-            .map(|activity| (**activity).clone())
-            .collect();
-        if notices.is_empty() {
-            return None;
-        }
-        let (prominent, quiet): (Vec<Activity>, Vec<Activity>) =
-            notices.into_iter().partition(|activity| {
-                ["running", "failed", "warning"].contains(&activity.status.as_str())
-            });
-        let open = self.provider_notices_open;
-        let mut column = v_flex().gap(px(4.)).text_size(px(m.right.caption));
-        for activity in &prominent {
-            let failed = activity.status == "failed";
-            column = column.child(
-                div()
-                    .whitespace_normal()
-                    .text_color(if failed { palette.danger } else { a.text_muted })
-                    .child(activity.label.clone()),
-            );
-        }
-        if !quiet.is_empty() {
-            column = column.child(
-                h_flex()
-                    .id("agent-provider-notices")
-                    .gap(px(4.))
-                    .text_color(a.text_subtle)
-                    .cursor(theme::clickable_cursor())
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.provider_notices_open = !s.provider_notices_open;
-                        cx.notify();
-                    }))
-                    .child(
-                        Icon::new(if open {
-                            "chevron-down"
-                        } else {
-                            "chevron-right"
-                        })
-                        .with_size(px(12.))
-                        .color(a.text_subtle),
-                    )
-                    .child(t("agent.activity.notifications"))
-                    .child(format_number(quiet.len() as i64)),
-            );
-            if open {
-                column = column.children(quiet.iter().map(|activity| {
-                    div()
-                        .pl(px(16.))
-                        .whitespace_normal()
-                        .text_color(a.text_subtle)
-                        .child(activity.label.clone())
-                }));
-            }
-        }
-        Some(column.into_any_element())
     }
 }

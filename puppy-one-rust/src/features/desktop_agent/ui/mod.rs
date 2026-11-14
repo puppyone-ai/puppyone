@@ -10,8 +10,10 @@ pub mod agent_theme;
 pub mod agent_tool_group_presentation;
 pub mod composer;
 pub mod docks;
+pub mod empty_state;
 pub mod panel;
 pub mod pickers;
+pub mod provider_notices;
 #[cfg(test)]
 mod tests;
 pub mod transcript;
