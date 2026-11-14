@@ -6,9 +6,9 @@
 use super::*;
 use crate::ui::appearance::ActiveAppearance;
 use crate::{
-    features::desktop_agent::{LauncherIdentity, launcher_icon},
     localization::t as tr,
     theme,
+    ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
     ui::components::{Icon, IconButton, Spinner},
 };
 use gpui_kit::{
@@ -95,7 +95,7 @@ impl Workbench {
             external = external.child(
                 self.launcher_row(
                     ElementId::NamedInteger("launch-agent".into(), group * 100 + i as u64),
-                    LauncherIdentity::Runtime(installation.runtime),
+                    LauncherIdentity::brand(installation.runtime.icon_key()),
                     installation.label.clone().into(),
                     row_group,
                     if installation.chat { chats } else { terminals },
@@ -127,7 +127,7 @@ impl Workbench {
             bundled = bundled.child(
                 self.launcher_row(
                     ElementId::NamedInteger("launch-bundled".into(), group * 100 + i as u64),
-                    LauncherIdentity::Runtime(installation.runtime),
+                    LauncherIdentity::brand(installation.runtime.icon_key()),
                     installation.label.clone().into(),
                     format!("launch-bundled-{group}-{i}").into(),
                     if installation.chat { chats } else { terminals },

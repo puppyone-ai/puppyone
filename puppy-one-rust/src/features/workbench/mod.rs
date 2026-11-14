@@ -27,10 +27,7 @@ use crate::ui::{
     components::{Button, ButtonVariant, ResizeHandle},
 };
 use crate::{
-    agent::{
-        connections::legacy_local_agent_inventory::{self as agents, Installation},
-        connections::legacy_runtime_registry::Runtime,
-    },
+    agent::connections::legacy_local_agent_inventory::{self as agents, Installation},
     theme::Theme,
     wake::Wake,
 };

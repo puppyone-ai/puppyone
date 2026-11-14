@@ -5,12 +5,12 @@
 use super::{SessionStatus, TerminalView, path_label};
 use crate::agent::connections::legacy_local_agent_inventory::Installation;
 use crate::agent::connections::legacy_runtime_registry::Runtime;
-use crate::features::desktop_agent::{LauncherIdentity, launcher_icon};
 use crate::features::workbench::{
     CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, RetainedItem, Workbench,
     WorkbenchItem,
 };
 use crate::localization::{t as tr, tf};
+use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
@@ -83,9 +83,9 @@ impl WorkbenchItem for TerminalItem {
         let t = cx.palette();
         let terminal = self.view.read(cx);
         let active = self.runtime.is_some() && terminal.agent_active();
-        let identity = self
-            .runtime
-            .map_or(LauncherIdentity::Shell, LauncherIdentity::Runtime);
+        let identity = self.runtime.map_or(LauncherIdentity::Shell, |r| {
+            LauncherIdentity::brand(r.icon_key())
+        });
         // `[data-status="exited"] .desktop-terminal-tab-status { opacity: 0.42 }`
         Some(
             div()

@@ -270,7 +270,7 @@ impl AgentSettings {
     }
     /// Category rows for the Settings page (rendered inside its section).
     fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<SettingsCategory> {
-        use crate::features::desktop_agent::{LauncherIdentity, launcher_icon};
+        use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
         let dark = cx.is_dark();
         let scanning = self.scanning || self.installations.is_none();
         let prefs = self.preferences.read(cx).state.clone();
@@ -340,9 +340,14 @@ impl AgentSettings {
                 .child(icon)
                 .child(div().truncate().text_color(t.text).child(name))
         };
-        let agent_icon = |runtime| {
-            launcher_icon(LauncherIdentity::Runtime(runtime), false, dark, t.muted)
-                .into_any_element()
+        let agent_icon = |runtime: crate::agent::connections::legacy_runtime_registry::Runtime| {
+            launcher_icon(
+                LauncherIdentity::brand(runtime.icon_key()),
+                false,
+                dark,
+                t.muted,
+            )
+            .into_any_element()
         };
         // `.desktop-local-agent-group-action`: a 20px quiet text action whose
         // RefreshCw turns while loading.

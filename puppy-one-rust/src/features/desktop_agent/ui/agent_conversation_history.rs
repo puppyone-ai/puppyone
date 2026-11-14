@@ -3,7 +3,6 @@
 //! cross-runtime History over the project's `ConversationHistoryController`.
 //! Discovery waits for the explicit permission; rows are locators only, and
 //! opening one is the workbench's job (`HistoryBrowserEvent::Open`).
-use super::agent_brand_mark::{monochrome_mark, runtime_for_icon_key};
 use super::agent_theme::AgentTheme;
 use crate::agent::contract::dto::{RuntimeDescriptor, SessionDiscovery, SessionMetadata};
 use crate::features::desktop_agent::application::conversation_history_controller::{
@@ -13,6 +12,7 @@ use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, create_agent_chat_history_target,
 };
 use crate::features::desktop_agent::infrastructure::cloud::{Hub, LABEL};
+use crate::ui::agent_brand_mark::{AgentMark, monochrome_mark};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, tooltip};
 use crate::{
@@ -622,7 +622,7 @@ impl HistoryBrowser {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let runtime = runtime_for_icon_key(&history.icon_key(session));
+        let runtime = AgentMark::from_icon_key(&history.icon_key(session));
         let disabled = self.opening.is_some();
         let title = session.title.clone();
         let updated = (session.updated_at_known != Some(false))

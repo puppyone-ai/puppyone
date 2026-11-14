@@ -1,63 +1,76 @@
 //! Port of `AgentBrandMark`: official local product assets shared by the
 //! launcher, workbench tabs and the empty state.
-use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
-fn asset(runtime: Runtime, dark: bool) -> &'static str {
+/// The Agent product a mark draws (`AgentLauncherIcon`'s `iconKey`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgentMark {
+    PuppyOne,
+    Codex,
+    Claude,
+    Cursor,
+    Hermes,
+    OpenCode,
+    Pi,
+    WorkBuddy,
+}
+impl AgentMark {
+    /// The mark an `iconKey` names (`agentBrandCatalog`).
+    pub fn from_icon_key(key: &str) -> Option<Self> {
+        Some(match key {
+            "built-in-agent" | "puppyone-agent" => Self::PuppyOne,
+            "codex" => Self::Codex,
+            "claude" => Self::Claude,
+            "cursor" => Self::Cursor,
+            "opencode" => Self::OpenCode,
+            "pi" => Self::Pi,
+            "hermes" => Self::Hermes,
+            "workbuddy" => Self::WorkBuddy,
+            _ => return None,
+        })
+    }
+}
+fn asset(runtime: AgentMark, dark: bool) -> &'static str {
     match runtime {
-        Runtime::PuppyOne => {
+        AgentMark::PuppyOne => {
             if dark {
                 "built-in-agent-dark.svg"
             } else {
                 "built-in-agent.svg"
             }
         }
-        Runtime::Codex => {
+        AgentMark::Codex => {
             if dark {
                 "codex-dark.png"
             } else {
                 "codex-light.png"
             }
         }
-        Runtime::Claude => "claude-code.svg",
-        Runtime::Cursor => {
+        AgentMark::Claude => "claude-code.svg",
+        AgentMark::Cursor => {
             if dark {
                 "cursor-dark.svg"
             } else {
                 "cursor.svg"
             }
         }
-        Runtime::OpenCode => "opencode.svg",
-        Runtime::Pi => {
+        AgentMark::OpenCode => "opencode.svg",
+        AgentMark::Pi => {
             if dark {
                 "pi-dark.svg"
             } else {
                 "pi.svg"
             }
         }
-        Runtime::Hermes => "hermes.png",
-        Runtime::WorkBuddy => "workbuddy.png",
+        AgentMark::Hermes => "hermes.png",
+        AgentMark::WorkBuddy => "workbuddy.png",
     }
-}
-/// The brand a runtime's `iconKey` names (`agentBrandCatalog`).
-pub fn runtime_for_icon_key(key: &str) -> Option<Runtime> {
-    Some(match key {
-        "built-in-agent" | "puppyone-agent" => Runtime::PuppyOne,
-        "codex" => Runtime::Codex,
-        "claude" => Runtime::Claude,
-        "cursor" => Runtime::Cursor,
-        "opencode" => Runtime::OpenCode,
-        "pi" => Runtime::Pi,
-        "hermes" => Runtime::Hermes,
-        "workbuddy" => Runtime::WorkBuddy,
-        _ => return None,
-    })
 }
 /// The ChatGPT mark Codex uses (`agentBrandCatalog`), drawn as an alpha mask
 /// in the surrounding colour like `AgentMonochromeBrandImage`.
 const CHATGPT_MARK: &str = "agents/chatgpt-mark.svg";
-pub fn brand_image(runtime: Runtime, dark: bool, size: f32) -> Img {
+pub fn brand_image(runtime: AgentMark, dark: bool, size: f32) -> Img {
     img(SharedString::from(format!(
         "agents/{}",
         asset(runtime, dark)
@@ -67,8 +80,8 @@ pub fn brand_image(runtime: Runtime, dark: bool, size: f32) -> Img {
 }
 /// SVG mark path for monochrome presentation (`appearance="monochrome"`);
 /// raster marks have no monochrome form.
-pub fn svg_path(runtime: Runtime, dark: bool) -> Option<&'static str> {
-    if runtime == Runtime::Codex {
+pub fn svg_path(runtime: AgentMark, dark: bool) -> Option<&'static str> {
+    if runtime == AgentMark::Codex {
         return Some(CHATGPT_MARK);
     }
     let path = asset(runtime, dark);
@@ -89,7 +102,13 @@ pub fn svg_path(runtime: Runtime, dark: bool) -> Option<&'static str> {
 /// visible). ChatGPT/Codex, Claude, Cursor and Pi have single-colour marks in
 /// `color`; other brands keep their image at its `assetOpticalScale`, and
 /// OpenCode sits on `--po-canvas`.
-pub fn monochrome_mark(runtime: Runtime, dark: bool, size: f32, color: Rgba, canvas: Rgba) -> Div {
+pub fn monochrome_mark(
+    runtime: AgentMark,
+    dark: bool,
+    size: f32,
+    color: Rgba,
+    canvas: Rgba,
+) -> Div {
     let slot = div()
         .size(px(size))
         .flex_shrink_0()
@@ -98,10 +117,10 @@ pub fn monochrome_mark(runtime: Runtime, dark: bool, size: f32, color: Rgba, can
         .justify_center()
         .rounded(px(3.));
     let mark = match runtime {
-        Runtime::Codex => Some(CHATGPT_MARK),
-        Runtime::Claude => Some("agents/claude-code.svg"),
-        Runtime::Cursor => Some("agents/cursor-monochrome.svg"),
-        Runtime::Pi => Some("agents/pi-monochrome.svg"),
+        AgentMark::Codex => Some(CHATGPT_MARK),
+        AgentMark::Claude => Some("agents/claude-code.svg"),
+        AgentMark::Cursor => Some("agents/cursor-monochrome.svg"),
+        AgentMark::Pi => Some("agents/pi-monochrome.svg"),
         _ => None,
     };
     if let Some(path) = mark {
@@ -114,19 +133,25 @@ pub fn monochrome_mark(runtime: Runtime, dark: bool, size: f32, color: Rgba, can
         );
     }
     let scale = match runtime {
-        Runtime::Hermes => 0.82,
-        Runtime::OpenCode => 1.3,
+        AgentMark::Hermes => 0.82,
+        AgentMark::OpenCode => 1.3,
         _ => 1.,
     };
-    slot.when(runtime == Runtime::OpenCode, |d| d.bg(canvas))
+    slot.when(runtime == AgentMark::OpenCode, |d| d.bg(canvas))
         .child(brand_image(runtime, dark, size * scale).flex_shrink_0())
 }
 /// What `AgentLauncherIcon` draws: an Agent brand or the shell. (Native chats
 /// always know their runtime, so the product's chat fallback glyph is unused.)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LauncherIdentity {
-    Runtime(Runtime),
+    Brand(AgentMark),
     Shell,
+}
+impl LauncherIdentity {
+    /// The brand `icon_key` names, or the shell's glyph for none.
+    pub fn brand(icon_key: &str) -> Self {
+        AgentMark::from_icon_key(icon_key).map_or(Self::Shell, Self::Brand)
+    }
 }
 /// `AgentLauncherIcon` with `src/components/brand/agent-launcher-icon.css`:
 /// an 18px (14px compact) clipped slot in `--po-text-muted`, the brand's
@@ -138,7 +163,7 @@ pub fn launcher_icon(identity: LauncherIdentity, compact: bool, dark: bool, colo
     let mut opacity = if compact { 0.78 } else { 0.72 };
     let mut backing = None;
     let inner: AnyElement = match identity {
-        LauncherIdentity::Runtime(Runtime::Codex) => {
+        LauncherIdentity::Brand(AgentMark::Codex) => {
             radius = 4.;
             opacity = 0.9;
             svg()
@@ -147,20 +172,20 @@ pub fn launcher_icon(identity: LauncherIdentity, compact: bool, dark: bool, colo
                 .text_color(color)
                 .into_any_element()
         }
-        LauncherIdentity::Runtime(runtime) => {
+        LauncherIdentity::Brand(runtime) => {
             let scale = match runtime {
-                Runtime::Claude | Runtime::Cursor => 0.84,
-                Runtime::Hermes if compact => 0.94,
-                Runtime::Hermes => 0.82,
-                Runtime::OpenCode => 1.3,
-                Runtime::Pi => 1.28,
+                AgentMark::Claude | AgentMark::Cursor => 0.84,
+                AgentMark::Hermes if compact => 0.94,
+                AgentMark::Hermes => 0.82,
+                AgentMark::OpenCode => 1.3,
+                AgentMark::Pi => 1.28,
                 _ => 1.,
             };
             match runtime {
-                Runtime::Pi => radius = 3.,
-                Runtime::Hermes => radius = 4.,
-                Runtime::OpenCode => backing = Some(crate::theme::opencode_mark_surface()),
-                Runtime::PuppyOne => {
+                AgentMark::Pi => radius = 3.,
+                AgentMark::Hermes => radius = 4.,
+                AgentMark::OpenCode => backing = Some(crate::theme::opencode_mark_surface()),
+                AgentMark::PuppyOne => {
                     radius = 5.;
                     opacity = 1.;
                 }

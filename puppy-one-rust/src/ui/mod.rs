@@ -1,4 +1,5 @@
 //! GPUI presentation primitives and text input; no document or service ownership.
+pub mod agent_brand_mark;
 pub mod agent_brands;
 pub mod agent_creature;
 pub mod appearance;

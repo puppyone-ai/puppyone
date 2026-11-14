@@ -1,7 +1,6 @@
 //! `AgentPanelStatus`, `AgentEmptyState`, `AgentRuntimeLauncher`,
 //! `AgentRecoverySurface`, `AgentProviderActivities` and the dock region of
 //! `AgentChatTabPanel`.
-use super::super::agent_brand_mark::{brand_image, runtime_for_icon_key, svg_path};
 use super::super::agent_chat_view_model::AgentChatViewModel;
 use super::super::agent_error_presentation::present_agent_error;
 use super::super::agent_panel_presentation::present_runtime_readiness;
@@ -15,6 +14,7 @@ use crate::features::desktop_agent::application::agent_controller_state::{
 use crate::features::desktop_agent::domain::agent_backend_routing::is_selectable_agent_backend;
 use crate::localization::{Arg, bidi_isolate, format_number, t, tf};
 use crate::theme;
+use crate::ui::agent_brand_mark::{AgentMark, brand_image, svg_path};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
@@ -429,7 +429,7 @@ impl AgentChatTabPanel {
             .runtime
             .runtime_icon_key
             .as_deref()
-            .and_then(runtime_for_icon_key);
+            .and_then(AgentMark::from_icon_key);
         let label = view.runtime.runtime_label.clone();
         let mark: AnyElement = match runtime
             .and_then(|runtime| svg_path(runtime, palette.dark).map(|path| (runtime, path)))
@@ -528,7 +528,7 @@ impl AgentChatTabPanel {
                         cx.notify();
                     }))
                     .children(
-                        runtime_for_icon_key(&icon_key)
+                        AgentMark::from_icon_key(&icon_key)
                             .map(|runtime| brand_image(runtime, palette.dark, 16.)),
                     )
                     .child(

@@ -3,7 +3,6 @@
 //! hosted conversation, so hiding or moving the tab never ends its session.
 use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
-use crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key;
 use crate::features::desktop_agent::ui::panel::{
     AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation,
 };
@@ -170,7 +169,7 @@ impl WorkbenchItem for AgentChatItem {
             runtime: presentation
                 .as_ref()
                 .and_then(|p| p.runtime_icon_key.as_deref())
-                .and_then(runtime_for_icon_key)
+                .and_then(Runtime::from_icon_key)
                 .unwrap_or(Runtime::PuppyOne),
             thread: presentation.as_ref().and_then(|p| p.session_id.clone()),
             title: presentation.map(|p| p.title).unwrap_or_default(),
